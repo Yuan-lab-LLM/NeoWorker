@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="./screenshots/readme/neoworker-logo.svg" alt="NeoWorker — AI · Work · Ready" width="760">
+  <img src="./screenshots/readme/neoworker-logo.svg" alt="NeoWorker — AI · Work · Ready" width="560">
 </p>
 
 <h1 align="center">NeoWorker</h1>
