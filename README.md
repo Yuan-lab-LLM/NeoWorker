@@ -1,3 +1,7 @@
+<p align="right">
+  <strong>English</strong> | <a href="./README.zh-CN.md">简体中文</a>
+</p>
+
 <p align="center">
   <img src="./screenshots/readme/neoworker-logo.svg" alt="NeoWorker — AI · Work · Ready" width="760">
 </p>
@@ -5,8 +9,8 @@
 <h1 align="center">NeoWorker</h1>
 
 <p align="center">
-  <strong>GUI 优先、CLI 可用、本地优先的个人智能工作系统。</strong><br>
-  让 AI 不只回答问题，而是读取上下文、调用工具、推进任务，并交付真正可打开、可修改、可追溯的工作成果。
+  <strong>A GUI-first, CLI-ready, local-first AI work operating system.</strong><br>
+  NeoWorker goes beyond answering questions: it understands context, uses tools, advances tasks, and delivers real files you can open, edit, and trace.
 </p>
 
 <p align="center">
@@ -18,286 +22,286 @@
 </p>
 
 <p align="center">
-  <a href="#neoworker-是什么">简介</a>
+  <a href="#what-is-neoworker">Overview</a>
   &nbsp;·&nbsp;
-  <a href="#neoworker-如何工作">工作方式</a>
+  <a href="#how-neoworker-works">How it works</a>
   &nbsp;·&nbsp;
-  <a href="#快速开始">快速开始</a>
+  <a href="#quick-start">Quick start</a>
   &nbsp;·&nbsp;
-  <a href="#neoworker-能做什么">功能</a>
+  <a href="#what-neoworker-can-do">Capabilities</a>
   &nbsp;·&nbsp;
-  <a href="./docs/features.md">完整能力</a>
+  <a href="./docs/features.md">Full feature set</a>
   &nbsp;·&nbsp;
-  <a href="./docs/architecture.md">架构</a>
+  <a href="./docs/architecture.md">Architecture</a>
   &nbsp;·&nbsp;
-  <a href="./SECURITY.md">安全</a>
+  <a href="./SECURITY.md">Security</a>
   &nbsp;·&nbsp;
-  <a href="./CONTRIBUTING.md">参与贡献</a>
+  <a href="./CONTRIBUTING.md">Contributing</a>
 </p>
 
-## NeoWorker 是什么？
+## What is NeoWorker?
 
-NeoWorker 是一个面向个人与小团队的**开源桌面 AI 工作系统**。它把对话、项目上下文、本地文件、模型、工具、Skills、自动化与多 Agent 协作集中在同一个工作台中，让用户可以从一句自然语言需求出发，完成从理解目标、规划步骤、调用工具到交付成果的完整过程。
+NeoWorker is an **open-source desktop AI work operating system** for individuals and small teams. It brings conversations, project context, local files, models, tools, Skills, automations, and multi-agent collaboration into one workspace. Start with a natural-language objective and move through understanding, planning, tool use, execution, and delivery without losing context.
 
-它不是只生成文字回答的聊天机器人。NeoWorker 可以在权限可控的运行时中操作文件、终端、浏览器和 Office 文档，执行研究、写作、数据分析、代码修改与重复性流程，并将结果交付为真正可打开、可编辑、可继续迭代的 DOCX、XLSX、PPTX、PDF、HTML、图片或代码文件。
+NeoWorker is not a chatbot that only produces text. Inside a permission-controlled runtime, it can work with files, terminals, browsers, and Office documents; conduct research; write and analyze; modify code; and run repeatable workflows. Results are delivered as real DOCX, XLSX, PPTX, PDF, HTML, image, Markdown, or code files that remain available for further editing.
 
-NeoWorker 采用本地优先、模型可替换、能力可扩展的设计：工作区、任务记录和产物保存在本机；用户可以接入不同模型服务，通过 Skills 与 MCP Connectors 扩展专业能力；执行步骤、权限审批、失败重试和最终交付均保留记录，便于检查、恢复与长期推进。
+The system is local-first, model-flexible, and extensible. Workspaces, task history, and artifacts stay on your machine. You can connect different model providers and add specialized capabilities through Skills and MCP Connectors. Execution steps, approvals, retries, failures, and final outputs remain inspectable so work can be reviewed, recovered, and continued.
 
-## NeoWorker 如何工作
+## How NeoWorker works
 
 <p align="center">
-  <img src="./screenshots/readme/neoworker-how-it-works-v2.png" alt="NeoWorker 工作流程：Ask、Plan、Execute、Deliver" width="860">
-  <br><em>描述目标，NeoWorker 负责规划、执行并交付可以继续使用的成果。</em>
+  <img src="./screenshots/readme/neoworker-how-it-works-v2.png" alt="NeoWorker workflow: Ask, Plan, Execute, Deliver" width="860">
+  <br><em>Describe the goal. NeoWorker plans the work, executes it, and delivers results you can keep using.</em>
 </p>
 
-用户只需说明目标、已有资料和期望交付物。NeoWorker 会结合当前工作区理解上下文，制定执行步骤，调用合适的模型、工具与 Skills，在必要时请求权限确认，最后检查并交付结果。
+Provide a goal, the available material, and the expected deliverable. NeoWorker uses the current workspace as context, creates an execution plan, selects the appropriate model, tools, and Skills, requests permission when needed, and validates the result before delivery.
 
-## 为什么是 NeoWorker？
+## Why NeoWorker?
 
-- **一个应用承接完整工作**：研究、写作、数据分析、代码修改、网页操作、Office 文件、自动化和消息渠道都在同一个任务工作区中完成。
-- **GUI 优先，CLI 可用**：桌面端负责会话、文件、审批和可视化执行；`neoworker` CLI 使用同一套本地运行时、模型设置、技能和工作区。
-- **任务，而不只是聊天**：Agent 可以制定步骤、调用工具、处理失败、等待审批、继续执行，并把过程保留在任务时间线里。
-- **成果优先**：DOCX、XLSX、PPTX、PDF、HTML、Markdown、图片和代码都可以成为正式产物，而不是只返回一句“已经生成”。
-- **文件可以继续改**：产物与任务保持关联，可在工作台中预览、下载、打开，并继续要求 Agent 修改。
-- **模型与工具可扩展**：支持多种模型服务、OpenAI 兼容接口、Skills、MCP Connectors 和本地工具组合。
-- **长期工作可持续**：项目、工作区、记忆、Agent 团队与自动化让一次对话可以演变为持续推进的工作流。
-- **高权限操作可治理**：文件写入、Shell、浏览器和外部应用操作受工作区边界、权限模式和审批策略控制。
+- **One application for complete work** — research, writing, data analysis, coding, browser operations, Office files, automations, and messaging workflows live in the same task workspace.
+- **GUI-first, CLI-ready** — the desktop app handles conversations, files, approvals, and visual execution; the <code>neoworker</code> CLI uses the same local runtime, models, Skills, and workspaces.
+- **Tasks, not isolated chats** — agents can plan, call tools, handle failures, wait for approval, resume execution, and preserve the entire process on a task timeline.
+- **Deliverable-first** — DOCX, XLSX, PPTX, PDF, HTML, Markdown, images, and code are first-class outputs rather than a message claiming a file was created.
+- **Artifacts remain editable** — outputs stay linked to their tasks and can be previewed, downloaded, opened, and revised.
+- **Flexible models and tools** — combine multiple providers, OpenAI-compatible endpoints, Skills, MCP Connectors, and local tools.
+- **Built for long-running work** — projects, workspaces, memory, agent teams, and automations turn one-off conversations into sustainable workflows.
+- **Governed high-privilege actions** — file writes, Shell commands, browser control, and external app operations remain subject to workspace boundaries, permission modes, and approval policies.
 
 <p align="center">
-  <img src="./screenshots/readme/neoworker-capabilities-v2.png" alt="NeoWorker 连接工具、构建知识与自动化任务" width="900">
-  <br><em>连接工具、构建知识、自动化任务，让同一个工作台承接完整过程。</em>
+  <img src="./screenshots/readme/neoworker-capabilities-v2.png" alt="NeoWorker connects tools, builds knowledge, and automates tasks" width="900">
+  <br><em>Connect tools, build knowledge, and automate tasks from a single workbench.</em>
 </p>
 
-## NeoWorker 的方向
+## Project direction
 
-NeoWorker 聚焦把 AI 从对话助手升级为能够持续理解上下文、执行任务并交付成果的个人智能工作系统。项目重点放在以下方向：
+NeoWorker focuses on turning AI from a conversational assistant into a personal work system that can continuously understand context, execute tasks, and deliver usable results.
 
-| 方向 | NeoWorker 的重点 |
+| Direction | Focus |
 | --- | --- |
-| **中文优先体验** | 优化中文界面、术语、引导、模型接入和国内常用消息渠道。 |
-| **更低的使用门槛** | 默认自动判断任务需要执行、研究还是调用技能，减少用户先理解模式再工作的负担。 |
-| **可靠的文件交付** | 强化 Office、PDF 和 HTML 的生成、发现、预览、下载、打开与完整性校验。 |
-| **透明的执行过程** | 让步骤、工具调用、失败、重试、审批和最终产物都可以被用户检查。 |
-| **独立的扩展生态** | Skills 与工具尽量保持可移植，可在 NeoWorker 之外的兼容 Agent 环境中复用。 |
-| **本地工作中心** | 以本机工作区和本地运行记录为核心，同时允许按需连接云模型和外部服务。 |
+| **Chinese-first product experience** | Better Chinese UI copy, terminology, onboarding, model access, and commonly used regional messaging channels. |
+| **Lower learning curve** | Automatically infer whether a task needs execution, research, or a Skill instead of requiring users to choose a mode first. |
+| **Reliable file delivery** | Strengthen generation, discovery, preview, download, opening, and integrity checks for Office, PDF, and HTML artifacts. |
+| **Transparent execution** | Make plans, tool calls, failures, retries, approvals, and final outputs easy to inspect. |
+| **Portable extensions** | Keep Skills and tools portable across NeoWorker and compatible agent environments. |
+| **Local work center** | Keep workspaces and runtime records on the local machine while allowing opt-in cloud models and external services. |
 
-## 当前版本
+## Current version
 
-当前源码版本为 **`0.5.52`**。首次 GitHub Release 建议同时提供：
+The current source version is **<code>0.5.52</code>**. The first GitHub Release is expected to include:
 
-- macOS `.dmg` 与 `.zip`
-- Windows `.exe` 安装程序
-- 对应版本的更新说明和校验信息
+- macOS <code>.dmg</code> and <code>.zip</code> packages
+- a Windows <code>.exe</code> installer
+- release notes and checksums
 
-版本变更请查看 [CHANGELOG.md](./CHANGELOG.md)。
+See [CHANGELOG.md](./CHANGELOG.md) for version history.
 
-## 快速开始
+## Quick start
 
-### 下载桌面应用
+### Download the desktop application
 
-正式 Release 发布后，可从 [GitHub Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) 下载对应安装包。
+After the first public release, download the installer from [GitHub Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest).
 
-| 平台 | 安装包 | 安装方式 |
+| Platform | Package | Installation |
 | --- | --- | --- |
-| **macOS** | `.dmg` | 打开镜像，将 NeoWorker 拖入 Applications。 |
-| **Windows** | `.exe` | 运行安装程序并按提示完成安装。 |
+| **macOS** | <code>.dmg</code> | Open the disk image and drag NeoWorker into Applications. |
+| **Windows** | <code>.exe</code> | Run the installer and follow the setup prompts. |
 
-如果 macOS 阻止打开未签名的预览包，请前往 **系统设置 → 隐私与安全性**，核对应用来源后选择 **仍要打开**。
+If macOS blocks an unsigned preview build, open **System Settings → Privacy & Security**, verify the source, and choose **Open Anyway**.
 
-### 从源码运行
+### Run from source
 
-环境要求：Node.js 24+、npm 与 Git。
+Requirements: Node.js 24+, npm, and Git.
 
-```bash
+~~~bash
 git clone https://github.com/Yuan-lab-LLM/NeoWorker.git
 cd NeoWorker
 npm install
 npm run dev
-```
+~~~
 
-`npm run dev` 会启动 Vite 开发服务器和 Electron 桌面应用。
+<code>npm run dev</code> starts the Vite development server and the Electron desktop application.
 
-### 使用 CLI
+### Use the CLI
 
-```bash
+~~~bash
 npm run build:cli
 node bin/neoworker-cli.js --help
-node bin/neoworker-cli.js run "总结当前工作区，并列出最需要处理的三个问题"
-```
+node bin/neoworker-cli.js run "Summarize this workspace and list the three most important issues."
+~~~
 
-CLI 与桌面端共享本地配置、模型路由、工作区、Skills 和 MCP 设置。远程 Control Plane 仅在显式使用远程模式时需要单独配置。
+The CLI and desktop app share local configuration, model routing, workspaces, Skills, and MCP settings. A remote control plane is only required when remote mode is explicitly enabled.
 
-### 第一次启动
+### First launch
 
-1. 在 **设置 → AI 与模型** 中连接一个模型服务或 OpenAI 兼容接口。
-2. 测试连接，并选择默认模型。
-3. 选择工作区文件夹；只想体验时可以先使用临时工作区。
-4. 新建任务，描述目标、已有资料和希望得到的交付物。
-5. 当任务需要敏感写入、Shell 或外部应用操作时，检查权限申请后再决定是否允许。
+1. Open **Settings → AI & Models** and connect a model provider or an OpenAI-compatible endpoint.
+2. Test the connection and select a default model.
+3. Choose a workspace folder, or start with a temporary workspace.
+4. Create a task and describe the goal, available material, and expected deliverable.
+5. Review permission requests before allowing sensitive writes, Shell commands, or external application control.
 
 > [!IMPORTANT]
-> 不要把 API Key、访问令牌或私密配置提交到 Git。分享截图、日志和任务记录前，请先移除个人信息与凭据。
+> Never commit API keys, access tokens, or private configuration. Remove personal data and credentials before sharing screenshots, logs, or task history.
 
-## NeoWorker 能做什么
+## What NeoWorker can do
 
 ### Agent Runtime
 
-- 面向任务的长时间执行、动态规划和失败恢复
-- 会话级状态、检查清单、权限和恢复快照
-- 读取并行、冲突写入串行的工具调度
-- Agent 团队、角色分工与项目上下文
-- 模型路由、备用模型和多模型协作
-- 执行步骤、工具调用、重试和完成状态可视化
+- Long-running task execution, dynamic planning, and failure recovery
+- Session-level state, checklists, permissions, and recovery snapshots
+- Parallel reads with serialized conflicting writes
+- Agent teams, role assignment, and project context
+- Model routing, fallback models, and multi-model collaboration
+- Visible plans, tool calls, retries, and completion states
 
 ### Everything Workbench
 
-NeoWorker 把“生成文件”作为任务的正式结果。文件创建后会进入统一的产物工作台，而不是只在回复中显示一个文件名。
+NeoWorker treats generated files as formal task outcomes. New files enter a unified artifact workbench instead of appearing only as filenames in a response.
 
-| 产物 | 支持的工作方式 |
+| Artifact | Supported workflow |
 | --- | --- |
-| **Word / DOCX** | 生成、预览、编辑、保存、下载、外部打开和继续修改。 |
-| **Excel / XLSX / CSV** | 表格预览与编辑、复制、保存、继续分析和生成新版本。 |
-| **PowerPoint / PPTX** | 缩略图、翻页、缩放、演讲者备注、缓存渲染和继续修改。 |
-| **PDF** | 页面预览、文本提取、OCR 状态、内容问答与视觉检查。 |
-| **HTML / Web** | 沙箱预览、刷新、外部浏览器打开和构建结果识别。 |
-| **Markdown / Code / JSON** | 语法展示、复制、外部打开、目录定位和后续编辑。 |
+| **Word / DOCX** | Generate, preview, edit, save, download, open externally, and request revisions. |
+| **Excel / XLSX / CSV** | Preview and edit tables, copy data, save changes, continue analysis, and create new versions. |
+| **PowerPoint / PPTX** | Browse thumbnails, change slides, zoom, inspect notes, render previews, and continue editing. |
+| **PDF** | Preview pages, extract text, inspect OCR status, ask questions, and perform visual checks. |
+| **HTML / Web** | Preview in a sandbox, refresh, open in an external browser, and detect build output. |
+| **Markdown / Code / JSON** | Display syntax, copy content, open externally, reveal in a folder, and revise. |
 
-### 研究、网页与知识工作
+### Research, web, and knowledge work
 
-- 搜索、打开并交叉核验网页信息
-- 读取 PDF、文档、表格、图片和工作区资料
-- 使用应用内 Browser Workbench 进行真实页面操作与验证
-- 把研究过程整理为带来源的报告、表格、PPT 或网页
-- 建立项目知识库和可持续维护的研究资料库
+- Search, open, and cross-check web information
+- Read PDFs, documents, spreadsheets, images, and workspace material
+- Interact with and verify real pages in the Browser Workbench
+- Produce sourced reports, spreadsheets, presentations, and web pages
+- Build project knowledge bases and maintainable research collections
 
-### 开发者工作台
+### Developer workbench
 
-- 阅读和修改代码库
-- 运行 Shell 命令、测试、构建和诊断
-- 使用 PTY 终端标签处理交互式 CLI
-- 在应用内浏览器验证前端页面和响应式布局
-- 将代码、终端、浏览器、任务记录和审批保留在同一工作区
+- Read and modify codebases
+- Run Shell commands, tests, builds, and diagnostics
+- Use PTY terminal tabs for interactive command-line programs
+- Verify front-end pages and responsive layouts in the built-in browser
+- Keep code, terminals, browser state, task history, and approvals together
 
-### 模型、Skills 与 Connectors
+### Models, Skills, and Connectors
 
-- 多模型服务商与 OpenAI 兼容接口
-- 模型列表、默认模型、备用路由和连接测试
-- 内置 Skills、外部 Skill 目录和技能路由
-- MCP Connectors 与本地工具扩展
-- Skills 作为增量工作流加入任务，而不是替换用户原始目标
+- Multiple model providers and OpenAI-compatible endpoints
+- Model lists, defaults, fallback routing, and connection testing
+- Built-in Skills, external Skill directories, and skill routing
+- MCP Connectors and local tool extensions
+- Skills augment the original task instead of replacing the user's goal
 
-### 自动化与消息渠道
+### Automation and messaging
 
-- 定时任务、Webhook、事件触发和持续工作流
-- 每次运行保留状态、结果和失败原因
-- 需要时进入人工审批，而不是在后台无限等待
-- 支持微信、企业微信、钉钉、飞书/Lark 及其他消息渠道
-- 渠道任务仍受工作区、Agent 角色和工具权限限制
+- Scheduled tasks, webhooks, event triggers, and persistent workflows
+- Preserved state, results, and failure reasons for every run
+- Human approval when required instead of indefinite background waiting
+- WeChat, WeCom, DingTalk, Feishu/Lark, and other messaging channels
+- Workspace, agent-role, and tool-permission boundaries for channel tasks
 
-### 项目、记忆与 Agent 团队
+### Projects, memory, and agent teams
 
-- 工作区级长期上下文和 `.neoworker/` Workspace Kit
-- 项目目标、项目文件、最近工作和任务关系
-- 本地记忆、可审查的记忆写入和隐私控制
-- 可复用的 Managed Agents、角色配置和团队协作
-- 自动化、项目和会话之间保持可追溯关系
+- Workspace-level context and a local <code>.neoworker/</code> Workspace Kit
+- Project goals, files, recent work, and task relationships
+- Local memory, reviewable memory writes, and privacy controls
+- Reusable managed agents, role profiles, and team collaboration
+- Traceable relationships across automations, projects, and sessions
 
-## 可以直接尝试的任务
+## Tasks to try
 
-```text
-分析这个代码库为什么启动失败，修复后运行测试，并说明改动范围。
+~~~text
+Find out why this codebase fails to start, fix the problem, run the tests, and explain the scope of the changes.
 
-读取当前文件夹里的调研资料，生成一份带来源和数据表格的 Word 报告。
+Read the research material in this folder and create a sourced Word report with data tables.
 
-比较三家供应商，生成 Excel 对比表和一份管理层汇报 PPT。
+Compare three vendors and deliver an Excel comparison plus an executive PowerPoint presentation.
 
-打开本地网页，分别检查桌面、平板和手机尺寸下的主要流程。
+Open the local website and test its primary flows at desktop, tablet, and phone sizes.
 
-每个工作日上午检查项目进度，只有发现阻塞或风险时再提醒我。
-```
+Check project progress every weekday morning and notify me only when you find a blocker or risk.
+~~~
 
-## 运行机制
+## Runtime model
 
-NeoWorker 的 Electron 桌面端与 CLI 共享同一套本地 Agent Runtime。模型负责理解和决策，运行时负责会话状态、工具调度、权限控制、失败恢复与结果归档。
+The Electron desktop application and CLI share the same local Agent Runtime. Models handle understanding and decisions; the runtime manages session state, tool scheduling, permissions, failure recovery, and result archiving.
 
-- **模型不会直接获得无限权限**：可用工具先经过模式、工作区和权限规则过滤。
-- **读取与写入分开调度**：安全读取可以并行，冲突写入会串行执行并保持结果顺序。
-- **产物属于任务**：文件会关联到生成它们的会话，便于预览、修改和追溯。
-- **本地优先不等于完全离线**：云模型、联网搜索和外部连接器仍受对应服务商的数据政策约束。
+- **Models do not receive unlimited permissions** — available tools are filtered through operating mode, workspace, and permission policies.
+- **Reads and writes are scheduled separately** — safe reads can run in parallel while conflicting writes remain serialized and ordered.
+- **Artifacts belong to tasks** — files stay associated with the sessions that produced them for preview, revision, and traceability.
+- **Local-first does not mean fully offline** — cloud models, web search, and external connectors remain subject to their providers' data policies.
 
-## 项目结构
+## Project structure
 
-```text
+~~~text
 NeoWorker/
-├── src/electron/      # Electron 主进程、Agent Runtime、工具与本地服务
-├── src/renderer/      # React 桌面界面
-├── src/shared/        # 主进程与渲染进程共享的类型和协议
+├── src/electron/      # Electron main process, Agent Runtime, tools, and local services
+├── src/renderer/      # React desktop interface
+├── src/shared/        # Types and protocols shared by main and renderer processes
 ├── src/cli/           # NeoWorker CLI
-├── resources/skills/  # 内置 Skills
+├── resources/skills/  # Built-in Skills
 ├── connectors/        # MCP Connectors
-├── scripts/           # 构建、打包和质量检查脚本
-├── docs/              # 产品与技术文档
-└── build/              # 应用图标和打包资源
-```
+├── scripts/           # Build, packaging, and quality scripts
+├── docs/              # Product and technical documentation
+└── build/             # Application icons and packaging resources
+~~~
 
-## 开发与构建
+## Development and build
 
-| 命令 | 用途 |
+| Command | Purpose |
 | --- | --- |
-| `npm run dev` | 启动 Electron + Vite 开发环境。 |
-| `npm run type-check` | 执行 TypeScript 类型检查。 |
-| `npm test` | 运行 Vitest 测试。 |
-| `npm run build` | 构建渲染端、Electron、Daemon 和 CLI。 |
-| `npm run build:cli` | 单独构建 CLI。 |
-| `npm run office:release-gate` | 运行 Office 产物发布门禁。 |
-| `npm run skills:validate-routing` | 校验 Skills 路由。 |
-| `npm run skills:validate-content` | 校验 Skills 内容。 |
-| `npm run package:mac:unsigned` | 生成本地测试用的未签名 macOS 包。 |
-| `npm run package:mac` | 使用已配置的签名环境生成 macOS 发布包。 |
+| <code>npm run dev</code> | Start Electron and Vite in development mode. |
+| <code>npm run type-check</code> | Run TypeScript type checking. |
+| <code>npm test</code> | Run the Vitest test suite. |
+| <code>npm run build</code> | Build the renderer, Electron, daemon, and CLI. |
+| <code>npm run build:cli</code> | Build the CLI only. |
+| <code>npm run office:release-gate</code> | Run the Office artifact release gate. |
+| <code>npm run skills:validate-routing</code> | Validate Skill routing. |
+| <code>npm run skills:validate-content</code> | Validate Skill content. |
+| <code>npm run package:mac:unsigned</code> | Build an unsigned macOS package for local testing. |
+| <code>npm run package:mac</code> | Build a signed macOS release using the configured signing environment. |
 
-提交代码前至少运行：
+Before submitting code, run at least:
 
-```bash
+~~~bash
 npm run type-check
 npm test
-```
+~~~
 
-## 安全与隐私
+## Security and privacy
 
-- 任务记录、工作区索引和本地记忆优先保存在本机。
-- API Key 与敏感设置使用系统安全存储和加密配置管理。
-- 文件、Shell、浏览器和外部应用操作受工作区边界、权限模式与审批策略限制。
-- 不可信网页和文档被视为数据来源，而不是可以覆盖用户目标的指令。
-- 开启“完全访问”前，应确认任务来源、执行范围和预期写入位置。
-- 调用第三方模型、搜索或连接器时，请同时遵守对应服务商的隐私与数据保留政策。
+- Task history, workspace indexes, and local memory are stored locally by default.
+- API keys and sensitive settings use secure system storage and encrypted configuration.
+- File, Shell, browser, and external app operations are governed by workspace boundaries, permission modes, and approval policies.
+- Untrusted web pages and documents are treated as data sources, not instructions that can override the user's objective.
+- Before enabling full access, verify the task source, execution scope, and expected write locations.
+- When calling third-party models, search providers, or connectors, review their privacy and retention policies.
 
-发现安全问题时，请不要提交公开 Issue。请通过仓库的 **Security Advisory** 私下报告，详情见 [SECURITY.md](./SECURITY.md)。
+Do not report security vulnerabilities through a public Issue. Use the repository's **Security Advisory** feature and see [SECURITY.md](./SECURITY.md).
 
-## 文档
+## Documentation
 
-| 使用 NeoWorker | 开发与扩展 |
+| Using NeoWorker | Development and extension |
 | --- | --- |
-| [Getting Started](./docs/getting-started.md) | [系统架构](./docs/architecture.md) |
-| [功能总览](./docs/features.md) | [开发指南](./docs/development.md) |
-| [Everything Workbench](./docs/everything-workbench.md) | [模型服务商](./docs/providers.md) |
-| [自动化任务](./docs/task-automations.md) | [权限系统](./docs/permission-system.md) |
-| [消息渠道](./docs/channels.md) | [NeoWorker CLI](./docs/cli.md) |
+| [Getting Started](./docs/getting-started.md) | [System architecture](./docs/architecture.md) |
+| [Feature overview](./docs/features.md) | [Development guide](./docs/development.md) |
+| [Everything Workbench](./docs/everything-workbench.md) | [Model providers](./docs/providers.md) |
+| [Task automation](./docs/task-automations.md) | [Permission system](./docs/permission-system.md) |
+| [Messaging channels](./docs/channels.md) | [NeoWorker CLI](./docs/cli.md) |
 
-另请参阅 [版本记录](./CHANGELOG.md)。
+See [CHANGELOG.md](./CHANGELOG.md) for version history.
 
-## 参与贡献
+## Contributing
 
-欢迎提交 Bug、文档改进和功能实现。开始前请阅读：
+Bug reports, documentation improvements, and feature contributions are welcome. Please read:
 
-- [贡献指南](./CONTRIBUTING.md)
-- [行为准则](./CODE_OF_CONDUCT.md)
-- [安全政策](./SECURITY.md)
+- [Contributing guide](./CONTRIBUTING.md)
+- [Code of Conduct](./CODE_OF_CONDUCT.md)
+- [Security policy](./SECURITY.md)
 
-较大的功能改动建议先在 Issue 中说明问题、使用场景、预期行为和验证方式，再提交 Pull Request。
+For substantial changes, open an Issue first and describe the problem, use case, expected behavior, and validation approach before submitting a Pull Request.
 
-## 许可证
+## License
 
-NeoWorker 基于 [MIT License](./LICENSE) 发布。完整版权与许可信息请查看 [LICENSE](./LICENSE)。
+NeoWorker is released under the [MIT License](./LICENSE).
 
 ---
 
