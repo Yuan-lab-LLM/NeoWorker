@@ -46,6 +46,7 @@ export function TaskFollowUpQueue({ taskId, active }: TaskFollowUpQueueProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const cancelEditRef = useRef(false);
   const suspendRefreshRef = useRef(false);
+  const refreshInFlightRef = useRef(false);
   const reorderInFlightRef = useRef(false);
 
   const closeMenu = useCallback(() => {
@@ -54,23 +55,29 @@ export function TaskFollowUpQueue({ taskId, active }: TaskFollowUpQueueProps) {
   }, []);
 
   const refresh = useCallback(async () => {
-    if (suspendRefreshRef.current) return;
+    if (suspendRefreshRef.current || refreshInFlightRef.current) return;
     if (!taskId) {
       setItems([]);
       return;
     }
+    refreshInFlightRef.current = true;
     try {
       const next = await window.electronAPI.listQueuedFollowUps(taskId);
       if (mountedRef.current && !suspendRefreshRef.current) setItems(next);
     } catch (error) {
       console.error("Failed to load queued follow-ups:", error);
+    } finally {
+      refreshInFlightRef.current = false;
     }
   }, [taskId]);
 
   useEffect(() => {
     mountedRef.current = true;
     void refresh();
-    const timer = window.setInterval(() => void refresh(), active ? 700 : 1600);
+    const timer = window.setInterval(
+      () => void refresh(),
+      active ? 1200 : 3000,
+    );
     return () => {
       mountedRef.current = false;
       window.clearInterval(timer);

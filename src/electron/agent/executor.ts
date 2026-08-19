@@ -1494,11 +1494,19 @@ export class TaskExecutor {
       clearError?: boolean;
       clearTerminalFailure?: boolean;
       outputEvidenceStartedAt?: number;
+      requiresPresentationArtifact?: boolean;
     },
   ): void {
-    const activePresentationWorkflow = this.getActivePresentationWorkflow();
-    const deliveredPresentationPath =
-      this.finalizePresentationArtifactDelivery();
+    // Applied skills are task-scoped and can outlive the turn that selected
+    // them. A later follow-up may request a different artifact type (for
+    // example Word after PPT), so only run the presentation delivery contract
+    // when this follow-up explicitly requires a PPTX.
+    const activePresentationWorkflow = opts?.requiresPresentationArtifact
+      ? this.getActivePresentationWorkflow()
+      : null;
+    const deliveredPresentationPath = activePresentationWorkflow
+      ? this.finalizePresentationArtifactDelivery()
+      : null;
     if (activePresentationWorkflow && !deliveredPresentationPath) {
       throw new Error(
         `${activePresentationWorkflow} did not produce a valid user-visible PPTX artifact.`,
@@ -42502,10 +42510,16 @@ Return ONLY a JSON object:
         return;
       }
 
+      const requiresPresentationArtifact =
+        followUpCompletionContract.requiredArtifactExtensions.includes(
+          ".pptx",
+        );
+
       if (previousStatus === "failed") {
         this.finalizeFollowUpCompletion("Completed via follow-up", {
           clearTerminalFailure: true,
           outputEvidenceStartedAt: followUpArtifactEvidenceStartedAt,
+          requiresPresentationArtifact,
         });
       } else if (hadToolCalls || iterationCount >= maxIterations) {
         // Follow-up did real work or exhausted iterations — mark as completed
@@ -42514,7 +42528,10 @@ Return ONLY a JSON object:
           hadToolCalls
             ? `Follow-up completed (${followUpToolCallCount} tool calls)`
             : "Follow-up completed (iterations exhausted)",
-          { outputEvidenceStartedAt: followUpArtifactEvidenceStartedAt },
+          {
+            outputEvidenceStartedAt: followUpArtifactEvidenceStartedAt,
+            requiresPresentationArtifact,
+          },
         );
       } else if (previousStatus && previousStatus !== "executing") {
         // Chat-only follow-up (no tools) — restore previous status, but never restore 'executing'
@@ -42523,6 +42540,7 @@ Return ONLY a JSON object:
         if (previousStatus === "completed") {
           this.finalizeFollowUpCompletion("Follow-up completed (chat reply)", {
             outputEvidenceStartedAt: followUpArtifactEvidenceStartedAt,
+            requiresPresentationArtifact,
           });
         } else {
           this.emitEvent("task_status", { status: previousStatus });
@@ -42533,6 +42551,7 @@ Return ONLY a JSON object:
           "Follow-up completed (status safety net)",
           {
             outputEvidenceStartedAt: followUpArtifactEvidenceStartedAt,
+            requiresPresentationArtifact,
           },
         );
       }
@@ -42547,6 +42566,10 @@ Return ONLY a JSON object:
           "Follow-up completed (wrap-up requested)",
           {
             outputEvidenceStartedAt: followUpArtifactEvidenceStartedAt,
+            requiresPresentationArtifact:
+              followUpCompletionContract.requiredArtifactExtensions.includes(
+                ".pptx",
+              ),
           },
         );
         return;

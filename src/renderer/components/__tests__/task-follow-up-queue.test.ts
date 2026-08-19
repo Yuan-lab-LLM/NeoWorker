@@ -30,6 +30,8 @@ describe("Task follow-up queue", () => {
 
   it("supports refreshing, editing, removing, and reordering queued messages", () => {
     expect(queueSource).toContain("listQueuedFollowUps");
+    expect(queueSource).toContain("refreshInFlightRef.current");
+    expect(queueSource).toContain("active ? 1200 : 3000");
     expect(queueSource).toContain("updateQueuedFollowUp");
     expect(queueSource).toContain("removeQueuedFollowUp");
     expect(queueSource).toContain("reorderQueuedFollowUps");

@@ -91,6 +91,70 @@ function createExecutorForFinalization(overrides: Partial<Any> = {}): Any {
 }
 
 describe("TaskExecutor terminal finalization state", () => {
+  it("does not reapply a stale presentation delivery contract to a Word follow-up", () => {
+    const executor = Object.create(TaskExecutor.prototype) as Any;
+    executor.task = {
+      id: "task-follow-up-word",
+      status: "executing",
+      agentConfig: { requestedSkillId: "ppt-master" },
+    };
+    executor.bestKnownOutcome = undefined;
+    executor.getActivePresentationWorkflow = vi
+      .fn()
+      .mockReturnValue("ppt-master");
+    executor.finalizePresentationArtifactDelivery = vi.fn();
+    executor.applyRuntimeTaskProjectionToTask = vi.fn().mockReturnValue({});
+    executor.buildFollowUpResultSummary = vi.fn().mockReturnValue("Word ready");
+    executor.buildTaskOutputSummary = vi.fn().mockReturnValue({
+      created: ["report.docx"],
+      outputCount: 1,
+      folders: [],
+    });
+    executor.persistBestKnownOutcome = vi.fn();
+    executor.applyGoalTerminalState = vi.fn().mockReturnValue(undefined);
+    executor.getCompletionProjectionFields = vi.fn().mockReturnValue({});
+    executor.daemon = { updateTask: vi.fn() };
+    executor.emitEvent = vi.fn();
+
+    (TaskExecutor as Any).prototype.finalizeFollowUpCompletion.call(
+      executor,
+      "Completed via follow-up",
+      {
+        outputEvidenceStartedAt: Date.now(),
+        requiresPresentationArtifact: false,
+      },
+    );
+
+    expect(
+      executor.finalizePresentationArtifactDelivery,
+    ).not.toHaveBeenCalled();
+    expect(executor.daemon.updateTask).toHaveBeenCalledWith(
+      "task-follow-up-word",
+      expect.objectContaining({
+        status: "completed",
+        resultSummary: "Word ready",
+      }),
+    );
+  });
+
+  it("still enforces presentation delivery for a PPTX follow-up", () => {
+    const executor = Object.create(TaskExecutor.prototype) as Any;
+    executor.getActivePresentationWorkflow = vi
+      .fn()
+      .mockReturnValue("ppt-master");
+    executor.finalizePresentationArtifactDelivery = vi
+      .fn()
+      .mockReturnValue(null);
+
+    expect(() =>
+      (TaskExecutor as Any).prototype.finalizeFollowUpCompletion.call(
+        executor,
+        "Completed via follow-up",
+        { requiresPresentationArtifact: true },
+      ),
+    ).toThrow("ppt-master did not produce a valid user-visible PPTX artifact");
+  });
+
   it("preserves explicit failed terminal status through completed daemon outcome normalization", () => {
     const outcome = decideTaskOutcome({
       requestedStatus: "completed",

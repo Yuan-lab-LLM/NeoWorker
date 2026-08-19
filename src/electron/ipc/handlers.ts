@@ -1108,7 +1108,7 @@ rateLimiter.configure(
 );
 rateLimiter.configure(
   IPC_CHANNELS.TASK_FOLLOW_UP_QUEUE_LIST,
-  RATE_LIMIT_CONFIGS.standard,
+  RATE_LIMIT_CONFIGS.frequent,
 );
 rateLimiter.configure(
   IPC_CHANNELS.TASK_FOLLOW_UP_QUEUE_UPDATE,
