@@ -8,6 +8,20 @@ import type {
   ApplyOnboardingProfileRequest,
   ApplyOnboardingProfileResult,
 } from "../shared/onboarding";
+import type {
+  AgentSecurityCaseBuildResult,
+  AgentSecurityCaseVerifyResult,
+  AgentSecurityDiagnostic,
+  AgentSecurityEnforcement,
+  AgentSecurityFinding,
+  AgentSecurityFindingQuery,
+  AgentSecurityFindingStatus,
+  AgentSecurityHookManagementResult,
+  AgentSecurityInventoryItem,
+  AgentSecurityRulesCheckResult,
+  AgentSecurityRuntimeStatus,
+  AgentSecurityScanResult,
+} from "../shared/agent-security";
 import type { KimiConnectionResult } from "../shared/kimi";
 import type { SpreadsheetPreview } from "../shared/spreadsheet-preview";
 import type {

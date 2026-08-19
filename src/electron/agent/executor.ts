@@ -2330,6 +2330,135 @@ export class TaskExecutor {
     return this.provider?.type === "ollama";
   }
 
+  private isFileDiscoveryOnlyStepDescription(description: string): boolean {
+    const normalized = String(description || "")
+      .trim()
+      .toLowerCase();
+    if (!normalized) return false;
+
+    const hasDiscoveryIntent =
+      /\b(?:locate|find|list|discover|identify)\b/.test(normalized) ||
+      /\b(?:bul|bulun|listele|keşfet|tespit et)\b/.test(normalized);
+    const hasFileScope =
+      /\b(?:book|file|files|document|documents|workspace|folder|directory)\b/.test(normalized) ||
+      /\b(?:kitap|dosya|dosyalar|belge|belgeler|çalışma alanı|klasör|dizin)\b/.test(normalized);
+    const hasContentWork =
+      /\b(?:read|open|parse|extract|analy[sz]e|review|inspect|summari[sz]e|check|edit|write|create|delete|remove|rename|move|modify|replace|fix|update|refactor|run|execute)\b/.test(
+        normalized,
+      ) ||
+      /\b(?:oku|aç|ayıkla|incele|analiz|özetle|kontrol et|düzenle|yaz|oluştur|sil|kaldır|yeniden adlandır|taşı|değiştir|düzelt|güncelle|yeniden düzenle|çalıştır)\b/.test(
+        normalized,
+      );
+
+    return hasDiscoveryIntent && hasFileScope && !hasContentWork;
+  }
+
+  private isReadOnlyDocumentAnalysisStepDescription(description: string): boolean {
+    const normalized = String(description || "")
+      .trim()
+      .toLowerCase();
+    if (!normalized) return false;
+
+    const hasDocumentScope =
+      /\.(?:docx|pdf|epub|md|txt)\b/.test(normalized) ||
+      /\b(?:book|document|manuscript|text|chapter|heading|character)\b/.test(normalized) ||
+      /\b(?:kitap|belge|doküman|metin|bölüm|başlık|karakter)\b/.test(normalized);
+    const hasReadOrAnalysisIntent =
+      /\b(?:read|parse|extract|analy[sz]e|review|inspect|summari[sz]e|outline|identify|note|mark|check)\b/.test(
+        normalized,
+      ) ||
+      /\b(?:oku|ayıkla|çıkar|incele|analiz|özetle|taslak çıkar|tespit et|not et|işaretle|kontrol et|tara)\b/.test(
+        normalized,
+      );
+    const hasMutationIntent =
+      /\b(?:write|edit|create|save|export|convert|update|modify|replace|rewrite)\b/.test(
+        normalized,
+      ) ||
+      /\b(?:yaz|düzenle|oluştur|kaydet|dışa aktar|dönüştür|güncelle|değiştir|yerine koy|yeniden yaz)\b/.test(
+        normalized,
+      );
+
+    return hasDocumentScope && hasReadOrAnalysisIntent && !hasMutationIntent;
+  }
+
+  private isBoundedDocumentAnalysisTask(): boolean {
+    const taskTitle = String(this.task?.title || "");
+    const rawTaskPrompt = String(
+      this.task?.rawPrompt || this.task?.userPrompt || this.getContractPrompt() || "",
+    );
+    const normalized = normalizePromptForContractsUtil(`${taskTitle}\n${rawTaskPrompt}`)
+      .trim()
+      .toLowerCase();
+    if (!normalized) return false;
+    const hasDirectSourceReference =
+      /\.(?:docx|pdf|md|txt)\b/i.test(`${taskTitle}\n${rawTaskPrompt}`) ||
+      (taskTitle.match(/_/g) || []).length >= 2;
+    const hasDocumentScope =
+      /\.(?:docx|pdf|md|txt)\b/.test(normalized) ||
+      /(?:book|manuscript|document|chapter|character|kitap|metin|belge|doküman|bölüm|karakter)/.test(
+        normalized,
+      );
+    const hasAnalysisIntent =
+      /(?:analy[sz]e|review|inspect|evaluate|summari[sz]e|contradiction|continuity|transition)/.test(
+        normalized,
+      ) ||
+      /(?:incele|analiz|değerlendir|özetle|çelişki|tutarlılık|devamlılık|geçiş|eksik)/.test(
+        normalized,
+      );
+    const requestsFileMutation =
+      /(?:write|edit|create|save|export|convert|update|modify|replace|rewrite).{0,80}\.(?:docx|pdf|md|txt)\b/.test(
+        normalized,
+      ) ||
+      /(?:düzenle|oluştur|kaydet|dışa aktar|dönüştür|güncelle|değiştir|yeniden yaz).{0,80}\.(?:docx|pdf|md|txt)\b/.test(
+        normalized,
+      );
+    return (
+      hasDirectSourceReference && hasDocumentScope && hasAnalysisIntent && !requestsFileMutation
+    );
+  }
+
+  private buildBoundedDocumentAnalysisPlan(): Plan {
+    return {
+      description: "Bounded full-document analysis",
+      steps: [
+        {
+          id: "1",
+          description: "Locate and extract the requested source document once.",
+          kind: "primary",
+          status: "pending",
+        },
+        {
+          id: "2",
+          description:
+            "Analyze every bounded document segment for gaps, contradictions, transitions, and character continuity.",
+          kind: "primary",
+          status: "pending",
+        },
+        {
+          id: "3",
+          description:
+            "Synthesize the segment evidence into the requested final review with coverage details.",
+          kind: "primary",
+          status: "pending",
+        },
+      ],
+    };
+  }
+
+  private hasSuccessfulFileDiscoveryTool(successfulToolNames?: Set<string>): boolean {
+    if (!(successfulToolNames instanceof Set)) return false;
+    const discoveryTools = new Set([
+      "list_directory",
+      "list_directory_with_sizes",
+      "search_files",
+      "glob",
+      "get_file_info",
+    ]);
+    return Array.from(successfulToolNames).some((toolName) =>
+      discoveryTools.has(canonicalizeToolNameUtil(toolName)),
+    );
+  }
+
   private applyLocalModelNetworkInputLimits(
     toolName: string,
     input: Any,
@@ -29590,6 +29719,21 @@ Return ONLY a JSON object:
           // Fallback: recover structured steps from plain text output
           const recoveredSteps =
             this.recoverPlanStepsFromTextWithPromptFallback(planParsingText);
+          const cleanUserTaskPrompt = normalizePromptForContractsUtil(
+            String(
+              this.task?.rawPrompt ||
+                this.task?.userPrompt ||
+                this.task?.prompt ||
+                this.getContractPrompt() ||
+                "",
+            ),
+          ).trim();
+          const fallbackStepDescription =
+            (sanitizedCombinedPlanText.hadToolCallText ||
+              (this.provider?.type === "ollama" && recoveredSteps.length === 0)) &&
+            cleanUserTaskPrompt
+              ? cleanUserTaskPrompt
+              : planParsingText.slice(0, 500);
           this.plan = this.sanitizePlan({
             description: "Execution plan",
             steps:
@@ -33673,33 +33817,7 @@ Return ONLY a JSON object:
                             stepUsed: webSearchBudgetCheck.stepUsed,
                             stepLimit: webSearchBudgetCheck.stepLimit,
                           });
-
-                        if (this.isCancelledToolOutcome(rawOutcome)) {
-                          return this.finalizeCancelledToolExecution({
-                            toolName: content.name,
-                            toolUseId: String(content.id || ""),
-                            correlation: effectiveCorrelation,
-                          });
-                        }
-
-                        if (rawOutcome.error) {
-                          const failureMessage =
-                            (rawOutcome.error as Any)?.message || "Tool execution failed";
-                          if (
-                            this.isTerminalImageGenerationTask() &&
-                            canonicalContentName === "generate_image"
-                          ) {
-                            this.simpleImageGenerationFailed = true;
-                            simpleImageGenerationStopAfterTool = true;
-                          }
-                          this.releaseBatchCreatedPathReservation(
-                            batchCreatedPaths,
-                            content.name,
-                            content.input,
-                          );
-                          if (isExecutionToolCall) {
-                            this.executionToolLastError = failureMessage;
-                          }
+                        } else {
                           hadToolError = true;
                           allToolErrorsInputDependent = false;
                           toolErrors.add(content.name);

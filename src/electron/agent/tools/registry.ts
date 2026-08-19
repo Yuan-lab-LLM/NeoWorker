@@ -1944,26 +1944,11 @@ export class ToolRegistry {
             },
             { allowAutoApprove: effectiveApprovalType !== "location_access" },
           );
-        }
-        const approved = await requester.call(
-          this.daemon,
-          this.taskId,
-          effectiveApprovalType || "external_service",
-          browserUseApproval
-            ? `Allow Browser Use to access ${browserUseApproval.origin}?`
-            : effectiveApprovalType === "location_access"
-              ? "Allow NeoWorker to access your current location once?"
-            : `Approve tool call: ${context.request.name}`,
-          {
-            ...approvalDetails,
-            reason: pipeline.reason || null,
-          },
-          { allowAutoApprove: effectiveApprovalType !== "location_access" },
-        );
-        if (approved !== true) {
-          throw Object.assign(new Error(`Tool "${context.request.name}" approval denied`), {
-            policyTrace: pipeline.trace,
-          });
+          if (approved !== true) {
+            throw Object.assign(new Error(`Tool "${context.request.name}" approval denied`), {
+              policyTrace: pipeline.trace,
+            });
+          }
         }
       }
 

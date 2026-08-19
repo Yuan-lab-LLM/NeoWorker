@@ -694,8 +694,19 @@ export function filterVerboseTimelineNoise(
   const taskIdsAfterBlockingFailure = new Set<string>();
   const completedTaskIds = new Set<string>();
   for (const event of events) {
+    const effectiveType = getEffectiveTaskEventType(event);
+    if (effectiveType === "task_started" || effectiveType === "user_message") {
+      completedTaskIds.delete(event.taskId);
+      taskIdsAfterBlockingFailure.delete(event.taskId);
+    }
     if (cancelledTaskIds.has(event.taskId) && isLlmRequestCancelledEvent(event))
       continue;
+    if (
+      completedTaskIds.has(event.taskId) &&
+      isStageBoundaryTimelineGroupEvent(event)
+    ) {
+      continue;
+    }
     if (
       isStageBoundaryTimelineGroupEvent(event) &&
       (hideTerminalStageBoundaries ||
@@ -713,7 +724,7 @@ export function filterVerboseTimelineNoise(
     }
     if (isLowValueVerboseLifecycleEvent(event)) continue;
     if (
-      getEffectiveTaskEventType(event) === "progress_update" &&
+      effectiveType === "progress_update" &&
       !isMeaningfulVerboseProgressUpdate(event, getEventMessage(event))
     ) {
       continue;

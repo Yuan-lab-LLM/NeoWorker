@@ -2,12 +2,6 @@
   "name": "neoworker",
   "version": "0.1.0",
   "description": "NeoWorker - GUI-first, CLI-capable local AI super app and everything app for coding, email, agents, documents, spreadsheets, presentations, web design, automations, and agentic work",
-  "overrides": {
-    "@whiskeysockets/baileys": {
-      "libsignal": "https://codeload.github.com/WhiskeySockets/libsignal-node/tar.gz/1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67",
-      "@whiskeysockets/eslint-config": "1.0.0"
-    }
-  },
   "main": "dist/electron/electron/main.js",
   "author": "NeoWorker Contributors",
   "license": "MIT",
@@ -48,14 +42,7 @@
     "neoworkerd": "bin/neoworkerd.js",
     "neoworkerd-node": "bin/neoworkerd-node.js"
   },
-  "engines": {
-    "node": ">=24.0.0"
-  },
   "private": false,
-  "bundleDependencies": [
-    "@mariozechner/pi-ai",
-    "@whiskeysockets/baileys"
-  ],
   "scripts": {
     "postinstall": "node scripts/codesign_electron_dev.mjs",
     "dev": "node scripts/dev_with_logs.mjs",
@@ -90,6 +77,7 @@
     "@google/generative-ai": "^0.24.1",
     "@grammyjs/runner": "^2.0.3",
     "@grammyjs/transformer-throttler": "^1.2.1",
+    "@earendil-works/pi-ai": "^0.74.2",
     "@icons-pack/react-simple-icons": "^13.13.0",
     "@mariozechner/pi-ai": "^0.56.1",
     "@phosphor-icons/react": "^2.1.10",
@@ -169,6 +157,8 @@
     "better-sqlite3": "13.0.3"
   },
   "bundleDependencies": [
+    "@earendil-works/pi-ai",
+    "@mariozechner/pi-ai",
     "baileys"
   ],
   "overrides": {
@@ -177,6 +167,10 @@
     },
     "node-fetch@3": "$node-fetch",
     "baileys": {
+      "libsignal": "https://codeload.github.com/WhiskeySockets/libsignal-node/tar.gz/1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67",
+      "@whiskeysockets/eslint-config": "1.0.0"
+    },
+    "@whiskeysockets/baileys": {
       "libsignal": "https://codeload.github.com/WhiskeySockets/libsignal-node/tar.gz/1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67",
       "@whiskeysockets/eslint-config": "1.0.0"
     },

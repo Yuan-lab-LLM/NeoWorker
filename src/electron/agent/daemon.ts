@@ -120,6 +120,7 @@ import {
   normalizeTaskEventToTimelineV2,
 } from "../../shared/timeline-v2";
 import { sanitizeTimelinePayloadForStorage } from "./timeline-payload-sanitizer";
+import { getNumbatService } from "../security/numbat";
 import { deriveCanonicalTaskStatus, isTerminalTaskStatus } from "../../shared/task-status";
 import { createTimelineEmitter } from "./timeline-emitter";
 import { TaskExecutor } from "./executor";

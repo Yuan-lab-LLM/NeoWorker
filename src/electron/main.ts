@@ -3015,9 +3015,6 @@ if (isCliDirectRunMode()) {
         } else {
           await heartbeatService.start();
         }
-      } catch (error) {
-        logger.error("Failed to initialize SubconsciousLoopService:", error);
-      }
 
         setHeartbeatWakeSubmitter(async ({ text, mode }) => {
           submitHeartbeatSignalForAll({ text, mode, source: "hook" });
