@@ -7,10 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.51] - 2026-08-17
+
 ### Added
+
+- **Release notes for 0.5.51**: see [Release Notes 0.5.51](docs/release-notes-0.5.51.md).
+- **Agent security with Numbat**: added a disabled-by-default, checksum-verified Numbat runtime with monitor/enforce modes, bounded tool-call projections, rule provenance, findings and decisions, scheduled scans, incident case bundles, retention controls, CLI operations, and optional external hooks. Numbat can add restrictions but cannot grant permissions or suppress ordinary approvals.
+- **Bounded long-document analysis**: added deterministic read-only review for named `.docx`, `.pdf`, `.md`, and `.txt` sources, including safe workspace discovery, extraction, overlapping analysis windows, complete coverage accounting, evidence reduction, split retry, cancellation, and partial-success reporting when final synthesis times out.
+- **Native System Voice TTS**: added capability detection and local text-to-speech adapters for macOS `say`, Windows PowerShell/SAPI, and Linux `espeak`. System speech recognition remains explicitly reported as unavailable so users can select OpenAI or Azure Whisper when transcription is needed.
+
+### Changed
+
+- **Long-session timeline performance**: added bounded timeline pages, cursor-based history loading, replay-tail transport, detail hydration, payload byte budgets, truncation metadata, renderer caches, and large-session profiling fixtures to keep task switching and replay predictable.
+- **Runtime and dependency maintenance**: refreshed the Electron, SQLite, provider, messaging, charting, and packaging dependency set; expanded native/runtime compatibility checks; and refactored the main application architecture and CLI/daemon boundaries without changing the local-first product model.
+- **WSL native window frame**: WSL/WSLg sessions now retain the operating system window frame and render the in-app toolbar as a non-draggable row. This remains a best-effort compatibility path pending visual validation on representative WSL hosts.
+- **Sidebar update action**: moved the update action into the sidebar footer so it remains available without occupying the main task header.
+- **Persistent UI density**: power density selection now persists across restarts and is applied during early renderer bootstrap to reduce visual layout changes during startup.
+
+### Fixed
+
+- **Linked source-checkout dependency repair**: the `cowork-os` launcher and native SQLite recovery now preserve lockfile-defined versions and development dependencies when a global command is linked to a Git checkout, preventing runtime self-healing from upgrading Electron or removing Vite, Vitest, TypeScript, and other local development tools. Packaged npm installs continue to repair runtime dependencies without installing the development toolchain.
+- **Timeline completion ordering**: preserve the final task completion event, suppress stage chatter emitted after completion, retain relevant tool output, coalesce final responses correctly, and sanitize namespaced tool tags before rendering.
+- **Planning and document-analysis reliability**: hardened document source discovery and extraction, chunk retries, evidence reduction, local Ollama budget selection, and recovery from incomplete planner output.
+- **Browser navigation and renderer recovery**: restricted Browser Workbench navigation to approved web schemes and added renderer-crash handling so invalid destinations and renderer failures surface controlled recovery behavior.
+
+## [0.5.50] - 2026-07-20
+
+### Added
+- **Release notes for 0.5.50**: see [Release Notes 0.5.50](docs/release-notes-0.5.50.md).
+- **Main-screen Automation Studio**: added Discover, Library, Builder, and Activity views under the main sidebar **Automations** destination, with conservative prompt-to-draft generation, eight built-in templates, a searchable action catalog, typed variables, explicit Yes/No branch authoring, dry-run and Google-scope review, immutable activation versions, manual runs, turn-off controls, per-step approvals, cancellation, and backing-task links. Added the complete [Automation Studio guide](docs/automation-studio.md).
+- **Deterministic workflow runtime**: added versioned structured definitions, graph validation, bounded conditions/filters/for-each execution, a durable deduplicated event inbox, Google Workspace polling starters with cursor pagination, action adapters, signed outbound webhooks, secure secret references, connector allowlist/schema checks, run/step/event/sample persistence, retry policy, retention cleanup, and additive legacy Routine compatibility.
+- **ChatGPT subscription GPT-5.6 controls**: added `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna`, model-specific reasoning effort choices through Max and Ultra, response verbosity controls, OAuth model preservation, and Codex Responses transport forwarding.
 - **Bundled `unbroker` skill**: added a global consent-gated privacy cleanup workflow for authorized data-broker and people-search opt-outs, with a local PII ledger, deterministic `pdd.py` action queue, human-task digest, recurring recheck support, and related docs. Added [Unbroker Skill](docs/skills/unbroker.md).
-- **Mixture of Agents docs**: documented the new virtual LLM provider, preset configuration, advisor/aggregator runtime flow, failover behavior, UI testing path, and corporate TLS/Zscaler troubleshooting. Added [Mixture of Agents](docs/mixture-of-agents.md).
+- **Session archive and retention controls**: added non-destructive session archive behavior, previewable filtered prune operations, automatic daemon retention settings, sidebar archived-session filtering, and CLI/runtime coverage.
+- **Mixture of Agents provider**: added advisor/aggregator orchestration, slot-specific provider routing and failover, usage aggregation, reference caching, recursion protection, Settings integration, and corporate TLS/Zscaler guidance. Added [Mixture of Agents](docs/mixture-of-agents.md).
+- **Browser Workbench annotations**: added persistent browser-target annotations, live element pins, an annotation composer, send-to-agent context, lifecycle events, and repository/renderer coverage.
+- **Inline mail compose frames**: assistant email drafts can render inline for review before sending, with richer recipient/body inputs, draft retrieval over IPC, send-status polling, and in-place event updates.
 - **Video attachment analysis**: uploaded `.mp4`, `.mov`, and `.webm` files are copied into the workspace, sampled into representative frames, passed to image-capable models, and shown as contact-sheet/full-frame image artifacts in the task timeline. Added [Video Attachments](docs/video-attachments.md) documentation.
+- **Google Calendar MCP tools**: added calendar listing, event list/read/batch read, availability/freeBusy lookup, and confirmed create/update/delete operations to the Google Workspace connector.
+- **Memory write governance**: added approval modes and a pending queue for archive, curated, background, and external memory writes, with sensitive external-memory blocking before persistence and approval controls in Memory Hub.
+- **Architecture design orchestration**: added local-only Rhino, Blender, and ComfyUI MCP connectors plus the `architecture-design` skill, project-root path enforcement, capability metadata, and artifact guidance.
+- **Cross-platform desktop location**: added permission-gated macOS, Windows, and Linux location helpers with a common JSON response envelope and packaged runtime assets.
+
+### Changed
+- **Automation product placement**: structured flow authoring now lives in the main Automations tab instead of Settings. **Settings > Automations** remains the advanced surface for prompt-based Routines, Task Queue, Workflow Intelligence, Scheduled Tasks, Webhooks, Event Triggers, and Daily Briefing.
+- **Workflow safety and lifecycle**: external writes and data exports require approval under safe/default policies, external automatic retries are capped at one, active versions are isolated from saved drafts, and re-enabling validates the active version's current account scopes and secret references.
+- **Browser and computer-use approvals**: background/headless execution is preferred unless visible Browser Workbench or native computer control is requested or approved; visible fallback choices can be governed by permission rules.
+- **Provider ordering**: moved OpenRouter, OpenAI, Mixture of Agents, Claude, Gemini, and DeepSeek to the front of the built-in provider list while preserving the relative order of remaining providers.
+- **Replay controls**: hid replay controls behind an explicit toggle to keep the default task surface focused.
+- **First-run onboarding**: refreshed staged setup, ChatGPT subscription sign-in, Ollama detection, free-provider badges, and the fixed-frame onboarding recap.
+
+### Fixed
+- **Automation Studio startup and database upgrades**: registered the complete `routine:workflow*` IPC surface, ordered compatibility-column migrations before dependent indexes, and made the dev launcher detect an already-running source Electron instance before macOS bundle rebranding. Missing-handler, legacy `workflow_run_id`, silent single-instance exit, and same-bundle `SIGABRT` failures now surface actionable diagnostics without destructive database recovery.
+- **Automation Studio layout and scrolling**: made the main Automations page the vertical scroll owner, removed task-view width constraints, bounded internal panes, wrapped long card content, and added responsive collapse plus placement/layout regression coverage.
+- **Workflow recovery and cancellation**: requeue processing events after restart, recover runs before draining new events, move interrupted steps to explicit outcome verification, propagate cancellation into agent/Google/webhook work, continue Gmail/Drive pagination without skipping capped backlogs, and redact/prune durable payload data.
+- **ChatGPT OAuth token exchange**: added an Electron network fallback for the OpenAI token endpoint, preserved Node fallback behavior, and surfaced useful refresh errors instead of collapsing them into generic failures.
+- **Build-health evidence checks**: kept `package.json` inspection read-only, required concrete command/API evidence, and tightened completion-report parsing.
+- **Mail draft sending state**: poll draft status during send so compose frames accurately reflect delivery progress.
+- **Memory FTS performance**: moved prompt recall to a bounded fast path, batched tier tracking, reduced redundant detail lookups, added caching and indexes, and enriched slow-query diagnostics.
+- **Google Workspace settings writes**: cached refreshed OAuth tokens during mailbox sync to avoid repeated refresh/save cycles.
+- **Output filtering**: reduced YAML capability-list false positives by requiring stronger system-prompt context.
+- **Multitask resource stability**: bounded renderer memory, MCP process lifecycles, synthesis prompt size, SQLite contention, and executor cache pressure.
+- **Collaborative execution status**: added an explicit execute phase so active child work is no longer shown as generic thinking.
+- **Blocked task progress status**: preserved the blocked state in task-progress summaries instead of classifying every blocked task as waiting for approval.
+- **Read-only review safety**: snapshot git state and restrict system interaction tools during review tasks.
+- **Workspace verification deduplication**: deduplicate identical verification commands in the same workspace.
 
 ## [0.5.49] - 2026-06-08
 

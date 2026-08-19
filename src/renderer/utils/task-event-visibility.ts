@@ -205,8 +205,7 @@ function isStageBoundaryTimelineGroupEvent(event: TaskEvent): boolean {
 
   const payload = getTimelineGroupPayload(event);
 
-  const stage =
-    typeof payload.stage === "string" ? payload.stage.trim().toUpperCase() : "";
+  const stage = typeof payload.stage === "string" ? payload.stage.trim().toUpperCase() : "";
   if (stage && SUMMARY_HIDDEN_STAGE_NAMES.has(stage)) {
     return true;
   }
@@ -443,10 +442,7 @@ export function filterAdjacentDuplicateTimelineFailures(
   const out: TaskEvent[] = [];
   for (const event of events) {
     const previousVisibleEvent = out[out.length - 1];
-    if (
-      previousVisibleEvent &&
-      isTimelineErrorStepFailureDuplicate(event, previousVisibleEvent)
-    ) {
+    if (previousVisibleEvent && isTimelineErrorStepFailureDuplicate(event, previousVisibleEvent)) {
       if (event.type === "timeline_error") {
         continue;
       }
@@ -470,9 +466,7 @@ function getToolCorrelationId(payload: Record<string, unknown>): string {
       : "";
   if (callId) return callId;
   const id =
-    typeof payload.id === "string" && payload.id.trim().length > 0
-      ? payload.id.trim()
-      : "";
+    typeof payload.id === "string" && payload.id.trim().length > 0 ? payload.id.trim() : "";
   return id;
 }
 
@@ -637,12 +631,16 @@ function isLowValueVerboseLifecycleEvent(event: TaskEvent): boolean {
 
   // timeline_step_finished events echo tool/step completion that is already
   // visible from tool_result or timeline_group_finished events.
-  // Only keep task-level cancellation/failure notices.
+  // Keep terminal task outcomes as well: task_completed carries the final
+  // resultSummary that Verbose mode must render as the assistant response.
   if (event.type === "timeline_step_finished") {
     const payload = asObject(event.payload);
-    const legacyType =
-      typeof payload.legacyType === "string" ? payload.legacyType : "";
-    if (legacyType === "task_cancelled" || event.status === "failed") {
+    const legacyType = typeof payload.legacyType === "string" ? payload.legacyType : "";
+    if (
+      effectiveType === "task_completed" ||
+      legacyType === "task_cancelled" ||
+      event.status === "failed"
+    ) {
       return false;
     }
     return true;
@@ -694,6 +692,7 @@ export function filterVerboseTimelineNoise(
       .map((event) => event.taskId),
   );
   const taskIdsAfterBlockingFailure = new Set<string>();
+  const completedTaskIds = new Set<string>();
   for (const event of events) {
     if (cancelledTaskIds.has(event.taskId) && isLlmRequestCancelledEvent(event))
       continue;
@@ -742,6 +741,9 @@ export function filterVerboseTimelineNoise(
       lastSeenByKey.set(duplicateKey, event.timestamp ?? 0);
     }
     out.push(event);
+    if (effectiveType === "task_completed") {
+      completedTaskIds.add(event.taskId);
+    }
     if (isVerbosePostFailureCutoffEvent(event)) {
       taskIdsAfterBlockingFailure.add(event.taskId);
     }

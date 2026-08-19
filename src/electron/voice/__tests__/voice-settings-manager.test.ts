@@ -349,6 +349,26 @@ describe("VoiceSettingsManager", () => {
 
       expect(updated.volume).toBe(90);
     });
+
+    it("should retain System TTS when the platform adapter is available", () => {
+      mockRepositoryLoad.mockReturnValue({ ...DEFAULT_VOICE_SETTINGS });
+
+      const updated = VoiceSettingsManager.updateSettings({ ttsProvider: "local" });
+
+      expect(updated.ttsProvider).toBe("local");
+    });
+
+    it("should reject System STT when no desktop adapter is available", () => {
+      mockRepositoryLoad.mockReturnValue({ ...DEFAULT_VOICE_SETTINGS });
+
+      const updated = VoiceSettingsManager.updateSettings({ sttProvider: "local" });
+
+      expect(updated.sttProvider).toBe(DEFAULT_VOICE_SETTINGS.sttProvider);
+      expect(mockRepositorySave).toHaveBeenCalledWith(
+        "voice",
+        expect.objectContaining({ sttProvider: DEFAULT_VOICE_SETTINGS.sttProvider }),
+      );
+    });
   });
 
   describe("clearCache", () => {

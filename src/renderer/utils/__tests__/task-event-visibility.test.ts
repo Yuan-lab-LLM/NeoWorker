@@ -250,16 +250,14 @@ describe("task event visibility helpers", () => {
 
   it("keeps generic stage-start cards in the verbose step feed", () => {
     expect(
-      shouldShowTaskEventInStepFeed(
-        makeEvent("timeline_group_started", { stage: "DISCOVER" }),
-        { verboseSteps: true },
-      ),
+      shouldShowTaskEventInStepFeed(makeEvent("timeline_group_started", { stage: "DISCOVER" }), {
+        verboseSteps: true,
+      }),
     ).toBe(true);
     expect(
-      shouldShowTaskEventInStepFeed(
-        makeEvent("timeline_group_started", { stage: "BUILD" }),
-        { verboseSteps: true },
-      ),
+      shouldShowTaskEventInStepFeed(makeEvent("timeline_group_started", { stage: "BUILD" }), {
+        verboseSteps: true,
+      }),
     ).toBe(true);
   });
 
@@ -499,6 +497,58 @@ describe("task event visibility helpers", () => {
       ),
     ]);
     expect(filtered.map((e) => e.id)).toEqual(["c"]);
+  });
+
+  it("keeps the completed result and hides stage chatter emitted after it", () => {
+    const t0 = 1_000_000;
+    const filtered = filterVerboseTimelineNoise([
+      makeEvent(
+        "timeline_step_finished",
+        {
+          legacyType: "task_completed",
+          message: "Task completed successfully",
+          resultSummary: "Final review with all findings.",
+          terminalStatus: "ok",
+        },
+        { id: "task-complete", timestamp: t0 },
+      ),
+      makeEvent(
+        "timeline_group_finished",
+        { stage: "BUILD", groupLabel: "BUILD", message: "Completed BUILD" },
+        { id: "build-finished", timestamp: t0 + 1, groupId: "stage:build" },
+      ),
+      makeEvent(
+        "timeline_group_started",
+        { stage: "DELIVER", groupLabel: "DELIVER", message: "Starting DELIVER" },
+        { id: "deliver-start", timestamp: t0 + 2, groupId: "stage:deliver" },
+      ),
+      makeEvent(
+        "timeline_group_finished",
+        { stage: "DELIVER", groupLabel: "DELIVER", message: "Completed DELIVER" },
+        { id: "deliver-finished", timestamp: t0 + 3, groupId: "stage:deliver" },
+      ),
+    ]);
+
+    expect(filtered.map((event) => event.id)).toEqual(["task-complete"]);
+  });
+
+  it("restores stage boundaries after a completed task receives a follow-up run", () => {
+    const filtered = filterVerboseTimelineNoise([
+      makeEvent("task_completed", {}, { id: "completed", timestamp: 1_000 }),
+      makeEvent(
+        "timeline_group_finished",
+        { stage: "DELIVER" },
+        { id: "trailing-deliver", timestamp: 1_001 },
+      ),
+      makeEvent("user_message", {}, { id: "follow-up", timestamp: 2_000 }),
+      makeEvent(
+        "timeline_group_started",
+        { stage: "BUILD" },
+        { id: "resumed-build", timestamp: 2_001 },
+      ),
+    ]);
+
+    expect(filtered.map((event) => event.id)).toEqual(["completed", "follow-up", "resumed-build"]);
   });
 
   it("keeps stage starts in verbose mode so running activity does not disappear after pause", () => {

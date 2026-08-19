@@ -56,6 +56,10 @@ export interface UseVirtualListResult<T> {
   scrollToBottom: () => void;
   /** Whether the user's scroll position is pinned to the bottom. */
   isAtBottom: boolean;
+  /** First item index currently rendered, including overscan. */
+  visibleStartIndex: number;
+  /** Last item index currently rendered, including overscan. */
+  visibleEndIndex: number;
 }
 
 // ---------------------------------------------------------------------------

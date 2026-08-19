@@ -76,6 +76,7 @@ import {
   type ChannelType,
 } from "../../shared/types";
 import { CUSTOM_PROVIDER_MAP } from "../../shared/llm-provider-catalog";
+import { getLlmModelReasoningEfforts } from "../../shared/llm-model-selection";
 import {
   normalizeKimiApiKey,
   type KimiConnectionErrorCode,
@@ -853,7 +854,33 @@ const OPENAI_REASONING_EFFORT_OPTIONS: Array<{
     label: "Extra High",
     description: "Maximum effort for the hardest asynchronous tasks.",
   },
+  {
+    value: "max",
+    label: "Max",
+    description: "Maximum reasoning depth for the hardest problems.",
+  },
+  {
+    value: "ultra",
+    label: "Ultra",
+    description: "Maximum reasoning with automatic task delegation.",
+  },
 ];
+
+const DEFAULT_OPENAI_REASONING_EFFORTS: OpenAIReasoningEffort[] = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+];
+
+function getOpenAIReasoningEffortOptions(modelKey: string) {
+  const modelEfforts = getLlmModelReasoningEfforts("openai", modelKey);
+  const supportedEfforts =
+    modelEfforts.length > 0 ? modelEfforts : DEFAULT_OPENAI_REASONING_EFFORTS;
+  return OPENAI_REASONING_EFFORT_OPTIONS.filter((option) =>
+    supportedEfforts.includes(option.value),
+  );
+}
 
 const OPENAI_TEXT_VERBOSITY_OPTIONS: Array<{
   value: LLMTextVerbosity;
@@ -1002,19 +1029,14 @@ function SearchableSelect({
     (opt) =>
       opt.label.toLowerCase().includes(search.toLowerCase()) ||
       opt.value.toLowerCase().includes(search.toLowerCase()) ||
-      (opt.description &&
-        opt.description.toLowerCase().includes(search.toLowerCase())),
+      (opt.description && opt.description.toLowerCase().includes(search.toLowerCase())),
   );
 
   const customValue = search.trim();
   const showCustomOption =
     allowCustomValue && filteredOptions.length === 0 && customValue.length > 0;
   const optionCount =
-    filteredOptions.length > 0
-      ? filteredOptions.length
-      : showCustomOption
-        ? 1
-        : 0;
+    filteredOptions.length > 0 ? filteredOptions.length : showCustomOption ? 1 : 0;
 
   // Reset highlighted index when search changes
   useEffect(() => {
@@ -1024,9 +1046,7 @@ function SearchableSelect({
   // Scroll highlighted option into view
   useEffect(() => {
     if (isOpen && listRef.current) {
-      const highlightedEl = listRef.current.querySelector(
-        `[data-index="${highlightedIndex}"]`,
-      );
+      const highlightedEl = listRef.current.querySelector(`[data-index="${highlightedIndex}"]`);
       if (highlightedEl) {
         highlightedEl.scrollIntoView({ block: "nearest" });
       }
@@ -1036,10 +1056,7 @@ function SearchableSelect({
   // Close on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
         setSearch("");
       }
@@ -1112,11 +1129,7 @@ function SearchableSelect({
         <span className="searchable-select-value">
           {selectedOption ? selectedOption.label : value ? value : placeholder}
         </span>
-        <ChevronDown
-          className="searchable-select-arrow"
-          size={12}
-          strokeWidth={2}
-        />
+        <ChevronDown className="searchable-select-arrow" size={12} strokeWidth={2} />
       </div>
 
       {isOpen && (
@@ -1173,13 +1186,9 @@ function SearchableSelect({
                   onClick={() => handleSelect(opt.value)}
                   onMouseEnter={() => setHighlightedIndex(index)}
                 >
-                  <span className="searchable-select-option-label">
-                    {opt.label}
-                  </span>
+                  <span className="searchable-select-option-label">{opt.label}</span>
                   {opt.description && (
-                    <span className="searchable-select-option-desc">
-                      {opt.description}
-                    </span>
+                    <span className="searchable-select-option-desc">{opt.description}</span>
                   )}
                 </div>
               ))
@@ -1745,8 +1754,7 @@ const getSidebarSearchEntryLabel = (entry: SidebarSearchEntry): string => {
   return entry.terms[0];
 };
 
-const normalizeSettingsSidebarSearchQuery = (value: string): string =>
-  value.trim().toLowerCase();
+const normalizeSettingsSidebarSearchQuery = (value: string): string => value.trim().toLowerCase();
 
 const matchesSettingsSidebarSearchQuery = (
   haystack: string,
@@ -2128,10 +2136,7 @@ const DEFAULT_DEEPSEEK_MODELS = [
   { id: "deepseek-chat", name: "DeepSeek Chat" },
 ];
 
-const getLLMProviderIcon = (
-  providerType: string,
-  customEntry?: { compatibility?: string },
-) => {
+const getLLMProviderIcon = (providerType: string, customEntry?: { compatibility?: string }) => {
   if (LLM_PROVIDER_ICONS[providerType]) {
     return LLM_PROVIDER_ICONS[providerType];
   }
@@ -2309,9 +2314,7 @@ export function Settings({
     providerType: "anthropic",
     modelKey: "sonnet-4-5",
   });
-  const [settings, setSettingsState] = useState<LLMSettingsData>(
-    settingsRef.current,
-  );
+  const [settings, setSettingsState] = useState<LLMSettingsData>(settingsRef.current);
   const setSettings = (value: SetStateAction<LLMSettingsData>) => {
     setSettingsState((prev) => {
       const next = typeof value === "function" ? value(prev) : value;
@@ -2320,15 +2323,12 @@ export function Settings({
     });
   };
   const [models, setModels] = useState<ModelOption[]>([]);
-  const [providerRoutingModels, setProviderRoutingModels] = useState<
-    ModelOption[]
-  >([]);
+  const [providerRoutingModels, setProviderRoutingModels] = useState<ModelOption[]>([]);
   const [providerModelOptionsByType, setProviderModelOptionsByType] = useState<
     Record<string, ModelOption[]>
   >({});
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
-  const [routingRuntime, setRoutingRuntime] =
-    useState<LLMRoutingRuntimeState | null>(null);
+  const [routingRuntime, setRoutingRuntime] = useState<LLMRoutingRuntimeState | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -2555,11 +2555,10 @@ export function Settings({
   );
   // Form state for credentials (not persisted directly)
   const [anthropicApiKey, setAnthropicApiKey] = useState("");
-  const [anthropicSubscriptionToken, setAnthropicSubscriptionToken] =
-    useState("");
-  const [anthropicAuthMethod, setAnthropicAuthMethod] = useState<
-    "api_key" | "subscription"
-  >("api_key");
+  const [anthropicSubscriptionToken, setAnthropicSubscriptionToken] = useState("");
+  const [anthropicAuthMethod, setAnthropicAuthMethod] = useState<"api_key" | "subscription">(
+    "api_key",
+  );
   const [loadingClaudeModels, setLoadingClaudeModels] = useState(false);
   const [awsRegion, setAwsRegion] = useState("us-east-1");
   const [awsAccessKeyId, setAwsAccessKeyId] = useState("");
@@ -2571,9 +2570,7 @@ export function Settings({
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434");
   const [ollamaModel, setOllamaModel] = useState("llama3.2");
   const [ollamaApiKey, setOllamaApiKey] = useState("");
-  const [ollamaModels, setOllamaModels] = useState<
-    Array<{ name: string; size: number }>
-  >([]);
+  const [ollamaModels, setOllamaModels] = useState<Array<{ name: string; size: number }>>([]);
   const [loadingOllamaModels, setLoadingOllamaModels] = useState(false);
 
   // Gemini state
@@ -2587,11 +2584,8 @@ export function Settings({
   // OpenRouter state
   const [openrouterApiKey, setOpenrouterApiKey] = useState("");
   const [openrouterBaseUrl, setOpenrouterBaseUrl] = useState("");
-  const [openrouterModel, setOpenrouterModel] = useState(
-    "anthropic/claude-3.5-sonnet",
-  );
-  const [openrouterParetoMinCodingScore, setOpenrouterParetoMinCodingScore] =
-    useState("");
+  const [openrouterModel, setOpenrouterModel] = useState("anthropic/claude-3.5-sonnet");
+  const [openrouterParetoMinCodingScore, setOpenrouterParetoMinCodingScore] = useState("");
   const [openrouterModels, setOpenrouterModels] = useState<
     Array<{ id: string; name: string; context_length: number }>
   >([]);
@@ -2604,13 +2598,19 @@ export function Settings({
     Array<{ id: string; name: string; description: string }>
   >([]);
   const [loadingOpenAIModels, setLoadingOpenAIModels] = useState(false);
-  const [openaiAuthMethod, setOpenaiAuthMethod] = useState<"api_key" | "oauth">(
-    "api_key",
-  );
+  const [openaiAuthMethod, setOpenaiAuthMethod] = useState<"api_key" | "oauth">("api_key");
   const [openaiReasoningEffort, setOpenaiReasoningEffort] =
     useState<OpenAIReasoningEffort>("medium");
-  const [openaiTextVerbosity, setOpenaiTextVerbosity] =
-    useState<LLMTextVerbosity>("medium");
+  const openaiReasoningEffortOptions = useMemo(
+    () => getOpenAIReasoningEffortOptions(openaiModel),
+    [openaiModel],
+  );
+  useEffect(() => {
+    if (!openaiReasoningEffortOptions.some((option) => option.value === openaiReasoningEffort)) {
+      setOpenaiReasoningEffort("medium");
+    }
+  }, [openaiReasoningEffort, openaiReasoningEffortOptions]);
+  const [openaiTextVerbosity, setOpenaiTextVerbosity] = useState<LLMTextVerbosity>("medium");
   const [openaiOAuthConnected, setOpenaiOAuthConnected] = useState(false);
   const [openaiOAuthLoading, setOpenaiOAuthLoading] = useState(false);
 
@@ -2640,8 +2640,7 @@ export function Settings({
   const [imageAzureApiVersion, setImageAzureApiVersion] =
     useState("2024-02-15-preview");
   const [imageGeminiApiKey, setImageGeminiApiKey] = useState("");
-  const [imageGeminiModel, setImageGeminiModel] =
-    useState<"nano-banana-2">("nano-banana-2");
+  const [imageGeminiModel, setImageGeminiModel] = useState<"nano-banana-2">("nano-banana-2");
   const [imageOpenRouterApiKey, setImageOpenRouterApiKey] = useState("");
   const [imageOpenRouterBaseUrl, setImageOpenRouterBaseUrl] = useState(
     "https://openrouter.ai/api/v1",
@@ -2687,9 +2686,7 @@ export function Settings({
   const [videoGeminiDuration, setVideoGeminiDuration] = useState("5");
   const [videoGeminiAspectRatio, setVideoGeminiAspectRatio] = useState("16:9");
   // Vertex AI Veo config
-  const [videoVertexModel, setVideoVertexModel] = useState<"veo-3" | "veo-3.1">(
-    "veo-3",
-  );
+  const [videoVertexModel, setVideoVertexModel] = useState<"veo-3" | "veo-3.1">("veo-3");
   const [videoVertexProjectId, setVideoVertexProjectId] = useState("");
   const [videoVertexLocation, setVideoVertexLocation] = useState("us-central1");
   const [videoVertexOutputGcsUri, setVideoVertexOutputGcsUri] = useState("");
@@ -2698,9 +2695,7 @@ export function Settings({
   const [videoVertexAspectRatio, setVideoVertexAspectRatio] = useState("16:9");
   // Kling config
   const [videoKlingApiKey, setVideoKlingApiKey] = useState("");
-  const [videoKlingBaseUrl, setVideoKlingBaseUrl] = useState(
-    "https://api.klingai.com",
-  );
+  const [videoKlingBaseUrl, setVideoKlingBaseUrl] = useState("https://api.klingai.com");
   const [videoKlingModel, setVideoKlingModel] = useState("kling-v2");
   const [videoKlingDuration, setVideoKlingDuration] = useState("5");
   const [videoKlingAspectRatio, setVideoKlingAspectRatio] = useState("16:9");
@@ -2711,34 +2706,27 @@ export function Settings({
   const [azureDeployment, setAzureDeployment] = useState("");
   const [azureDeploymentsText, setAzureDeploymentsText] = useState("");
   const [azureApiVersion, setAzureApiVersion] = useState("2024-02-15-preview");
-  const [azureReasoningEffort, setAzureReasoningEffort] =
-    useState<AzureReasoningEffort>("medium");
+  const [azureReasoningEffort, setAzureReasoningEffort] = useState<AzureReasoningEffort>("medium");
 
   // Azure Anthropic state
   const [azureAnthropicApiKey, setAzureAnthropicApiKey] = useState("");
   const [azureAnthropicEndpoint, setAzureAnthropicEndpoint] = useState("");
   const [azureAnthropicDeployment, setAzureAnthropicDeployment] = useState("");
-  const [azureAnthropicDeploymentsText, setAzureAnthropicDeploymentsText] =
-    useState("");
-  const [azureAnthropicApiVersion, setAzureAnthropicApiVersion] =
-    useState("2023-06-01");
+  const [azureAnthropicDeploymentsText, setAzureAnthropicDeploymentsText] = useState("");
+  const [azureAnthropicApiVersion, setAzureAnthropicApiVersion] = useState("2023-06-01");
 
   // Groq state
   const [groqApiKey, setGroqApiKey] = useState("");
   const [groqBaseUrl, setGroqBaseUrl] = useState("");
   const [groqModel, setGroqModel] = useState("llama-3.1-8b-instant");
-  const [groqModels, setGroqModels] = useState<
-    Array<{ id: string; name: string }>
-  >([]);
+  const [groqModels, setGroqModels] = useState<Array<{ id: string; name: string }>>([]);
   const [loadingGroqModels, setLoadingGroqModels] = useState(false);
 
   // xAI state
   const [xaiApiKey, setXaiApiKey] = useState("");
   const [xaiBaseUrl, setXaiBaseUrl] = useState("");
   const [xaiModel, setXaiModel] = useState("grok-4.3");
-  const [xaiModels, setXaiModels] = useState<
-    Array<{ id: string; name: string }>
-  >([]);
+  const [xaiModels, setXaiModels] = useState<Array<{ id: string; name: string }>>([]);
   const [loadingXaiModels, setLoadingXaiModels] = useState(false);
   const [xaiOAuthConnected, setXaiOAuthConnected] = useState(false);
   const [xaiOAuthLoading, setXaiOAuthLoading] = useState(false);
@@ -2747,9 +2735,8 @@ export function Settings({
   const [deepseekApiKey, setDeepseekApiKey] = useState("");
   const [deepseekBaseUrl, setDeepseekBaseUrl] = useState("");
   const [deepseekModel, setDeepseekModel] = useState("deepseek-chat");
-  const [deepseekModels, setDeepseekModels] = useState<
-    Array<{ id: string; name: string }>
-  >(DEFAULT_DEEPSEEK_MODELS);
+  const [deepseekModels, setDeepseekModels] =
+    useState<Array<{ id: string; name: string }>>(DEFAULT_DEEPSEEK_MODELS);
   const [loadingDeepseekModels, setLoadingDeepseekModels] = useState(false);
 
   // Kimi state
@@ -2773,9 +2760,7 @@ export function Settings({
   const [piModels, setPiModels] = useState<
     Array<{ id: string; name: string; description: string }>
   >([]);
-  const [piProviders, setPiProviders] = useState<
-    Array<{ id: string; name: string }>
-  >([]);
+  const [piProviders, setPiProviders] = useState<Array<{ id: string; name: string }>>([]);
   const [loadingPiModels, setLoadingPiModels] = useState(false);
 
   // OpenAI-compatible state
@@ -2786,8 +2771,7 @@ export function Settings({
   const [openaiCompatModels, setOpenaiCompatModels] = useState<
     Array<{ key: string; displayName: string; description: string }>
   >([]);
-  const [loadingOpenAICompatModels, setLoadingOpenAICompatModels] =
-    useState(false);
+  const [loadingOpenAICompatModels, setLoadingOpenAICompatModels] = useState(false);
 
   // HuggingFace Local AI (hf-agents) state
   const [hfStatus, setHfStatus] = useState<{
@@ -2830,11 +2814,8 @@ export function Settings({
   } | null>(null);
 
   // Custom provider state
-  const [customProviders, setCustomProviders] = useState<
-    Record<string, CustomProviderConfig>
-  >({});
-  const [loadingCustomProviderModels, setLoadingCustomProviderModels] =
-    useState(false);
+  const [customProviders, setCustomProviders] = useState<Record<string, CustomProviderConfig>>({});
+  const [loadingCustomProviderModels, setLoadingCustomProviderModels] = useState(false);
 
   // Bedrock state
   const [bedrockModel, setBedrockModel] = useState("");
@@ -2905,9 +2886,7 @@ export function Settings({
     return normalized.slice(0, 5);
   };
 
-  const sanitizeCustomProviders = (
-    providers: Record<string, CustomProviderConfig>,
-  ) => {
+  const sanitizeCustomProviders = (providers: Record<string, CustomProviderConfig>) => {
     const sanitized: Record<string, CustomProviderConfig> = {};
     Object.entries(providers).forEach(([key, value]) => {
       const apiKey = value.apiKey?.trim();
@@ -2933,23 +2912,12 @@ export function Settings({
       const strongModelKey = value.strongModelKey?.trim();
       const cheapModelKey = value.cheapModelKey?.trim();
       const automatedTaskModelKey = value.automatedTaskModelKey?.trim();
-      const hasFallbackProviders = Object.prototype.hasOwnProperty.call(
-        value,
-        "fallbackProviders",
-      );
-      const fallbackProviders = sanitizeFailoverProviders(
-        value.fallbackProviders,
-      );
+      const hasFallbackProviders = Object.prototype.hasOwnProperty.call(value, "fallbackProviders");
+      const fallbackProviders = sanitizeFailoverProviders(value.fallbackProviders);
       const failoverPrimaryRetryCooldownSeconds =
         typeof value.failoverPrimaryRetryCooldownSeconds === "number" &&
         Number.isFinite(value.failoverPrimaryRetryCooldownSeconds)
-          ? Math.max(
-              0,
-              Math.min(
-                3600,
-                Math.floor(value.failoverPrimaryRetryCooldownSeconds),
-              ),
-            )
+          ? Math.max(0, Math.min(3600, Math.floor(value.failoverPrimaryRetryCooldownSeconds)))
           : undefined;
       const profileRoutingEnabled = value.profileRoutingEnabled === true;
       const preferStrongForVerification =
@@ -3040,9 +3008,7 @@ export function Settings({
     };
   };
 
-  const getProviderRoutingConfig = (
-    providerType: LLMProviderType,
-  ): ProviderRoutingConfig => {
+  const getProviderRoutingConfig = (providerType: LLMProviderType): ProviderRoutingConfig => {
     const resolvedType = resolveCustomProviderId(providerType);
     const customEntry = CUSTOM_PROVIDER_MAP.get(resolvedType);
     if (customEntry) {
@@ -3088,10 +3054,7 @@ export function Settings({
 
   const getProviderFailoverConfig = (
     providerType: LLMProviderType,
-  ): Pick<
-    ProviderRoutingConfig,
-    "fallbackProviders" | "failoverPrimaryRetryCooldownSeconds"
-  > => {
+  ): Pick<ProviderRoutingConfig, "fallbackProviders" | "failoverPrimaryRetryCooldownSeconds"> => {
     const resolvedType = resolveCustomProviderId(providerType);
     const customEntry = CUSTOM_PROVIDER_MAP.get(resolvedType);
     if (customEntry) {
@@ -3253,9 +3216,7 @@ export function Settings({
     const resolvedType = resolveCustomProviderId(providerType);
     const customEntry = CUSTOM_PROVIDER_MAP.get(resolvedType);
     if (customEntry) {
-      return (
-        customProviders[resolvedType]?.model || customEntry.defaultModel || ""
-      );
+      return customProviders[resolvedType]?.model || customEntry.defaultModel || "";
     }
 
     switch (providerType) {
@@ -3296,11 +3257,7 @@ export function Settings({
       }
       case "azure-anthropic": {
         const azureAnthropicBuilt = buildAzureAnthropicSettings();
-        return (
-          azureAnthropicBuilt.deployment ||
-          settings.azureAnthropic?.deployment ||
-          ""
-        );
+        return azureAnthropicBuilt.deployment || settings.azureAnthropic?.deployment || "";
       }
       case "groq":
         return groqModel || settings.groq?.model || "";
@@ -3318,9 +3275,8 @@ export function Settings({
       case "moa":
         return (
           settings.moa?.defaultPreset ||
-          Object.values(settings.moa?.presets || {}).find(
-            (preset) => preset.enabled !== false,
-          )?.id ||
+          Object.values(settings.moa?.presets || {}).find((preset) => preset.enabled !== false)
+            ?.id ||
           ""
         );
       default:
@@ -3997,9 +3953,7 @@ export function Settings({
       });
     };
 
-    providerRoutingModels.forEach((model) =>
-      addOption(model.key, model.displayName),
-    );
+    providerRoutingModels.forEach((model) => addOption(model.key, model.displayName));
     models.forEach((model) => addOption(model.key, model.displayName));
     addOption(getProviderPrimaryModel(providerType));
     addOption(routing.strongModelKey);
@@ -4054,10 +4008,7 @@ export function Settings({
     providerType: LLMProviderType,
     claudeCredentials?: ReturnType<typeof buildClaudeCredentialInput>,
   ) => {
-    const providerModels = await loadProviderModelsForType(
-      providerType,
-      claudeCredentials,
-    );
+    const providerModels = await loadProviderModelsForType(providerType, claudeCredentials);
     setProviderRoutingModels(providerModels);
   };
 
@@ -4108,10 +4059,7 @@ export function Settings({
     };
   };
 
-  const updateMoaPreset = (
-    presetId: string,
-    updater: (preset: MoaPreset) => MoaPreset,
-  ) => {
+  const updateMoaPreset = (presetId: string, updater: (preset: MoaPreset) => MoaPreset) => {
     setSettings((prev) => {
       const presets = { ...(prev.moa?.presets || {}) };
       const existing = presets[presetId];
@@ -4212,11 +4160,7 @@ export function Settings({
     });
   };
 
-  const updateMoaReference = (
-    presetId: string,
-    index: number,
-    patch: Partial<MoaModelSlot>,
-  ) => {
+  const updateMoaReference = (presetId: string, index: number, patch: Partial<MoaModelSlot>) => {
     updateMoaPreset(presetId, (preset) => {
       const references = [...preset.referenceModels];
       references[index] = { ...references[index], ...patch };
@@ -4238,15 +4182,11 @@ export function Settings({
       Number.isFinite(slot.temperature)
         ? { temperature: Math.max(0, Math.min(2, slot.temperature)) }
         : {}),
-      ...(slot.roleInstruction?.trim()
-        ? { roleInstruction: slot.roleInstruction.trim() }
-        : {}),
+      ...(slot.roleInstruction?.trim() ? { roleInstruction: slot.roleInstruction.trim() } : {}),
     };
   };
 
-  const sanitizeMoaPresets = (
-    presets?: Record<string, MoaPreset>,
-  ): Record<string, MoaPreset> => {
+  const sanitizeMoaPresets = (presets?: Record<string, MoaPreset>): Record<string, MoaPreset> => {
     const sanitized: Record<string, MoaPreset> = {};
     for (const [presetId, preset] of Object.entries(presets || {})) {
       const id = preset.id?.trim() || presetId.trim();
@@ -4258,9 +4198,7 @@ export function Settings({
       sanitized[id] = {
         id,
         name: preset.name?.trim() || id,
-        ...(preset.description?.trim()
-          ? { description: preset.description.trim() }
-          : {}),
+        ...(preset.description?.trim() ? { description: preset.description.trim() } : {}),
         enabled: preset.enabled !== false,
         referenceModels: referenceModels.slice(0, 8),
         aggregator,
@@ -4282,13 +4220,9 @@ export function Settings({
               ),
             }
           : {}),
-        ...(typeof preset.concurrency === "number" &&
-        Number.isFinite(preset.concurrency)
+        ...(typeof preset.concurrency === "number" && Number.isFinite(preset.concurrency)
           ? {
-              concurrency: Math.max(
-                1,
-                Math.min(8, Math.floor(preset.concurrency)),
-              ),
+              concurrency: Math.max(1, Math.min(8, Math.floor(preset.concurrency))),
             }
           : {}),
       };
@@ -4320,10 +4254,7 @@ export function Settings({
         anthropic: providerModels,
       }));
       setModels(providerModels);
-      const nextModelKey = selectClaudeModelKey(
-        providerModels,
-        currentModelKeyOverride,
-      );
+      const nextModelKey = selectClaudeModelKey(providerModels, currentModelKeyOverride);
       setSettings((prev) => {
         if (prev.providerType !== "anthropic") return prev;
         if (prev.modelKey === nextModelKey) {
@@ -4368,9 +4299,7 @@ export function Settings({
     return Array.from(deduped.values());
   };
 
-  const configuredFallbackProviderOptions = providers.filter(
-    (provider) => provider.configured,
-  );
+  const configuredFallbackProviderOptions = providers.filter((provider) => provider.configured);
 
   useEffect(() => {
     if (!azureDeployment) {
@@ -4427,9 +4356,7 @@ export function Settings({
       } else {
         setCustomProviders({});
       }
-      const loadedClaudeAuthMethod = resolveClaudeAuthMethod(
-        loadedSettings.anthropic,
-      );
+      const loadedClaudeAuthMethod = resolveClaudeAuthMethod(loadedSettings.anthropic);
       const loadedClaudeCredentials = buildClaudeCredentialInput({
         ...loadedSettings.anthropic,
         authMethod: loadedClaudeAuthMethod,
@@ -4450,10 +4377,7 @@ export function Settings({
           loadedSettings.modelKey,
           loadedClaudeCredentials,
         );
-        const nextModelKey = selectClaudeModelKey(
-          providerModels,
-          loadedSettings.modelKey,
-        );
+        const nextModelKey = selectClaudeModelKey(providerModels, loadedSettings.modelKey);
         if (nextModelKey && nextModelKey !== loadedSettings.modelKey) {
           setSettings((prev) => ({ ...prev, modelKey: nextModelKey }));
         }
@@ -4502,10 +4426,7 @@ export function Settings({
           if (!loadedSettings.openai.model) {
             setOpenaiModel("gpt-5.5");
           }
-          if (
-            loadedSettings.openai.accessToken ||
-            loadedSettings.openai.refreshToken
-          ) {
+          if (loadedSettings.openai.accessToken || loadedSettings.openai.refreshToken) {
             // Tokens available - fully connected
             setOpenaiOAuthConnected(true);
           } else {
@@ -4528,8 +4449,7 @@ export function Settings({
       setAzureEndpoint(loadedSettings.azure?.endpoint ?? "");
       {
         const loadedDeployments =
-          loadedSettings.azure?.deployments &&
-          loadedSettings.azure.deployments.length > 0
+          loadedSettings.azure?.deployments && loadedSettings.azure.deployments.length > 0
             ? loadedSettings.azure.deployments
             : loadedSettings.azure?.deployment
               ? [loadedSettings.azure.deployment]
@@ -4643,9 +4563,7 @@ export function Settings({
       setImageAzureApiKey(ig?.azure?.imageApiKey ?? "");
       setImageAzureEndpoint(ig?.azure?.imageEndpoint ?? "");
       setImageAzureDeployment(ig?.azure?.imageDeployment ?? "");
-      setImageAzureApiVersion(
-        ig?.azure?.imageApiVersion ?? "2024-02-15-preview",
-      );
+      setImageAzureApiVersion(ig?.azure?.imageApiVersion ?? "2024-02-15-preview");
       setImageGeminiApiKey(ig?.gemini?.apiKey ?? "");
       setImageGeminiModel(ig?.gemini?.model ?? "nano-banana-2");
       setImageOpenRouterApiKey(ig?.openrouter?.apiKey ?? "");
@@ -4667,46 +4585,30 @@ export function Settings({
       if (vg?.defaultProvider) setVideoDefaultProvider(vg.defaultProvider);
       if (vg?.fallbackProvider) setVideoFallbackProvider(vg.fallbackProvider);
       if (vg?.openai?.defaultModel) setVideoOpenAIModel(vg.openai.defaultModel);
-      if (vg?.openai?.defaultDuration)
-        setVideoOpenAIDuration(String(vg.openai.defaultDuration));
-      if (vg?.openai?.defaultAspectRatio)
-        setVideoOpenAIAspectRatio(vg.openai.defaultAspectRatio);
-      if (vg?.openai?.defaultResolution)
-        setVideoOpenAIResolution(vg.openai.defaultResolution);
+      if (vg?.openai?.defaultDuration) setVideoOpenAIDuration(String(vg.openai.defaultDuration));
+      if (vg?.openai?.defaultAspectRatio) setVideoOpenAIAspectRatio(vg.openai.defaultAspectRatio);
+      if (vg?.openai?.defaultResolution) setVideoOpenAIResolution(vg.openai.defaultResolution);
       if (vg?.azure?.videoApiKey) setVideoAzureApiKey(vg.azure.videoApiKey);
-      if (vg?.azure?.videoEndpoint)
-        setVideoAzureEndpoint(vg.azure.videoEndpoint);
-      if (vg?.azure?.videoDeployment)
-        setVideoAzureDeployment(vg.azure.videoDeployment);
-      if (vg?.azure?.videoApiVersion)
-        setVideoAzureApiVersion(vg.azure.videoApiVersion);
-      if (vg?.azure?.defaultDuration)
-        setVideoAzureDuration(String(vg.azure.defaultDuration));
-      if (vg?.azure?.defaultAspectRatio)
-        setVideoAzureAspectRatio(vg.azure.defaultAspectRatio);
+      if (vg?.azure?.videoEndpoint) setVideoAzureEndpoint(vg.azure.videoEndpoint);
+      if (vg?.azure?.videoDeployment) setVideoAzureDeployment(vg.azure.videoDeployment);
+      if (vg?.azure?.videoApiVersion) setVideoAzureApiVersion(vg.azure.videoApiVersion);
+      if (vg?.azure?.defaultDuration) setVideoAzureDuration(String(vg.azure.defaultDuration));
+      if (vg?.azure?.defaultAspectRatio) setVideoAzureAspectRatio(vg.azure.defaultAspectRatio);
       if (vg?.gemini?.defaultModel) setVideoGeminiModel(vg.gemini.defaultModel);
-      if (vg?.gemini?.defaultDuration)
-        setVideoGeminiDuration(String(vg.gemini.defaultDuration));
-      if (vg?.gemini?.defaultAspectRatio)
-        setVideoGeminiAspectRatio(vg.gemini.defaultAspectRatio);
+      if (vg?.gemini?.defaultDuration) setVideoGeminiDuration(String(vg.gemini.defaultDuration));
+      if (vg?.gemini?.defaultAspectRatio) setVideoGeminiAspectRatio(vg.gemini.defaultAspectRatio);
       if (vg?.vertex?.model) setVideoVertexModel(vg.vertex.model);
       if (vg?.vertex?.projectId) setVideoVertexProjectId(vg.vertex.projectId);
       if (vg?.vertex?.location) setVideoVertexLocation(vg.vertex.location);
-      if (vg?.vertex?.outputGcsUri)
-        setVideoVertexOutputGcsUri(vg.vertex.outputGcsUri);
-      if (vg?.vertex?.accessToken)
-        setVideoVertexAccessToken(vg.vertex.accessToken);
-      if (vg?.vertex?.defaultDuration)
-        setVideoVertexDuration(String(vg.vertex.defaultDuration));
-      if (vg?.vertex?.defaultAspectRatio)
-        setVideoVertexAspectRatio(vg.vertex.defaultAspectRatio);
+      if (vg?.vertex?.outputGcsUri) setVideoVertexOutputGcsUri(vg.vertex.outputGcsUri);
+      if (vg?.vertex?.accessToken) setVideoVertexAccessToken(vg.vertex.accessToken);
+      if (vg?.vertex?.defaultDuration) setVideoVertexDuration(String(vg.vertex.defaultDuration));
+      if (vg?.vertex?.defaultAspectRatio) setVideoVertexAspectRatio(vg.vertex.defaultAspectRatio);
       if (vg?.kling?.apiKey) setVideoKlingApiKey(vg.kling.apiKey);
       if (vg?.kling?.baseUrl) setVideoKlingBaseUrl(vg.kling.baseUrl);
       if (vg?.kling?.model) setVideoKlingModel(vg.kling.model);
-      if (vg?.kling?.defaultDuration)
-        setVideoKlingDuration(String(vg.kling.defaultDuration));
-      if (vg?.kling?.defaultAspectRatio)
-        setVideoKlingAspectRatio(vg.kling.defaultAspectRatio);
+      if (vg?.kling?.defaultDuration) setVideoKlingDuration(String(vg.kling.defaultDuration));
+      if (vg?.kling?.defaultAspectRatio) setVideoKlingAspectRatio(vg.kling.defaultAspectRatio);
 
       // Set Bedrock form state (access key and secret key are set earlier)
       setAwsAccessKeyId(loadedSettings.bedrock?.accessKeyId ?? "");
@@ -4714,10 +4616,7 @@ export function Settings({
       setBedrockModel(loadedSettings.bedrock?.model ?? "");
 
       // Populate dropdown arrays from cached models
-      if (
-        loadedSettings.cachedGeminiModels &&
-        loadedSettings.cachedGeminiModels.length > 0
-      ) {
+      if (loadedSettings.cachedGeminiModels && loadedSettings.cachedGeminiModels.length > 0) {
         setGeminiModels(
           loadedSettings.cachedGeminiModels.map((m: Any) => ({
             name: m.key,
@@ -4738,10 +4637,7 @@ export function Settings({
           })),
         );
       }
-      if (
-        loadedSettings.cachedOpenAIModels &&
-        loadedSettings.cachedOpenAIModels.length > 0
-      ) {
+      if (loadedSettings.cachedOpenAIModels && loadedSettings.cachedOpenAIModels.length > 0) {
         setOpenaiModels(
           loadedSettings.cachedOpenAIModels.map((m: Any) => ({
             id: m.key,
@@ -4750,10 +4646,7 @@ export function Settings({
           })),
         );
       }
-      if (
-        loadedSettings.cachedOllamaModels &&
-        loadedSettings.cachedOllamaModels.length > 0
-      ) {
+      if (loadedSettings.cachedOllamaModels && loadedSettings.cachedOllamaModels.length > 0) {
         setOllamaModels(
           loadedSettings.cachedOllamaModels.map((m: Any) => ({
             name: m.key,
@@ -4761,10 +4654,7 @@ export function Settings({
           })),
         );
       }
-      if (
-        loadedSettings.cachedBedrockModels &&
-        loadedSettings.cachedBedrockModels.length > 0
-      ) {
+      if (loadedSettings.cachedBedrockModels && loadedSettings.cachedBedrockModels.length > 0) {
         setBedrockModels(
           loadedSettings.cachedBedrockModels.map((m: Any) => ({
             id: m.key,
@@ -4773,10 +4663,7 @@ export function Settings({
           })),
         );
       }
-      if (
-        loadedSettings.cachedPiModels &&
-        loadedSettings.cachedPiModels.length > 0
-      ) {
+      if (loadedSettings.cachedPiModels && loadedSettings.cachedPiModels.length > 0) {
         setPiModels(
           loadedSettings.cachedPiModels.map((m: Any) => ({
             id: m.key,
@@ -4795,20 +4682,11 @@ export function Settings({
   const loadOllamaModels = async (baseUrl?: string) => {
     try {
       setLoadingOllamaModels(true);
-      const models = await window.electronAPI.getOllamaModels(
-        baseUrl || ollamaBaseUrl,
-      );
-      console.log(
-        `[Settings] Loaded ${models?.length || 0} Ollama models`,
-        models,
-      );
+      const models = await window.electronAPI.getOllamaModels(baseUrl || ollamaBaseUrl);
+      console.log(`[Settings] Loaded ${models?.length || 0} Ollama models`, models);
       setOllamaModels(models || []);
       // If we got models and current model isn't in the list, select the first one
-      if (
-        models &&
-        models.length > 0 &&
-        !models.some((m) => m.name === ollamaModel)
-      ) {
+      if (models && models.length > 0 && !models.some((m) => m.name === ollamaModel)) {
         setOllamaModel(models[0].name);
       }
       // Notify main page that models were refreshed (they're now cached)
@@ -4824,16 +4702,10 @@ export function Settings({
   const loadGeminiModels = async (apiKey?: string) => {
     try {
       setLoadingGeminiModels(true);
-      const models = await window.electronAPI.getGeminiModels(
-        apiKey || geminiApiKey,
-      );
+      const models = await window.electronAPI.getGeminiModels(apiKey || geminiApiKey);
       setGeminiModels(models || []);
       // If we got models and current model isn't in the list, select the first one
-      if (
-        models &&
-        models.length > 0 &&
-        !models.some((m) => m.name === geminiModel)
-      ) {
+      if (models && models.length > 0 && !models.some((m) => m.name === geminiModel)) {
         setGeminiModel(models[0].name);
       }
       // Notify main page that models were refreshed (they're now cached)
@@ -4855,11 +4727,7 @@ export function Settings({
       );
       setOpenrouterModels(models || []);
       // If we got models and current model isn't in the list, select the first one
-      if (
-        models &&
-        models.length > 0 &&
-        !models.some((m) => m.id === openrouterModel)
-      ) {
+      if (models && models.length > 0 && !models.some((m) => m.id === openrouterModel)) {
         setOpenrouterModel(models[0].id);
       }
       // Notify main page that models were refreshed (they're now cached)
@@ -4875,9 +4743,7 @@ export function Settings({
   const loadOpenAIModels = async (apiKey?: string) => {
     try {
       setLoadingOpenAIModels(true);
-      const models = await window.electronAPI.getOpenAIModels(
-        apiKey || openaiApiKey,
-      );
+      const models = await window.electronAPI.getOpenAIModels(apiKey || openaiApiKey);
       setOpenaiModels(models || []);
       // If we got models and no model is selected yet, select the first one
       // (Don't override custom model IDs that may not be in the list.)
@@ -4902,11 +4768,7 @@ export function Settings({
         groqBaseUrl || undefined,
       );
       setGroqModels(models || []);
-      if (
-        models &&
-        models.length > 0 &&
-        !models.some((m) => m.id === groqModel)
-      ) {
+      if (models && models.length > 0 && !models.some((m) => m.id === groqModel)) {
         setGroqModel(models[0].id);
       }
       onSettingsChanged?.();
@@ -4926,11 +4788,7 @@ export function Settings({
         xaiBaseUrl || undefined,
       );
       setXaiModels(models || []);
-      if (
-        models &&
-        models.length > 0 &&
-        !models.some((m) => m.id === xaiModel)
-      ) {
+      if (models && models.length > 0 && !models.some((m) => m.id === xaiModel)) {
         setXaiModel(models[0].id);
       }
       onSettingsChanged?.();
@@ -4952,10 +4810,7 @@ export function Settings({
       const availableModels =
         models && models.length > 0 ? models : DEFAULT_DEEPSEEK_MODELS;
       setDeepseekModels(availableModels);
-      if (
-        availableModels.length > 0 &&
-        !availableModels.some((m) => m.id === deepseekModel)
-      ) {
+      if (availableModels.length > 0 && !availableModels.some((m) => m.id === deepseekModel)) {
         setDeepseekModel(availableModels[0].id);
       }
       onSettingsChanged?.();
@@ -5047,11 +4902,7 @@ export function Settings({
       const resolvedProvider = provider || piProvider;
       const models = await window.electronAPI.getPiModels(resolvedProvider);
       setPiModels(models || []);
-      if (
-        models &&
-        models.length > 0 &&
-        !models.some((m) => m.id === piModel)
-      ) {
+      if (models && models.length > 0 && !models.some((m) => m.id === piModel)) {
         setPiModel(models[0].id);
       }
       onSettingsChanged?.();
@@ -5072,10 +4923,7 @@ export function Settings({
     }
   };
 
-  const loadOpenAICompatibleModels = async (
-    baseUrl?: string,
-    apiKey?: string,
-  ) => {
+  const loadOpenAICompatibleModels = async (baseUrl?: string, apiKey?: string) => {
     try {
       setLoadingOpenAICompatModels(true);
       const resolvedBaseUrl = baseUrl || openaiCompatBaseUrl;
@@ -5085,11 +4933,7 @@ export function Settings({
         apiKey || openaiCompatApiKey || undefined,
       );
       setOpenaiCompatModels(models || []);
-      if (
-        models &&
-        models.length > 0 &&
-        !models.some((m) => m.key === openaiCompatModel)
-      ) {
+      if (models && models.length > 0 && !models.some((m) => m.key === openaiCompatModel)) {
         setOpenaiCompatModel(models[0].key);
       }
       onSettingsChanged?.();
@@ -5110,13 +4954,10 @@ export function Settings({
       setLoadingCustomProviderModels(true);
       setTestResult(null);
       const currentConfig = customProviders[resolvedType] || {};
-      const models = await window.electronAPI.refreshCustomProviderModels(
-        resolvedType,
-        {
-          apiKey: currentConfig.apiKey,
-          baseUrl: currentConfig.baseUrl || customEntry.baseUrl,
-        },
-      );
+      const models = await window.electronAPI.refreshCustomProviderModels(resolvedType, {
+        apiKey: currentConfig.apiKey,
+        baseUrl: currentConfig.baseUrl || customEntry.baseUrl,
+      });
 
       setCustomProviders((prev) => {
         const existing = prev[resolvedType] || {};
@@ -5147,9 +4988,7 @@ export function Settings({
       setTestResult({
         success: false,
         error:
-          error instanceof Error
-            ? error.message
-            : `Failed to load models for ${customEntry.name}`,
+          error instanceof Error ? error.message : `Failed to load models for ${customEntry.name}`,
       });
     } finally {
       setLoadingCustomProviderModels(false);
@@ -5161,9 +5000,7 @@ export function Settings({
       if (providerType !== "moa") return { ...prev, providerType };
       const defaultPreset =
         prev.moa?.defaultPreset ||
-        Object.values(prev.moa?.presets || {}).find(
-          (preset) => preset.enabled !== false,
-        )?.id ||
+        Object.values(prev.moa?.presets || {}).find((preset) => preset.enabled !== false)?.id ||
         "";
       return {
         ...prev,
@@ -5194,10 +5031,7 @@ export function Settings({
 
     const currentRouting = getProviderRoutingConfig(providerType);
     const providerPrimaryModel = getProviderPrimaryModel(providerType);
-    if (
-      providerPrimaryModel &&
-      (!currentRouting.strongModelKey || !currentRouting.cheapModelKey)
-    ) {
+    if (providerPrimaryModel && (!currentRouting.strongModelKey || !currentRouting.cheapModelKey)) {
       setProviderRoutingConfig(providerType, {
         strongModelKey: currentRouting.strongModelKey || providerPrimaryModel,
         cheapModelKey: currentRouting.cheapModelKey || providerPrimaryModel,
@@ -5341,11 +5175,7 @@ export function Settings({
         ]);
         if (status) setHfServerStatus(status);
         if (log) setServerLog(log);
-        if (
-          status?.serverRunning ||
-          !status?.processAlive ||
-          pollCount >= maxPolls
-        ) {
+        if (status?.serverRunning || !status?.processAlive || pollCount >= maxPolls) {
           if (status?.serverRunning) setServerLog(null); // clear log panel on success
           setStartingServer(false);
           return;
@@ -5458,10 +5288,7 @@ export function Settings({
       // (for example, custom inference profile ARN/ID). Only auto-select when empty.
       const currentModel = bedrockModel?.trim();
       let nextModels = normalizedModels;
-      if (
-        currentModel &&
-        !normalizedModels.some((m: Any) => m.id === currentModel)
-      ) {
+      if (currentModel && !normalizedModels.some((m: Any) => m.id === currentModel)) {
         nextModels = [
           {
             id: currentModel,
@@ -5482,11 +5309,8 @@ export function Settings({
     } catch (error) {
       console.error("Failed to load Bedrock models:", error);
       setBedrockModels([]);
-      const rawMessage =
-        error instanceof Error ? error.message : String(error || "");
-      if (
-        rawMessage.includes("Could not load credentials from any providers")
-      ) {
+      const rawMessage = error instanceof Error ? error.message : String(error || "");
+      if (rawMessage.includes("Could not load credentials from any providers")) {
         setTestResult({
           success: false,
           error:
@@ -5709,9 +5533,7 @@ export function Settings({
       setResettingCredentials(true);
       setTestResult(null);
 
-      const providerType = resolveCustomProviderId(
-        settings.providerType as LLMProviderType,
-      );
+      const providerType = resolveCustomProviderId(settings.providerType as LLMProviderType);
       await window.electronAPI.resetLLMProviderCredentials(providerType);
 
       clearProviderFormState(providerType);
@@ -5759,8 +5581,7 @@ export function Settings({
       const currentSettings = settingsRef.current;
       const openrouterParetoScore = parseOpenRouterParetoMinCodingScore();
       const shouldValidateOpenRouterParetoScore =
-        currentSettings.providerType === "openrouter" &&
-        openrouterParetoScore.shouldSave;
+        currentSettings.providerType === "openrouter" && openrouterParetoScore.shouldSave;
       if (shouldValidateOpenRouterParetoScore && openrouterParetoScore.error) {
         setTestResult({ success: false, error: openrouterParetoScore.error });
         return;
@@ -5772,21 +5593,15 @@ export function Settings({
         currentSettings.moa?.presets,
       );
       const moaDefaultPreset =
-        currentSettings.moa?.defaultPreset &&
-        sanitizedMoaPresets[currentSettings.moa.defaultPreset]
+        currentSettings.moa?.defaultPreset && sanitizedMoaPresets[currentSettings.moa.defaultPreset]
           ? currentSettings.moa.defaultPreset
-          : Object.values(sanitizedMoaPresets).find(
-              (preset) => preset.enabled !== false,
-            )?.id;
+          : Object.values(sanitizedMoaPresets).find((preset) => preset.enabled !== false)?.id;
       const resolvedProviderTypeForSave = resolveCustomProviderId(
         currentSettings.providerType as LLMProviderType,
       );
-      const selectedCustomEntry = CUSTOM_PROVIDER_MAP.get(
-        resolvedProviderTypeForSave,
-      );
+      const selectedCustomEntry = CUSTOM_PROVIDER_MAP.get(resolvedProviderTypeForSave);
       if (selectedCustomEntry) {
-        const existing =
-          sanitizedCustomProviders[resolvedProviderTypeForSave] || {};
+        const existing = sanitizedCustomProviders[resolvedProviderTypeForSave] || {};
         const withDefaults: CustomProviderConfig = { ...existing };
         if (!withDefaults.model && selectedCustomEntry.defaultModel) {
           withDefaults.model = selectedCustomEntry.defaultModel;
@@ -5798,9 +5613,7 @@ export function Settings({
       }
       const azureSettings = buildAzureSettings();
       const azureAnthropicSettings = buildAzureAnthropicSettings();
-      const routingFor = (
-        providerType: LLMProviderType,
-      ): ProviderRoutingConfig => {
+      const routingFor = (providerType: LLMProviderType): ProviderRoutingConfig => {
         const routing = getProviderRoutingConfig(providerType);
         const strongModelKey = routing.strongModelKey?.trim();
         const cheapModelKey = routing.cheapModelKey?.trim();
@@ -5830,13 +5643,7 @@ export function Settings({
         const cooldown =
           typeof failover.failoverPrimaryRetryCooldownSeconds === "number" &&
           Number.isFinite(failover.failoverPrimaryRetryCooldownSeconds)
-            ? Math.max(
-                0,
-                Math.min(
-                  3600,
-                  Math.floor(failover.failoverPrimaryRetryCooldownSeconds),
-                ),
-              )
+            ? Math.max(0, Math.min(3600, Math.floor(failover.failoverPrimaryRetryCooldownSeconds)))
             : undefined;
         return {
           ...(fallbackProviders !== undefined ? { fallbackProviders } : {}),
@@ -5920,10 +5727,7 @@ export function Settings({
         },
         // Always include openai settings
         openai: {
-          apiKey:
-            openaiAuthMethod === "api_key"
-              ? openaiApiKey || undefined
-              : undefined,
+          apiKey: openaiAuthMethod === "api_key" ? openaiApiKey || undefined : undefined,
           model: openaiModel || undefined,
           reasoningEffort: openaiReasoningEffort,
           textVerbosity: openaiTextVerbosity,
@@ -6004,10 +5808,7 @@ export function Settings({
         },
         moa: {
           defaultPreset: moaDefaultPreset,
-          presets:
-            Object.keys(sanitizedMoaPresets).length > 0
-              ? sanitizedMoaPresets
-              : undefined,
+          presets: Object.keys(sanitizedMoaPresets).length > 0 ? sanitizedMoaPresets : undefined,
           ...routingFor("moa"),
           ...failoverFor("moa"),
         },
@@ -6078,32 +5879,22 @@ export function Settings({
           fallbackProvider: videoFallbackProvider || undefined,
           openai: {
             defaultModel: videoOpenAIModel || undefined,
-            defaultDuration: videoOpenAIDuration
-              ? Number(videoOpenAIDuration)
-              : undefined,
-            defaultAspectRatio:
-              (videoOpenAIAspectRatio as "16:9" | "9:16" | "1:1") || undefined,
-            defaultResolution:
-              (videoOpenAIResolution as "480p" | "720p" | "1080p") || undefined,
+            defaultDuration: videoOpenAIDuration ? Number(videoOpenAIDuration) : undefined,
+            defaultAspectRatio: (videoOpenAIAspectRatio as "16:9" | "9:16" | "1:1") || undefined,
+            defaultResolution: (videoOpenAIResolution as "480p" | "720p" | "1080p") || undefined,
           },
           azure: {
             videoApiKey: videoAzureApiKey || undefined,
             videoEndpoint: videoAzureEndpoint || undefined,
             videoDeployment: videoAzureDeployment || undefined,
             videoApiVersion: videoAzureApiVersion || undefined,
-            defaultDuration: videoAzureDuration
-              ? Number(videoAzureDuration)
-              : undefined,
-            defaultAspectRatio:
-              (videoAzureAspectRatio as "16:9" | "9:16" | "1:1") || undefined,
+            defaultDuration: videoAzureDuration ? Number(videoAzureDuration) : undefined,
+            defaultAspectRatio: (videoAzureAspectRatio as "16:9" | "9:16" | "1:1") || undefined,
           },
           gemini: {
             defaultModel: videoGeminiModel || undefined,
-            defaultDuration: videoGeminiDuration
-              ? Number(videoGeminiDuration)
-              : undefined,
-            defaultAspectRatio:
-              (videoGeminiAspectRatio as "16:9" | "9:16" | "1:1") || undefined,
+            defaultDuration: videoGeminiDuration ? Number(videoGeminiDuration) : undefined,
+            defaultAspectRatio: (videoGeminiAspectRatio as "16:9" | "9:16" | "1:1") || undefined,
           },
           vertex: {
             model: videoVertexModel || undefined,
@@ -6111,27 +5902,19 @@ export function Settings({
             location: videoVertexLocation || undefined,
             outputGcsUri: videoVertexOutputGcsUri || undefined,
             accessToken: videoVertexAccessToken || undefined,
-            defaultDuration: videoVertexDuration
-              ? Number(videoVertexDuration)
-              : undefined,
-            defaultAspectRatio:
-              (videoVertexAspectRatio as "16:9" | "9:16" | "1:1") || undefined,
+            defaultDuration: videoVertexDuration ? Number(videoVertexDuration) : undefined,
+            defaultAspectRatio: (videoVertexAspectRatio as "16:9" | "9:16" | "1:1") || undefined,
           },
           kling: {
             apiKey: videoKlingApiKey || undefined,
             baseUrl: videoKlingBaseUrl || undefined,
             model: videoKlingModel || undefined,
-            defaultDuration: videoKlingDuration
-              ? Number(videoKlingDuration)
-              : undefined,
-            defaultAspectRatio:
-              (videoKlingAspectRatio as "16:9" | "9:16" | "1:1") || undefined,
+            defaultDuration: videoKlingDuration ? Number(videoKlingDuration) : undefined,
+            defaultAspectRatio: (videoKlingAspectRatio as "16:9" | "9:16" | "1:1") || undefined,
           },
         },
         customProviders:
-          Object.keys(sanitizedCustomProviders).length > 0
-            ? sanitizedCustomProviders
-            : undefined,
+          Object.keys(sanitizedCustomProviders).length > 0 ? sanitizedCustomProviders : undefined,
       };
 
       const settingsForPersistence = options?.selectedModel
@@ -6173,16 +5956,13 @@ export function Settings({
         return;
       }
 
-      const sanitizedCustomProviders =
-        sanitizeCustomProviders(customProviders) || {};
+      const sanitizedCustomProviders = sanitizeCustomProviders(customProviders) || {};
       const sanitizedMoaPresets = sanitizeMoaPresets(settings.moa?.presets);
       const moaDefaultPreset =
         settings.moa?.defaultPreset &&
         sanitizedMoaPresets[settings.moa.defaultPreset]
           ? settings.moa.defaultPreset
-          : Object.values(sanitizedMoaPresets).find(
-              (preset) => preset.enabled !== false,
-            )?.id;
+          : Object.values(sanitizedMoaPresets).find((preset) => preset.enabled !== false)?.id;
       const azureSettings = buildAzureSettings();
       const azureAnthropicSettings = buildAzureAnthropicSettings();
       const anthropicCredentialSettings = {
@@ -6241,10 +6021,7 @@ export function Settings({
         openai:
           providerType === "openai"
             ? {
-                apiKey:
-                  openaiAuthMethod === "api_key"
-                    ? openaiApiKey || undefined
-                    : undefined,
+                apiKey: openaiAuthMethod === "api_key" ? openaiApiKey || undefined : undefined,
                 model: openaiModel || undefined,
                 reasoningEffort: openaiReasoningEffort,
                 textVerbosity: openaiTextVerbosity,
@@ -6329,15 +6106,11 @@ export function Settings({
             ? {
                 defaultPreset: moaDefaultPreset,
                 presets:
-                  Object.keys(sanitizedMoaPresets).length > 0
-                    ? sanitizedMoaPresets
-                    : undefined,
+                  Object.keys(sanitizedMoaPresets).length > 0 ? sanitizedMoaPresets : undefined,
               }
             : undefined,
         customProviders:
-          Object.keys(sanitizedCustomProviders).length > 0
-            ? sanitizedCustomProviders
-            : undefined,
+          Object.keys(sanitizedCustomProviders).length > 0 ? sanitizedCustomProviders : undefined,
       };
 
       const result = await window.electronAPI.testLLMProvider(testConfig);
@@ -6349,9 +6122,7 @@ export function Settings({
     }
   };
 
-  const renderModelSettingsActions = (options?: {
-    includeProviderActions?: boolean;
-  }) => (
+  const renderModelSettingsActions = (options?: { includeProviderActions?: boolean }) => (
     <div className="settings-actions">
       {options?.includeProviderActions && settings.providerType !== "kimi" && (
         <button
@@ -6422,14 +6193,10 @@ export function Settings({
     settings.moa?.defaultPreset ||
     moaPresetList.find((preset) => preset.enabled !== false)?.id ||
     "";
-  const selectedMoaPreset = selectedMoaPresetId
-    ? moaPresets[selectedMoaPresetId]
-    : undefined;
+  const selectedMoaPreset = selectedMoaPresetId ? moaPresets[selectedMoaPresetId] : undefined;
   const moaProviderOptions = getMoaProviderOptions();
-  const strongRoutingModel =
-    providerRouting.strongModelKey || providerPrimaryModel;
-  const cheapRoutingModel =
-    providerRouting.cheapModelKey || providerPrimaryModel;
+  const strongRoutingModel = providerRouting.strongModelKey || providerPrimaryModel;
+  const cheapRoutingModel = providerRouting.cheapModelKey || providerPrimaryModel;
   const automatedTaskRoutingModel = providerRouting.automatedTaskModelKey || "";
   const routingModelOptions = getRoutingModelOptions(currentProviderType);
   const routingModelsIdentical =
@@ -6476,12 +6243,7 @@ export function Settings({
         void loadProviderModelsForType(providerType);
       }
     }
-  }, [
-    currentProviderType,
-    moaPresetList,
-    loadProviderModelsForType,
-    providerModelOptionsByType,
-  ]);
+  }, [currentProviderType, moaPresetList, loadProviderModelsForType, providerModelOptionsByType]);
 
   const activeImageTab: ImageProviderTab = imageGenDefaultProvider || "auto";
 
@@ -6532,9 +6294,7 @@ export function Settings({
     provider === "gemini" ? "nano-banana-2" : "gpt-image-2";
 
   const getImageModelLabel = (model: ImageGenModel): string =>
-    model === "nano-banana-2"
-      ? "nano-banana-2 (Gemini 3.1 Flash Image)"
-      : model;
+    model === "nano-banana-2" ? "nano-banana-2 (Gemini 3.1 Flash Image)" : model;
 
   const getImageProviderLabel = (provider: ImageProviderTab): string => {
     switch (provider) {
@@ -6871,9 +6631,7 @@ export function Settings({
                 setImageGenDefaultModel("nano-banana-2");
               }}
             >
-              <option value="nano-banana-2">
-                nano-banana-2 (Gemini 3.1 Flash Image)
-              </option>
+              <option value="nano-banana-2">nano-banana-2 (Gemini 3.1 Flash Image)</option>
             </select>
             {renderImageTimeoutField(
               imageGeminiTimeoutSeconds,
@@ -6989,9 +6747,7 @@ export function Settings({
             className="settings-select"
             value={imageGenBackupProvider}
             onChange={(e) =>
-              selectImageBackupProvider(
-                (e.target.value || "") as ImageGenProvider | "",
-              )
+              selectImageBackupProvider((e.target.value || "") as ImageGenProvider | "")
             }
           >
             <option value="">
@@ -7011,15 +6767,12 @@ export function Settings({
               <select
                 className="settings-select"
                 value={
-                  imageGenBackupModel ===
-                  getImageProviderModel(imageGenBackupProvider)
+                  imageGenBackupModel === getImageProviderModel(imageGenBackupProvider)
                     ? imageGenBackupModel
                     : ""
                 }
                 onChange={(e) =>
-                  setImageGenBackupModel(
-                    (e.target.value || "") as ImageGenModel | "",
-                  )
+                  setImageGenBackupModel((e.target.value || "") as ImageGenModel | "")
                 }
               >
                 <option value="">
@@ -7029,9 +6782,7 @@ export function Settings({
                   )}
                 </option>
                 <option value={getImageProviderModel(imageGenBackupProvider)}>
-                  {getImageModelLabel(
-                    getImageProviderModel(imageGenBackupProvider),
-                  )}
+                  {getImageModelLabel(getImageProviderModel(imageGenBackupProvider))}
                 </option>
               </select>
             </>
@@ -7338,9 +7089,7 @@ export function Settings({
             <select
               className="settings-select"
               value={videoVertexModel}
-              onChange={(e) =>
-                setVideoVertexModel(e.target.value as "veo-3" | "veo-3.1")
-              }
+              onChange={(e) => setVideoVertexModel(e.target.value as "veo-3" | "veo-3.1")}
             >
               <option value="veo-3">Veo 3</option>
               <option value="veo-3.1">Veo 3.1</option>
@@ -7599,10 +7348,7 @@ export function Settings({
     };
 
     return (
-      <div
-        className="settings-section"
-        style={{ marginTop: "10px", padding: "12px" }}
-      >
+      <div className="settings-section" style={{ marginTop: "10px", padding: "12px" }}>
         <div
           style={{
             display: "grid",
@@ -7678,9 +7424,7 @@ export function Settings({
           className="settings-input"
           rows={2}
           value={slot.roleInstruction || ""}
-          onChange={(event) =>
-            updateSlot({ roleInstruction: event.target.value })
-          }
+          onChange={(event) => updateSlot({ roleInstruction: event.target.value })}
           placeholder={
             slotKind === "aggregator"
               ? translate(
@@ -7706,9 +7450,7 @@ export function Settings({
               value={slot.maxTokens || ""}
               onChange={(event) =>
                 updateSlot({
-                  maxTokens: event.target.value
-                    ? Number(event.target.value)
-                    : undefined,
+                  maxTokens: event.target.value ? Number(event.target.value) : undefined,
                 })
               }
               placeholder={translate(

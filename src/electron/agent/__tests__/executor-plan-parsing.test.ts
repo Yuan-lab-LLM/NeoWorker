@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import { TaskExecutor } from "../executor";
 
 vi.mock("electron", () => ({
@@ -175,7 +178,10 @@ describe("TaskExecutor plan parsing", () => {
     const response = {
       usage: { inputTokens: 1, outputTokens: 2 },
       content: [
-        { type: "text", text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}' },
+        {
+          type: "text",
+          text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}',
+        },
       ],
     };
     const executor = createPlanExecutor(response);
@@ -282,7 +288,10 @@ describe("TaskExecutor plan parsing", () => {
     const response = {
       usage: { inputTokens: 1, outputTokens: 2 },
       content: [
-        { type: "text", text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}' },
+        {
+          type: "text",
+          text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}',
+        },
       ],
     };
     const executor = createPlanExecutor(response);
@@ -303,7 +312,10 @@ describe("TaskExecutor plan parsing", () => {
     const executor = createPlanExecutor({
       usage: { inputTokens: 1, outputTokens: 2 },
       content: [
-        { type: "text", text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}' },
+        {
+          type: "text",
+          text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}',
+        },
       ],
     });
     executor.task.title = "Create infographic";
@@ -320,7 +332,10 @@ describe("TaskExecutor plan parsing", () => {
     const executor = createPlanExecutor({
       usage: { inputTokens: 1, outputTokens: 2 },
       content: [
-        { type: "text", text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}' },
+        {
+          type: "text",
+          text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}',
+        },
       ],
     });
     executor.task.title = "Create sample files";
@@ -342,7 +357,10 @@ describe("TaskExecutor plan parsing", () => {
     const response = {
       usage: { inputTokens: 1, outputTokens: 2 },
       content: [
-        { type: "text", text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}' },
+        {
+          type: "text",
+          text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}',
+        },
       ],
     };
     const executor = createPlanExecutor(response);
@@ -402,6 +420,168 @@ describe("TaskExecutor plan parsing", () => {
     ]);
 
     expect(scoped.map((tool: Any) => tool.name)).toEqual(["generate_image"]);
+  });
+
+  it("offers only discovery tools while locating workspace book files", () => {
+    const executor = createPlanExecutor({ content: [] });
+    executor.task.title = "Review manuscript";
+    executor.task.prompt = "Review the manuscript in this workspace.";
+    executor.task.rawPrompt = executor.task.prompt;
+    executor.provider = { type: "ollama" };
+    executor.currentStepId = "1";
+    executor.plan = {
+      description: "Review manuscript",
+      steps: [
+        {
+          id: "1",
+          description: "Locate the book files in the workspace.",
+          status: "pending",
+        },
+      ],
+    };
+
+    const scoped = executor.applyStepScopedToolPolicy([
+      { name: "list_directory" },
+      { name: "search_files" },
+      { name: "read_file" },
+      { name: "run_command" },
+      { name: "request_user_input" },
+    ]);
+
+    expect(scoped.map((tool: Any) => tool.name)).toEqual([
+      "list_directory",
+      "search_files",
+      "request_user_input",
+    ]);
+  });
+
+  it("does not strip mutation tools from a step that finds and deletes files", () => {
+    const executor = createPlanExecutor({ content: [] });
+    executor.currentStepId = "1";
+    executor.plan = {
+      description: "Clean stale build files",
+      steps: [
+        {
+          id: "1",
+          description: "Find and delete the stale build files in the workspace.",
+          status: "pending",
+        },
+      ],
+    };
+
+    const scoped = executor.applyStepScopedToolPolicy([
+      { name: "list_directory" },
+      { name: "search_files" },
+      { name: "delete_file" },
+      { name: "run_command" },
+    ]);
+
+    expect(scoped.map((tool: Any) => tool.name)).toEqual([
+      "list_directory",
+      "search_files",
+      "delete_file",
+      "run_command",
+    ]);
+  });
+
+  it("falls back to the existing tools when discovery scoping has no matching tool", () => {
+    const executor = createPlanExecutor({ content: [] });
+    executor.currentStepId = "1";
+    executor.plan = {
+      description: "Locate files",
+      steps: [{ id: "1", description: "Locate the files in the workspace.", status: "pending" }],
+    };
+
+    const scoped = executor.applyStepScopedToolPolicy([{ name: "read_file" }]);
+
+    expect(scoped).toEqual([{ name: "read_file" }]);
+  });
+
+  it("leaves the bounded plan untouched when no source document is found", async () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-empty-document-plan-"));
+    try {
+      const executor = createPlanExecutor({ content: [] });
+      executor.workspace.path = workspacePath;
+      executor.task.title = "missing_manuscript_review";
+      executor.task.rawPrompt = "Review the manuscript for contradictions and continuity.";
+      executor.task.userPrompt = executor.task.rawPrompt;
+      executor.task.prompt = executor.task.rawPrompt;
+      await executor.createPlan();
+
+      const handled = await executor.executeBoundedDocumentAnalysisPlan();
+
+      expect(handled).toBe(false);
+      expect(executor.plan.steps.map((step: Any) => step.status)).toEqual([
+        "pending",
+        "pending",
+        "pending",
+      ]);
+      expect(executor.emitEvent).not.toHaveBeenCalledWith("step_failed", expect.anything());
+    } finally {
+      fs.rmSync(workspacePath, { recursive: true, force: true });
+    }
+  });
+
+  it("splits failed long document chunks at the preceding paragraph boundary", async () => {
+    const executor = createPlanExecutor({ content: [] });
+    const content = `${"a".repeat(3_990)}\n\n${"b".repeat(5_010)}`;
+    executor.requestBoundedDocumentAnalysisTurn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("chunk failed"))
+      .mockResolvedValueOnce("first")
+      .mockResolvedValueOnce("second");
+
+    const result = await executor.analyzeBoundedDocumentChunk({
+      chunk: {
+        index: 0,
+        start: 100,
+        end: 100 + content.length,
+        total: content.length + 100,
+        content,
+      },
+      chunkCount: 1,
+      sourceName: "book.txt",
+      userRequest: "Review the manuscript",
+      useTurkish: false,
+    });
+
+    expect(executor.requestBoundedDocumentAnalysisTurn.mock.calls[1][0].prompt).toContain(
+      "Subrange: 100-4090",
+    );
+    expect(result).toBe("first\n\nsecond");
+  });
+
+  it("keeps local-model document review steps on built-in read tools", () => {
+    const executor = createPlanExecutor({ content: [] });
+    executor.provider = { type: "ollama" };
+    executor.currentStepId = "2";
+    executor.plan = {
+      description: "Review manuscript",
+      steps: [
+        {
+          id: "2",
+          description: "Metni bölüm bölüm oku ve karakter tutarlılığını incele.",
+          status: "pending",
+        },
+      ],
+    };
+
+    const scoped = executor.applyStepScopedToolPolicy([
+      { name: "parse_document" },
+      { name: "read_file" },
+      { name: "get_file_info" },
+      { name: "scratchpad_write" },
+      { name: "run_command" },
+      { name: "write_file" },
+      { name: "web_search" },
+    ]);
+
+    expect(scoped.map((tool: Any) => tool.name)).toEqual([
+      "parse_document",
+      "read_file",
+      "get_file_info",
+      "scratchpad_write",
+    ]);
   });
 
   it("requires generate_image instead of write_file for terminal image generation contracts", () => {
@@ -669,7 +849,10 @@ describe("TaskExecutor plan parsing", () => {
     const executor = createPlanExecutor({
       usage: { inputTokens: 1, outputTokens: 2 },
       content: [
-        { type: "text", text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}' },
+        {
+          type: "text",
+          text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}',
+        },
       ],
     });
     const prompt = "generate an image of a cool avatar of a snow leopard for neoworker os app";
@@ -696,7 +879,10 @@ describe("TaskExecutor plan parsing", () => {
     const executor = createPlanExecutor({
       usage: { inputTokens: 1, outputTokens: 2 },
       content: [
-        { type: "text", text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}' },
+        {
+          type: "text",
+          text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}',
+        },
       ],
     });
     const rawPrompt = 'generate an image of a cool avatar of a snow leopard for "neoworker os" app';
@@ -860,6 +1046,39 @@ image_generation_contract:
     );
   });
 
+  it("drops Turkish format-only notes before deriving step contracts", async () => {
+    const executor = createPlanExecutor({
+      usage: { inputTokens: 1, outputTokens: 2 },
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            description: "Kitabı incele",
+            steps: [
+              { id: "1", description: "Kitap dosyasını çalışma alanında bul." },
+              {
+                id: "2",
+                description: "Olası biçimler: `.docx`, `.md`, `.txt`, `.epub`, `.pdf`.",
+              },
+              { id: "3", description: "Metni bölüm bölüm oku ve tutarlılığı incele." },
+            ],
+          }),
+        },
+      ],
+    });
+    const prompt = "Kitap dosyasını bul, bölüm bölüm oku ve karakter tutarlılığını incele.";
+    executor.task.title = prompt;
+    executor.task.prompt = prompt;
+    executor.task.rawPrompt = prompt;
+
+    await executor.createPlan();
+
+    expect(executor.plan.steps.map((step: Any) => step.description)).toEqual([
+      "Kitap dosyasını çalışma alanında bul.",
+      "Metni bölüm bölüm oku ve tutarlılığı incele.",
+    ]);
+  });
+
   it("does not classify gather-and-verify work steps as verification checkpoints", () => {
     const executor = createPlanExecutor({
       usage: { inputTokens: 1, outputTokens: 2 },
@@ -898,7 +1117,9 @@ image_generation_contract:
   it("does not force strong profile for execution plan when a task model override is set", async () => {
     const response = {
       usage: { inputTokens: 1, outputTokens: 2 },
-      content: [{ type: "text", text: '{"description":"P","steps":[{"id":"1","description":"Do"}]}' }],
+      content: [
+        { type: "text", text: '{"description":"P","steps":[{"id":"1","description":"Do"}]}' },
+      ],
     };
     const executor = createPlanExecutor(response);
     executor.task.agentConfig = { modelKey: "gpt-5.4-mini" };
@@ -909,7 +1130,9 @@ image_generation_contract:
   it("routes plan creation through the prompt-cache request path for Azure profile routing", async () => {
     const response = {
       usage: { inputTokens: 1, outputTokens: 2, cachedTokens: 0 },
-      content: [{ type: "text", text: '{"description":"P","steps":[{"id":"1","description":"Do"}]}' }],
+      content: [
+        { type: "text", text: '{"description":"P","steps":[{"id":"1","description":"Do"}]}' },
+      ],
     };
     const executor = createPlanExecutor(response);
     executor.modelId = "gpt-5.4";
@@ -972,7 +1195,10 @@ image_generation_contract:
         { type: "text", text: "Research the competition constraints and judging criteria." },
         { type: "text", text: "Step 2" },
         { type: "text", text: "Build and save a prototype in index.html." },
-        { type: "text", text: "Step 3\nVerify: run through one complete flow and report findings." },
+        {
+          type: "text",
+          text: "Step 3\nVerify: run through one complete flow and report findings.",
+        },
       ],
     };
     const executor = createPlanExecutor(response);
@@ -1033,6 +1259,72 @@ image_generation_contract:
     );
   });
 
+  it("excludes internal strategy context from local-model prompt plan recovery", async () => {
+    const executor = createPlanExecutor({
+      usage: { inputTokens: 10, outputTokens: 20 },
+      content: [{ type: "text", text: "I'll inspect the manuscript and report the findings." }],
+    });
+    const rawPrompt = [
+      "Review the manuscript in detail.",
+      "Step 1: Read the complete manuscript.",
+      "Step 2: Report contradictions and editorial risks.",
+    ].join("\n");
+    const decoratedPrompt = `${rawPrompt}
+
+[AGENT_STRATEGY_CONTEXT_V1]
+execution_contract:
+- Directly answer the user before doing anything else.
+- Keep research and tool loops bounded.
+relationship_memory:
+- Preferred name: Almarion.
+- Click the link in the mailbox.
+[/AGENT_STRATEGY_CONTEXT_V1]`;
+
+    executor.provider = { type: "ollama" };
+    executor.modelId = "qwen3.8:27b-q8_0";
+    executor.task.rawPrompt = rawPrompt;
+    executor.task.userPrompt = rawPrompt;
+    executor.task.prompt = decoratedPrompt;
+    executor.getExecutionTaskPrompt = vi.fn().mockReturnValue(decoratedPrompt);
+    executor.getContractPrompt = vi.fn().mockReturnValue(decoratedPrompt);
+
+    await executor.createPlan();
+
+    const descriptions = executor.plan?.steps?.map((step: Any) => step.description) || [];
+    expect(descriptions).toEqual([
+      "Read the complete manuscript.",
+      "Report contradictions and editorial risks.",
+    ]);
+    expect(descriptions.join("\n")).not.toMatch(
+      /directly answer|research and tool loops|preferred name|click the link/i,
+    );
+  });
+
+  it("removes literal cowork tool_use markup from local-model plan text", async () => {
+    const executor = createPlanExecutor({
+      usage: { inputTokens: 10, outputTokens: 20 },
+      content: [
+        {
+          type: "text",
+          text: '1. Bu kitap için bir inceleme planı oluşturuyorum.\n\n<cowork:tool_use name="list_files" input="{&quot;path&quot;: &quot;/Users/mesut/Downloads/app/kitap&quot;}">',
+        },
+      ],
+    });
+    executor.provider = { type: "ollama" };
+    executor.modelId = "qwen3.8:27b-q8_0";
+    executor.task.rawPrompt =
+      "Bu kitabı detaylı incele; eksik ve çelişkili noktaları ve karakter devamlılığını raporla.";
+    executor.task.userPrompt = executor.task.rawPrompt;
+
+    await executor.createPlan();
+
+    expect(executor.plan.steps).toHaveLength(1);
+    expect(executor.plan.steps[0].description).toBe(
+      "Bu kitabı detaylı incele; eksik ve çelişkili noktaları ve karakter devamlılığını raporla.",
+    );
+    expect(executor.plan.steps[0].description).not.toMatch(/cowork:tool_use|list_files|\/kitap/);
+  });
+
   it("limits local-model tool batches and defers same-turn writes after reads", () => {
     const executor = createPlanExecutor({ content: [] });
     executor.provider = { type: "ollama" };
@@ -1060,7 +1352,9 @@ image_generation_contract:
       "t4",
     ]);
     expect(limited.deferredToolResults).toHaveLength(2);
-    expect(limited.deferredToolResults.every((result: Any) => result.is_error === false)).toBe(true);
+    expect(limited.deferredToolResults.every((result: Any) => result.is_error === false)).toBe(
+      true,
+    );
     expect(JSON.parse(limited.deferredToolResults[0].content).reason).toBe("batch_limit");
     expect(JSON.parse(limited.deferredToolResults[1].content).reason).toBe(
       "mixed_read_write_batch",
@@ -1121,7 +1415,7 @@ image_generation_contract:
     expect(summary).not.toContain("stargazers_count");
   });
 
-  it("forces local-model analysis step finalization after enough successful evidence", () => {
+  it("does not discard a large document result before the local model can analyze it", () => {
     const executor = createPlanExecutor({ content: [] });
     executor.provider = { type: "ollama" };
     const messages = [
@@ -1131,7 +1425,7 @@ image_generation_contract:
           {
             type: "tool_result",
             tool_use_id: "t1",
-            content: "x".repeat(21_000),
+            content: "x".repeat(200_000),
             is_error: false,
           },
         ],
@@ -1143,6 +1437,58 @@ image_generation_contract:
       stepStartedAt: Date.now(),
       stepToolCallCount: 2,
       messages,
+      stepContract: { mode: "analysis_only", requiresMutation: false },
+      isVerificationStep: false,
+      isSummaryStep: false,
+      hadAnyToolSuccess: true,
+    });
+
+    expect(shouldFinalize).toBe(false);
+  });
+
+  it("finalizes a file-location step after successful directory discovery", () => {
+    const executor = createPlanExecutor({ content: [] });
+    executor.provider = { type: "ollama" };
+
+    const shouldFinalize = executor.shouldForceLocalModelStepFinalization({
+      iterationCount: 2,
+      stepStartedAt: Date.now(),
+      stepToolCallCount: 1,
+      messages: [],
+      stepDescription: "Locate the book files in the workspace.",
+      successfulToolNames: new Set(["list_directory"]),
+      stepContract: { mode: "analysis_only", requiresMutation: false },
+      isVerificationStep: false,
+      isSummaryStep: false,
+      hadAnyToolSuccess: true,
+    });
+
+    expect(shouldFinalize).toBe(true);
+  });
+
+  it("summarizes discovered workspace files for local-model finalization", () => {
+    const executor = createPlanExecutor({ content: [] });
+
+    const summary = executor.summarizeToolResult("list_directory", {
+      files: [
+        { name: "manuscript.docx", type: "file", size: 1234 },
+        { name: "notes", type: "directory", size: 64 },
+      ],
+      totalCount: 2,
+    });
+
+    expect(summary).toBe("2 workspace entries: manuscript.docx (file), notes (directory)");
+  });
+
+  it("forces local-model analysis finalization after eight successful tool calls", () => {
+    const executor = createPlanExecutor({ content: [] });
+    executor.provider = { type: "ollama" };
+
+    const shouldFinalize = executor.shouldForceLocalModelStepFinalization({
+      iterationCount: 9,
+      stepStartedAt: Date.now(),
+      stepToolCallCount: 8,
+      messages: [],
       stepContract: { mode: "analysis_only", requiresMutation: false },
       isVerificationStep: false,
       isSummaryStep: false,
@@ -1221,7 +1567,10 @@ image_generation_contract:
       content: [
         { type: "text", text: '{"description":"Execution plan","steps":[' },
         { type: "text", text: '{"id":"1","description":"Create app shell in canvas."},' },
-        { type: "text", text: '{"id":"2","description":"Verify: test interaction flow end-to-end."}]}' },
+        {
+          type: "text",
+          text: '{"id":"2","description":"Verify: test interaction flow end-to-end."}]}',
+        },
       ],
     };
     const executor = createPlanExecutor(response);
@@ -1284,7 +1633,9 @@ image_generation_contract:
 
     await executor.createPlan();
 
-    expect(executor.plan?.steps?.[1]?.description).toContain("`win95-ui/scripts/window-manager.js`");
+    expect(executor.plan?.steps?.[1]?.description).toContain(
+      "`win95-ui/scripts/window-manager.js`",
+    );
     expect(executor.plan?.steps?.[1]?.description).toContain("`win95-ui/scripts/main.js`");
     expect(executor.plan?.steps?.[2]?.description).toContain("`win95-ui/styles/win95.css`");
   });
@@ -1296,7 +1647,8 @@ image_generation_contract:
         {
           type: "text",
           text: JSON.stringify({
-            description: 'Execution plan [TOOL_CALL]{tool => "glob", args => {"pattern":"**/*community*pack*"}}[/TOOL_CALL]',
+            description:
+              'Execution plan [TOOL_CALL]{tool => "glob", args => {"pattern":"**/*community*pack*"}}[/TOOL_CALL]',
             steps: [
               {
                 id: "1",
@@ -1373,7 +1725,11 @@ image_generation_contract:
           text: JSON.stringify({
             description: "Execution plan",
             steps: [
-              { id: "1", description: "Inspect the workspace and determine whether to scaffold or reuse files." },
+              {
+                id: "1",
+                description:
+                  "Inspect the workspace and determine whether to scaffold or reuse files.",
+              },
               { id: "2", description: "Implement the React todo app." },
               { id: "3", description: "Run tests and build the app." },
             ],
@@ -1383,13 +1739,20 @@ image_generation_contract:
     };
     const executor = createPlanExecutor(response);
     executor.task.title = "Build a simple todo app in React";
-    executor.task.prompt = "Build a simple todo app in React, test it to catch any bugs before shipping.";
+    executor.task.prompt =
+      "Build a simple todo app in React, test it to catch any bugs before shipping.";
     executor.requiresVisualQARun = true;
 
     await executor.createPlan();
 
-    expect(executor.plan?.steps?.some((step: Any) => /visual qa with playwright/i.test(step.description))).toBe(true);
-    const qaStep = executor.plan.steps.find((step: Any) => /visual qa with playwright/i.test(step.description));
+    expect(
+      executor.plan?.steps?.some((step: Any) =>
+        /visual qa with playwright/i.test(step.description),
+      ),
+    ).toBe(true);
+    const qaStep = executor.plan.steps.find((step: Any) =>
+      /visual qa with playwright/i.test(step.description),
+    );
     expect(qaStep?.kind).toBe("verification");
   });
 
@@ -1402,7 +1765,10 @@ image_generation_contract:
           text: JSON.stringify({
             description: "Execution plan",
             steps: [
-              { id: "1", description: "Research examples of successful citizen portals and dashboards." },
+              {
+                id: "1",
+                description: "Research examples of successful citizen portals and dashboards.",
+              },
               { id: "2", description: "Write the implementation brief in README.md." },
             ],
           }),
@@ -1416,9 +1782,11 @@ image_generation_contract:
 
     await executor.createPlan();
 
-    expect(executor.plan?.steps?.some((step: Any) => /visual qa with playwright/i.test(step.description))).toBe(
-      false,
-    );
+    expect(
+      executor.plan?.steps?.some((step: Any) =>
+        /visual qa with playwright/i.test(step.description),
+      ),
+    ).toBe(false);
   });
 
   it("does not infer browser QA from Electron renderer Vite details alone", () => {
@@ -1514,8 +1882,12 @@ image_generation_contract:
     expect(sanitized.description).not.toMatch(/legally distinct|original IP/i);
     expect(sanitized.steps[0].description).toContain("Dune universe");
     expect(sanitized.steps[0].description).not.toMatch(/original universe|legally distinct/i);
-    expect(sanitized.steps[1].description).toContain("/tmp/workspace/artifacts/skills/task-novelist/novelist/world.md");
-    expect(sanitized.steps[1].description).toContain("/tmp/workspace/artifacts/skills/task-novelist/novelist/canon.md");
+    expect(sanitized.steps[1].description).toContain(
+      "/tmp/workspace/artifacts/skills/task-novelist/novelist/world.md",
+    );
+    expect(sanitized.steps[1].description).toContain(
+      "/tmp/workspace/artifacts/skills/task-novelist/novelist/canon.md",
+    );
   });
 
   it("forces strict step-intent alignment for novelist franchise runs", () => {

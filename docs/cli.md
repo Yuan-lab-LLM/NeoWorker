@@ -114,6 +114,14 @@ Local one-shot execution initializes the database, settings, provider routing, w
 
 Interactive `neoworker` and local `neoworker run` can be used while the GUI is installed and already configured. They share local profile state, but each CLI task is still a distinct task run with its own terminal output.
 
+### Agent Security Commands
+
+Numbat agent security is disabled by default. Configure it in **Settings > System & Security > Agent Security** or through the admin policy before expecting scans or enforcement decisions. Local commands use the desktop profile; add `--remote` only for an intentional Control Plane call, where state-changing operations require admin scope.
+
+`status`, `findings`, `decisions`, and `inventory` are inspection commands. `scan` and `check-rules` run bounded checks. Finding-state changes, hook installation/removal, case-bundle creation, and retention pruning are explicit operator actions. Case verification checks the bundle manifest and checksums without changing runtime policy.
+
+See [Agent Security with Numbat](agent-security-numbat.md) for policy defaults, rule provenance, failure behavior, retention, external hook constraints, and troubleshooting.
+
 ## Security And Credentials
 
 - Local CLI mode keeps provider credentials and task data on the machine, following the desktop app's local-first model.

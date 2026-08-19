@@ -269,6 +269,9 @@ describe("LLMProviderFactory model status", () => {
     const status = LLMProviderFactory.getConfigStatus();
 
     expect(status.currentModel).toBe("gpt-5.5");
+    expect(status.models.map((model) => model.key)).toContain("gpt-5.6-sol");
+    expect(status.models.map((model) => model.key)).toContain("gpt-5.6-terra");
+    expect(status.models.map((model) => model.key)).toContain("gpt-5.6-luna");
     expect(status.models.map((model) => model.key)).toContain("gpt-5.5");
     expect(status.models.map((model) => model.key)).toContain("gpt-5.4");
     expect(status.models.map((model) => model.key)).toContain("gpt-5.3-codex-spark");
@@ -420,6 +423,27 @@ describe("LLMProviderFactory model status", () => {
     expect(resolved.modelKey).toBe("gpt-4o-mini");
     expect(resolved.modelId).toBe("gpt-5.5");
   });
+
+  it.each(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"])(
+    "preserves the supported ChatGPT subscription model %s",
+    (model) => {
+      const settings: LLMSettings = {
+        providerType: "openai",
+        modelKey: model,
+        openai: {
+          authMethod: "oauth",
+          accessToken: "access-token",
+          refreshToken: "refresh-token",
+          model,
+        },
+      };
+      vi.spyOn(LLMProviderFactory, "loadSettings").mockReturnValue(settings);
+
+      const resolved = LLMProviderFactory.resolveTaskModelSelection();
+
+      expect(resolved.modelId).toBe(model);
+    },
+  );
 
   it("runs the stored Anthropic-compatible gateway model even when another provider uses the same id", () => {
     const settings: LLMSettings = {

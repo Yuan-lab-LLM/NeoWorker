@@ -65,9 +65,7 @@ import { checkTailscaleAvailability, getExposureStatus } from "../tailscale";
 import { registerACPMethods, shutdownACP, type ACPHandlerDeps } from "../acp";
 import { AgentRoleRepository } from "../agents/AgentRoleRepository";
 import { TailscaleSettingsManager } from "../tailscale/settings";
-import {
-  RemoteGatewayClient,
-} from "./remote-client";
+import { RemoteGatewayClient } from "./remote-client";
 import {
   SSHTunnelManager,
   initSSHTunnelManager,
@@ -86,6 +84,7 @@ import { getActiveProfileId, getUserDataDir } from "../utils/user-data-dir";
 import { CanvasManager } from "../canvas/canvas-manager";
 import { TASK_EVENT_BRIDGE_ALLOWLIST } from "./task-event-bridge-contract";
 import { registerControlPlaneCoreMethods } from "./registerControlPlaneCoreMethods";
+import { registerAgentSecurityMethods } from "./registerAgentSecurityMethods";
 import { registerStrategicPlannerMethods } from "./registerStrategicPlannerMethods";
 import { getStrategicPlannerService } from "./StrategicPlannerService";
 import { registerSymphonyMethods } from "./registerSymphonyMethods";
@@ -98,13 +97,14 @@ import {
 import { ManagedAccountManager } from "../accounts/managed-account-manager";
 import { ManagedSessionService } from "../managed/ManagedSessionService";
 import { EverydayAgentService } from "../everyday-agent/EverydayAgentService";
-import {
-  normalizeImagesForRemote,
-  sanitizeTaskMessageParams,
-} from "./sanitize";
+import { normalizeImagesForRemote, sanitizeTaskMessageParams } from "./sanitize";
 import { AgentConfigSchema, validateInput } from "../utils/validation";
 import {
+  buildTaskEventDetailForTransport,
   buildTaskEventHistoryForTransport,
+  buildTaskTimelinePageForTransport,
+  sanitizeTaskEventDetailRequest,
+  sanitizeTaskTimelinePageRequest,
   serializeTaskEventForTransport,
 } from "./task-event-transport";
 import { resolvePathWithinRoot } from "./path-containment";
@@ -130,9 +130,13 @@ let everydayAgentService: EverydayAgentService | null = null;
 
 function getManagedSessionService(deps: ControlPlaneMethodDeps): ManagedSessionService {
   if (!managedSessionService) {
-    managedSessionService = new ManagedSessionService(deps.dbManager.getDatabase(), deps.agentDaemon, {
-      getRoutineService: deps.getRoutineService,
-    });
+    managedSessionService = new ManagedSessionService(
+      deps.dbManager.getDatabase(),
+      deps.agentDaemon,
+      {
+        getRoutineService: deps.getRoutineService,
+      },
+    );
   }
   return managedSessionService;
 }
@@ -196,8 +200,7 @@ function toNodePlatform(platform?: string): "ios" | "android" | "macos" | "linux
   }
 }
 
-async function getRemoteGatewayNodeInfo():
-  Promise<import("../../shared/types").NodeInfo | null> {
+async function getRemoteGatewayNodeInfo(): Promise<import("../../shared/types").NodeInfo | null> {
   const settings = ControlPlaneSettingsManager.loadSettings();
   const activeRemoteId =
     settings.activeManagedDeviceId && settings.activeManagedDeviceId !== LOCAL_MANAGED_DEVICE_ID
@@ -263,9 +266,7 @@ const ATTENTION_LEVEL_ORDER: ManagedDeviceAttentionState[] = [
 
 function isLocalManagedDeviceIdentifier(deviceId?: string | null): boolean {
   return (
-    !deviceId ||
-    deviceId === LOCAL_MANAGED_DEVICE_ID ||
-    deviceId === LOCAL_MANAGED_DEVICE_NODE_ID
+    !deviceId || deviceId === LOCAL_MANAGED_DEVICE_ID || deviceId === LOCAL_MANAGED_DEVICE_NODE_ID
   );
 }
 
@@ -504,7 +505,10 @@ async function listManagedRemoteNodes(): Promise<NodeInfo[]> {
   return nodes.filter((node): node is NodeInfo => !!node);
 }
 
-async function getManagedRemoteNodeAliases(device: ManagedDevice, nodeId?: string): Promise<string[]> {
+async function getManagedRemoteNodeAliases(
+  device: ManagedDevice,
+  nodeId?: string,
+): Promise<string[]> {
   const aliases = new Set<string>();
   if (typeof nodeId === "string" && nodeId.trim()) {
     aliases.add(nodeId.trim());
@@ -545,7 +549,15 @@ function getDefaultLocalWorkspaceId(db: Any): string | undefined {
 
 /** Normalize path for cross-machine comparison (trim, unify slashes, remove trailing slash). */
 function normalizePathForMatch(p: string): string {
-  return path.normalize(String(p || "").trim().replace(/\\/g, "/")).replace(/\/+$/, "") || "";
+  return (
+    path
+      .normalize(
+        String(p || "")
+          .trim()
+          .replace(/\\/g, "/"),
+      )
+      .replace(/\/+$/, "") || ""
+  );
 }
 
 /** Case-insensitive path equality for cross-platform workspace matching (macOS/Windows). */
@@ -747,7 +759,7 @@ function upsertRemoteShadowTask(db: Any, workspaceId: string, nodeId: string, ta
        terminal_status = excluded.terminal_status,
        error = excluded.error,
        completed_at = excluded.completed_at,
-       updated_at = excluded.updated_at`
+       updated_at = excluded.updated_at`,
   ).run(
     id,
     task?.title || task?.prompt || "Remote task",
@@ -862,7 +874,11 @@ function buildAlertsFromSummaryParts(params: {
     alerts.push({
       id: `${params.device.id}:connection`,
       level:
-        connectionState === "error" ? "critical" : connectionState === "reconnecting" ? "warning" : "info",
+        connectionState === "error"
+          ? "critical"
+          : connectionState === "reconnecting"
+            ? "warning"
+            : "info",
       title:
         connectionState === "disconnected" ? "Device offline" : `Connection ${connectionState}`,
       description:
@@ -995,9 +1011,12 @@ async function buildLocalManagedDeviceSummary(): Promise<ManagedDeviceSummary> {
     inputRequestsPending,
     freeBytes: storageRes.storage.freeBytes,
   });
-  const active = Object.entries(configSnapshot.tasks.byStatus || {}).reduce((count, [status, value]) => {
-    return count + (isActiveTaskStatus(status) ? Number(value || 0) : 0);
-  }, 0);
+  const active = Object.entries(configSnapshot.tasks.byStatus || {}).reduce(
+    (count, [status, value]) => {
+      return count + (isActiveTaskStatus(status) ? Number(value || 0) : 0);
+    },
+    0,
+  );
 
   const hydratedDevice: ManagedDevice = {
     ...device,
@@ -1056,7 +1075,9 @@ async function buildLocalManagedDeviceSummary(): Promise<ManagedDeviceSummary> {
   };
 }
 
-async function buildRemoteManagedDeviceSummary(device: ManagedDevice): Promise<ManagedDeviceSummary> {
+async function buildRemoteManagedDeviceSummary(
+  device: ManagedDevice,
+): Promise<ManagedDeviceSummary> {
   const fleetManager = getFleetConnectionManager();
   const client = fleetManager?.getClient(device.id);
   const status = fleetManager?.getStatus(device.id) || { state: "disconnected" as const };
@@ -1143,12 +1164,11 @@ async function buildRemoteManagedDeviceSummary(device: ManagedDevice): Promise<M
   const total =
     Number(configSnapshot?.tasks?.total || 0) ||
     (taskRepo ? taskRepo.findByTargetNodeIds(aliases, 200).length : taskSnapshot.length);
-  const active =
-    configSnapshot?.tasks?.byStatus
-      ? Object.entries(configSnapshot.tasks.byStatus).reduce((count, [state, value]) => {
-          return count + (isActiveTaskStatus(state) ? Number(value || 0) : 0);
-        }, 0)
-      : taskSnapshot.filter((task) => isActiveTaskStatus(task.status)).length;
+  const active = configSnapshot?.tasks?.byStatus
+    ? Object.entries(configSnapshot.tasks.byStatus).reduce((count, [state, value]) => {
+        return count + (isActiveTaskStatus(state) ? Number(value || 0) : 0);
+      }, 0)
+    : taskSnapshot.filter((task) => isActiveTaskStatus(task.status)).length;
   const storage = {
     workspaceCount: workspaces.length || device.storageSummary?.workspaceCount || 0,
     artifactCount: device.storageSummary?.artifactCount || 0,
@@ -1161,7 +1181,11 @@ async function buildRemoteManagedDeviceSummary(device: ManagedDevice): Promise<M
       })),
   };
   const alerts = buildAlertsFromSummaryParts({
-    device: { ...device, status: status.state, lastSeenAt: status.lastActivityAt || device.lastSeenAt },
+    device: {
+      ...device,
+      status: status.state,
+      lastSeenAt: status.lastActivityAt || device.lastSeenAt,
+    },
     recentTasks: taskSnapshot,
     channels,
     approvalsPending: approvals.length,
@@ -1183,7 +1207,11 @@ async function buildRemoteManagedDeviceSummary(device: ManagedDevice): Promise<M
     attentionState: attentionFromAlerts(alerts),
     appsSummary: {
       channelsTotal: Number(configSnapshot?.channels?.count || channels.length || 0),
-      channelsEnabled: Number(configSnapshot?.channels?.enabled || channels.filter((channel) => channel?.enabled).length || 0),
+      channelsEnabled: Number(
+        configSnapshot?.channels?.enabled ||
+          channels.filter((channel) => channel?.enabled).length ||
+          0,
+      ),
       workspacesTotal: Number(configSnapshot?.workspaces?.count || workspaces.length || 0),
       approvalsPending: approvals.length,
       inputRequestsPending: inputRequests.length,
@@ -1407,6 +1435,24 @@ async function routeLocalDeviceProxyRequest(method: string, params?: unknown): P
         eventRepo,
       }).map((event) => serializeTaskEventForTransport(event, sanitizeForBroadcast));
       return { events };
+    }
+    case Methods.TASK_TIMELINE_PAGE: {
+      const request = sanitizeTaskTimelinePageRequest(params);
+      return buildTaskTimelinePageForTransport({
+        request,
+        taskRepo,
+        eventRepo,
+        sanitizeValue: sanitizeForBroadcast,
+      });
+    }
+    case Methods.TASK_EVENT_DETAIL: {
+      const request = sanitizeTaskEventDetailRequest(params);
+      return buildTaskEventDetailForTransport({
+        request,
+        taskRepo,
+        eventRepo,
+        sanitizeValue: sanitizeForBroadcast,
+      });
     }
     case Methods.TASK_CANCEL: {
       const { taskId } = sanitizeTaskIdParams(params);
@@ -1703,73 +1749,96 @@ function sanitizeWorkspaceIdParams(params: unknown): { workspaceId: string } {
   return { workspaceId };
 }
 
-const ManagedAgentModelSchema = z.object({
-  providerType: z.string().trim().min(1).max(120).optional(),
-  modelKey: z.string().trim().min(1).max(200).optional(),
-  llmProfile: z.enum(["strong", "cheap"]).optional(),
-}).strict();
+const ManagedAgentModelSchema = z
+  .object({
+    providerType: z.string().trim().min(1).max(120).optional(),
+    modelKey: z.string().trim().min(1).max(200).optional(),
+    llmProfile: z.enum(["strong", "cheap"]).optional(),
+  })
+  .strict();
 
-const ManagedAgentRuntimeDefaultsSchema = z.object({
-  autonomousMode: z.boolean().optional(),
-  requireWorktree: z.boolean().optional(),
-  allowUserInput: z.boolean().optional(),
-  allowedTools: z.array(z.string().trim().min(1).max(200)).max(120).optional(),
-  toolRestrictions: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
-  maxTurns: z.number().int().min(1).max(250).optional(),
-  webSearchMode: z.enum(["disabled", "cached", "live"]).optional(),
-}).strict();
+const ManagedAgentRuntimeDefaultsSchema = z
+  .object({
+    autonomousMode: z.boolean().optional(),
+    requireWorktree: z.boolean().optional(),
+    allowUserInput: z.boolean().optional(),
+    allowedTools: z.array(z.string().trim().min(1).max(200)).max(120).optional(),
+    toolRestrictions: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
+    maxTurns: z.number().int().min(1).max(250).optional(),
+    webSearchMode: z.enum(["disabled", "cached", "live"]).optional(),
+  })
+  .strict();
 
-const ManagedAgentTeamTemplateSchema = z.object({
-  leadAgentRoleId: z.string().trim().min(1).max(200).optional(),
-  memberAgentRoleIds: z.array(z.string().trim().min(1).max(200)).max(25).optional(),
-  maxParallelAgents: z.number().int().min(1).max(25).optional(),
-  collaborativeMode: z.boolean().optional(),
-  multiLlmMode: z.boolean().optional(),
-}).strict();
+const ManagedAgentTeamTemplateSchema = z
+  .object({
+    leadAgentRoleId: z.string().trim().min(1).max(200).optional(),
+    memberAgentRoleIds: z.array(z.string().trim().min(1).max(200)).max(25).optional(),
+    maxParallelAgents: z.number().int().min(1).max(25).optional(),
+    collaborativeMode: z.boolean().optional(),
+    multiLlmMode: z.boolean().optional(),
+  })
+  .strict();
 
-const ManagedAgentBaseSchema = z.object({
-  name: z.string().trim().min(1).max(200),
-  description: z.string().trim().max(2000).optional(),
-  systemPrompt: z.string().trim().min(1).max(100_000),
-  executionMode: z.enum(["solo", "team"]).default("solo"),
-  model: ManagedAgentModelSchema.optional(),
-  runtimeDefaults: ManagedAgentRuntimeDefaultsSchema.optional(),
-  skills: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
-  mcpServers: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
-  teamTemplate: ManagedAgentTeamTemplateSchema.optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-}).strict();
+const ManagedAgentBaseSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    description: z.string().trim().max(2000).optional(),
+    systemPrompt: z.string().trim().min(1).max(100_000),
+    executionMode: z.enum(["solo", "team"]).default("solo"),
+    model: ManagedAgentModelSchema.optional(),
+    runtimeDefaults: ManagedAgentRuntimeDefaultsSchema.optional(),
+    skills: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+    mcpServers: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+    teamTemplate: ManagedAgentTeamTemplateSchema.optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
 
-const ManagedEnvironmentConfigSchema = z.object({
-  workspaceId: z.string().trim().min(1).max(200),
-  requireWorktree: z.boolean().optional(),
-  enableShell: z.boolean().optional(),
-  enableBrowser: z.boolean().optional(),
-  enableComputerUse: z.boolean().optional(),
-  allowedMcpServerIds: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
-  skillPackIds: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
-  filePaths: z.array(z.string().trim().min(1).max(2000)).max(500).optional(),
-  credentialRefs: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
-  managedAccountRefs: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
-}).strict();
+const ManagedEnvironmentConfigSchema = z
+  .object({
+    workspaceId: z.string().trim().min(1).max(200),
+    requireWorktree: z.boolean().optional(),
+    enableShell: z.boolean().optional(),
+    enableBrowser: z.boolean().optional(),
+    enableComputerUse: z.boolean().optional(),
+    allowedMcpServerIds: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+    skillPackIds: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+    filePaths: z.array(z.string().trim().min(1).max(2000)).max(500).optional(),
+    credentialRefs: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+    managedAccountRefs: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+  })
+  .strict();
 
-const ManagedEnvironmentPatchSchema = ManagedEnvironmentConfigSchema.partial().extend({
-  workspaceId: z.string().trim().min(1).max(200).optional(),
-}).strict();
+const ManagedEnvironmentPatchSchema = ManagedEnvironmentConfigSchema.partial()
+  .extend({
+    workspaceId: z.string().trim().min(1).max(200).optional(),
+  })
+  .strict();
 
-const ManagedSessionInitialEventSchema = z.object({
-  type: z.literal("user.message"),
-  content: z.array(z.union([
-    z.object({
-      type: z.literal("text"),
-      text: z.string().trim().min(1).max(50_000),
-    }).strict(),
-    z.object({
-      type: z.literal("file"),
-      artifactId: z.string().trim().min(1).max(200),
-    }).strict(),
-  ])).min(1).max(20),
-}).strict();
+const ManagedSessionInitialEventSchema = z
+  .object({
+    type: z.literal("user.message"),
+    content: z
+      .array(
+        z.union([
+          z
+            .object({
+              type: z.literal("text"),
+              text: z.string().trim().min(1).max(50_000),
+            })
+            .strict(),
+          z
+            .object({
+              type: z.literal("file"),
+              artifactId: z.string().trim().min(1).max(200),
+            })
+            .strict(),
+        ]),
+      )
+      .min(1)
+      .max(20),
+  })
+  .strict();
 
 function sanitizeManagedAgentCreateParams(params: unknown): Any {
   return validateInput(ManagedAgentBaseSchema, params, "managed agent");
@@ -1777,19 +1846,21 @@ function sanitizeManagedAgentCreateParams(params: unknown): Any {
 
 function sanitizeManagedAgentUpdateParams(params: unknown): Any {
   const parsed = validateInput(
-    z.object({
-      agentId: z.string().trim().min(1).max(200),
-      name: z.string().trim().min(1).max(200).optional(),
-      description: z.string().trim().max(2000).optional(),
-      systemPrompt: z.string().trim().min(1).max(100_000).optional(),
-      executionMode: z.enum(["solo", "team"]).optional(),
-      model: ManagedAgentModelSchema.optional(),
-      runtimeDefaults: ManagedAgentRuntimeDefaultsSchema.optional(),
-      skills: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
-      mcpServers: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
-      teamTemplate: ManagedAgentTeamTemplateSchema.optional(),
-      metadata: z.record(z.string(), z.unknown()).optional(),
-    }).strict(),
+    z
+      .object({
+        agentId: z.string().trim().min(1).max(200),
+        name: z.string().trim().min(1).max(200).optional(),
+        description: z.string().trim().max(2000).optional(),
+        systemPrompt: z.string().trim().min(1).max(100_000).optional(),
+        executionMode: z.enum(["solo", "team"]).optional(),
+        model: ManagedAgentModelSchema.optional(),
+        runtimeDefaults: ManagedAgentRuntimeDefaultsSchema.optional(),
+        skills: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+        mcpServers: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+        teamTemplate: ManagedAgentTeamTemplateSchema.optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+      })
+      .strict(),
     params,
     "managed agent update",
   );
@@ -1807,7 +1878,9 @@ function sanitizeManagedAgentVersionParams(params: unknown): { agentId: string; 
   const p = (params ?? {}) as Any;
   const { agentId } = sanitizeManagedAgentIdParams(params);
   const version =
-    typeof p.version === "number" && Number.isFinite(p.version) ? Math.max(1, Math.floor(p.version)) : 0;
+    typeof p.version === "number" && Number.isFinite(p.version)
+      ? Math.max(1, Math.floor(p.version))
+      : 0;
   if (!version) throw { code: ErrorCodes.INVALID_PARAMS, message: "version is required" };
   return { agentId, version };
 }
@@ -1826,11 +1899,13 @@ export function sanitizeManagedEnvironmentCreateParams(params: unknown): Any {
 
 function sanitizeManagedEnvironmentUpdateParams(params: unknown): Any {
   return validateInput(
-    z.object({
-      environmentId: z.string().trim().min(1).max(200),
-      name: z.string().trim().min(1).max(200).optional(),
-      config: ManagedEnvironmentPatchSchema.optional(),
-    }).strict(),
+    z
+      .object({
+        environmentId: z.string().trim().min(1).max(200),
+        name: z.string().trim().min(1).max(200).optional(),
+        config: ManagedEnvironmentPatchSchema.optional(),
+      })
+      .strict(),
     params,
     "managed environment update",
   );
@@ -1847,12 +1922,14 @@ function sanitizeManagedEnvironmentIdParams(params: unknown): { environmentId: s
 
 function sanitizeManagedSessionCreateParams(params: unknown): Any {
   return validateInput(
-    z.object({
-      agentId: z.string().trim().min(1).max(200),
-      environmentId: z.string().trim().min(1).max(200),
-      title: z.string().trim().min(1).max(500),
-      initialEvent: ManagedSessionInitialEventSchema.optional(),
-    }).strict(),
+    z
+      .object({
+        agentId: z.string().trim().min(1).max(200),
+        environmentId: z.string().trim().min(1).max(200),
+        title: z.string().trim().min(1).max(500),
+        initialEvent: ManagedSessionInitialEventSchema.optional(),
+      })
+      .strict(),
     params,
     "managed session",
   );
@@ -1938,9 +2015,7 @@ function sanitizeWorkspaceCreateParams(params: unknown): { name: string; path: s
 
   const homeDir = process.env.HOME || process.env.USERPROFILE;
   const expanded =
-    rawPath.startsWith("~/") && homeDir
-      ? path.join(homeDir, rawPath.slice(2))
-      : rawPath;
+    rawPath.startsWith("~/") && homeDir ? path.join(homeDir, rawPath.slice(2)) : rawPath;
   if (!path.isAbsolute(expanded)) {
     throw {
       code: ErrorCodes.INVALID_PARAMS,
@@ -2520,7 +2595,9 @@ function registerACPMethodsOnServer(
       };
     },
     getDelegatedGraphStatus: (acpTaskId) => {
-      const node = deps.agentDaemon.getOrchestrationGraphRepository().findNodeByAcpTaskId(acpTaskId);
+      const node = deps.agentDaemon
+        .getOrchestrationGraphRepository()
+        .findNodeByAcpTaskId(acpTaskId);
       if (!node) return undefined;
       return {
         status: node.status,
@@ -2531,7 +2608,9 @@ function registerACPMethodsOnServer(
       };
     },
     cancelDelegatedGraphTask: async (acpTaskId) => {
-      const node = deps.agentDaemon.getOrchestrationGraphRepository().findNodeByAcpTaskId(acpTaskId);
+      const node = deps.agentDaemon
+        .getOrchestrationGraphRepository()
+        .findNodeByAcpTaskId(acpTaskId);
       if (!node?.publicHandle) return;
       const rootTaskId = node.parentTaskId || `acp:${acpTaskId}`;
       await deps.agentDaemon.cancelDelegatedNode(rootTaskId, node.publicHandle);
@@ -2554,6 +2633,10 @@ function registerCompanyOpsMethods(server: ControlPlaneServer, deps: ControlPlan
   registerControlPlaneCoreMethods({
     server,
     db,
+    requireScope,
+  });
+  registerAgentSecurityMethods({
+    server,
     requireScope,
   });
   registerStrategicPlannerMethods({
@@ -2919,7 +3002,9 @@ function registerTaskAndWorkspaceMethods(
 
   server.registerMethod(Methods.EVERYDAY_AGENT_LIST_RECEIPTS, async (client, params) => {
     requireEverydayAgentReceiptAccess(client);
-    return { receipts: everydayAgent.listReceipts((params || {}) as EverydayAgentListReceiptsRequest) };
+    return {
+      receipts: everydayAgent.listReceipts((params || {}) as EverydayAgentListReceiptsRequest),
+    };
   });
 
   server.registerMethod(Methods.EVERYDAY_AGENT_CLEAR_DATA, async (client, params) => {
@@ -2992,11 +3077,13 @@ function registerTaskAndWorkspaceMethods(
     requireScope(client, "read");
     const p = sanitizeManagedSessionListParams(params);
     return {
-      environments: managedSessions.listEnvironments({
-        limit: p.limit,
-        offset: p.offset,
-        status: p.status,
-      }).map(redactManagedEnvironmentForRead),
+      environments: managedSessions
+        .listEnvironments({
+          limit: p.limit,
+          offset: p.offset,
+          status: p.status,
+        })
+        .map(redactManagedEnvironmentForRead),
     };
   });
 
@@ -3192,6 +3279,28 @@ function registerTaskAndWorkspaceMethods(
       eventRepo,
     }).map((event) => serializeTaskEventForTransport(event, sanitizeForBroadcast));
     return { events };
+  });
+
+  server.registerMethod(Methods.TASK_TIMELINE_PAGE, async (client, params) => {
+    requireScope(client, "admin");
+    const request = sanitizeTaskTimelinePageRequest(params);
+    return buildTaskTimelinePageForTransport({
+      request,
+      taskRepo,
+      eventRepo,
+      sanitizeValue: sanitizeForBroadcast,
+    });
+  });
+
+  server.registerMethod(Methods.TASK_EVENT_DETAIL, async (client, params) => {
+    requireScope(client, "admin");
+    const request = sanitizeTaskEventDetailRequest(params);
+    return buildTaskEventDetailForTransport({
+      request,
+      taskRepo,
+      eventRepo,
+      sanitizeValue: sanitizeForBroadcast,
+    });
   });
 
   server.registerMethod(Methods.TASK_GET, async (client, params) => {
@@ -3959,7 +4068,13 @@ export function setupControlPlaneHandlers(
   // Get raw token for local display/copy actions
   ipcMain.handle(
     IPC_CHANNELS.CONTROL_PLANE_GET_TOKEN,
-    async (): Promise<{ ok: boolean; token?: string; nodeToken?: string; remoteToken?: string; error?: string }> => {
+    async (): Promise<{
+      ok: boolean;
+      token?: string;
+      nodeToken?: string;
+      remoteToken?: string;
+      error?: string;
+    }> => {
       try {
         const settings = ControlPlaneSettingsManager.loadSettings();
         return {
@@ -4131,7 +4246,9 @@ export function setupControlPlaneHandlers(
         if (config) {
           const managedDevices = listStoredManagedDevices();
           const existing =
-            (targetDeviceId ? managedDevices.find((device) => device.id === targetDeviceId) : null) ||
+            (targetDeviceId
+              ? managedDevices.find((device) => device.id === targetDeviceId)
+              : null) ||
             managedDevices.find(
               (device) =>
                 normalizeGatewayUrl(device.config?.url) === normalizeGatewayUrl(remoteConfig?.url),
@@ -4594,7 +4711,11 @@ export function setupControlPlaneHandlers(
     async (
       _,
       params: { nodeId: string; workspaceId: string; path?: string },
-    ): Promise<{ ok: boolean; files?: Array<{ name: string; type: "file" | "directory"; size: number }>; error?: string }> => {
+    ): Promise<{
+      ok: boolean;
+      files?: Array<{ name: string; type: "file" | "directory"; size: number }>;
+      error?: string;
+    }> => {
       try {
         if (isLocalManagedDeviceIdentifier(params.nodeId)) {
           return { ok: false, error: "Use local file selection for this device" };
@@ -4626,7 +4747,11 @@ export function setupControlPlaneHandlers(
     async (
       _,
       nodeId: string,
-    ): Promise<{ ok: boolean; workspaces?: Array<{ id: string; name: string }>; error?: string }> => {
+    ): Promise<{
+      ok: boolean;
+      workspaces?: Array<{ id: string; name: string }>;
+      error?: string;
+    }> => {
       try {
         if (isLocalManagedDeviceIdentifier(nodeId)) {
           return { ok: false, error: "Use local workspace for this device" };
@@ -4695,13 +4820,19 @@ export function setupControlPlaneHandlers(
 
         let remoteTaskRes: Any;
         try {
-          const workspacesRes = (await remoteClient.request(Methods.WORKSPACE_LIST, undefined, 5000)) as Any;
+          const workspacesRes = (await remoteClient.request(
+            Methods.WORKSPACE_LIST,
+            undefined,
+            5000,
+          )) as Any;
           const remoteWorkspaces = Array.isArray(workspacesRes?.workspaces)
             ? workspacesRes.workspaces
             : [];
 
           let targetWorkspaceId = params.workspaceId;
-          const remoteHasWorkspace = remoteWorkspaces.some((workspace: Any) => workspace.id === targetWorkspaceId);
+          const remoteHasWorkspace = remoteWorkspaces.some(
+            (workspace: Any) => workspace.id === targetWorkspaceId,
+          );
           if (!remoteHasWorkspace) {
             if (remoteWorkspaces.length === 0) {
               throw new Error("No workspaces available on the remote device");
@@ -4787,7 +4918,10 @@ export function setupControlPlaneHandlers(
         return { ok: false, error: "deviceId and method are required" };
       }
       if (isLocalManagedDeviceIdentifier(request.deviceId)) {
-        return { ok: true, payload: await routeLocalDeviceProxyRequest(request.method, request.params) };
+        return {
+          ok: true,
+          payload: await routeLocalDeviceProxyRequest(request.method, request.params),
+        };
       }
       const device = findManagedDeviceById(request.deviceId);
       if (!device || device.role !== "remote") {
@@ -4823,7 +4957,11 @@ export function setupControlPlaneHandlers(
 
   ipcMain.handle(
     IPC_CHANNELS.DEVICE_UPDATE_PROFILE,
-    async (_, deviceId: string, data: { customName?: string; platform?: string; modelIdentifier?: string }) => {
+    async (
+      _,
+      deviceId: string,
+      data: { customName?: string; platform?: string; modelIdentifier?: string },
+    ) => {
       try {
         if (!controlPlaneDeps?.dbManager) return { ok: false, error: "No database" };
         const { DeviceProfileRepository } = await import("../database/DeviceProfileRepository");

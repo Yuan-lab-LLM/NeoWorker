@@ -66,7 +66,7 @@ vi.mock("../../database/SecureSettingsRepository", () => ({
 
 import { AppearanceManager } from "../appearance-manager";
 
-describe("AppearanceManager developer logging settings", () => {
+describe("AppearanceManager settings", () => {
   let originalCwd: string;
   let originalNodeEnv: string | undefined;
   let tempDir: string;

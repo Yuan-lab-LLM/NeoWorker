@@ -97,7 +97,7 @@ describe("sanitizeToolCallTextFromAssistant", () => {
       'Planner output:\n<minimax:tool_call>\ntask_list_create\ngoal: "Research"',
     );
 
-    expect(result.text).toContain('Planner output:\n');
+    expect(result.text).toContain("Planner output:\n");
     expect(result.text).toContain('task_list_create\ngoal: "Research"');
     expect(result.hadToolCallText).toBe(true);
   });

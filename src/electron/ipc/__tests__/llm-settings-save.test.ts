@@ -431,6 +431,23 @@ describe("buildSavedLLMSettings", () => {
 });
 
 describe("LLMSettingsSchema", () => {
+  it.each(["max", "ultra"] as const)(
+    "accepts the GPT-5.6 %s reasoning effort",
+    (reasoningEffort) => {
+      const parsed = LLMSettingsSchema.parse({
+        providerType: "openai",
+        modelKey: "gpt-5.6-sol",
+        openai: {
+          authMethod: "oauth",
+          model: "gpt-5.6-sol",
+          reasoningEffort,
+        },
+      });
+
+      expect(parsed.openai?.reasoningEffort).toBe(reasoningEffort);
+    },
+  );
+
   it("accepts long OpenAI OAuth tokens and account metadata", () => {
     const accessToken = "a".repeat(5000);
     const refreshToken = "r".repeat(5000);

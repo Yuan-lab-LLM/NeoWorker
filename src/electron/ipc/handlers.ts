@@ -57,6 +57,7 @@ import {
 import { ImageGenProfileService } from "../managed/ImageGenProfileService";
 import { EverydayAgentService } from "../everyday-agent/EverydayAgentService";
 import { setupEverydayAgentHandlers } from "./everyday-agent-handlers";
+import { setupVoiceActionHandlers } from "./voice-handlers";
 import {
   rendererPerfLogLevel,
   stringifyRendererPerfPayload,
@@ -13787,6 +13788,13 @@ let hookAgentDispatchObserver:
       };
     }) => void)
   | null = null;
+let hookWorkflowDispatchObserver:
+  | ((payload: {
+      routineId: string;
+      payload: Record<string, unknown>;
+      metadata?: Record<string, string>;
+    }) => Promise<{ runId: string; status: string }>)
+  | null = null;
 
 /**
  * Get the hooks server instance
@@ -13818,6 +13826,18 @@ export function setHookAgentDispatchObserver(
     | null,
 ): void {
   hookAgentDispatchObserver = observer;
+}
+
+export function setHookWorkflowDispatchObserver(
+  observer:
+    | ((payload: {
+        routineId: string;
+        payload: Record<string, unknown>;
+        metadata?: Record<string, string>;
+      }) => Promise<{ runId: string; status: string }>)
+    | null,
+): void {
+  hookWorkflowDispatchObserver = observer;
 }
 
 /**
@@ -13939,6 +13959,12 @@ async function setupHooksHandlers(agentDaemon: AgentDaemon): Promise<void> {
           .catch((err) => {
             logger.error("[Hooks] Failed to process task message:", err);
           });
+      },
+      onWorkflow: async (action) => {
+        if (!hookWorkflowDispatchObserver) {
+          throw new Error("Routine workflow service is not available");
+        }
+        return hookWorkflowDispatchObserver(action);
       },
       onApprovalRespond: async (action) => {
         logger.debug(
@@ -16825,61 +16851,7 @@ function setupMemoryHandlers(): void {
     }
   });
 
-  // Get voice state
-  ipcMain.handle(IPC_CHANNELS.VOICE_GET_STATE, async () => {
-    try {
-      const voiceService = getVoiceService();
-      return voiceService.getState();
-    } catch (error) {
-      logger.error("[Voice] Failed to get state:", error);
-      throw error;
-    }
-  });
-
-  // Speak text - returns audio data for renderer to play
-  ipcMain.handle(IPC_CHANNELS.VOICE_SPEAK, async (_, text: string) => {
-    try {
-      const voiceService = getVoiceService();
-      const audioBuffer = await voiceService.speak(text);
-      if (audioBuffer) {
-        // Return audio data as array for serialization over IPC
-        return { success: true, audioData: Array.from(audioBuffer) };
-      }
-      return { success: true, audioData: null };
-    } catch (error: Any) {
-      logger.error("[Voice] Failed to speak:", error);
-      return { success: false, error: error.message, audioData: null };
-    }
-  });
-
-  // Stop speaking
-  ipcMain.handle(IPC_CHANNELS.VOICE_STOP_SPEAKING, async () => {
-    try {
-      const voiceService = getVoiceService();
-      voiceService.stopSpeaking();
-      return { success: true };
-    } catch (error: Any) {
-      logger.error("[Voice] Failed to stop speaking:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Transcribe audio - accepts audio data as array from renderer
-  ipcMain.handle(
-    IPC_CHANNELS.VOICE_TRANSCRIBE,
-    async (_, audioData: number[]) => {
-      try {
-        const voiceService = getVoiceService();
-        // Convert array back to Buffer
-        const audioBuffer = Buffer.from(audioData);
-        const text = await voiceService.transcribe(audioBuffer);
-        return { text };
-      } catch (error: Any) {
-        logger.error("[Voice] Failed to transcribe:", error);
-        return { text: "", error: error.message };
-      }
-    },
-  );
+  setupVoiceActionHandlers();
 
   // Get ElevenLabs voices
   ipcMain.handle(IPC_CHANNELS.VOICE_GET_ELEVENLABS_VOICES, async () => {

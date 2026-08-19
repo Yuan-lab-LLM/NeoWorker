@@ -767,7 +767,9 @@ export const OpenAISettingsSchema = z
   .object({
     apiKey: z.string().max(500).optional(),
     model: z.string().max(200).optional(),
-    reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
+    reasoningEffort: z
+      .enum(["low", "medium", "high", "xhigh", "max", "ultra"])
+      .optional(),
     textVerbosity: z.enum(["low", "medium", "high"]).optional(),
     // OAuth tokens (alternative to API key)
     accessToken: z.string().max(MAX_OAUTH_TOKEN_LENGTH).optional(),

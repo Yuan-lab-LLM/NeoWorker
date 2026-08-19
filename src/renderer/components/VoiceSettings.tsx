@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronDown, SlidersHorizontal, Volume2 } from "lucide-react";
 import {
-  VoiceSettings as VoiceSettingsType,
-  VoiceProvider,
-  VoiceInputMode,
-  VoiceResponseMode,
-  VoiceState,
-  ElevenLabsVoice,
+  type VoiceSettings as VoiceSettingsType,
+  type VoiceProvider,
+  type VoiceInputMode,
+  type VoiceResponseMode,
+  type VoiceState,
+  type VoiceCapabilities,
+  type ElevenLabsVoice,
   OPENAI_VOICES,
   VOICE_LANGUAGES,
   DEFAULT_VOICE_SETTINGS,
@@ -62,6 +63,7 @@ export function VoiceSettings({ onStateChange }: VoiceSettingsProps) {
     isProcessing: false,
     audioLevel: 0,
   });
+  const [capabilities, setCapabilities] = useState<VoiceCapabilities | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [elevenLabsVoices, setElevenLabsVoices] = useState<ElevenLabsVoice[]>(
@@ -373,6 +375,7 @@ export function VoiceSettings({ onStateChange }: VoiceSettingsProps) {
     } catch (error) {
       console.error("Test speech failed:", error);
     } finally {
+      await window.electronAPI.voiceStopSpeaking();
       setTestingSpeech(false);
     }
   };

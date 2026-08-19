@@ -30,6 +30,7 @@ import {
   getNotificationService,
   setHeartbeatWakeSubmitter,
   setHookAgentDispatchObserver,
+  setHookWorkflowDispatchObserver,
   setHookTriggerEmitter,
 } from "./ipc/handlers";
 import { setupMissionControlHandlers } from "./ipc/mission-control-handlers";
@@ -37,6 +38,8 @@ import { setupPersonaTemplateHandlers } from "./ipc/persona-template-handlers";
 import { setupPluginPackHandlers } from "./ipc/plugin-pack-handlers";
 import { setupPluginDistributionHandlers } from "./ipc/plugin-distribution-handlers";
 import { setupAdminPolicyHandlers } from "./ipc/admin-policy-handlers";
+import { setupAgentSecurityHandlers } from "./ipc/agent-security-handlers";
+import { NumbatService } from "./security/numbat";
 import { getPersonaTemplateService } from "./agents/PersonaTemplateService";
 import { setupWorktreeHandlers } from "./ipc/worktree-handlers";
 import { ComparisonService } from "./git/ComparisonService";
@@ -96,10 +99,7 @@ import { SearchProviderFactory } from "./agent/search";
 import { ChannelGateway } from "./gateway";
 import { formatChatTranscriptForPrompt } from "./gateway/chat-transcript";
 import { updateManager } from "./updater";
-import {
-  importProcessEnvToSettings,
-  migrateEnvToSettings,
-} from "./utils/env-migration";
+import { importProcessEnvToSettings, migrateEnvToSettings } from "./utils/env-migration";
 import {
   TEMP_WORKSPACE_ID,
   TEMP_WORKSPACE_ROOT_DIR_NAME,
@@ -108,6 +108,7 @@ import {
 } from "../shared/types";
 import type { Task } from "../shared/types";
 import { isAutomatedTaskLike } from "../shared/automated-task-detection";
+import { shouldUseNativeWindowFrame } from "../shared/native-window-frame";
 import { GuardrailManager } from "./guardrails/guardrail-manager";
 import { AppearanceManager } from "./settings/appearance-manager";
 import { resolveOpaqueWindowBackground } from "./window-background";
@@ -121,10 +122,7 @@ import {
   StrategicPlannerService,
   setStrategicPlannerService,
 } from "./control-plane/StrategicPlannerService";
-import {
-  SymphonyService,
-  setSymphonyService,
-} from "./control-plane/SymphonyService";
+import { SymphonyService, setSymphonyService } from "./control-plane/SymphonyService";
 import { attachControlPlaneTaskLifecycleSync } from "./control-plane/task-run-sync";
 import {
   buildManagedScheduledWorkspacePath,
@@ -168,21 +166,10 @@ import {
   shouldPrintControlPlaneTokenFromArgsOrEnv,
   shouldTrustControlPlaneProxyFromEnv,
 } from "./utils/runtime-mode";
-import {
-  getActiveProfileId,
-  getUserDataDir,
-  hasNonDefaultProfile,
-} from "./utils/user-data-dir";
+import { getActiveProfileId, getUserDataDir, hasNonDefaultProfile } from "./utils/user-data-dir";
 // Live Canvas feature
-import {
-  registerCanvasScheme,
-  registerCanvasProtocol,
-  CanvasManager,
-} from "./canvas";
-import {
-  setupCanvasHandlers,
-  cleanupCanvasHandlers,
-} from "./ipc/canvas-handlers";
+import { registerCanvasScheme, registerCanvasProtocol, CanvasManager } from "./canvas";
+import { setupCanvasHandlers, cleanupCanvasHandlers } from "./ipc/canvas-handlers";
 import { setupQAHandlers } from "./ipc/qa-handlers";
 import { getBrowserWorkbenchService } from "./browser/browser-workbench-service";
 import { isAllowedWebviewUrl } from "./browser/webview-url-policy";
@@ -210,11 +197,10 @@ import { EventTriggerService } from "./triggers/EventTriggerService";
 import { setupTriggerHandlers } from "./ipc/trigger-handlers";
 import { setupRoutineHandlers } from "./ipc/routine-handlers";
 import { RoutineService } from "./routines/service";
+import { createRoutineWorkflowActionExecutor } from "./routines/workflow/action-executor";
+import { GoogleWorkspaceWorkflowStarterWatcher } from "./routines/workflow/google-starter-watcher";
 import { DailyBriefingService } from "./briefing/DailyBriefingService";
-import {
-  syncDailyBriefingCronJob,
-  DAILY_BRIEFING_MARKER,
-} from "./briefing/briefing-scheduler";
+import { syncDailyBriefingCronJob, DAILY_BRIEFING_MARKER } from "./briefing/briefing-scheduler";
 import { CouncilService } from "./council/CouncilService";
 import { setCouncilService } from "./council";
 import {
@@ -222,27 +208,18 @@ import {
   readWorkspacePriorities,
 } from "./briefing/workspace-briefing-context";
 import { setupBriefingHandlers } from "./ipc/briefing-handlers";
-import {
-  setupImprovementHandlers,
-  setupSubconsciousHandlers,
-} from "./ipc/subconscious-handlers";
+import { setupImprovementHandlers, setupSubconsciousHandlers } from "./ipc/subconscious-handlers";
 import { FileHubService } from "./file-hub/FileHubService";
 import { setupFileHubHandlers } from "./ipc/file-hub-handlers";
 import { HooksSettingsManager } from "./hooks/settings";
 import { WebAccessServer } from "./web-server/WebAccessServer";
-import {
-  DEFAULT_WEB_ACCESS_CONFIG,
-  type WebAccessConfig,
-} from "./web-server/types";
+import { DEFAULT_WEB_ACCESS_CONFIG, type WebAccessConfig } from "./web-server/types";
 import { setupWebAccessHandlers } from "./ipc/web-access-handlers";
 import {
   ManagedAccountManager,
   type ManagedAccountStatus,
 } from "./accounts/managed-account-manager";
-import {
-  initializeXMentionBridgeService,
-  XMentionBridgeService,
-} from "./x-mentions";
+import { initializeXMentionBridgeService, XMentionBridgeService } from "./x-mentions";
 import {
   getDesktopLocationService,
   registerLocationProbeScheme,
@@ -296,6 +273,7 @@ let symphonyService: SymphonyService | null = null;
 let automationOutcomeService: AutomationOutcomeService | null = null;
 let eventTriggerService: EventTriggerService | null = null;
 let routineService: RoutineService | null = null;
+let workflowStarterWatcher: GoogleWorkspaceWorkflowStarterWatcher | null = null;
 let coreTraceService: CoreTraceService | null = null;
 let coreMemoryCandidateService: CoreMemoryCandidateService | null = null;
 let coreMemoryDistiller: CoreMemoryDistiller | null = null;
@@ -618,11 +596,7 @@ app.on("web-contents-created", (_event, contents) => {
       !isAllowedWebviewUrl(targetUrl) &&
       !browserWorkbenchService.isAllowedLocalPreviewUrl(targetUrl)
     ) {
-      logger.warn(
-        `Blocked webview attachment for disallowed URL: ${
-          targetUrl || "<empty>"
-        }`,
-      );
+      logger.warn(`Blocked webview attachment for disallowed URL: ${targetUrl || "<empty>"}`);
       event.preventDefault();
     }
   });
@@ -684,10 +658,8 @@ function isFinitePositiveNumber(value: unknown): value is number {
 function isWindowBoundsOnScreen(bounds: Electron.Rectangle): boolean {
   return screen.getAllDisplays().some((display) => {
     const area = display.workArea;
-    const horizontalOverlap =
-      bounds.x < area.x + area.width && bounds.x + bounds.width > area.x;
-    const verticalOverlap =
-      bounds.y < area.y + area.height && bounds.y + bounds.height > area.y;
+    const horizontalOverlap = bounds.x < area.x + area.width && bounds.x + bounds.width > area.x;
+    const verticalOverlap = bounds.y < area.y + area.height && bounds.y + bounds.height > area.y;
     return horizontalOverlap && verticalOverlap;
   });
 }
@@ -702,28 +674,16 @@ function getInitialMainWindowBounds(): Pick<
   const saved = readMainWindowState();
   const width = Math.max(
     MAIN_WINDOW_MIN_WIDTH,
-    Math.round(
-      isFinitePositiveNumber(saved?.width)
-        ? saved.width
-        : MAIN_WINDOW_DEFAULT_WIDTH,
-    ),
+    Math.round(isFinitePositiveNumber(saved?.width) ? saved.width : MAIN_WINDOW_DEFAULT_WIDTH),
   );
   const height = Math.max(
     MAIN_WINDOW_MIN_HEIGHT,
-    Math.round(
-      isFinitePositiveNumber(saved?.height)
-        ? saved.height
-        : MAIN_WINDOW_DEFAULT_HEIGHT,
-    ),
+    Math.round(isFinitePositiveNumber(saved?.height) ? saved.height : MAIN_WINDOW_DEFAULT_HEIGHT),
   );
   const x = typeof saved?.x === "number" ? Math.round(saved.x) : undefined;
   const y = typeof saved?.y === "number" ? Math.round(saved.y) : undefined;
 
-  if (
-    x !== undefined &&
-    y !== undefined &&
-    isWindowBoundsOnScreen({ x, y, width, height })
-  ) {
+  if (x !== undefined && y !== undefined && isWindowBoundsOnScreen({ x, y, width, height })) {
     return {
       x,
       y,
@@ -746,10 +706,7 @@ function writeMainWindowState(
   window: BrowserWindow,
   options: { allowMinimized?: boolean } = {},
 ): Electron.Rectangle | null {
-  if (
-    window.isDestroyed() ||
-    (window.isMinimized() && options.allowMinimized !== true)
-  ) {
+  if (window.isDestroyed() || (window.isMinimized() && options.allowMinimized !== true)) {
     return null;
   }
   try {
@@ -796,9 +753,7 @@ function installMainWindowStatePersistence(window: BrowserWindow): void {
       clearTimeout(saveTimer);
       saveTimer = null;
     }
-    lastNormalBounds =
-      writeMainWindowState(window, { allowMinimized: true }) ??
-      lastNormalBounds;
+    lastNormalBounds = writeMainWindowState(window, { allowMinimized: true }) ?? lastNormalBounds;
   });
   window.on("restore", () => {
     if (
@@ -907,12 +862,7 @@ function installNativeApplicationMenu(): void {
     },
     {
       label: "Window",
-      submenu: [
-        { role: "minimize" },
-        { role: "zoom" },
-        { type: "separator" },
-        { role: "front" },
-      ],
+      submenu: [{ role: "minimize" }, { role: "zoom" }, { type: "separator" }, { role: "front" }],
     },
     {
       role: "help",
@@ -950,11 +900,7 @@ function installDevelopmentBranding(): void {
   }
 }
 
-function logCron(
-  level: "debug" | "info" | "warn" | "error",
-  msg: string,
-  data?: unknown,
-): void {
+function logCron(level: "debug" | "info" | "warn" | "error", msg: string, data?: unknown): void {
   if (data === undefined) {
     cronLogger[level](msg);
     return;
@@ -1089,9 +1035,7 @@ function installProcessErrorGuards(): void {
 
   process.on("unhandledRejection", (reason) => {
     if (isTransientMainProcessError(reason)) {
-      logger.warn(
-        `Suppressed transient unhandledRejection: ${toErrorMessage(reason)}`,
-      );
+      logger.warn(`Suppressed transient unhandledRejection: ${toErrorMessage(reason)}`);
       return;
     }
     logger.error("unhandledRejection:", reason);
@@ -1099,9 +1043,7 @@ function installProcessErrorGuards(): void {
 
   process.on("uncaughtException", (error) => {
     if (isTransientMainProcessError(error)) {
-      logger.warn(
-        `Suppressed transient uncaughtException: ${toErrorMessage(error)}`,
-      );
+      logger.warn(`Suppressed transient uncaughtException: ${toErrorMessage(error)}`);
       return;
     }
     logger.error("uncaughtException:", error);
@@ -3073,6 +3015,9 @@ if (isCliDirectRunMode()) {
         } else {
           await heartbeatService.start();
         }
+      } catch (error) {
+        logger.error("Failed to initialize SubconsciousLoopService:", error);
+      }
 
         setHeartbeatWakeSubmitter(async ({ text, mode }) => {
           submitHeartbeatSignalForAll({ text, mode, source: "hook" });

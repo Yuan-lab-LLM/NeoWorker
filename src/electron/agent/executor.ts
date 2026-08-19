@@ -82,6 +82,12 @@ import { resolveVersionedOutputPath } from "../utils/versioned-output-path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { AgentDaemon } from "./daemon";
+import {
+  discoverDocumentForAnalysis,
+  extractDocumentForAnalysis,
+  splitDocumentForAnalysis,
+  type DocumentAnalysisChunk,
+} from "./document-analysis-pipeline";
 import { ToolRegistry } from "./tools/registry";
 import { ToolBatchExecutor } from "./runtime/tool-batch-executor";
 import {
@@ -423,10 +429,7 @@ import {
   preflightValidateAndRepairToolInput as preflightValidateAndRepairToolInputUtil,
   recordToolFailureOutcome as recordToolFailureOutcomeUtil,
 } from "./executor-tool-execution-utils";
-import {
-  SHARED_PROMPT_POLICY_CORE,
-  buildModeDomainContract,
-} from "./executor-prompt-sections";
+import { SHARED_PROMPT_POLICY_CORE, buildModeDomainContract } from "./executor-prompt-sections";
 export { AwaitingUserInputError } from "./executor-helpers";
 export type { CompletionContract } from "./executor-helpers";
 
@@ -1185,12 +1188,7 @@ export class TaskExecutor {
     return this.budgetConstrainedFailedStepIds;
   }
 
-  private static clampInt(
-    value: unknown,
-    fallback: number,
-    min: number,
-    max: number,
-  ): number {
+  private static clampInt(value: unknown, fallback: number, min: number, max: number): number {
     if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
     const normalized = Math.floor(value);
     if (normalized < min) return fallback;
@@ -1487,10 +1485,7 @@ export class TaskExecutor {
     ) {
       fields.verificationReport = this.task.verificationReport.trim();
     }
-    return fields as Pick<
-      Task,
-      "semanticSummary" | "verificationVerdict" | "verificationReport"
-    >;
+    return fields as Pick<Task, "semanticSummary" | "verificationVerdict" | "verificationReport">;
   }
 
   private finalizeFollowUpCompletion(
@@ -2226,9 +2221,7 @@ export class TaskExecutor {
         actor: "tool",
         status,
         legacyType:
-          status === "failed" || status === "cancelled"
-            ? "step_failed"
-            : "step_completed",
+          status === "failed" || status === "cancelled" ? "step_failed" : "step_completed",
         message:
           message ||
           (status === "failed" || status === "cancelled"
@@ -2257,12 +2250,7 @@ export class TaskExecutor {
         params.correlation,
       ),
     );
-    this.emitToolLaneFinished(
-      params.toolName,
-      params.correlation,
-      "cancelled",
-      message,
-    );
+    this.emitToolLaneFinished(params.toolName, params.correlation, "cancelled", message);
     return {
       toolResult: buildCancellationToolResultUtil({
         toolUseId: params.toolUseId,
@@ -2350,6 +2338,20 @@ export class TaskExecutor {
     if (!input || typeof input !== "object" || Array.isArray(input)) return;
 
     const canonicalToolName = canonicalizeToolNameUtil(toolName);
+    if (canonicalToolName === "read_file" || canonicalToolName === "parse_document") {
+      const limitKey = canonicalToolName === "read_file" ? "maxChars" : "max_chars";
+      const maxDocumentChars = 48_000;
+      const requested = Number((input as Any)[limitKey]);
+      if (!Number.isFinite(requested) || requested <= 0 || requested > maxDocumentChars) {
+        (input as Any)[limitKey] = maxDocumentChars;
+        this.emitEvent("log", {
+          metric: "local_model_document_window_clamped",
+          tool: canonicalToolName,
+          maxChars: maxDocumentChars,
+        });
+      }
+      return;
+    }
     if (canonicalToolName === "web_search") {
       const currentMaxResults = Number((input as Any).maxResults);
       if (
@@ -2405,6 +2407,7 @@ export class TaskExecutor {
       canonical === "web_fetch" ||
       canonical === "http_request" ||
       canonical === "read_file" ||
+      canonical === "parse_document" ||
       canonical === "read_files" ||
       canonical === "list_directory" ||
       canonical === "list_directory_with_sizes" ||
@@ -2527,6 +2530,8 @@ export class TaskExecutor {
     stepStartedAt: number;
     stepToolCallCount: number;
     messages: LLMMessage[];
+    stepDescription?: string;
+    successfulToolNames?: Set<string>;
     stepContract: Any;
     isVerificationStep: boolean;
     isSummaryStep: boolean;
@@ -2541,14 +2546,18 @@ export class TaskExecutor {
     ) {
       return false;
     }
+    if (
+      this.isFileDiscoveryOnlyStepDescription(params.stepDescription || "") &&
+      this.hasSuccessfulFileDiscoveryTool(params.successfulToolNames)
+    ) {
+      return true;
+    }
 
     const elapsedMs = Date.now() - params.stepStartedAt;
-    const toolResultChars = this.getApproxToolResultChars(params.messages);
     return (
       params.stepToolCallCount >= 8 ||
-      toolResultChars >= 20_000 ||
-      (params.iterationCount >= 4 && params.stepToolCallCount >= 4) ||
-      (elapsedMs >= 240_000 && params.stepToolCallCount >= 4)
+      (params.iterationCount >= 12 && params.stepToolCallCount >= 6) ||
+      (elapsedMs >= 600_000 && params.stepToolCallCount >= 6)
     );
   }
 
@@ -3259,11 +3268,7 @@ export class TaskExecutor {
               }
 
               if (rawOutcome.error) {
-                this.releaseBatchCreatedPathReservation(
-                  batchCreatedPaths,
-                  toolName,
-                  input,
-                );
+                this.releaseBatchCreatedPathReservation(batchCreatedPaths, toolName, input);
                 hadToolError = true;
                 params.toolErrors.add(toolName);
                 lastToolErrorReason = `Tool ${toolName} failed: ${failureMessage}`;
@@ -3371,13 +3376,9 @@ export class TaskExecutor {
                 if (params.requiredTools.has(canonicalToolName)) {
                   params.requiredToolsSucceeded.add(canonicalToolName);
                 }
-                const currentFailures =
-                  this.crossStepToolFailures.get(canonicalToolName) || 0;
+                const currentFailures = this.crossStepToolFailures.get(canonicalToolName) || 0;
                 if (currentFailures > 0) {
-                  this.crossStepToolFailures.set(
-                    canonicalToolName,
-                    currentFailures - 1,
-                  );
+                  this.crossStepToolFailures.set(canonicalToolName, currentFailures - 1);
                 }
               } else {
                 this.releaseBatchCreatedPathReservation(
@@ -3705,9 +3706,7 @@ export class TaskExecutor {
             this.currentStepId ||
             `turn:${this.task.id}`,
           description:
-            typeof payloadObj.stepDescription === "string"
-              ? payloadObj.stepDescription
-              : message,
+            typeof payloadObj.stepDescription === "string" ? payloadObj.stepDescription : message,
         },
         {
           actor: type === "assistant_message" ? "agent" : "user",
@@ -4779,11 +4778,7 @@ export class TaskExecutor {
   }): boolean {
     if (!this.shouldSuppressToolDisableOnRecoverablePathDrift()) return false;
     if (
-      !this.isRecoverableTaskRootPathDriftFailure(
-        opts.toolName,
-        opts.inputPath,
-        opts.failureReason,
-      )
+      !this.isRecoverableTaskRootPathDriftFailure(opts.toolName, opts.inputPath, opts.failureReason)
     ) {
       return false;
     }
@@ -5114,12 +5109,11 @@ export class TaskExecutor {
           "Confirm concrete output constraints (format, exact limits, filename) and execute the required tool actions.";
       }
 
-      const normalizedKind: PlanStep["kind"] =
-        this.descriptionIndicatesVerification(description)
-          ? "verification"
-          : step?.kind === "recovery" || step?.kind === "primary"
-            ? step.kind
-            : "primary";
+      const normalizedKind: PlanStep["kind"] = this.descriptionIndicatesVerification(description)
+        ? "verification"
+        : step?.kind === "recovery" || step?.kind === "primary"
+          ? step.kind
+          : "primary";
 
       description = this.rewriteNovelistPlanStepDescription(
         description,
@@ -5822,10 +5816,7 @@ export class TaskExecutor {
 
     messages[firstUserIndex] = {
       ...message,
-      content: [
-        { type: "text", text: `${trimmedPrefix}\n\n` },
-        ...message.content,
-      ] as LLMContent[],
+      content: [{ type: "text", text: `${trimmedPrefix}\n\n` }, ...message.content] as LLMContent[],
     };
   }
 
@@ -6725,13 +6716,10 @@ ${transcript}
 
   private buildToolRegistry(workspace: Workspace): ToolRegistry {
     const desc = this.task.title || "";
-    const isReadOnlyReview =
-      descriptionHasReadOnlyIntent(desc) && !descriptionHasWriteIntent(desc);
+    const isReadOnlyReview = descriptionHasReadOnlyIntent(desc) && !descriptionHasWriteIntent(desc);
     const toolRestrictions = [
       ...(this.task.agentConfig?.toolRestrictions || []),
-      ...(this.task.agentConfig?.chronicleMode === "disabled"
-        ? ["screen_context_resolve"]
-        : []),
+      ...(this.task.agentConfig?.chronicleMode === "disabled" ? ["screen_context_resolve"] : []),
       ...(isReadOnlyReview
         ? [
             "group:system",
@@ -6793,10 +6781,8 @@ ${transcript}
       },
       getContextManager: () => this.contextManager,
       getSystemPrompt: () => this.systemPrompt,
-      buildPromptCacheRequestExtras: (args: {
-        systemPrompt: string;
-        tools: LLMTool[];
-      }) => this.buildPromptCacheRequestExtras(args),
+      buildPromptCacheRequestExtras: (args: { systemPrompt: string; tools: LLMTool[] }) =>
+        this.buildPromptCacheRequestExtras(args),
       getModelMetadata: () => ({
         providerType: this.getProviderTypeForRuntime(),
         modelId: String(this.modelId || ""),
@@ -8586,11 +8572,7 @@ ${transcript}
         ctx.personalityPrompt,
         "session",
       ),
-      buildSystemBlock(
-        `chat_rules:${hashPromptCacheValue(rules)}`,
-        rules,
-        "session",
-      ),
+      buildSystemBlock(`chat_rules:${hashPromptCacheValue(rules)}`, rules, "session"),
     ].filter((block) => block.text.length > 0);
   }
 
@@ -8676,10 +8658,7 @@ ${transcript}
       ? await this.buildSupermemoryProfileBlock(message)
       : "";
     const roleContext = this.getRoleContextPrompt();
-    const profileContext = [
-      this.buildUserProfileBlock(10),
-      externalProfileContext,
-    ]
+    const profileContext = [this.buildUserProfileBlock(10), externalProfileContext]
       .filter(Boolean)
       .join("\n");
     const isExplicitChatMode = this.isExplicitChatExecutionMode();
@@ -9346,9 +9325,8 @@ ${transcript}
       : undefined;
 
     try {
-      const normalizedMessages = assertNormalizedTurnTranscript(
-        request.messages,
-        (message) => this.emitEvent("log", { message }),
+      const normalizedMessages = assertNormalizedTurnTranscript(request.messages, (message) =>
+        this.emitEvent("log", { message }),
       );
       return await withTimeout(
         effectiveProvider.createMessage({
@@ -12575,9 +12553,7 @@ ${transcript}
         "web_search",
         "web_fetch",
         "system_info",
-      ].map((toolName) =>
-        canonicalizeToolNameUtil(this.normalizeToolName(toolName).name),
-      ),
+      ].map((toolName) => canonicalizeToolNameUtil(this.normalizeToolName(toolName).name)),
     );
 
     const availableTools = new Set<string>();
@@ -13138,11 +13114,25 @@ ${transcript}
       hasArtifactExtensionMention(description);
     const scaffoldIntent = descriptionHasScaffoldIntent(description);
     const hasWriteIntent = descriptionHasWriteIntent(description);
+    const directFileMutationIntent =
+      hasWriteIntent &&
+      /\b(?:file|files|document|documents|workspace|folder|directory)\b/.test(description) &&
+      /\b(?:edit|update|delete|remove|rename|move|modify|replace|fix|refactor)\b/.test(description);
+    if (directFileMutationIntent) {
+      if (/\b(?:delete|remove)\b/.test(description)) {
+        requiredTools.add("delete_file");
+      } else if (/\b(?:rename|move)\b/.test(description)) {
+        requiredTools.add("rename_file");
+      } else {
+        requiredTools.add("edit_file");
+      }
+    }
     const summaryCue = descriptionHasSummaryCue(description);
     const inlineDiagramIntent =
       this.stepIndicatesInlineDiagramIntent(description);
     const inferredMutation =
       artifactWriteRequired ||
+      directFileMutationIntent ||
       (!verificationStep && inlineDiagramIntent && hasWriteIntent) ||
       (!verificationStep &&
         (softwareArtifactExtensionMentioned || scaffoldIntent) &&
@@ -13998,12 +13988,7 @@ ${transcript}
   private inferSimpleFileCreationTargets(): string[] | null {
     if (this.getEffectiveExecutionMode() !== "execute") return null;
 
-    const prompt = [
-      this.task.rawPrompt,
-      this.task.userPrompt,
-      this.task.prompt,
-      this.task.title,
-    ]
+    const prompt = [this.task.rawPrompt, this.task.userPrompt, this.task.prompt, this.task.title]
       .map((value) =>
         typeof value === "string"
           ? normalizePromptForContractsUtil(value).trim()
@@ -14406,9 +14391,7 @@ ${transcript}
       const franchisePhrase = context.franchiseLabel
         ? `${context.franchiseLabel} universe`
         : "requested franchise universe";
-      const artifactPhrase = context.artifactDir
-        ? ` under \`${context.artifactDir}\``
-        : "";
+      const artifactPhrase = context.artifactDir ? ` under \`${context.artifactDir}\`` : "";
       return `Create the canon continuity notes and world bible for the ${franchisePhrase}${artifactPhrase} without changing the setting to original IP.`;
     }
 
@@ -14951,11 +14934,23 @@ ${transcript}
         this.task?.resultSummary ||
         "",
     ).trim();
+    const requiresSubstantiveAnalysis =
+      this.isBoundedDocumentAnalysisTask() ||
+      /\b(?:research|analy[sz]e|analysis|review|evaluate|investigate|incele|analiz|değerlendir)\b/i.test(
+        normalizePromptForContractsUtil(this.getContractPrompt()),
+      );
+    const hasSubstantiveAnalysis =
+      bestEffortCandidate.length >= 200 &&
+      !this.responseLooksOperationalOnly(bestEffortCandidate) &&
+      !/^(?:the file is large|let me|i need to|i completed \d+\/\d+ planned step|captured tool progress|working on|locating|reading)/i.test(
+        bestEffortCandidate,
+      );
     const isBestEffortFinalization =
       (this.softDeadlineTriggered ||
         this.wrapUpRequested ||
         this.shouldPreferBestEffortCompletion()) &&
       bestEffortCandidate.length > 0 &&
+      (!requiresSubstantiveAnalysis || hasSubstantiveAnalysis) &&
       (this.hasExecutionEvidence() ||
         (this.buildTaskOutputSummary()?.outputCount || 0) > 0 ||
         (this.bestKnownOutcome?.outputSummary?.outputCount || 0) > 0);
@@ -15065,8 +15060,7 @@ ${transcript}
     if (baseGuardError) {
       if (/Task missing artifact evidence/i.test(baseGuardError)) {
         this.emitEvent("log", {
-          message:
-            "Completion guard blocked finalization due to artifact contract mismatch.",
+          message: "Completion guard blocked finalization due to artifact contract mismatch.",
           requiredArtifactExtensions: contract.requiredArtifactExtensions,
           createdFilesSample: createdFiles.slice(0, 10),
           normalizedContractPromptSnippet: normalizePromptForContractsUtil(
@@ -15364,7 +15358,14 @@ ${transcript}
           failedStepIds: metadata.failedStepIds,
           incompleteStepIds: metadata.incompleteStepIds,
         })
-      : undefined;
+      : this.softDeadlineTriggered && !this.wrapUpRequested
+        ? createTerminalState("timed_out", {
+            terminalStatus: metadata?.terminalStatus,
+            failureClass: metadata?.failureClass || "budget_exhausted",
+            reason: metadata?.reason || reason || "Soft deadline reached.",
+            ...this.buildTerminalStepState(),
+          })
+        : undefined;
     let computedTerminalStatus: NonNullable<Task["terminalStatus"]> =
       metadata?.terminalStatus ||
       implicitExecutorStatus ||
@@ -16250,10 +16251,7 @@ ${transcript}
       return "analyze";
     }
     const agentConfig = this.task?.agentConfig;
-    return normalizeExecutionMode(
-      agentConfig?.executionMode,
-      agentConfig?.conversationMode,
-    );
+    return normalizeExecutionMode(agentConfig?.executionMode, agentConfig?.conversationMode);
   }
 
   /** Modes where command/canvas follow-up enforcement behaves like full execution. */
@@ -16831,10 +16829,7 @@ ${transcript}
           )
         : undefined;
     const codeFirstUiText = `${this.task.title || ""}\n${currentStep?.description || ""}\n${this.getExecutionTaskPrompt()}\n${this.lastUserMessage || ""}`;
-    if (
-      this.isCodeFirstUiTask(codeFirstUiText) &&
-      this.isCodeFirstUiBlockedTool(opts.toolName)
-    ) {
+    if (this.isCodeFirstUiTask(codeFirstUiText) && this.isCodeFirstUiBlockedTool(opts.toolName)) {
       return {
         blockedResult: {
           error:
@@ -16903,8 +16898,7 @@ ${transcript}
     if (decision.action === "block_with_feedback") {
       const feedback =
         this.sanitizeFallbackInstruction(
-          decision.feedback ||
-            `Tool "${opts.toolName}" blocked by on_pre_tool_use policy hook.`,
+          decision.feedback || `Tool "${opts.toolName}" blocked by on_pre_tool_use policy hook.`,
         ) || `Tool "${opts.toolName}" blocked by on_pre_tool_use policy hook.`;
       this.emitEvent("log", {
         metric: "agent_policy_hook_blocked",
@@ -17722,6 +17716,7 @@ ${transcript}
     >;
     turnGuidancePrompt?: string;
     turnGuidanceMaxTokens?: number;
+    turnGuidanceRequired?: boolean;
   }): Promise<{
     prompt: string;
     systemBlocks: LLMSystemBlock[];
@@ -17776,6 +17771,7 @@ ${transcript}
       guidelinesPrompt: params.guidelinesPrompt,
       turnGuidancePrompt: params.turnGuidancePrompt,
       turnGuidanceMaxTokens: params.turnGuidanceMaxTokens,
+      turnGuidanceRequired: params.turnGuidanceRequired,
       executionMode: params.executionMode,
       taskDomain: params.taskDomain,
       webSearchModeContract: this.buildWebSearchModeContract(),
@@ -18045,6 +18041,7 @@ ${transcript}
       "edit_file",
       "copy_file",
       "create_directory",
+      "delete_file",
       "rename_file",
       "create_document",
       "generate_document",
@@ -18265,9 +18262,7 @@ ${transcript}
       return tools.filter((tool) => {
         const name = canonicalizeToolNameUtil(String(tool.name || ""));
         return (
-          name !== "analyze_image" &&
-          name !== "read_pdf_visual" &&
-          !name.startsWith("task_list_")
+          name !== "analyze_image" && name !== "read_pdf_visual" && !name.startsWith("task_list_")
         );
       });
     }
@@ -18282,7 +18277,6 @@ ${transcript}
       (candidate) => candidate.id === this.currentStepId,
     );
     if (!step) return tools;
-
     const stepContract = this.resolveStepExecutionContract(step);
     const stepKind: "analysis" | "mutation_required" | "verification" =
       stepContract.requiresMutation
@@ -18371,9 +18365,7 @@ ${transcript}
       const toolName = String(tool.name || "").toLowerCase();
       const toolDesc = String(tool.description || "").toLowerCase();
       const toolTokens = new Set(
-        `${toolName} ${toolDesc}`
-          .split(/[^a-z0-9]+/)
-          .filter((w) => w.length > 2),
+        `${toolName} ${toolDesc}`.split(/[^a-z0-9]+/).filter((w) => w.length > 2),
       );
 
       let score = 0;
@@ -18741,9 +18733,7 @@ You are continuing a previous conversation. The context from the previous conver
       });
       const ok = missing.length === 0;
       const msg =
-        missing.length === 0
-          ? "All required files exist"
-          : `Missing files: ${missing.join(", ")}`;
+        missing.length === 0 ? "All required files exist" : `Missing files: ${missing.join(", ")}`;
       this.pushVerificationEvidence({
         kind: "file_exists",
         ok,
@@ -19291,8 +19281,7 @@ You are continuing a previous conversation. The context from the previous conver
         lower,
       );
     const looksInformational =
-      /^(?:what|how|why)\b/.test(lower) ||
-      /\b(?:explain|documentation|docs|what is)\b/.test(lower);
+      /^(?:what|how|why)\b/.test(lower) || /\b(?:explain|documentation|docs|what is)\b/.test(lower);
 
     if (looksInformational && !hasActionVerb) {
       return false;
@@ -19303,9 +19292,7 @@ You are continuing a previous conversation. The context from the previous conver
 
   private isCanvasPresentationTool(toolName: string): boolean {
     return (
-      toolName === "canvas_push" ||
-      toolName === "canvas_show" ||
-      toolName === "canvas_open_url"
+      toolName === "canvas_push" || toolName === "canvas_show" || toolName === "canvas_open_url"
     );
   }
 
@@ -19538,8 +19525,7 @@ You are continuing a previous conversation. The context from the previous conver
     const hasBlockingContext =
       /\b(required|must|cannot continue|can't continue|unable to continue|blocked|before i can|to continue|to proceed)\b/.test(
         lower,
-      ) ||
-      /\b(reply with|choose|select|pick|confirm|specify|provide)\b/.test(lower);
+      ) || /\b(reply with|choose|select|pick|confirm|specify|provide)\b/.test(lower);
 
     return hasDecisionVerb && hasRequiredInputTarget && hasBlockingContext;
   }
@@ -21350,6 +21336,24 @@ You are continuing a previous conversation. The context from the previous conver
   ): string | null {
     if (!result) return null;
 
+    if (
+      (toolName === "list_directory" || toolName === "list_directory_with_sizes") &&
+      Array.isArray(result.files)
+    ) {
+      const entries = result.files
+        .slice(0, 20)
+        .map((entry: Any) => {
+          const name = typeof entry?.name === "string" ? entry.name.trim() : "";
+          const type = typeof entry?.type === "string" ? entry.type.trim() : "";
+          return name ? `${name}${type ? ` (${type})` : ""}` : "";
+        })
+        .filter(Boolean);
+      const total = typeof result.totalCount === "number" ? result.totalCount : result.files.length;
+      return entries.length > 0
+        ? `${total} workspace entr${total === 1 ? "y" : "ies"}: ${entries.join(", ")}`
+        : "workspace directory is empty";
+    }
+
     if (toolName === "web_search") {
       const query = typeof result.query === "string" ? result.query : "";
       const items = Array.isArray(result.results) ? result.results : [];
@@ -21469,9 +21473,7 @@ You are continuing a previous conversation. The context from the previous conver
         if (/api\.github\.com\/repos\/.+\/releases/i.test(url)) {
           const releases = parsed
             .slice(0, 3)
-            .map((entry: Any) =>
-              [entry?.tag_name, entry?.published_at].filter(Boolean).join("@"),
-            )
+            .map((entry: Any) => [entry?.tag_name, entry?.published_at].filter(Boolean).join("@"))
             .filter(Boolean);
           return [
             `${url}: ${statusPrefix}`,
@@ -22174,11 +22176,7 @@ You are continuing a previous conversation. The context from the previous conver
     });
   }
 
-  private collectBrowserInspectionEvidenceText(
-    toolName: string,
-    input: Any,
-    result: Any,
-  ): string {
+  private collectBrowserInspectionEvidenceText(toolName: string, input: Any, result: Any): string {
     if (
       toolName !== "browser_get_content" &&
       toolName !== "browser_snapshot" &&
@@ -24638,6 +24636,7 @@ You are continuing a previous conversation. The context from the previous conver
 
   private isTransientProviderError(error: Any): boolean {
     if (!error) return false;
+    if (error.retryable === false) return false;
     if (error.retryable === true) return true;
     const message = String(error.message || "").toLowerCase();
     const code = String(error.cause?.code || error.code || "").toUpperCase();
@@ -25502,10 +25501,7 @@ You are continuing a previous conversation. The context from the previous conver
       /\bcreate\s+a\s+child\s+task(?:\s+via\s+acpx)?\b[:,]?\s*/gi,
       "",
     );
-    normalized = normalized.replace(
-      /\b(?:with|via|using)\s+claude(?:\s+code)?\b/gi,
-      "",
-    );
+    normalized = normalized.replace(/\b(?:with|via|using)\s+claude(?:\s+code)?\b/gi, "");
     normalized = normalized.replace(/\bhave\s+it\b/gi, "");
     normalized = normalized.replace(/\s+/g, " ").trim();
     normalized = normalized.replace(/^[,.;:\-)\]]+\s*/g, "");
@@ -25739,9 +25735,7 @@ You are continuing a previous conversation. The context from the previous conver
           !note.includes("Visual Presentation is active."),
       );
     }
-    logger.info(
-      `${this.logTag} Skill '${skillId}' applied as hidden context via ${trigger}`,
-    );
+    logger.info(`${this.logTag} Skill '${skillId}' applied as hidden context via ${trigger}`);
     return "applied";
   }
 
@@ -26306,10 +26300,8 @@ You are continuing a previous conversation. The context from the previous conver
     phrase: string,
   ): boolean {
     const normalizedPhrase = this.normalizeSkillInvocationQuery(phrase);
-    return matchesExplicitSkillInvocationPhrase(
-      normalizedQuery,
-      normalizedPhrase,
-      (segment) => this.escapeSkillInvocationPattern(segment),
+    return matchesExplicitSkillInvocationPhrase(normalizedQuery, normalizedPhrase, (segment) =>
+      this.escapeSkillInvocationPattern(segment),
     );
   }
 
@@ -27995,11 +27987,16 @@ You are continuing a previous conversation. The context from the previous conver
   }
 
   private buildDeterministicTimeoutRecoveryAnswer(error: Any): string {
-    const candidates = [
+    const directCandidates = [
       this.lastNonVerificationOutput,
       this.lastAssistantOutput,
       this.lastAssistantText,
-      this.buildResultSummary(),
+    ]
+      .map((value) => String(value || "").trim())
+      .filter((value) => value.length > 0);
+    const candidates = [
+      ...directCandidates,
+      ...(directCandidates.length === 0 ? [this.buildResultSummary()] : []),
       this.buildTimeoutFallbackSummary(error),
     ]
       .map((value) => String(value || "").trim())
@@ -28160,6 +28157,7 @@ You are continuing a previous conversation. The context from the previous conver
   }
 
   private shouldEmitPreflight(): boolean {
+    if (this.isBoundedDocumentAnalysisTask()) return false;
     const snapshot = this.getTaskStrategySnapshot();
     if (snapshot) {
       return snapshot.preflightGates.includes("preflight_framing");
@@ -28844,7 +28842,15 @@ You are continuing a previous conversation. The context from the previous conver
         this.lastAssistantText = finalText;
         this.emitEvent("assistant_message", { message: finalText });
         this.emitEvent("log", { message: reason });
-        this.finalizeTaskBestEffort(finalText, reason);
+        this.finalizeTaskBestEffort(
+          finalText,
+          reason,
+          createTerminalState("timed_out", {
+            reason,
+            failureClass: "budget_exhausted",
+            ...this.buildTerminalStepState(),
+          }),
+        );
         return;
       }
 
@@ -29030,11 +29036,7 @@ You are continuing a previous conversation. The context from the previous conver
             String(reason).toLowerCase(),
           );
         const delayMs = isRateLimit ? 60 * 1000 : undefined; // 60s for rate limit, else default
-        const scheduled = this.daemon.handleTransientTaskFailure(
-          this.task.id,
-          reason,
-          delayMs,
-        );
+        const scheduled = this.daemon.handleTransientTaskFailure(this.task.id, reason, delayMs);
         if (scheduled) {
           return;
         }
@@ -29372,6 +29374,7 @@ Return ONLY a JSON object:
         memoryFeatures: memoryFeatureSettings,
         turnGuidancePrompt: planningTurnGuidance,
         turnGuidanceMaxTokens: 3600,
+        turnGuidanceRequired: true,
       });
       const systemPrompt = this.setPromptCacheContext({
         surface: "executor",
@@ -29604,7 +29607,7 @@ Return ONLY a JSON object:
                 : [
                     {
                       id: "1",
-                      description: planParsingText.slice(0, 500),
+                      description: fallbackStepDescription,
                       kind: "primary",
                       status: "pending" as const,
                     },
@@ -30043,6 +30046,8 @@ Return ONLY a JSON object:
     description: string;
   }> {
     const candidates = [
+      this.task?.rawPrompt,
+      this.task?.userPrompt,
       this.getExecutionTaskPrompt(),
       this.getContractPrompt(),
       this.task?.prompt,
@@ -30050,7 +30055,7 @@ Return ONLY a JSON object:
     ];
     const seen = new Set<string>();
     for (const candidate of candidates) {
-      const text = String(candidate || "").trim();
+      const text = normalizePromptForContractsUtil(String(candidate || "")).trim();
       if (!text || seen.has(text)) continue;
       seen.add(text);
       const steps = this.extractPlanStepsFromText(text);
@@ -30064,6 +30069,12 @@ Return ONLY a JSON object:
     rawPlanText: string,
   ): boolean {
     if (this.provider?.type !== "ollama") return false;
+    const explicitStepLines = String(rawPlanText || "")
+      .split(/\r?\n/)
+      .filter((line) => /^(?:[-*]\s*)?(?:step\s*)?\d+\s*[).:-]\s*\S/i.test(line.trim()));
+    if (recoveredSteps.length > 1 && explicitStepLines.length === 0) {
+      return true;
+    }
     if (recoveredSteps.length !== 1) return false;
     const description = String(recoveredSteps[0]?.description || "").trim();
     const combined = `${rawPlanText}\n${description}`;
@@ -30071,9 +30082,7 @@ Return ONLY a JSON object:
     return (
       description.includes("\n") ||
       wordCount >= 70 ||
-      /\b(?:i['’]?ll|i will|let'?s get started|searching for|first,\s*i['’]?ll)\b/i.test(
-        combined,
-      )
+      /\b(?:i['’]?ll|i will|let'?s get started|searching for|first,\s*i['’]?ll)\b/i.test(combined)
     );
   }
 
@@ -30097,7 +30106,9 @@ Return ONLY a JSON object:
       return promptSteps;
     }
 
-    return recoveredSteps;
+    return this.localModelRecoveredTextPlanLooksMalformed(recoveredSteps, planText)
+      ? []
+      : recoveredSteps;
   }
 
   /**
@@ -30151,6 +30162,370 @@ Return ONLY a JSON object:
   /**
    * Execute the plan step by step
    */
+  private setBoundedDocumentStepState(
+    index: number,
+    status: PlanStep["status"],
+    error?: string,
+  ): void {
+    const step = this.plan?.steps[index];
+    if (!step) return;
+    step.status = status;
+    if (status === "in_progress") {
+      step.startedAt = Date.now();
+      this.emitEvent("step_started", {
+        step,
+        contract_mode: "analysis_only",
+        contract_reason: "bounded_document_pipeline",
+      });
+      return;
+    }
+    step.completedAt = Date.now();
+    if (error) step.error = error;
+    this.emitEvent(status === "completed" ? "step_completed" : "step_failed", {
+      step,
+      ...(error ? { reason: error } : {}),
+    });
+  }
+
+  private async requestBoundedDocumentAnalysisTurn(params: {
+    system: string;
+    prompt: string;
+    label: string;
+    maxTokens: number;
+    timeoutMs?: number;
+    rejectMaxTokens?: boolean;
+  }): Promise<string> {
+    const messages: LLMMessage[] = [
+      {
+        role: "user",
+        content: [{ type: "text", text: params.prompt }],
+      },
+    ];
+    const response = await this.callLLMWithRetry(
+      () =>
+        this.createMessageWithTimeout(
+          {
+            model: this.modelId,
+            maxTokens: params.maxTokens,
+            system: params.system,
+            messages,
+          },
+          params.timeoutMs ?? 180_000,
+          params.label,
+        ),
+      params.label,
+      0,
+    );
+    const text = this.extractTextFromLLMContent(response?.content || []).trim();
+    if (!text) {
+      throw new Error(`${params.label} returned no usable analysis text.`);
+    }
+    if (params.rejectMaxTokens === true && response?.stopReason === "max_tokens") {
+      const error = new Error(`${params.label} reached its output token limit before completion.`);
+      (error as Any).retryable = false;
+      throw error;
+    }
+    return text;
+  }
+
+  private async analyzeBoundedDocumentChunk(params: {
+    chunk: DocumentAnalysisChunk;
+    chunkCount: number;
+    sourceName: string;
+    userRequest: string;
+    useTurkish: boolean;
+  }): Promise<string> {
+    const { chunk, chunkCount, sourceName, userRequest, useTurkish } = params;
+    const system = useTurkish
+      ? [
+          "Sen uzun belge incelemesi için kanıt çıkaran bir alt yordamısın.",
+          "Yalnızca verilen metin aralığını incele; belgenin görmediğin kısımları hakkında çıkarım yapma.",
+          "Kısa ama somut bulgular yaz. Bölüm işaretlerini ve karakter aralığını belirt.",
+        ].join(" ")
+      : [
+          "You extract evidence for a long-document review.",
+          "Analyze only the supplied text range and do not infer facts about unseen ranges.",
+          "Return concise, concrete findings with section cues and the character range.",
+        ].join(" ");
+    const instructions = useTurkish
+      ? [
+          `Kaynak: ${sourceName}`,
+          `Parça: ${chunk.index + 1}/${chunkCount}; karakter aralığı ${chunk.start}-${chunk.end}/${chunk.total}`,
+          `Kullanıcı isteği: ${userRequest}`,
+          "Şunları tara: eksik veya yarım kalan noktalar; iç çelişkiler; bölüm geçişleri; zaman çizgisi; karakter adı, davranışı, bilgisi ve ilişki devamlılığı.",
+          "Bulgu yoksa bunu açıkça söyle. Uzun alıntı yapma; en fazla 120 kelime yaz.",
+        ].join("\n")
+      : [
+          `Source: ${sourceName}`,
+          `Chunk: ${chunk.index + 1}/${chunkCount}; character range ${chunk.start}-${chunk.end}/${chunk.total}`,
+          `User request: ${userRequest}`,
+          "Check for gaps, internal contradictions, chapter transitions, timeline issues, and continuity in character names, behavior, knowledge, and relationships.",
+          "Explicitly say when no issue is found. Do not include long quotations; use at most 120 words.",
+        ].join("\n");
+    const buildPrompt = (content: string, rangeLabel: string) =>
+      `${instructions}\nSubrange: ${rangeLabel}\n\n<document_chunk>\n${content}\n</document_chunk>`;
+
+    try {
+      return await this.requestBoundedDocumentAnalysisTurn({
+        system,
+        prompt: buildPrompt(chunk.content, `${chunk.start}-${chunk.end}`),
+        label: `Document chunk ${chunk.index + 1}/${chunkCount}`,
+        maxTokens: this.provider?.type === "ollama" ? 500 : 2_200,
+        rejectMaxTokens: true,
+      });
+    } catch (error) {
+      if (chunk.content.length < 8_000) {
+        (error as Any).retryable = false;
+        throw error;
+      }
+      this.emitEvent("log", {
+        metric: "bounded_document_chunk_split_recovery",
+        chunk: chunk.index + 1,
+        chunkCount,
+        reason: String((error as Error)?.message || error),
+      });
+      const midpoint = Math.floor(chunk.content.length / 2);
+      const paragraphSplit = chunk.content.lastIndexOf("\n\n", midpoint);
+      const splitAt = paragraphSplit > 0 ? paragraphSplit : midpoint;
+      const safeSplit = splitAt > 0 && splitAt < chunk.content.length ? splitAt : midpoint;
+      const parts = [chunk.content.slice(0, safeSplit), chunk.content.slice(safeSplit)];
+      const findings: string[] = [];
+      let relativeStart = chunk.start;
+      try {
+        for (let index = 0; index < parts.length; index += 1) {
+          const part = parts[index];
+          const relativeEnd = relativeStart + part.length;
+          findings.push(
+            await this.requestBoundedDocumentAnalysisTurn({
+              system,
+              prompt: buildPrompt(part, `${relativeStart}-${relativeEnd}`),
+              label: `Document chunk ${chunk.index + 1}/${chunkCount} split ${index + 1}/2`,
+              maxTokens: this.provider?.type === "ollama" ? 500 : 1_600,
+              timeoutMs: 120_000,
+              rejectMaxTokens: true,
+            }),
+          );
+          relativeStart = relativeEnd;
+        }
+      } catch (splitError) {
+        (splitError as Any).retryable = false;
+        throw splitError;
+      }
+      return findings.join("\n\n");
+    }
+  }
+
+  private async executeBoundedDocumentAnalysisPlan(): Promise<boolean> {
+    if (!this.isBoundedDocumentAnalysisTask() || !this.plan) return false;
+    const userRequest = normalizePromptForContractsUtil(
+      String(
+        this.task.rawPrompt ||
+          this.task.userPrompt ||
+          this.getContractPrompt() ||
+          this.task.title ||
+          "",
+      ),
+    ).trim();
+    const useTurkish = /[çğıöşü]|(?:kitap|incele|bölüm|karakter|çelişki|tutarlılık)/i.test(
+      userRequest,
+    );
+
+    const sourcePath = await discoverDocumentForAnalysis(
+      this.workspace.path,
+      `${this.task.title || ""}\n${userRequest}`,
+    );
+    if (!sourcePath) {
+      return false;
+    }
+
+    this.setBoundedDocumentStepState(0, "in_progress");
+    let source;
+    try {
+      source = await extractDocumentForAnalysis(this.workspace.path, sourcePath);
+    } catch (error) {
+      const message = String((error as Error)?.message || error);
+      this.setBoundedDocumentStepState(0, "failed", message);
+      throw error;
+    }
+    const chunks = splitDocumentForAnalysis(source.text);
+    if (chunks.length === 0) {
+      const message = `No analyzable text chunks were extracted from ${source.relativePath}.`;
+      this.setBoundedDocumentStepState(0, "failed", message);
+      throw new Error(message);
+    }
+    this.recordToolResult(
+      "bounded_document_extract",
+      {
+        path: source.relativePath,
+        totalChars: source.text.length,
+        chunkCount: chunks.length,
+        checksum: source.checksum,
+      },
+      { path: source.relativePath },
+    );
+    this.emitEvent("log", {
+      metric: "bounded_document_manifest_created",
+      path: source.relativePath,
+      totalChars: source.text.length,
+      chunkCount: chunks.length,
+      checksum: source.checksum,
+    });
+    this.setBoundedDocumentStepState(0, "completed");
+
+    this.llmProfileUsed = "strong";
+    this.refreshProviderIfSettingsChanged("strong");
+    this.setBoundedDocumentStepState(1, "in_progress");
+    const findings: string[] = [];
+    try {
+      for (const chunk of chunks) {
+        if (this.cancelled || this.wrapUpRequested) {
+          throw new Error("Document analysis was interrupted before all ranges were covered.");
+        }
+        this.emitEvent("progress_update", {
+          phase: "document_analysis",
+          currentStep: "2",
+          completedSteps: 1,
+          totalSteps: 3,
+          progress: Math.round(15 + (70 * chunk.index) / chunks.length),
+          message: `Analyzing document segment ${chunk.index + 1}/${chunks.length}`,
+          rangeStart: chunk.start,
+          rangeEnd: chunk.end,
+          rangeTotal: chunk.total,
+        });
+        findings.push(
+          await this.analyzeBoundedDocumentChunk({
+            chunk,
+            chunkCount: chunks.length,
+            sourceName: source.relativePath,
+            userRequest,
+            useTurkish,
+          }),
+        );
+      }
+    } catch (error) {
+      const message = String((error as Error)?.message || error);
+      this.setBoundedDocumentStepState(1, "failed", message);
+      throw error;
+    }
+    this.setBoundedDocumentStepState(1, "completed");
+
+    this.setBoundedDocumentStepState(2, "in_progress");
+    let evidenceBlocks = findings.map(
+      (finding, index) => `## Segment ${index + 1}/${findings.length}\n${finding}`,
+    );
+    const combinedEvidenceChars = evidenceBlocks.reduce((sum, block) => sum + block.length, 0);
+    if (combinedEvidenceChars > 40_000) {
+      const reduced: string[] = [];
+      try {
+        for (let index = 0; index < evidenceBlocks.length; index += 6) {
+          const group = evidenceBlocks.slice(index, index + 6);
+          reduced.push(
+            await this.requestBoundedDocumentAnalysisTurn({
+              system: useTurkish
+                ? "Aynı belgeye ait parça bulgularını kanıt aralıklarını koruyarak birleştir. Yeni bulgu uydurma."
+                : "Consolidate chunk findings from the same document while retaining evidence ranges. Do not invent findings.",
+              prompt: group.join("\n\n"),
+              label: `Document evidence reduction ${Math.floor(index / 6) + 1}`,
+              maxTokens: this.provider?.type === "ollama" ? 900 : 2_400,
+              rejectMaxTokens: true,
+            }),
+          );
+        }
+        evidenceBlocks = reduced;
+      } catch (error) {
+        this.emitEvent("log", {
+          metric: "bounded_document_reduction_fallback",
+          reason: String((error as Error)?.message || error),
+          evidenceBlockCount: evidenceBlocks.length,
+        });
+      }
+    }
+
+    const synthesisPrompt = useTurkish
+      ? [
+          `Kullanıcı isteği: ${userRequest}`,
+          `Kaynak: ${source.relativePath}`,
+          `Kapsama: ${source.text.length} karakter, ${chunks.length}/${chunks.length} parça, SHA-256 ${source.checksum.slice(0, 12)}`,
+          "Aşağıdaki parça bulgularını tek bir ayrıntılı fakat tekrar etmeyen rapora dönüştür.",
+          "Raporu en fazla 300 kelimede tamamla ve yarım başlık ya da yarım cümle bırakma.",
+          "Bölümler: güçlü yönler/kapsama notu; eksik noktalar; çelişkiler; bölüm geçişleri; karakter devamlılığı; önem sırasına göre düzeltme önerileri.",
+          "Her ciddi bulguda ilgili parça veya karakter aralığını belirt. Bulgular desteklemiyorsa sorun varmış gibi yazma.",
+          "\n<segment_findings>",
+          evidenceBlocks.join("\n\n"),
+          "</segment_findings>",
+        ].join("\n")
+      : [
+          `User request: ${userRequest}`,
+          `Source: ${source.relativePath}`,
+          `Coverage: ${source.text.length} characters, ${chunks.length}/${chunks.length} chunks, SHA-256 ${source.checksum.slice(0, 12)}`,
+          "Turn the segment findings below into one detailed, non-repetitive review.",
+          "Complete the report in no more than 300 words and do not leave an unfinished heading or sentence.",
+          "Use sections for strengths/coverage, missing material, contradictions, chapter transitions, character continuity, and prioritized corrections.",
+          "Reference the relevant segment or character range for material findings. Do not claim issues unsupported by the evidence.",
+          "\n<segment_findings>",
+          evidenceBlocks.join("\n\n"),
+          "</segment_findings>",
+        ].join("\n");
+
+    let finalReport: string;
+    try {
+      finalReport = await this.requestBoundedDocumentAnalysisTurn({
+        system: useTurkish
+          ? "Sen kanıta dayalı uzun belge incelemesini tamamlayan kıdemli bir Türkçe editörsün."
+          : "You are a senior editor completing an evidence-grounded long-document review.",
+        prompt: synthesisPrompt,
+        label: "Document review synthesis",
+        maxTokens: this.provider?.type === "ollama" ? 900 : 4_000,
+        timeoutMs: this.provider?.type === "ollama" ? 150_000 : 180_000,
+        rejectMaxTokens: true,
+      });
+    } catch (error) {
+      (error as Any).retryable = false;
+      const message = String((error as Error)?.message || error);
+      this.emitEvent("log", {
+        metric: "bounded_document_synthesis_fallback",
+        reason: message,
+        evidenceBlockCount: evidenceBlocks.length,
+      });
+      finalReport = useTurkish
+        ? [
+            "# Belge incelemesi — kanıt dökümü",
+            "Son birleştirme çağrısı süre sınırına ulaştı. Aşağıda tüm metin aralıklarından çıkarılan bulgular eksiksiz ve aralık etiketleri korunarak sunulmuştur.",
+            ...evidenceBlocks,
+          ].join("\n\n")
+        : [
+            "# Document review — evidence digest",
+            "The final synthesis call reached its time limit. The complete range-labelled findings from every analyzed segment are preserved below.",
+            ...evidenceBlocks,
+          ].join("\n\n");
+      this.terminalStatus = "partial_success";
+      this.failureClass = "budget_exhausted";
+    }
+    if (finalReport.trim().length < 200) {
+      const message = "Document synthesis did not produce a substantive review.";
+      this.setBoundedDocumentStepState(2, "failed", message);
+      throw new Error(message);
+    }
+
+    const coverageLine = useTurkish
+      ? `Kapsama doğrulaması: ${chunks.length}/${chunks.length} metin parçası işlendi; ${source.text.length} kaynak karakteri kapsandı; kaynak özeti ${source.checksum.slice(0, 12)}.`
+      : `Coverage verification: processed ${chunks.length}/${chunks.length} text chunks covering ${source.text.length} source characters; source digest ${source.checksum.slice(0, 12)}.`;
+    const finalText = `${finalReport.trim()}\n\n${coverageLine}`;
+    this.lastAssistantOutput = finalText;
+    this.lastNonVerificationOutput = finalText;
+    this.lastAssistantText = finalText;
+    this.setBoundedDocumentStepState(2, "completed");
+    this.planCompletedEffectively = true;
+    this.emitEvent("log", {
+      metric: "bounded_document_analysis_completed",
+      path: source.relativePath,
+      totalChars: source.text.length,
+      chunkCount: chunks.length,
+      findingCount: findings.length,
+    });
+    return true;
+  }
+
   private async executePlan(): Promise<void> {
     if (!this.plan) {
       throw new Error("No plan available");
@@ -30190,6 +30565,17 @@ Return ONLY a JSON object:
       return;
     }
 
+    if (await this.executeBoundedDocumentAnalysisPlan()) {
+      this.emitEvent("progress_update", {
+        phase: "execution",
+        completedSteps: this.plan.steps.length,
+        totalSteps: this.plan.steps.length,
+        progress: 100,
+        message: "Full-document analysis completed",
+      });
+      return;
+    }
+
     // Emit initial progress event
     this.emitEvent("progress_update", {
       phase: "execution",
@@ -30204,12 +30590,13 @@ Return ONLY a JSON object:
     let repeatedArtifactContractFailureStreak = 0;
     while (index < this.plan.steps.length) {
       const step = this.plan.steps[index];
-      const normalizedKind: PlanStep["kind"] =
-        this.descriptionIndicatesVerification(step.description)
-          ? "verification"
-          : step.kind === "recovery"
-            ? "recovery"
-            : "primary";
+      const normalizedKind: PlanStep["kind"] = this.descriptionIndicatesVerification(
+        step.description,
+      )
+        ? "verification"
+        : step.kind === "recovery"
+          ? "recovery"
+          : "primary";
       if (step.kind !== normalizedKind) {
         step.kind = normalizedKind;
       }
@@ -30596,8 +30983,7 @@ Return ONLY a JSON object:
                 "Skipped after repeated artifact-contract failures in prerequisite steps.";
               this.emitEvent("step_skipped", {
                 step: remainingStep,
-                reason:
-                  "Skipped after repeated artifact-contract failures in prerequisite steps.",
+                reason: "Skipped after repeated artifact-contract failures in prerequisite steps.",
               });
             }
           }
@@ -31124,8 +31510,7 @@ Return ONLY a JSON object:
     let synthesizedMemoryBlock = "";
     if (allowMemoryInjection) {
       try {
-        const includeWorkspaceKit =
-          gatewayContext === "private" && contextPackInjectionEnabled;
+        const includeWorkspaceKit = gatewayContext === "private" && contextPackInjectionEnabled;
         const synthesized = MemorySynthesizer.synthesize(
           this.workspace.id,
           this.workspace.path,
@@ -33288,7 +33673,33 @@ Return ONLY a JSON object:
                             stepUsed: webSearchBudgetCheck.stepUsed,
                             stepLimit: webSearchBudgetCheck.stepLimit,
                           });
-                        } else {
+
+                        if (this.isCancelledToolOutcome(rawOutcome)) {
+                          return this.finalizeCancelledToolExecution({
+                            toolName: content.name,
+                            toolUseId: String(content.id || ""),
+                            correlation: effectiveCorrelation,
+                          });
+                        }
+
+                        if (rawOutcome.error) {
+                          const failureMessage =
+                            (rawOutcome.error as Any)?.message || "Tool execution failed";
+                          if (
+                            this.isTerminalImageGenerationTask() &&
+                            canonicalContentName === "generate_image"
+                          ) {
+                            this.simpleImageGenerationFailed = true;
+                            simpleImageGenerationStopAfterTool = true;
+                          }
+                          this.releaseBatchCreatedPathReservation(
+                            batchCreatedPaths,
+                            content.name,
+                            content.input,
+                          );
+                          if (isExecutionToolCall) {
+                            this.executionToolLastError = failureMessage;
+                          }
                           hadToolError = true;
                           allToolErrorsInputDependent = false;
                           toolErrors.add(content.name);
@@ -38012,9 +38423,7 @@ Return ONLY a JSON object:
       }
 
       video.videoFramePaths = framePaths;
-      video.videoContactSheetPath = fs.existsSync(contactSheetPath)
-        ? contactSheetPath
-        : undefined;
+      video.videoContactSheetPath = fs.existsSync(contactSheetPath) ? contactSheetPath : undefined;
       this.emitVideoPreviewArtifacts(video, label);
 
       const previewPaths = this.getVideoPreviewImagePaths(video);
@@ -38838,9 +39247,7 @@ Return ONLY a JSON object:
     this.modelKey = selection.modelKey;
     this.llmProfileUsed = selection.llmProfileUsed;
     this.resolvedModelKey = selection.resolvedModelKey;
-    this.contextManager = new ContextManager(
-      selection.contextModelKey || this.modelKey,
-    );
+    this.contextManager = new ContextManager(selection.contextModelKey || this.modelKey);
   }
 
   private rebuildProviderFailoverSelections(
@@ -39009,9 +39416,7 @@ Return ONLY a JSON object:
       settings,
       primaryProviderType,
     );
-    const cooldownSeconds = Number(
-      failoverSettings.failoverPrimaryRetryCooldownSeconds,
-    );
+    const cooldownSeconds = Number(failoverSettings.failoverPrimaryRetryCooldownSeconds);
     const cooldownMs = Number.isFinite(cooldownSeconds)
       ? Math.max(0, Math.min(3600, Math.floor(cooldownSeconds))) * 1000
       : DEFAULT_FAILOVER_PRIMARY_RETRY_COOLDOWN_MS;
@@ -39149,10 +39554,7 @@ Return ONLY a JSON object:
       return;
     }
 
-    if (
-      newSelection.modelId !== this.modelId ||
-      newSelection.providerType !== this.provider.type
-    ) {
+    if (newSelection.modelId !== this.modelId || newSelection.providerType !== this.provider.type) {
       logger.info(
         `${this.logTag} Provider/model changed mid-session: ${this.provider.type}/${this.modelId} → ${newSelection.providerType}/${newSelection.modelId}`,
       );
@@ -42061,9 +42463,7 @@ Return ONLY a JSON object:
           this.maxLifetimeTurns - this.lifetimeTurnCount,
         );
         const canRecover =
-          recoveryAttempt <= 1 &&
-          continuationBudgetRemaining > 0 &&
-          lifetimeBudgetRemaining > 0;
+          recoveryAttempt <= 1 && continuationBudgetRemaining > 0 && lifetimeBudgetRemaining > 0;
 
         this.emitEvent("follow_up_turn_recovery_started", {
           taskId: this.task.id,

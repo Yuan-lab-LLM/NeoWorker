@@ -2367,7 +2367,7 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
     );
   });
 
-  it("waives timeout-failed research steps when tool evidence exists but no step completed", () => {
+  it("reports timed out research when tool evidence exists but no substantive answer was produced", () => {
     const executor = createExecuteHarness({
       title: "Compare repositories",
       prompt: "Research two GitHub repositories and compare their current stats.",
@@ -2406,8 +2406,10 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
       "task-1",
       "Found repository stats from web sources.",
       expect.objectContaining({
+        terminalKind: "timed_out",
         terminalStatus: "partial_success",
-        waiveFailedStepIds: ["1"],
+        failureClass: "budget_exhausted",
+        waiveFailedStepIds: [],
       }),
     );
   });
@@ -2456,8 +2458,10 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
       "task-1",
       expect.stringContaining("Captured tool progress:"),
       expect.objectContaining({
+        terminalKind: "timed_out",
         terminalStatus: "partial_success",
-        waiveFailedStepIds: ["1"],
+        failureClass: "budget_exhausted",
+        waiveFailedStepIds: [],
       }),
     );
   });

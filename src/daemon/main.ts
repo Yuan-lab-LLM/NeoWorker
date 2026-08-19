@@ -12,10 +12,7 @@ import { GuardrailManager } from "../electron/guardrails/guardrail-manager";
 import { AppearanceManager } from "../electron/settings/appearance-manager";
 import { PersonalityManager } from "../electron/settings/personality-manager";
 import { MemoryFeaturesManager } from "../electron/settings/memory-features-manager";
-import {
-  importProcessEnvToSettings,
-  migrateEnvToSettings,
-} from "../electron/utils/env-migration";
+import { importProcessEnvToSettings, migrateEnvToSettings } from "../electron/utils/env-migration";
 import {
   getArgValue,
   getControlPlaneAllowedOriginsFromEnv,
@@ -41,11 +38,7 @@ import {
 } from "../electron/control-plane/remote-client";
 import { getExposureStatus } from "../electron/tailscale";
 import { MCPClientManager } from "../electron/mcp/client/MCPClientManager";
-import {
-  CronService,
-  setCronService,
-  getCronStorePath,
-} from "../electron/cron";
+import { CronService, setCronService, getCronStorePath } from "../electron/cron";
 import { resolveTaskResultText } from "../electron/cron/result-text";
 import {
   TaskEventRepository,
@@ -59,28 +52,21 @@ import { formatChatTranscriptForPrompt } from "../electron/gateway/chat-transcri
 import { MemoryService } from "../electron/memory/MemoryService";
 import { CrossSignalService } from "../electron/agents/CrossSignalService";
 import { FeedbackService } from "../electron/agents/FeedbackService";
-import {
-  attachAgentDaemonTaskBridge,
-  registerControlPlaneMethods,
-} from "./control-plane-methods";
-import {
-  initializeXMentionBridgeService,
-  XMentionBridgeService,
-} from "../electron/x-mentions";
+import { attachAgentDaemonTaskBridge, registerControlPlaneMethods } from "./control-plane-methods";
+import { initializeXMentionBridgeService, XMentionBridgeService } from "../electron/x-mentions";
 import {
   StrategicPlannerService,
   setStrategicPlannerService,
 } from "../electron/control-plane/StrategicPlannerService";
 import { attachControlPlaneTaskLifecycleSync } from "../electron/control-plane/task-run-sync";
+import { NumbatService } from "../electron/security/numbat";
 
 interface StartedControlPlane {
   server: ControlPlaneServer;
   detachAgentBridge: (() => void) | null;
 }
 
-async function maybeBootstrapWorkspace(
-  agentDaemon: AgentDaemon,
-): Promise<void> {
+async function maybeBootstrapWorkspace(agentDaemon: AgentDaemon): Promise<void> {
   try {
     const bootstrapPathRaw =
       process.env.NEOWORKER_BOOTSTRAP_WORKSPACE_PATH ||
@@ -95,11 +81,7 @@ async function maybeBootstrapWorkspace(
     const raw = bootstrapPathRaw.trim();
     const home = os.homedir();
     const expanded =
-      raw === "~"
-        ? home
-        : raw.startsWith("~/")
-          ? path.join(home, raw.slice(2))
-          : raw;
+      raw === "~" ? home : raw.startsWith("~/") ? path.join(home, raw.slice(2)) : raw;
     const workspacePath = path.resolve(expanded);
     await fs.mkdir(workspacePath, { recursive: true });
 
@@ -120,9 +102,7 @@ async function maybeBootstrapWorkspace(
         : path.basename(workspacePath) || "Workspace";
 
     const ws = agentDaemon.createWorkspace(workspaceName, workspacePath);
-    console.log(
-      `[Daemon] Bootstrapped workspace: ${ws.id} (${ws.name}) at ${ws.path}`,
-    );
+    console.log(`[Daemon] Bootstrapped workspace: ${ws.id} (${ws.name}) at ${ws.path}`);
   } catch (error) {
     console.warn("[Daemon] Failed to bootstrap workspace:", error);
   }
@@ -160,8 +140,7 @@ async function startControlPlane(options: {
       if (!remoteConfig?.url || !remoteConfig?.token) {
         return {
           ok: false,
-          error:
-            "Remote gateway URL and token are required (connectionMode=remote)",
+          error: "Remote gateway URL and token are required (connectionMode=remote)",
         };
       }
 
@@ -198,7 +177,9 @@ async function startControlPlane(options: {
       };
     }
     if (posture.status === "degraded") {
-      console.warn(`[Daemon] Control Plane deployment posture degraded: ${posture.reasons.join(" ")}`);
+      console.warn(
+        `[Daemon] Control Plane deployment posture degraded: ${posture.reasons.join(" ")}`,
+      );
     }
 
     const server = new ControlPlaneServer({
@@ -215,10 +196,7 @@ async function startControlPlane(options: {
     });
 
     registerControlPlaneMethods(server, options.deps);
-    const detach = attachAgentDaemonTaskBridge(
-      server,
-      options.deps.agentDaemon,
-    );
+    const detach = attachAgentDaemonTaskBridge(server, options.deps.agentDaemon);
 
     try {
       await server.startWithTailscale();
@@ -299,10 +277,7 @@ async function main(): Promise<void> {
       );
     }
     if (importResult.error) {
-      console.warn(
-        "[Daemon] Failed to import credentials from process.env:",
-        importResult.error,
-      );
+      console.warn("[Daemon] Failed to import credentials from process.env:", importResult.error);
     }
   }
 
@@ -330,10 +305,7 @@ async function main(): Promise<void> {
         );
       }
     } catch (error) {
-      console.warn(
-        "[Daemon] Failed to check LLM credential configuration:",
-        error,
-      );
+      console.warn("[Daemon] Failed to check LLM credential configuration:", error);
     }
   }
 
@@ -347,7 +319,11 @@ async function main(): Promise<void> {
   }
 
   // Initialize agent daemon.
+  const numbatService = NumbatService.initialize(dbManager.getDatabase());
   const agentDaemon = new AgentDaemon(dbManager);
+  numbatService.attachTaskEventEmitter((taskId, type, payload) => {
+    agentDaemon.logEvent(taskId, type, payload);
+  });
   await agentDaemon.initialize();
   const detachTaskLifecycleSync = attachControlPlaneTaskLifecycleSync({
     agentDaemon,
@@ -458,8 +434,7 @@ async function main(): Promise<void> {
         runAtMs,
         prevRunAtMs,
       }): Promise<Record<string, string>> => {
-        const template =
-          typeof job?.taskPrompt === "string" ? job.taskPrompt : "";
+        const template = typeof job?.taskPrompt === "string" ? job.taskPrompt : "";
         const wantsChatVars =
           template.includes("{{chat_messages}}") ||
           template.includes("{{chat_since}}") ||
@@ -511,10 +486,7 @@ async function main(): Promise<void> {
         });
 
         return {
-          chat_messages:
-            rendered.usedCount > 0
-              ? rendered.transcript
-              : "[no messages found]",
+          chat_messages: rendered.usedCount > 0 ? rendered.transcript : "[no messages found]",
           chat_since: new Date(sinceMs).toISOString(),
           chat_until: new Date(runAtMs).toISOString(),
           chat_message_count: String(rendered.usedCount),
@@ -544,12 +516,7 @@ async function main(): Promise<void> {
           !params.summaryOnly &&
           typeof params.resultText === "string" &&
           params.resultText.trim().length > 0;
-        const statusEmoji =
-          params.status === "ok"
-            ? "✅"
-            : params.status === "error"
-              ? "❌"
-              : "⏱️";
+        const statusEmoji = params.status === "ok" ? "✅" : params.status === "error" ? "❌" : "⏱️";
         const message = hasResult
           ? `**${params.jobName}**\n\n${params.resultText!.trim()}`
           : (() => {
@@ -575,19 +542,12 @@ async function main(): Promise<void> {
             })();
 
         try {
-          await channelGateway.sendMessage(
-            params.channelType as Any,
-            params.channelId,
-            message,
-            {
-              channelDbId: params.channelDbId,
-              parseMode: "markdown",
-              idempotencyKey: params.idempotencyKey,
-            },
-          );
-          console.log(
-            `[Cron] Delivered to ${params.channelType}:${params.channelId}`,
-          );
+          await channelGateway.sendMessage(params.channelType as Any, params.channelId, message, {
+            channelDbId: params.channelDbId,
+            parseMode: "markdown",
+            idempotencyKey: params.idempotencyKey,
+          });
+          console.log(`[Cron] Delivered to ${params.channelType}:${params.channelId}`);
         } catch (err) {
           console.error(
             `[Cron] Failed to deliver to ${params.channelType}:${params.channelId}:`,
@@ -718,14 +678,12 @@ async function main(): Promise<void> {
       // ignore
     }
     try {
-      if (startedControlPlane?.detachAgentBridge)
-        startedControlPlane.detachAgentBridge();
+      if (startedControlPlane?.detachAgentBridge) startedControlPlane.detachAgentBridge();
     } catch {
       // ignore
     }
     try {
-      if (startedControlPlane?.server?.isRunning)
-        await startedControlPlane.server.stop();
+      if (startedControlPlane?.server?.isRunning) await startedControlPlane.server.stop();
     } catch (error) {
       console.warn("[Daemon] Failed to stop Control Plane:", error);
     }
@@ -764,6 +722,7 @@ async function main(): Promise<void> {
       console.warn("[Daemon] Failed to detach task lifecycle sync:", error);
     }
     try {
+      NumbatService.getInstance()?.shutdown();
       await agentDaemon.shutdown();
     } catch (error) {
       console.warn("[Daemon] Failed to shutdown AgentDaemon:", error);

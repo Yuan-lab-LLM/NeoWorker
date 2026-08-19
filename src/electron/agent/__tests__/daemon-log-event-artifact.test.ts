@@ -31,7 +31,7 @@ function createDaemonLike(taskOverrides: Record<string, unknown> = {}) {
       completionGateBlocks: 0,
       evidenceGateFails: 0,
     },
-    getCurrentEventSeq: vi.fn().mockReturnValue(0),
+    getCurrentEventSeq: vi.fn().mockImplementation(() => seq),
     nextEventSeq: vi.fn().mockImplementation(() => {
       seq += 1;
       return seq;
@@ -347,6 +347,7 @@ describe("AgentDaemon.persistTimelineEvent", () => {
       logActivityForEvent: vi.fn(),
       emitTaskEvent,
       maybeEmitTeamThought: vi.fn(),
+      maybeMaterializeMailComposeInlineFrame: vi.fn(),
       captureToMemory: vi.fn().mockResolvedValue(undefined),
     } as Any;
 

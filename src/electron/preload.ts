@@ -3,10 +3,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import * as fs from "fs";
 import * as os from "os";
 import { randomBytes } from "crypto";
-import {
-  IPC_CHANNELS as SHARED_IPC_CHANNELS,
-  isTempWorkspaceId,
-} from "../shared/types";
+import { IPC_CHANNELS as SHARED_IPC_CHANNELS, isTempWorkspaceId } from "../shared/types";
 import type {
   ApplyOnboardingProfileRequest,
   ApplyOnboardingProfileResult,
@@ -21,10 +18,8 @@ import type {
   SpreadsheetViewportRequest,
   SpreadsheetViewportResult,
 } from "../shared/spreadsheet-workbook";
-import type {
-  DocumentPreview,
-  EditableDocumentBlock,
-} from "../shared/document-preview";
+import type { DocumentPreview, EditableDocumentBlock } from "../shared/document-preview";
+import { shouldUseNativeWindowFrame } from "../shared/native-window-frame";
 import type {
   AgentTeam,
   AgentTeamItem,
@@ -336,8 +331,7 @@ const normalizeAttachmentName = (value: unknown): string => {
   return sanitized || "image";
 };
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const isUuidLike = (value: unknown): value is string =>
   typeof value === "string" && UUID_PATTERN.test(value);
@@ -455,9 +449,7 @@ function validateSendMessageAttachments(
           );
         }
         if (!stat.isFile()) {
-          throw new Error(
-            `Attachment at index ${index} filePath must point to a regular file.`,
-          );
+          throw new Error(`Attachment at index ${index} filePath must point to a regular file.`);
         }
         const maxAttachmentBytes = isVideo
           ? MAX_VIDEO_ATTACHMENT_BYTES
@@ -501,13 +493,9 @@ function validateSendMessageAttachments(
       ) {
         throw new Error(`Attachment at index ${index} has invalid sizeBytes.`);
       }
-      const maxAttachmentBytes = isVideo
-        ? MAX_VIDEO_ATTACHMENT_BYTES
-        : MAX_IMAGE_ATTACHMENT_BYTES;
+      const maxAttachmentBytes = isVideo ? MAX_VIDEO_ATTACHMENT_BYTES : MAX_IMAGE_ATTACHMENT_BYTES;
       if (sizeBytes > maxAttachmentBytes) {
-        throw new Error(
-          `Attachment at index ${index} exceeds ${maxAttachmentBytes} bytes.`,
-        );
+        throw new Error(`Attachment at index ${index} exceeds ${maxAttachmentBytes} bytes.`);
       }
 
       if (!isVideo) {
@@ -1429,14 +1417,7 @@ interface ManagedDeviceAlert {
   level: ManagedDeviceAttentionState;
   title: string;
   description?: string;
-  kind:
-    | "approval"
-    | "input_request"
-    | "channel"
-    | "connection"
-    | "storage"
-    | "status"
-    | "warning";
+  kind: "approval" | "input_request" | "channel" | "connection" | "storage" | "status" | "warning";
 }
 
 interface ManagedDevice {
@@ -2080,10 +2061,7 @@ export interface LlmWikiVaultSummary {
   recentRawSources: LlmWikiVaultEntry[];
 }
 
-async function invokeTaskIpcWithRendererTiming<T>(
-  channel: string,
-  ...args: unknown[]
-): Promise<T> {
+async function invokeTaskIpcWithRendererTiming<T>(channel: string, ...args: unknown[]): Promise<T> {
   const startedAt =
     typeof performance !== "undefined" && typeof performance.now === "function"
       ? performance.now()
@@ -2961,10 +2939,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       request,
     ),
   getTaskEventDetail: (request: TaskEventDetailRequest) =>
-    invokeTaskIpcWithRendererTiming<TaskEventDetailResult>(
-      IPC_CHANNELS.TASK_EVENT_DETAIL,
-      request,
-    ),
+    invokeTaskIpcWithRendererTiming<TaskEventDetailResult>(IPC_CHANNELS.TASK_EVENT_DETAIL, request),
   getTaskLearningProgress: (taskId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_LEARNING_PROGRESS, taskId) as Promise<
       TaskLearningProgress[]
@@ -3719,11 +3694,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     displayName?: string;
     clientId?: string;
   }) => ipcRenderer.invoke(IPC_CHANNELS.AGENTMAIL_CREATE_INBOX, payload),
-  updateAgentMailInbox: (payload: {
-    workspaceId: string;
-    inboxId: string;
-    displayName: string;
-  }) => ipcRenderer.invoke(IPC_CHANNELS.AGENTMAIL_UPDATE_INBOX, payload),
+  updateAgentMailInbox: (payload: { workspaceId: string; inboxId: string; displayName: string }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AGENTMAIL_UPDATE_INBOX, payload),
   deleteAgentMailInbox: (payload: { workspaceId: string; inboxId: string }) =>
     ipcRenderer.invoke(IPC_CHANNELS.AGENTMAIL_DELETE_INBOX, payload),
   listAgentMailDomains: (workspaceId: string) =>
@@ -3923,8 +3895,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke(IPC_CHANNELS.PERSONALITY_IMPORT, data),
   getPersonalityPreview: (draft: Any, contextMode?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.PERSONALITY_PREVIEW, draft, contextMode),
-  getPersonalityTraitPresets: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.PERSONALITY_GET_TRAIT_PRESETS),
+  getPersonalityTraitPresets: () => ipcRenderer.invoke(IPC_CHANNELS.PERSONALITY_GET_TRAIT_PRESETS),
   onPersonalitySettingsChanged: (callback: (settings: Any) => void) => {
     const subscription = (_: Any, data: Any) => callback(data);
     ipcRenderer.on(IPC_CHANNELS.PERSONALITY_SETTINGS_CHANGED, subscription);
@@ -4105,10 +4076,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke(IPC_CHANNELS.SECURE_MCP_TUNNELS_DELETE, id),
   startSecureMcpTunnel: (id: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.SECURE_MCP_TUNNELS_START, id),
-  stopSecureMcpTunnel: (id: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.SECURE_MCP_TUNNELS_STOP, id),
-  getSecureMcpTunnelStatus: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.SECURE_MCP_TUNNELS_GET_STATUS),
+  stopSecureMcpTunnel: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SECURE_MCP_TUNNELS_STOP, id),
+  getSecureMcpTunnelStatus: () => ipcRenderer.invoke(IPC_CHANNELS.SECURE_MCP_TUNNELS_GET_STATUS),
   getSecureMcpTunnelAudit: (id?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.SECURE_MCP_TUNNELS_GET_AUDIT, id),
   onSecureMcpTunnelStatusChange: (callback: (status: Any[]) => void) => {
@@ -5269,6 +5238,77 @@ contextBridge.exposeInMainWorld("electronAPI", {
   checkPackPolicy: (packId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.ADMIN_POLICIES_CHECK_PACK, packId),
 
+  // Agent Security APIs
+  agentSecurityGetStatus: (refresh?: boolean) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.AGENT_SECURITY_STATUS,
+      refresh,
+    ) as Promise<AgentSecurityRuntimeStatus>,
+  agentSecurityListFindings: (query?: AgentSecurityFindingQuery) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AGENT_SECURITY_FINDINGS_LIST, query) as Promise<
+      AgentSecurityFinding[]
+    >,
+  agentSecurityUpdateFinding: (findingId: string, status: AgentSecurityFindingStatus) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.AGENT_SECURITY_FINDING_UPDATE,
+      findingId,
+      status,
+    ) as Promise<AgentSecurityFinding | null>,
+  agentSecurityListDecisions: (taskId?: string, limit?: number) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AGENT_SECURITY_DECISIONS_LIST, taskId, limit) as Promise<
+      AgentSecurityEnforcement[]
+    >,
+  agentSecurityListDiagnostics: (limit?: number) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AGENT_SECURITY_DIAGNOSTICS_LIST, limit) as Promise<
+      AgentSecurityDiagnostic[]
+    >,
+  agentSecurityListInventory: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.AGENT_SECURITY_INVENTORY_LIST) as Promise<
+      AgentSecurityInventoryItem[]
+    >,
+  agentSecurityRefreshInventory: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.AGENT_SECURITY_INVENTORY_REFRESH) as Promise<
+      AgentSecurityInventoryItem[]
+    >,
+  agentSecurityScan: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.AGENT_SECURITY_SCAN) as Promise<AgentSecurityScanResult>,
+  agentSecurityCheckRules: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.AGENT_SECURITY_RULES_CHECK,
+    ) as Promise<AgentSecurityRulesCheckResult>,
+  agentSecurityHookStatus: (agent: string) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.AGENT_SECURITY_HOOK_STATUS,
+      agent,
+    ) as Promise<AgentSecurityHookManagementResult>,
+  agentSecurityInstallHook: (agent: string) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.AGENT_SECURITY_HOOK_INSTALL,
+      agent,
+    ) as Promise<AgentSecurityHookManagementResult>,
+  agentSecurityUninstallHook: (agent: string) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.AGENT_SECURITY_HOOK_UNINSTALL,
+      agent,
+    ) as Promise<AgentSecurityHookManagementResult>,
+  agentSecurityBuildCase: (caseId: string, taskId: string) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.AGENT_SECURITY_CASE_BUILD,
+      caseId,
+      taskId,
+    ) as Promise<AgentSecurityCaseBuildResult>,
+  agentSecurityVerifyCase: (bundleName: string) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.AGENT_SECURITY_CASE_VERIFY,
+      bundleName,
+    ) as Promise<AgentSecurityCaseVerifyResult>,
+  agentSecurityPrune: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.AGENT_SECURITY_PRUNE) as Promise<{
+      findings: number;
+      decisions: number;
+      diagnostics: number;
+    }>,
+
   // Everyday Agent APIs
   everydayAgentGetProfile: () =>
     ipcRenderer.invoke(
@@ -5592,10 +5632,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     if (hasInvalidCoreMemoryCandidateScope(request)) {
       return Promise.resolve([]);
     }
-    return ipcRenderer.invoke(
-      IPC_CHANNELS.CORE_MEMORY_LIST_CANDIDATES,
-      request,
-    ) as Promise<CoreMemoryCandidate[]>;
+    return ipcRenderer.invoke(IPC_CHANNELS.CORE_MEMORY_LIST_CANDIDATES, request) as Promise<
+      CoreMemoryCandidate[]
+    >;
   },
   reviewCoreMemoryCandidate: (
     request: import("../shared/types").ReviewCoreMemoryCandidateRequest,
@@ -5901,6 +5940,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Voice Mode
   getVoiceSettings: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_GET_SETTINGS),
+  getVoiceCapabilities: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_GET_CAPABILITIES),
   saveVoiceSettings: (settings: Partial<VoiceSettingsData>) =>
     ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAVE_SETTINGS, settings),
   getVoiceState: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_GET_STATE),
@@ -6101,6 +6141,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   windowIsMaximized: () =>
     ipcRenderer.invoke(IPC_CHANNELS.WINDOW_IS_MAXIMIZED) as Promise<boolean>,
   getPlatform: () => process.platform,
+  getNativeFrameMode: () =>
+    shouldUseNativeWindowFrame({
+      platform: process.platform,
+      wslDistroName: process.env.WSL_DISTRO_NAME,
+      osRelease: os.release(),
+    }),
 });
 
 // Type declarations for TypeScript
@@ -6346,19 +6392,13 @@ export interface ElectronAPI {
     workspacePath: string;
     workspaceId?: string;
   }) => Promise<SpreadsheetOpenWorkbookResult>;
-  getSpreadsheetViewport: (
-    data: SpreadsheetViewportRequest,
-  ) => Promise<SpreadsheetViewportResult>;
+  getSpreadsheetViewport: (data: SpreadsheetViewportRequest) => Promise<SpreadsheetViewportResult>;
   applySpreadsheetPatches: (data: {
     sessionId: string;
     patches: SpreadsheetPatch[];
   }) => Promise<SpreadsheetApplyPatchesResult>;
-  saveSpreadsheetWorkbook: (data: {
-    sessionId: string;
-  }) => Promise<SpreadsheetSaveWorkbookResult>;
-  closeSpreadsheetWorkbook: (data: {
-    sessionId: string;
-  }) => Promise<{ success: boolean }>;
+  saveSpreadsheetWorkbook: (data: { sessionId: string }) => Promise<SpreadsheetSaveWorkbookResult>;
+  closeSpreadsheetWorkbook: (data: { sessionId: string }) => Promise<{ success: boolean }>;
   updateDocumentFile: (data: {
     filePath: string;
     workspacePath: string;
@@ -6428,9 +6468,7 @@ export interface ElectronAPI {
   onBrowserWorkbenchOpenRequest: (
     callback: (request: BrowserWorkbenchOpenRequest) => void,
   ) => () => void;
-  onBrowserWorkbenchCursor: (
-    callback: (event: BrowserWorkbenchCursorEvent) => void,
-  ) => () => void;
+  onBrowserWorkbenchCursor: (callback: (event: BrowserWorkbenchCursorEvent) => void) => () => void;
   onBrowserWorkbenchViewport: (
     callback: (event: BrowserWorkbenchViewportEvent) => void,
   ) => () => void;
@@ -6865,10 +6903,7 @@ export interface ElectronAPI {
     workspaceId: string,
     scope?: "task" | "workspace",
   ) => Promise<ShellSessionInfo | null>;
-  listShellSessions: (
-    taskId?: string,
-    workspaceId?: string,
-  ) => Promise<ShellSessionInfo[]>;
+  listShellSessions: (taskId?: string, workspaceId?: string) => Promise<ShellSessionInfo[]>;
   resetShellSession: (
     taskId: string,
     workspaceId: string,
@@ -7127,7 +7162,7 @@ export interface ElectronAPI {
   getLLMConfigStatus: () => Promise<{
     currentProvider: LLMProviderType;
     currentModel: string;
-    currentReasoningEffort?: "low" | "medium" | "high" | "extra_high";
+    currentReasoningEffort?: LLMReasoningEffort;
     providers: Array<{
       type: LLMProviderType;
       name: string;
@@ -7138,7 +7173,7 @@ export interface ElectronAPI {
       key: string;
       displayName: string;
       description: string;
-      reasoningEfforts?: Array<"low" | "medium" | "high" | "extra_high">;
+      reasoningEfforts?: LLMReasoningEffort[];
     }>;
   }>;
   getLLMRoutingStatus: () => Promise<LLMRoutingRuntimeState>;
@@ -7688,10 +7723,7 @@ export interface ElectronAPI {
   upsertHealthSource: (source: HealthSourceInput) => Promise<HealthSource>;
   removeHealthSource: (sourceId: string) => Promise<{ success: boolean }>;
   syncHealthSource: (sourceId: string) => Promise<HealthSyncResult>;
-  importHealthFiles: (
-    sourceId: string,
-    filePaths: string[],
-  ) => Promise<HealthSyncResult>;
+  importHealthFiles: (sourceId: string, filePaths: string[]) => Promise<HealthSyncResult>;
   generateHealthWorkflow: (
     request: HealthWorkflowRequest,
   ) => Promise<{ success: boolean; workflow?: HealthWorkflow; error?: string }>;
@@ -8102,9 +8134,7 @@ export interface ElectronAPI {
   retryQuarantinedImport: (
     recordId: string,
   ) => Promise<import("../shared/types").RetryQuarantinedImportResult>;
-  removeQuarantinedImport: (
-    recordId: string,
-  ) => Promise<{ success: boolean; error?: string }>;
+  removeQuarantinedImport: (recordId: string) => Promise<{ success: boolean; error?: string }>;
   // MCP (Model Context Protocol)
   getMCPSettings: () => Promise<MCPSettings>;
   saveMCPSettings: (settings: MCPSettings) => Promise<{ success: boolean }>;
@@ -8125,11 +8155,7 @@ export interface ElectronAPI {
   testMCPServer: (
     serverId: string,
   ) => Promise<{ success: boolean; error?: string; tools?: number }>;
-  deviceListFiles: (params: {
-    nodeId: string;
-    workspaceId: string;
-    path?: string;
-  }) => Promise<{
+  deviceListFiles: (params: { nodeId: string; workspaceId: string; path?: string }) => Promise<{
     ok: boolean;
     files?: Array<{ name: string; type: "file" | "directory"; size: number }>;
     error?: string;
@@ -8279,10 +8305,7 @@ export interface ElectronAPI {
     limit?: number;
     useFallback?: boolean;
   }) => Promise<ChronicleResolvedContext[]>;
-  listChronicleObservations: (input: {
-    workspaceId: string;
-    limit?: number;
-  }) => Promise<Any[]>;
+  listChronicleObservations: (input: { workspaceId: string; limit?: number }) => Promise<Any[]>;
   deleteChronicleObservation: (input: {
     workspaceId: string;
     observationId: string;
@@ -8990,9 +9013,7 @@ export interface ElectronAPI {
   importCompanyPackage: (
     request: import("../shared/types").CompanyPackageImportRequest,
   ) => Promise<import("../shared/types").CompanyPackageImportResult>;
-  getCompanyGraph: (
-    companyId: string,
-  ) => Promise<import("../shared/types").ResolvedCompanyGraph>;
+  getCompanyGraph: (companyId: string) => Promise<import("../shared/types").ResolvedCompanyGraph>;
   listCompanySyncStates: (
     companyId: string,
   ) => Promise<import("../shared/types").CompanySyncState[]>;
@@ -9310,6 +9331,9 @@ export interface ElectronAPI {
         windows: Array<{ days: number[]; start: string; end: string }>;
       };
     };
+    runtime: {
+      agentSecurity: import("../shared/agent-security").AgentSecurityPolicy;
+    };
     general: {
       allowCustomPacks: boolean;
       allowGitInstall: boolean;
@@ -9336,6 +9360,9 @@ export interface ElectronAPI {
         windows: Array<{ days: number[]; start: string; end: string }>;
       };
     };
+    runtime: {
+      agentSecurity: import("../shared/agent-security").AgentSecurityPolicy;
+    };
     general: {
       allowCustomPacks: boolean;
       allowGitInstall: boolean;
@@ -9348,6 +9375,33 @@ export interface ElectronAPI {
     packId: string,
   ) => Promise<{ packId: string; allowed: boolean; required: boolean }>;
 
+  // Agent Security
+  agentSecurityGetStatus: (refresh?: boolean) => Promise<AgentSecurityRuntimeStatus>;
+  agentSecurityListFindings: (query?: AgentSecurityFindingQuery) => Promise<AgentSecurityFinding[]>;
+  agentSecurityUpdateFinding: (
+    findingId: string,
+    status: AgentSecurityFindingStatus,
+  ) => Promise<AgentSecurityFinding | null>;
+  agentSecurityListDecisions: (
+    taskId?: string,
+    limit?: number,
+  ) => Promise<AgentSecurityEnforcement[]>;
+  agentSecurityListDiagnostics: (limit?: number) => Promise<AgentSecurityDiagnostic[]>;
+  agentSecurityListInventory: () => Promise<AgentSecurityInventoryItem[]>;
+  agentSecurityRefreshInventory: () => Promise<AgentSecurityInventoryItem[]>;
+  agentSecurityScan: () => Promise<AgentSecurityScanResult>;
+  agentSecurityCheckRules: () => Promise<AgentSecurityRulesCheckResult>;
+  agentSecurityHookStatus: (agent: string) => Promise<AgentSecurityHookManagementResult>;
+  agentSecurityInstallHook: (agent: string) => Promise<AgentSecurityHookManagementResult>;
+  agentSecurityUninstallHook: (agent: string) => Promise<AgentSecurityHookManagementResult>;
+  agentSecurityBuildCase: (caseId: string, taskId: string) => Promise<AgentSecurityCaseBuildResult>;
+  agentSecurityVerifyCase: (bundleName: string) => Promise<AgentSecurityCaseVerifyResult>;
+  agentSecurityPrune: () => Promise<{
+    findings: number;
+    decisions: number;
+    diagnostics: number;
+  }>;
+
   // Everyday Agent
   everydayAgentGetProfile: () => Promise<EverydayAgentProfileResult>;
   everydayAgentUpdateProfile: (
@@ -9358,9 +9412,7 @@ export interface ElectronAPI {
     workspaceId?: string;
     accepted?: boolean;
   }) => Promise<EverydayAgentProfileResult>;
-  everydayAgentPause: (
-    scope: Partial<EverydayPauseScope>,
-  ) => Promise<EverydayAgentProfileResult>;
+  everydayAgentPause: (scope: Partial<EverydayPauseScope>) => Promise<EverydayAgentProfileResult>;
   everydayAgentRevokeCapability: (
     capability: EverydayCapabilityBundle,
   ) => Promise<EverydayAgentProfileResult>;
@@ -9370,9 +9422,7 @@ export interface ElectronAPI {
   everydayAgentClearData: (
     request?: EverydayAgentClearDataRequest,
   ) => Promise<EverydayAgentProfileResult>;
-  everydayAgentPreviewAction: (
-    input: EverydayActionPreviewInput,
-  ) => Promise<EverydayActionPreview>;
+  everydayAgentPreviewAction: (input: EverydayActionPreviewInput) => Promise<EverydayActionPreview>;
   everydayAgentApproveAction: (
     request: EverydayAgentApproveActionRequest,
   ) => Promise<EverydayActionReceipt>;
@@ -9540,9 +9590,7 @@ export interface ElectronAPI {
   listCoreExperiments: (
     request?: import("../shared/types").ListCoreExperimentsRequest,
   ) => Promise<CoreHarnessExperiment[]>;
-  runCoreExperiment: (
-    request: import("../shared/types").RunCoreExperimentRequest,
-  ) => Promise<{
+  runCoreExperiment: (request: import("../shared/types").RunCoreExperimentRequest) => Promise<{
     experiment: CoreHarnessExperiment;
     run: import("../shared/types").CoreHarnessExperimentRun;
     gate: import("../shared/types").CoreRegressionGateResult;
@@ -9837,6 +9885,7 @@ export interface ElectronAPI {
   windowClose: () => Promise<void>;
   windowIsMaximized: () => Promise<boolean>;
   getPlatform: () => string;
+  getNativeFrameMode: () => boolean;
 }
 
 // Migration status type (for showing one-time notifications after app rename)
@@ -9885,6 +9934,19 @@ export interface TunnelStatusData {
 export type VoiceProvider = "elevenlabs" | "openai" | "azure" | "local";
 export type VoiceInputMode = "push_to_talk" | "voice_activity" | "disabled";
 export type VoiceResponseMode = "auto" | "manual" | "smart";
+
+export interface VoiceCapabilitiesData {
+  systemTts: {
+    available: boolean;
+    adapter: "macos-say" | "windows-sapi" | "espeak" | null;
+    reason?: string;
+  };
+  systemStt: {
+    available: boolean;
+    adapter: "macos-say" | "windows-sapi" | "espeak" | null;
+    reason?: string;
+  };
+}
 
 export interface VoiceSettingsData {
   enabled: boolean;

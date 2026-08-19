@@ -119,6 +119,19 @@ describe("deriveTaskProgressPeekModel", () => {
     expect(model.status).toBe("waiting");
     expect(model.statusLabel).toBe("Waiting");
   });
+
+  it("preserves blocked status when the task is not awaiting approval", () => {
+    const model = deriveTaskProgressPeekModel({
+      task: makeTask({ status: "blocked" }),
+      label: "Blocked",
+      isTaskWorking: false,
+      planSteps: [],
+      events: [],
+    });
+
+    expect(model.status).toBe("blocked");
+    expect(model.statusLabel).toBe("Waiting");
+  });
 });
 
 describe("humanizeProgressStepDescription", () => {

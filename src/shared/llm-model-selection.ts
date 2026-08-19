@@ -11,12 +11,25 @@ export const LLM_REASONING_EFFORT_OPTIONS: Array<{
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
+  { value: "xhigh", label: "Extra High" },
+  { value: "max", label: "Max" },
+  { value: "ultra", label: "Ultra" },
   { value: "extra_high", label: "Extra High" },
 ];
 
-const ALL_REASONING_EFFORTS = LLM_REASONING_EFFORT_OPTIONS.map(
-  (option) => option.value,
-);
+const AZURE_REASONING_EFFORTS: LLMReasoningEffort[] = [
+  "low",
+  "medium",
+  "high",
+  "extra_high",
+];
+const GPT_5_6_REASONING_EFFORTS: LLMReasoningEffort[] = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+];
 
 export function getLlmModelReasoningEfforts(
   providerType: LLMProviderType | string | undefined,
@@ -24,10 +37,24 @@ export function getLlmModelReasoningEfforts(
 ): LLMReasoningEffort[] {
   if (!providerType || !modelKey?.trim()) return [];
 
-  // Azure deployments can be custom-named, but Azure OpenAI is the only provider
-  // currently wired to send a separate request-level reasoning effort.
   if (providerType === "azure") {
-    return ALL_REASONING_EFFORTS;
+    return AZURE_REASONING_EFFORTS;
+  }
+
+  if (providerType === "openai") {
+    const normalizedModelKey = modelKey
+      .trim()
+      .replace(/^(?:openai-codex|openai)\//, "")
+      .split("@", 1)[0];
+    if (
+      normalizedModelKey === "gpt-5.6-sol" ||
+      normalizedModelKey === "gpt-5.6-terra"
+    ) {
+      return [...GPT_5_6_REASONING_EFFORTS, "ultra"];
+    }
+    if (normalizedModelKey === "gpt-5.6-luna") {
+      return GPT_5_6_REASONING_EFFORTS;
+    }
   }
 
   return [];

@@ -39,10 +39,17 @@ import {
 import { getUserDataDir } from "../electron/utils/user-data-dir";
 import { sanitizeTaskMessageParams } from "../electron/control-plane/sanitize";
 import { registerControlPlaneCoreMethods } from "../electron/control-plane/registerControlPlaneCoreMethods";
+import { registerAgentSecurityMethods } from "../electron/control-plane/registerAgentSecurityMethods";
 import { registerStrategicPlannerMethods } from "../electron/control-plane/registerStrategicPlannerMethods";
 import { getStrategicPlannerService } from "../electron/control-plane/StrategicPlannerService";
 import { resolvePathWithinRoot } from "../electron/control-plane/path-containment";
 import { evaluateControlPlaneDeploymentPosture } from "../electron/control-plane/deployment-posture";
+import {
+  buildTaskEventDetailForTransport,
+  buildTaskTimelinePageForTransport,
+  sanitizeTaskEventDetailRequest,
+  sanitizeTaskTimelinePageRequest,
+} from "../electron/control-plane/task-event-transport";
 
 export interface ControlPlaneMethodDeps {
   agentDaemon: AgentDaemon;
@@ -154,8 +161,7 @@ export function sanitizeInputRequestRespondParams(params: unknown): {
   answers?: Record<string, { optionLabel?: string; otherText?: string }>;
 } {
   const MAX_INPUT_REQUEST_OTHER_TEXT_LENGTH = 500000;
-  const uuidRegex =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const keyRegex = /^[a-z][a-z0-9_]*$/;
   const p = (params ?? {}) as Any;
   const requestId = typeof p.requestId === "string" ? p.requestId.trim() : "";
@@ -171,7 +177,10 @@ export function sanitizeInputRequestRespondParams(params: unknown): {
     };
   }
   const answers = p.answers;
-  if (answers !== undefined && (!answers || typeof answers !== "object" || Array.isArray(answers))) {
+  if (
+    answers !== undefined &&
+    (!answers || typeof answers !== "object" || Array.isArray(answers))
+  ) {
     throw { code: ErrorCodes.INVALID_PARAMS, message: "answers must be an object when provided" };
   }
   let normalizedAnswers: Record<string, { optionLabel?: string; otherText?: string }> | undefined =
@@ -765,6 +774,10 @@ export function registerControlPlaneMethods(
     db,
     requireScope,
   });
+  registerAgentSecurityMethods({
+    server,
+    requireScope,
+  });
   registerStrategicPlannerMethods({
     server,
     plannerService: getStrategicPlannerService(),
@@ -999,6 +1012,28 @@ export function registerControlPlaneMethods(
     return { events };
   });
 
+  server.registerMethod(Methods.TASK_TIMELINE_PAGE, async (client, params) => {
+    requireScope(client, "admin");
+    const request = sanitizeTaskTimelinePageRequest(params);
+    return buildTaskTimelinePageForTransport({
+      request,
+      taskRepo,
+      eventRepo,
+      sanitizeValue: sanitizeForBroadcast,
+    });
+  });
+
+  server.registerMethod(Methods.TASK_EVENT_DETAIL, async (client, params) => {
+    requireScope(client, "admin");
+    const request = sanitizeTaskEventDetailRequest(params);
+    return buildTaskEventDetailForTransport({
+      request,
+      taskRepo,
+      eventRepo,
+      sanitizeValue: sanitizeForBroadcast,
+    });
+  });
+
   server.registerMethod(Methods.TASK_GET, async (client, params) => {
     requireScope(client, "read");
     const { taskId } = sanitizeTaskIdParams(params);
@@ -1097,7 +1132,12 @@ export function registerControlPlaneMethods(
   server.registerMethod(Methods.INPUT_REQUEST_LIST, async (client, params) => {
     requireScope(client, "admin");
     const { limit, offset, taskId, status } = sanitizeInputRequestListParams(params);
-    const requests = inputRequestRepo.list({ limit, offset, ...(taskId ? { taskId } : {}), ...(status ? { status } : {}) });
+    const requests = inputRequestRepo.list({
+      limit,
+      offset,
+      ...(taskId ? { taskId } : {}),
+      ...(status ? { status } : {}),
+    });
     const enriched = requests.map((request) => {
       const task = request.taskId ? taskRepo.findById(request.taskId) : undefined;
       return {

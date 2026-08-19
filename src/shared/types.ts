@@ -693,8 +693,7 @@ export const TASK_ERROR_CODES = {
   TURN_LIMIT_EXCEEDED: "TURN_LIMIT_EXCEEDED",
 } as const;
 
-export type TaskErrorCode =
-  (typeof TASK_ERROR_CODES)[keyof typeof TASK_ERROR_CODES];
+export type TaskErrorCode = (typeof TASK_ERROR_CODES)[keyof typeof TASK_ERROR_CODES];
 
 /**
  * Reason for command termination - used to signal the agent why a command ended
@@ -762,6 +761,9 @@ export type EventType =
   | "plan_revision_blocked"
   | "step_timeout"
   | "tool_blocked"
+  | "security_finding"
+  | "security_action_denied"
+  | "security_runtime_degraded"
   | "mode_gate_blocked"
   | "execution_mode_auto_promoted"
   | "plan_contract_conflict"
@@ -1114,6 +1116,7 @@ export type ToolPolicyStage =
   | "availability"
   | "mode_and_domain"
   | "workspace_script"
+  | "agent_security"
   | "permissions"
   | "approval";
 
@@ -1552,6 +1555,7 @@ export const TOOL_GROUPS = {
   "group:read": [
     "read_file",
     "read_files",
+    "parse_document",
     "list_directory",
     "search_files",
     "system_info",
@@ -3316,6 +3320,11 @@ export interface TaskTimelinePageSummary {
   payloadBytes: number;
   truncatedEventCount: number;
   largestEventPayloadBytes: number;
+  metadataRowCount?: number;
+  hydratedEventCount?: number;
+  hydratedPayloadBytes?: number;
+  previewPayloadBytes?: number;
+  databaseReadBytesEstimate?: number;
   planStepCount?: number;
   hasChecklist?: boolean;
   outputEventCount?: number;
@@ -4938,12 +4947,7 @@ export interface CoreLearningsEntry {
   id: string;
   profileId: string;
   workspaceId?: string;
-  kind:
-    | "failure_cluster"
-    | "eval_case"
-    | "experiment"
-    | "promotion"
-    | "gate_rejection";
+  kind: "failure_cluster" | "eval_case" | "experiment" | "promotion" | "gate_rejection";
   summary: string;
   details?: string;
   relatedClusterId?: string;
@@ -6047,10 +6051,7 @@ export interface TeamThoughtEvent {
 /**
  * Default agent roles that come pre-configured
  */
-export const DEFAULT_AGENT_ROLES: Omit<
-  AgentRole,
-  "id" | "createdAt" | "updatedAt"
->[] = [
+export const DEFAULT_AGENT_ROLES: Omit<AgentRole, "id" | "createdAt" | "updatedAt">[] = [
   {
     name: "coder",
     displayName: "Coder",
@@ -6081,8 +6082,7 @@ export const DEFAULT_AGENT_ROLES: Omit<
   {
     name: "researcher",
     displayName: "Researcher",
-    description:
-      "Investigates solutions, analyzes options, and gathers information",
+    description: "Investigates solutions, analyzes options, and gathers information",
     icon: "🔬",
     color: "#10b981",
     capabilities: ["research", "analyze", "document"],
@@ -6146,8 +6146,7 @@ export const DEFAULT_AGENT_ROLES: Omit<
   {
     name: "project_manager",
     displayName: "Project Manager",
-    description:
-      "Coordinates tasks, tracks progress, manages timelines and team workload",
+    description: "Coordinates tasks, tracks progress, manages timelines and team workload",
     icon: "📋",
     color: "#0ea5e9",
     capabilities: ["manage", "plan", "communicate"],
@@ -6195,8 +6194,7 @@ export const DEFAULT_AGENT_ROLES: Omit<
   {
     name: "support",
     displayName: "Support Agent",
-    description:
-      "Handles user queries, troubleshooting, customer communication",
+    description: "Handles user queries, troubleshooting, customer communication",
     icon: "💬",
     color: "#22c55e",
     capabilities: ["communicate", "research", "document"],
@@ -6208,8 +6206,7 @@ export const DEFAULT_AGENT_ROLES: Omit<
   {
     name: "devops",
     displayName: "DevOps Engineer",
-    description:
-      "Manages CI/CD pipelines, deployment, infrastructure and monitoring",
+    description: "Manages CI/CD pipelines, deployment, infrastructure and monitoring",
     icon: "⚙️",
     color: "#f97316",
     capabilities: ["ops", "code", "security"],
@@ -6221,8 +6218,7 @@ export const DEFAULT_AGENT_ROLES: Omit<
   {
     name: "security_analyst",
     displayName: "Security Analyst",
-    description:
-      "Performs security audits, vulnerability assessments, compliance checks",
+    description: "Performs security audits, vulnerability assessments, compliance checks",
     icon: "🔒",
     color: "#ef4444",
     capabilities: ["security", "review", "analyze"],
@@ -6234,8 +6230,7 @@ export const DEFAULT_AGENT_ROLES: Omit<
   {
     name: "assistant",
     displayName: "General Assistant",
-    description:
-      "Versatile helper for miscellaneous tasks, scheduling, and coordination",
+    description: "Versatile helper for miscellaneous tasks, scheduling, and coordination",
     icon: "🤖",
     color: "#64748b",
     capabilities: ["communicate", "research", "manage"],
@@ -6287,8 +6282,7 @@ export const DEFAULT_AGENT_ROLES: Omit<
   {
     name: "finance-document-writer",
     displayName: "Deck/Note Writer",
-    description:
-      "Turns approved analysis into draft decks, memos, and workpapers for human review",
+    description: "Turns approved analysis into draft decks, memos, and workpapers for human review",
     icon: "📝",
     color: "#db2777",
     capabilities: ["write", "document", "research"],
@@ -7384,13 +7378,7 @@ export interface EverydayCompiledPolicy {
   allowRealBrowserAttach: boolean;
   alwaysRequireApproval: EverydayActionRisk[];
   permissionRules: Array<{
-    scope:
-      | "tool"
-      | "connector"
-      | "browser_profile"
-      | "channel"
-      | "workspace"
-      | "device";
+    scope: "tool" | "connector" | "browser_profile" | "channel" | "workspace" | "device";
     target: string;
     decision: "allow" | "deny" | "prompt";
     reason: string;
@@ -7877,8 +7865,7 @@ export const IPC_CHANNELS = {
   MC_COMPANY_CREATE: "missionControl:companyCreate",
   MC_COMPANY_UPDATE: "missionControl:companyUpdate",
   MC_COMPANY_PACKAGE_SOURCE_LIST: "missionControl:companyPackageSourceList",
-  MC_COMPANY_PACKAGE_PREVIEW_IMPORT:
-    "missionControl:companyPackagePreviewImport",
+  MC_COMPANY_PACKAGE_PREVIEW_IMPORT: "missionControl:companyPackagePreviewImport",
   MC_COMPANY_PACKAGE_IMPORT: "missionControl:companyPackageImport",
   MC_COMPANY_GRAPH_GET: "missionControl:companyGraphGet",
   MC_COMPANY_SYNC_LIST: "missionControl:companySyncList",
@@ -7988,6 +7975,21 @@ export const IPC_CHANNELS = {
   ADMIN_POLICIES_GET: "admin:policiesGet",
   ADMIN_POLICIES_UPDATE: "admin:policiesUpdate",
   ADMIN_POLICIES_CHECK_PACK: "admin:checkPack",
+  AGENT_SECURITY_STATUS: "agentSecurity:status",
+  AGENT_SECURITY_FINDINGS_LIST: "agentSecurity:findingsList",
+  AGENT_SECURITY_FINDING_UPDATE: "agentSecurity:findingUpdate",
+  AGENT_SECURITY_DECISIONS_LIST: "agentSecurity:decisionsList",
+  AGENT_SECURITY_DIAGNOSTICS_LIST: "agentSecurity:diagnosticsList",
+  AGENT_SECURITY_INVENTORY_LIST: "agentSecurity:inventoryList",
+  AGENT_SECURITY_INVENTORY_REFRESH: "agentSecurity:inventoryRefresh",
+  AGENT_SECURITY_SCAN: "agentSecurity:scan",
+  AGENT_SECURITY_RULES_CHECK: "agentSecurity:rulesCheck",
+  AGENT_SECURITY_HOOK_STATUS: "agentSecurity:hookStatus",
+  AGENT_SECURITY_HOOK_INSTALL: "agentSecurity:hookInstall",
+  AGENT_SECURITY_HOOK_UNINSTALL: "agentSecurity:hookUninstall",
+  AGENT_SECURITY_CASE_BUILD: "agentSecurity:caseBuild",
+  AGENT_SECURITY_CASE_VERIFY: "agentSecurity:caseVerify",
+  AGENT_SECURITY_PRUNE: "agentSecurity:prune",
 
   // Everyday Agent
   EVERYDAY_AGENT_GET_PROFILE: "everydayAgent:getProfile",
@@ -8673,6 +8675,7 @@ export const IPC_CHANNELS = {
 
   // Voice Mode (TTS/STT)
   VOICE_GET_SETTINGS: "voice:getSettings",
+  VOICE_GET_CAPABILITIES: "voice:getCapabilities",
   VOICE_SAVE_SETTINGS: "voice:saveSettings",
   VOICE_GET_STATE: "voice:getState",
   VOICE_SPEAK: "voice:speak",
@@ -8767,6 +8770,24 @@ export const IPC_CHANNELS = {
   ROUTINE_REMOVE: "routine:remove",
   ROUTINE_RUN_NOW: "routine:runNow",
   ROUTINE_REGENERATE_API_TOKEN: "routine:regenerateApiToken",
+  ROUTINE_WORKFLOW_CAPABILITIES: "routine:workflowCapabilities",
+  ROUTINE_WORKFLOW_VALIDATE: "routine:workflowValidate",
+  ROUTINE_WORKFLOW_GENERATE: "routine:workflowGenerate",
+  ROUTINE_WORKFLOW_SAVE_DRAFT: "routine:workflowSaveDraft",
+  ROUTINE_WORKFLOW_LIST_VERSIONS: "routine:workflowListVersions",
+  ROUTINE_WORKFLOW_ACTIVATE: "routine:workflowActivate",
+  ROUTINE_WORKFLOW_TEST: "routine:workflowTest",
+  ROUTINE_WORKFLOW_LIST_RUNS: "routine:workflowListRuns",
+  ROUTINE_WORKFLOW_LIST_STEPS: "routine:workflowListSteps",
+  ROUTINE_WORKFLOW_LIST_EVENTS: "routine:workflowListEvents",
+  ROUTINE_WORKFLOW_LIST_EVENT_SAMPLES: "routine:workflowListEventSamples",
+  ROUTINE_WORKFLOW_RESPOND_APPROVAL: "routine:workflowRespondApproval",
+  ROUTINE_WORKFLOW_RETRY: "routine:workflowRetry",
+  ROUTINE_WORKFLOW_CANCEL: "routine:workflowCancel",
+  ROUTINE_WORKFLOW_ENQUEUE_EVENT: "routine:workflowEnqueueEvent",
+  ROUTINE_WORKFLOW_LIST_SECRETS: "routine:workflowListSecrets",
+  ROUTINE_WORKFLOW_UPSERT_SECRET: "routine:workflowUpsertSecret",
+  ROUTINE_WORKFLOW_REMOVE_SECRET: "routine:workflowRemoveSecret",
 
   // Mailbox Automations
   MAILBOX_AUTOMATION_LIST: "mailboxAutomation:list",
@@ -8965,7 +8986,7 @@ export interface MoaPreset {
   concurrency?: number;
 }
 
-export type OpenAIReasoningEffort = "low" | "medium" | "high" | "xhigh";
+export type OpenAIReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
 export type AzureReasoningEffort = "low" | "medium" | "high" | "extra_high";
 export type LLMReasoningEffort = OpenAIReasoningEffort | AzureReasoningEffort;
 export type LLMTextVerbosity = "low" | "medium" | "high";
@@ -10195,13 +10216,7 @@ export interface UpdateInfo {
 }
 
 export interface UpdateProgress {
-  phase:
-    | "checking"
-    | "downloading"
-    | "extracting"
-    | "installing"
-    | "complete"
-    | "error";
+  phase: "checking" | "downloading" | "extracting" | "installing" | "complete" | "error";
   percent?: number;
   message: string;
   bytesDownloaded?: number;
@@ -10920,11 +10935,7 @@ export interface NodeInvokeResult {
  */
 export interface NodeEvent {
   /** Event type */
-  type:
-    | "connected"
-    | "disconnected"
-    | "capabilities_changed"
-    | "foreground_changed";
+  type: "connected" | "disconnected" | "capabilities_changed" | "foreground_changed";
   /** Node ID */
   nodeId: string;
   /** Node info (for connected/capabilities_changed events) */
@@ -11191,14 +11202,7 @@ export interface ManagedDeviceAlert {
   level: ManagedDeviceAttentionState;
   title: string;
   description?: string;
-  kind:
-    | "approval"
-    | "input_request"
-    | "channel"
-    | "connection"
-    | "storage"
-    | "status"
-    | "warning";
+  kind: "approval" | "input_request" | "channel" | "connection" | "storage" | "status" | "warning";
 }
 
 export interface ManagedDevice {
@@ -11732,9 +11736,7 @@ export const PERSONALITY_DEFINITIONS: PersonalityDefinition[] = [
 /**
  * Get personality definition by ID
  */
-export function getPersonalityById(
-  id: PersonalityId,
-): PersonalityDefinition | undefined {
+export function getPersonalityById(id: PersonalityId): PersonalityDefinition | undefined {
   return PERSONALITY_DEFINITIONS.find((p) => p.id === id);
 }
 
@@ -11752,8 +11754,7 @@ export const PERSONA_DEFINITIONS: PersonaDefinition[] = [
   {
     id: "companion",
     name: "Companion",
-    description:
-      "Warm, curious, and emotionally attuned presence with thoughtful conversation",
+    description: "Warm, curious, and emotionally attuned presence with thoughtful conversation",
     icon: "🌙",
     suggestedName: "Ari",
     sampleCatchphrase: "I'm here with you.",
@@ -12252,8 +12253,7 @@ export const TRAIT_DEFINITIONS: TraitDefinition[] = [
   {
     id: "confidence",
     label: "Confidence",
-    description:
-      "How hedging and option-presenting vs assertive and opinionated",
+    description: "How hedging and option-presenting vs assertive and opinionated",
     lowLabel: "Presents options",
     highLabel: "Assertive & opinionated",
     defaultIntensity: 50,
@@ -12449,6 +12449,19 @@ export const DEFAULT_PERSONALITY_CONFIG_V2: PersonalityConfigV2 = {
  * Voice provider options
  */
 export type VoiceProvider = "elevenlabs" | "openai" | "azure" | "local";
+
+export type SystemVoiceAdapter = "macos-say" | "windows-sapi" | "espeak" | null;
+
+export interface VoiceProviderCapability {
+  available: boolean;
+  adapter: SystemVoiceAdapter;
+  reason?: string;
+}
+
+export interface VoiceCapabilities {
+  systemTts: VoiceProviderCapability;
+  systemStt: VoiceProviderCapability;
+}
 
 /**
  * Voice input mode - when to listen for voice input
@@ -12782,14 +12795,7 @@ export interface Issue {
   activeRunId?: string;
   title: string;
   description?: string;
-  status:
-    | "backlog"
-    | "todo"
-    | "in_progress"
-    | "review"
-    | "done"
-    | "blocked"
-    | "cancelled";
+  status: "backlog" | "todo" | "in_progress" | "review" | "done" | "blocked" | "cancelled";
   priority: number;
   assigneeAgentRoleId?: string;
   reporterAgentRoleId?: string;

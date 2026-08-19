@@ -1059,6 +1059,7 @@ function VirtualizedTaskFeedRow({
 
   return (
     <div
+      data-task-feed-virtual-row={itemKey}
       style={{
         position: "absolute",
         top: offsetTop,
@@ -5379,6 +5380,7 @@ function MainContentComponent({
   timelineHistoryError = null,
   onLoadMoreTimelineHistory,
   onLoadTaskEventDetail,
+  onReleaseTaskEventDetail,
   remoteSession = null,
   replayControls,
 }: MainContentProps) {

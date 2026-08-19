@@ -183,6 +183,7 @@ Once the app opens, the most important places to know are:
 - **Uploaded PDFs**: attach a PDF to a task or chat turn when you want NeoWorker to summarize it, answer questions from it, extract clauses, or transform it. The first prompt includes only a compact PDF excerpt plus page/extraction metadata and the workspace-relative path; NeoWorker reads the full PDF on demand with the document parser. PDF excerpts are treated as untrusted document data, and visual layout questions use the visual PDF reader instead.
 - **Message box shortcuts**: type `/` in the main message box to search app commands and skill-backed workflow shortcuts in one menu. Use `/side` to ask read-only questions about the selected running session from the right panel, `/schedule` for standalone scheduled tasks, `/schedule here` for scheduled follow-ups in the selected thread, `/clear` to clear the current task view without deleting history, `/plan <task>` for Plan mode, `/cost <task>` for estimates, `/multitask [N] <task>` for bounded parallel lane work, or shortcuts such as `/strategy`, `/batch-rename`, and `/gmail-summary-drive` from the bundled NeoWorker Shortcuts pack. Skill-backed selections insert the slash token first so you can add context before sending; Claude-for-Legal workflows can then show structured matter-context cards in the task view. See [Message Box Shortcuts](message-box-shortcuts.md), [Side Chat](side-chat.md), [Multitask Command](multitask.md), and [Claude-for-Legal Workflows](claude-for-legal.md).
 - **Task menu**: open a task and use the three-dot menu beside the title for pin/rename/archive, copy working directory/task ID/deeplink/Markdown, fork session, view outputs, or turn the current task into a same-thread or new-task automation. See [Task Automations](task-automations.md).
+- **Automations**: open the main-sidebar Automation Studio to discover templates, build a versioned structured flow, test it without external writes, turn it on, and inspect step-level activity. See [Automation Studio](automation-studio.md).
 - **Agents Hub**: create and inspect reusable managed agents from **Agents**. The clicked-agent detail page is for configuration and actions, not a separate chat. **Test this agent**, **Preview**, and starter prompts start a normal managed-session task and open it in the main task window, where follow-ups, approvals, responses, and outputs work like any other task. See [Managed Agents](managed-agents.md).
 - **Devices**: manage the local machine and saved remote NeoWorker nodes, run remote tasks, and inspect remote task history
 - **Settings > Automations**: Routines, Task Queue, Workflow Intelligence, Scheduled Tasks, Webhooks, Event Triggers, and Daily Briefing
@@ -261,15 +262,17 @@ Open **Settings > Automations** when you want NeoWorker to do background work wi
 
 Recommended order:
 
-1. **Task Queue**: confirm concurrency and timeout defaults.
-2. **Routines**: create one safe routine with a manual or schedule trigger.
-3. **Daily Briefing**: enable a daily summary if you want background context generation.
-4. **Webhooks / Event Triggers**: connect inbound automation only after you have a stable workspace and provider setup, and only when you need the lower-level surfaces directly.
-5. **Workflow Intelligence**: enable reviewable Next actions once you have at least one stable workflow target. Dreaming can then curate memory candidates from completed work and memory-specific Heartbeat signals. Code-change auto-create works best on trusted git-backed workspaces where worktrees are available.
+1. **Automation Studio**: create one safe flow, keep it manual at first, run a dry test, then turn it on and inspect Activity.
+2. **Task Queue**: confirm concurrency and timeout defaults for wider background execution.
+3. **Routines**: use a prompt-based routine only when a deterministic multi-step graph is unnecessary.
+4. **Daily Briefing**: enable a daily summary if you want background context generation.
+5. **Webhooks / Event Triggers**: connect inbound automation only after you have a stable workspace and provider setup, and only when you need the lower-level surfaces directly.
+6. **Workflow Intelligence**: enable reviewable Next actions once you have at least one stable workflow target. Dreaming can then curate memory candidates from completed work and memory-specific Heartbeat signals. Code-change auto-create works best on trusted git-backed workspaces where worktrees are available.
 
 Rule of thumb:
 
-- use `Routines` for saved automation with policy, outputs, and run history
+- use Automation Studio for a structured multi-step flow with variables, branches, testing, approvals, and step-level activity
+- use prompt-based `Routines` for one saved instruction block with target, policy, outputs, and run history
 - use `Scheduled Tasks`, `Webhooks`, or `Event Triggers` directly only when you specifically need the advanced underlying engine
 - use a task's three-dot menu and `Add automation...` when a task you just ran should become a recurring automation; this creates a task-sourced routine, continues the same thread by default, and preserves a source task/deeplink reference
 
@@ -705,9 +708,9 @@ Don't use system folders like `/System` or `/Applications`.
 
 ### Learn More
 
-- [Full README](README.md) - Complete documentation
-- [Implementation Summary](IMPLEMENTATION_SUMMARY.md) - Technical details
-- [Project Status](PROJECT_STATUS.md) - Feature status
+- [Full README](../README.md) - Complete documentation
+- [Implementation Summary](../IMPLEMENTATION_SUMMARY.md) - Technical details
+- [Project Status](../PROJECT_STATUS.md) - Feature status
 
 ## Getting Help
 

@@ -102,6 +102,7 @@ import {
   isInitialReleaseViewAvailable,
 } from "./feature-visibility";
 import { invalidateGlobalMeasurer } from "./utils/pretext-adapter";
+import { applyUiDensityClass } from "./utils/ui-density";
 import {
   ARTIFACT_FOCUS_MIN_MAIN_WIDTH,
   ARTIFACT_FOCUS_MIN_SIDEBAR_WIDTH,
@@ -876,6 +877,8 @@ type RemoteTaskView = {
   deviceName: string;
   task: Task;
   events: TaskEvent[];
+  cursor: TaskTimelinePageCursor | null;
+  hasMoreHistory: boolean;
 };
 type SideChatState = {
   parentTaskId: string;
@@ -2224,7 +2227,7 @@ const MAX_RENDERER_CHILD_EVENTS = 300;
 const MAX_TIMELINE_HISTORY_EVENTS = 1200;
 const MAX_TIMELINE_HISTORY_PAYLOAD_BYTES = 2 * 1024 * 1024;
 const MAX_TIMELINE_HISTORY_PAGE_PAYLOAD_BYTES = 512 * 1024;
-const MAX_EVENT_DETAIL_CACHE_ENTRIES = 120;
+const MAX_EVENT_DETAIL_NEGATIVE_CACHE_ENTRIES = 120;
 const EVENT_DETAIL_NEGATIVE_CACHE_MS = 30 * 1000;
 const APPROVAL_TOAST_PREFIX = "approval-request-";
 const RENDERER_DROPPED_EVENT_TYPES = new Set(["log", "task_analysis"]);
@@ -2888,9 +2891,14 @@ export function App() {
       { cursor: TaskTimelinePageCursor | null; hasMoreHistory: boolean }
     >
   >(new Map());
+  const taskTimelineCacheRef = useRef(new TaskTimelineCache());
   const eventDetailInFlightRef = useRef<Set<string>>(new Set());
   const eventDetailCacheRef = useRef<Map<string, TaskEvent>>(new Map());
+  const eventDetailPreviewRef = useRef<Map<string, TaskEvent>>(new Map());
   const eventDetailMissingUntilRef = useRef<Map<string, number>>(new Map());
+  const remoteTaskViewRef = useRef<RemoteTaskView | null>(remoteTaskView);
+  const remoteTaskOpenRequestSeqRef = useRef(0);
+  remoteTaskViewRef.current = remoteTaskView;
   const timelineHistoryLoadInFlightRef = useRef(false);
   const selectedTaskHydrationInFlightRef = useRef<Set<string>>(new Set());
   const selectedTaskHydrationAttemptedRef = useRef<Set<string>>(new Set());
@@ -2898,6 +2906,12 @@ export function App() {
   const completionToastNotifiedPathsRef = useRef<Map<string, Set<string>>>(
     new Map(),
   );
+
+  useEffect(() => {
+    eventDetailCacheRef.current.clear();
+    eventDetailPreviewRef.current.clear();
+    eventDetailMissingUntilRef.current.clear();
+  }, [selectedTaskId, remoteTaskView?.deviceId]);
 
   // Purge stale entries from growing Map refs when the task list changes
   useEffect(() => {
@@ -3186,6 +3200,13 @@ export function App() {
                 error: null,
               });
             }
+            taskTimelineCacheRef.current.set(taskId, {
+              taskId,
+              events: timelinePage.events,
+              cursor: timelinePage.nextCursor,
+              hasMoreHistory: timelinePage.hasMoreHistory,
+              payloadBytes: timelinePage.summary.payloadBytes,
+            });
           }
           pendingToolEventsRef.current = [];
           if (pendingToolEventsFlushTimerRef.current) {
@@ -3225,7 +3246,7 @@ export function App() {
       return;
     }
     document.documentElement.classList.remove("platform-win32");
-  }, [isWindows]);
+  }, [isWindows, platform, usesNativeWindowFrame]);
 
   const handleOnboardingComplete = (dontShowAgain: boolean) => {
     const timestamp = new Date().toISOString();
@@ -4810,8 +4831,8 @@ export function App() {
     if (remoteTaskView) {
       setEvents(capTaskEvents(remoteTaskView.events));
       setSelectedTaskTimelineHistory({
-        cursor: null,
-        hasMoreHistory: false,
+        cursor: remoteTaskView.cursor,
+        hasMoreHistory: remoteTaskView.hasMoreHistory,
         isLoadingMore: false,
         error: null,
       });
@@ -4864,6 +4885,15 @@ export function App() {
           isLoadingMore: false,
           error: null,
         });
+        if (timelinePage) {
+          taskTimelineCacheRef.current.set(requestedTaskId, {
+            taskId: requestedTaskId,
+            events: historicalEvents,
+            cursor: timelinePage.nextCursor,
+            hasMoreHistory: timelinePage.hasMoreHistory,
+            payloadBytes: timelinePage.summary.payloadBytes,
+          });
+        }
         recordRendererPerfSample(
           "task-switch.timeline_receive_ms",
           receiveMs,
@@ -5013,9 +5043,17 @@ export function App() {
   const handleLoadMoreTaskTimelineHistory = useCallback(async () => {
     if (timelineHistoryLoadInFlightRef.current) return;
     const taskId = selectedTaskIdRef.current;
-    const state = taskId ? taskTimelinePageStateRef.current.get(taskId) : null;
+    const state = remoteTaskView
+      ? {
+          cursor: remoteTaskView.cursor,
+          hasMoreHistory: remoteTaskView.hasMoreHistory,
+        }
+      : taskId
+        ? taskTimelinePageStateRef.current.get(taskId)
+        : null;
     if (!taskId || !state?.hasMoreHistory || !state.cursor) return;
-    if (!window.electronAPI?.getTaskTimelinePage) return;
+    if (!remoteTaskView && !window.electronAPI?.getTaskTimelinePage) return;
+    const requestedRemoteDeviceId = remoteTaskView?.deviceId ?? null;
     timelineHistoryLoadInFlightRef.current = true;
     setSelectedTaskTimelineHistory((current) => ({
       ...current,
@@ -5023,18 +5061,60 @@ export function App() {
       error: null,
     }));
     try {
-      const timelinePage = await window.electronAPI.getTaskTimelinePage({
-        taskId,
-        cursor: state.cursor,
-        limit: 160,
-        byteLimit: 512 * 1024,
-        singleEventByteLimit: 64 * 1024,
-      });
-      if (selectedTaskIdRef.current !== taskId) return;
-      taskTimelinePageStateRef.current.set(taskId, {
-        cursor: timelinePage.nextCursor,
-        hasMoreHistory: timelinePage.hasMoreHistory,
-      });
+      let timelinePage: TaskTimelinePageResult;
+      if (remoteTaskView) {
+        const result = await window.electronAPI?.deviceProxyRequest?.({
+          deviceId: remoteTaskView.deviceId,
+          method: "task.timelinePage",
+          params: {
+            taskId,
+            cursor: state.cursor,
+            limit: TASK_TIMELINE_HISTORY_LIMIT,
+            byteLimit: TASK_TIMELINE_HISTORY_BYTE_LIMIT,
+            singleEventByteLimit: TASK_TIMELINE_SINGLE_EVENT_BYTE_LIMIT,
+          },
+        });
+        timelinePage = result?.payload as TaskTimelinePageResult;
+        if (!timelinePage?.events) throw new Error("Remote timeline page was unavailable.");
+      } else {
+        timelinePage = await window.electronAPI.getTaskTimelinePage({
+          taskId,
+          cursor: state.cursor,
+          limit: TASK_TIMELINE_HISTORY_LIMIT,
+          byteLimit: TASK_TIMELINE_HISTORY_BYTE_LIMIT,
+          singleEventByteLimit: TASK_TIMELINE_SINGLE_EVENT_BYTE_LIMIT,
+        });
+      }
+      const currentRemoteView = remoteTaskViewRef.current;
+      if (
+        selectedTaskIdRef.current !== taskId ||
+        (requestedRemoteDeviceId
+          ? currentRemoteView?.deviceId !== requestedRemoteDeviceId ||
+            currentRemoteView.task.id !== taskId
+          : Boolean(currentRemoteView))
+      ) {
+        return;
+      }
+      if (remoteTaskView) {
+        setRemoteTaskView((current) =>
+          current && current.deviceId === remoteTaskView.deviceId && current.task.id === taskId
+            ? {
+                ...current,
+                events: capTaskEventsPreservingIncoming(
+                  mergeSelectedTaskTimelineEvents(taskId, current.events, timelinePage.events),
+                  timelinePage.events,
+                ),
+                cursor: timelinePage.nextCursor,
+                hasMoreHistory: timelinePage.hasMoreHistory,
+              }
+            : current,
+        );
+      } else {
+        taskTimelinePageStateRef.current.set(taskId, {
+          cursor: timelinePage.nextCursor,
+          hasMoreHistory: timelinePage.hasMoreHistory,
+        });
+      }
       setSelectedTaskTimelineHistory({
         cursor: timelinePage.nextCursor,
         hasMoreHistory: timelinePage.hasMoreHistory,
@@ -5062,6 +5142,16 @@ export function App() {
       );
     } catch (error) {
       console.error("Failed to load older timeline history:", error);
+      const currentRemoteView = remoteTaskViewRef.current;
+      if (
+        selectedTaskIdRef.current !== taskId ||
+        (requestedRemoteDeviceId
+          ? currentRemoteView?.deviceId !== requestedRemoteDeviceId ||
+            currentRemoteView.task.id !== taskId
+          : Boolean(currentRemoteView))
+      ) {
+        return;
+      }
       setSelectedTaskTimelineHistory((current) => ({
         ...current,
         isLoadingMore: false,
@@ -6246,6 +6336,10 @@ export function App() {
   }, [pendingInputRequests, selectedTaskId, remoteTaskView]);
 
   const clearRemoteTaskView = useCallback(() => {
+    remoteTaskOpenRequestSeqRef.current += 1;
+    eventDetailCacheRef.current.clear();
+    eventDetailPreviewRef.current.clear();
+    eventDetailInFlightRef.current.clear();
     setRemoteTaskView(null);
   }, []);
 
@@ -6255,7 +6349,7 @@ export function App() {
       remote: { deviceId: string; deviceName: string },
     ) => {
       try {
-        const [taskResult, eventsResult] = await Promise.all([
+        const [taskResult, timelineResult] = await Promise.all([
           window.electronAPI?.deviceProxyRequest?.({
             deviceId: remote.deviceId,
             method: "task.get",
@@ -6263,8 +6357,13 @@ export function App() {
           }),
           window.electronAPI?.deviceProxyRequest?.({
             deviceId: remote.deviceId,
-            method: "task.events",
-            params: { taskId, limit: 600 },
+            method: "task.timelinePage",
+            params: {
+              taskId,
+              limit: TASK_TIMELINE_INITIAL_LIMIT,
+              byteLimit: TASK_TIMELINE_INITIAL_BYTE_LIMIT,
+              singleEventByteLimit: TASK_TIMELINE_SINGLE_EVENT_BYTE_LIMIT,
+            },
           }),
         ]);
 
@@ -6281,7 +6380,9 @@ export function App() {
           deviceId: remote.deviceId,
           deviceName: remote.deviceName,
           task: remoteTask,
-          events: remoteEvents,
+          events: timelinePage.events,
+          cursor: timelinePage.nextCursor,
+          hasMoreHistory: timelinePage.hasMoreHistory,
         });
         setSelectedTaskId(remoteTask.id);
         setCurrentView("main");
@@ -7080,7 +7181,7 @@ export function App() {
   if (onboardingCompleted === null) {
     return (
       <div className="app">
-        <div className="title-bar" />
+        {!usesNativeWindowFrame && <div className="title-bar" />}
         <TaskViewSkeleton />
       </div>
     );

@@ -49,6 +49,18 @@ describe("settings-llm-helpers", () => {
       }),
     ).toBe("xhigh");
     expect(
+      resolveOpenAIReasoningEffort({
+        model: "gpt-5.6-sol",
+        reasoningEffort: "max",
+      }),
+    ).toBe("max");
+    expect(
+      resolveOpenAIReasoningEffort({
+        model: "gpt-5.6-terra",
+        reasoningEffort: "ultra",
+      }),
+    ).toBe("ultra");
+    expect(
       resolveOpenAITextVerbosity({
         model: "gpt-5.5",
         textVerbosity: "low",

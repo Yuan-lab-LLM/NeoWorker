@@ -334,6 +334,40 @@ For prompt caching, OpenRouter Claude routes use explicit Anthropic-style cache 
 - **Option 1: API Key** — Standard pay-per-token access to GPT models
 - **Option 2: ChatGPT OAuth** — Sign in with your ChatGPT subscription
 
+### GPT-5.6 models with ChatGPT OAuth
+
+ChatGPT subscription accounts can select these GPT-5.6 Codex models when the
+signed-in account is entitled to them:
+
+| Model ID | Reasoning efforts |
+|----------|-------------------|
+| `gpt-5.6-sol` | Low, Medium, High, Extra High (`xhigh`), Max, Ultra |
+| `gpt-5.6-terra` | Low, Medium, High, Extra High (`xhigh`), Max, Ultra |
+| `gpt-5.6-luna` | Low, Medium, High, Extra High (`xhigh`), Max |
+
+Reasoning effort is a request control, not a separate model ID. Choose the
+model first, then set its effort from either:
+
+- the main model picker's **Intelligence** section for the active task route
+- **Settings > AI & Models > OpenAI Request Controls** for the saved OpenAI
+  provider configuration
+
+The UI only lists efforts supported by the selected GPT-5.6 model. In
+particular, Ultra is available for Sol and Terra but not Luna. Max requests the
+deepest standard reasoning mode; Ultra requests maximum reasoning with the
+ChatGPT/Codex automatic task-delegation mode. The selected effort and response
+verbosity are forwarded to the ChatGPT Codex Responses transport for OAuth
+requests.
+
+All three GPT-5.6 models support Low, Medium, and High response verbosity. The
+verbosity control changes final-answer detail independently of reasoning
+effort.
+
+Model and effort availability remains subscription- and entitlement-dependent.
+If a model is listed locally but the ChatGPT backend rejects it, refresh the
+model list, confirm the signed-in account has access, or select an available
+model/effort combination.
+
 ---
 
 ## xAI / Grok

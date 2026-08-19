@@ -232,13 +232,29 @@ describe("VoiceService", () => {
       );
     });
 
-    it("should throw for local TTS provider (not available in main process)", async () => {
-      service.updateSettings({
-        enabled: true,
-        ttsProvider: "local",
+    it("should dispatch local TTS to the system voice runtime", async () => {
+      const synthesize = vi.fn().mockResolvedValue(Buffer.from("system wav"));
+      const systemService = new VoiceService({
+        settings: { enabled: true, ttsProvider: "local" },
+        systemVoiceRuntime: {
+          getCapabilities: () => ({
+            systemTts: { available: true, adapter: "macos-say" },
+            systemStt: { available: false, adapter: null, reason: "Unavailable" },
+          }),
+          synthesize,
+          transcribe: vi.fn(),
+          stop: vi.fn(),
+        },
       });
 
-      await expect(service.speak("Hello")).rejects.toThrow("Local TTS is not available");
+      const result = await systemService.speak("Hello");
+
+      expect(synthesize).toHaveBeenCalledWith("Hello", {
+        language: "en-US",
+        speechRate: 1,
+      });
+      expect(result).toEqual(Buffer.from("system wav"));
+      systemService.dispose();
     });
 
     it("should emit speakingStart event", async () => {
@@ -324,14 +340,27 @@ describe("VoiceService", () => {
       );
     });
 
-    it("should throw for local STT provider (not available in main process)", async () => {
-      service.updateSettings({
-        enabled: true,
-        sttProvider: "local",
+    it("should dispatch local STT when the system runtime reports support", async () => {
+      const transcribe = vi.fn().mockResolvedValue("System transcript");
+      const systemService = new VoiceService({
+        settings: { enabled: true, sttProvider: "local" },
+        systemVoiceRuntime: {
+          getCapabilities: () => ({
+            systemTts: { available: true, adapter: "macos-say" },
+            systemStt: { available: true, adapter: "macos-say" },
+          }),
+          synthesize: vi.fn(),
+          transcribe,
+          stop: vi.fn(),
+        },
       });
 
       const audioBuffer = Buffer.from("test audio data");
-      await expect(service.transcribe(audioBuffer)).rejects.toThrow("Local STT is not available");
+      const result = await systemService.transcribe(audioBuffer);
+
+      expect(transcribe).toHaveBeenCalledWith(audioBuffer, { language: "en-US" });
+      expect(result).toBe("System transcript");
+      systemService.dispose();
     });
 
     it("should emit transcript event on success", async () => {

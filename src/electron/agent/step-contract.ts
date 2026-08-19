@@ -46,10 +46,12 @@ const CANONICAL_ARTIFACT_EXTENSION_LIST = [
 
 const CANONICAL_ARTIFACT_EXTENSION_SET = new Set<string>(CANONICAL_ARTIFACT_EXTENSION_LIST);
 export { CANONICAL_ARTIFACT_EXTENSION_SET as CANONICAL_ARTIFACT_EXTENSION_SET_EXPORT };
-const CANONICAL_EXTENSIONS_WITH_DOT = CANONICAL_ARTIFACT_EXTENSION_LIST.map((extension) => `.${extension}`);
-const CANONICAL_EXTENSION_PATTERN = CANONICAL_ARTIFACT_EXTENSION_LIST
-  .map((extension) => extension.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-  .join("|");
+const CANONICAL_EXTENSIONS_WITH_DOT = CANONICAL_ARTIFACT_EXTENSION_LIST.map(
+  (extension) => `.${extension}`,
+);
+const CANONICAL_EXTENSION_PATTERN = CANONICAL_ARTIFACT_EXTENSION_LIST.map((extension) =>
+  extension.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+).join("|");
 
 export const CANONICAL_ARTIFACT_EXTENSION_REGEX = new RegExp(
   `\\.(${CANONICAL_EXTENSION_PATTERN})\\b`,
@@ -87,7 +89,9 @@ const CJK_ARTIFACT_CUE_REGEX =
   /(?:文件|文档|报告|网页|页面|白皮书|演示文稿|幻灯片|表格|视频|代码|源码|脚本|项目|工作区)/;
 
 function normalizeWithLeadingDot(extension: string): string {
-  const raw = String(extension || "").trim().toLowerCase();
+  const raw = String(extension || "")
+    .trim()
+    .toLowerCase();
   if (!raw) return "";
   return raw.startsWith(".") ? raw : `.${raw}`;
 }
@@ -181,7 +185,9 @@ export function extractArtifactPathCandidates(text: string): string[] {
   while (bareMatch) {
     const token = String(bareMatch[0] || "").trim();
     const start = bareMatch.index;
-    const inCommandSnippet = commandSnippetRanges.some((range) => start >= range.start && start < range.end);
+    const inCommandSnippet = commandSnippetRanges.some(
+      (range) => start >= range.start && start < range.end,
+    );
     if (!inCommandSnippet && token) {
       candidates.add(token);
     }

@@ -507,6 +507,75 @@ describe("OpenAIProvider structured errors", () => {
     );
   });
 
+  it.each(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"])(
+    "routes ChatGPT subscription model %s through the Codex compatibility shim",
+    async (model) => {
+      completeMock.mockResolvedValue({
+        stopReason: "stop",
+        content: [{ type: "text", text: "ok" }],
+        usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+      });
+      getModelsMock.mockReturnValue([{ id: "gpt-5.5" }]);
+      const provider = new OpenAIProvider({ ...makeConfig(), model });
+
+      await provider.createMessage({ ...makeRequest(), model });
+
+      expect(completeMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: model,
+          api: "openai-codex-responses",
+          provider: "openai-codex",
+        }),
+        expect.any(Object),
+        expect.any(Object),
+      );
+    },
+  );
+
+  it("forwards GPT-5.6 Ultra reasoning and response verbosity to the ChatGPT backend", async () => {
+    completeMock.mockResolvedValue({
+      stopReason: "stop",
+      content: [{ type: "text", text: "ok" }],
+      usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+    });
+    getModelsMock.mockReturnValue([{ id: "gpt-5.5" }]);
+    const provider = new OpenAIProvider({
+      ...makeConfig(),
+      model: "gpt-5.6-sol",
+      openaiReasoningEffort: "ultra",
+      openaiTextVerbosity: "high",
+    });
+
+    await provider.createMessage({
+      ...makeRequest(),
+      model: "gpt-5.6-sol",
+      reasoningEffort: "ultra",
+      textVerbosity: "high",
+    });
+
+    expect(completeMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.any(Object),
+      expect.objectContaining({
+        reasoningEffort: "ultra",
+        textVerbosity: "high",
+      }),
+    );
+  });
+
+  it("includes all GPT-5.6 variants in the ChatGPT subscription model catalog", async () => {
+    getModelsMock.mockReturnValue([{ id: "gpt-5.5", name: "GPT-5.5" }]);
+    const provider = new OpenAIProvider(makeConfig());
+
+    const models = await provider.getAvailableModels();
+
+    expect(models.slice(0, 3).map((model) => model.id)).toEqual([
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+    ]);
+  });
+
   it("persists refreshed ChatGPT OAuth credentials after an OAuth request", async () => {
     completeMock.mockResolvedValue({
       stopReason: "stop",

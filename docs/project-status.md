@@ -290,7 +290,8 @@ NeoWorker is a **security-first, GUI-first, CLI-capable local AI super app and e
 - [x] Update settings
 - [x] Guardrail settings (budgets, limits)
 - [x] Queue settings (concurrency)
-- [x] Automations settings group (queue, Workflow Intelligence, scheduled, hooks, triggers, briefing)
+- [x] Main-sidebar Automation Studio (structured flow discovery, library, builder, dry-run/scope review, activation, and activity)
+- [x] Advanced Automations settings group (prompt-based routines, queue, Workflow Intelligence, scheduled, hooks, triggers, briefing)
 - [x] Task-sourced same-thread and new-task automations from task view overflow menu
 - [x] Custom Skills management
 - [x] Quarantined Imports sections for skills and plugin packs with report, retry scan, and removal actions

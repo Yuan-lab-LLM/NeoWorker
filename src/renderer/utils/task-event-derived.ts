@@ -439,6 +439,33 @@ function getCompletionSummaryText(event: TaskEvent): string {
     .join("\n\n");
 }
 
+function normalizeCompletionTextForComparison(value: string): string {
+  return value
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function getCompletionComparableTexts(event: TaskEvent): Set<string> {
+  if (getEffectiveTaskEventType(event) !== "task_completed") return new Set();
+  const payload = asObject(event.payload);
+  const resultSummary =
+    typeof payload.resultSummary === "string" ? payload.resultSummary.trim() : "";
+  const semanticSummary =
+    typeof payload.semanticSummary === "string" ? payload.semanticSummary.trim() : "";
+  const fullSummary = getCompletionSummaryText(event);
+  const comparableSummaries = resultSummary
+    ? [resultSummary, fullSummary]
+    : [semanticSummary, fullSummary];
+
+  return new Set(
+    comparableSummaries
+      .map(normalizeCompletionTextForComparison)
+      .filter((value) => value.length > 0),
+  );
+}
+
 function derivePlanSteps(events: TaskEvent[]): PlanStep[] {
   // Plans can be revised while a task is running. Step lifecycle events emitted after a
   // revision reference the latest plan's IDs, so projecting the original plan leaves the
