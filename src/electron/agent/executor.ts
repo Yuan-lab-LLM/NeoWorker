@@ -944,6 +944,8 @@ export class TaskExecutor {
   private currentStepId: string | null = null;
   /** A stable, unique timeline id for one user follow-up and its reply. */
   private activeConversationTurnId: string | null = null;
+  /** Artifact contract for the currently executing follow-up turn. */
+  private activeFollowUpCompletionContract: CompletionContract | null = null;
   private lastRecoveryFailureSignature = "";
   private recoveredFailureStepIds: Set<string> = new Set();
   /**
@@ -26933,6 +26935,17 @@ You are continuing a previous conversation. The context from the previous conver
 
   private getActivePresentationWorkflow():
     "visual-presentation" | "presentation-studio" | "ppt-master" | null {
+    // A task can retain an applied presentation skill across turns. Once a
+    // follow-up explicitly requests a different artifact type, that stale
+    // workflow must not affect routing, fallback finalization, or delivery.
+    const followUpContract = this.activeFollowUpCompletionContract;
+    if (
+      followUpContract?.requiresArtifactEvidence &&
+      !followUpContract.requiredArtifactExtensions.includes(".pptx")
+    ) {
+      return null;
+    }
+
     const requestedWorkflow = this.getRequestedPresentationWorkflow();
     if (requestedWorkflow) return requestedWorkflow;
     if (this.getAppliedSkillApplication("ppt-master")) return "ppt-master";
@@ -38252,8 +38265,11 @@ Return ONLY a JSON object:
     recovery: InterruptedFollowUp,
   ): Promise<void> {
     const previousConversationTurnId = this.activeConversationTurnId;
+    const previousFollowUpCompletionContract =
+      this.activeFollowUpCompletionContract;
     this.activeConversationTurnId =
       recovery.turnId || `turn:${this.task.id}:follow-up:${randomUUID()}`;
+    this.activeFollowUpCompletionContract = null;
     this.currentStepId = null;
     this.taskCompleted = false;
     this.resetToolRetryStateForUserFollowUp();
@@ -38271,6 +38287,8 @@ Return ONLY a JSON object:
       });
     } finally {
       this.activeConversationTurnId = previousConversationTurnId;
+      this.activeFollowUpCompletionContract =
+        previousFollowUpCompletionContract;
     }
   }
 
@@ -39747,7 +39765,10 @@ Return ONLY a JSON object:
       const persistedAgentConfig =
         this.daemon.getTask(this.task.id)?.agentConfig ?? this.task.agentConfig;
       const previousConversationTurnId = this.activeConversationTurnId;
+      const previousFollowUpCompletionContract =
+        this.activeFollowUpCompletionContract;
       this.activeConversationTurnId = `turn:${this.task.id}:follow-up:${randomUUID()}`;
+      this.activeFollowUpCompletionContract = null;
       this.resetToolRetryStateForUserFollowUp();
       try {
         await this.sendMessageUnlocked(
@@ -39758,6 +39779,8 @@ Return ONLY a JSON object:
         );
       } finally {
         this.activeConversationTurnId = previousConversationTurnId;
+        this.activeFollowUpCompletionContract =
+          previousFollowUpCompletionContract;
         if (options?.agentConfigOverride) {
           this.updateTaskAgentConfig(persistedAgentConfig);
         }
@@ -40054,6 +40077,7 @@ Return ONLY a JSON object:
       followUpCompletionContract.requiresArtifactEvidence = true;
       followUpCompletionContract.artifactKind = "file";
     }
+    this.activeFollowUpCompletionContract = followUpCompletionContract;
     const followUpArtifactEvidenceStartedAt =
       recoveredFromInterruption && recoveredFromInterruption.startedAt > 0
         ? recoveredFromInterruption.startedAt

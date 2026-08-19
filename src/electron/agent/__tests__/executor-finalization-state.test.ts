@@ -91,6 +91,38 @@ function createExecutorForFinalization(overrides: Partial<Any> = {}): Any {
 }
 
 describe("TaskExecutor terminal finalization state", () => {
+  it("deactivates a persisted presentation workflow for an explicit non-PPT follow-up", () => {
+    const executor = Object.create(TaskExecutor.prototype) as Any;
+    executor.task = {
+      agentConfig: { requestedSkillId: "ppt-master" },
+    };
+
+    executor.activeFollowUpCompletionContract = {
+      requiresArtifactEvidence: true,
+      requiredArtifactExtensions: [".docx"],
+    };
+    expect(
+      (TaskExecutor as Any).prototype.getActivePresentationWorkflow.call(
+        executor,
+      ),
+    ).toBeNull();
+    expect(
+      (TaskExecutor as Any).prototype.finalizePresentationArtifactDelivery.call(
+        executor,
+      ),
+    ).toBeNull();
+
+    executor.activeFollowUpCompletionContract = {
+      requiresArtifactEvidence: true,
+      requiredArtifactExtensions: [".pptx"],
+    };
+    expect(
+      (TaskExecutor as Any).prototype.getActivePresentationWorkflow.call(
+        executor,
+      ),
+    ).toBe("ppt-master");
+  });
+
   it("does not reapply a stale presentation delivery contract to a Word follow-up", () => {
     const executor = Object.create(TaskExecutor.prototype) as Any;
     executor.task = {
