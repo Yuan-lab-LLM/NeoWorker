@@ -1,6 +1,6 @@
 # Live Canvas
 
-Live Canvas is an agent-driven visual workspace that allows CoWork OS agents to create, display, and interact with dynamic HTML/CSS/JavaScript content in real-time.
+Live Canvas is an agent-driven visual workspace that allows NeoWorker agents to create, display, and interact with dynamic HTML/CSS/JavaScript content in real-time.
 
 ## Overview
 
@@ -415,7 +415,7 @@ await canvas_push({
             <option value="svelte">Svelte</option>
           </select>
         </div>
-        <button type="button" onclick="window.coworkCanvas.sendA2UIAction('submit', 'config', getFormData())">
+        <button type="button" onclick="window.neoworkerCanvas.sendA2UIAction('submit', 'config', getFormData())">
           Apply Settings
         </button>
       </form>
@@ -444,11 +444,11 @@ Canvas windows can send actions back to the agent using the A2UI bridge. This en
 
 ### Sending Actions from Canvas
 
-The canvas preload script exposes `window.coworkCanvas`:
+The canvas preload script exposes `window.neoworkerCanvas`:
 
 ```javascript
 // Send an action to the agent
-window.coworkCanvas.sendA2UIAction(
+window.neoworkerCanvas.sendA2UIAction(
   'button_click',           // Action name
   'submit-button',          // Component ID
   { formData: {...} }       // Context object
@@ -497,7 +497,7 @@ Example: `canvas://abc123-def456/index.html`
 Live Canvas uses the following directory for session storage:
 
 ```
-~/Library/Application Support/cowork-os/canvas/{sessionId}/
+~/Library/Application Support/neoworker/canvas/{sessionId}/
 ```
 
 Sessions are automatically cleaned up when:
@@ -580,7 +580,7 @@ The Canvas Manager emits events that can be observed in the main process:
 
 ### A2UI Actions Not Received
 
-1. Verify `window.coworkCanvas` is available in the canvas context
+1. Verify `window.neoworkerCanvas` is available in the canvas context
 2. Check that the action name is descriptive
 3. Ensure the canvas window is still open
 

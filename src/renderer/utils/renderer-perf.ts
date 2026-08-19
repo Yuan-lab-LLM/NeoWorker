@@ -72,7 +72,7 @@ type RendererPerfState = {
 
 declare global {
   interface Window {
-    __coworkRendererPerfState__?: RendererPerfState;
+    __neoworkerRendererPerfState__?: RendererPerfState;
   }
 }
 
@@ -88,13 +88,17 @@ const MAX_ACTIONABLE_FRAME_GAP_MS = 1_000;
 const RENDERER_PERF_STATE_SCHEMA_VERSION = 3;
 
 function isRendererPerfEnabled(enabled?: boolean): boolean {
-  return Boolean(enabled && typeof window !== "undefined" && typeof performance !== "undefined");
+  return Boolean(
+    enabled &&
+    typeof window !== "undefined" &&
+    typeof performance !== "undefined",
+  );
 }
 
 function getState(): RendererPerfState | null {
   if (typeof window === "undefined") return null;
-  if (!window.__coworkRendererPerfState__) {
-    window.__coworkRendererPerfState__ = {
+  if (!window.__neoworkerRendererPerfState__) {
+    window.__neoworkerRendererPerfState__ = {
       schemaVersion: RENDERER_PERF_STATE_SCHEMA_VERSION,
       metrics: new Map(),
       renders: new Map(),
@@ -115,10 +119,13 @@ function getState(): RendererPerfState | null {
       longTaskObserverStarted: false,
       longTaskObserver: null,
     };
-  } else if (window.__coworkRendererPerfState__.schemaVersion !== RENDERER_PERF_STATE_SCHEMA_VERSION) {
-    migrateRendererPerfState(window.__coworkRendererPerfState__);
+  } else if (
+    window.__neoworkerRendererPerfState__.schemaVersion !==
+    RENDERER_PERF_STATE_SCHEMA_VERSION
+  ) {
+    migrateRendererPerfState(window.__neoworkerRendererPerfState__);
   }
-  return window.__coworkRendererPerfState__;
+  return window.__neoworkerRendererPerfState__;
 }
 
 function migrateRendererPerfState(state: RendererPerfState): void {
@@ -131,7 +138,10 @@ function migrateRendererPerfState(state: RendererPerfState): void {
 
 function percentile(sorted: number[], ratio: number): number {
   if (sorted.length === 0) return 0;
-  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1));
+  const index = Math.min(
+    sorted.length - 1,
+    Math.max(0, Math.ceil(sorted.length * ratio) - 1),
+  );
   return sorted[index] ?? 0;
 }
 
@@ -140,7 +150,9 @@ function cleanupTaskEventTraces(state: RendererPerfState, nowMs: number): void {
     const ageMs = nowMs - (trace.appendedAtMs ?? trace.receivedAtMs);
     if (ageMs > TASK_EVENT_TTL_MS) {
       if (trace.renderable && !trace.visibleRecorded) {
-        const bucket = state.counters.get("task-event.visible_trace_expired_count") ?? { value: 0, windowValue: 0 };
+        const bucket = state.counters.get(
+          "task-event.visible_trace_expired_count",
+        ) ?? { value: 0, windowValue: 0 };
         bucket.value += 1;
         bucket.windowValue += 1;
         state.counters.set("task-event.visible_trace_expired_count", bucket);
@@ -162,7 +174,9 @@ function cleanupTaskEventTraces(state: RendererPerfState, nowMs: number): void {
   }
 }
 
-function getTaskEventAlias(event: Pick<TaskEvent, "id" | "eventId">): string | null {
+function getTaskEventAlias(
+  event: Pick<TaskEvent, "id" | "eventId">,
+): string | null {
   if (typeof event.eventId === "string" && event.eventId.trim().length > 0) {
     return event.eventId;
   }
@@ -178,7 +192,7 @@ function resolveTaskEventTrace(
   if (direct) return direct;
   if (typeof event === "string") {
     const canonicalId = state.taskEventAliases.get(event);
-    return canonicalId ? state.taskEvents.get(canonicalId) ?? null : null;
+    return canonicalId ? (state.taskEvents.get(canonicalId) ?? null) : null;
   }
 
   const aliasCandidates = [event.id];
@@ -197,7 +211,10 @@ function resolveTaskEventTrace(
   return null;
 }
 
-function deleteTaskEventTrace(state: RendererPerfState, trace: TaskEventTrace): void {
+function deleteTaskEventTrace(
+  state: RendererPerfState,
+  trace: TaskEventTrace,
+): void {
   state.taskEvents.delete(trace.eventId);
   if (trace.aliasId) {
     state.taskEventAliases.delete(trace.aliasId);
@@ -257,7 +274,11 @@ function formatPerfMark(
   return `[Mark] ${name} at ${atMs.toFixed(1)}ms${suffix}`;
 }
 
-function addRendererPerfSample(state: RendererPerfState, name: string, valueMs: number): void {
+function addRendererPerfSample(
+  state: RendererPerfState,
+  name: string,
+  valueMs: number,
+): void {
   if (!Number.isFinite(valueMs) || valueMs < 0) return;
   const bucket = state.metrics.get(name) ?? { samples: [] };
   bucket.samples.push(valueMs);
@@ -326,7 +347,11 @@ function flushRendererPerfReport(state: RendererPerfState): void {
     bucket.windowValue = 0;
   }
 
-  if (metricSummaries.length === 0 && renderSummaries.length === 0 && counterSummaries.length === 0) {
+  if (
+    metricSummaries.length === 0 &&
+    renderSummaries.length === 0 &&
+    counterSummaries.length === 0
+  ) {
     return;
   }
 
@@ -353,7 +378,10 @@ function scheduleRendererPerfReport(state: RendererPerfState): void {
 }
 
 function startRendererPerfMonitors(state: RendererPerfState): void {
-  if (!state.frameMonitorStarted && typeof window.requestAnimationFrame === "function") {
+  if (
+    !state.frameMonitorStarted &&
+    typeof window.requestAnimationFrame === "function"
+  ) {
     state.frameMonitorStarted = true;
     const scheduleNextFrame = () => {
       if (state.frameMonitorTimer != null) return;
@@ -386,7 +414,11 @@ function startRendererPerfMonitors(state: RendererPerfState): void {
     try {
       const observer = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
-          recordRendererPerfSample("renderer.long_task_ms", entry.duration, true);
+          recordRendererPerfSample(
+            "renderer.long_task_ms",
+            entry.duration,
+            true,
+          );
           incrementRendererPerfCounter("renderer.long_task_count", true);
         }
       });
@@ -398,7 +430,11 @@ function startRendererPerfMonitors(state: RendererPerfState): void {
   }
 }
 
-export function measureRendererPerf<T>(name: string, enabled: boolean | undefined, fn: () => T): T {
+export function measureRendererPerf<T>(
+  name: string,
+  enabled: boolean | undefined,
+  fn: () => T,
+): T {
   if (!isRendererPerfEnabled(enabled)) {
     return fn();
   }
@@ -415,7 +451,11 @@ export function recordRendererPerfSample(
   valueMs: number,
   enabled?: boolean,
 ): void {
-  if (!isRendererPerfEnabled(enabled) || !Number.isFinite(valueMs) || valueMs < 0) {
+  if (
+    !isRendererPerfEnabled(enabled) ||
+    !Number.isFinite(valueMs) ||
+    valueMs < 0
+  ) {
     return;
   }
   const state = getState();
@@ -429,7 +469,8 @@ export function markRendererStartup(
   enabled?: boolean,
   details?: Record<string, unknown>,
 ): void {
-  if (typeof window === "undefined" || typeof performance === "undefined") return;
+  if (typeof window === "undefined" || typeof performance === "undefined")
+    return;
   const state = getState();
   if (!state) return;
   if (!state.startupMarks.has(name)) {
@@ -500,7 +541,8 @@ export function incrementRendererPerfCounter(
   enabled?: boolean,
   delta: number = 1,
 ): void {
-  if (!isRendererPerfEnabled(enabled) || !Number.isFinite(delta) || delta <= 0) return;
+  if (!isRendererPerfEnabled(enabled) || !Number.isFinite(delta) || delta <= 0)
+    return;
   const state = getState();
   if (!state) return;
   const bucket = state.counters.get(name) ?? { value: 0, windowValue: 0 };
@@ -546,7 +588,10 @@ export function noteRendererTaskEventQueued(
 }
 
 export function noteRendererTaskEventsAppended(
-  entries: Array<{ event: Pick<TaskEvent, "id" | "type">; queuedAtMs?: number }>,
+  entries: Array<{
+    event: Pick<TaskEvent, "id" | "type">;
+    queuedAtMs?: number;
+  }>,
   enabled?: boolean,
 ): void {
   if (!isRendererPerfEnabled(enabled) || entries.length === 0) return;
@@ -559,14 +604,22 @@ export function noteRendererTaskEventsAppended(
     const queuedAtMs = entry.queuedAtMs ?? trace.queuedAtMs;
     trace.appendedAtMs = nowMs;
     if (queuedAtMs != null) {
-      recordRendererPerfSample("task-event.batch_wait_ms", nowMs - queuedAtMs, enabled);
+      recordRendererPerfSample(
+        "task-event.batch_wait_ms",
+        nowMs - queuedAtMs,
+        enabled,
+      );
       recordRendererPerfSample(
         `task-event.${entry.event.type}.batch_wait_ms`,
         nowMs - queuedAtMs,
         enabled,
       );
     }
-    recordRendererPerfSample("task-event.received_to_append_ms", nowMs - trace.receivedAtMs, enabled);
+    recordRendererPerfSample(
+      "task-event.received_to_append_ms",
+      nowMs - trace.receivedAtMs,
+      enabled,
+    );
     recordRendererPerfSample(
       `task-event.${entry.event.type}.received_to_append_ms`,
       nowMs - trace.receivedAtMs,
@@ -612,7 +665,10 @@ export function noteRendererTaskEventsAppendDispatched(
   }
 }
 
-function flushPendingVisibleEvents(state: RendererPerfState, enabled?: boolean): void {
+function flushPendingVisibleEvents(
+  state: RendererPerfState,
+  enabled?: boolean,
+): void {
   state.visibleFrame1 = null;
   state.visibleFrame2 = null;
   if (state.pendingVisibleEvents.size === 0) return;
@@ -620,17 +676,36 @@ function flushPendingVisibleEvents(state: RendererPerfState, enabled?: boolean):
   state.pendingVisibleEvents.clear();
   const nowMs = performance.now();
   for (const [eventId, pendingVisible] of pending) {
-    const recorded = recordTaskEventVisibleFromTrace(eventId, pendingVisible.location, enabled);
+    const recorded = recordTaskEventVisibleFromTrace(
+      eventId,
+      pendingVisible.location,
+      enabled,
+    );
     if (!recorded) {
       const trace = resolveTaskEventTrace(state, eventId);
       const nextAttempts = pendingVisible.attempts + 1;
       const ageMs = nowMs - pendingVisible.firstQueuedAtMs;
-      if (!trace && (nextAttempts >= MAX_PENDING_VISIBLE_ATTEMPTS || ageMs >= PENDING_VISIBLE_TTL_MS)) {
-        incrementRendererPerfCounter("task-event.visible_drop_no_trace_count", enabled);
+      if (
+        !trace &&
+        (nextAttempts >= MAX_PENDING_VISIBLE_ATTEMPTS ||
+          ageMs >= PENDING_VISIBLE_TTL_MS)
+      ) {
+        incrementRendererPerfCounter(
+          "task-event.visible_drop_no_trace_count",
+          enabled,
+        );
         continue;
       }
-      if (trace && !trace.renderable && (nextAttempts >= MAX_PENDING_VISIBLE_ATTEMPTS || ageMs >= PENDING_VISIBLE_TTL_MS)) {
-        incrementRendererPerfCounter("task-event.visible_drop_not_renderable_count", enabled);
+      if (
+        trace &&
+        !trace.renderable &&
+        (nextAttempts >= MAX_PENDING_VISIBLE_ATTEMPTS ||
+          ageMs >= PENDING_VISIBLE_TTL_MS)
+      ) {
+        incrementRendererPerfCounter(
+          "task-event.visible_drop_not_renderable_count",
+          enabled,
+        );
         continue;
       }
       state.pendingVisibleEvents.set(eventId, {
@@ -644,7 +719,10 @@ function flushPendingVisibleEvents(state: RendererPerfState, enabled?: boolean):
   }
 }
 
-function schedulePendingVisibleEvents(state: RendererPerfState, enabled?: boolean): void {
+function schedulePendingVisibleEvents(
+  state: RendererPerfState,
+  enabled?: boolean,
+): void {
   if (state.visibleFrame1 != null || state.visibleFrame2 != null) return;
   state.visibleFrame1 = window.requestAnimationFrame(() => {
     state.visibleFrame1 = null;
@@ -667,7 +745,11 @@ function recordTaskEventVisibleFromTrace(
   const nowMs = performance.now();
   trace.visibleRecorded = true;
   incrementRendererPerfCounter("task-event.visible_recorded_count", enabled);
-  recordRendererPerfSample("task-event.received_to_visible_ms", nowMs - trace.receivedAtMs, enabled);
+  recordRendererPerfSample(
+    "task-event.received_to_visible_ms",
+    nowMs - trace.receivedAtMs,
+    enabled,
+  );
   recordRendererPerfSample(
     `task-event.${trace.type}.received_to_visible_ms`,
     nowMs - trace.receivedAtMs,
@@ -714,7 +796,10 @@ export function markTaskEventRenderable(
   }
   const trace = resolveTaskEventTrace(state, event);
   if (!trace) {
-    incrementRendererPerfCounter("task-event.renderable_without_trace_count", enabled);
+    incrementRendererPerfCounter(
+      "task-event.renderable_without_trace_count",
+      enabled,
+    );
     return;
   }
   trace.renderable = true;
@@ -740,7 +825,10 @@ export function markTaskEventVisible(
     return;
   }
   if (state.pendingVisibleEvents.size >= MAX_PENDING_VISIBLE_EVENTS) {
-    incrementRendererPerfCounter("task-event.visible_queue_overflow_count", enabled);
+    incrementRendererPerfCounter(
+      "task-event.visible_queue_overflow_count",
+      enabled,
+    );
     return;
   }
   const pendingVisible = {
@@ -750,7 +838,11 @@ export function markTaskEventVisible(
   };
   state.pendingVisibleEvents.set(event.id, pendingVisible);
   const alias = getTaskEventAlias(event);
-  if (alias && alias !== event.id && state.pendingVisibleEvents.size < MAX_PENDING_VISIBLE_EVENTS) {
+  if (
+    alias &&
+    alias !== event.id &&
+    state.pendingVisibleEvents.size < MAX_PENDING_VISIBLE_EVENTS
+  ) {
     state.pendingVisibleEvents.set(alias, pendingVisible);
   }
   schedulePendingVisibleEvents(state, enabled);

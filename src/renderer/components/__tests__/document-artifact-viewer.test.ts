@@ -22,10 +22,14 @@ describe("DocumentArtifactViewer", () => {
     );
 
     expect(markup.match(/sample\.docx/g)?.length).toBe(1);
-    expect(markup).toContain("Open document in full screen");
+    expect(markup).toContain("全屏打开文档");
+    expect(markup).toContain("document-zoom-controls");
+    expect(markup).toContain("100%");
+    expect(markup).toMatch(/Folder|文件夹/);
+    expect(markup).toMatch(/Download|下载/);
   });
 
-  it("renders fullscreen turn context collapsed by default", () => {
+  it("keeps the latest update visible when fullscreen turn context is collapsed", () => {
     const markup = render(
       React.createElement(DocumentArtifactViewer, {
         filePath: "/workspace/sample.docx",
@@ -46,7 +50,28 @@ describe("DocumentArtifactViewer", () => {
 
     expect(markup).toContain("spreadsheet-viewer-turn-frame collapsed");
     expect(markup).toContain("Latest turn");
-    expect(markup).not.toContain("Created the sample document.");
+    expect(markup).toContain("Created the sample document.");
+  });
+
+  it("uses the compact workbench header for PDF files", () => {
+    const markup = render(
+      React.createElement(DocumentArtifactViewer, {
+        filePath: "/workspace/report.pdf",
+        workspacePath: "/workspace",
+        mode: "sidebar",
+        onClose: () => {},
+        onFullscreen: () => {},
+        onExitFullscreen: () => {},
+      }),
+    );
+
+    expect(markup).toContain("document-viewer-pdf");
+    expect(markup).toContain("document-viewer-tab-meta");
+    expect(markup).toContain("PDF");
+    expect(markup).toContain("文档缩放控制");
+    expect(markup).toMatch(/Folder|文件夹/);
+    expect(markup).toMatch(/Download|下载/);
+    expect(markup).not.toContain("document-viewer-titlebar");
   });
 
   it("does not render edit controls before a DOCX preview is loaded", () => {
@@ -61,7 +86,7 @@ describe("DocumentArtifactViewer", () => {
       }),
     );
 
-    expect(markup).not.toContain(">Edit</button>");
-    expect(markup).toContain("Copy");
+    expect(markup).not.toContain(">编辑</button>");
+    expect(markup).toContain("复制");
   });
 });

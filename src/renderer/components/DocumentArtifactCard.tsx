@@ -3,9 +3,11 @@ import { createPortal } from "react-dom";
 import { ArrowUpRight, FolderOpen } from "lucide-react";
 import {
   canPreviewDocumentInApp,
-  getDocumentFileExtension,
   getDocumentFormatLabel,
 } from "../../shared/document-formats";
+import { translate, useLanguage } from "../i18n";
+import { ArtifactFileTypeIcon } from "./ArtifactFileTypeIcon";
+import { ArtifactDownloadButton } from "./ArtifactDownloadButton";
 
 type DocumentArtifactCardProps = {
   filePath: string;
@@ -17,28 +19,23 @@ function getFileName(filePath: string): string {
   return filePath.split(/[\\/]/).pop() || filePath;
 }
 
-function getDocumentIconLabel(filePath: string): string {
-  const extension = getDocumentFileExtension(filePath);
-  if (extension === ".md" || extension === ".markdown") return "M";
-  if (extension === ".pages") return "P";
-  if (extension === ".rtf") return "R";
-  if (extension === ".odt" || extension === ".ott") return "O";
-  return "W";
-}
-
 export function DocumentArtifactCard({
   filePath,
   workspacePath,
   onOpenViewer,
 }: DocumentArtifactCardProps) {
+  useLanguage();
+  const t = translate;
   const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
   const actionsRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const fileName = getFileName(filePath);
   const formatLabel = getDocumentFormatLabel(filePath);
   const canOpenInViewer = canPreviewDocumentInApp(filePath);
-  const iconLabel = getDocumentIconLabel(filePath);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -108,9 +105,10 @@ export function DocumentArtifactCard({
 
   return (
     <div className="document-artifact-card">
-      <div className="document-artifact-icon" aria-hidden="true">
-        <span>{iconLabel}</span>
-      </div>
+      <ArtifactFileTypeIcon
+        filePath={filePath}
+        className="document-artifact-icon"
+      />
       <button
         type="button"
         className="document-artifact-file"
@@ -118,24 +116,28 @@ export function DocumentArtifactCard({
         title={fileName}
       >
         <span className="document-artifact-name">{fileName}</span>
-        <span className="document-artifact-meta">Document · {formatLabel}</span>
+        <span className="document-artifact-meta">
+          {t("artifactCard.documentMeta", "Document · {format}", {
+            format: formatLabel,
+          })}
+        </span>
       </button>
       <div className="document-artifact-actions" ref={actionsRef}>
         <button
           type="button"
           className="document-artifact-open"
           onClick={handleOpenViewer}
-          title="Open document preview"
+          title={t("artifactCard.openDocumentPreview", "Open document preview")}
         >
           <ArrowUpRight size={18} strokeWidth={2} />
-          <span>Open</span>
+          <span>{t("common.open", "Open")}</span>
         </button>
         <button
           type="button"
           className="document-artifact-menu-btn"
           onClick={() => setMenuOpen((current) => !current)}
-          title="Open options"
-          aria-label="Open options"
+          title={t("artifactCard.openOptions", "Open options")}
+          aria-label={t("artifactCard.openOptions", "Open options")}
           aria-expanded={menuOpen}
           aria-haspopup="menu"
         >
@@ -147,9 +149,19 @@ export function DocumentArtifactCard({
             fill="none"
             aria-hidden="true"
           >
-            <path d="M3.5 5.25L7 8.75L10.5 5.25" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M3.5 5.25L7 8.75L10.5 5.25"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </button>
+        <ArtifactDownloadButton
+          filePath={filePath}
+          workspacePath={workspacePath}
+        />
       </div>
       {menuOpen &&
         menuPosition &&
@@ -158,17 +170,34 @@ export function DocumentArtifactCard({
             className="document-artifact-menu"
             ref={menuRef}
             role="menu"
-            style={{ position: "fixed", top: menuPosition.top, left: menuPosition.left, right: "auto" }}
+            style={{
+              position: "fixed",
+              top: menuPosition.top,
+              left: menuPosition.left,
+              right: "auto",
+            }}
           >
-            <button type="button" role="menuitem" onClick={() => handleOpenWithApp("Microsoft Word")}>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleOpenWithApp("Microsoft Word")}
+            >
               <span className="document-artifact-app-icon word">W</span>
               Microsoft Word
             </button>
-            <button type="button" role="menuitem" onClick={() => handleOpenWithApp("Pages")}>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleOpenWithApp("Pages")}
+            >
               <span className="document-artifact-app-icon pages">P</span>
               Pages
             </button>
-            <button type="button" role="menuitem" onClick={() => handleOpenWithApp("TextEdit")}>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleOpenWithApp("TextEdit")}
+            >
               <span className="document-artifact-app-icon textedit">T</span>
               TextEdit
             </button>
@@ -177,7 +206,7 @@ export function DocumentArtifactCard({
               <span className="document-artifact-app-icon finder">
                 <FolderOpen size={14} />
               </span>
-              Open in folder
+              {t("common.openInFolder", "Open in folder")}
             </button>
           </div>,
           document.body,

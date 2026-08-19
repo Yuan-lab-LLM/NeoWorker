@@ -12,7 +12,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 describe("getSafeStorage", () => {
   beforeEach(() => {
     vi.resetModules();
-    delete process.env.COWORK_DISABLE_OS_KEYCHAIN;
+    delete process.env.NEOWORKER_DISABLE_OS_KEYCHAIN;
   });
 
   it("returns null when electron does not provide safeStorage (test env)", async () => {
@@ -43,8 +43,8 @@ describe("getSafeStorage", () => {
     vi.doUnmock("electron");
   });
 
-  it("supports disabling OS keychain access via COWORK_DISABLE_OS_KEYCHAIN", async () => {
-    process.env.COWORK_DISABLE_OS_KEYCHAIN = "1";
+  it("supports disabling OS keychain access via NEOWORKER_DISABLE_OS_KEYCHAIN", async () => {
+    process.env.NEOWORKER_DISABLE_OS_KEYCHAIN = "1";
 
     vi.doMock("electron", () => ({
       safeStorage: {

@@ -2,18 +2,18 @@
 
 ## Production-Ready Implementation
 
-CoWork OS is a **security-first, GUI-first, CLI-capable local AI super app and everything app** with multi-channel messaging support, visual agent management, a terminal entrypoint, comprehensive guardrails, and extensive test coverage.
+NeoWorker is a **security-first, GUI-first, CLI-capable local AI super app and everything app** with multi-channel messaging support, visual agent management, a terminal entrypoint, comprehensive guardrails, and extensive test coverage.
 
-### What CoWork OS Is
+### What NeoWorker Is
 
-- **Personal AI Super App**: Code, email, research, create documents, work with spreadsheets and decks, test web pages, automate work, and manage agents from the desktop app or the `cowork` CLI
+- **Personal AI Super App**: Code, email, research, create documents, work with spreadsheets and decks, test web pages, automate work, and manage agents from the desktop app or the `neoworker` CLI
 - **GUI-first Agent Management**: Create reusable agents, spawn many runs, inspect timelines, assign work, and monitor teams through Agents Hub, Mission Control, task boards, and approval dialogs
-- **CoWork CLI**: Run `cowork` for an interactive terminal UI or `cowork run "task"` for local one-shot work using the same local profile and providers as the desktop app
+- **NeoWorker CLI**: Run `neoworker` for an interactive terminal UI or `neoworker run "task"` for local one-shot work using the same local profile and providers as the desktop app
 - **Personal AI Gateway**: Connect your AI assistant to WhatsApp, Telegram, Discord, Slack, and iMessage
 - **Everything Workbench**: Create, open, review, edit, and revise generated documents, spreadsheets, presentations, web pages, PDFs, and previews from the same local-first task workspace
-- **Managed Devices**: Operate local and remote CoWork machines from a dedicated Devices tab
+- **Managed Devices**: Operate local and remote NeoWorker machines from a dedicated Devices tab
 - **Automations Surface**: One settings group for queueing, scheduling, triggers, briefing, and Workflow Intelligence suggestions/reflection/Dreaming; task view can also create task-sourced routines that continue the current thread by default
-- **Renderer Performance**: Sidebar and timeline virtualization in the `CoWork-OS/CoWork-OS` repo use `@chenglou/pretext` for text measurement and keep long task feeds responsive
+- **Renderer Performance**: Sidebar and timeline virtualization in the `NeoWorker/NeoWorker` repo use `@chenglou/pretext` for text measurement and keep long task feeds responsive
 - **Security-First Design**: 4,932 automated tests across 390 test files, configurable guardrails, layered permission rules, workspace-local policy files, and approval workflows
 - **Imported Capability Security**: managed skill and pack imports are staged, scanned, reported, and quarantined when blocked instead of being activated directly
 - **Multi-Provider Support**: 36 LLM provider options including free local models via Ollama, OpenRouter coding routers, Grok through xAI API key or SuperGrok OAuth, and Mixture of Agents presets
@@ -224,7 +224,7 @@ CoWork OS is a **security-first, GUI-first, CLI-capable local AI super app and e
 - [x] Priority-based sorting
 - [x] Parameter input modal for skill variables
 - [x] Managed import scanning, persisted security reports, quarantine, and digest recheck for imported skill bundles
-- [x] Located: `~/Library/Application Support/cowork-os/skills/`
+- [x] Located: `~/Library/Application Support/neoworker/skills/`
 
 #### Research Vault Workflow
 - [x] First-class bundled `llm-wiki` skill
@@ -245,7 +245,7 @@ CoWork OS is a **security-first, GUI-first, CLI-capable local AI super app and e
 
 #### MCP (Model Context Protocol)
 - [x] MCP Client - Connect to external MCP servers
-- [x] MCP Host - Expose CoWork's tools as MCP server
+- [x] MCP Host - Expose NeoWorker's tools as MCP server
 - [x] MCP Registry - One-click server installation
 - [x] SSE and WebSocket transports
 - [x] Located: `src/electron/mcp/`
@@ -342,7 +342,7 @@ CoWork OS is a **security-first, GUI-first, CLI-capable local AI super app and e
 ## File Structure
 
 ```
-cowork-os/
+neoworker/
 ├── src/
 │   ├── electron/
 │   │   ├── main.ts
@@ -446,7 +446,7 @@ Operations Requiring Approval:
 - **Status**: Planned
 - **Spec**: `docs/agent-integrity-and-trap-defense-spec.md`
 - **Why it matters**:
-  - hardens CoWork OS against hidden-content prompt injection, semantic manipulation, poisoned memory, malicious delegation, and approval-fatigue attacks
+  - hardens NeoWorker against hidden-content prompt injection, semantic manipulation, poisoned memory, malicious delegation, and approval-fatigue attacks
   - turns current non-blocking prompt-injection detection into a durable runtime integrity model spanning ingestion, memory, permissions, delegation, and operator review
 - **Planned phases**:
   - Phase 1: content integrity records and task-level risk classification for web, browser, scraping, email, and imported documents
@@ -573,13 +573,13 @@ Expected behavior:
 
 ## Summary
 
-**CoWork OS is a production-ready, security-first, GUI-first, CLI-capable local AI super app and everything app:**
+**NeoWorker is a production-ready, security-first, GUI-first, CLI-capable local AI super app and everything app:**
 
 ### Core Strengths
 - **Security**: 4,932 automated tests across 390 test files, configurable guardrails, layered permission rules, approval workflows, and brute-force protection
 - **Multi-Channel**: WhatsApp, Telegram, Discord, Slack, iMessage integration
 - **Multi-Provider**: 36 LLM provider options and compatible gateways, including Claude, GPT, Gemini, Bedrock, OpenRouter Pareto Code routing, Ollama, Grok through xAI API key or SuperGrok OAuth, and Mixture of Agents presets
-- **GUI-first Agents + CLI entrypoint**: Agents Hub, Mission Control, visual task timelines, boards, and approval dialogs for creating, spawning, assigning, and monitoring many agents, plus `cowork` for local terminal starts against the same runtime
+- **GUI-first Agents + CLI entrypoint**: Agents Hub, Mission Control, visual task timelines, boards, and approval dialogs for creating, spawning, assigning, and monitoring many agents, plus `neoworker` for local terminal starts against the same runtime
 - **Local-First**: Your data stays on your machine, BYOK model
 - **Extensible**: MCP support (Client, Host, Registry), 151 built-in skills, and plugin packs
 

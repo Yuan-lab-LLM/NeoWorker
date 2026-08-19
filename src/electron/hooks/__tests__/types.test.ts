@@ -42,11 +42,11 @@ describe("hooks default values", () => {
     });
 
     it("should have correct default Gmail topic", () => {
-      expect(DEFAULT_GMAIL_TOPIC).toBe("cowork-gmail-watch");
+      expect(DEFAULT_GMAIL_TOPIC).toBe("neoworker-gmail-watch");
     });
 
     it("should have correct default Gmail subscription", () => {
-      expect(DEFAULT_GMAIL_SUBSCRIPTION).toBe("cowork-gmail-watch-push");
+      expect(DEFAULT_GMAIL_SUBSCRIPTION).toBe("neoworker-gmail-watch-push");
     });
 
     it("should have correct default Gmail serve bind", () => {

@@ -33,6 +33,8 @@ describe("IntegrationMentionText", () => {
   });
 
   it("does not render partial label matches as chips", () => {
-    expect(hasRenderableIntegrationMentions("@Gmailish", [gmailMention])).toBe(false);
+    expect(hasRenderableIntegrationMentions("@Gmailish", [gmailMention])).toBe(
+      false,
+    );
   });
 });

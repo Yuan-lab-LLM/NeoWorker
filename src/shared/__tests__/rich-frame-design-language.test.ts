@@ -60,7 +60,7 @@ describe("rich frame design language", () => {
   });
 
   it("respects explicit opt out", () => {
-    const html = '<html data-cowork-rich-frame-design="off"><body>Custom</body></html>';
+    const html = '<html data-neoworker-rich-frame-design="off"><body>Custom</body></html>';
     expect(applyRichFrameDesignLanguage(html)).toBe(html);
   });
 });

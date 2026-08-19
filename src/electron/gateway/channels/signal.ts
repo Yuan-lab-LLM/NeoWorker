@@ -77,7 +77,7 @@ export class SignalAdapter implements ChannelAdapter {
     };
 
     // Set up attachments directory
-    this.attachmentsDir = path.join(os.tmpdir(), "cowork-signal-attachments");
+    this.attachmentsDir = path.join(os.tmpdir(), "neoworker-signal-attachments");
     if (!fs.existsSync(this.attachmentsDir)) {
       fs.mkdirSync(this.attachmentsDir, { recursive: true });
     }

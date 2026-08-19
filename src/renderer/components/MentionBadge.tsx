@@ -7,7 +7,11 @@ interface MentionBadgeProps {
   onClick?: () => void;
 }
 
-export function MentionBadge({ agentRoleId, workspaceId, onClick }: MentionBadgeProps) {
+export function MentionBadge({
+  agentRoleId,
+  workspaceId,
+  onClick,
+}: MentionBadgeProps) {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
@@ -30,31 +34,33 @@ export function MentionBadge({ agentRoleId, workspaceId, onClick }: MentionBadge
     loadCount();
 
     // Subscribe to real-time mention events
-    const unsubscribe = window.electronAPI.onMentionEvent((event: MentionEvent) => {
-      if (event.type === "created") {
-        // Check if this mention is for our agent
-        if (
-          event.mention &&
-          (!agentRoleId || event.mention.toAgentRoleId === agentRoleId) &&
-          (!workspaceId || event.mention.workspaceId === workspaceId)
+    const unsubscribe = window.electronAPI.onMentionEvent(
+      (event: MentionEvent) => {
+        if (event.type === "created") {
+          // Check if this mention is for our agent
+          if (
+            event.mention &&
+            (!agentRoleId || event.mention.toAgentRoleId === agentRoleId) &&
+            (!workspaceId || event.mention.workspaceId === workspaceId)
+          ) {
+            setCount((prev) => prev + 1);
+          }
+        } else if (
+          event.type === "acknowledged" ||
+          event.type === "completed" ||
+          event.type === "dismissed"
         ) {
-          setCount((prev) => prev + 1);
+          // Decrement if this mention was pending
+          if (
+            event.mention &&
+            (!agentRoleId || event.mention.toAgentRoleId === agentRoleId) &&
+            (!workspaceId || event.mention.workspaceId === workspaceId)
+          ) {
+            setCount((prev) => Math.max(0, prev - 1));
+          }
         }
-      } else if (
-        event.type === "acknowledged" ||
-        event.type === "completed" ||
-        event.type === "dismissed"
-      ) {
-        // Decrement if this mention was pending
-        if (
-          event.mention &&
-          (!agentRoleId || event.mention.toAgentRoleId === agentRoleId) &&
-          (!workspaceId || event.mention.workspaceId === workspaceId)
-        ) {
-          setCount((prev) => Math.max(0, prev - 1));
-        }
-      }
-    });
+      },
+    );
 
     return () => unsubscribe();
   }, [agentRoleId, workspaceId]);

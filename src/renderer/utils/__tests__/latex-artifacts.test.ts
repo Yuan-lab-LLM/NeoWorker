@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { TaskEvent, TaskOutputSummary } from "../../../shared/types";
 import { findLatexPdfPair } from "../latex-artifacts";
 
-function event(type: TaskEvent["type"], payload: Record<string, unknown>): TaskEvent {
+function event(
+  type: TaskEvent["type"],
+  payload: Record<string, unknown>,
+): TaskEvent {
   return {
     id: `${type}-1`,
     taskId: "task-1",

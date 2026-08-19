@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Task, QueueStatus } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 interface TaskQueuePanelProps {
   tasks: Task[];
@@ -10,10 +11,18 @@ interface TaskQueuePanelProps {
 
 function formatTimeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 60) return "just now";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 60) return translate("time.justNow", "just now");
+  if (seconds < 3600)
+    return translate("time.minutesAgoShort", "{count}m ago", {
+      count: Math.floor(seconds / 60),
+    });
+  if (seconds < 86400)
+    return translate("time.hoursAgoShort", "{count}h ago", {
+      count: Math.floor(seconds / 3600),
+    });
+  return translate("time.daysAgoShort", "{count}d ago", {
+    count: Math.floor(seconds / 86400),
+  });
 }
 
 interface TaskQueueItemProps {
@@ -24,11 +33,21 @@ interface TaskQueueItemProps {
   onCancel: () => void;
 }
 
-function TaskQueueItem({ task, isRunning, position, onSelect, onCancel }: TaskQueueItemProps) {
+function TaskQueueItem({
+  task,
+  isRunning,
+  position,
+  onSelect,
+  onCancel,
+}: TaskQueueItemProps) {
+  useLanguage();
+  const t = translate;
   return (
     <div className="queue-item">
       <div className="queue-item-header">
-        <span className={`queue-item-status ${isRunning ? "running" : "queued"}`}>
+        <span
+          className={`queue-item-status ${isRunning ? "running" : "queued"}`}
+        >
           {isRunning ? (
             <span className="spinner" />
           ) : (
@@ -42,10 +61,10 @@ function TaskQueueItem({ task, isRunning, position, onSelect, onCancel }: TaskQu
       </p>
       <div className="queue-item-actions">
         <button className="queue-item-view" onClick={onSelect}>
-          View
+          {t("common.view", "View")}
         </button>
         <button className="queue-item-cancel" onClick={onCancel}>
-          Cancel
+          {t("common.cancel", "Cancel")}
         </button>
       </div>
     </div>
@@ -58,10 +77,16 @@ export function TaskQueuePanel({
   onSelectTask,
   onCancelTask,
 }: TaskQueuePanelProps) {
+  useLanguage();
+  const t = translate;
   const [isExpanded, setIsExpanded] = useState(true);
 
-  const runningTasks = tasks.filter((t) => queueStatus.runningTaskIds.includes(t.id));
-  const queuedTasks = tasks.filter((t) => queueStatus.queuedTaskIds.includes(t.id));
+  const runningTasks = tasks.filter((t) =>
+    queueStatus.runningTaskIds.includes(t.id),
+  );
+  const queuedTasks = tasks.filter((t) =>
+    queueStatus.queuedTaskIds.includes(t.id),
+  );
   const totalActive = queueStatus.runningCount + queueStatus.queuedCount;
 
   if (totalActive === 0) {
@@ -71,10 +96,13 @@ export function TaskQueuePanel({
   return (
     <div className="task-queue-panel">
       {/* Header */}
-      <button className="queue-panel-header" onClick={() => setIsExpanded(!isExpanded)}>
+      <button
+        className="queue-panel-header"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
         <div className="queue-panel-title">
           <span className="queue-icon">|||</span>
-          <span>Lineup</span>
+          <span>{t("taskQueue.lineup", "Lineup")}</span>
           {totalActive > 0 && (
             <span className="queue-badge">
               {queueStatus.runningCount}/{queueStatus.maxConcurrent}
@@ -82,7 +110,9 @@ export function TaskQueuePanel({
             </span>
           )}
         </div>
-        <span className={`queue-chevron ${isExpanded ? "expanded" : ""}`}>^</span>
+        <span className={`queue-chevron ${isExpanded ? "expanded" : ""}`}>
+          ^
+        </span>
       </button>
 
       {/* Content */}
@@ -91,7 +121,11 @@ export function TaskQueuePanel({
           {/* Active Sessions */}
           {runningTasks.length > 0 && (
             <div className="queue-section">
-              <div className="queue-section-header">ACTIVE ({runningTasks.length})</div>
+              <div className="queue-section-header">
+                {t("taskQueue.active", "ACTIVE ({count})", {
+                  count: runningTasks.length,
+                })}
+              </div>
               {runningTasks.map((task) => (
                 <TaskQueueItem
                   key={task.id}
@@ -107,7 +141,11 @@ export function TaskQueuePanel({
           {/* Next Up */}
           {queuedTasks.length > 0 && (
             <div className="queue-section">
-              <div className="queue-section-header">NEXT UP ({queuedTasks.length})</div>
+              <div className="queue-section-header">
+                {t("taskQueue.nextUp", "NEXT UP ({count})", {
+                  count: queuedTasks.length,
+                })}
+              </div>
               {queuedTasks.map((task, index) => (
                 <TaskQueueItem
                   key={task.id}
@@ -121,7 +159,11 @@ export function TaskQueuePanel({
             </div>
           )}
 
-          {totalActive === 0 && <div className="queue-empty">All done!</div>}
+          {totalActive === 0 && (
+            <div className="queue-empty">
+              {t("taskQueue.allDone", "All done!")}
+            </div>
+          )}
         </div>
       )}
     </div>

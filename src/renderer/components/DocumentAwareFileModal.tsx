@@ -13,10 +13,30 @@ export function DocumentAwareFileModal({
   onClose,
 }: DocumentAwareFileModalProps) {
   const lowerPath = filePath.toLowerCase();
-  if (lowerPath.endsWith(".pdf") || lowerPath.endsWith(".docx")) {
+  if (lowerPath.endsWith(".pdf")) {
     return (
-      <DocumentEditorModal filePath={filePath} workspacePath={workspacePath} onClose={onClose} />
+      <FileViewer
+        filePath={filePath}
+        workspacePath={workspacePath}
+        onClose={onClose}
+        variant="side-pane"
+      />
     );
   }
-  return <FileViewer filePath={filePath} workspacePath={workspacePath} onClose={onClose} />;
+  if (lowerPath.endsWith(".docx")) {
+    return (
+      <DocumentEditorModal
+        filePath={filePath}
+        workspacePath={workspacePath}
+        onClose={onClose}
+      />
+    );
+  }
+  return (
+    <FileViewer
+      filePath={filePath}
+      workspacePath={workspacePath}
+      onClose={onClose}
+    />
+  );
 }

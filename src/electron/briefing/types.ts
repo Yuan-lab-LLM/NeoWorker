@@ -71,7 +71,7 @@ export interface DailyBriefingServiceDeps {
   searchMemory: (workspaceId: string, query: string, limit: number) => Any[];
   /** Get active suggestions */
   getActiveSuggestions: (workspaceId: string) => Any[];
-  /** Get priorities from .cowork/PRIORITIES.md */
+  /** Get priorities from .neoworker/PRIORITIES.md */
   getPriorities: (workspaceId: string) => string | null;
   /** Get upcoming cron jobs */
   getUpcomingJobs: (workspaceId: string, limit: number) => Any[] | Promise<Any[]>;

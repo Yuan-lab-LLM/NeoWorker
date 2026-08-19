@@ -1,6 +1,6 @@
 # Asana MCP Connector (MVP)
 
-This connector exposes Asana APIs to CoWork OS through MCP tools.
+This connector exposes Asana APIs to NeoWorker through MCP tools.
 
 ## Requirements
 

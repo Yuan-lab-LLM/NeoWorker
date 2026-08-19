@@ -61,7 +61,7 @@ describe("AcpxRuntimeRunner helpers", () => {
   });
 
   it("builds deterministic session names", () => {
-    expect(getAcpxSessionName("task-123")).toBe("cowork-task-123");
+    expect(getAcpxSessionName("task-123")).toBe("neoworker-task-123");
   });
 
   it("maps permission modes to acpx flags", () => {
@@ -108,7 +108,7 @@ describe("AcpxRuntimeRunner helpers", () => {
           outputMode: "json",
           permissionMode: "deny-all",
         },
-        commandArgs: ["prompt", "--session", "cowork-task-1", "--file", "-"],
+        commandArgs: ["prompt", "--session", "neoworker-task-1", "--file", "-"],
       }),
     ).toEqual([
       "--format",
@@ -122,7 +122,7 @@ describe("AcpxRuntimeRunner helpers", () => {
       "codex",
       "prompt",
       "--session",
-      "cowork-task-1",
+      "neoworker-task-1",
       "--file",
       "-",
     ]);
@@ -139,7 +139,7 @@ describe("AcpxRuntimeRunner helpers", () => {
           outputMode: "json",
           permissionMode: "deny-all",
         },
-        commandArgs: ["prompt", "--session", "cowork-task-1", "--file", "-"],
+        commandArgs: ["prompt", "--session", "neoworker-task-1", "--file", "-"],
       }),
     ).toEqual([
       "--format",
@@ -153,7 +153,7 @@ describe("AcpxRuntimeRunner helpers", () => {
       "claude",
       "prompt",
       "--session",
-      "cowork-task-1",
+      "neoworker-task-1",
       "--file",
       "-",
     ]);
@@ -301,7 +301,7 @@ describe("AcpxRuntimeRunner", () => {
     childProcessMocks.spawn.mockReset();
   });
 
-  it("parses NDJSON prompt output into CoWork events and final assistant text", async () => {
+  it("parses NDJSON prompt output into NeoWorker events and final assistant text", async () => {
     const proc = createFakeProcess();
     childProcessMocks.spawn.mockReturnValue(proc);
     const events: Array<{ type: string; payload: Record<string, unknown> }> = [];
@@ -505,7 +505,7 @@ describe("AcpxRuntimeRunner", () => {
         "sessions",
         "new",
         "--name",
-        "cowork-task-1",
+        "neoworker-task-1",
       ],
       expect.any(Object),
     );
@@ -527,7 +527,7 @@ describe("AcpxRuntimeRunner", () => {
         "sessions",
         "new",
         "--name",
-        "cowork-task-1",
+        "neoworker-task-1",
       ],
       expect.any(Object),
     );
@@ -571,13 +571,13 @@ describe("AcpxRuntimeRunner", () => {
     expect(childProcessMocks.spawn).toHaveBeenNthCalledWith(
       3,
       "acpx",
-      ["claude", "cancel", "--session", "cowork-task-1"],
+      ["claude", "cancel", "--session", "neoworker-task-1"],
       expect.any(Object),
     );
     expect(childProcessMocks.spawn).toHaveBeenNthCalledWith(
       4,
       "npx",
-      ["-y", "acpx@latest", "claude", "cancel", "--session", "cowork-task-1"],
+      ["-y", "acpx@latest", "claude", "cancel", "--session", "neoworker-task-1"],
       expect.any(Object),
     );
   });

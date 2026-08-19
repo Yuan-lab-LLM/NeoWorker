@@ -6,10 +6,6 @@ Heartbeat v3 is the default background automation model exposed here. Mission Co
 
 Access it from **Settings** > **Mission Control**. For company-ops workflows, you can also jump into it directly from **Settings** > **Companies** with the selected company preloaded.
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-8.webp" alt="Mission Control board" width="700">
-  <br><em>Mission Control brings global runtime queue state, assigned board work, live feed, and review state into one operations view.</em>
-</p>
 
 Mission Control now sits alongside the other operational entry points:
 
@@ -112,7 +108,7 @@ The Brief tab includes a **Global Runtime Queue** card. It is sourced from the s
 - **Waiting** tasks are queued for the next available execution slot.
 - **Unavailable** means the queue service could not be read, so Mission Control cannot truthfully claim the queue is empty.
 
-This queue is global to the local CoWork runtime. It can include tasks from workspaces outside the current Mission Control workspace selector. When a queued task belongs outside the visible workspace scope, Mission Control still includes it in the global queue count and marks the row as outside scope instead of hiding the discrepancy.
+This queue is global to the local NeoWorker runtime. It can include tasks from workspaces outside the current Mission Control workspace selector. When a queued task belongs outside the visible workspace scope, Mission Control still includes it in the global queue count and marks the row as outside scope instead of hiding the discrepancy.
 
 The **Mission Board** remains workspace-scoped tracked work. A workspace can have no open board work while the global runtime queue still has running or waiting tasks.
 
@@ -156,7 +152,7 @@ Click any task card to see its full details:
 
 Task details now surface the new runtime visibility signals that used to live only in background services:
 
-- **What Cowork learned**: the completion card shows memory captured, playbook reinforcement, skill proposal state, evidence links, Chronicle-backed `screen_context` evidence when used, and the next action when a human review is needed
+- **What NeoWorker learned**: the completion card shows memory captured, playbook reinforcement, skill proposal state, evidence links, Chronicle-backed `screen_context` evidence when used, and the next action when a human review is needed
 - **Unified recall**: task detail search spans tasks, messages, files, workspace notes, memory entries, Chronicle `screen_context`, and knowledge-graph context from one surface
 - **Shell session status**: long-lived shell sessions show when cwd/env/alias state is being retained or reset, so operator workflows are easier to trust
 - **Model routing status**: the active provider/model, route reason, and fallback transitions are visible in the task UI and settings surfaces

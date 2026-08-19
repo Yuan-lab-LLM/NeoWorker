@@ -47,20 +47,20 @@ jobs:
           npm run qa:eval:run -- --suite reliability-regressions --mode deterministic \
             | tee .artifacts/hardening/eval-suite.log
         env:
-          COWORK_EVAL_ALLOW_EMPTY: '1'
+          NEOWORKER_EVAL_ALLOW_EMPTY: '1'
 
       - name: Run battery suite when hooks are configured
         id: run_battery
         continue-on-error: true
         env:
-          COWORK_HOOKS_ORIGIN: ${{ secrets.COWORK_HOOKS_ORIGIN }}
-          COWORK_HOOKS_TOKEN: ${{ secrets.COWORK_HOOKS_TOKEN }}
-          COWORK_DB_PATH: ${{ secrets.COWORK_DB_PATH }}
+          NEOWORKER_HOOKS_ORIGIN: ${{ secrets.NEOWORKER_HOOKS_ORIGIN }}
+          NEOWORKER_HOOKS_TOKEN: ${{ secrets.NEOWORKER_HOOKS_TOKEN }}
+          NEOWORKER_DB_PATH: ${{ secrets.NEOWORKER_DB_PATH }}
         run: |
-          if [ -n "${COWORK_HOOKS_ORIGIN}" ] && [ -n "${COWORK_HOOKS_TOKEN}" ] && [ -n "${COWORK_DB_PATH}" ]; then
+          if [ -n "${NEOWORKER_HOOKS_ORIGIN}" ] && [ -n "${NEOWORKER_HOOKS_TOKEN}" ] && [ -n "${NEOWORKER_DB_PATH}" ]; then
             node scripts/qa/run_battery.cjs | tee .artifacts/hardening/battery.log
           else
-            echo "Battery skipped: set COWORK_HOOKS_ORIGIN, COWORK_HOOKS_TOKEN, and COWORK_DB_PATH secrets." \
+            echo "Battery skipped: set NEOWORKER_HOOKS_ORIGIN, NEOWORKER_HOOKS_TOKEN, and NEOWORKER_DB_PATH secrets." \
               | tee .artifacts/hardening/battery.log
           fi
 

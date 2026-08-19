@@ -91,15 +91,77 @@ export class DocumentEditorSessionService {
     if (!rawPath) {
       throw new Error("File path is required.");
     }
-    const candidate = path.isAbsolute(rawPath)
-      ? path.resolve(rawPath)
-      : workspacePath
-        ? path.resolve(workspacePath, rawPath)
-        : path.resolve(rawPath);
-    if (!fsSync.existsSync(candidate)) {
-      throw new Error(`File not found: ${filePath}`);
+
+    // Task events can outlive workspace moves and older runs often saved only a
+    // basename. Keep the editor's lookup compatible with the regular file viewer:
+    // real artifacts may live under `.neoworker/` or `artifacts/`, not only at the
+    // workspace root. We deliberately do not recursively search the workspace so
+    // opening a document remains deterministic when duplicate file names exist.
+    const normalizedInput =
+      path.sep === "/" ? rawPath.replace(/\\/g, "/") : rawPath.replace(/\//g, "\\");
+    const normalizedWorkspace = workspacePath ? path.resolve(workspacePath) : "";
+    const candidates: string[] = [];
+    const seen = new Set<string>();
+    const addCandidate = (candidate: string) => {
+      if (!candidate) return;
+      const resolved = path.resolve(candidate);
+      if (seen.has(resolved)) return;
+      seen.add(resolved);
+      candidates.push(resolved);
+    };
+    const basename = path.basename(normalizedInput);
+    const pathSegments = normalizedInput.split(/[\\/]+/).filter(Boolean);
+    const hasParentTraversal = pathSegments.includes("..");
+    const relativeInput = normalizedInput
+      .replace(/^\.([\\/])/, "")
+      .replace(/^[\\/]+/, "");
+
+    if (path.isAbsolute(normalizedInput)) {
+      addCandidate(normalizedInput);
+      if (normalizedWorkspace) {
+        if (basename && basename !== "." && basename !== "..") {
+          addCandidate(path.join(normalizedWorkspace, basename));
+          addCandidate(path.join(normalizedWorkspace, ".neoworker", basename));
+          addCandidate(path.join(normalizedWorkspace, "artifacts", basename));
+        }
+
+        // Remap stale absolute paths from a previous workspace location.
+        const neoworkerIndex = pathSegments.lastIndexOf(".neoworker");
+        if (neoworkerIndex >= 0 && neoworkerIndex < pathSegments.length - 1) {
+          addCandidate(
+            path.join(normalizedWorkspace, ".neoworker", ...pathSegments.slice(neoworkerIndex + 1)),
+          );
+        }
+        const artifactsIndex = pathSegments.lastIndexOf("artifacts");
+        if (artifactsIndex >= 0 && artifactsIndex < pathSegments.length - 1) {
+          addCandidate(
+            path.join(normalizedWorkspace, "artifacts", ...pathSegments.slice(artifactsIndex + 1)),
+          );
+        }
+      }
+    } else if (normalizedWorkspace) {
+      addCandidate(path.join(normalizedWorkspace, normalizedInput));
+      if (!hasParentTraversal) {
+        addCandidate(path.join(normalizedWorkspace, ".neoworker", relativeInput));
+        addCandidate(path.join(normalizedWorkspace, "artifacts", relativeInput));
+        if (basename && basename !== relativeInput) {
+          addCandidate(path.join(normalizedWorkspace, basename));
+          addCandidate(path.join(normalizedWorkspace, ".neoworker", basename));
+          addCandidate(path.join(normalizedWorkspace, "artifacts", basename));
+        }
+      }
+    } else {
+      addCandidate(normalizedInput);
     }
-    return fsSync.realpathSync(candidate);
+
+    for (const candidate of candidates) {
+      if (!fsSync.existsSync(candidate)) continue;
+      const stats = fsSync.statSync(candidate);
+      if (!stats.isFile()) continue;
+      return fsSync.realpathSync(candidate);
+    }
+
+    throw new Error(`Document file was not found in this workspace: ${path.basename(rawPath)}`);
   }
 
   private assertWritablePath(filePath: string, workspacePath?: string): void {

@@ -6,6 +6,8 @@ import {
   type RichFrameDesignOptions,
   type RichFrameTheme,
 } from "../../shared/rich-frame-design-language";
+import { repairHiddenHtmlContent } from "../../shared/html-content-visibility";
+import { translate, useLanguage } from "../i18n";
 
 type InlineHtmlPreviewVariant = "default" | "frame";
 
@@ -56,6 +58,14 @@ function extractHtmlTitle(htmlContent: string): string {
   return heading || "Interactive HTML";
 }
 
+export function isBootstrapHtmlPlaceholder(htmlContent: string): boolean {
+  const content = String(htmlContent || "").trim();
+  return (
+    content.length <= 1024 &&
+    /<p\b[^>]*>\s*Bootstrap artifact stub\.\s*<\/p>/i.test(content)
+  );
+}
+
 function normalizeCssLength(value?: string): string | undefined {
   const trimmed = String(value || "").trim();
   if (!trimmed) return undefined;
@@ -75,7 +85,9 @@ function normalizeAspectRatio(value?: string): string | undefined {
 
 function getCurrentRichFrameTheme(): RichFrameTheme {
   if (typeof document === "undefined") return "light";
-  return document.documentElement.classList.contains("theme-light") ? "light" : "dark";
+  return document.documentElement.classList.contains("theme-light")
+    ? "light"
+    : "dark";
 }
 
 function getCurrentRichFrameHostBackground(): string {
@@ -121,7 +133,9 @@ function buildFrameStyle({
     ...(height || ratio
       ? ({ "--inline-html-frame-height": height || "auto" } as CSSProperties)
       : {}),
-    ...(ratio ? ({ "--inline-html-frame-aspect-ratio": ratio } as CSSProperties) : {}),
+    ...(ratio
+      ? ({ "--inline-html-frame-aspect-ratio": ratio } as CSSProperties)
+      : {}),
   };
 }
 
@@ -134,6 +148,8 @@ function InlineHtmlHeader({
   subtitle?: string;
   onOpen?: () => void;
 }) {
+  useLanguage();
+  const t = translate;
   return (
     <div className="inline-html-header">
       <div className="inline-html-header-left">
@@ -162,8 +178,11 @@ function InlineHtmlHeader({
             className="inline-html-action-btn"
             type="button"
             onClick={onOpen}
-            title="Open preview"
-            aria-label="Open HTML preview"
+            title={t("inlinePreview.openPreview", "Open preview")}
+            aria-label={t(
+              "inlinePreview.html.openPreview",
+              "Open HTML preview",
+            )}
           >
             <ExternalLink size={16} strokeWidth={2.25} aria-hidden="true" />
           </button>
@@ -182,30 +201,53 @@ export function InlineHtmlSourcePreview({
   aspectRatio,
   showChrome = false,
 }: InlineHtmlSourcePreviewProps) {
+  useLanguage();
+  const t = translate;
   const displayTitle = title || extractHtmlTitle(htmlContent);
   const isFrame = variant === "frame";
   const hideChrome = isFrame && !showChrome;
   const style = buildFrameStyle({ frameHeight, aspectRatio });
   const frameDesignOptions = useRichFrameDesignOptions(isFrame);
   const previewHtmlContent = useMemo(
-    () => (isFrame ? applyRichFrameDesignLanguage(htmlContent, frameDesignOptions) : htmlContent),
+    () => {
+      const designedContent = isFrame
+        ? applyRichFrameDesignLanguage(htmlContent, frameDesignOptions)
+        : htmlContent;
+      return repairHiddenHtmlContent(designedContent).content;
+    },
     [frameDesignOptions, htmlContent, isFrame],
   );
+  const isBootstrapPlaceholder = isBootstrapHtmlPlaceholder(htmlContent);
 
   return (
     <div
       className={`inline-html-preview inline-html-preview-source ${isFrame ? "inline-html-preview-frame" : ""} ${className}`.trim()}
       style={style}
     >
-      {!hideChrome && <InlineHtmlHeader displayTitle={displayTitle} subtitle={isFrame ? "Frame" : "HTML form"} />}
-      <div className="inline-html-frame-wrap">
-        <iframe
-          className="inline-html-frame"
-          srcDoc={previewHtmlContent}
-          sandbox="allow-scripts allow-forms"
-          title={displayTitle}
+      {!hideChrome && (
+        <InlineHtmlHeader
+          displayTitle={displayTitle}
+          subtitle={
+            isFrame
+              ? t("inlinePreview.html.frame", "Frame")
+              : t("inlinePreview.html.form", "HTML form")
+          }
         />
-      </div>
+      )}
+      {isBootstrapPlaceholder ? (
+        <div className="inline-html-loading" role="status">
+          {t("inlinePreview.html.preparing", "Preparing HTML preview…")}
+        </div>
+      ) : (
+        <div className="inline-html-frame-wrap">
+          <iframe
+            className="inline-html-frame"
+            srcDoc={previewHtmlContent}
+            sandbox="allow-scripts allow-forms"
+            title={displayTitle}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -230,15 +272,22 @@ export function InlineHtmlPreview({
     return ["HTML", formatFileSize(result.size)].filter(Boolean).join(" • ");
   }, [result]);
 
-  const displayTitle = title || result?.fileName || filePath.split("/").pop() || filePath;
+  const displayTitle =
+    title || result?.fileName || filePath.split("/").pop() || filePath;
   const isFrame = variant === "frame";
   const hideChrome = isFrame && !showChrome;
   const style = buildFrameStyle({ frameHeight, aspectRatio });
   const frameDesignOptions = useRichFrameDesignOptions(isFrame);
   const previewHtmlContent = useMemo(() => {
     const htmlContent = result?.htmlContent || "";
-    return isFrame ? applyRichFrameDesignLanguage(htmlContent, frameDesignOptions) : htmlContent;
+    const designedContent = isFrame
+      ? applyRichFrameDesignLanguage(htmlContent, frameDesignOptions)
+      : htmlContent;
+    return repairHiddenHtmlContent(designedContent).content;
   }, [frameDesignOptions, isFrame, result?.htmlContent]);
+  const isBootstrapPlaceholder = isBootstrapHtmlPlaceholder(
+    result?.htmlContent || "",
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -249,7 +298,10 @@ export function InlineHtmlPreview({
       setResult(null);
 
       try {
-        const response = await window.electronAPI.readFileForViewer(filePath, workspacePath);
+        const response = await window.electronAPI.readFileForViewer(
+          filePath,
+          workspacePath,
+        );
         if (cancelled) return;
         if (!response.success || !response.data) {
           setError(response.error || "Failed to load HTML preview");
@@ -262,7 +314,9 @@ export function InlineHtmlPreview({
         setResult(response.data);
       } catch (e: unknown) {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : "Failed to load HTML preview");
+        setError(
+          e instanceof Error ? e.message : "Failed to load HTML preview",
+        );
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -278,6 +332,37 @@ export function InlineHtmlPreview({
       cancelled = true;
     };
   }, [filePath, workspacePath]);
+
+  useEffect(() => {
+    if (!isBootstrapPlaceholder || !filePath || !workspacePath) return;
+
+    let cancelled = false;
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      void window.electronAPI
+        .readFileForViewer(filePath, workspacePath)
+        .then((response) => {
+          if (
+            cancelled ||
+            !response.success ||
+            !response.data?.htmlContent ||
+            isBootstrapHtmlPlaceholder(response.data.htmlContent)
+          ) {
+            return;
+          }
+          setResult(response.data);
+        })
+        .catch(() => {
+          // The normal error surface remains authoritative. A transient refresh
+          // failure should not replace the compact "preparing" state.
+        });
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [filePath, isBootstrapPlaceholder, workspacePath]);
 
   const handleOpen = async () => {
     if (onOpenViewer) {
@@ -296,14 +381,26 @@ export function InlineHtmlPreview({
       className={`inline-html-preview ${isFrame ? "inline-html-preview-frame" : ""} ${className}`.trim()}
       style={style}
     >
-      {loading && <div className="inline-html-loading">Loading HTML preview…</div>}
+      {loading && (
+        <div className="inline-html-loading">Loading HTML preview…</div>
+      )}
 
       {!loading && error && <div className="inline-html-error">{error}</div>}
 
-      {!loading && !error && previewHtmlContent && (
+      {!loading && !error && isBootstrapPlaceholder && (
+        <div className="inline-html-loading" role="status">
+          {t("inlinePreview.html.preparing", "Preparing HTML preview…")}
+        </div>
+      )}
+
+      {!loading && !error && !isBootstrapPlaceholder && previewHtmlContent && (
         <>
           {!hideChrome && (
-            <InlineHtmlHeader displayTitle={displayTitle} subtitle={subtitle} onOpen={handleOpen} />
+            <InlineHtmlHeader
+              displayTitle={displayTitle}
+              subtitle={subtitle}
+              onOpen={handleOpen}
+            />
           )}
 
           <div className="inline-html-frame-wrap">

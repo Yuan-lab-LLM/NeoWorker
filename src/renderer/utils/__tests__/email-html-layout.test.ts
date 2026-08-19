@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { computeEmailFitScale, getEmailFitInset, measureEmailContentWidth } from "../email-html-layout";
+import {
+  computeEmailFitScale,
+  getEmailFitInset,
+  measureEmailContentWidth,
+} from "../email-html-layout";
 
 function createMockElement(
   metrics: Partial<{
@@ -18,10 +22,19 @@ function createMockElement(
   return element;
 }
 
-function createMockDocument(bodyScrollWidth = 0, documentScrollWidth = 0): Document {
+function createMockDocument(
+  bodyScrollWidth = 0,
+  documentScrollWidth = 0,
+): Document {
   return {
-    body: createMockElement({ width: bodyScrollWidth, scrollWidth: bodyScrollWidth }),
-    documentElement: createMockElement({ width: documentScrollWidth, scrollWidth: documentScrollWidth }),
+    body: createMockElement({
+      width: bodyScrollWidth,
+      scrollWidth: bodyScrollWidth,
+    }),
+    documentElement: createMockElement({
+      width: documentScrollWidth,
+      scrollWidth: documentScrollWidth,
+    }),
   } as unknown as Document;
 }
 
@@ -64,18 +77,29 @@ function setElementMetrics(
 describe("measureEmailContentWidth", () => {
   it("uses descendant painted bounds when fixed-width email tables overflow the root", () => {
     const doc = createMockDocument();
-    const invoice = createMockElement({ left: 80, width: 640, right: 720, scrollWidth: 640 });
+    const invoice = createMockElement({
+      left: 80,
+      width: 640,
+      right: 720,
+      scrollWidth: 640,
+    });
     const root = createMockElement({ left: 0, width: 500, scrollWidth: 500 });
-    root.querySelectorAll = () => [invoice] as unknown as NodeListOf<HTMLElement>;
+    root.querySelectorAll = () =>
+      [invoice] as unknown as NodeListOf<HTMLElement>;
 
     expect(measureEmailContentWidth(doc, root)).toBe(720);
   });
 
   it("accounts for nested element scroll width when the painted rect is constrained", () => {
     const doc = createMockDocument();
-    const wideCell = createMockElement({ left: 120, width: 300, scrollWidth: 760 });
+    const wideCell = createMockElement({
+      left: 120,
+      width: 300,
+      scrollWidth: 760,
+    });
     const root = createMockElement({ left: 20, width: 520, scrollWidth: 520 });
-    root.querySelectorAll = () => [wideCell] as unknown as NodeListOf<HTMLElement>;
+    root.querySelectorAll = () =>
+      [wideCell] as unknown as NodeListOf<HTMLElement>;
 
     expect(measureEmailContentWidth(doc, root)).toBe(860);
   });
@@ -93,7 +117,8 @@ describe("measureEmailContentWidth", () => {
         }) as DOMRect,
     } as unknown as HTMLElement;
     const root = createMockElement({ left: 0, width: 500, scrollWidth: 500 });
-    root.querySelectorAll = () => [vector] as unknown as NodeListOf<HTMLElement>;
+    root.querySelectorAll = () =>
+      [vector] as unknown as NodeListOf<HTMLElement>;
 
     expect(measureEmailContentWidth(doc, root)).toBe(500);
   });

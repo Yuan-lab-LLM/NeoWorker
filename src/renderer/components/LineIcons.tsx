@@ -7,7 +7,12 @@ export type IconProps = React.SVGProps<SVGSVGElement> & {
 
 type BaseIconProps = IconProps & { children: React.ReactNode };
 
-function BaseIcon({ size = 20, strokeWidth = 1.8, children, ...props }: BaseIconProps) {
+function BaseIcon({
+  size = 20,
+  strokeWidth = 1.8,
+  children,
+  ...props
+}: BaseIconProps) {
   return (
     <svg
       width={size}

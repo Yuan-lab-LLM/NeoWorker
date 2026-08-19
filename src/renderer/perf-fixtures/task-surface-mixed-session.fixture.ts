@@ -32,9 +32,21 @@ export const taskSurfacePerfFixtureEvents: TaskEvent[] = [
     plan: {
       description: "Plan",
       steps: [
-        { id: "step-1", description: "Inspect current state", status: "pending" },
-        { id: "step-2", description: "Run command and write files", status: "pending" },
-        { id: "step-3", description: "Summarize final result", status: "pending" },
+        {
+          id: "step-1",
+          description: "Inspect current state",
+          status: "pending",
+        },
+        {
+          id: "step-2",
+          description: "Run command and write files",
+          status: "pending",
+        },
+        {
+          id: "step-3",
+          description: "Summarize final result",
+          status: "pending",
+        },
       ],
     },
   }),
@@ -83,7 +95,8 @@ export const taskSurfacePerfFixtureEvents: TaskEvent[] = [
     result: { exitCode: 0 },
   }),
   makeEvent("assistant-1", 580, "assistant_message", {
-    message: "The task surface render path is now isolated from unrelated app-shell updates.",
+    message:
+      "The task surface render path is now isolated from unrelated app-shell updates.",
   }),
   makeEvent("step-complete-2", 640, "timeline_step_finished", {
     legacyType: "step_completed",
@@ -97,7 +110,8 @@ export const taskSurfacePerfFixtureEvents: TaskEvent[] = [
     message: "Allow opening the generated artifact?",
   }),
   makeEvent("task-complete-1", 860, "task_completed", {
-    resultSummary: "Completed successfully with a stable live transcript and bounded sidebar churn.",
+    resultSummary:
+      "Completed successfully with a stable live transcript and bounded sidebar churn.",
   }),
 ];
 

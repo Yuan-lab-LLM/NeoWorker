@@ -125,7 +125,7 @@ export async function inlineLocalHtmlPreviewAssets({
       styleReplacements.push({
         tag,
         replacement:
-          `<style data-cowork-inline-asset="${escapeAttributeContent(attrs.href)}">\n` +
+          `<style data-neoworker-inline-asset="${escapeAttributeContent(attrs.href)}">\n` +
           `${escapeStyleContent(css)}\n</style>`,
       });
     } catch {
@@ -155,7 +155,7 @@ export async function inlineLocalHtmlPreviewAssets({
       scriptReplacements.push({
         tag,
         replacement:
-          `<script data-cowork-inline-asset="${escapeAttributeContent(scriptUrl)}">\n` +
+          `<script data-neoworker-inline-asset="${escapeAttributeContent(scriptUrl)}">\n` +
           `${escapeScriptContent(js)}\n</script>`,
       });
     } catch {

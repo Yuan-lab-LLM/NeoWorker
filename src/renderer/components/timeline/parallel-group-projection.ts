@@ -6,6 +6,10 @@ import {
   friendlyToolRunningLabel,
   friendlyToolResultTitle,
 } from "../../utils/timeline-tool-labels";
+import {
+  isRecoverableWebSourceFailure,
+  isWebSourceTool,
+} from "../../../shared/web-source-failure";
 
 export interface ParallelLaneProjection {
   laneKey: string;
@@ -42,6 +46,9 @@ interface LaneAccumulator {
   status: TimelineEventStatus;
   startedAt: number;
   finishedAt?: number;
+  targetUrl?: string;
+  failureReason?: string;
+  recoverableSourceFailure?: boolean;
   firstOrder: number;
 }
 
@@ -63,7 +70,10 @@ function asObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function toTimelineStatus(value: unknown, fallback: TimelineEventStatus): TimelineEventStatus {
+function toTimelineStatus(
+  value: unknown,
+  fallback: TimelineEventStatus,
+): TimelineEventStatus {
   if (typeof value !== "string") return fallback;
   switch (value) {
     case "pending":
@@ -84,13 +94,18 @@ export function getEventGroupId(event: TaskEvent): string | null {
     return event.groupId.trim();
   }
   const payload = asObject(event.payload);
-  if (typeof payload.groupId === "string" && payload.groupId.trim().length > 0) {
+  if (
+    typeof payload.groupId === "string" &&
+    payload.groupId.trim().length > 0
+  ) {
     return payload.groupId.trim();
   }
   return null;
 }
 
-export function isToolsParallelGroupId(groupId: string | null | undefined): boolean {
+export function isToolsParallelGroupId(
+  groupId: string | null | undefined,
+): boolean {
   if (!groupId) return false;
   return groupId.trim().toLowerCase().startsWith("tools:");
 }
@@ -110,7 +125,9 @@ function extractStepId(event: TaskEvent): string | undefined {
   return undefined;
 }
 
-function extractToolUseIdFromStepId(stepId: string | undefined): string | undefined {
+function extractToolUseIdFromStepId(
+  stepId: string | undefined,
+): string | undefined {
   if (!stepId) return undefined;
   const match = /^tool_lane:(?:step|follow_up):(.+)$/i.exec(stepId.trim());
   if (!match || typeof match[1] !== "string") return undefined;
@@ -118,14 +135,18 @@ function extractToolUseIdFromStepId(stepId: string | undefined): string | undefi
   return toolUseId.length > 0 ? toolUseId : undefined;
 }
 
-function getToolCallIndex(payload: Record<string, unknown>): number | undefined {
+function getToolCallIndex(
+  payload: Record<string, unknown>,
+): number | undefined {
   const raw = payload.toolCallIndex;
   if (typeof raw !== "number" || !Number.isFinite(raw)) return undefined;
   const value = Math.floor(raw);
   return value > 0 ? value : undefined;
 }
 
-function getToolCorrelationId(payload: Record<string, unknown>): string | undefined {
+function getToolCorrelationId(
+  payload: Record<string, unknown>,
+): string | undefined {
   const toolUseId =
     typeof payload.toolUseId === "string" && payload.toolUseId.trim().length > 0
       ? payload.toolUseId.trim()
@@ -160,6 +181,24 @@ function laneTitleForToolName(toolName: string | undefined): string {
   return friendlyToolRunningLabel(toolName);
 }
 
+function compactUrl(url: string | undefined): string {
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    const suffix = `${parsed.pathname || ""}${parsed.search || ""}`;
+    return `${parsed.hostname}${suffix === "/" ? "" : suffix}`;
+  } catch {
+    return url;
+  }
+}
+
+function skippedSourceTitle(lane: LaneAccumulator): string {
+  const target = compactUrl(lane.targetUrl);
+  return target
+    ? `Skipped unavailable source: ${target}`
+    : "Source unavailable, skipped";
+}
+
 function isGenericLaneTitle(
   title: string | undefined,
   toolName: string | undefined,
@@ -168,7 +207,9 @@ function isGenericLaneTitle(
   const trimmed = typeof title === "string" ? title.trim() : "";
   const tool = typeof toolName === "string" ? toolName.trim() : "";
   if (!trimmed || !tool) return true;
-  const genericPast = friendlyToolResultTitle(tool, undefined, !failed).split(" — ")[0]?.trim() || "";
+  const genericPast =
+    friendlyToolResultTitle(tool, undefined, !failed).split(" — ")[0]?.trim() ||
+    "";
   return (
     trimmed === laneTitleForToolName(tool) ||
     trimmed === friendlyToolCallTitle(tool, undefined) ||
@@ -179,7 +220,10 @@ function isGenericLaneTitle(
   );
 }
 
-function humanizeToolLaneMessage(message: string, fallbackToolName?: string): string {
+function humanizeToolLaneMessage(
+  message: string,
+  fallbackToolName?: string,
+): string {
   const trimmed = message.trim();
   if (!trimmed) return trimmed;
 
@@ -193,7 +237,9 @@ function humanizeToolLaneMessage(message: string, fallbackToolName?: string): st
     return friendlyToolLaneCompletedLabel(completedMatch[1].trim(), false);
   }
 
-  const failedMatch = /^([A-Za-z0-9_:-]+)\s+finished with issues$/i.exec(trimmed);
+  const failedMatch = /^([A-Za-z0-9_:-]+)\s+finished with issues$/i.exec(
+    trimmed,
+  );
   if (failedMatch?.[1]) {
     return friendlyToolLaneCompletedLabel(failedMatch[1].trim(), true);
   }
@@ -212,8 +258,13 @@ function inferGroupStatus(group: GroupAccumulator): TimelineEventStatus {
   let hasInProgress = false;
   let hasFailure = false;
   for (const lane of group.lanesByKey.values()) {
-    if (lane.status === "in_progress" || lane.status === "pending") hasInProgress = true;
-    if (lane.status === "failed" || lane.status === "blocked" || lane.status === "cancelled") {
+    if (lane.status === "in_progress" || lane.status === "pending")
+      hasInProgress = true;
+    if (
+      lane.status === "failed" ||
+      lane.status === "blocked" ||
+      lane.status === "cancelled"
+    ) {
       hasFailure = true;
     }
   }
@@ -222,7 +273,9 @@ function inferGroupStatus(group: GroupAccumulator): TimelineEventStatus {
   return "completed";
 }
 
-export function buildParallelGroupProjection(events: TaskEvent[]): ParallelGroupProjectionResult {
+export function buildParallelGroupProjection(
+  events: TaskEvent[],
+): ParallelGroupProjectionResult {
   const groupsById = new Map<string, GroupAccumulator>();
 
   events.forEach((event, index) => {
@@ -251,14 +304,16 @@ export function buildParallelGroupProjection(events: TaskEvent[]): ParallelGroup
     if (event.type === "timeline_group_started") {
       group.startedEvent = event;
       const groupLabel =
-        typeof payload.groupLabel === "string" && payload.groupLabel.trim().length > 0
+        typeof payload.groupLabel === "string" &&
+        payload.groupLabel.trim().length > 0
           ? payload.groupLabel.trim()
           : undefined;
       if (groupLabel) group.label = groupLabel;
     } else if (event.type === "timeline_group_finished") {
       group.finishedEvent = event;
       const groupLabel =
-        typeof payload.groupLabel === "string" && payload.groupLabel.trim().length > 0
+        typeof payload.groupLabel === "string" &&
+        payload.groupLabel.trim().length > 0
           ? payload.groupLabel.trim()
           : undefined;
       if (groupLabel) group.label = groupLabel;
@@ -279,32 +334,46 @@ export function buildParallelGroupProjection(events: TaskEvent[]): ParallelGroup
     const toolUseId = toolUseIdFromPayload ?? toolUseIdFromStep;
     const laneKey =
       toolUseId ??
-      (stepId && stepId.length > 0 ? stepId : `group:${groupId}:event:${group.eventIds.size}`);
+      (stepId && stepId.length > 0
+        ? stepId
+        : `group:${groupId}:event:${group.eventIds.size}`);
 
     const lane = ensureLane(group, laneKey, index, event.timestamp);
     if (toolUseId) lane.toolUseId = toolUseId;
     if (stepId) group.stepToLaneKey.set(stepId, laneKey);
 
-    if (event.type === "timeline_step_started" || event.type === "timeline_step_updated") {
+    if (
+      event.type === "timeline_step_started" ||
+      event.type === "timeline_step_updated"
+    ) {
       lane.startedAt = Math.min(lane.startedAt, event.timestamp);
       const message =
         typeof payload.message === "string" && payload.message.trim().length > 0
           ? payload.message.trim()
           : (() => {
               const step = asObject(payload.step);
-              return typeof step.description === "string" ? step.description.trim() : "";
+              return typeof step.description === "string"
+                ? step.description.trim()
+                : "";
             })();
       if (message) {
         const nextTitle = humanizeToolLaneMessage(message, lane.toolName);
         if (
           !lane.title ||
           !isGenericLaneTitle(nextTitle, lane.toolName, false) ||
-          isGenericLaneTitle(lane.title, lane.toolName, lane.status === "failed")
+          isGenericLaneTitle(
+            lane.title,
+            lane.toolName,
+            lane.status === "failed",
+          )
         ) {
           lane.title = nextTitle;
         }
       }
-      lane.status = toTimelineStatus(event.status, lane.status || "in_progress");
+      lane.status = toTimelineStatus(
+        event.status,
+        lane.status || "in_progress",
+      );
       if (
         effectiveType !== "tool_call" &&
         effectiveType !== "tool_result" &&
@@ -333,7 +402,11 @@ export function buildParallelGroupProjection(events: TaskEvent[]): ParallelGroup
         const nextTitle = humanizeToolLaneMessage(message, lane.toolName);
         if (
           !lane.title ||
-          !isGenericLaneTitle(nextTitle, lane.toolName, lane.status === "failed") ||
+          !isGenericLaneTitle(
+            nextTitle,
+            lane.toolName,
+            lane.status === "failed",
+          ) ||
           existingIsGeneric
         ) {
           lane.title = nextTitle;
@@ -358,7 +431,8 @@ export function buildParallelGroupProjection(events: TaskEvent[]): ParallelGroup
 
     if (effectiveType === "tool_call") {
       lane.startedAt = Math.min(lane.startedAt, event.timestamp);
-      const toolName = typeof payload.tool === "string" ? payload.tool.trim() : "";
+      const toolName =
+        typeof payload.tool === "string" ? payload.tool.trim() : "";
       if (toolName) {
         lane.toolName = toolName;
         const specificTitle = friendlyToolCallTitle(
@@ -369,6 +443,10 @@ export function buildParallelGroupProjection(events: TaskEvent[]): ParallelGroup
           lane.title = specificTitle;
         }
       }
+      const input = asObject(payload.input);
+      if (typeof input.url === "string" && input.url.trim()) {
+        lane.targetUrl = input.url.trim();
+      }
       const callIndex = getToolCallIndex(payload);
       if (callIndex) lane.toolCallIndex = callIndex;
       lane.status = "in_progress";
@@ -376,7 +454,8 @@ export function buildParallelGroupProjection(events: TaskEvent[]): ParallelGroup
     }
 
     if (effectiveType === "tool_error") {
-      const toolName = typeof payload.tool === "string" ? payload.tool.trim() : "";
+      const toolName =
+        typeof payload.tool === "string" ? payload.tool.trim() : "";
       if (toolName) {
         lane.toolName = toolName;
         if (!lane.title) lane.title = laneTitleForToolName(toolName);
@@ -385,11 +464,20 @@ export function buildParallelGroupProjection(events: TaskEvent[]): ParallelGroup
       if (callIndex) lane.toolCallIndex = callIndex;
       lane.finishedAt = event.timestamp;
       lane.status = "failed";
+      lane.failureReason =
+        typeof payload.error === "string" ? payload.error : "Tool failed";
+      lane.recoverableSourceFailure =
+        isWebSourceTool(toolName || lane.toolName) &&
+        (payload.recoverableFallback === true ||
+          isRecoverableWebSourceFailure(lane.failureReason));
       const finalName = toolName || lane.toolName || "";
       if (finalName) {
         lane.title = friendlyToolResultTitle(
           finalName,
-          { error: typeof payload.error === "string" ? payload.error : "Tool failed" },
+          {
+            error:
+              typeof payload.error === "string" ? payload.error : "Tool failed",
+          },
           false,
         );
       }
@@ -398,7 +486,8 @@ export function buildParallelGroupProjection(events: TaskEvent[]): ParallelGroup
 
     if (effectiveType === "tool_result") {
       const laneFailed = lane.status === "failed";
-      const toolName = typeof payload.tool === "string" ? payload.tool.trim() : "";
+      const toolName =
+        typeof payload.tool === "string" ? payload.tool.trim() : "";
       if (toolName) {
         lane.toolName = toolName;
         if (!lane.title) lane.title = laneTitleForToolName(toolName);
@@ -406,11 +495,22 @@ export function buildParallelGroupProjection(events: TaskEvent[]): ParallelGroup
       const callIndex = getToolCallIndex(payload);
       if (callIndex) lane.toolCallIndex = callIndex;
       lane.finishedAt = event.timestamp;
-      if (!laneFailed) {
+      const result = asObject(payload.result);
+      const recoverableSourceFailure =
+        isWebSourceTool(toolName || lane.toolName) &&
+        result.success === false &&
+        (result.recoverableFallback === true || result.nonBlocking === true);
+      if (recoverableSourceFailure) {
+        lane.status = "skipped";
+        lane.recoverableSourceFailure = true;
+        lane.failureReason =
+          typeof result.error === "string" ? result.error : lane.failureReason;
+        lane.title = skippedSourceTitle(lane);
+      } else if (!laneFailed) {
         lane.status = "completed";
       }
       const finalName = toolName || lane.toolName || "";
-      if (finalName) {
+      if (finalName && !recoverableSourceFailure) {
         const nextTitle = friendlyToolResultTitle(
           finalName,
           payload.result as Record<string, unknown> | undefined,
@@ -462,7 +562,8 @@ export function buildParallelGroupProjection(events: TaskEvent[]): ParallelGroup
       for (const group of groupsById.values()) {
         for (const lane of group.lanesByKey.values()) {
           if (lane.toolUseId !== correlationId) continue;
-          const toolName = typeof payload.tool === "string" ? payload.tool.trim() : "";
+          const toolName =
+            typeof payload.tool === "string" ? payload.tool.trim() : "";
           const finalName = toolName || lane.toolName || "";
           if (effectiveType === "tool_call") {
             lane.startedAt = Math.min(lane.startedAt, event.timestamp);
@@ -504,7 +605,12 @@ export function buildParallelGroupProjection(events: TaskEvent[]): ParallelGroup
             if (finalName) {
               lane.title = friendlyToolResultTitle(
                 finalName,
-                { error: typeof payload.error === "string" ? payload.error : "Tool failed" },
+                {
+                  error:
+                    typeof payload.error === "string"
+                      ? payload.error
+                      : "Tool failed",
+                },
                 false,
               );
             }
@@ -526,11 +632,16 @@ export function buildParallelGroupProjection(events: TaskEvent[]): ParallelGroup
 
     const startedAt = group.startedEvent?.timestamp ?? group.firstTimestamp;
     const finishedAt = group.finishedEvent?.timestamp;
-    const status = inferGroupStatus(group);
-    const lanes = Array.from(group.lanesByKey.values())
+    let lanes = Array.from(group.lanesByKey.values())
       .sort((a, b) => {
-        const aIndex = typeof a.toolCallIndex === "number" ? a.toolCallIndex : Number.POSITIVE_INFINITY;
-        const bIndex = typeof b.toolCallIndex === "number" ? b.toolCallIndex : Number.POSITIVE_INFINITY;
+        const aIndex =
+          typeof a.toolCallIndex === "number"
+            ? a.toolCallIndex
+            : Number.POSITIVE_INFINITY;
+        const bIndex =
+          typeof b.toolCallIndex === "number"
+            ? b.toolCallIndex
+            : Number.POSITIVE_INFINITY;
         if (aIndex !== bIndex) return aIndex - bIndex;
         if (a.firstOrder !== b.firstOrder) return a.firstOrder - b.firstOrder;
         return a.laneKey.localeCompare(b.laneKey);
@@ -541,13 +652,46 @@ export function buildParallelGroupProjection(events: TaskEvent[]): ParallelGroup
         toolCallIndex: lane.toolCallIndex,
         toolName: lane.toolName,
         title:
-          lane.title ||
-          laneTitleForToolName(lane.toolName) ||
-          "Running tool",
+          lane.title || laneTitleForToolName(lane.toolName) || "Running tool",
         status: lane.status,
         startedAt: lane.startedAt,
-        ...(typeof lane.finishedAt === "number" ? { finishedAt: lane.finishedAt } : {}),
+        ...(typeof lane.finishedAt === "number"
+          ? { finishedAt: lane.finishedAt }
+          : {}),
       }));
+
+    const hasCompletedWebLane = lanes.some(
+      (lane) => isWebSourceTool(lane.toolName) && lane.status === "completed",
+    );
+    if (hasCompletedWebLane) {
+      lanes = lanes.map((lane) => {
+        const accumulator = group.lanesByKey.get(lane.laneKey);
+        if (
+          lane.status !== "failed" ||
+          !isWebSourceTool(lane.toolName) ||
+          !accumulator?.recoverableSourceFailure
+        ) {
+          return lane;
+        }
+        return {
+          ...lane,
+          status: "skipped" as const,
+          title: skippedSourceTitle(accumulator),
+        };
+      });
+    }
+
+    const inferredStatus = inferGroupStatus(group);
+    const hasTerminalFailure = lanes.some(
+      (lane) =>
+        lane.status === "failed" ||
+        lane.status === "blocked" ||
+        lane.status === "cancelled",
+    );
+    const status =
+      inferredStatus === "failed" && !hasTerminalFailure && lanes.length > 0
+        ? "completed"
+        : inferredStatus;
 
     groupsByAnchorEventId.set(anchorEventId, {
       groupId: group.groupId,

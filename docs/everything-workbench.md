@@ -1,12 +1,12 @@
 # Everything Workbench
 
-CoWork OS is the GUI-first, CLI-capable local AI super app and everything app for everyday work. It is meant to cover more than office-style files: coding, terminal work, email, research, web design, documents, spreadsheets, decks, PDFs, agent spawning and management, automations, inbox work, channels, devices, skills, and long-running tasks all live in one governed workspace. The desktop app is the primary review and workbench surface; `cowork` adds a terminal entrypoint for starting local tasks against the same runtime.
+NeoWorker is the GUI-first, CLI-capable local AI super app and everything app for everyday work. It is meant to cover more than office-style files: coding, terminal work, email, research, web design, documents, spreadsheets, decks, PDFs, agent spawning and management, automations, inbox work, channels, devices, skills, and long-running tasks all live in one governed workspace. The desktop app is the primary review and workbench surface; `neoworker` adds a terminal entrypoint for starting local tasks against the same runtime.
 
-The Everything Workbench is the proof point for that positioning: ask for an artifact, open it in-place, review or edit it, then ask the agent for follow-up changes without leaving the task. For everyday work, CoWork should be the app you reach for instead of a separate coding app, mail app, browser preview, Word processor, spreadsheet tool, or slide deck editor. External-open actions remain available when a specialized native app is still the better tool for advanced edge cases.
+The Everything Workbench is the proof point for that positioning: ask for an artifact, open it in-place, review or edit it, then ask the agent for follow-up changes without leaving the task. For everyday work, NeoWorker should be the app you reach for instead of a separate coding app, mail app, browser preview, Word processor, spreadsheet tool, or slide deck editor. External-open actions remain available when a specialized native app is still the better tool for advanced edge cases.
 
 ## Broader Positioning
 
-Use CoWork OS as the app where personal agentic work starts and stays:
+Use NeoWorker as the app where personal agentic work starts and stays:
 
 - code, review repositories, run local project tasks, and keep real terminal tabs beside the agent
 - create reusable agents, spawn parallel work, and monitor agent runs from visual surfaces
@@ -43,13 +43,13 @@ This keeps the agent next to the work product. A spreadsheet can be selected and
 - **Live websites**: Browser-use tasks open a visible in-app Browser Workbench by default. The agent and user share the same right-sidebar/fullscreen Browser V2 webview, with navigation controls, desktop/tablet/mobile viewport testing, snapshot refs, diagnostics, downloads/uploads, screenshots, annotation, and visible cursor movement during actions. See [Browser Workbench](browser-workbench.md) and [Browser V2 Architecture](browser-v2-architecture.md).
 - **Terminal tabs**: Direct CLI work opens in xterm.js + node-pty terminal tabs under the message box, with native macOS shell and Windows `cmd.exe` behavior, keyboard shortcuts, Tab completion, interactive prompts, resizing, and closeable tabs. See [Terminal Tabs](terminal-tabs.md).
 - **PDF and LaTeX**: Source-first LaTeX workflows preserve the editable `.tex` file and pair it with the compiled PDF in one artifact workbench when a local TeX engine is available.
-- **Uploaded PDFs**: PDF attachments are imported into `.cowork/uploads/...`, summarized into a compact attachment block, and read more deeply on demand with `parse_document`. The attachment block preserves the workspace-relative path, page count, extraction status, OCR/scan signals, and a short excerpt without inlining the full PDF into every prompt. Visual/layout PDF questions use `read_pdf_visual` instead.
-- **Uploaded videos**: MP4, MOV, and WebM attachments are imported into `.cowork/uploads/...`, sampled into representative frames, and analyzed through image-capable model input. The extracted contact sheet and representative frame are stored under `.cowork/video-frames/...` and emitted as inline image artifacts in the task timeline. See [Video Attachments](video-attachments.md).
+- **Uploaded PDFs**: PDF attachments are imported into `.neoworker/uploads/...`, summarized into a compact attachment block, and read more deeply on demand with `parse_document`. The attachment block preserves the workspace-relative path, page count, extraction status, OCR/scan signals, and a short excerpt without inlining the full PDF into every prompt. Visual/layout PDF questions use `read_pdf_visual` instead.
+- **Uploaded videos**: MP4, MOV, and WebM attachments are imported into `.neoworker/uploads/...`, sampled into representative frames, and analyzed through image-capable model input. The extracted contact sheet and representative frame are stored under `.neoworker/video-frames/...` and emitted as inline image artifacts in the task timeline. See [Video Attachments](video-attachments.md).
 - **General previews**: The format-aware file preview popup remains available for files that do not have a dedicated artifact workbench.
 
 ## Positioning Boundary
 
-Use CoWork OS as the default app for everyday generated knowledge work:
+Use NeoWorker as the default app for everyday generated knowledge work:
 
 - draft and revise reports, memos, summaries, one-pagers, and DOCX files
 - create and adjust spreadsheets, CSVs, tables, and lightweight workbook outputs
@@ -66,7 +66,7 @@ Use external apps only when the work needs advanced native behavior:
 - Keynote/PowerPoint direct slide authoring beyond review and agent-requested edits
 - Pages, Numbers, Google Docs, Google Sheets, or Google Slides native cloud behavior
 
-The product promise is "one app for the everyday work most people currently split across coding tools, mail clients, browsers, Word, Excel, PowerPoint, and chat." CoWork keeps specialized external-open paths for advanced native workflows, but the default loop is create, review, edit, test, and revise in one place with the agent beside the work.
+The product promise is "one app for the everyday work most people currently split across coding tools, mail clients, browsers, Word, Excel, PowerPoint, and chat." NeoWorker keeps specialized external-open paths for advanced native workflows, but the default loop is create, review, edit, test, and revise in one place with the agent beside the work.
 
 ## Related Docs
 

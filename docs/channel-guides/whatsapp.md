@@ -1,6 +1,6 @@
 # WhatsApp User Guide
 
-WhatsApp is the best channel for personal mobile control of CoWork. It works well for quick task starts, follow-ups, approvals, daily briefs, and lightweight link-research groups.
+WhatsApp is the best channel for personal mobile control of NeoWorker. It works well for quick task starts, follow-ups, approvals, daily briefs, and lightweight link-research groups.
 
 ## Best For
 
@@ -15,9 +15,9 @@ WhatsApp is the best channel for personal mobile control of CoWork. It works wel
 - QR-based WhatsApp Web connection through Baileys.
 - Self-chat mode for personal use.
 - Natural shortcuts such as `help`, `status`, `new task`, `new temp`, `stop`, `queue ...`, and `background ...`.
-- Typing indicators while CoWork is working.
+- Typing indicators while NeoWorker is working.
 - Editable progress messages when WhatsApp accepts edits.
-- Optional response prefix so CoWork messages stand out.
+- Optional response prefix so NeoWorker messages stand out.
 - Link-research group support.
 - Per-group specialization for workspace, agent role, guidance, and tool policy.
 
@@ -40,10 +40,10 @@ Draft a short reply to this customer complaint.
 ## Best Practices
 
 - Keep self-chat mode on when using your personal WhatsApp number.
-- Use a short response prefix if your own messages and CoWork replies are hard to distinguish.
+- Use a short response prefix if your own messages and NeoWorker replies are hard to distinguish.
 - Use `/queue <message>` for explicit follow-up text during a running task.
 - Use `/steer <guidance>` for important corrections.
-- In groups, prefer mention-or-command routing unless the group exists only for CoWork tasks.
+- In groups, prefer mention-or-command routing unless the group exists only for NeoWorker tasks.
 - Use group specialization for trusted groups that should always route into the same workspace and role.
 - Use direct self-chat for approvals involving files, shell commands, or private data.
 

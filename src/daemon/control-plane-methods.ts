@@ -617,7 +617,7 @@ function sanitizeForBroadcast(value: unknown, depth = 0, key?: string): unknown 
   }
 }
 
-function getCoworkVersionFromNearestPackageJson(): string | undefined {
+function getNeoWorkerVersionFromNearestPackageJson(): string | undefined {
   // Try to find a package.json by walking up from this compiled file's directory.
   // Works for both dist/electron/... and dist/daemon/... layouts.
   let dir = __dirname;
@@ -1398,7 +1398,7 @@ export function registerControlPlaneMethods(
       arch: process.arch,
       node: process.version,
       electron: process.versions.electron,
-      coworkVersion: getCoworkVersionFromNearestPackageJson(),
+      neoworkerVersion: getNeoWorkerVersionFromNearestPackageJson(),
       headless: isHeadlessMode(),
       cwd: process.cwd(),
       userDataDir: getUserDataDir(),
@@ -1418,12 +1418,12 @@ export function registerControlPlaneMethods(
     }
     if (allWorkspaces.length === 0) {
       warnings.push(
-        "No workspaces configured. Set COWORK_BOOTSTRAP_WORKSPACE_PATH on startup or create one via workspace.create.",
+        "No workspaces configured. Set NEOWORKER_BOOTSTRAP_WORKSPACE_PATH on startup or create one via workspace.create.",
       );
     }
     if (!anyLlmConfigured) {
       warnings.push(
-        "No LLM provider credentials configured. Configure one via Control Plane (LLM Setup / llm.configure), or use COWORK_IMPORT_ENV_SETTINGS=1 with provider env vars and restart.",
+        "No LLM provider credentials configured. Configure one via Control Plane (LLM Setup / llm.configure), or use NEOWORKER_IMPORT_ENV_SETTINGS=1 with provider env vars and restart.",
       );
     } else if (!currentProviderConfigured) {
       warnings.push(
@@ -1432,7 +1432,7 @@ export function registerControlPlaneMethods(
     }
     if (!envImport.enabled && !anyLlmConfigured) {
       warnings.push(
-        "Tip: enable env import with COWORK_IMPORT_ENV_SETTINGS=1 (or --import-env-settings) so provider env vars are persisted into Secure Settings at boot.",
+        "Tip: enable env import with NEOWORKER_IMPORT_ENV_SETTINGS=1 (or --import-env-settings) so provider env vars are persisted into Secure Settings at boot.",
       );
     }
     if (!searchStatus.isConfigured) {

@@ -8,7 +8,7 @@ import { ChronicleSettingsManager } from "./ChronicleSettingsManager";
 import type { ChroniclePersistedObservation, ChronicleResolvedContext } from "./types";
 
 const logger = createLogger("ChronicleObservationRepository");
-const CHRONICLE_DIR = path.join(".cowork", "chronicle");
+const CHRONICLE_DIR = path.join(".neoworker", "chronicle");
 const OBSERVATIONS_DIR = path.join(CHRONICLE_DIR, "observations");
 const ASSETS_DIR = path.join(CHRONICLE_DIR, "assets");
 

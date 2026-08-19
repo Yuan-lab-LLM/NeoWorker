@@ -31,7 +31,7 @@ const PROTOCOL_VERSION = "2024-11-05";
 
 // Client info to send during initialize
 const CLIENT_INFO = {
-  name: "CoWork-OS",
+  name: "NeoWorker",
   version: "1.0.0",
 };
 const logger = createLogger("MCPServerConnection");

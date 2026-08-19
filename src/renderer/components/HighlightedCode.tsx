@@ -131,7 +131,10 @@ export function HighlightedCodeBlock({
   className?: string;
   codeProps?: Record<string, unknown>;
 }) {
-  const highlightedHtml = useMemo(() => highlightCode(code, language), [code, language]);
+  const highlightedHtml = useMemo(
+    () => highlightCode(code, language),
+    [code, language],
+  );
   if (highlightedHtml) {
     return (
       <code
@@ -155,11 +158,17 @@ export function HighlightedCodePreview({
   code: string;
   language?: string;
 }) {
-  const highlightedHtml = useMemo(() => highlightCode(code, language), [code, language]);
+  const highlightedHtml = useMemo(
+    () => highlightCode(code, language),
+    [code, language],
+  );
   if (highlightedHtml) {
     return (
       <pre className="code-preview-content">
-        <code className="hljs" dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
+        <code
+          className="hljs"
+          dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+        />
       </pre>
     );
   }

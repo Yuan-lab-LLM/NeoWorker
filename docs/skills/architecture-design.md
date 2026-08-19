@@ -1,6 +1,6 @@
 # Architecture Design Skill
 
-`architecture-design` is a bundled CoWork OS skill for orchestrating concept architecture workflows across local Rhino, Blender, and ComfyUI connectors.
+`architecture-design` is a bundled NeoWorker skill for orchestrating concept architecture workflows across local Rhino, Blender, and ComfyUI connectors.
 
 It is designed for:
 
@@ -34,22 +34,22 @@ The Rhino and Blender connectors expect separate localhost bridge processes that
 Configure the architecture project root before using file-oriented tools:
 
 ```sh
-COWORK_ARCH_PROJECT_ROOT=/absolute/path/to/project
+NEOWORKER_ARCH_PROJECT_ROOT=/absolute/path/to/project
 RHINO_MCP_BRIDGE_URL=http://127.0.0.1:17641
 BLENDER_MCP_BRIDGE_URL=http://127.0.0.1:17642
 COMFYUI_BASE_URL=http://127.0.0.1:8188
 COMFYUI_WORKFLOW_DIR=workflows
 ```
 
-`COWORK_ARCH_PROJECT_ROOT` is required for project files, source image paths, workflow directories, copied ComfyUI outputs, Rhino exports, Blender scenes, and render outputs. If it is not set, file-path tools fail closed.
+`NEOWORKER_ARCH_PROJECT_ROOT` is required for project files, source image paths, workflow directories, copied ComfyUI outputs, Rhino exports, Blender scenes, and render outputs. If it is not set, file-path tools fail closed.
 
-Only localhost bridge/API URLs are accepted. File and directory arguments are normalized under `COWORK_ARCH_PROJECT_ROOT` or `COWORK_WORKSPACE_ROOT`; URL-style paths and paths outside the project root are rejected before a bridge receives the request.
+Only localhost bridge/API URLs are accepted. File and directory arguments are normalized under `NEOWORKER_ARCH_PROJECT_ROOT` or `NEOWORKER_WORKSPACE_ROOT`; URL-style paths and paths outside the project root are rejected before a bridge receives the request.
 
 ## Workflow
 
 The skill follows this evidence-first sequence:
 
-1. Create `.cowork/architecture-projects/<project-id>/`.
+1. Create `.neoworker/architecture-projects/<project-id>/`.
 2. Write `brief.json` and `manifest.json`.
 3. Check `rhino.health`, `blender.health`, and `comfyui.health`.
 4. Use Rhino for site references, terrain/setbacks, massing, plans, validation, and model export.
@@ -60,7 +60,7 @@ The skill follows this evidence-first sequence:
 ## Artifact Layout
 
 ```text
-.cowork/architecture-projects/<project-id>/
+.neoworker/architecture-projects/<project-id>/
   brief.json
   manifest.json
   references/
@@ -86,7 +86,7 @@ The skill follows this evidence-first sequence:
 ```text
 Use the architecture-design skill to create a concept workflow for a two-story courtyard house.
 
-Create the project folder under .cowork/architecture-projects/courtyard-house.
+Create the project folder under .neoworker/architecture-projects/courtyard-house.
 Use Rhino for massing and plan iteration, Blender for one exterior render, and ComfyUI only if the local API is available.
 Keep all artifacts in the project folder and stop before any long render.
 ```

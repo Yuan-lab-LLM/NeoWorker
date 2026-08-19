@@ -1,6 +1,6 @@
 # Managed Agents
 
-Managed Agents adds a first-class, GUI-first managed resource model to CoWork without replacing the existing task runtime or the new terminal entrypoint. It is one of the core reasons CoWork OS is positioned as a personal AI super app and everything app: users can create reusable agents, spawn work from templates or prompts, inspect configuration, run tests, and monitor execution from visual surfaces, while `cowork` remains available for terminal-native task starts.
+Managed Agents adds a first-class, GUI-first managed resource model to NeoWorker without replacing the existing task runtime or the new terminal entrypoint. It is one of the core reasons NeoWorker is positioned as a personal AI super app and everything app: users can create reusable agents, spawn work from templates or prompts, inspect configuration, run tests, and monitor execution from visual surfaces, while `neoworker` remains available for terminal-native task starts.
 
 V1 introduces three control-plane resources:
 
@@ -10,14 +10,10 @@ V1 introduces three control-plane resources:
 
 The implementation is local-first and additive. Managed resources are exposed through the control plane and Agents Hub, while existing `Task`, `AgentTeamRun`, `task_events`, and `session_runtime_v2` remain the execution primitives underneath.
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-3.webp" alt="Agents Hub" width="700">
-  <br><em>Agents Hub is the main surface for reusable managed agents, templates, and starter prompts.</em>
-</p>
 
 ## Why This Exists
 
-CoWork already had the low-level pieces for durable execution, team runs, worktree isolation, MCP integration, and resumable task runtime state. Managed Agents packages those pieces into reusable definitions and a stable run identity so GUI and backend surfaces can reason about durable agent runs directly instead of reconstructing them from ad hoc task metadata.
+NeoWorker already had the low-level pieces for durable execution, team runs, worktree isolation, MCP integration, and resumable task runtime state. Managed Agents packages those pieces into reusable definitions and a stable run identity so GUI and backend surfaces can reason about durable agent runs directly instead of reconstructing them from ad hoc task metadata.
 
 The product goal is that a user can manage many agents visually: create or generate agents, inspect tools and skills, launch tests, spawn starter prompts, watch child tasks, review approvals, and hand work into Mission Control without switching to a CLI workflow.
 
@@ -31,7 +27,7 @@ The model is:
 
 Managed Agents V1 is intentionally narrow:
 
-- local execution only through `ManagedEnvironment.kind = "cowork_local"`
+- local execution only through `ManagedEnvironment.kind = "neoworker_local"`
 - renderer support through the Agents Hub for creation, inspection, governance, and manual runs
 - existing task APIs remain supported
 - Mission Control and task surfaces observe the backing task or team run created by each managed session
@@ -139,7 +135,7 @@ In practice:
 
 ## Security And Policy Boundaries
 
-Managed Agents follows the same security posture as the rest of CoWork, with a few managed-specific rules:
+Managed Agents follows the same security posture as the rest of NeoWorker, with a few managed-specific rules:
 
 - renderer-facing managed environment reads redact `credentialRefs` and `managedAccountRefs`
 - managed session events are sanitized before persistence and sanitized again on read

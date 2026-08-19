@@ -118,6 +118,8 @@ export interface UsageInsights {
 
   requestsByDay: UsageInsightsRequestDay[];
 
+  modelRequestsByDay: Record<string, UsageInsightsRequestDay[]>;
+
   providerBreakdown: UsageInsightsProviderSlice[];
 
   activityPattern: {
@@ -202,6 +204,19 @@ interface LlmUsageScanResult {
       cachedTokens: number;
     }
   >;
+  byModelDay: Map<
+    string,
+    Map<
+      string,
+      {
+        llmCalls: number;
+        cost: number;
+        inputTokens: number;
+        outputTokens: number;
+        cachedTokens: number;
+      }
+    >
+  >;
   byProvider: Map<
     string,
     {
@@ -235,6 +250,7 @@ function emptyLlmScan(): LlmUsageScanResult {
     distinctTaskIds: new Set(),
     byModel: new Map(),
     byDay: new Map(),
+    byModelDay: new Map(),
     byProvider: new Map(),
   };
 }
@@ -287,6 +303,27 @@ function mergeLlmScans(target: LlmUsageScanResult, source: LlmUsageScanResult): 
     current.outputTokens += data.outputTokens;
     current.cachedTokens += data.cachedTokens;
     target.byDay.set(dateKey, current);
+  }
+
+  for (const [model, days] of source.byModelDay.entries()) {
+    const targetDays = target.byModelDay.get(model) ?? new Map();
+    for (const [dateKey, data] of days.entries()) {
+      const current =
+        targetDays.get(dateKey) ?? {
+          llmCalls: 0,
+          cost: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          cachedTokens: 0,
+        };
+      current.llmCalls += data.llmCalls;
+      current.cost += data.cost;
+      current.inputTokens += data.inputTokens;
+      current.outputTokens += data.outputTokens;
+      current.cachedTokens += data.cachedTokens;
+      targetDays.set(dateKey, current);
+    }
+    target.byModelDay.set(model, targetDays);
   }
 
   for (const [provider, data] of source.byProvider.entries()) {
@@ -748,6 +785,23 @@ export class UsageInsightsService {
     day.cachedTokens += deltaCached;
     out.byDay.set(dayKey, day);
 
+    const modelDays = out.byModelDay.get(modelKey) ?? new Map();
+    const modelDay =
+      modelDays.get(dayKey) ?? {
+        llmCalls: 0,
+        cost: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+      };
+    modelDay.llmCalls += 1;
+    modelDay.cost += deltaCost;
+    modelDay.inputTokens += deltaInput;
+    modelDay.outputTokens += deltaOutput;
+    modelDay.cachedTokens += deltaCached;
+    modelDays.set(dayKey, modelDay);
+    out.byModelDay.set(modelKey, modelDays);
+
     const provider = normalizeLlmProviderType(entry.providerType) || "unknown";
     const byProvider =
       out.byProvider.get(provider) ?? {
@@ -847,6 +901,7 @@ export class UsageInsightsService {
     const costMetrics = this.costMetricsFromScan(llmScan);
     const llmSummary = this.llmSummaryFromScan(llmScan);
     const requestsByDay = this.requestsByDayFromScan(llmScan, periodStart, periodEnd);
+    const modelRequestsByDay = this.modelRequestsByDayFromScan(llmScan, periodStart, periodEnd);
     const providerBreakdown = this.providerBreakdownFromScan(llmScan);
     const denom = llmScan.totalLlmCalls + llmErrorCount;
     const llmSuccessRate = denom > 0 ? (llmScan.totalLlmCalls / denom) * 100 : null;
@@ -892,6 +947,7 @@ export class UsageInsightsService {
       llmSuccessRate,
       llmSummary,
       requestsByDay,
+      modelRequestsByDay,
       providerBreakdown,
       activityPattern,
       topSkills,
@@ -922,6 +978,7 @@ export class UsageInsightsService {
     const costMetrics = this.costMetricsFromScan(llmScan);
     const llmSummary = this.llmSummaryFromScan(llmScan);
     const requestsByDay = this.requestsByDayFromScan(llmScan, periodStart, periodEnd);
+    const modelRequestsByDay = this.modelRequestsByDayFromScan(llmScan, periodStart, periodEnd);
     const providerBreakdown = this.providerBreakdownFromScan(llmScan);
 
     const denom = llmScan.totalLlmCalls + llmErrorCount;
@@ -967,6 +1024,7 @@ export class UsageInsightsService {
       llmSuccessRate,
       llmSummary,
       requestsByDay,
+      modelRequestsByDay,
       providerBreakdown,
       activityPattern,
       topSkills,
@@ -993,6 +1051,7 @@ export class UsageInsightsService {
     const costMetrics = this.costMetricsFromScan(llmScan);
     const llmSummary = this.llmSummaryFromScan(llmScan);
     const requestsByDay = this.requestsByDayFromScan(llmScan, periodStart, periodEnd);
+    const modelRequestsByDay = this.modelRequestsByDayFromScan(llmScan, periodStart, periodEnd);
     const providerBreakdown = this.providerBreakdownFromScan(llmScan);
     const denom = llmScan.totalLlmCalls + llmErrorCount;
     const llmSuccessRate = denom > 0 ? (llmScan.totalLlmCalls / denom) * 100 : null;
@@ -1038,6 +1097,7 @@ export class UsageInsightsService {
       llmSuccessRate,
       llmSummary,
       requestsByDay,
+      modelRequestsByDay,
       providerBreakdown,
       activityPattern,
       topSkills,
@@ -2304,6 +2364,31 @@ export class UsageInsightsService {
         cachedTokens: d?.cachedTokens ?? 0,
       };
     });
+  }
+
+  private modelRequestsByDayFromScan(
+    scan: LlmUsageScanResult,
+    periodStart: number,
+    periodEnd: number,
+  ): Record<string, UsageInsightsRequestDay[]> {
+    const dateKeys = collectLocalDateKeysInRange(periodStart, periodEnd);
+    const result: Record<string, UsageInsightsRequestDay[]> = {};
+
+    for (const [model, days] of scan.byModelDay.entries()) {
+      result[model] = dateKeys.map((dateKey) => {
+        const d = days.get(dateKey);
+        return {
+          dateKey,
+          llmCalls: d?.llmCalls ?? 0,
+          cost: d?.cost ?? 0,
+          inputTokens: d?.inputTokens ?? 0,
+          outputTokens: d?.outputTokens ?? 0,
+          cachedTokens: d?.cachedTokens ?? 0,
+        };
+      });
+    }
+
+    return result;
   }
 
   private providerBreakdownFromScan(scan: LlmUsageScanResult): UsageInsightsProviderSlice[] {

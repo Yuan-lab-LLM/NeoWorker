@@ -8,7 +8,7 @@ import { extractPptxContentFromFile } from '../../src/electron/utils/pptx-extrac
 let tempDirs: string[] = [];
 
 async function createTempPptx(slideXml: string): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cowork-pptx-test-'));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'neoworker-pptx-test-'));
   tempDirs.push(dir);
   const filePath = path.join(dir, 'sample.pptx');
   const zip = new JSZip();

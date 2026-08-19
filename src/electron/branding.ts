@@ -1,9 +1,14 @@
 import fs from "fs";
 import path from "path";
 import { app, nativeImage, type NativeImage } from "electron";
+import {
+  PRODUCT_DISPLAY_VERSION,
+  PRODUCT_NAME,
+} from "../shared/product-brand";
 
-export const APP_DISPLAY_NAME = "CoWork OS";
-export const APP_BUNDLE_ID = "com.cowork-os.app";
+export const APP_DISPLAY_NAME = PRODUCT_NAME;
+export const APP_DISPLAY_VERSION = PRODUCT_DISPLAY_VERSION;
+export const APP_BUNDLE_ID = "com.neoworker.app";
 
 function iconCandidates(): string[] {
   if (process.platform === "win32") {
@@ -21,6 +26,9 @@ function appResourceRoots(): string[] {
 }
 
 export function applyApplicationIdentity(): void {
+  // Keep the Electron development keychain identity stable on macOS. The dev
+  // bundle's visible display name and icon are branded separately before
+  // launch, while packaged builds use the NeoWorker builder metadata.
   if (!(process.platform === "darwin" && !app.isPackaged)) {
     app.setName(APP_DISPLAY_NAME);
   }

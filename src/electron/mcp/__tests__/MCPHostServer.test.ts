@@ -20,7 +20,7 @@ describe("MCPHostServer resources", () => {
       getResources() {
         return [
           {
-            uri: "cowork://tasks",
+            uri: "neoworker://tasks",
             name: "Tasks",
             mimeType: "application/json",
           },
@@ -59,7 +59,7 @@ describe("MCPHostServer resources", () => {
     });
     expect(listResponse?.result?.resources).toEqual([
       {
-        uri: "cowork://tasks",
+        uri: "neoworker://tasks",
         name: "Tasks",
         mimeType: "application/json",
       },
@@ -69,7 +69,7 @@ describe("MCPHostServer resources", () => {
       jsonrpc: "2.0",
       id: 3,
       method: MCP_METHODS.RESOURCES_READ,
-      params: { uri: "cowork://tasks" },
+      params: { uri: "neoworker://tasks" },
     });
     expect(readResponse?.result?.contents?.[0]?.text).toContain('"ok":true');
   });

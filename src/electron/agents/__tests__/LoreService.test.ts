@@ -5,7 +5,7 @@ import path from "path";
 
 vi.mock("electron", () => ({
   app: {
-    getPath: vi.fn().mockReturnValue("/tmp/test-cowork"),
+    getPath: vi.fn().mockReturnValue("/tmp/test-neoworker"),
   },
 }));
 
@@ -60,9 +60,9 @@ describe("LoreService", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-lore-"));
-    // Create .cowork/ so the service recognises the kit directory.
-    fs.mkdirSync(path.join(tmpDir, ".cowork"), { recursive: true });
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-lore-"));
+    // Create .neoworker/ so the service recognises the kit directory.
+    fs.mkdirSync(path.join(tmpDir, ".neoworker"), { recursive: true });
   });
 
   afterEach(() => {
@@ -72,6 +72,17 @@ describe("LoreService", () => {
     } catch {
       // ignore
     }
+  });
+
+  it("can start live capture without rebuilding historical task paths", async () => {
+    const prepare = vi.fn(() => ({ all: () => [] }));
+    const service = new LoreService({ prepare } as Any);
+    const on = vi.fn();
+
+    await service.start({ on } as Any, { rebuildRecentTasks: false });
+
+    expect(on).toHaveBeenCalledWith("task_completed", expect.any(Function));
+    expect(prepare).not.toHaveBeenCalled();
   });
 
   // ---------------------------------------------------------------------------
@@ -101,27 +112,27 @@ describe("LoreService", () => {
       // Flush immediately (bypass debounce).
       await (service as Any).flushWorkspace("ws-1");
 
-      const lorePath = path.join(tmpDir, ".cowork", "LORE.md");
+      const lorePath = path.join(tmpDir, ".neoworker", "LORE.md");
       expect(fs.existsSync(lorePath)).toBe(true);
 
       const content = readFile(lorePath);
       expect(content).toContain("# Shared Lore");
-      expect(content).toContain("<!-- cowork:auto:lore:start -->");
+      expect(content).toContain("<!-- neoworker:auto:lore:start -->");
       expect(content).toContain("Auth flow done");
-      expect(content).toContain("<!-- cowork:auto:lore:end -->");
+      expect(content).toContain("<!-- neoworker:auto:lore:end -->");
     });
 
     it("appends new entries within existing markers", async () => {
-      const lorePath = path.join(tmpDir, ".cowork", "LORE.md");
+      const lorePath = path.join(tmpDir, ".neoworker", "LORE.md");
       writeFile(
         lorePath,
         [
           "# Shared Lore",
           "",
           "## Milestones",
-          "<!-- cowork:auto:lore:start -->",
+          "<!-- neoworker:auto:lore:start -->",
           "- [2025-01-01] Old entry — something cool",
-          "<!-- cowork:auto:lore:end -->",
+          "<!-- neoworker:auto:lore:end -->",
           "",
           "## Notes",
           "- keep this",
@@ -157,16 +168,16 @@ describe("LoreService", () => {
     });
 
     it("removes (none) placeholder when real entries arrive", async () => {
-      const lorePath = path.join(tmpDir, ".cowork", "LORE.md");
+      const lorePath = path.join(tmpDir, ".neoworker", "LORE.md");
       writeFile(
         lorePath,
         [
           "# Shared Lore",
           "",
           "## Milestones",
-          "<!-- cowork:auto:lore:start -->",
+          "<!-- neoworker:auto:lore:start -->",
           "- (none)",
-          "<!-- cowork:auto:lore:end -->",
+          "<!-- neoworker:auto:lore:end -->",
           "",
         ].join("\n"),
       );
@@ -266,9 +277,9 @@ describe("LoreService", () => {
       expect(state.entries).toHaveLength(1);
     });
 
-    it("skips workspaces without .cowork/ directory", async () => {
-      // Remove .cowork/ dir
-      fs.rmSync(path.join(tmpDir, ".cowork"), { recursive: true, force: true });
+    it("skips workspaces without .neoworker/ directory", async () => {
+      // Remove .neoworker/ dir
+      fs.rmSync(path.join(tmpDir, ".neoworker"), { recursive: true, force: true });
 
       const db = createMockDb();
       const service = new LoreService(db);
@@ -293,16 +304,16 @@ describe("LoreService", () => {
     it("caps auto entries at MAX_LORE_ENTRIES (40)", async () => {
       // Create a LORE.md with 39 existing entries
       const existingLines = Array.from({ length: 39 }, (_, i) => `- [2025-01-01] Task ${i + 1}`);
-      const lorePath = path.join(tmpDir, ".cowork", "LORE.md");
+      const lorePath = path.join(tmpDir, ".neoworker", "LORE.md");
       writeFile(
         lorePath,
         [
           "# Shared Lore",
           "",
           "## Milestones",
-          "<!-- cowork:auto:lore:start -->",
+          "<!-- neoworker:auto:lore:start -->",
           ...existingLines,
-          "<!-- cowork:auto:lore:end -->",
+          "<!-- neoworker:auto:lore:end -->",
           "",
         ].join("\n"),
       );
@@ -334,16 +345,16 @@ describe("LoreService", () => {
 
     it("deduplicates milestones that already exist in auto section", async () => {
       vi.setSystemTime(new Date("2026-03-01T10:00:00Z"));
-      const lorePath = path.join(tmpDir, ".cowork", "LORE.md");
+      const lorePath = path.join(tmpDir, ".neoworker", "LORE.md");
       writeFile(
         lorePath,
         [
           "# Shared Lore",
           "",
           "## Milestones",
-          "<!-- cowork:auto:lore:start -->",
+          "<!-- neoworker:auto:lore:start -->",
           "- [2026-03-01] Implemented the auth flow",
-          "<!-- cowork:auto:lore:end -->",
+          "<!-- neoworker:auto:lore:end -->",
           "",
         ].join("\n"),
       );
@@ -384,7 +395,7 @@ describe("LoreService", () => {
       (service as Any).ingestTaskCompleted("task-debounce", {}, Date.now());
 
       // File should NOT exist yet (flush hasn't fired).
-      const lorePath = path.join(tmpDir, ".cowork", "LORE.md");
+      const lorePath = path.join(tmpDir, ".neoworker", "LORE.md");
       expect(fs.existsSync(lorePath)).toBe(false);
 
       // Advance timers past debounce threshold.
@@ -425,7 +436,7 @@ describe("LoreService", () => {
       );
       await (service as Any).flushWorkspace("ws-1");
 
-      const lorePath = path.join(tmpDir, ".cowork", "LORE.md");
+      const lorePath = path.join(tmpDir, ".neoworker", "LORE.md");
       const content = readFile(lorePath);
       expect(content).toContain(
         "[2026-03-15] Refactored the payment module — Clean separation of concerns",
@@ -449,7 +460,7 @@ describe("LoreService", () => {
       (service as Any).ingestTaskCompleted("task-nosummary", {}, Date.now());
       await (service as Any).flushWorkspace("ws-1");
 
-      const lorePath = path.join(tmpDir, ".cowork", "LORE.md");
+      const lorePath = path.join(tmpDir, ".neoworker", "LORE.md");
       const content = readFile(lorePath);
       expect(content).toContain("Updated the README file");
       expect(content).not.toContain(" — ");

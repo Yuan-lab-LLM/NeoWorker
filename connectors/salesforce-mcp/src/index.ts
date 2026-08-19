@@ -171,7 +171,7 @@ class SalesforceClient {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'CoWork-Salesforce-Connector/0.1.0',
+        'User-Agent': 'NeoWorker-Salesforce-Connector/0.1.0',
       },
       body: body ? JSON.stringify(body) : undefined,
     });

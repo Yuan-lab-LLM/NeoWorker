@@ -24,6 +24,8 @@ import {
   ImessageConfig as _ImessageConfig,
   SignalConfig as _SignalConfig,
   FeishuConfig as _FeishuConfig,
+  DingTalkConfig as _DingTalkConfig,
+  WeixinConfig as _WeixinConfig,
   WeComConfig as _WeComConfig,
   MattermostConfig as _MattermostConfig,
   MatrixConfig as _MatrixConfig,
@@ -41,12 +43,20 @@ import { WhatsAppAdapter, createWhatsAppAdapter } from "./channels/whatsapp";
 import { ImessageAdapter, createImessageAdapter } from "./channels/imessage";
 import { SignalAdapter, createSignalAdapter } from "./channels/signal";
 import { createFeishuAdapter } from "./channels/feishu";
+import { createDingTalkAdapter } from "./channels/dingtalk";
+import { createWeixinAdapter } from "./channels/weixin";
 import { createWeComAdapter } from "./channels/wecom";
-import { MattermostAdapter, createMattermostAdapter } from "./channels/mattermost";
+import {
+  MattermostAdapter,
+  createMattermostAdapter,
+} from "./channels/mattermost";
 import { MatrixAdapter, createMatrixAdapter } from "./channels/matrix";
 import { TwitchAdapter, createTwitchAdapter } from "./channels/twitch";
 import { LineAdapter, createLineAdapter } from "./channels/line";
-import { BlueBubblesAdapter, createBlueBubblesAdapter } from "./channels/bluebubbles";
+import {
+  BlueBubblesAdapter,
+  createBlueBubblesAdapter,
+} from "./channels/bluebubbles";
 import { createGoogleChatAdapter } from "./channels/google-chat";
 import { EmailAdapter, createEmailAdapter } from "./channels/email";
 import { XAdapter, createXAdapter, type XAdapterConfig } from "./channels/x";
@@ -63,13 +73,20 @@ import {
   initializeHookAgentIngress,
 } from "../hooks/agent-ingress";
 import { PersonalityManager } from "../settings/personality-manager";
-import { buildMentionTaskPrompt, type ParsedMentionCommand } from "../x-mentions/parser";
+import {
+  buildMentionTaskPrompt,
+  type ParsedMentionCommand,
+} from "../x-mentions/parser";
 import {
   getChannelMessage,
   DEFAULT_CHANNEL_CONTEXT,
   type ChannelMessageContext,
 } from "../../shared/channelMessages";
-import { DEFAULT_QUIRKS, IPC_CHANNELS } from "../../shared/types";
+import {
+  DEFAULT_ASSISTANT_NAME,
+  DEFAULT_QUIRKS,
+  IPC_CHANNELS,
+} from "../../shared/types";
 import { getUnsupportedManualEmailSetupMessage } from "../../shared/email-provider-support";
 import {
   MICROSOFT_EMAIL_DEFAULT_TENANT,
@@ -139,7 +156,10 @@ export class ChannelGateway {
   private initialized = false;
   private agentDaemon?: AgentDaemon;
   private hookIngress: HookAgentIngress | null = null;
-  private daemonListeners: Array<{ event: string; handler: (...args: Any[]) => void }> = [];
+  private daemonListeners: Array<{
+    event: string;
+    handler: (...args: Any[]) => void;
+  }> = [];
   private pendingCleanupInterval: ReturnType<typeof setInterval> | null = null;
   private discordSupervisorService?: DiscordSupervisorService;
 
@@ -172,7 +192,7 @@ export class ChannelGateway {
       if (PersonalityManager.isInitialized()) {
         const settings = PersonalityManager.loadSettings();
         return {
-          agentName: settings.agentName || "CoWork",
+          agentName: settings.agentName || DEFAULT_ASSISTANT_NAME,
           userName: settings.relationship?.userName,
           personality: settings.activePersonality || "professional",
           persona: settings.activePersona,
@@ -233,9 +253,12 @@ export class ChannelGateway {
       position?: number;
       reason?: string;
     }) => {
-      const explicit = typeof data.message === "string" ? data.message.trim() : "";
+      const explicit =
+        typeof data.message === "string" ? data.message.trim() : "";
       const position =
-        typeof data.position === "number" && data.position > 0 ? data.position : undefined;
+        typeof data.position === "number" && data.position > 0
+          ? data.position
+          : undefined;
       const fallback = position
         ? `⏳ Queued (position ${position}). I’ll start as soon as a slot is free.`
         : "⏳ Queued. I’ll start as soon as a slot is free.";
@@ -243,7 +266,8 @@ export class ChannelGateway {
     };
 
     const onTaskDequeued = (data: { taskId: string; message?: string }) => {
-      const explicit = typeof data.message === "string" ? data.message.trim() : "";
+      const explicit =
+        typeof data.message === "string" ? data.message.trim() : "";
       this.router.sendTaskUpdate(data.taskId, explicit || "▶️ Starting now.");
     };
 
@@ -257,20 +281,29 @@ export class ChannelGateway {
       message?: string;
     }) => {
       const messageResult =
-        typeof data.message === "string" && data.message.trim() !== "Task completed successfully"
+        typeof data.message === "string" &&
+        data.message.trim() !== "Task completed successfully"
           ? data.message.trim()
           : undefined;
       const resultSummary =
         typeof data.resultSummary === "string" ? data.resultSummary.trim() : "";
       const semanticSummary =
-        typeof data.semanticSummary === "string" ? data.semanticSummary.trim() : "";
+        typeof data.semanticSummary === "string"
+          ? data.semanticSummary.trim()
+          : "";
       const verificationVerdict =
-        typeof data.verificationVerdict === "string" ? data.verificationVerdict.trim() : "";
+        typeof data.verificationVerdict === "string"
+          ? data.verificationVerdict.trim()
+          : "";
       const verificationReport =
-        typeof data.verificationReport === "string" ? data.verificationReport.trim() : "";
+        typeof data.verificationReport === "string"
+          ? data.verificationReport.trim()
+          : "";
       const lastAssistantMessage = (lastMessages.get(data.taskId) || "").trim();
       const fallbackMessage = lastAssistantMessage || messageResult || "";
-      const isTextOnlyChannel = this.router.isPendingTaskTextOnlyChannel(data.taskId);
+      const isTextOnlyChannel = this.router.isPendingTaskTextOnlyChannel(
+        data.taskId,
+      );
       const summaryPieces = [resultSummary, semanticSummary].filter(
         (value): value is string => Boolean(value && value.length > 0),
       );
@@ -294,7 +327,10 @@ export class ChannelGateway {
         ]
           .filter((value) => value.length > 0)
           .join("\n");
-        result = [result, verificationLines].filter((value) => value.length > 0).join("\n\n").trim();
+        result = [result, verificationLines]
+          .filter((value) => value.length > 0)
+          .join("\n\n")
+          .trim();
       }
       if (!result) {
         result = fallbackMessage;
@@ -306,7 +342,8 @@ export class ChannelGateway {
 
     // Listen for task cancellation
     const onTaskCancelled = (data: { taskId: string; message?: string }) => {
-      const reason = typeof data.message === "string" ? data.message.trim() : undefined;
+      const reason =
+        typeof data.message === "string" ? data.message.trim() : undefined;
       this.router.handleTaskCancelled(data.taskId, reason);
       lastMessages.delete(data.taskId);
       followUpMessagesSent.delete(data.taskId);
@@ -314,7 +351,11 @@ export class ChannelGateway {
 
     // Listen for task errors
     // Note: daemon emits { taskId, error } or { taskId, message }
-    const onError = (data: { taskId: string; error?: string; message?: string }) => {
+    const onError = (data: {
+      taskId: string;
+      error?: string;
+      message?: string;
+    }) => {
       const errorMsg = data.error || data.message || "Unknown error";
       this.router.handleTaskFailure(data.taskId, errorMsg);
       lastMessages.delete(data.taskId);
@@ -322,7 +363,11 @@ export class ChannelGateway {
     };
 
     // Listen for tool errors (individual tool execution failures)
-    const onToolError = (data: { taskId: string; tool?: string; error?: string }) => {
+    const onToolError = (data: {
+      taskId: string;
+      tool?: string;
+      error?: string;
+    }) => {
       const toolName = data.tool || "Unknown tool";
       const errorMsg = data.error || "Unknown error";
       const normalizedTool = String(toolName).toLowerCase();
@@ -333,7 +378,9 @@ export class ChannelGateway {
           errorMsg,
         );
       if (noisyCanvasError) {
-        logger.debug(`Suppressed non-user-facing canvas tool error for task ${data.taskId}`);
+        logger.debug(
+          `Suppressed non-user-facing canvas tool error for task ${data.taskId}`,
+        );
         return;
       }
       const message = getChannelMessage("toolError", this.getMessageContext(), {
@@ -345,41 +392,61 @@ export class ChannelGateway {
 
     // Listen for follow-up message completion
     const onFollowUpCompleted = async (data: { taskId: string }) => {
-      const followUpText = (followUpLatestAssistantText.get(data.taskId) || "").trim();
+      const followUpText = (
+        followUpLatestAssistantText.get(data.taskId) || ""
+      ).trim();
       const sentAnyAssistant = followUpMessagesSent.get(data.taskId) === true;
 
       // Ensure any debounced buffers are flushed and Telegram draft streams are finalized
       // so transcripts/digests don't miss assistant output from follow-ups.
       if (sentAnyAssistant && followUpText) {
-        await this.router.flushStreamingUpdateForTask(data.taskId);
+        await this.router.flushStreamingUpdateForTask(
+          data.taskId,
+          followUpText,
+        );
         await this.router.finalizeDraftStreamForTask(data.taskId, followUpText);
       }
 
       // If no assistant messages were sent during the follow-up, send a confirmation
       if (!sentAnyAssistant) {
-        const message = getChannelMessage("followUpProcessed", this.getMessageContext());
+        const message = getChannelMessage(
+          "followUpProcessed",
+          this.getMessageContext(),
+        );
         this.router.sendTaskUpdate(data.taskId, message);
       }
       followUpMessagesSent.delete(data.taskId);
       followUpLatestAssistantText.delete(data.taskId);
 
       // Send any artifacts (images, screenshots) created during the follow-up
-      await this.router.sendArtifacts(data.taskId);
+      await this.router.sendArtifacts(data.taskId, followUpText || undefined);
     };
 
     // Listen for follow-up failures
-    const onFollowUpFailed = async (data: { taskId: string; error?: string }) => {
+    const onFollowUpFailed = async (data: {
+      taskId: string;
+      error?: string;
+    }) => {
       const errorMsg = data.error || "Unknown error";
-      const message = getChannelMessage("followUpFailed", this.getMessageContext(), {
-        error: errorMsg,
-      });
-      const followUpText = (followUpLatestAssistantText.get(data.taskId) || "").trim();
+      const message = getChannelMessage(
+        "followUpFailed",
+        this.getMessageContext(),
+        {
+          error: errorMsg,
+        },
+      );
+      const followUpText = (
+        followUpLatestAssistantText.get(data.taskId) || ""
+      ).trim();
       const sentAnyAssistant = followUpMessagesSent.get(data.taskId) === true;
 
       if (sentAnyAssistant && followUpText) {
         try {
           await this.router.flushStreamingUpdateForTask(data.taskId);
-          await this.router.finalizeDraftStreamForTask(data.taskId, followUpText);
+          await this.router.finalizeDraftStreamForTask(
+            data.taskId,
+            followUpText,
+          );
         } catch {
           // Best-effort; still send the failure message below.
         }
@@ -393,8 +460,13 @@ export class ChannelGateway {
     // Listen for task pauses (usually when the assistant asks a question).
     // This is important for Telegram draft streaming: without a task_completed event,
     // the draft can remain with the typing cursor and the final question may not be persisted.
-    const onTaskPaused = async (data: { taskId: string; message?: string; reason?: string }) => {
-      const explicit = typeof data.message === "string" ? data.message.trim() : "";
+    const onTaskPaused = async (data: {
+      taskId: string;
+      message?: string;
+      reason?: string;
+    }) => {
+      const explicit =
+        typeof data.message === "string" ? data.message.trim() : "";
       try {
         await this.router.clearTransientTaskProgress(data.taskId);
         if (explicit) {
@@ -414,10 +486,17 @@ export class ChannelGateway {
       this.router.sendApprovalRequest(data.taskId, data.approval);
     };
 
-    const onArtifactCreated = (data: { taskId: string; path?: string; label?: string }) => {
+    const onArtifactCreated = (data: {
+      taskId: string;
+      path?: string;
+      label?: string;
+    }) => {
       const path = typeof data.path === "string" ? data.path.trim() : "";
       if (!path) return;
-      const label = typeof data.label === "string" && data.label.trim().length > 0 ? data.label : path;
+      const label =
+        typeof data.label === "string" && data.label.trim().length > 0
+          ? data.label
+          : path;
       this.router.sendTaskUpdate(data.taskId, `📎 Artifact: ${label}\n${path}`);
     };
 
@@ -435,8 +514,11 @@ export class ChannelGateway {
         ? data.evidenceRefs
             .map((ref) => ({
               sourceUrlOrPath:
-                typeof ref?.sourceUrlOrPath === "string" ? ref.sourceUrlOrPath.trim() : "",
-              snippet: typeof ref?.snippet === "string" ? ref.snippet.trim() : "",
+                typeof ref?.sourceUrlOrPath === "string"
+                  ? ref.sourceUrlOrPath.trim()
+                  : "",
+              snippet:
+                typeof ref?.snippet === "string" ? ref.snippet.trim() : "",
             }))
             .filter((ref) => ref.sourceUrlOrPath.length > 0)
         : [];
@@ -444,7 +526,10 @@ export class ChannelGateway {
 
       const claimLines =
         keyClaims.length > 0
-          ? `Key claims:\n${keyClaims.slice(0, 3).map((claim) => `- ${claim}`).join("\n")}\n\n`
+          ? `Key claims:\n${keyClaims
+              .slice(0, 3)
+              .map((claim) => `- ${claim}`)
+              .join("\n")}\n\n`
           : "";
       const sourceLines = evidenceRefs
         .slice(0, 5)
@@ -465,7 +550,9 @@ export class ChannelGateway {
       const taskId = typeof evt?.taskId === "string" ? evt.taskId : "";
       if (!taskId) return;
       const payload =
-        evt?.payload && typeof evt.payload === "object" && !Array.isArray(evt.payload)
+        evt?.payload &&
+        typeof evt.payload === "object" &&
+        !Array.isArray(evt.payload)
           ? (evt.payload as Any)
           : {};
 
@@ -477,7 +564,9 @@ export class ChannelGateway {
             : undefined;
 
       const effectiveType =
-        legacyTypeRaw && !String(legacyTypeRaw).startsWith("timeline_") ? legacyTypeRaw : undefined;
+        legacyTypeRaw && !String(legacyTypeRaw).startsWith("timeline_")
+          ? legacyTypeRaw
+          : undefined;
 
       switch (effectiveType) {
         case "assistant_message":
@@ -542,7 +631,10 @@ export class ChannelGateway {
           return;
         case "approval_granted":
         case "approval_denied":
-          if (typeof payload.approvalId === "string" && payload.approvalId.trim().length > 0) {
+          if (
+            typeof payload.approvalId === "string" &&
+            payload.approvalId.trim().length > 0
+          ) {
             this.router.clearPendingApproval(payload.approvalId);
           }
           return;
@@ -577,8 +669,7 @@ export class ChannelGateway {
             taskId,
             keyClaims: payload.keyClaims as string[] | undefined,
             evidenceRefs: payload.evidenceRefs as
-              | Array<{ sourceUrlOrPath?: string; snippet?: string }>
-              | undefined,
+              Array<{ sourceUrlOrPath?: string; snippet?: string }> | undefined,
           });
         }
         return;
@@ -587,12 +678,18 @@ export class ChannelGateway {
       if (timelineType === "timeline_error") {
         onError({
           taskId,
-          message: typeof payload.message === "string" ? payload.message : "Task failed",
+          message:
+            typeof payload.message === "string"
+              ? payload.message
+              : "Task failed",
         });
         return;
       }
 
-      if (timelineType === "timeline_step_updated" && typeof payload.message === "string") {
+      if (
+        timelineType === "timeline_step_updated" &&
+        typeof payload.message === "string"
+      ) {
         const message = payload.message.trim();
         if (message.length > 0) {
           this.router.sendTaskUpdate(taskId, message);
@@ -650,7 +747,9 @@ export class ChannelGateway {
    * Connect enabled channel adapters after the gateway has loaded them.
    * Used by desktop startup to keep network handshakes off the first-window path.
    */
-  async connectEnabledChannels(options: ChannelConnectOptions = {}): Promise<void> {
+  async connectEnabledChannels(
+    options: ChannelConnectOptions = {},
+  ): Promise<void> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -704,7 +803,8 @@ export class ChannelGateway {
     chatId: string,
     limit = 100,
   ): Promise<DiscordMessage[]> {
-    const adapter = this.router.getAdapter("discord") as DiscordAdapter | undefined;
+    const adapter = this.router.getAdapter("discord") as
+      DiscordAdapter | undefined;
     if (!adapter || adapter.status !== "connected") {
       throw new Error("Discord channel is not configured or not connected");
     }
@@ -719,18 +819,26 @@ export class ChannelGateway {
     chatId: string,
     messageId: string,
   ): Promise<DiscordDownloadedAttachment[]> {
-    const adapter = this.router.getAdapter("discord") as DiscordAdapter | undefined;
+    const adapter = this.router.getAdapter("discord") as
+      DiscordAdapter | undefined;
     if (!adapter || adapter.status !== "connected") {
       throw new Error("Discord channel is not configured or not connected");
     }
-    const inboxDir = path.join(getUserDataDir(), "channels", "discord", "inbox");
+    const inboxDir = path.join(
+      getUserDataDir(),
+      "channels",
+      "discord",
+      "inbox",
+    );
     return adapter.downloadAttachment(chatId, messageId, inboxDir);
   }
 
   getStartupStats(): { loaded: number; enabled: number; connected: number } {
     const channels = this.channelRepo.findAll();
     const enabled = channels.filter((channel) => channel.enabled).length;
-    const connected = channels.filter((channel) => channel.status === "connected").length;
+    const connected = channels.filter(
+      (channel) => channel.status === "connected",
+    ).length;
     return {
       loaded: channels.length,
       enabled,
@@ -793,7 +901,8 @@ export class ChannelGateway {
     name: string,
     botToken: string,
     options?: {
-      groupRoutingMode?: "all" | "mentionsOnly" | "mentionsOrCommands" | "commandsOnly";
+      groupRoutingMode?:
+        "all" | "mentionsOnly" | "mentionsOrCommands" | "commandsOnly";
       allowedGroupChatIds?: string[];
     },
     securityMode: "open" | "allowlist" | "pairing" = "pairing",
@@ -801,7 +910,9 @@ export class ChannelGateway {
     // Check if Telegram channel already exists
     const existing = this.channelRepo.findByType("telegram");
     if (existing) {
-      throw new Error("Telegram channel already configured. Update or remove it first.");
+      throw new Error(
+        "Telegram channel already configured. Update or remove it first.",
+      );
     }
 
     // Create channel record
@@ -840,7 +951,9 @@ export class ChannelGateway {
     // Check if Discord channel already exists
     const existing = this.channelRepo.findByType("discord");
     if (existing) {
-      throw new Error("Discord channel already configured. Update or remove it first.");
+      throw new Error(
+        "Discord channel already configured. Update or remove it first.",
+      );
     }
 
     // Create channel record
@@ -906,13 +1019,16 @@ export class ChannelGateway {
       trustedGroupMemoryOptIn?: boolean;
       sendReadReceipts?: boolean;
       deduplicationEnabled?: boolean;
-      groupRoutingMode?: "all" | "mentionsOnly" | "mentionsOrCommands" | "commandsOnly";
+      groupRoutingMode?:
+        "all" | "mentionsOnly" | "mentionsOrCommands" | "commandsOnly";
     },
   ): Promise<Channel> {
     // Check if WhatsApp channel already exists
     const existing = this.channelRepo.findByType("whatsapp");
     if (existing) {
-      throw new Error("WhatsApp channel already configured. Update or remove it first.");
+      throw new Error(
+        "WhatsApp channel already configured. Update or remove it first.",
+      );
     }
 
     // Always clear any stale auth so a new QR is required for a new number.
@@ -933,7 +1049,9 @@ export class ChannelGateway {
         ...(opts?.deduplicationEnabled !== undefined
           ? { deduplicationEnabled: opts.deduplicationEnabled }
           : {}),
-        ...(opts?.groupRoutingMode ? { groupRoutingMode: opts.groupRoutingMode } : {}),
+        ...(opts?.groupRoutingMode
+          ? { groupRoutingMode: opts.groupRoutingMode }
+          : {}),
         ...(opts?.trustedGroupMemoryOptIn !== undefined
           ? { trustedGroupMemoryOptIn: opts.trustedGroupMemoryOptIn }
           : {}),
@@ -976,7 +1094,9 @@ export class ChannelGateway {
     // Check if iMessage channel already exists
     const existing = this.channelRepo.findByType("imessage");
     if (existing) {
-      throw new Error("iMessage channel already configured. Update or remove it first.");
+      throw new Error(
+        "iMessage channel already configured. Update or remove it first.",
+      );
     }
 
     // Create channel record
@@ -1026,7 +1146,9 @@ export class ChannelGateway {
     // Check if Signal channel already exists
     const existing = this.channelRepo.findByType("signal");
     if (existing) {
-      throw new Error("Signal channel already configured. Update or remove it first.");
+      throw new Error(
+        "Signal channel already configured. Update or remove it first.",
+      );
     }
 
     // Create channel record
@@ -1071,7 +1193,9 @@ export class ChannelGateway {
     // Check if Mattermost channel already exists
     const existing = this.channelRepo.findByType("mattermost");
     if (existing) {
-      throw new Error("Mattermost channel already configured. Update or remove it first.");
+      throw new Error(
+        "Mattermost channel already configured. Update or remove it first.",
+      );
     }
 
     // Create channel record
@@ -1112,7 +1236,9 @@ export class ChannelGateway {
     // Check if Matrix channel already exists
     const existing = this.channelRepo.findByType("matrix");
     if (existing) {
-      throw new Error("Matrix channel already configured. Update or remove it first.");
+      throw new Error(
+        "Matrix channel already configured. Update or remove it first.",
+      );
     }
 
     // Create channel record
@@ -1154,7 +1280,9 @@ export class ChannelGateway {
     // Check if Twitch channel already exists
     const existing = this.channelRepo.findByType("twitch");
     if (existing) {
-      throw new Error("Twitch channel already configured. Update or remove it first.");
+      throw new Error(
+        "Twitch channel already configured. Update or remove it first.",
+      );
     }
 
     // Create channel record
@@ -1194,7 +1322,9 @@ export class ChannelGateway {
     // Check if LINE channel already exists
     const existing = this.channelRepo.findByType("line");
     if (existing) {
-      throw new Error("LINE channel already configured. Update or remove it first.");
+      throw new Error(
+        "LINE channel already configured. Update or remove it first.",
+      );
     }
 
     // Create channel record
@@ -1240,7 +1370,9 @@ export class ChannelGateway {
     // Check if BlueBubbles channel already exists
     const existing = this.channelRepo.findByType("bluebubbles");
     if (existing) {
-      throw new Error("BlueBubbles channel already configured. Update or remove it first.");
+      throw new Error(
+        "BlueBubbles channel already configured. Update or remove it first.",
+      );
     }
 
     // Create channel record
@@ -1285,7 +1417,9 @@ export class ChannelGateway {
   ): Promise<Channel> {
     const existing = this.channelRepo.findByType("googlechat");
     if (existing) {
-      throw new Error("Google Chat channel already configured. Update or remove it first.");
+      throw new Error(
+        "Google Chat channel already configured. Update or remove it first.",
+      );
     }
 
     const channel = this.channelRepo.create({
@@ -1348,7 +1482,9 @@ export class ChannelGateway {
     // Check if Email channel already exists
     const existing = this.channelRepo.findByType("email");
     if (existing) {
-      throw new Error("Email channel already configured. Update or remove it first.");
+      throw new Error(
+        "Email channel already configured. Update or remove it first.",
+      );
     }
 
     const protocol = options?.protocol === "loom" ? "loom" : "imap-smtp";
@@ -1436,7 +1572,9 @@ export class ChannelGateway {
   ): Promise<Channel> {
     const existing = this.channelRepo.findByType("feishu");
     if (existing) {
-      throw new Error("Feishu / Lark channel already configured. Update or remove it first.");
+      throw new Error(
+        "Feishu / Lark channel already configured. Update or remove it first.",
+      );
     }
 
     const channel = this.channelRepo.create({
@@ -1465,6 +1603,43 @@ export class ChannelGateway {
   }
 
   /**
+   * Add a DingTalk Stream-mode channel.
+   */
+  async addDingTalkChannel(
+    name: string,
+    clientId: string,
+    clientSecret: string,
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    const existing = this.channelRepo.findByType("dingtalk");
+    if (existing) {
+      throw new Error(
+        "DingTalk channel already configured. Update or remove it first.",
+      );
+    }
+
+    return this.channelRepo.create({
+      type: "dingtalk",
+      name,
+      enabled: false,
+      config: {
+        clientId,
+        clientSecret,
+        displayName: name,
+        deduplicationEnabled: true,
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: [],
+        pairingCodeTTL: 300,
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+  }
+
+  /**
    * Add a new WeCom channel
    */
   async addWeComChannel(
@@ -1480,7 +1655,9 @@ export class ChannelGateway {
   ): Promise<Channel> {
     const existing = this.channelRepo.findByType("wecom");
     if (existing) {
-      throw new Error("WeCom channel already configured. Update or remove it first.");
+      throw new Error(
+        "WeCom channel already configured. Update or remove it first.",
+      );
     }
 
     const channel = this.channelRepo.create({
@@ -1510,6 +1687,46 @@ export class ChannelGateway {
   }
 
   /**
+   * Add a personal WeChat channel authenticated through iLink QR login.
+   */
+  async addWeixinChannel(
+    name: string,
+    accountId: string,
+    botToken: string,
+    baseUrl: string,
+    userId?: string,
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    const existing = this.channelRepo.findByType("weixin");
+    if (existing) {
+      throw new Error(
+        "A WeChat channel is already configured. Disconnect or remove the existing connection first.",
+      );
+    }
+
+    return this.channelRepo.create({
+      type: "weixin",
+      name,
+      enabled: false,
+      config: {
+        accountId,
+        botToken,
+        baseUrl,
+        userId,
+        deduplicationEnabled: true,
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: [],
+        pairingCodeTTL: 300,
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+  }
+
+  /**
    * Add a new X channel
    */
   async addXChannel(
@@ -1525,7 +1742,9 @@ export class ChannelGateway {
   ): Promise<Channel> {
     const existing = this.channelRepo.findByType("x");
     if (existing) {
-      throw new Error("X channel already configured. Update or remove it first.");
+      throw new Error(
+        "X channel already configured. Update or remove it first.",
+      );
     }
 
     const channel = this.channelRepo.create({
@@ -1632,7 +1851,10 @@ export class ChannelGateway {
       await adapter.disconnect();
     }
 
-    this.channelRepo.update(channelId, { enabled: false, status: "disconnected" });
+    this.channelRepo.update(channelId, {
+      enabled: false,
+      status: "disconnected",
+    });
   }
 
   /**
@@ -1646,7 +1868,8 @@ export class ChannelGateway {
     }
 
     // Create and register adapter if not already done
-    let adapter = this.router.getAdapter("whatsapp") as WhatsAppAdapter | undefined;
+    let adapter = this.router.getAdapter("whatsapp") as
+      WhatsAppAdapter | undefined;
     if (!adapter) {
       adapter = this.createAdapterForChannel(channel) as WhatsAppAdapter;
       this.attachDiscordSupervisorHandler(adapter);
@@ -1666,7 +1889,10 @@ export class ChannelGateway {
       adapter.onStatusChange((status, error) => {
         console.log(`WhatsApp status changed to: ${status}`);
         if (!mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IPC_CHANNELS.WHATSAPP_STATUS, { status, error: error?.message });
+          mainWindow.webContents.send(IPC_CHANNELS.WHATSAPP_STATUS, {
+            status,
+            error: error?.message,
+          });
           if (status === "connected") {
             mainWindow.webContents.send(IPC_CHANNELS.WHATSAPP_CONNECTED);
             // Update channel status in database
@@ -1694,13 +1920,18 @@ export class ChannelGateway {
   /**
    * Get WhatsApp channel info including QR code
    */
-  async getWhatsAppInfo(): Promise<{ qrCode?: string; phoneNumber?: string; status?: string }> {
+  async getWhatsAppInfo(): Promise<{
+    qrCode?: string;
+    phoneNumber?: string;
+    status?: string;
+  }> {
     const channel = this.channelRepo.findByType("whatsapp");
     if (!channel) {
       return {};
     }
 
-    const adapter = this.router.getAdapter("whatsapp") as WhatsAppAdapter | undefined;
+    const adapter = this.router.getAdapter("whatsapp") as
+      WhatsAppAdapter | undefined;
     if (!adapter) {
       return { status: channel.status };
     }
@@ -1716,7 +1947,8 @@ export class ChannelGateway {
    * Logout from WhatsApp and clear credentials
    */
   async whatsAppLogout(): Promise<void> {
-    const adapter = this.router.getAdapter("whatsapp") as WhatsAppAdapter | undefined;
+    const adapter = this.router.getAdapter("whatsapp") as
+      WhatsAppAdapter | undefined;
     if (adapter) {
       await adapter.logout();
     } else {
@@ -1741,11 +1973,14 @@ export class ChannelGateway {
     if (!channel) return;
 
     if (channel.type === "whatsapp") {
-      const adapter = this.router.getAdapter("whatsapp") as WhatsAppAdapter | undefined;
+      const adapter = this.router.getAdapter("whatsapp") as
+        WhatsAppAdapter | undefined;
       if (adapter) {
         await adapter.logout();
       } else {
-        const tempAdapter = this.createAdapterForChannel(channel) as WhatsAppAdapter;
+        const tempAdapter = this.createAdapterForChannel(
+          channel,
+        ) as WhatsAppAdapter;
         await tempAdapter.logout();
       }
       this.clearWhatsAppAuthDir(channel);
@@ -1775,7 +2010,10 @@ export class ChannelGateway {
     }
 
     try {
-      if (channel.type === "email" && this.isMicrosoftEmailOAuthChannel(channel)) {
+      if (
+        channel.type === "email" &&
+        this.isMicrosoftEmailOAuthChannel(channel)
+      ) {
         await this.validateMicrosoftEmailGraphReadAccess(channel);
         return {
           success: true,
@@ -1830,18 +2068,30 @@ export class ChannelGateway {
   /**
    * Generate a pairing code for a user
    */
-  generatePairingCode(channelId: string, userId?: string, displayName?: string): string {
+  generatePairingCode(
+    channelId: string,
+    userId?: string,
+    displayName?: string,
+  ): string {
     const channel = this.channelRepo.findById(channelId);
     if (!channel) {
       throw new Error("Channel not found");
     }
-    return this.securityManager.generatePairingCode(channel, userId, displayName);
+    return this.securityManager.generatePairingCode(
+      channel,
+      userId,
+      displayName,
+    );
   }
 
   /**
    * Grant access to a user
    */
-  grantUserAccess(channelId: string, userId: string, displayName?: string): void {
+  grantUserAccess(
+    channelId: string,
+    userId: string,
+    displayName?: string,
+  ): void {
     this.securityManager.grantAccess(channelId, userId, displayName);
   }
 
@@ -1856,7 +2106,9 @@ export class ChannelGateway {
    * Get users for a channel
    * Automatically cleans up expired pending pairing entries
    */
-  getChannelUsers(channelId: string): ReturnType<typeof this.userRepo.findByChannelId> {
+  getChannelUsers(
+    channelId: string,
+  ): ReturnType<typeof this.userRepo.findByChannelId> {
     // Use securityManager to trigger cleanup of expired pending entries
     return this.securityManager.getChannelUsers(channelId);
   }
@@ -1877,13 +2129,17 @@ export class ChannelGateway {
       idempotencyKey?: string;
     },
   ): Promise<string> {
-    return this.router.sendMessage(channelType, {
-      chatId,
-      text,
-      idempotencyKey: options?.idempotencyKey,
-      replyTo: options?.replyTo,
-      parseMode: options?.parseMode,
-    }, options?.channelDbId);
+    return this.router.sendMessage(
+      channelType,
+      {
+        chatId,
+        text,
+        idempotencyKey: options?.idempotencyKey,
+        replyTo: options?.replyTo,
+        parseMode: options?.parseMode,
+      },
+      options?.channelDbId,
+    );
   }
 
   /**
@@ -1906,12 +2162,16 @@ export class ChannelGateway {
       return null;
     }
 
-    return this.router.sendMessage(channel.type as ChannelType, {
-      chatId: session.chatId,
-      text,
-      replyTo: options?.replyTo,
-      parseMode: options?.parseMode,
-    }, channel.id);
+    return this.router.sendMessage(
+      channel.type as ChannelType,
+      {
+        chatId: session.chatId,
+        text,
+        replyTo: options?.replyTo,
+        parseMode: options?.parseMode,
+      },
+      channel.id,
+    );
   }
 
   /**
@@ -1973,7 +2233,8 @@ export class ChannelGateway {
   }
 
   private resolveWhatsAppAuthDir(channel?: Channel): string {
-    const configured = (channel?.config as { authDir?: string } | undefined)?.authDir;
+    const configured = (channel?.config as { authDir?: string } | undefined)
+      ?.authDir;
     if (configured && configured.trim()) {
       return configured;
     }
@@ -2006,17 +2267,26 @@ export class ChannelGateway {
         this.attachDiscordSupervisorHandler(adapter);
         this.router.registerAdapter(adapter, channel.id);
       } catch (error) {
-        console.error(`Failed to create adapter for channel ${channel.type}:`, error);
+        console.error(
+          `Failed to create adapter for channel ${channel.type}:`,
+          error,
+        );
       }
     }
   }
 
   private attachDiscordSupervisorHandler(adapter: ChannelAdapter): void {
-    if (!(adapter instanceof DiscordAdapter) || !this.discordSupervisorService) {
+    if (
+      !(adapter instanceof DiscordAdapter) ||
+      !this.discordSupervisorService
+    ) {
       return;
     }
     adapter.onMessage(async (message) => {
-      await this.discordSupervisorService?.handleIncomingDiscordMessage(adapter, message);
+      await this.discordSupervisorService?.handleIncomingDiscordMessage(
+        adapter,
+        message,
+      );
     });
   }
 
@@ -2048,7 +2318,10 @@ export class ChannelGateway {
           `Timed out connecting Microsoft Outlook email channel ${channel.id}`,
         );
       } catch (error) {
-        console.error("Failed to connect Microsoft Outlook email channel:", error);
+        console.error(
+          "Failed to connect Microsoft Outlook email channel:",
+          error,
+        );
       }
     }
   }
@@ -2058,7 +2331,10 @@ export class ChannelGateway {
     options: ChannelConnectOptions = {},
   ): Promise<void> {
     this.router.unregisterAdapter(channel.id);
-    this.channelRepo.update(channel.id, { enabled: true, status: "connecting" });
+    this.channelRepo.update(channel.id, {
+      enabled: true,
+      status: "connecting",
+    });
 
     try {
       await this.validateMicrosoftEmailGraphReadAccess(channel, options);
@@ -2108,7 +2384,7 @@ export class ChannelGateway {
         return;
       }
       throw new Error(
-        "Outlook sync test failed: reconnect the Outlook email channel so CoWork can request Microsoft Graph Mail.ReadWrite access.",
+        "Outlook sync test failed: reconnect the Outlook email channel so NeoWorker can request Microsoft Graph Mail.ReadWrite access.",
       );
     }
 
@@ -2116,7 +2392,9 @@ export class ChannelGateway {
       clientId: oauthClientId,
       clientSecret: channel.config.oauthClientSecret as string | undefined,
       refreshToken,
-      tenant: (channel.config.oauthTenant as string | undefined) || MICROSOFT_EMAIL_DEFAULT_TENANT,
+      tenant:
+        (channel.config.oauthTenant as string | undefined) ||
+        MICROSOFT_EMAIL_DEFAULT_TENANT,
       scopes: [...MICROSOFT_EMAIL_GRAPH_READWRITE_SCOPES],
     });
     await this.probeMicrosoftGraphReadAccess(refreshed.accessToken, options);
@@ -2143,7 +2421,9 @@ export class ChannelGateway {
     accessToken: string,
     options: ChannelConnectOptions = {},
   ): Promise<void> {
-    const url = new URL("https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages");
+    const url = new URL(
+      "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages",
+    );
     url.searchParams.set("$top", "1");
     url.searchParams.set("$select", "id");
     const controller = new AbortController();
@@ -2163,11 +2443,15 @@ export class ChannelGateway {
     }
     if (response.ok) return;
 
-    const rawText = typeof response.text === "function" ? await response.text() : "";
+    const rawText =
+      typeof response.text === "function" ? await response.text() : "";
     let graphMessage = response.statusText || "Microsoft Graph request failed";
     if (rawText) {
       try {
-        const data = JSON.parse(rawText) as { error?: { message?: string }; message?: string };
+        const data = JSON.parse(rawText) as {
+          error?: { message?: string };
+          message?: string;
+        };
         graphMessage = data.error?.message || data.message || graphMessage;
       } catch {
         graphMessage = rawText;
@@ -2191,7 +2475,10 @@ export class ChannelGateway {
     const accessToken = channel.config.accessToken as string | undefined;
     const tokenExpiresAt = channel.config.tokenExpiresAt as number | undefined;
     const now = Date.now();
-    if (accessToken && (!tokenExpiresAt || now < tokenExpiresAt - 2 * 60 * 1000)) {
+    if (
+      accessToken &&
+      (!tokenExpiresAt || now < tokenExpiresAt - 2 * 60 * 1000)
+    ) {
       return accessToken;
     }
 
@@ -2212,14 +2499,18 @@ export class ChannelGateway {
       clientId: oauthClientId,
       clientSecret: channel.config.oauthClientSecret as string | undefined,
       refreshToken,
-      tenant: (channel.config.oauthTenant as string | undefined) || MICROSOFT_EMAIL_DEFAULT_TENANT,
+      tenant:
+        (channel.config.oauthTenant as string | undefined) ||
+        MICROSOFT_EMAIL_DEFAULT_TENANT,
     });
 
     const nextConfig = {
       ...channel.config,
       accessToken: refreshed.accessToken,
       refreshToken: refreshed.refreshToken || refreshToken,
-      tokenExpiresAt: refreshed.expiresIn ? Date.now() + refreshed.expiresIn * 1000 : tokenExpiresAt,
+      tokenExpiresAt: refreshed.expiresIn
+        ? Date.now() + refreshed.expiresIn * 1000
+        : tokenExpiresAt,
       scopes: normalizeMicrosoftEmailReadScopes(
         refreshed.scopes || (channel.config.scopes as string[] | undefined),
       ),
@@ -2265,16 +2556,20 @@ export class ChannelGateway {
           enabled: channel.enabled,
           allowedNumbers: channel.config.allowedNumbers as string[] | undefined,
           printQrToTerminal: true, // For debugging
-          selfChatMode: (channel.config.selfChatMode as boolean | undefined) ?? true,
-          sendReadReceipts: channel.config.sendReadReceipts as boolean | undefined,
-          deduplicationEnabled: channel.config.deduplicationEnabled as boolean | undefined,
+          selfChatMode:
+            (channel.config.selfChatMode as boolean | undefined) ?? true,
+          sendReadReceipts: channel.config.sendReadReceipts as
+            boolean | undefined,
+          deduplicationEnabled: channel.config.deduplicationEnabled as
+            boolean | undefined,
           groupRoutingMode: channel.config.groupRoutingMode as
             | "all"
             | "mentionsOnly"
             | "mentionsOrCommands"
             | "commandsOnly"
             | undefined,
-          responsePrefix: (channel.config.responsePrefix as string | undefined) ?? "🤖",
+          responsePrefix:
+            (channel.config.responsePrefix as string | undefined) ?? "🤖",
         });
 
       case "imessage":
@@ -2283,13 +2578,11 @@ export class ChannelGateway {
           cliPath: channel.config.cliPath as string | undefined,
           dbPath: channel.config.dbPath as string | undefined,
           dmPolicy: channel.config.dmPolicy as
-            | "open"
-            | "allowlist"
-            | "pairing"
-            | "disabled"
-            | undefined,
-          groupPolicy: channel.config.groupPolicy as "open" | "allowlist" | "disabled" | undefined,
-          allowedContacts: channel.config.allowedContacts as string[] | undefined,
+            "open" | "allowlist" | "pairing" | "disabled" | undefined,
+          groupPolicy: channel.config.groupPolicy as
+            "open" | "allowlist" | "disabled" | undefined,
+          allowedContacts: channel.config.allowedContacts as
+            string[] | undefined,
           responsePrefix: channel.config.responsePrefix as string | undefined,
         });
 
@@ -2301,17 +2594,17 @@ export class ChannelGateway {
           dataDir: channel.config.dataDir as string | undefined,
           mode: channel.config.mode as "native" | "daemon" | undefined,
           socketPath: channel.config.socketPath as string | undefined,
-          trustMode: channel.config.trustMode as "tofu" | "always" | "manual" | undefined,
+          trustMode: channel.config.trustMode as
+            "tofu" | "always" | "manual" | undefined,
           dmPolicy: channel.config.dmPolicy as
-            | "open"
-            | "allowlist"
-            | "pairing"
-            | "disabled"
-            | undefined,
-          groupPolicy: channel.config.groupPolicy as "open" | "allowlist" | "disabled" | undefined,
+            "open" | "allowlist" | "pairing" | "disabled" | undefined,
+          groupPolicy: channel.config.groupPolicy as
+            "open" | "allowlist" | "disabled" | undefined,
           allowedNumbers: channel.config.allowedNumbers as string[] | undefined,
-          sendReadReceipts: channel.config.sendReadReceipts as boolean | undefined,
-          sendTypingIndicators: channel.config.sendTypingIndicators as boolean | undefined,
+          sendReadReceipts: channel.config.sendReadReceipts as
+            boolean | undefined,
+          sendTypingIndicators: channel.config.sendTypingIndicators as
+            boolean | undefined,
           responsePrefix: channel.config.responsePrefix as string | undefined,
         });
 
@@ -2332,8 +2625,10 @@ export class ChannelGateway {
           accessToken: channel.config.accessToken as string,
           deviceId: channel.config.deviceId as string | undefined,
           roomIds: channel.config.roomIds as string[] | undefined,
-          sendTypingIndicators: channel.config.sendTypingIndicators as boolean | undefined,
-          sendReadReceipts: channel.config.sendReadReceipts as boolean | undefined,
+          sendTypingIndicators: channel.config.sendTypingIndicators as
+            boolean | undefined,
+          sendReadReceipts: channel.config.sendReadReceipts as
+            boolean | undefined,
           responsePrefix: channel.config.responsePrefix as string | undefined,
         });
 
@@ -2364,46 +2659,58 @@ export class ChannelGateway {
           password: channel.config.password as string,
           webhookPort: channel.config.webhookPort as number | undefined,
           webhookPath: channel.config.webhookPath as string | undefined,
-          webhookSecret: (channel.config.webhookSecret as string | undefined) || (channel.config.password as string),
+          webhookSecret:
+            (channel.config.webhookSecret as string | undefined) ||
+            (channel.config.password as string),
           pollInterval: channel.config.pollInterval as number | undefined,
-          allowedContacts: channel.config.allowedContacts as string[] | undefined,
+          allowedContacts: channel.config.allowedContacts as
+            string[] | undefined,
           responsePrefix: channel.config.responsePrefix as string | undefined,
         });
 
       case "googlechat":
         return createGoogleChatAdapter({
           enabled: channel.enabled,
-          serviceAccountKeyPath: channel.config.serviceAccountKeyPath as string | undefined,
+          serviceAccountKeyPath: channel.config.serviceAccountKeyPath as
+            string | undefined,
           serviceAccountKey: channel.config.serviceAccountKey as
-            | _GoogleChatConfig["serviceAccountKey"]
-            | undefined,
+            _GoogleChatConfig["serviceAccountKey"] | undefined,
           projectId: channel.config.projectId as string | undefined,
           webhookPort: channel.config.webhookPort as number | undefined,
           webhookPath: channel.config.webhookPath as string | undefined,
           webhookSecret: channel.config.webhookSecret as string | undefined,
           responsePrefix: channel.config.responsePrefix as string | undefined,
-          deduplicationEnabled: channel.config.deduplicationEnabled as boolean | undefined,
+          deduplicationEnabled: channel.config.deduplicationEnabled as
+            boolean | undefined,
           autoReconnect: channel.config.autoReconnect as boolean | undefined,
-          maxReconnectAttempts: channel.config.maxReconnectAttempts as number | undefined,
-          pubsubSubscription: channel.config.pubsubSubscription as string | undefined,
+          maxReconnectAttempts: channel.config.maxReconnectAttempts as
+            number | undefined,
+          pubsubSubscription: channel.config.pubsubSubscription as
+            string | undefined,
         } as _GoogleChatConfig);
 
       case "email":
         const loomStatePath =
-          channel.type === "email" ? this.getLoomStatePath(channel.id) : undefined;
+          channel.type === "email"
+            ? this.getLoomStatePath(channel.id)
+            : undefined;
         return createEmailAdapter({
           enabled: channel.enabled,
           protocol: channel.config.protocol as "imap-smtp" | "loom" | undefined,
-          authMethod: channel.config.authMethod as "password" | "oauth" | undefined,
-          oauthProvider: channel.config.oauthProvider as "microsoft" | undefined,
+          authMethod: channel.config.authMethod as
+            "password" | "oauth" | undefined,
+          oauthProvider: channel.config.oauthProvider as
+            "microsoft" | undefined,
           oauthClientId: channel.config.oauthClientId as string | undefined,
-          oauthClientSecret: channel.config.oauthClientSecret as string | undefined,
+          oauthClientSecret: channel.config.oauthClientSecret as
+            string | undefined,
           oauthTenant: channel.config.oauthTenant as string | undefined,
           accessToken: channel.config.accessToken as string | undefined,
           refreshToken: channel.config.refreshToken as string | undefined,
           tokenExpiresAt: channel.config.tokenExpiresAt as number | undefined,
           scopes: channel.config.scopes as string[] | undefined,
-          oauthAccessTokenProvider: async () => this.getEmailOAuthAccessToken(channel.id),
+          oauthAccessTokenProvider: async () =>
+            this.getEmailOAuthAccessToken(channel.id),
           imapHost: channel.config.imapHost as string,
           imapPort: channel.config.imapPort as number | undefined,
           imapSecure: channel.config.imapSecure as boolean | undefined,
@@ -2422,8 +2729,10 @@ export class ChannelGateway {
           loomBaseUrl: channel.config.loomBaseUrl as string | undefined,
           loomAccessToken: channel.config.loomAccessToken as string | undefined,
           loomIdentity: channel.config.loomIdentity as string | undefined,
-          loomMailboxFolder: channel.config.loomMailboxFolder as string | undefined,
-          loomPollInterval: channel.config.loomPollInterval as number | undefined,
+          loomMailboxFolder: channel.config.loomMailboxFolder as
+            string | undefined,
+          loomPollInterval: channel.config.loomPollInterval as
+            number | undefined,
           loomStatePath,
         });
 
@@ -2432,12 +2741,37 @@ export class ChannelGateway {
           enabled: channel.enabled,
           appId: channel.config.appId as string,
           appSecret: channel.config.appSecret as string,
-          verificationToken: channel.config.verificationToken as string | undefined,
+          verificationToken: channel.config.verificationToken as
+            string | undefined,
           encryptKey: channel.config.encryptKey as string | undefined,
           webhookPort: channel.config.webhookPort as number | undefined,
           webhookPath: channel.config.webhookPath as string | undefined,
           responsePrefix: channel.config.responsePrefix as string | undefined,
         } as _FeishuConfig);
+
+      case "dingtalk":
+        return createDingTalkAdapter({
+          enabled: channel.enabled,
+          clientId: channel.config.clientId as string,
+          clientSecret: channel.config.clientSecret as string,
+          displayName: channel.config.displayName as string | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+          deduplicationEnabled: channel.config.deduplicationEnabled as
+            boolean | undefined,
+          debug: channel.config.debug as boolean | undefined,
+        } as _DingTalkConfig);
+
+      case "weixin":
+        return createWeixinAdapter({
+          enabled: channel.enabled,
+          accountId: channel.config.accountId as string,
+          botToken: channel.config.botToken as string,
+          baseUrl: channel.config.baseUrl as string,
+          userId: channel.config.userId as string | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+          deduplicationEnabled: channel.config.deduplicationEnabled as
+            boolean | undefined,
+        } as _WeixinConfig);
 
       case "wecom":
         return createWeComAdapter({
@@ -2459,7 +2793,8 @@ export class ChannelGateway {
           allowedAuthors: channel.config.allowedAuthors as string[] | undefined,
           pollIntervalSec: channel.config.pollIntervalSec as number | undefined,
           fetchCount: channel.config.fetchCount as number | undefined,
-          outboundEnabled: channel.config.outboundEnabled as boolean | undefined,
+          outboundEnabled: channel.config.outboundEnabled as
+            boolean | undefined,
           onMentionCommand: async (mention: ParsedMentionCommand) => {
             const ingress = this.getHookIngress();
             if (!ingress) return;
@@ -2508,7 +2843,10 @@ export { SignalAdapter, createSignalAdapter } from "./channels/signal";
 export { SignalClient } from "./channels/signal-client";
 export { FeishuAdapter, createFeishuAdapter } from "./channels/feishu";
 export { WeComAdapter, createWeComAdapter } from "./channels/wecom";
-export { MattermostAdapter, createMattermostAdapter } from "./channels/mattermost";
+export {
+  MattermostAdapter,
+  createMattermostAdapter,
+} from "./channels/mattermost";
 export { MattermostClient } from "./channels/mattermost-client";
 export { MatrixAdapter, createMatrixAdapter } from "./channels/matrix";
 export { MatrixClient } from "./channels/matrix-client";
@@ -2516,11 +2854,23 @@ export { TwitchAdapter, createTwitchAdapter } from "./channels/twitch";
 export { TwitchClient } from "./channels/twitch-client";
 export { LineAdapter, createLineAdapter } from "./channels/line";
 export { LineClient } from "./channels/line-client";
-export { BlueBubblesAdapter, createBlueBubblesAdapter } from "./channels/bluebubbles";
+export {
+  BlueBubblesAdapter,
+  createBlueBubblesAdapter,
+} from "./channels/bluebubbles";
 export { BlueBubblesClient } from "./channels/bluebubbles-client";
 export { EmailAdapter, createEmailAdapter } from "./channels/email";
 export { EmailClient } from "./channels/email-client";
 export { XAdapter, createXAdapter } from "./channels/x";
 export { LoomEmailClient } from "./channels/loom-client";
-export { TunnelManager, getAvailableTunnelProviders, createAutoTunnel } from "./tunnel";
-export type { TunnelProvider, TunnelStatus, TunnelConfig, TunnelInfo } from "./tunnel";
+export {
+  TunnelManager,
+  getAvailableTunnelProviders,
+  createAutoTunnel,
+} from "./tunnel";
+export type {
+  TunnelProvider,
+  TunnelStatus,
+  TunnelConfig,
+  TunnelInfo,
+} from "./tunnel";

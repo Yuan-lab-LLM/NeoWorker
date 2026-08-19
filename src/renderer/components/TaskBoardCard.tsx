@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { TaskLabelData, AgentRoleData } from "../../electron/preload";
+import { translate, useLanguage } from "../i18n";
 
 interface Task {
   id: string;
@@ -34,30 +35,61 @@ const PRIORITY_LABELS: Record<number, { label: string; color: string }> = {
 function formatTimeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
 
-  if (seconds < 60) return "just now";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 60) return translate("taskBoard.time.justNow", "just now");
+  if (seconds < 3600) {
+    return translate("taskBoard.time.minutesAgo", "{count}m ago", {
+      count: Math.floor(seconds / 60),
+    });
+  }
+  if (seconds < 86400) {
+    return translate("taskBoard.time.hoursAgo", "{count}h ago", {
+      count: Math.floor(seconds / 3600),
+    });
+  }
+  if (seconds < 604800) {
+    return translate("taskBoard.time.daysAgo", "{count}d ago", {
+      count: Math.floor(seconds / 86400),
+    });
+  }
 
   return new Date(timestamp).toLocaleDateString();
 }
 
-function formatDueDate(timestamp: number): { text: string; isOverdue: boolean } {
+function formatDueDate(timestamp: number): {
+  text: string;
+  isOverdue: boolean;
+} {
   const now = Date.now();
   const diffMs = timestamp - now;
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) {
-    return { text: `${Math.abs(diffDays)}d overdue`, isOverdue: true };
+    return {
+      text: translate("taskBoard.due.overdueDays", "{count}d overdue", {
+        count: Math.abs(diffDays),
+      }),
+      isOverdue: true,
+    };
   }
   if (diffDays === 0) {
-    return { text: "Due today", isOverdue: false };
+    return {
+      text: translate("taskBoard.due.today", "Due today"),
+      isOverdue: false,
+    };
   }
   if (diffDays === 1) {
-    return { text: "Due tomorrow", isOverdue: false };
+    return {
+      text: translate("taskBoard.due.tomorrow", "Due tomorrow"),
+      isOverdue: false,
+    };
   }
   if (diffDays <= 7) {
-    return { text: `Due in ${diffDays}d`, isOverdue: false };
+    return {
+      text: translate("taskBoard.due.inDays", "Due in {count}d", {
+        count: diffDays,
+      }),
+      isOverdue: false,
+    };
   }
 
   return { text: new Date(timestamp).toLocaleDateString(), isOverdue: false };
@@ -71,11 +103,18 @@ export function TaskBoardCard({
   onSelect,
   isDragging,
 }: TaskBoardCardProps) {
+  useLanguage();
   const [showActions, setShowActions] = useState(false);
 
   const taskLabels = labels.filter((l) => task.labels?.includes(l.id));
-  const assignedAgent = task.assignedAgentRoleId ? agents[task.assignedAgentRoleId] : null;
+  const assignedAgent = task.assignedAgentRoleId
+    ? agents[task.assignedAgentRoleId]
+    : null;
   const priority = PRIORITY_LABELS[task.priority || 0];
+  const priorityLabel = translate(
+    `taskBoard.priority.${task.priority || 0}`,
+    priority.label,
+  );
   const dueInfo = task.dueDate ? formatDueDate(task.dueDate) : null;
 
   const handleDragStart = (e: React.DragEvent) => {
@@ -95,7 +134,11 @@ export function TaskBoardCard({
       <div className="card-header">
         <div className="card-labels">
           {taskLabels.map((label) => (
-            <span key={label.id} className="card-label" style={{ backgroundColor: label.color }}>
+            <span
+              key={label.id}
+              className="card-label"
+              style={{ backgroundColor: label.color }}
+            >
               {label.name}
             </span>
           ))}
@@ -104,9 +147,11 @@ export function TaskBoardCard({
           <span
             className="card-priority"
             style={{ backgroundColor: priority.color }}
-            title={`Priority: ${priority.label}`}
+            title={translate("taskBoard.priorityTitle", "Priority: {label}", {
+              label: priorityLabel,
+            })}
           >
-            {priority.label}
+            {priorityLabel}
           </span>
         )}
       </div>
@@ -118,14 +163,19 @@ export function TaskBoardCard({
       <div className="card-meta">
         {assignedAgent && (
           <div className="card-agent" title={assignedAgent.displayName}>
-            <span className="agent-avatar" style={{ backgroundColor: assignedAgent.color }}>
+            <span
+              className="agent-avatar"
+              style={{ backgroundColor: assignedAgent.color }}
+            >
               {assignedAgent.icon}
             </span>
             <span className="agent-name">{assignedAgent.displayName}</span>
           </div>
         )}
         {dueInfo && (
-          <span className={`card-due ${dueInfo.isOverdue ? "overdue" : ""}`}>{dueInfo.text}</span>
+          <span className={`card-due ${dueInfo.isOverdue ? "overdue" : ""}`}>
+            {dueInfo.text}
+          </span>
         )}
         {task.estimatedMinutes && (
           <span className="card-estimate">
@@ -138,7 +188,9 @@ export function TaskBoardCard({
 
       <div className="card-footer">
         <span className="card-time">{formatTimeAgo(task.createdAt)}</span>
-        <span className={`card-status status-${task.status}`}>{task.status}</span>
+        <span className={`card-status status-${task.status}`}>
+          {task.status}
+        </span>
       </div>
 
       {showActions && (
@@ -150,7 +202,7 @@ export function TaskBoardCard({
               const newPriority = ((task.priority || 0) + 1) % 5;
               onPriorityChange(task.id, newPriority);
             }}
-            title="Cycle priority"
+            title={translate("taskBoard.cyclePriority", "Cycle priority")}
           >
             !
           </button>

@@ -1,7 +1,9 @@
 import fs from "fs";
+import os from "os";
 import path from "path";
 import type Database from "better-sqlite3";
 import { TEMP_WORKSPACE_ID, TEMP_WORKSPACE_ID_PREFIX } from "../../shared/types";
+import { LEGACY_TEMP_WORKSPACE_ROOT_DIR_NAMES } from "../migrations/legacy-brand-compat";
 
 export interface TempWorkspacePruneOptions {
   db: Database.Database;
@@ -172,6 +174,58 @@ export function ensureTempWorkspaceDirectoryPathSync(
     throw new Error(`Temp workspace path must be a direct child of root: ${workspacePath}`);
   }
   return ensureTempWorkspaceDirectorySync(resolvedRoot, path.basename(resolvedWorkspacePath));
+}
+
+function isDirectChildOfLegacyTempRoot(candidatePath: string): boolean {
+  const resolvedCandidate = path.resolve(candidatePath);
+  return LEGACY_TEMP_WORKSPACE_ROOT_DIR_NAMES.some((rootName) => {
+    const legacyRoot = path.resolve(os.tmpdir(), rootName);
+    return path.dirname(resolvedCandidate) === legacyRoot;
+  });
+}
+
+/**
+ * Copy a pre-NeoWorker temp workspace into the current managed root.
+ *
+ * The source is intentionally left in place for rollback. Symlinks are not
+ * copied, and an unrecognized path is rejected instead of being trusted just
+ * because it lives somewhere under the system temp directory.
+ */
+export function migrateLegacyTempWorkspaceDirectorySync(
+  tempWorkspaceRoot: string,
+  legacyWorkspacePath: string,
+  scope: string = "ui",
+): TempWorkspaceDirectoryResult {
+  const resolvedSource = path.resolve(legacyWorkspacePath);
+  if (!isDirectChildOfLegacyTempRoot(resolvedSource)) {
+    throw new Error(`Legacy temp workspace path is not recognized: ${legacyWorkspacePath}`);
+  }
+
+  const sourceStat = fs.lstatSync(resolvedSource);
+  if (sourceStat.isSymbolicLink() || !sourceStat.isDirectory()) {
+    throw new Error(`Legacy temp workspace path is not a safe directory: ${legacyWorkspacePath}`);
+  }
+
+  const destination = createUniqueScopedTempWorkspaceDirectorySync(
+    tempWorkspaceRoot,
+    scope,
+    "migrated",
+  );
+
+  fs.cpSync(resolvedSource, destination.path, {
+    recursive: true,
+    force: false,
+    errorOnExist: false,
+    filter: (source) => {
+      try {
+        return !fs.lstatSync(source).isSymbolicLink();
+      } catch {
+        return false;
+      }
+    },
+  });
+  ensurePrivateDirectoryMode(destination.path);
+  return destination;
 }
 
 export function createUniqueScopedTempWorkspaceDirectorySync(

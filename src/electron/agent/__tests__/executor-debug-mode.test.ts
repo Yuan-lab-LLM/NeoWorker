@@ -31,7 +31,7 @@ describe("TaskExecutor debug mode", () => {
     >;
     expect(stepPayload?.debugPhase).toBe("instrument");
     expect(stepPayload?.ingestUrl).toMatch(
-      new RegExp(`http://127\\.0\\.0\\.1:\\d+/cowork-debug/${encodeURIComponent(DEBUG_TASK_ID)}/ingest\\?token=`),
+      new RegExp(`http://127\\.0\\.0\\.1:\\d+/neoworker-debug/${encodeURIComponent(DEBUG_TASK_ID)}/ingest\\?token=`),
     );
 
     const ingestUrl = String(stepPayload?.ingestUrl);

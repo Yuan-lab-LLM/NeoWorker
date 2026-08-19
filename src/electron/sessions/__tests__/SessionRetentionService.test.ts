@@ -34,9 +34,9 @@ describeWithSqlite("SessionRetentionService", () => {
   let workspaceId: string;
 
   beforeEach(async () => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-session-retention-"));
-    previousUserDataDir = process.env.COWORK_USER_DATA_DIR;
-    process.env.COWORK_USER_DATA_DIR = tmpDir;
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-session-retention-"));
+    previousUserDataDir = process.env.NEOWORKER_USER_DATA_DIR;
+    process.env.NEOWORKER_USER_DATA_DIR = tmpDir;
 
     const [{ DatabaseManager }, repositories, sessionRetention] = await Promise.all([
       import("../../database/schema"),
@@ -62,9 +62,9 @@ describeWithSqlite("SessionRetentionService", () => {
   afterEach(() => {
     manager?.close();
     if (previousUserDataDir === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = previousUserDataDir;
+      process.env.NEOWORKER_USER_DATA_DIR = previousUserDataDir;
     }
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -82,6 +82,26 @@ describeWithSqlite("SessionRetentionService", () => {
     expect(
       taskRepo.findSidebarSummaries(10, 0, { includeArchivedSessions: true }).map((row) => row.id),
     ).toEqual([task.id]);
+  });
+
+  it("restores an archived session during the seven-day recovery window", () => {
+    const task = createTask("completed", "Recoverable task");
+    service.archiveSession(task.id);
+
+    const result = service.unarchiveSession(task.id);
+
+    expect(result.taskCount).toBe(1);
+    expect(
+      taskRepo.findSidebarSummaries(10, 0, { includeArchivedSessions: false }).map((row) => row.id),
+    ).toEqual([task.id]);
+  });
+
+  it("rejects restoration after the seven-day recovery window", () => {
+    const task = createTask("completed", "Expired task");
+    const archivedAt = Date.now() - 8 * 24 * 60 * 60 * 1000;
+    metadataRepo.archive(task.id, archivedAt);
+
+    expect(() => service.unarchiveSession(task.id)).toThrow("restore window expired");
   });
 
   it("prunes only terminal unpinned sessions matching the retention window", async () => {
@@ -163,6 +183,15 @@ describeWithSqlite("SessionRetentionService", () => {
 });
 
 describe("SessionRetentionService unit", () => {
+  it("archives and restores a session without deleting its tasks", () => {
+    const tasks: Task[] = [makeTask({ id: "recoverable", status: "completed" })];
+    const service = makeService(tasks);
+
+    expect(service.archiveSession("recoverable").taskCount).toBe(1);
+    expect(service.unarchiveSession("recoverable").taskCount).toBe(1);
+    expect(tasks.map((task) => task.id)).toEqual(["recoverable"]);
+  });
+
   it("deletes only terminal unpinned sessions in the selected window", async () => {
     const now = Date.now();
     const tasks: Task[] = [
@@ -237,6 +266,17 @@ function makeService(tasks: Task[], events: TaskEvent[] = []): SessionRetentionS
     findBySessionId: (sessionId: string) => metadata.get(sessionId),
     archive: (sessionId: string) => {
       const value = { sessionId, archivedAt: Date.now(), createdAt: Date.now(), updatedAt: Date.now() };
+      metadata.set(sessionId, value);
+      return value;
+    },
+    unarchive: (sessionId: string) => {
+      const previous = metadata.get(sessionId);
+      const value = {
+        sessionId,
+        archivedAt: undefined,
+        createdAt: previous?.createdAt || Date.now(),
+        updatedAt: Date.now(),
+      };
       metadata.set(sessionId, value);
       return value;
     },

@@ -24,7 +24,6 @@ export interface BuildExecutionPromptParams {
   roleContext?: string;
   memoryContext?: string;
   awarenessSnapshot?: string;
-  infraContext?: string;
   visualQAContext?: string;
   personalityPrompt?: string;
   guidelinesPrompt?: string;
@@ -168,12 +167,6 @@ export class ContentBuilder {
             layerKind: "optional",
             cacheScope: "turn",
           }),
-          makeSection("infra_context", params.infraContext, 800, {
-            required: false,
-            dropPriority: 3,
-            layerKind: "optional",
-            cacheScope: "session",
-          }),
           makeSection("visual_qa", params.visualQAContext, 500, {
             required: false,
             dropPriority: 7,
@@ -283,12 +276,6 @@ export class ContentBuilder {
             dropPriority: 6,
             layerKind: "optional",
             cacheScope: "turn",
-          }),
-          makeSection("infra_context", params.infraContext, 800, {
-            required: false,
-            dropPriority: 3,
-            layerKind: "optional",
-            cacheScope: "session",
           }),
           makeSection("visual_qa", params.visualQAContext, 500, {
             required: false,

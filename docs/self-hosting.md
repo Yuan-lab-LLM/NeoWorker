@@ -1,6 +1,6 @@
 # Self-Hosting (Linux VPS / Headless)
 
-CoWork OS supports **Linux headless/server deployments**. This is intended for:
+NeoWorker supports **Linux headless/server deployments**. This is intended for:
 
 - Packaged Linux server releases from GitHub Releases
 - VPS installs (systemd)
@@ -10,7 +10,7 @@ CoWork OS supports **Linux headless/server deployments**. This is intended for:
 The key idea: on Linux you typically do **not** run a desktop app UI. Instead you use:
 
 - **Control Plane Web UI** (built-in, served by the daemon)
-- **Control Plane CLI** (`bin/coworkctl.js`)
+- **Control Plane CLI** (`bin/neoworkerctl.js`)
 - Optional: messaging channels (Telegram/Discord/Slack/etc) as your “chat UI”
 
 If you need the desktop app UI on macOS or Windows, that’s a separate mode.
@@ -54,7 +54,7 @@ Docs:
 On a VPS, users typically interact in one of these ways:
 
 1. **Web UI (recommended first touch)**: open `http://127.0.0.1:18789/` through an SSH tunnel or Tailscale.
-2. **CLI**: use `bin/coworkctl.js` to create workspaces, create tasks, watch events, and respond to approvals.
+2. **CLI**: use `bin/neoworkerctl.js` to create workspaces, create tasks, watch events, and respond to approvals.
 3. **Messaging channels**: configure Telegram/Discord/Slack/etc and treat that as the UI.
 
 There is no requirement to have a macOS machine running.
@@ -63,11 +63,11 @@ There is no requirement to have a macOS machine running.
 
 For production VPS installs, prefer the GitHub release tarball:
 
-- artifact name: `cowork-os-server-linux-x64-v<version>.tar.gz`
-- checksum: `cowork-os-server-linux-x64-v<version>.tar.gz.sha256`
+- artifact name: `neoworker-server-linux-x64-v<version>.tar.gz`
+- checksum: `neoworker-server-linux-x64-v<version>.tar.gz.sha256`
 - target: Linux x64 on glibc-based distributions
-- runtime: `node bin/coworkd-node.js`
-- install layout: extract to `/opt/cowork-os`, set `COWORK_USER_DATA_DIR=/var/lib/cowork-os`, and use `deploy/systemd/cowork-os-node.service`
+- runtime: `node bin/neoworkerd-node.js`
+- install layout: extract to `/opt/neoworker`, set `NEOWORKER_USER_DATA_DIR=/var/lib/neoworker`, and use `deploy/systemd/neoworker-node.service`
 
 The tarball includes built daemon output, the full `resources/` tree, bundled connector runtimes, systemd templates, and runtime `node_modules`. It does not launch the desktop UI and does not require Xvfb. Keep Node.js 24 installed on the server.
 
@@ -102,7 +102,7 @@ Expected limitations:
 
 ## Browser Automation (Playwright) on VPS
 
-CoWork OS includes Playwright-based browser automation tools.
+NeoWorker includes Playwright-based browser automation tools.
 
 On minimal Linux images (and slim Docker images), Chromium may fail to launch until dependencies are installed.
 
@@ -116,16 +116,16 @@ On minimal Linux images (and slim Docker images), Chromium may fail to launch un
   - SSH tunnel (simplest)
   - Tailscale Serve/Funnel (if you want private/public exposure)
 
-Headless/managed deployments fail closed on direct public Control Plane binds. `0.0.0.0`/`::` is blocked unless Tailscale is enabled, the daemon is running inside a privately published container with `COWORK_CONTROL_PLANE_BIND_CONTEXT=container`, or you set the explicit break-glass `COWORK_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND=1`.
+Headless/managed deployments fail closed on direct public Control Plane binds. `0.0.0.0`/`::` is blocked unless Tailscale is enabled, the daemon is running inside a privately published container with `NEOWORKER_CONTROL_PLANE_BIND_CONTEXT=container`, or you set the explicit break-glass `NEOWORKER_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND=1`.
 
-For reverse proxies, keep the daemon bound to loopback/private networking where possible. Set `COWORK_CONTROL_PLANE_ALLOWED_ORIGINS` to the public HTTPS origin for browser WebSocket access, and only set `COWORK_CONTROL_PLANE_TRUST_PROXY=1` when the proxy controls forwarded headers.
+For reverse proxies, keep the daemon bound to loopback/private networking where possible. Set `NEOWORKER_CONTROL_PLANE_ALLOWED_ORIGINS` to the public HTTPS origin for browser WebSocket access, and only set `NEOWORKER_CONTROL_PLANE_TRUST_PROXY=1` when the proxy controls forwarded headers.
 
 ## Data & Backups
 
 All persistent state lives under the **user data directory** (DB + encrypted settings + cron store + message history):
 
-- Configure with `COWORK_USER_DATA_DIR=/var/lib/cowork-os` (recommended on VPS)
-- Or `--user-data-dir /var/lib/cowork-os`
+- Configure with `NEOWORKER_USER_DATA_DIR=/var/lib/neoworker` (recommended on VPS)
+- Or `--user-data-dir /var/lib/neoworker`
 
 Back up that directory (or the Docker volume) to back up the instance.
 
@@ -133,9 +133,9 @@ Back up that directory (or the Docker volume) to back up the instance.
 
 To pin the daemon to a specific IANA timezone (e.g. for cron, timestamps, scheduling):
 
-- Set `COWORK_TZ` in the environment (e.g. `COWORK_TZ=America/New_York`, `COWORK_TZ=Europe/London`).
-- **Docker:** In `docker-compose.yml`, add `COWORK_TZ=America/New_York` under `environment`. The entrypoint sets `TZ` from `COWORK_TZ` before starting.
-- **Systemd:** In `/etc/cowork-os.env` (or your env file), add `COWORK_TZ=America/New_York`. The daemon applies it at startup.
+- Set `NEOWORKER_TZ` in the environment (e.g. `NEOWORKER_TZ=America/New_York`, `NEOWORKER_TZ=Europe/London`).
+- **Docker:** In `docker-compose.yml`, add `NEOWORKER_TZ=America/New_York` under `environment`. The entrypoint sets `TZ` from `NEOWORKER_TZ` before starting.
+- **Systemd:** In `/etc/neoworker.env` (or your env file), add `NEOWORKER_TZ=America/New_York`. The daemon applies it at startup.
 - Invalid IANA timezone values fall back to UTC with a warning.
 
 ## Common Questions (FAQ)
@@ -147,13 +147,13 @@ No. Linux headless mode is designed to be fully usable by itself via Control Pla
 You get a minimal **Web UI** (served by the daemon) plus a CLI. The full desktop UI is available on macOS and Windows.
 
 **How do I run my first task?**  
-Create a workspace (bootstrap or `workspace.create`), then `task.create`, then watch `task.event` (Web UI or `coworkctl`).
+Create a workspace (bootstrap or `workspace.create`), then `task.create`, then watch `task.event` (Web UI or `neoworkerctl`).
 
 **Where are credentials stored?**  
-In the encrypted settings store under the user data directory (see above). In headless mode you can set credentials via Control Plane (`llm.configure` / Web UI LLM Setup) or import from env vars at boot (`COWORK_IMPORT_ENV_SETTINGS=1`).
+In the encrypted settings store under the user data directory (see above). In headless mode you can set credentials via Control Plane (`llm.configure` / Web UI LLM Setup) or import from env vars at boot (`NEOWORKER_IMPORT_ENV_SETTINGS=1`).
 
 **How do approvals work without a desktop UI?**  
 Approvals are visible and actionable over the Control Plane (Web UI + `approval.list` / `approval.respond`).
 
 **Can I expose Control Plane to the public internet?**  
-Not recommended. Prefer SSH tunnel or Tailscale. Headless/managed startup blocks direct public binds unless Tailscale, private container context, or `COWORK_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND=1` is configured. If you must reverse proxy it, set `COWORK_CONTROL_PLANE_ALLOWED_ORIGINS` to the public HTTPS origin and treat it like a high-value admin API.
+Not recommended. Prefer SSH tunnel or Tailscale. Headless/managed startup blocks direct public binds unless Tailscale, private container context, or `NEOWORKER_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND=1` is configured. If you must reverse proxy it, set `NEOWORKER_CONTROL_PLANE_ALLOWED_ORIGINS` to the public HTTPS origin and treat it like a high-value admin API.

@@ -19,7 +19,7 @@ describe("pruneTempSandboxProfiles", () => {
   });
 
   const createTempDir = (): string => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-sandbox-prune-test-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-sandbox-prune-test-"));
     cleanupDirs.push(dir);
     return dir;
   };
@@ -30,10 +30,10 @@ describe("pruneTempSandboxProfiles", () => {
     const oldDate = new Date(nowMs - 2 * 60 * 60 * 1000);
     const freshDate = new Date(nowMs - 5 * 60 * 1000);
 
-    const staleLegacy = path.join(dir, "cowork_sandbox_123456789.sb");
-    const staleSecure = path.join(dir, "cowork_0123456789abcdef0123456789abcdef.sb");
-    const freshLegacy = path.join(dir, "cowork_sandbox_555555.sb");
-    const unrelated = path.join(dir, "cowork_script_123.py");
+    const staleLegacy = path.join(dir, "neoworker_sandbox_123456789.sb");
+    const staleSecure = path.join(dir, "neoworker_0123456789abcdef0123456789abcdef.sb");
+    const freshLegacy = path.join(dir, "neoworker_sandbox_555555.sb");
+    const unrelated = path.join(dir, "neoworker_script_123.py");
 
     fs.writeFileSync(staleLegacy, "(version 1)");
     fs.writeFileSync(staleSecure, "(version 1)");

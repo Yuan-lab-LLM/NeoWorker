@@ -469,7 +469,7 @@ describe("SystemTools memory feature gating", () => {
       .mockResolvedValue({ topics: [] } as Any);
     const resolveIndexSpy = vi
       .spyOn(LayeredMemoryIndexService, "resolveMemoryIndexPath")
-      .mockReturnValue("/tmp/.cowork/memory/index.json");
+      .mockReturnValue("/tmp/.neoworker/memory/index.json");
 
     const instance = createInstance();
     const result = await instance.loadMemoryTopics({ query: "deploy" });
@@ -502,7 +502,7 @@ describe("SystemTools memory feature gating", () => {
         ],
       } as Any);
     vi.spyOn(LayeredMemoryIndexService, "resolveMemoryIndexPath").mockReturnValue(
-      "/tmp/.cowork/memory/index.json",
+      "/tmp/.neoworker/memory/index.json",
     );
     loadSpy.mockClear();
     refreshSpy.mockClear();

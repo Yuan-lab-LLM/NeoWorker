@@ -63,6 +63,40 @@ describe("ToolCallDeduplicator read-history invalidation", () => {
     expect(duplicate.isDuplicate).toBe(false);
   });
 
+  it("allows many distinct anchored edits to assemble one HTML artifact", () => {
+    const dedupe = new ToolCallDeduplicator(3, 120_000, 4, 20);
+
+    for (const marker of ["HERO", "COMPARE", "SIM3D", "PHYSICS", "STORY", "QUIZ"]) {
+      const input = {
+        file_path: "lesson.html",
+        old_string: `<!-- ##${marker}## -->`,
+        new_string: `<section id="${marker.toLowerCase()}">${marker}</section>`,
+      };
+      expect(dedupe.checkDuplicate("edit_file", input).isDuplicate).toBe(false);
+      dedupe.recordCall("edit_file", input, '{"success":true}');
+    }
+  });
+
+  it("still detects repeated edit attempts against the same anchor", () => {
+    const dedupe = new ToolCallDeduplicator(99, 120_000, 4, 20);
+
+    for (let index = 0; index < 4; index += 1) {
+      dedupe.recordCall("edit_file", {
+        file_path: "lesson.html",
+        old_string: "<!-- ##SCRIPTS## -->",
+        new_string: `<script>attempt${index}()</script>`,
+      });
+    }
+
+    const duplicate = dedupe.checkDuplicate("edit_file", {
+      file_path: "lesson.html",
+      old_string: "<!-- ##SCRIPTS## -->",
+      new_string: "<script>finalAttempt()</script>",
+    });
+    expect(duplicate.isDuplicate).toBe(true);
+    expect(duplicate.reason || "").toContain("semantically similar");
+  });
+
   it("allows higher per-minute throughput for read-only cloud action pagination", () => {
     const dedupe = new ToolCallDeduplicator(2, 60_000, 2, 20);
 
@@ -230,6 +264,23 @@ describe("FileOperationTracker cache invalidation", () => {
 });
 
 describe("ToolFailureTracker browser HTTP status handling", () => {
+  it("never circuit-breaks Office artifact generators during bounded refinement", () => {
+    const tracker = new ToolFailureTracker();
+
+    for (let i = 0; i < 12; i++) {
+      expect(
+        tracker.recordFailure(
+          "generate_presentation",
+          "Presentation quality validation failed: revise slide content",
+        ),
+      ).toBe(false);
+    }
+
+    expect(tracker.isDisabled("generate_presentation")).toBe(false);
+    expect(tracker.isDisabled("create_presentation")).toBe(false);
+    expect(tracker.getDisabledToolNames()).not.toContain("create_presentation");
+  });
+
   it("treats browser HTTP status failures as input-dependent (no immediate disable)", () => {
     const tracker = new ToolFailureTracker();
 

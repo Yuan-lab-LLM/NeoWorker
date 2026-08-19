@@ -1,7 +1,7 @@
 {
-  "name": "@cowork-os/finance-data-mcp",
+  "name": "@neoworker/finance-data-mcp",
   "version": "0.1.0",
-  "description": "Shared read-only finance data MCP connector presets for CoWork OS.",
+  "description": "Shared read-only finance data MCP connector presets for NeoWorker.",
   "private": true,
   "main": "dist/index.js",
   "scripts": {

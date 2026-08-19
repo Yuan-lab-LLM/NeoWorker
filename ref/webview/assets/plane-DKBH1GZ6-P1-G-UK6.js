@@ -1,0 +1,3 @@
+import { n as e, t } from "./plane-DKBH1GZ6-Dv2u5wAY.js";
+e();
+export { t as default };

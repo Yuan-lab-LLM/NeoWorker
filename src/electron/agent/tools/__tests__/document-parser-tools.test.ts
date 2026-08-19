@@ -18,7 +18,7 @@ describe("DocumentParserTools", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-document-parser-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-document-parser-"));
   });
 
   afterEach(() => {

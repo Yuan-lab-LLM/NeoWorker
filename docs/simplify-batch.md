@@ -1,6 +1,6 @@
 # Universal `/simplify` and `/batch`
 
-CoWork OS now ships two bundled, global skills as first-class slash commands:
+NeoWorker now ships two bundled, global skills as first-class slash commands:
 
 - `/simplify` for targeted quality improvements
 - `/batch` for parallelizable, repeatable migrations/transformations

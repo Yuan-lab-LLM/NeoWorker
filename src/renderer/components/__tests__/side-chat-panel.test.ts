@@ -29,7 +29,11 @@ describe("SideChatPanel", () => {
   it("hides forked parent transcript events from the visible sidechat conversation", () => {
     const markup = renderToStaticMarkup(
       React.createElement(SideChatPanel, {
-        parentTask: { ...baseTask, id: "parent-task", title: "make my internet faster" },
+        parentTask: {
+          ...baseTask,
+          id: "parent-task",
+          title: "make my internet faster",
+        },
         sideTask: baseTask,
         events: [
           taskEvent({

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, Presentation } from "lucide-react";
 import type { FileViewerResult } from "../../electron/preload";
+import { translate, useLanguage } from "../i18n";
 
 type InlinePresentationPreviewProps = {
   filePath: string;
@@ -37,6 +38,8 @@ export function InlinePresentationPreview({
   workspacePath,
   onOpenViewer,
 }: InlinePresentationPreviewProps) {
+  useLanguage();
+  const t = translate;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
@@ -54,24 +57,51 @@ export function InlinePresentationPreview({
       setPreview(null);
 
       try {
-        const response = await window.electronAPI.readFileForViewer(filePath, workspacePath, {
-          presentationRenderMode: "fast",
-        });
+        const response = await window.electronAPI.readFileForViewer(
+          filePath,
+          workspacePath,
+          {
+            presentationRenderMode: "fast",
+          },
+        );
         if (cancelled) return;
         if (!response.success || !response.data) {
-          setError(response.error || "Failed to load presentation");
+          setError(
+            response.error ||
+              t(
+                "inlinePreview.presentation.error.load",
+                "Failed to load presentation",
+              ),
+          );
           return;
         }
-        if (response.data.fileType !== "pptx" || !response.data.presentationPreview) {
-          setError("Presentation preview is not available.");
+        if (
+          response.data.fileType !== "pptx" ||
+          !response.data.presentationPreview
+        ) {
+          setError(
+            t(
+              "inlinePreview.presentation.error.unavailable",
+              "Presentation preview is not available.",
+            ),
+          );
           return;
         }
-        setFileName(response.data.fileName || filePath.split("/").pop() || filePath);
+        setFileName(
+          response.data.fileName || filePath.split("/").pop() || filePath,
+        );
         setSize(response.data.size);
         setPreview(response.data.presentationPreview);
       } catch (err: unknown) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load presentation");
+        setError(
+          err instanceof Error
+            ? err.message
+            : t(
+                "inlinePreview.presentation.error.load",
+                "Failed to load presentation",
+              ),
+        );
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -90,7 +120,9 @@ export function InlinePresentationPreview({
 
   const firstSlide = useMemo(() => getFirstMeaningfulSlide(preview), [preview]);
   const previewText = useMemo(() => {
-    const text = firstSlide?.text.trim() || "No extractable slide text.";
+    const text =
+      firstSlide?.text.trim() ||
+      t("inlinePreview.presentation.noText", "No extractable slide text.");
     if (text.length <= PREVIEW_TEXT_MAX) return text;
     return `${text.slice(0, PREVIEW_TEXT_MAX).trimEnd()}\n...`;
   }, [firstSlide]);
@@ -104,7 +136,9 @@ export function InlinePresentationPreview({
   if (loading) {
     return (
       <div className="inline-presentation-preview">
-        <div className="inline-presentation-loading">Loading presentation...</div>
+        <div className="inline-presentation-loading">
+          {t("inlinePreview.presentation.loading", "Loading presentation...")}
+        </div>
       </div>
     );
   }
@@ -120,13 +154,15 @@ export function InlinePresentationPreview({
   if (!preview || !firstSlide) return null;
 
   const subtitle = [
-    `${preview.slideCount} slide${preview.slideCount === 1 ? "" : "s"}`,
+    t("inlinePreview.presentation.slideCount", "{count} slides", {
+      count: preview.slideCount,
+    }),
     formatFileSize(size),
     preview.renderStatus === "rendered" || preview.renderStatus === "cached"
-      ? "Preview rendered"
+      ? t("inlinePreview.presentation.rendered", "Preview rendered")
       : preview.renderStatus === "rendering"
-        ? "Rendering previews"
-        : "Text preview",
+        ? t("inlinePreview.presentation.rendering", "Rendering previews")
+        : t("inlinePreview.presentation.textPreview", "Text preview"),
   ]
     .filter(Boolean)
     .join(" • ");
@@ -143,7 +179,10 @@ export function InlinePresentationPreview({
       }}
       role="button"
       tabIndex={0}
-      title="Open presentation preview"
+      title={t(
+        "artifactCard.openPresentationPreview",
+        "Open presentation preview",
+      )}
     >
       <div className="inline-presentation-header">
         <div className="inline-presentation-header-left">
@@ -159,7 +198,12 @@ export function InlinePresentationPreview({
       </div>
       <div className="inline-presentation-body">
         {firstSlide.imageUrl || firstSlide.imageDataUrl ? (
-          <img src={firstSlide.imageUrl || firstSlide.imageDataUrl} alt={`Slide ${firstSlide.index}`} />
+          <img
+            src={firstSlide.imageUrl || firstSlide.imageDataUrl}
+            alt={t("artifactViewer.presentation.slideLabel", "Slide {index}", {
+              index: firstSlide.index,
+            })}
+          />
         ) : (
           <pre>{previewText}</pre>
         )}

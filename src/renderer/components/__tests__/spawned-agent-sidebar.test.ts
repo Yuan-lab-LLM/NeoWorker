@@ -32,6 +32,7 @@ function makeEvent(taskId: string, id: string): TaskEvent {
 }
 
 function renderSidebar(props: {
+  parentTask?: Task;
   childTasks: Task[];
   childEvents?: TaskEvent[];
   selectedTaskId?: string | null;
@@ -39,7 +40,8 @@ function renderSidebar(props: {
   const workspace = { id: "workspace-1", path: "/tmp/workspace" } as Workspace;
   return renderToStaticMarkup(
     React.createElement(SpawnedAgentSidebar, {
-      parentTask: { id: "parent-1", title: "Parent task" } as Task,
+      parentTask:
+        props.parentTask ?? ({ id: "parent-1", title: "Parent task" } as Task),
       childTasks: props.childTasks,
       childEvents: props.childEvents ?? [],
       selectedTaskId: props.selectedTaskId ?? props.childTasks[0]?.id ?? null,
@@ -62,8 +64,12 @@ describe("SpawnedAgentSidebar", () => {
     const first = makeTask("child-1");
     const second = makeTask("child-2");
 
-    expect(resolveSpawnedAgentSidebarTask([first, second], "child-2")?.id).toBe("child-2");
-    expect(resolveSpawnedAgentSidebarTask([first, second], "missing")?.id).toBe("child-1");
+    expect(resolveSpawnedAgentSidebarTask([first, second], "child-2")?.id).toBe(
+      "child-2",
+    );
+    expect(resolveSpawnedAgentSidebarTask([first, second], "missing")?.id).toBe(
+      "child-1",
+    );
     expect(resolveSpawnedAgentSidebarTask([], "child-1")).toBeNull();
   });
 
@@ -73,21 +79,63 @@ describe("SpawnedAgentSidebar", () => {
       childEvents: [makeEvent("child-1", "evt-1")],
     });
 
-    expect(markup).toContain("Spawned from Parent task");
+    expect(markup).toContain("派生自 Parent task");
     expect(markup).toContain("Euclid");
-    expect(markup).toContain("1 event");
-    expect(markup).not.toContain("role=\"tab\"");
+    expect(markup).toContain("1 个事件");
+    expect(markup).not.toContain('role="tab"');
   });
 
   it("renders switchable tabs for multiple spawned agents", () => {
     const markup = renderSidebar({
-      childTasks: [makeTask("child-1"), makeTask("child-2", { status: "completed" })],
+      childTasks: [
+        makeTask("child-1"),
+        makeTask("child-2", { status: "completed" }),
+      ],
       selectedTaskId: "child-2",
     });
 
-    expect(markup).toContain("role=\"tablist\"");
-    expect(markup).toContain("aria-selected=\"true\"");
+    expect(markup).toContain('role="tablist"');
+    expect(markup).toContain('aria-selected="true"');
     expect(markup).toContain("Ada");
-    expect(markup).toContain("Done");
+    expect(markup).toContain("完成");
+  });
+
+  it("localizes built-in agent names in the heading and tabs", () => {
+    const markup = renderSidebar({
+      childTasks: [
+        makeTask("child-1", { title: "Deck/Note Writer" }),
+        makeTask("child-2", { title: "Reviewer/Critic" }),
+      ],
+    });
+
+    expect(markup).toContain("演示稿/备忘录撰写员");
+    expect(markup).toContain("审核/质检员");
+  });
+
+  it("shows generated callsigns as Chinese expert roles", () => {
+    const markup = renderSidebar({
+      childTasks: [
+        makeTask("child-1", { title: "Anansi (builder)" }),
+        makeTask("child-2", { title: "Apollo (inspector)" }),
+      ],
+    });
+
+    expect(markup).toContain("方案构建专家");
+    expect(markup).toContain("质量审查专家");
+    expect(markup).not.toContain("(builder)");
+    expect(markup).not.toContain("(inspector)");
+  });
+
+  it("localizes the managed parent task title", () => {
+    const markup = renderSidebar({
+      parentTask: {
+        id: "parent-1",
+        title: "Market Researcher agent test",
+      } as Task,
+      childTasks: [makeTask("child-1", { title: "Research/Data Reader" })],
+    });
+
+    expect(markup).toContain("派生自 市场研究助手 智能体测试");
+    expect(markup).not.toContain("Market Researcher agent test");
   });
 });

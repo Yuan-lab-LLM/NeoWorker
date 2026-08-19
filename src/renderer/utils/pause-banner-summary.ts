@@ -24,7 +24,10 @@ function buildSentenceSummary(paragraph: string, maxChars: number): string {
     .filter(Boolean);
 
   if (sentences.length === 0) return "";
-  if (sentences[0].length >= MIN_SENTENCE_SUMMARY_CHARS && sentences[0].length <= maxChars) {
+  if (
+    sentences[0].length >= MIN_SENTENCE_SUMMARY_CHARS &&
+    sentences[0].length <= maxChars
+  ) {
     return sentences[0];
   }
 
@@ -54,9 +57,12 @@ export function buildPauseBannerPreview(
     .filter(Boolean);
   const firstParagraph = paragraphs[0] ?? collapsedText;
   const sentenceSummary = buildSentenceSummary(firstParagraph, maxChars);
-  const summary = sentenceSummary || truncateWithEllipsis(firstParagraph, maxChars);
+  const summary =
+    sentenceSummary || truncateWithEllipsis(firstParagraph, maxChars);
   const showDetails =
-    collapsedText.length > summary.length || paragraphs.length > 1 || fullText.includes("\n");
+    collapsedText.length > summary.length ||
+    paragraphs.length > 1 ||
+    fullText.includes("\n");
 
   return { summary, showDetails, fullText };
 }

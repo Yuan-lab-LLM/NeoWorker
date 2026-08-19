@@ -11,7 +11,7 @@ describe("codesign_electron_dev", () => {
   });
 
   it("ignores blank configured signing identities", () => {
-    expect(detectIdentity({ COWORK_CODESIGN_IDENTITY: "   " })).toBeNull();
+    expect(detectIdentity({ NEOWORKER_CODESIGN_IDENTITY: "   " })).toBeNull();
   });
 
   it("keeps development signing disabled by default", () => {
@@ -19,7 +19,7 @@ describe("codesign_electron_dev", () => {
     expect(selectSigningPlan("signed", null)).toEqual({
       action: "skip",
       message:
-        "Skipping Electron.app development signing. Set COWORK_CODESIGN_ENABLE=1 or COWORK_CODESIGN_IDENTITY to enable.",
+        "Skipping Electron.app development signing. Set NEOWORKER_CODESIGN_ENABLE=1 or NEOWORKER_CODESIGN_IDENTITY to enable.",
     });
   });
 
@@ -34,11 +34,11 @@ describe("codesign_electron_dev", () => {
   });
 
   it("enables signing with an explicit toggle", () => {
-    expect(isSigningEnabled({ COWORK_CODESIGN_ENABLE: "1" })).toBe(true);
+    expect(isSigningEnabled({ NEOWORKER_CODESIGN_ENABLE: "1" })).toBe(true);
   });
 
   it("enables signing with an explicit identity", () => {
-    expect(isSigningEnabled({ COWORK_CODESIGN_IDENTITY: "Apple Development: Example" })).toBe(true);
+    expect(isSigningEnabled({ NEOWORKER_CODESIGN_IDENTITY: "Apple Development: Example" })).toBe(true);
   });
 
   it("replaces a team signature with ad-hoc signing when explicitly enabled", () => {

@@ -39,7 +39,7 @@ function preparePackageJsonForElectronBuilder(args) {
     }
   }
 
-  if (isMacBuild(args) && process.env.COWORK_MAC_UNSIGNED === "1") {
+  if (isMacBuild(args) && process.env.NEOWORKER_MAC_UNSIGNED === "1") {
     pkg.build = pkg.build || {};
     pkg.build.mac = pkg.build.mac || {};
     pkg.build.mac.identity = "-";

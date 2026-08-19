@@ -69,7 +69,10 @@ export function parseLegalDemandIntakeSlashPrompt(prompt: string): {
   args: string;
 } {
   const trimmed = String(prompt || "").trim();
-  const pattern = new RegExp(`^/${LEGAL_DEMAND_INTAKE_COMMAND}(?:\\s+([\\s\\S]*))?$`, "i");
+  const pattern = new RegExp(
+    `^/${LEGAL_DEMAND_INTAKE_COMMAND}(?:\\s+([\\s\\S]*))?$`,
+    "i",
+  );
   const match = pattern.exec(trimmed);
   return {
     matched: Boolean(match),
@@ -77,7 +80,9 @@ export function parseLegalDemandIntakeSlashPrompt(prompt: string): {
   };
 }
 
-export function parseLegalWorkflowSlashPrompt(prompt: string): LegalWorkflowInvocation {
+export function parseLegalWorkflowSlashPrompt(
+  prompt: string,
+): LegalWorkflowInvocation {
   const trimmed = String(prompt || "").trim();
   const match = /^\/([a-z0-9][a-z0-9-]*)(?:\s+([\s\S]*))?$/i.exec(trimmed);
   const commandName = (match?.[1] || "").toLowerCase();
@@ -90,8 +95,8 @@ export function parseLegalWorkflowSlashPrompt(prompt: string): LegalWorkflowInvo
     return { matched: true, commandName, args, kind: "demand-intake" };
   }
 
-  const isClaudeForLegalCommand = CLAUDE_FOR_LEGAL_COMMAND_PREFIXES.some((prefix) =>
-    commandName.startsWith(prefix),
+  const isClaudeForLegalCommand = CLAUDE_FOR_LEGAL_COMMAND_PREFIXES.some(
+    (prefix) => commandName.startsWith(prefix),
   );
   const makesSenseAsWorkflowIntake =
     isClaudeForLegalCommand &&
@@ -119,21 +124,33 @@ function toTitleCase(value: string): string {
 
 function inferDemandType(args: string): string {
   const lower = args.toLowerCase();
-  if (/\b(invoice|invoices|debt|payment|owed|unpaid|receivable)\b/.test(lower)) return "payment";
+  if (/\b(invoice|invoices|debt|payment|owed|unpaid|receivable)\b/.test(lower))
+    return "payment";
   if (/\b(breach|default|cure|contract)\b/.test(lower)) return "breach-cure";
-  if (/\b(cease|desist|infring|tortious|harass)\b/.test(lower)) return "cease-desist";
-  if (/\b(employee|employment|separation|severance|restrictive covenant)\b/.test(lower)) {
+  if (/\b(cease|desist|infring|tortious|harass)\b/.test(lower))
+    return "cease-desist";
+  if (
+    /\b(employee|employment|separation|severance|restrictive covenant)\b/.test(
+      lower,
+    )
+  ) {
     return "employment-separation";
   }
-  if (/\b(preserve|preservation|hold|evidence)\b/.test(lower)) return "preservation";
+  if (/\b(preserve|preservation|hold|evidence)\b/.test(lower))
+    return "preservation";
   return "payment";
 }
 
-function inferMatterTitleAndRecipient(args: string): { title: string; recipient: string } {
+function inferMatterTitleAndRecipient(args: string): {
+  title: string;
+  recipient: string;
+} {
   const cleaned = args.replace(/\s+/g, " ").trim();
   if (!cleaned) return { title: "", recipient: "" };
 
-  const connectorMatch = /^(.+?)\s+(?:against|with|to|from)\s+(.+)$/i.exec(cleaned);
+  const connectorMatch = /^(.+?)\s+(?:against|with|to|from)\s+(.+)$/i.exec(
+    cleaned,
+  );
   if (connectorMatch?.[1] && connectorMatch[2]) {
     const subject = toTitleCase(connectorMatch[1]);
     const recipient = toTitleCase(connectorMatch[2]);
@@ -144,13 +161,18 @@ function inferMatterTitleAndRecipient(args: string): { title: string; recipient:
   if (words.length >= 4 && inferDemandType(cleaned) === "payment") {
     const recipient = toTitleCase(words.slice(-2).join(" "));
     const subject = toTitleCase(words.slice(0, -2).join(" "));
-    return { title: subject ? `${subject} - ${recipient}` : recipient, recipient };
+    return {
+      title: subject ? `${subject} - ${recipient}` : recipient,
+      recipient,
+    };
   }
 
   return { title: toTitleCase(cleaned), recipient: "" };
 }
 
-export function buildLegalDemandIntakeInitialValues(prompt: string): LegalDemandIntakeFormValues {
+export function buildLegalDemandIntakeInitialValues(
+  prompt: string,
+): LegalDemandIntakeFormValues {
   const parsed = parseLegalDemandIntakeSlashPrompt(prompt);
   const { title, recipient } = inferMatterTitleAndRecipient(parsed.args);
   return {
@@ -175,8 +197,11 @@ export function buildLegalDemandIntakeInitialValues(prompt: string): LegalDemand
   };
 }
 
-export function buildLegalDemandIntakeFollowUp(values: LegalDemandIntakeFormValues): string {
-  const line = (label: string, value: string) => `- ${label}: ${value.trim() || "[not provided]"}`;
+export function buildLegalDemandIntakeFollowUp(
+  values: LegalDemandIntakeFormValues,
+): string {
+  const line = (label: string, value: string) =>
+    `- ${label}: ${value.trim() || "[not provided]"}`;
   return [
     "Demand intake details for /litigation-legal-demand-intake.",
     "Use these answers to continue the intake. Treat blanks as intentionally skipped for now and flag them in the intake.",
@@ -241,8 +266,11 @@ export function buildGenericLegalWorkflowFollowUp(
   invocation: LegalWorkflowInvocation,
   values: GenericLegalWorkflowFormValues,
 ): string {
-  const command = invocation.commandName ? `/${invocation.commandName}` : "the selected legal workflow";
-  const line = (label: string, value: string) => `- ${label}: ${value.trim() || "[not provided]"}`;
+  const command = invocation.commandName
+    ? `/${invocation.commandName}`
+    : "the selected legal workflow";
+  const line = (label: string, value: string) =>
+    `- ${label}: ${value.trim() || "[not provided]"}`;
   return [
     `Legal workflow context for ${command}.`,
     "Use these answers to continue the selected Claude-for-Legal task. Treat blanks as intentionally skipped for now and flag missing inputs before relying on them.",

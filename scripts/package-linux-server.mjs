@@ -13,11 +13,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RELEASE_DIR = path.join(ROOT, "release");
 const SERVER_DEPENDENCY_EXCLUDES = new Set(["@electron/rebuild", "electron", "electron-updater"]);
 const REQUIRED_PATHS = [
-  "bin/coworkd-node.js",
-  "bin/coworkctl.js",
+  "bin/neoworkerd-node.js",
+  "bin/neoworkerctl.js",
   "dist/daemon/daemon/main.js",
-  "deploy/systemd/cowork-os-node.service",
-  "deploy/systemd/cowork-os.env.example",
+  "deploy/systemd/neoworker-node.service",
+  "deploy/systemd/neoworker.env.example",
 ];
 
 function run(command, args, options = {}) {
@@ -132,8 +132,8 @@ function prunePackageJsonForServer(pkg) {
     bundleDependencies: pkg.bundleDependencies,
     main: "dist/daemon/daemon/main.js",
     bin: {
-      coworkctl: "bin/coworkctl.js",
-      "coworkd-node": "bin/coworkd-node.js",
+      neoworkerctl: "bin/neoworkerctl.js",
+      "neoworkerd-node": "bin/neoworkerd-node.js",
     },
     engines: pkg.engines,
     dependencies: {},
@@ -150,7 +150,7 @@ function prunePackageJsonForServer(pkg) {
 }
 
 async function writeInstallNotes(packageRoot, version) {
-  const content = `# CoWork OS Linux Server Package
+  const content = `# NeoWorker Linux Server Package
 
 Version: ${version}
 
@@ -159,16 +159,16 @@ This package runs the Node-only headless daemon. It does not launch the desktop 
 Quick start:
 
 \`\`\`bash
-export COWORK_USER_DATA_DIR=/var/lib/cowork-os
-export COWORK_IMPORT_ENV_SETTINGS=1
+export NEOWORKER_USER_DATA_DIR=/var/lib/neoworker
+export NEOWORKER_IMPORT_ENV_SETTINGS=1
 export OPENAI_API_KEY=your_key_here
-node bin/coworkd-node.js --print-control-plane-token
+node bin/neoworkerd-node.js --print-control-plane-token
 \`\`\`
 
 For an always-on service, use:
 
-- deploy/systemd/cowork-os-node.service
-- deploy/systemd/cowork-os.env.example
+- deploy/systemd/neoworker-node.service
+- deploy/systemd/neoworker.env.example
 
 See docs/vps-linux.md and docs/self-hosting.md for full setup, SSH tunnel, and Control Plane instructions.
 `;
@@ -212,8 +212,8 @@ async function main() {
   const pkg = JSON.parse(await fsp.readFile(path.join(ROOT, "package.json"), "utf8"));
   const version = pkg.version;
   const connectorPackageNames = getConnectorPackageNames(pkg);
-  const packageName = `cowork-os-server-linux-x64-v${version}`;
-  const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "cowork-linux-server-package-"));
+  const packageName = `neoworker-server-linux-x64-v${version}`;
+  const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "neoworker-linux-server-package-"));
   const packageRoot = path.join(tempRoot, packageName);
 
   try {
@@ -230,8 +230,8 @@ async function main() {
     }
 
     for (const relativePath of [
-      "bin/coworkd-node.js",
-      "bin/coworkctl.js",
+      "bin/neoworkerd-node.js",
+      "bin/neoworkerctl.js",
       "dist/daemon",
       "deploy/systemd",
       "resources",
@@ -246,8 +246,8 @@ async function main() {
     await copyConnectorRuntimeFiles(packageRoot, connectorPackageNames);
     await writeInstallNotes(packageRoot, version);
 
-    await fsp.chmod(path.join(packageRoot, "bin", "coworkd-node.js"), 0o755);
-    await fsp.chmod(path.join(packageRoot, "bin", "coworkctl.js"), 0o755);
+    await fsp.chmod(path.join(packageRoot, "bin", "neoworkerd-node.js"), 0o755);
+    await fsp.chmod(path.join(packageRoot, "bin", "neoworkerctl.js"), 0o755);
 
     run("npm", ["install", "--omit=dev", "--include=optional", "--ignore-scripts", "--no-audit", "--no-fund"], {
       cwd: packageRoot,

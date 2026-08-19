@@ -22,7 +22,7 @@ afterEach(() => {
 
 describe("workspace-permission-manifest", () => {
   it("round-trips workspace rules and avoids duplicates", () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-permissions-"));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-permissions-"));
     tempDirs.push(workspacePath);
 
     const first = appendWorkspacePermissionManifestRule(workspacePath, {
@@ -65,7 +65,7 @@ describe("workspace-permission-manifest", () => {
   });
 
   it("removes matching workspace rules from the manifest", () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-permissions-"));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-permissions-"));
     tempDirs.push(workspacePath);
 
     const rule = {
@@ -90,7 +90,7 @@ describe("workspace-permission-manifest", () => {
   });
 
   it("persists normalized domain rules", () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-permissions-"));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-permissions-"));
     tempDirs.push(workspacePath);
 
     appendWorkspacePermissionManifestRule(workspacePath, {

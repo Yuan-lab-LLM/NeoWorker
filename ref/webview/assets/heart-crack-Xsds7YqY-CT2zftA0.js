@@ -1,0 +1,3 @@
+import { n as e, t } from "./heart-crack-Xsds7YqY-BLP62FXz.js";
+e();
+export { t as default };

@@ -1,6 +1,6 @@
 # Web Page Artifacts
 
-CoWork treats generated local web pages as first-class artifacts instead of plain HTML previews.
+NeoWorker treats generated local web pages as first-class artifacts instead of plain HTML previews.
 
 This page documents the current web artifact concept for generated `.html` / `.htm` files and built React-style output. The v1 experience is a sandboxed review surface: users can open a generated page in the task feed, inspect it in a resizable right sidebar or fullscreen mode, then request follow-up changes through the same composer used by spreadsheet, document, and presentation artifacts.
 
@@ -21,7 +21,7 @@ Recognized but not auto-built:
 - React, Vite, or Next project folders
 - React-style `package.json` files
 
-If a React-style project is detected but no built `index.html` exists in `dist`, `build`, or `out`, CoWork shows a structured preview-unavailable state with folder/browser actions instead of starting a dev server or failing the file open.
+If a React-style project is detected but no built `index.html` exists in `dist`, `build`, or `out`, NeoWorker shows a structured preview-unavailable state with folder/browser actions instead of starting a dev server or failing the file open.
 
 V1 does not auto-run React, Vite, or Next dev servers. It previews local generated HTML and already-built output only.
 

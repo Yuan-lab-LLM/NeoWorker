@@ -8,6 +8,7 @@
 import type { BrowserWindow } from "electron";
 import * as fs from "fs";
 import * as path from "path";
+import { AppearanceManager } from "../settings/appearance-manager";
 import {
   ChannelAdapter,
   IncomingMessage,
@@ -31,6 +32,7 @@ import {
   ChannelSpecializationRepository,
   WorkspaceRepository,
   TaskRepository,
+  TaskProvenanceRepository,
   ArtifactRepository,
   Channel,
 } from "../database/repositories";
@@ -44,6 +46,8 @@ import {
   Workspace,
   WorkspacePermissions,
   IPC_CHANNELS,
+  DEFAULT_ASSISTANT_NAME,
+  type ImageAttachment,
   isTempWorkspaceId,
 } from "../../shared/types";
 import { AgentRoleRepository } from "../agents/AgentRoleRepository";
@@ -93,7 +97,7 @@ import {
 } from "../utils/temp-workspace-scope";
 import { getActiveTempWorkspaceLeases } from "../utils/temp-workspace-lease";
 import {
-  getCoworkVersion,
+  getNeoWorkerVersion,
   type RouterConfig,
   DEFAULT_CONFIG,
   STREAMING_UPDATE_DEBOUNCE_MS,
@@ -180,6 +184,15 @@ function withTimeout<T>(
   });
 }
 
+interface PersistedInboundAttachment {
+  type: string;
+  relPath: string;
+  absPath: string;
+  fileName: string;
+  size: number;
+  mimeType?: string;
+}
+
 export class MessageRouter {
   private adapters: Map<ChannelType, ChannelAdapter> = new Map();
   private adaptersByChannelId: Map<string, ChannelAdapter> = new Map();
@@ -200,6 +213,7 @@ export class MessageRouter {
   private specializationRepo: ChannelSpecializationRepository;
   private workspaceRepo: WorkspaceRepository;
   private taskRepo: TaskRepository;
+  private taskProvenanceRepo: TaskProvenanceRepository;
   private artifactRepo: ArtifactRepository;
   private agentRoleRepo: AgentRoleRepository;
   private deliveryService: ChannelDeliveryService;
@@ -222,9 +236,17 @@ export class MessageRouter {
       lastChannelMessageId?: string;
       progressMessageId?: string;
       lastProgressMessageText?: string;
+      lastFinalMessageText?: string;
       sessionGeneration?: number;
+      artifactDeliveryStartedAt: number;
+      deliveredArtifactKeys: Set<string>;
     }
   > = new Map();
+
+  // Follow-up completion and task completion can arrive almost together.
+  // Serialize artifact delivery per task so both events cannot upload the same
+  // file concurrently before the first delivery has recorded its de-dupe keys.
+  private artifactDeliveryQueues = new Map<string, Promise<void>>();
 
   // Track pending approval requests for Discord/Telegram
   private pendingApprovals: Map<
@@ -314,12 +336,14 @@ export class MessageRouter {
     this.specializationRepo = new ChannelSpecializationRepository(db);
     this.workspaceRepo = new WorkspaceRepository(db);
     this.taskRepo = new TaskRepository(db);
+    this.taskProvenanceRepo = new TaskProvenanceRepository(db);
     this.artifactRepo = new ArtifactRepository(db);
     this.agentRoleRepo = new AgentRoleRepository(db);
     this.deliveryService = new ChannelDeliveryService({
       getAdapter: (channelType, channelId) =>
         channelId
-          ? this.getAdapterByChannelId(channelId) || this.adapters.get(channelType)
+          ? this.getAdapterByChannelId(channelId) ||
+            this.adapters.get(channelType)
           : this.adapters.get(channelType),
       getChannel: (channelType, channelId) =>
         channelId
@@ -394,6 +418,104 @@ export class MessageRouter {
     return this.mainWindow;
   }
 
+  private getProvenanceProviderLabel(channelType: ChannelType): string {
+    const labels: Partial<Record<ChannelType, string>> = {
+      bluebubbles: "BlueBubbles",
+      dingtalk: "DingTalk",
+      email: "Email",
+      feishu: "Feishu",
+      googlechat: "Google Chat",
+      imessage: "iMessage",
+      mattermost: "Mattermost",
+      wecom: "WeCom",
+      weixin: "Weixin",
+      whatsapp: "WhatsApp",
+      x: "X",
+    };
+    const explicit = labels[channelType];
+    if (explicit) return explicit;
+    return channelType.charAt(0).toUpperCase() + channelType.slice(1);
+  }
+
+  private attachGatewayProvenance(
+    task: Task,
+    adapter: ChannelAdapter,
+    message: IncomingMessage,
+    relation: "direct" | "follow_up" = "direct",
+  ): void {
+    try {
+      const channel = this.getChannelForAdapter(adapter);
+      const persistedMessage = channel
+        ? this.messageRepo.findByChannelMessageId(channel.id, message.messageId)
+        : undefined;
+      const existing = this.taskProvenanceRepo.findByExternalIdentity({
+        taskId: task.id,
+        sourceKind: "gateway_message",
+        providerKey: adapter.type,
+        externalId: message.messageId,
+      });
+      const record =
+        existing ||
+        this.taskProvenanceRepo.createOrGetByExternalId({
+          taskId: task.id,
+          relation,
+          sourceKind: "gateway_message",
+          providerKey: adapter.type,
+          providerLabel: this.getProvenanceProviderLabel(adapter.type),
+          sourceRef: persistedMessage?.id,
+          externalId: message.messageId,
+          actor: {
+            id: message.userId,
+            displayName: message.userName,
+            kind: "user",
+          },
+          conversation: {
+            id: message.chatId,
+            threadId: message.threadId,
+            isGroup: message.isGroup,
+          },
+          excerpt: persistedMessage?.content || message.text,
+          attachments: (message.attachments || []).map((attachment, index) => ({
+            name:
+              attachment.fileName ||
+              `${attachment.type || "file"}-${index + 1}`,
+            mimeType: attachment.mimeType,
+            size: attachment.size,
+          })),
+          openTarget: { kind: "none" },
+          occurredAt: message.timestamp.getTime(),
+          metadata: {
+            replyTo: message.replyTo,
+            isGroup: message.isGroup,
+          },
+        });
+
+      if (!existing) {
+        this.agentDaemon?.logEvent(task.id, "timeline_evidence_attached", {
+          stepId: "task:source",
+          groupId: "task:source",
+          actor: "system",
+          status: "completed",
+          message: `Source attached from ${record.providerLabel || "external channel"}.`,
+          evidenceRefs: [
+            {
+              evidenceId: record.id,
+              sourceType: "user_input",
+              sourceUrlOrPath: `provenance:${record.id}`,
+              snippet: record.excerpt?.slice(0, 280),
+              capturedAt: record.occurredAt,
+            },
+          ],
+        });
+      }
+    } catch (error) {
+      console.warn(
+        `[MessageRouter] Failed to persist source provenance for task ${task.id}:`,
+        error,
+      );
+    }
+  }
+
   /**
    * Get the channel message context from personality settings
    */
@@ -402,7 +524,7 @@ export class MessageRouter {
       if (PersonalityManager.isInitialized()) {
         const settings = PersonalityManager.loadSettings();
         return {
-          agentName: settings.agentName || "CoWork",
+          agentName: settings.agentName || DEFAULT_ASSISTANT_NAME,
           userName: settings.relationship?.userName,
           personality: settings.activePersonality || "professional",
           persona: settings.activePersona,
@@ -438,7 +560,8 @@ export class MessageRouter {
   ): boolean {
     return (
       pending.sessionGeneration === undefined ||
-      pending.sessionGeneration === this.getRemoteSessionGeneration(pending.sessionId)
+      pending.sessionGeneration ===
+        this.getRemoteSessionGeneration(pending.sessionId)
     );
   }
 
@@ -511,12 +634,16 @@ export class MessageRouter {
       return null;
     }
 
-    const executingStepMatch = /^Executing step \d+\/\d+:\s*(.+)$/i.exec(normalized);
+    const executingStepMatch = /^Executing step \d+\/\d+:\s*(.+)$/i.exec(
+      normalized,
+    );
     if (executingStepMatch?.[1]) {
       return null;
     }
 
-    const completedStepMatch = /^Completed step [^:]+:\s*(.+)$/i.exec(normalized);
+    const completedStepMatch = /^Completed step [^:]+:\s*(.+)$/i.exec(
+      normalized,
+    );
     if (completedStepMatch?.[1]) {
       return null;
     }
@@ -538,17 +665,16 @@ export class MessageRouter {
       return null;
     }
 
-    if (
-      normalized.startsWith("{") &&
-      normalized.endsWith("}")
-    ) {
+    if (normalized.startsWith("{") && normalized.endsWith("}")) {
       return null;
     }
 
     if (
       normalized.includes("Auto-waived verification-only failed steps") ||
       normalized.includes("Auto-waived budget-constrained failed steps") ||
-      normalized.includes("Auto-waived failed steps because the task already produced substantive outputs") ||
+      normalized.includes(
+        "Auto-waived failed steps because the task already produced substantive outputs",
+      ) ||
       normalized.includes("Best-effort finalization: auto-waiving")
     ) {
       return null;
@@ -571,12 +697,16 @@ export class MessageRouter {
       return "Starting execution.";
     }
 
-    const executingStepMatch = /^Executing step \d+\/\d+:\s*(.+)$/i.exec(normalized);
+    const executingStepMatch = /^Executing step \d+\/\d+:\s*(.+)$/i.exec(
+      normalized,
+    );
     if (executingStepMatch?.[1]) {
       return formatTimelineActivityLabel(executingStepMatch[1]);
     }
 
-    const completedStepMatch = /^Completed step [^:]+:\s*(.+)$/i.exec(normalized);
+    const completedStepMatch = /^Completed step [^:]+:\s*(.+)$/i.exec(
+      normalized,
+    );
     if (completedStepMatch?.[1]) {
       return `Completed: ${completedStepMatch[1].trim()}`;
     }
@@ -629,7 +759,9 @@ export class MessageRouter {
     }
 
     if (this.isTextOnlyChannel(channelType)) {
-      if (this.getExternalProgressRelayMode(channelType, channelId) === "curated") {
+      if (
+        this.getExternalProgressRelayMode(channelType, channelId) === "curated"
+      ) {
         return this.curateExternalChannelStatusUpdate(normalized);
       }
       return this.compactExternalChannelStatusUpdate(normalized);
@@ -648,8 +780,10 @@ export class MessageRouter {
   ): boolean {
     if (!pending) return false;
     return (
-      this.getExternalProgressRelayMode(pending.adapter.type, pending.channelId) === "curated" &&
-      typeof pending.adapter.editMessage === "function"
+      this.getExternalProgressRelayMode(
+        pending.adapter.type,
+        pending.channelId,
+      ) === "curated" && typeof pending.adapter.editMessage === "function"
     );
   }
 
@@ -660,10 +794,16 @@ export class MessageRouter {
     }
     try {
       if (typeof pending.adapter.deleteMessage === "function") {
-        await pending.adapter.deleteMessage(pending.chatId, pending.progressMessageId);
+        await pending.adapter.deleteMessage(
+          pending.chatId,
+          pending.progressMessageId,
+        );
       }
     } catch (error) {
-      console.warn(`[MessageRouter] Failed to clear progress relay message for task ${taskId}:`, error);
+      console.warn(
+        `[MessageRouter] Failed to clear progress relay message for task ${taskId}:`,
+        error,
+      );
     } finally {
       pending.progressMessageId = undefined;
       pending.lastProgressMessageText = undefined;
@@ -754,6 +894,22 @@ export class MessageRouter {
     );
   }
 
+  /**
+   * WeChat has no draft/editable message surface for task activity. Sending every
+   * daemon event there turns internal planning and tool telemetry into a noisy
+   * user-facing transcript, so it receives the final assistant answer only.
+   */
+  private isFinalResponseOnlyChannel(channelType?: ChannelType): boolean {
+    return channelType === "weixin";
+  }
+
+  private redactSensitiveMessageText(text: string): string {
+    return text.replace(
+      /([?&](?:api[_-]?key|apikey|access[_-]?token|auth(?:orization)?|token|appid|key)=)([^&#\s]+)/gi,
+      "$1[REDACTED]",
+    );
+  }
+
   private static readonly TEXT_ONLY_CHANNELS = new Set<ChannelType>([
     "telegram",
     "discord",
@@ -770,6 +926,8 @@ export class MessageRouter {
     "teams",
     "googlechat",
     "feishu",
+    "dingtalk",
+    "weixin",
     "wecom",
     "x",
   ]);
@@ -994,7 +1152,10 @@ export class MessageRouter {
     return threadId ? `${message.chatId}::thread:${threadId}` : message.chatId;
   }
 
-  private resolveChannelSpecialization(channelId: string, message: IncomingMessage) {
+  private resolveChannelSpecialization(
+    channelId: string,
+    message: IncomingMessage,
+  ) {
     try {
       return this.specializationRepo.resolve({
         channelId,
@@ -1002,19 +1163,29 @@ export class MessageRouter {
         threadId: message.threadId,
       });
     } catch (error) {
-      console.warn("[MessageRouter] Failed to resolve channel specialization:", error);
+      console.warn(
+        "[MessageRouter] Failed to resolve channel specialization:",
+        error,
+      );
       return undefined;
     }
   }
 
-  private canApplySpecializationToSession(session: { taskId?: string } | undefined | null): boolean {
+  private canApplySpecializationToSession(
+    session: { taskId?: string } | undefined | null,
+  ): boolean {
     if (!session?.taskId) return true;
     const task = this.taskRepo.findById(session.taskId);
     if (!task) return true;
-    return !["pending", "planning", "executing", "paused"].includes(task.status);
+    return !["pending", "planning", "executing", "paused"].includes(
+      task.status,
+    );
   }
 
-  private formatSpecializedPrompt(messageText: string, guidance?: string): string {
+  private formatSpecializedPrompt(
+    messageText: string,
+    guidance?: string,
+  ): string {
     const trimmedGuidance = typeof guidance === "string" ? guidance.trim() : "";
     if (!trimmedGuidance) return messageText;
     const trimmedMessage = messageText.trim();
@@ -1079,7 +1250,10 @@ export class MessageRouter {
           path.join(os.tmpdir(), TEMP_WORKSPACE_ROOT_DIR_NAME),
           "gateway",
         );
-        workspace = this.ensureTempWorkspaceRecord(created.workspaceId, created.path);
+        workspace = this.ensureTempWorkspaceRecord(
+          created.workspaceId,
+          created.path,
+        );
       }
     }
 
@@ -1333,6 +1507,8 @@ export class MessageRouter {
         requestingUserName,
         lastChannelMessageId,
         sessionGeneration: this.getRemoteSessionGeneration(session.id),
+        artifactDeliveryStartedAt: Date.now(),
+        deliveredArtifactKeys: new Set<string>(),
       });
 
       // Ensure draft-streaming state is available even after restarts.
@@ -1609,7 +1785,15 @@ export class MessageRouter {
     message: OutgoingMessage,
     channelId?: string,
   ): Promise<string> {
-    return this.deliveryService.sendMessage(channelType, message, channelId);
+    const safeMessage =
+      typeof message.text === "string"
+        ? { ...message, text: this.redactSensitiveMessageText(message.text) }
+        : message;
+    return this.deliveryService.sendMessage(
+      channelType,
+      safeMessage,
+      channelId,
+    );
   }
 
   private async sendAdapterMessage(
@@ -1617,7 +1801,8 @@ export class MessageRouter {
     message: OutgoingMessage,
     channelId?: string,
   ): Promise<string> {
-    const resolvedChannelId = channelId || this.getChannelForAdapter(adapter)?.id;
+    const resolvedChannelId =
+      channelId || this.getChannelForAdapter(adapter)?.id;
     return this.sendMessage(adapter.type, message, resolvedChannelId);
   }
 
@@ -1701,9 +1886,7 @@ export class MessageRouter {
     channelType: ChannelType,
     message: IncomingMessage,
     workspace: Workspace,
-  ): Promise<
-    Array<{ type: string; relPath: string; absPath: string; mimeType?: string }>
-  > {
+  ): Promise<PersistedInboundAttachment[]> {
     const attachments = Array.isArray(message.attachments)
       ? message.attachments
       : [];
@@ -1716,7 +1899,7 @@ export class MessageRouter {
 
     const baseDirAbs = path.join(
       workspace.path,
-      ".cowork",
+      ".neoworker",
       "inbox",
       "attachments",
       stamp,
@@ -1737,12 +1920,7 @@ export class MessageRouter {
     }
 
     const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024; // 25MB per attachment
-    const saved: Array<{
-      type: string;
-      relPath: string;
-      absPath: string;
-      mimeType?: string;
-    }> = [];
+    const saved: PersistedInboundAttachment[] = [];
 
     for (let i = 0; i < attachments.length; i++) {
       const att = attachments[i];
@@ -1793,6 +1971,8 @@ export class MessageRouter {
             type,
             absPath: destAbs,
             relPath: toPosixRelPath(workspace.path, destAbs),
+            fileName: path.basename(destAbs),
+            size: att.data.length,
             mimeType,
           });
           continue;
@@ -1811,6 +1991,8 @@ export class MessageRouter {
             type,
             absPath: destAbs,
             relPath: toPosixRelPath(workspace.path, destAbs),
+            fileName: path.basename(destAbs),
+            size: fs.statSync(destAbs).size,
             mimeType,
           });
           continue;
@@ -1861,6 +2043,8 @@ export class MessageRouter {
               type,
               absPath: destAbs,
               relPath: toPosixRelPath(workspace.path, destAbs),
+              fileName: path.basename(destAbs),
+              size: buf.length,
               mimeType:
                 mimeType || res.headers.get("content-type") || undefined,
             });
@@ -1874,6 +2058,58 @@ export class MessageRouter {
     }
 
     return saved;
+  }
+
+  private appendInboundAttachmentSummary(
+    messageText: string,
+    attachments: PersistedInboundAttachment[],
+  ): string {
+    if (attachments.length === 0) return messageText;
+
+    const base =
+      messageText.trim() ||
+      (AppearanceManager.loadSettings().language === "zh-CN"
+        ? "请查看附件。"
+        : "Please review the attachment.");
+    const rows = attachments.map((attachment) => {
+      const metadata = [
+        `size=${attachment.size}`,
+        attachment.mimeType ? `mime=${attachment.mimeType}` : null,
+      ].filter(Boolean);
+      return [
+        `- ${attachment.fileName} (${attachment.relPath})`,
+        `  Attachment metadata: ${metadata.join("; ")}`,
+      ].join("\n");
+    });
+    return `${base}\n\nAttached files (relative to workspace):\n${rows.join("\n")}`;
+  }
+
+  private toVisualAttachments(
+    attachments: PersistedInboundAttachment[],
+  ): ImageAttachment[] | undefined {
+    const supportedMimeTypes = new Set<ImageAttachment["mimeType"]>([
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "video/mp4",
+      "video/quicktime",
+      "video/webm",
+    ]);
+    const images = attachments.flatMap((attachment): ImageAttachment[] => {
+      const mimeType = attachment.mimeType as
+        ImageAttachment["mimeType"] | undefined;
+      if (!mimeType || !supportedMimeTypes.has(mimeType)) return [];
+      return [
+        {
+          filePath: attachment.absPath,
+          mimeType,
+          filename: attachment.fileName,
+          sizeBytes: attachment.size,
+        },
+      ];
+    });
+    return images.length > 0 ? images : undefined;
   }
 
   private async maybeUpdatePrioritiesFromVoiceMessage(params: {
@@ -1895,7 +2131,7 @@ export class MessageRouter {
 
     const prioritiesPath = path.join(
       params.workspace.path,
-      ".cowork",
+      ".neoworker",
       "PRIORITIES.md",
     );
     if (!fs.existsSync(prioritiesPath)) return;
@@ -2426,10 +2662,7 @@ export class MessageRouter {
             try {
               this.workspaceRepo.updateLastUsedAt(workspace.id);
             } catch (error) {
-              console.warn(
-                "Failed to update workspace last used time:",
-                error,
-              );
+              console.warn("Failed to update workspace last used time:", error);
             }
             this.sessionManager.updateSessionContext(sessionId, {
               pendingSelection: undefined,
@@ -2512,7 +2745,10 @@ export class MessageRouter {
         securityContext.channelSpecialization.workspaceId,
       );
       if (specializedWorkspace) {
-        this.sessionManager.setSessionWorkspace(sessionId, specializedWorkspace.id);
+        this.sessionManager.setSessionWorkspace(
+          sessionId,
+          specializedWorkspace.id,
+        );
         session = this.sessionRepo.findById(sessionId);
       }
     }
@@ -2585,7 +2821,7 @@ export class MessageRouter {
       this.sessionManager.setSessionWorkspace(sessionId, tempWorkspace.id);
     }
 
-    // Optional workspace-local router rules (.cowork/router/rules.monty)
+    // Optional workspace-local router rules (.neoworker/router/rules.monty)
     // Runs before forwarding to the agent (regular messages only).
     try {
       const freshSession = this.sessionRepo.findById(sessionId);
@@ -3113,7 +3349,10 @@ export class MessageRouter {
     description: string;
     argsHint?: string;
   }): string {
-    const names = [`/${command.name}`, ...(command.aliases || []).map((alias) => `/${alias}`)];
+    const names = [
+      `/${command.name}`,
+      ...(command.aliases || []).map((alias) => `/${alias}`),
+    ];
     const usage = `${names.join(" or ")}${command.argsHint ? ` ${command.argsHint}` : ""}`;
     return `• \`${usage}\` - ${command.description}`;
   }
@@ -3622,11 +3861,7 @@ export class MessageRouter {
   private resolveWhatsAppGroupMode(
     value: string,
   ):
-    | "all"
-    | "mentionsOnly"
-    | "mentionsOrCommands"
-    | "commandsOnly"
-    | undefined {
+    "all" | "mentionsOnly" | "mentionsOrCommands" | "commandsOnly" | undefined {
     const normalized = value
       .trim()
       .toLowerCase()
@@ -4626,7 +4861,9 @@ export class MessageRouter {
     );
   }
 
-  private getSkillSlashUsage(command: "/simplify" | "/batch" | "/llm-wiki"): string {
+  private getSkillSlashUsage(
+    command: "/simplify" | "/batch" | "/llm-wiki",
+  ): string {
     if (command === "/simplify") {
       return (
         "Usage:\n" +
@@ -4771,7 +5008,12 @@ export class MessageRouter {
       return;
     }
 
-    const dmOnlyChannels: ChannelType[] = ["email", "imessage", "bluebubbles"];
+    const dmOnlyChannels: ChannelType[] = [
+      "email",
+      "imessage",
+      "bluebubbles",
+      "weixin",
+    ];
     const inferredIsGroup =
       message.isGroup ??
       (dmOnlyChannels.includes(adapter.type)
@@ -4805,6 +5047,7 @@ export class MessageRouter {
         retainMemory: false,
       },
     });
+    this.attachGatewayProvenance(task, adapter, message);
 
     const routedChannel = this.getChannelForAdapter(adapter);
     if (!routedChannel) {
@@ -4823,6 +5066,8 @@ export class MessageRouter {
       requestingUserName: message.userName,
       lastChannelMessageId: message.messageId,
       sessionGeneration: this.getRemoteSessionGeneration(sessionId),
+      artifactDeliveryStartedAt: Date.now(),
+      deliveredArtifactKeys: new Set<string>(),
     });
 
     // Start draft streaming for real-time response preview (Telegram).
@@ -4830,16 +5075,18 @@ export class MessageRouter {
       await adapter.startDraftStream(message.chatId);
     }
 
-    // Send acknowledgment - concise for WhatsApp and iMessage.
-    const ackMessage =
-      adapter.type === "whatsapp" || adapter.type === "imessage"
-        ? this.getUiCopy("taskStartAckSimple")
-        : this.getUiCopy("taskStartAck", { taskTitle: params.title });
-    await adapter.sendMessage({
-      chatId: message.chatId,
-      text: ackMessage,
-      replyTo: message.messageId,
-    });
+    // WeChat waits for the final answer so its conversation matches the desktop.
+    if (!this.isFinalResponseOnlyChannel(adapter.type)) {
+      const ackMessage =
+        adapter.type === "whatsapp" || adapter.type === "imessage"
+          ? this.getUiCopy("taskStartAckSimple")
+          : this.getUiCopy("taskStartAck", { taskTitle: params.title });
+      await adapter.sendMessage({
+        chatId: message.chatId,
+        text: ackMessage,
+        replyTo: message.messageId,
+      });
+    }
 
     // Notify desktop app via IPC (best-effort).
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -4908,7 +5155,12 @@ export class MessageRouter {
       return;
     }
 
-    const dmOnlyChannels: ChannelType[] = ["email", "imessage", "bluebubbles"];
+    const dmOnlyChannels: ChannelType[] = [
+      "email",
+      "imessage",
+      "bluebubbles",
+      "weixin",
+    ];
     const inferredIsGroup =
       message.isGroup ??
       (dmOnlyChannels.includes(adapter.type)
@@ -4935,6 +5187,7 @@ export class MessageRouter {
         originChannel: adapter.type,
       },
     });
+    this.attachGatewayProvenance(task, adapter, message);
 
     const routedChannel = this.getChannelForAdapter(adapter);
     if (!routedChannel) {
@@ -4952,6 +5205,8 @@ export class MessageRouter {
       requestingUserName: message.userName,
       lastChannelMessageId: message.messageId,
       sessionGeneration: this.getRemoteSessionGeneration(sessionId),
+      artifactDeliveryStartedAt: Date.now(),
+      deliveredArtifactKeys: new Set<string>(),
     });
 
     await adapter.sendMessage({
@@ -5761,6 +6016,8 @@ export class MessageRouter {
       "teams",
       "googlechat",
       "feishu",
+      "dingtalk",
+      "weixin",
       "wecom",
       "x",
     ]);
@@ -7166,11 +7423,13 @@ export class MessageRouter {
 
     // Auto-assign temp workspace if none selected
     if (!session?.workspaceId) {
-      const specializedWorkspaceId = securityContext?.channelSpecialization?.workspaceId;
+      const specializedWorkspaceId =
+        securityContext?.channelSpecialization?.workspaceId;
       const specializedWorkspace = specializedWorkspaceId
         ? this.workspaceRepo.findById(specializedWorkspaceId)
         : undefined;
-      const workspaceToSet = specializedWorkspace || this.getOrCreateTempWorkspace(sessionId);
+      const workspaceToSet =
+        specializedWorkspace || this.getOrCreateTempWorkspace(sessionId);
       this.sessionManager.setSessionWorkspace(sessionId, workspaceToSet.id);
       session = this.sessionRepo.findById(sessionId);
     }
@@ -7191,7 +7450,12 @@ export class MessageRouter {
     // Prefer adapter-provided isGroup. If missing, fall back to a conservative heuristic.
     // Note: For some adapters chatId/userId can differ even in DMs, which would over-restrict tools.
     // Adapters should set isGroup explicitly when possible.
-    const dmOnlyChannels: ChannelType[] = ["email", "imessage", "bluebubbles"];
+    const dmOnlyChannels: ChannelType[] = [
+      "email",
+      "imessage",
+      "bluebubbles",
+      "weixin",
+    ];
     const inferredIsGroup =
       message.isGroup ??
       (dmOnlyChannels.includes(adapter.type)
@@ -7206,20 +7470,12 @@ export class MessageRouter {
       message,
       workspace,
     );
+    const visualAttachments = this.toVisualAttachments(savedAttachments);
     if (savedAttachments.length > 0) {
-      const lines: string[] = [];
-      lines.push("Attachments saved to workspace:");
-      for (const att of savedAttachments) {
-        lines.push(`- ${att.type}: ${att.relPath}`);
-      }
-      const hint = savedAttachments.some((a) => a.type === "image")
-        ? `Tip: use analyze_image({ path: "<path>", prompt: "..." }) to inspect images.`
-        : undefined;
-
-      const block = [lines.join("\n"), hint].filter(Boolean).join("\n");
-      message.text = message.text?.trim()
-        ? `${message.text.trim()}\n\n${block}`
-        : block;
+      message.text = this.appendInboundAttachmentSummary(
+        message.text,
+        savedAttachments,
+      );
 
       // If this is a follow-up to an existing task, register attachments as artifacts for UI visibility.
       if (this.agentDaemon && session?.taskId) {
@@ -7252,20 +7508,26 @@ export class MessageRouter {
     if (session!.taskId) {
       const existingTask = this.taskRepo.findById(session!.taskId);
       if (existingTask) {
-        // For active tasks, send follow-up message
-        // For completed tasks, also allow follow-up (continues the conversation)
+        // Continue active tasks. WeChat also continues a successfully completed
+        // task so one chat keeps one coherent conversation and task history.
         const activeStatuses = ["pending", "planning", "executing", "paused"];
         const isActive = activeStatuses.includes(existingTask.status);
+        const continuesCompletedWeixinTask =
+          this.isFinalResponseOnlyChannel(adapter.type) &&
+          existingTask.status === "completed";
 
-        if (isActive) {
+        if (isActive || continuesCompletedWeixinTask) {
           if (this.agentDaemon) {
             try {
-              const statusMsg = "💬 Got it — adding that to the current task...";
-              await this.sendAdapterMessage(adapter, {
-                chatId: message.chatId,
-                text: statusMsg,
-                replyTo: message.messageId,
-              });
+              if (!this.isFinalResponseOnlyChannel(adapter.type)) {
+                const statusMsg =
+                  "💬 Got it — adding that to the current task...";
+                await this.sendAdapterMessage(adapter, {
+                  chatId: message.chatId,
+                  text: statusMsg,
+                  replyTo: message.messageId,
+                });
+              }
 
               const requester = this.resolveTaskRequesterFromSessionContext(
                 session!,
@@ -7285,11 +7547,21 @@ export class MessageRouter {
                 requestingUserName,
                 lastChannelMessageId: message.messageId,
                 sessionGeneration: this.getRemoteSessionGeneration(sessionId),
+                artifactDeliveryStartedAt: Date.now(),
+                deliveredArtifactKeys: new Set<string>(),
               });
+
+              this.attachGatewayProvenance(
+                existingTask,
+                adapter,
+                message,
+                "follow_up",
+              );
 
               await this.agentDaemon.sendMessage(
                 session!.taskId!,
                 message.text,
+                visualAttachments,
               );
             } catch (error) {
               console.error("Error sending follow-up message:", error);
@@ -7301,6 +7573,9 @@ export class MessageRouter {
           }
           return;
         }
+        // Failed/cancelled tasks start fresh so the channel specialization can
+        // be re-resolved. Successfully completed WeChat tasks returned above.
+        // Other channels retain the existing new-task behavior.
         // Task is completed/failed/cancelled - unlink and create a new task so
         // current channel specialization can be re-resolved.
         this.sessionManager.unlinkSessionFromTask(sessionId);
@@ -7309,7 +7584,10 @@ export class MessageRouter {
             securityContext.channelSpecialization.workspaceId,
           );
           if (specializedWorkspace) {
-            this.sessionManager.setSessionWorkspace(sessionId, specializedWorkspace.id);
+            this.sessionManager.setSessionWorkspace(
+              sessionId,
+              specializedWorkspace.id,
+            );
             session = this.sessionRepo.findById(sessionId);
             workspace = specializedWorkspace;
           }
@@ -7371,7 +7649,9 @@ export class MessageRouter {
         ...(allowSharedContextMemory ? { allowSharedContextMemory: true } : {}),
         ...(toolRestrictions.length > 0 ? { toolRestrictions } : {}),
         ...(securityContext?.channelSpecialization?.id
-          ? { channelSpecializationId: securityContext.channelSpecialization.id }
+          ? {
+              channelSpecializationId: securityContext.channelSpecialization.id,
+            }
           : {}),
         originChannel: adapter.type,
         ...(securityContext?.researchWorkflowPreset
@@ -7384,6 +7664,7 @@ export class MessageRouter {
           : {}),
       },
     });
+    this.attachGatewayProvenance(task, adapter, message);
 
     // Apply agent role assignment when routing determines one.
     if (resolvedAgentRoleId) {
@@ -7419,6 +7700,8 @@ export class MessageRouter {
       requestingUserName: message.userName,
       lastChannelMessageId: message.messageId,
       sessionGeneration: this.getRemoteSessionGeneration(sessionId),
+      artifactDeliveryStartedAt: Date.now(),
+      deliveredArtifactKeys: new Set<string>(),
     });
 
     // Register inbound attachments as artifacts on the newly created task (optional, best-effort).
@@ -7441,16 +7724,18 @@ export class MessageRouter {
       await adapter.startDraftStream(message.chatId);
     }
 
-    // Send acknowledgment - concise for WhatsApp and iMessage
-    const ackMessage =
-      adapter.type === "whatsapp" || adapter.type === "imessage"
-        ? this.getUiCopy("taskStartAckSimple")
-        : this.getUiCopy("taskStartAck", { taskTitle });
-    await adapter.sendMessage({
-      chatId: message.chatId,
-      text: ackMessage,
-      replyTo: message.messageId,
-    });
+    // WeChat waits for the final answer so its conversation matches the desktop.
+    if (!this.isFinalResponseOnlyChannel(adapter.type)) {
+      const ackMessage =
+        adapter.type === "whatsapp" || adapter.type === "imessage"
+          ? this.getUiCopy("taskStartAckSimple")
+          : this.getUiCopy("taskStartAck", { taskTitle });
+      await adapter.sendMessage({
+        chatId: message.chatId,
+        text: ackMessage,
+        replyTo: message.messageId,
+      });
+    }
 
     // Notify desktop app via IPC
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -7465,13 +7750,20 @@ export class MessageRouter {
           chatId: message.chatId,
           text: message.text,
           timestamp: message.timestamp.getTime(),
+          attachments: savedAttachments.map((attachment) => ({
+            type: attachment.type,
+            fileName: attachment.fileName,
+            relativePath: attachment.relPath,
+            mimeType: attachment.mimeType,
+            size: attachment.size,
+          })),
         },
       });
     }
 
     // Start task execution
     try {
-      await this.agentDaemon.startTask(task);
+      await this.agentDaemon.startTask(task, visualAttachments);
     } catch (error) {
       console.error("Error starting task:", error);
       await adapter.sendMessage({
@@ -7512,6 +7804,12 @@ export class MessageRouter {
     try {
       const trimmed = (text || "").trim();
       if (!trimmed) {
+        return;
+      }
+
+      // WeChat should mirror the completed desktop response, not receive the
+      // executor's plan, search, fetch, or streaming fragments as separate chats.
+      if (this.isFinalResponseOnlyChannel(pending.adapter.type)) {
         return;
       }
 
@@ -7613,15 +7911,17 @@ export class MessageRouter {
   }
 
   private async sendPreparedTaskUpdate(
-    pendingEntry: NonNullable<MessageRouter["pendingTaskResponses"] extends Map<string, infer T> ? T : never>,
+    pendingEntry: NonNullable<
+      MessageRouter["pendingTaskResponses"] extends Map<string, infer T>
+        ? T
+        : never
+    >,
     rawText: string,
     options?: {
       allowEditableProgressRelay?: boolean;
     },
   ): Promise<void> {
-    const isTextOnlyChannel = this.isTextOnlyChannel(
-      pendingEntry.adapter.type,
-    );
+    const isTextOnlyChannel = this.isTextOnlyChannel(pendingEntry.adapter.type);
     const msgCtx = this.getMessageContext();
     const normalizedText = isTextOnlyChannel
       ? this.normalizeSimpleChannelMessage(rawText, msgCtx)
@@ -7715,7 +8015,32 @@ export class MessageRouter {
    * Useful when a follow-up finishes and we want the last assistant output to land
    * before sending artifacts or other non-streaming messages.
    */
-  async flushStreamingUpdateForTask(taskId: string): Promise<void> {
+  async flushStreamingUpdateForTask(
+    taskId: string,
+    finalText?: string,
+  ): Promise<void> {
+    const pendingForFinalOnly = this.pendingTaskResponses.get(taskId);
+    const explicitFinalText = (finalText || "").trim();
+    if (
+      pendingForFinalOnly &&
+      this.isFinalResponseOnlyChannel(pendingForFinalOnly.adapter.type)
+    ) {
+      if (explicitFinalText) {
+        if (pendingForFinalOnly.lastFinalMessageText === explicitFinalText) {
+          return;
+        }
+        await this.sendPreparedTaskUpdate(
+          pendingForFinalOnly,
+          explicitFinalText,
+          {
+            allowEditableProgressRelay: false,
+          },
+        );
+        pendingForFinalOnly.lastFinalMessageText = explicitFinalText;
+      }
+      return;
+    }
+
     const buffer = this.streamingUpdateBuffers.get(taskId);
     if (!buffer) return;
 
@@ -7850,13 +8175,21 @@ export class MessageRouter {
    * Send any artifacts (images, documents) created during task execution
    * Called when follow-ups complete to deliver screenshots, etc.
    */
-  async sendArtifacts(taskId: string): Promise<void> {
+  async sendArtifacts(
+    taskId: string,
+    finalResponseText?: string,
+  ): Promise<void> {
     const pending = this.pendingTaskResponses.get(taskId);
     if (!pending) {
       return;
     }
 
-    await this.sendTaskArtifacts(taskId, pending.adapter, pending.chatId);
+    await this.sendTaskArtifacts(
+      taskId,
+      pending.adapter,
+      pending.chatId,
+      finalResponseText,
+    );
   }
 
   /**
@@ -7901,14 +8234,22 @@ export class MessageRouter {
       const msgCtx = this.getMessageContext();
       const trimmedResult = typeof result === "string" ? result.trim() : "";
       const message =
-        trimmedResult || getCompletionMessage(msgCtx, undefined, !isSimpleMessaging);
+        trimmedResult ||
+        getCompletionMessage(msgCtx, undefined, !isSimpleMessaging);
       const normalizedMessage =
         pending.adapter.type === "whatsapp"
           ? this.normalizeSimpleChannelMessage(message, msgCtx)
           : message;
+      const isDuplicateWeixinCompletion =
+        this.isFinalResponseOnlyChannel(pending.adapter.type) &&
+        pending.lastFinalMessageText === normalizedMessage;
 
-      // Finalize draft stream if using Telegram
-      if (pending.adapter instanceof TelegramAdapter) {
+      // A follow-up may emit both follow_up_completed and task_completed. For
+      // WeChat the former has already delivered this exact final answer.
+      if (isDuplicateWeixinCompletion) {
+        completionMessageId = null;
+        // Finalize draft stream if using Telegram
+      } else if (pending.adapter instanceof TelegramAdapter) {
         // Finalize the streaming draft with final message
         const finalizedMessageId = await pending.adapter.finalizeDraftStream(
           pending.chatId,
@@ -7959,15 +8300,22 @@ export class MessageRouter {
         completionMessageId = lastMessageId || null;
       }
 
-      await this.maybeSendTaskFeedbackControls({
-        taskId,
-        pending,
-        completionMessageId,
-        contextType,
-      });
+      if (!this.isFinalResponseOnlyChannel(pending.adapter.type)) {
+        await this.maybeSendTaskFeedbackControls({
+          taskId,
+          pending,
+          completionMessageId,
+          contextType,
+        });
+      }
 
       // Send artifacts if any were created
-      await this.sendTaskArtifacts(taskId, pending.adapter, pending.chatId);
+      await this.sendTaskArtifacts(
+        taskId,
+        pending.adapter,
+        pending.chatId,
+        normalizedMessage,
+      );
 
       // Don't unlink session - keep it linked for follow-up messages
       // User can use /newtask to explicitly start a new task
@@ -7997,6 +8345,7 @@ export class MessageRouter {
 
     const adapter = opts.pending.adapter;
     const channelType = adapter.type;
+    if (this.isFinalResponseOnlyChannel(channelType)) return;
 
     // WhatsApp/iMessage don't support inline keyboards; provide a text fallback.
     if (channelType === "whatsapp" || channelType === "imessage") {
@@ -8070,6 +8419,44 @@ export class MessageRouter {
     taskId: string,
     adapter: ChannelAdapter,
     chatId: string,
+    finalResponseText?: string,
+  ): Promise<void> {
+    const deliveryState = this.pendingTaskResponses.get(taskId);
+    const previousDelivery =
+      this.artifactDeliveryQueues.get(taskId) ?? Promise.resolve();
+    const queuedDelivery = previousDelivery
+      .catch(() => undefined)
+      .then(() =>
+        this.deliverTaskArtifacts(
+          taskId,
+          adapter,
+          chatId,
+          finalResponseText,
+          deliveryState,
+        ),
+      );
+
+    this.artifactDeliveryQueues.set(taskId, queuedDelivery);
+    try {
+      await queuedDelivery;
+    } finally {
+      if (this.artifactDeliveryQueues.get(taskId) === queuedDelivery) {
+        this.artifactDeliveryQueues.delete(taskId);
+      }
+    }
+  }
+
+  private async deliverTaskArtifacts(
+    taskId: string,
+    adapter: ChannelAdapter,
+    chatId: string,
+    finalResponseText: string | undefined,
+    deliveryState:
+      | {
+          artifactDeliveryStartedAt: number;
+          deliveredArtifactKeys: Set<string>;
+        }
+      | undefined,
   ): Promise<void> {
     try {
       const artifacts = this.artifactRepo.findByTaskId(taskId);
@@ -8095,35 +8482,108 @@ export class MessageRouter {
         ".xml",
       ];
 
-      // Filter for sendable file types
-      const sendableArtifacts = artifacts.filter((artifact) => {
+      // Only user-facing outputs belong in the channel. Executor scratch files
+      // and inbound attachments may also be registered for desktop visibility,
+      // but sending them back would expose intermediate work or echo user input.
+      const eligibleArtifacts = artifacts.filter((artifact) => {
         const ext = path.extname(artifact.path).toLowerCase();
+        const normalizedPath = artifact.path.replace(/\\/g, "/").toLowerCase();
         return (
           (imageExtensions.includes(ext) || documentExtensions.includes(ext)) &&
-          fs.existsSync(artifact.path)
+          fs.existsSync(artifact.path) &&
+          (!deliveryState ||
+            artifact.createdAt >= deliveryState.artifactDeliveryStartedAt) &&
+          !normalizedPath.includes("/.neoworker/tmp/") &&
+          !normalizedPath.includes("/.neoworker/inbox/attachments/")
         );
+      });
+
+      // When the final answer names output files, prefer those exact artifacts.
+      // This prevents older drafts in the same task from being delivered.
+      const namedArtifacts = finalResponseText?.trim()
+        ? eligibleArtifacts.filter((artifact) =>
+            finalResponseText.includes(path.basename(artifact.path)),
+          )
+        : [];
+      const candidateArtifacts =
+        namedArtifacts.length > 0 ? namedArtifacts : eligibleArtifacts;
+
+      // Artifact rows can be registered more than once. De-duplicate both the
+      // canonical path and content hash before sending anything externally.
+      const seenPaths = new Set<string>();
+      const seenHashes = new Set<string>();
+      const seenFileNames = new Set<string>();
+      const deliveredKeys =
+        deliveryState?.deliveredArtifactKeys ?? new Set<string>();
+      const sendableArtifacts = candidateArtifacts.flatMap((artifact) => {
+        let canonicalPath: string;
+        try {
+          canonicalPath = fs.realpathSync(artifact.path);
+        } catch {
+          canonicalPath = path.resolve(artifact.path);
+        }
+        const pathKey =
+          process.platform === "win32"
+            ? canonicalPath.toLowerCase()
+            : canonicalPath;
+        const hashKey = String(artifact.sha256 || "").trim().toLowerCase();
+        const fileNameKey = path
+          .basename(artifact.path)
+          .normalize("NFKC")
+          .toLocaleLowerCase();
+        const deliveryKeys = [
+          `path:${pathKey}`,
+          ...(hashKey ? [`hash:${hashKey}`] : []),
+          `name:${fileNameKey}`,
+        ];
+        if (
+          seenPaths.has(pathKey) ||
+          seenFileNames.has(fileNameKey) ||
+          (hashKey && seenHashes.has(hashKey)) ||
+          deliveryKeys.some((key) => deliveredKeys.has(key))
+        ) {
+          return [];
+        }
+        seenPaths.add(pathKey);
+        seenFileNames.add(fileNameKey);
+        if (hashKey) seenHashes.add(hashKey);
+        return [{ artifact, deliveryKeys }];
       });
 
       if (sendableArtifacts.length === 0) return;
 
       // Send each artifact
-      for (const artifact of sendableArtifacts) {
+      for (const { artifact, deliveryKeys } of sendableArtifacts) {
         try {
           const ext = path.extname(artifact.path).toLowerCase();
           const fileName = path.basename(artifact.path);
+          let sent = false;
 
           if (imageExtensions.includes(ext) && adapter.sendPhoto) {
             // Send as photo for better display
-            await adapter.sendPhoto(chatId, artifact.path, `📷 ${fileName}`);
+            await adapter.sendPhoto(
+              chatId,
+              artifact.path,
+              adapter.type === "weixin" ? undefined : `📷 ${fileName}`,
+            );
+            sent = true;
             console.log(`Sent image: ${fileName}`);
           } else if (adapter.sendDocument) {
             // Send as document
-            await adapter.sendDocument(chatId, artifact.path, `📎 ${fileName}`);
+            await adapter.sendDocument(
+              chatId,
+              artifact.path,
+              adapter.type === "weixin" ? undefined : `📎 ${fileName}`,
+            );
+            sent = true;
             console.log(`Sent document: ${fileName}`);
           } else {
             console.log(
               `Adapter does not support sending ${ext} files, skipping: ${fileName}`,
             );
+          }
+          if (sent) {
+            for (const key of deliveryKeys) deliveredKeys.add(key);
           }
         } catch (err) {
           console.error(`Failed to send artifact ${artifact.path}:`, err);
@@ -8331,10 +8791,13 @@ export class MessageRouter {
 
     message += `⏳ _Expires in 5 minutes_`;
 
-    // WhatsApp/iMessage don't support inline keyboards - use text commands
+    // Simple chat channels don't support inline keyboards - use text commands.
+    // WeChat previously fell through to the keyboard branch, so the approval
+    // arrived without any actionable controls.
     if (
       route.adapter.type === "whatsapp" ||
-      route.adapter.type === "imessage"
+      route.adapter.type === "imessage" ||
+      route.adapter.type === "weixin"
     ) {
       const shortId =
         typeof approval.id === "string" ? approval.id.slice(0, 8) : "unknown";
@@ -8344,7 +8807,10 @@ export class MessageRouter {
       try {
         await route.adapter.sendMessage({
           chatId: route.chatId,
-          text: this.normalizeSimpleChannelMessage(message, this.getMessageContext()),
+          text: this.normalizeSimpleChannelMessage(
+            message,
+            this.getMessageContext(),
+          ),
           parseMode: "markdown",
         });
       } catch (error) {
@@ -8384,14 +8850,18 @@ export class MessageRouter {
   }
 
   private compactExternalApprovalDescription(approval: Any): string {
-    const approvalType = String(approval?.type || "").trim().toLowerCase();
+    const approvalType = String(approval?.type || "")
+      .trim()
+      .toLowerCase();
     if (approvalType === "run_command") {
       return "A shell command needs approval to continue.";
     }
     if (approvalType === "data_export") {
       const domain =
-        approval?.details?.permissionPrompt?.securityContext?.exportTarget?.domain ||
-        approval?.details?.permissionPrompt?.securityContext?.exportTarget?.provider;
+        approval?.details?.permissionPrompt?.securityContext?.exportTarget
+          ?.domain ||
+        approval?.details?.permissionPrompt?.securityContext?.exportTarget
+          ?.provider;
       return domain
         ? `A data export to ${domain} needs approval to continue.`
         : "A data export needs approval to continue.";
@@ -8404,17 +8874,25 @@ export class MessageRouter {
     }
 
     const rawDescription =
-      typeof approval?.description === "string" ? approval.description.trim() : "";
+      typeof approval?.description === "string"
+        ? approval.description.trim()
+        : "";
     if (!rawDescription) {
       return "Approval is required to continue.";
     }
 
-    const singleLine = rawDescription.split(/\n+/)[0]?.replace(/\s+/g, " ").trim() || rawDescription;
-    if (/^review the shell command below before approving\.?$/i.test(singleLine)) {
+    const singleLine =
+      rawDescription.split(/\n+/)[0]?.replace(/\s+/g, " ").trim() ||
+      rawDescription;
+    if (
+      /^review the shell command below before approving\.?$/i.test(singleLine)
+    ) {
       return "A shell command needs approval to continue.";
     }
 
-    return singleLine.length > 180 ? `${singleLine.slice(0, 177).trimEnd()}...` : singleLine;
+    return singleLine.length > 180
+      ? `${singleLine.slice(0, 177).trimEnd()}...`
+      : singleLine;
   }
 
   /**
@@ -8486,6 +8964,8 @@ export class MessageRouter {
       requestingUserName: opts.requestingUserName,
       lastChannelMessageId: opts.lastChannelMessageId,
       sessionGeneration: this.getRemoteSessionGeneration(opts.sessionId),
+      artifactDeliveryStartedAt: Date.now(),
+      deliveredArtifactKeys: new Set<string>(),
     });
 
     // Enable Telegram draft streaming for the follow-up thread.
@@ -8526,10 +9006,7 @@ export class MessageRouter {
     }
 
     const task = this.taskRepo.findById(taskId);
-    if (
-      !task ||
-      ["failed", "cancelled"].includes(task.status)
-    ) {
+    if (!task || ["failed", "cancelled"].includes(task.status)) {
       await adapter.sendMessage({
         chatId: message.chatId,
         text: "No active task in this chat.",
@@ -9065,10 +9542,10 @@ ${status.queuedCount > 0 ? `Queued task IDs: ${status.queuedTaskIds.join(", ")}`
       const task = this.taskRepo.findById(taskId);
       if (!task || ["completed", "failed", "cancelled"].includes(task.status)) {
         // No active task to cancel.
-          await this.sendAdapterMessage(adapter, {
-            chatId: message.chatId,
-            text: this.getUiCopy("cancelNoActive"),
-          });
+        await this.sendAdapterMessage(adapter, {
+          chatId: message.chatId,
+          text: this.getUiCopy("cancelNoActive"),
+        });
         return;
       }
 
@@ -9127,7 +9604,9 @@ ${status.queuedCount > 0 ? `Queued task IDs: ${status.queuedTaskIds.join(", ")}`
     args: string[] = [],
   ): Promise<void> {
     const session = this.sessionRepo.findById(sessionId);
-    const mode = String(args[0] || "").trim().toLowerCase();
+    const mode = String(args[0] || "")
+      .trim()
+      .toLowerCase();
     const useFreshTempWorkspace = ["temp", "temporary", "scratch"].includes(
       mode,
     );
@@ -9701,20 +10180,20 @@ ${status.queuedCount > 0 ? `Queued task IDs: ${status.queuedTaskIds.join(", ")}`
     adapter: ChannelAdapter,
     message: IncomingMessage,
   ): Promise<void> {
-    const version = getCoworkVersion();
+    const version = getNeoWorkerVersion();
     const electronVersion = process.versions.electron || "none";
     const nodeVersion = process.versions.node;
     const platform = process.platform;
     const arch = process.arch;
 
-    const text = `📦 *CoWork OS*
+    const text = `📦 *NeoWorker*
 
 Version: \`${version}\`
 Platform: \`${platform}\` (${arch})
 Electron: \`${electronVersion}\`
 Node.js: \`${nodeVersion}\`
 
-🔗 [GitHub](https://github.com/CoWork-OS/cowork-os)`;
+🔗 [GitHub](https://github.com/NeoWorker/neoworker)`;
 
     await adapter.sendMessage({
       chatId: message.chatId,

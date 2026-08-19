@@ -1,0 +1,832 @@
+/*
+ * Conversation reading layer
+ *
+ * Keep the transcript compact enough for a desktop work surface while giving
+ * completed answers the calmer measure and rhythm of a well-typeset document.
+ * This file is intentionally loaded after the legacy conversation styles.
+ */
+
+:root {
+  --conversation-content-max: 1200px;
+  --conversation-reading-max: 1080px;
+}
+
+.density-focused .main-body {
+  padding-inline: clamp(24px, 3.4vw, 54px);
+}
+
+.density-focused .task-content {
+  width: 100%;
+  max-width: var(--conversation-content-max);
+  margin-inline: auto;
+  font-family: var(--font-content);
+}
+
+/* Execution summaries are supporting UI, so keep them denser than reports. */
+.density-focused .collaborative-summary-panel {
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+.density-focused .collab-summary-heading {
+  font-size: 14px;
+}
+
+.density-focused .collab-summary-timeline {
+  gap: 8px;
+}
+
+.density-focused
+  :is(.collab-timeline-strategic, .collab-timeline-spawn-header) {
+  font-size: 13px;
+}
+
+.density-focused :is(.collab-timeline-spawn, .collab-timeline-status) {
+  font-size: 12px;
+  line-height: 1.42;
+}
+
+.density-focused .collab-timeline-thought {
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.density-focused .collab-summary-synthesis-content {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.conversation-flow .chat-message.assistant-message {
+  width: 100%;
+  min-width: 0;
+  margin-block: 3px 20px;
+}
+
+.conversation-flow
+  .chat-message.assistant-message.assistant-response-message
+  > .chat-bubble.assistant-bubble {
+  width: 100%;
+  min-width: 0;
+}
+
+.conversation-flow .assistant-identity-header {
+  width: 100%;
+  max-width: var(--conversation-reading-max);
+  gap: 8px;
+  margin-inline: auto;
+  margin-bottom: 10px;
+}
+
+.conversation-flow .assistant-identity-avatar {
+  width: 30px;
+  height: 30px;
+  flex-basis: 30px;
+  border: 1px solid var(--color-border-subtle, var(--color-border));
+  box-shadow: none;
+}
+
+.conversation-flow .assistant-identity-name {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+/* Legacy transcript rules still carry a highly specific 760px cap. Override
+   every assistant-message variant here so the identity, process updates and
+   final answer share one left edge instead of looking like nested columns. */
+.density-focused
+  .conversation-flow
+  .chat-message.assistant-message
+  .chat-bubble.assistant-bubble:not(:has(.assistant-html-embed)):not(
+    :has(.assistant-rich-frame-embed)
+  )
+  .chat-bubble-content.markdown-content,
+.density-focused
+  .conversation-flow
+  .event-details.assistant-message
+  > .markdown-content {
+  width: 100%;
+  max-width: var(--conversation-reading-max);
+  margin-inline: auto;
+}
+
+/* Keep execution records on the same reading rail. Their status and metrics
+   belong beside the summary, not stranded against the far viewport edge. */
+.density-focused .conversation-flow :is(.action-block, .step-feed-card) {
+  width: 100%;
+  max-width: var(--conversation-reading-max);
+  margin-inline: auto;
+}
+
+.density-focused .conversation-flow .action-block-header {
+  min-height: 28px;
+  gap: 6px;
+  overflow: hidden;
+  padding-block: 0;
+}
+
+.density-focused .conversation-flow .action-block-summary {
+  flex: 0 1 auto;
+  max-width: min(46%, 480px);
+}
+
+.density-focused .conversation-flow .action-block-last-step-label {
+  flex: 0 1 auto;
+  max-width: min(30%, 320px);
+}
+
+.density-focused .conversation-flow .action-block-meta,
+.density-focused .conversation-flow .action-block.expanded .action-block-meta {
+  margin-left: 0;
+}
+
+:is(
+  .conversation-flow
+    .chat-message.assistant-message.assistant-response-message
+    .chat-bubble-content.markdown-content,
+  .conversation-flow .event-details.assistant-message > .markdown-content
+) {
+  width: 100%;
+  max-width: var(--conversation-reading-max);
+  margin-inline: auto;
+  color: var(--color-text-primary);
+  font-family: var(--font-content);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.72;
+  letter-spacing: -0.003em;
+  text-wrap: pretty;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  > :first-child {
+  margin-top: 0;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  > :last-child {
+  margin-bottom: 0;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  :is(p, ul, ol, blockquote) {
+  margin-block: 10px;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  :is(ul, ol) {
+  padding-left: 22px;
+  list-style-position: outside;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  li {
+  margin-block: 4px;
+  padding-left: 2px;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  li::marker {
+  color: var(--color-text-muted);
+}
+
+/*
+ * Own list markers in the final reading layer. The legacy Oblivion theme used
+ * an absolutely positioned pseudo-element, which could overlap the first
+ * glyph after a more specific response rule changed the list-item padding.
+ */
+.visual-oblivion
+  :is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  ul {
+  padding-left: 22px;
+  list-style-type: disc;
+  list-style-position: outside;
+}
+
+.visual-oblivion
+  :is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  ul
+  > li {
+  position: static;
+  padding-left: 2px;
+}
+
+.visual-oblivion
+  :is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  ul
+  > li::before {
+  content: none;
+}
+
+.visual-oblivion
+  :is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  ul
+  > li::marker {
+  color: var(--color-text-muted);
+  font-size: 0.8em;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  h1 {
+  margin: 22px 0 8px;
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.42;
+  letter-spacing: -0.014em;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  h2 {
+  margin: 20px 0 7px;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.48;
+  letter-spacing: -0.009em;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  h3 {
+  margin: 17px 0 6px;
+  font-size: 14.5px;
+  font-weight: 650;
+  line-height: 1.52;
+  letter-spacing: 0;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  :is(h1, h2, h3):first-child {
+  margin-top: 0;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  strong {
+  font-weight: 650;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  code:not(pre code) {
+  border: 1px solid var(--color-border-subtle, var(--color-border));
+  border-radius: 5px;
+  padding: 1px 5px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-size: 0.88em;
+  font-weight: 500;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  blockquote {
+  margin-block: 14px;
+  border-left: 2px solid var(--color-accent);
+  border-radius: 0 8px 8px 0;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--color-bg-secondary) 74%, transparent);
+  color: var(--color-text-secondary);
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  pre {
+  margin-block: 14px;
+  border: 1px solid var(--color-border-subtle, var(--color-border));
+  border-radius: 10px;
+  padding: 13px 15px;
+  box-shadow: none;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  hr {
+  margin-block: 24px;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  .markdown-table-wrapper {
+  margin-block: 14px 16px;
+  overflow: auto;
+  border: 1px solid var(--color-border-subtle, var(--color-border));
+  border-radius: 11px;
+  background: var(--color-bg-primary);
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  .markdown-table-wrapper
+  > table {
+  width: 100%;
+  min-width: 580px;
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  thead {
+  background: var(--color-bg-secondary);
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  :is(th, td) {
+  padding: 9px 12px;
+  border-right: 1px solid var(--color-border-subtle, var(--color-border));
+  border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  :is(th, td):last-child {
+  border-right: 0;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  tbody
+  tr:last-child
+  td {
+  border-bottom: 0;
+}
+
+:is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  )
+  tr:hover {
+  background: color-mix(in srgb, var(--color-bg-hover) 54%, transparent);
+}
+
+/* Result files use the available width instead of forming a tall, narrow stack. */
+.conversation-flow .assistant-artifact-cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+  max-width: var(--conversation-reading-max);
+  margin: 14px auto 0;
+}
+
+.conversation-flow
+  .assistant-artifact-cards
+  > :is(
+    .spreadsheet-artifact-card,
+    .document-artifact-card,
+    .presentation-artifact-card,
+    .web-artifact-card
+  ) {
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 10px;
+  min-height: 60px;
+  padding: 9px 12px;
+  border-color: transparent;
+  border-radius: 11px;
+  background: var(--color-bg-secondary);
+  box-shadow: none;
+}
+
+.conversation-flow
+  .assistant-artifact-cards
+  > :is(
+    .spreadsheet-artifact-card,
+    .document-artifact-card,
+    .presentation-artifact-card,
+    .web-artifact-card
+  ):hover {
+  background: var(--color-bg-hover);
+}
+
+.conversation-flow
+  .assistant-artifact-cards
+  :is(
+    .spreadsheet-artifact-icon,
+    .document-artifact-icon,
+    .presentation-artifact-icon,
+    .web-artifact-icon
+  ) {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.conversation-flow
+  .assistant-artifact-cards
+  :is(
+    .spreadsheet-artifact-name,
+    .document-artifact-name,
+    .presentation-artifact-name,
+    .web-artifact-name
+  ) {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.conversation-flow
+  .assistant-artifact-cards
+  :is(
+    .spreadsheet-artifact-meta,
+    .document-artifact-meta,
+    .presentation-artifact-meta,
+    .web-artifact-meta
+  ) {
+  font-size: 11px;
+}
+
+.conversation-flow
+  .assistant-artifact-cards
+  :is(
+    .spreadsheet-artifact-actions,
+    .document-artifact-actions,
+    .presentation-artifact-actions,
+    .web-artifact-actions
+  ) {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.conversation-flow
+  .assistant-artifact-cards
+  :is(
+    .spreadsheet-artifact-open,
+    .document-artifact-open,
+    .presentation-artifact-open,
+    .web-artifact-open
+  ) {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.conversation-flow
+  .assistant-artifact-cards
+  :is(
+    .spreadsheet-artifact-open,
+    .document-artifact-open,
+    .presentation-artifact-open,
+    .web-artifact-open
+  )
+  > span {
+  display: none;
+}
+
+.conversation-flow .conversation-artifact-stack-show-more {
+  grid-column: 1 / -1;
+  min-height: 36px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 12px;
+}
+
+/* Team-agent detail is a full reading surface. Keep its transcript on the
+   visible center line instead of inheriting the left-anchored chat measure. */
+.spawned-agent-sidebar-transcript .task-session-shell {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+
+.spawned-agent-sidebar-transcript .task-content {
+  box-sizing: border-box;
+  width: min(100%, var(--conversation-content-max));
+  max-width: var(--conversation-content-max);
+  margin-inline: auto;
+}
+
+.spawned-agent-sidebar-transcript .conversation-flow .assistant-identity-header,
+.spawned-agent-sidebar-transcript
+  :is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  ) {
+  width: 100%;
+  max-width: var(--conversation-reading-max);
+  margin-inline: auto;
+}
+
+/* Team streams and expert detail transcripts are dense working results, not
+   standalone documents. Keep their Markdown hierarchy visible without letting
+   the generic long-form heading scale dominate the page. */
+:is(
+  .collaborative-thoughts-main .thought-content.markdown-content,
+  .collaborative-thoughts-main
+    .collab-summary-synthesis-content.markdown-content,
+  .spawned-agent-sidebar-transcript
+    .conversation-flow
+    .chat-bubble-content.markdown-content,
+  .spawned-agent-sidebar-transcript
+    .conversation-flow
+    .event-details.assistant-message
+    > .markdown-content
+) {
+  font-size: 13.5px;
+  line-height: 1.64;
+}
+
+:is(
+    .collaborative-thoughts-main .thought-content.markdown-content,
+    .collaborative-thoughts-main
+      .collab-summary-synthesis-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .chat-bubble-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .event-details.assistant-message
+      > .markdown-content
+  )
+  h1 {
+  margin: 15px 0 7px;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.38;
+  letter-spacing: -0.01em;
+}
+
+:is(
+    .collaborative-thoughts-main .thought-content.markdown-content,
+    .collaborative-thoughts-main
+      .collab-summary-synthesis-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .chat-bubble-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .event-details.assistant-message
+      > .markdown-content
+  )
+  h2 {
+  margin: 13px 0 6px;
+  font-size: 15.5px;
+  font-weight: 650;
+  line-height: 1.42;
+  letter-spacing: -0.006em;
+}
+
+:is(
+    .collaborative-thoughts-main .thought-content.markdown-content,
+    .collaborative-thoughts-main
+      .collab-summary-synthesis-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .chat-bubble-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .event-details.assistant-message
+      > .markdown-content
+  )
+  h3 {
+  margin: 11px 0 5px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.46;
+  letter-spacing: 0;
+}
+
+:is(
+    .collaborative-thoughts-main .thought-content.markdown-content,
+    .collaborative-thoughts-main
+      .collab-summary-synthesis-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .chat-bubble-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .event-details.assistant-message
+      > .markdown-content
+  )
+  h4 {
+  margin: 10px 0 5px;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.48;
+}
+
+:is(
+    .collaborative-thoughts-main .thought-content.markdown-content,
+    .collaborative-thoughts-main
+      .collab-summary-synthesis-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .chat-bubble-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .event-details.assistant-message
+      > .markdown-content
+  )
+  :is(p, ul, ol, blockquote) {
+  margin-block: 7px;
+}
+
+:is(
+    .collaborative-thoughts-main .thought-content.markdown-content,
+    .collaborative-thoughts-main
+      .collab-summary-synthesis-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .chat-bubble-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .event-details.assistant-message
+      > .markdown-content
+  )
+  li {
+  margin-block: 3px;
+}
+
+:is(
+    .collaborative-thoughts-main .thought-content.markdown-content,
+    .collaborative-thoughts-main
+      .collab-summary-synthesis-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .chat-bubble-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .event-details.assistant-message
+      > .markdown-content
+  )
+  :is(table, code) {
+  font-size: 12.5px;
+}
+
+:is(
+    .collaborative-thoughts-main .thought-content.markdown-content,
+    .collaborative-thoughts-main
+      .collab-summary-synthesis-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .chat-bubble-content.markdown-content,
+    .spawned-agent-sidebar-transcript
+      .conversation-flow
+      .event-details.assistant-message
+      > .markdown-content
+  )
+  > :is(h1, h2, h3, h4):first-child {
+  margin-top: 0;
+}
+
+@media (max-width: 820px) {
+  :root {
+    --conversation-reading-max: 100%;
+  }
+
+  .density-focused .main-body {
+    padding-inline: 18px;
+  }
+
+  .conversation-flow .assistant-artifact-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .density-focused .conversation-flow .action-block-last-step-label {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .density-focused .main-body {
+    padding-inline: 14px;
+  }
+
+  .chat-message.user-message .chat-bubble.user-bubble,
+  .chat-message.user-message .quoted-follow-up-reply {
+    max-width: 88%;
+  }
+
+  :is(
+    .conversation-flow
+      .chat-message.assistant-message.assistant-response-message
+      .chat-bubble-content.markdown-content,
+    .conversation-flow .event-details.assistant-message > .markdown-content
+  ) {
+    font-size: 13.5px;
+    line-height: 1.68;
+  }
+}

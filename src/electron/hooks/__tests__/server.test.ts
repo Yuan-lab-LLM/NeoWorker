@@ -259,7 +259,7 @@ describe("HooksServer", () => {
       expect(response.statusCode).toBe(200);
     });
 
-    it("should accept X-CoWork-Token header", async () => {
+    it("should accept X-NeoWorker-Token header", async () => {
       server.setHandlers({
         onWake: async () => {},
       });
@@ -268,7 +268,7 @@ describe("HooksServer", () => {
         "POST",
         "/hooks/wake",
         { text: "test", mode: "now" },
-        { "X-CoWork-Token": "test-secret-token" },
+        { "X-NeoWorker-Token": "test-secret-token" },
       );
       expect(response.statusCode).toBe(200);
     });

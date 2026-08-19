@@ -8,7 +8,7 @@ import { normalizeWhatsAppPhoneTarget, WhatsAppAdapter } from "../channels/whats
 // Mock electron
 vi.mock("electron", () => ({
   app: {
-    getPath: vi.fn().mockReturnValue("/tmp/test-cowork"),
+    getPath: vi.fn().mockReturnValue("/tmp/test-neoworker"),
   },
 }));
 
@@ -238,7 +238,7 @@ describe("WhatsApp Adapter updateConfig", () => {
 describe("WhatsAppAdapter certificate handling", () => {
   it("stops auto-reconnect when WhatsApp TLS certificate trust fails", () => {
     const adapter = new WhatsAppAdapter({
-      authDir: "/tmp/test-cowork/wa-auth-cert",
+      authDir: "/tmp/test-neoworker/wa-auth-cert",
     } as Any);
     const statusHandler = vi.fn();
     const errorHandler = vi.fn();
@@ -274,7 +274,7 @@ describe("WhatsAppAdapter certificate handling", () => {
 
   it("continues the normal reconnect path for retryable WhatsApp disconnects", () => {
     const adapter = new WhatsAppAdapter({
-      authDir: "/tmp/test-cowork/wa-auth-retry",
+      authDir: "/tmp/test-neoworker/wa-auth-retry",
     } as Any);
     const reconnectSpy = vi.spyOn(adapter as Any, "attemptReconnection").mockResolvedValue(undefined);
 
@@ -291,7 +291,7 @@ describe("WhatsAppAdapter certificate handling", () => {
 describe("WhatsAppAdapter editMessage", () => {
   it("sends a Baileys edit payload with WhatsApp markdown and self-chat prefix", async () => {
     const adapter = new WhatsAppAdapter({
-      authDir: "/tmp/test-cowork/wa-auth",
+      authDir: "/tmp/test-neoworker/wa-auth",
       selfChatMode: true,
       responsePrefix: "🤖",
     } as Any);

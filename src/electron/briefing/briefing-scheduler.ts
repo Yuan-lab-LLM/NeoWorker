@@ -2,7 +2,7 @@ import type { CronService } from "../cron";
 import type { CronJobCreate, CronJobPatch } from "../cron/types";
 import type { BriefingConfig } from "./types";
 
-export const DAILY_BRIEFING_MARKER = "cowork:briefing:v1";
+export const DAILY_BRIEFING_MARKER = "neoworker:briefing:v1";
 
 function normalizeScheduleTime(scheduleTime?: string): string {
   const raw = typeof scheduleTime === "string" ? scheduleTime.trim() : "";

@@ -28,7 +28,7 @@ export function isWorkspaceArtifactSkeleton(workspacePath: string): boolean {
     const entries = fsSync
       .readdirSync(workspacePath, { withFileTypes: true })
       .filter((entry) => entry.name !== ".DS_Store");
-    return entries.length === 1 && entries[0]?.name === ".cowork" && entries[0].isDirectory();
+    return entries.length === 1 && entries[0]?.name === ".neoworker" && entries[0].isDirectory();
   } catch {
     return false;
   }

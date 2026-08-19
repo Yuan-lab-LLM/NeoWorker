@@ -233,12 +233,12 @@ function buildForwardedMime(params: {
   originalMessageId: string;
   attachments: Array<{ filename: string; mimeType: string; data: Uint8Array }>;
 }): string {
-  const boundary = `cowork-forward-${randomUUID()}`;
+  const boundary = `neoworker-forward-${randomUUID()}`;
   const headers = [
     `To: ${escapeHeader(params.to)}`,
     `Subject: ${escapeHeader(params.subject)}`,
     "MIME-Version: 1.0",
-    `X-CoWork-Original-Message-Id: ${escapeHeader(params.originalMessageId)}`,
+    `X-NeoWorker-Original-Message-Id: ${escapeHeader(params.originalMessageId)}`,
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
     "",
     `--${boundary}`,
@@ -246,7 +246,7 @@ function buildForwardedMime(params: {
     "Content-Transfer-Encoding: 7bit",
     "",
     [
-      "Forwarded by CoWork OS",
+      "Forwarded by NeoWorker",
       params.originalFrom ? `From: ${params.originalFrom}` : null,
       params.originalSubject ? `Original subject: ${params.originalSubject}` : null,
       params.originalDate ? `Original date: ${new Date(params.originalDate).toUTCString()}` : null,
@@ -744,9 +744,9 @@ export class MailboxForwardingService {
     };
 
     return {
-      forwarded: await ensure(recipe.forwardedLabelName || "cowork/forwarded"),
-      rejected: await ensure(recipe.rejectedLabelName || "cowork/rejected"),
-      candidate: await ensure(recipe.candidateLabelName || "cowork/candidate"),
+      forwarded: await ensure(recipe.forwardedLabelName || "neoworker/forwarded"),
+      rejected: await ensure(recipe.rejectedLabelName || "neoworker/rejected"),
+      candidate: await ensure(recipe.candidateLabelName || "neoworker/candidate"),
     };
   }
 

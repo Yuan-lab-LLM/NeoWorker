@@ -1,0 +1,3 @@
+import { n as e, t } from "./languages-BjGVkqjI-6nxvykS1.js";
+t();
+export { e as default };

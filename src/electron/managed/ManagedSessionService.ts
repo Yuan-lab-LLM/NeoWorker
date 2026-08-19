@@ -40,6 +40,7 @@ import type {
   OperationalAutonomyPolicy,
   Workspace,
 } from "../../shared/types";
+import { deriveAgentNameFromPrompt, isGenericAgentName } from "../../shared/agent-name";
 import type {
   ManagedAgent,
   ManagedAgentVersion,
@@ -48,6 +49,7 @@ import type {
   ManagedSessionCreateInput,
   ManagedSessionEvent,
   ManagedSessionInputContent,
+  ManagedSessionSurface,
   ManagedSessionStatus,
   Task,
   TaskEvent,
@@ -966,7 +968,20 @@ export class ManagedSessionService {
   }
 
   listAgents(params?: { limit?: number; offset?: number; status?: ManagedAgent["status"] }): ManagedAgent[] {
-    return this.managedAgentRepo.list(params);
+    return this.managedAgentRepo.list(params).map((agent) => {
+      if (!isGenericAgentName(agent.name)) return agent;
+      const repairedName = deriveAgentNameFromPrompt(agent.description || "", "");
+      if (!repairedName || isGenericAgentName(repairedName)) return agent;
+
+      const repairedAgent = this.managedAgentRepo.update(agent.id, { name: repairedName });
+      if (!repairedAgent) return agent;
+      const currentVersion = this.managedAgentVersionRepo.find(
+        repairedAgent.id,
+        repairedAgent.currentVersion,
+      );
+      if (currentVersion) this.syncLegacyMirror(repairedAgent, currentVersion);
+      return repairedAgent;
+    });
   }
 
   getAgent(agentId: string): { agent: ManagedAgent; currentVersion?: ManagedAgentVersion } | undefined {
@@ -1473,7 +1488,7 @@ export class ManagedSessionService {
         icon: plan.icon,
         color: plan.color,
       },
-      subtitle: plan.subtitle || "Private in CoWork OS",
+      subtitle: plan.subtitle || "Private in NeoWorker",
       instructions: {
         operatingNotes: plan.operatingNotes,
       },
@@ -1730,7 +1745,7 @@ export class ManagedSessionService {
     return this.managedEnvironmentRepo.create({
       id: randomUUID(),
       name: input.name,
-      kind: input.kind || "cowork_local",
+      kind: input.kind || "neoworker_local",
       revision: 1,
       status: "active",
       config: input.config,
@@ -1790,7 +1805,7 @@ export class ManagedSessionService {
     const userPrompt = this.materializeContent(input.initialEvent?.content || []);
     const baseAgentConfig = this.buildAgentConfig(environment, version);
     const missingConnections = this.resolveMcpToolAccess(environment).missingConnections;
-    const effectivePrompt = this.composeRootPrompt(version, userPrompt, missingConnections);
+    const effectivePrompt = this.composeRootPrompt(version, userPrompt, missingConnections, surface);
     const studio = getStudioConfig(version);
     const sessionTemplatePayload = {
       selectedTemplate: studio?.templateId,
@@ -2625,6 +2640,7 @@ export class ManagedSessionService {
     version: ManagedAgentVersion,
     userPrompt: string,
     missingConnections: AgentBuilderConnectionRequirement[] = [],
+    surface?: ManagedSessionSurface,
   ): string {
     const promptParts = [version.systemPrompt.trim()];
     const studio = getStudioConfig(version);
@@ -2650,6 +2666,14 @@ export class ManagedSessionService {
         "Unavailable integrations:",
         ...allMissingConnections.map((connection) => `- ${connection.label}: ${connection.reason}`),
         "Continue with available context and clearly state when one of these unavailable integrations blocks a requested step.",
+      );
+    }
+    if (surface === "studio_preview") {
+      promptParts.push(
+        "",
+        "Studio quick preview:",
+        "This is a fast configuration check, not a full workflow run.",
+        "Reply directly in no more than three short paragraphs. Do not call tools, create a plan, delegate work, or modify files unless the user explicitly asks to test that capability.",
       );
     }
     if (userPrompt.trim()) {

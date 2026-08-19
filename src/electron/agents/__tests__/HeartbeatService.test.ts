@@ -15,7 +15,7 @@ import { HeartbeatService, type HeartbeatServiceDeps } from "../HeartbeatService
 
 vi.mock("electron", () => ({
   app: {
-    getPath: vi.fn().mockReturnValue("/tmp/test-cowork"),
+    getPath: vi.fn().mockReturnValue("/tmp/test-neoworker"),
   },
 }));
 
@@ -63,8 +63,8 @@ function createAgent(id: string, options: Partial<AgentRole> = {}): AgentRole {
 function writeHeartbeatChecklist(workspaceId: string, content: string): void {
   const workspacePath = workspacePaths.get(workspaceId);
   if (!workspacePath) throw new Error(`Unknown workspace ${workspaceId}`);
-  fs.mkdirSync(path.join(workspacePath, ".cowork"), { recursive: true });
-  fs.writeFileSync(path.join(workspacePath, ".cowork", "HEARTBEAT.md"), content, "utf8");
+  fs.mkdirSync(path.join(workspacePath, ".neoworker"), { recursive: true });
+  fs.writeFileSync(path.join(workspacePath, ".neoworker", "HEARTBEAT.md"), content, "utf8");
 }
 
 function createService(overrides?: Partial<HeartbeatServiceDeps>): HeartbeatService {
@@ -107,6 +107,17 @@ function createService(overrides?: Partial<HeartbeatServiceDeps>): HeartbeatServ
         Array.from(mockMentions.values()).filter(
           (mention) => mention.toAgentRoleId === agentId && mention.status === "pending",
         ),
+      acknowledge: (mentionId: string) => {
+        const mention = mockMentions.get(mentionId);
+        if (!mention || mention.status !== "pending") return mention;
+        const acknowledged: AgentMention = {
+          ...mention,
+          status: "acknowledged",
+          acknowledgedAt: Date.now(),
+        };
+        mockMentions.set(mentionId, acknowledged);
+        return acknowledged;
+      },
     } as HeartbeatServiceDeps["mentionRepo"],
     activityRepo: {
       list: () => [] as Activity[],
@@ -189,8 +200,8 @@ describe("HeartbeatService v3", () => {
     heartbeatEvents = [];
     automationOutcomes = [];
     services = [];
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-heartbeat-v3-"));
-    process.env.COWORK_USER_DATA_DIR = path.join(tmpDir, "user-data");
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-heartbeat-v3-"));
+    process.env.NEOWORKER_USER_DATA_DIR = path.join(tmpDir, "user-data");
     workspacePaths = new Map([
       ["workspace-1", path.join(tmpDir, "workspace-1")],
       ["workspace-2", path.join(tmpDir, "workspace-2")],
@@ -206,7 +217,7 @@ describe("HeartbeatService v3", () => {
     }
     vi.clearAllTimers();
     vi.useRealTimers();
-    delete process.env.COWORK_USER_DATA_DIR;
+    delete process.env.NEOWORKER_USER_DATA_DIR;
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -281,6 +292,114 @@ describe("HeartbeatService v3", () => {
         taskId: createdTasks[0]?.id,
       }),
     );
+  });
+
+  it("consumes pending mentions after a successful dispatch instead of creating repeat tasks", async () => {
+    createAgent("agent-1", { heartbeatProfile: "dispatcher" });
+    mockMentions.set("mention-1", {
+      id: "mention-1",
+      workspaceId: "workspace-1",
+      taskId: "source-task",
+      toAgentRoleId: "agent-1",
+      mentionType: "task",
+      context: "Please review the source task",
+      status: "pending",
+      createdAt: Date.now(),
+    });
+    const service = createService();
+
+    await service.start();
+    await vi.advanceTimersByTimeAsync(6_000);
+
+    expect(createdTasks).toHaveLength(1);
+    expect(mockMentions.get("mention-1")?.status).toBe("acknowledged");
+
+    const dispatchedTask = createdTasks[0];
+    if (!dispatchedTask) throw new Error("Expected a dispatched task");
+    mockTasks.set(dispatchedTask.id, {
+      ...dispatchedTask,
+      status: "completed",
+      completedAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    await vi.advanceTimersByTimeAsync(61 * 60 * 1000);
+
+    expect(createdTasks).toHaveLength(1);
+  });
+
+  it("reconciles legacy pending mentions that already produced a completed dispatch", async () => {
+    createAgent("agent-1", { heartbeatProfile: "dispatcher" });
+    mockMentions.set("legacy-mention", {
+      id: "legacy-mention",
+      workspaceId: "workspace-1",
+      taskId: "legacy-source-task",
+      toAgentRoleId: "agent-1",
+      mentionType: "task",
+      context: "Legacy pending mention",
+      status: "pending",
+      createdAt: Date.now() - 60_000,
+    });
+    const service = createService();
+    const runRepo = (
+      service as unknown as {
+        runRepo: {
+          create: (input: {
+            agentRoleId: string;
+            workspaceId: string;
+            runType: "dispatch";
+            reason: string;
+            status: "running";
+          }) => { id: string };
+          finish: (
+            runId: string,
+            input: { status: "completed"; summary: string },
+          ) => void;
+        };
+      }
+    ).runRepo;
+    const legacyDispatch = runRepo.create({
+      agentRoleId: "agent-1",
+      workspaceId: "workspace-1",
+      runType: "dispatch",
+      reason: "Pending work detected (1 mentions, 0 assigned tasks)",
+      status: "running",
+    });
+    runRepo.finish(legacyDispatch.id, {
+      status: "completed",
+      summary: "Legacy dispatch completed",
+    });
+
+    await service.start();
+    await vi.advanceTimersByTimeAsync(6_000);
+
+    expect(mockMentions.get("legacy-mention")?.status).toBe("acknowledged");
+    expect(createdTasks).toHaveLength(0);
+  });
+
+  it("does not create another heartbeat task while assigned work is already active", async () => {
+    createAgent("agent-1", { heartbeatProfile: "dispatcher" });
+    mockTasks.set("assigned-task", {
+      id: "assigned-task",
+      title: "Existing assigned work",
+      prompt: "Continue the assigned work",
+      status: "pending",
+      workspaceId: "workspace-1",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      assignedAgentRoleId: "agent-1",
+    });
+    const service = createService();
+
+    await service.start();
+    await vi.advanceTimersByTimeAsync(6_000);
+
+    expect(createdTasks).toHaveLength(0);
+    expect(service.getStatus("agent-1")?.lastPulseResult).toBe("idle");
+    expect(
+      heartbeatEvents.some(
+        (event) => event.result?.triggerReason === "Assigned work already in progress",
+      ),
+    ).toBe(true);
   });
 
   it("replays one immediate manual pulse after an in-flight pulse finishes", async () => {

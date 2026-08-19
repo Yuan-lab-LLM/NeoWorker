@@ -1,5 +1,5 @@
 /**
- * ToolAdapter - Adapts CoWork's ToolRegistry to the MCP protocol
+ * ToolAdapter - Adapts NeoWorker's ToolRegistry to the MCP protocol
  *
  * Converts tool definitions from LLMTool format to MCPTool format
  * and handles tool execution through the ToolRegistry.

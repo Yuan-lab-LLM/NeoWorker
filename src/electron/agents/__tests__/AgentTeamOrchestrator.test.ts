@@ -492,7 +492,17 @@ describe("AgentTeamOrchestrator", () => {
     const rootTask: Task = {
       id: run.rootTaskId,
       title: "Root 4",
-      prompt: "Implement the feature with collaborators",
+      rawPrompt: "Implement the feature with collaborators",
+      prompt: [
+        "Implement the feature with collaborators",
+        "",
+        "[AGENT_STRATEGY_CONTEXT_V1]",
+        "checklist_contract:",
+        "- Mark checklist progress immediately when work starts or completes.",
+        "relationship_memory:",
+        "- Do not infer the active workspace, company, industry, topic, or any missing task parameter from this memory.",
+        "[/AGENT_STRATEGY_CONTEXT_V1]",
+      ].join("\n"),
       status: "executing",
       workspaceId: team.workspaceId,
       createdAt: now,
@@ -543,6 +553,10 @@ describe("AgentTeamOrchestrator", () => {
       personalityId: "technical",
     });
     expect(call.agentConfig.modelKey).toBeUndefined();
+    expect(call.prompt).toContain("Implement the feature with collaborators");
+    expect(call.prompt).not.toContain("AGENT_STRATEGY_CONTEXT_V1");
+    expect(call.prompt).not.toContain("checklist_contract");
+    expect(call.prompt).not.toContain("Do not infer the active workspace");
   });
 
   it("includes lane-specific instructions for multitask collaborative subagents", async () => {
@@ -1065,5 +1079,287 @@ describe("AgentTeamOrchestrator", () => {
     expect(synthesisCall.agentConfig.providerType).toBe("openai");
     expect(synthesisCall.agentConfig.modelKey).toBe("gpt-5.4");
     expect(synthesisCall.agentConfig.llmProfile).toBe("strong");
+  });
+
+  it("dispatches synthesis directly and recovers expert output when the thought stream is empty", async () => {
+    mockProfileRouting(false);
+    const now = Date.now();
+    const team: AgentTeam = {
+      id: "team-synthesis-direct",
+      workspaceId: "ws-synthesis-direct",
+      name: "Direct synthesis team",
+      leadAgentRoleId: "role-lead",
+      maxParallelAgents: 2,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const run: AgentTeamRun = {
+      id: "run-synthesis-direct",
+      teamId: team.id,
+      rootTaskId: "root-synthesis-direct",
+      status: "running",
+      phase: "execute",
+      collaborativeMode: true,
+      startedAt: now,
+    };
+    const rootTask: Task = {
+      id: run.rootTaskId,
+      title: "比较产品",
+      prompt: "比较三个产品并给出结论",
+      status: "executing",
+      workspaceId: team.workspaceId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const expertTask: Task = {
+      id: "expert-task",
+      title: "研究",
+      prompt: "研究",
+      status: "failed",
+      workspaceId: team.workspaceId,
+      createdAt: now,
+      updatedAt: now,
+      bestKnownOutcome: {
+        capturedAt: now,
+        resultSummary: "这是失败任务在结束前已经完成的完整专家分析正文。",
+      },
+    };
+    const expertItem: AgentTeamItem = {
+      id: "expert-item",
+      teamRunId: run.id,
+      title: "资料调研专家",
+      ownerAgentRoleId: "role-research",
+      sourceTaskId: expertTask.id,
+      status: "failed",
+      resultSummary: "Error: final verification failed",
+      sortOrder: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const tasks = new Map<string, Task>([
+      [rootTask.id, rootTask],
+      [expertTask.id, expertTask],
+    ]);
+    const createChildTask = vi.fn(async (params: Any) => ({
+      id: "synthesis-task",
+      title: params.title,
+      prompt: params.prompt,
+      status: "pending" as const,
+      workspaceId: params.workspaceId,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    const appendOrchestrationGraphNodes = vi.fn();
+    const repos = makeRepos({ team, run, items: [expertItem] });
+    const { AgentTeamOrchestrator } = await import("../AgentTeamOrchestrator");
+    const orch = new AgentTeamOrchestrator(
+      {
+        getDatabase: () => ({}) as Any,
+        getTaskById: async (id) => tasks.get(id),
+        createChildTask,
+        cancelTask: async () => {},
+        appendOrchestrationGraphNodes,
+        findOrchestrationGraphByTeamRunId: () =>
+          ({ run: { id: "terminal-graph" }, nodes: [], edges: [] }) as Any,
+      },
+      repos,
+    );
+    vi.spyOn((orch as Any).thoughtRepo, "listByRun").mockReturnValue([]);
+
+    await (orch as Any).transitionToSynthesizePhase(run, team, rootTask, [expertItem]);
+
+    expect(appendOrchestrationGraphNodes).not.toHaveBeenCalled();
+    expect(createChildTask).toHaveBeenCalledOnce();
+    expect(createChildTask.mock.calls[0][0].prompt).toContain(
+      "这是失败任务在结束前已经完成的完整专家分析正文。",
+    );
+    expect(createChildTask.mock.calls[0][0]).toMatchObject({
+      teamRunId: run.id,
+      workerRole: "synthesizer",
+    });
+    for (const timer of (orch as Any).synthesisWatchdogTimers.values()) clearTimeout(timer);
+  });
+
+  it("finishes a collaborative run with the synthesis answer even when an expert failed", async () => {
+    const now = Date.now();
+    const team: AgentTeam = {
+      id: "team-final-answer",
+      workspaceId: "ws-final-answer",
+      name: "Final answer team",
+      leadAgentRoleId: "role-lead",
+      maxParallelAgents: 2,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const run: AgentTeamRun = {
+      id: "run-final-answer",
+      teamId: team.id,
+      rootTaskId: "root-final-answer",
+      status: "running",
+      phase: "synthesize",
+      collaborativeMode: true,
+      startedAt: now,
+    };
+    const rootTask: Task = {
+      id: run.rootTaskId,
+      title: "比较产品",
+      prompt: "比较产品",
+      status: "executing",
+      workspaceId: team.workspaceId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const items: AgentTeamItem[] = [
+      {
+        id: "failed-expert",
+        teamRunId: run.id,
+        title: "资料调研专家",
+        status: "failed",
+        sortOrder: 1,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: "synthesis-item",
+        teamRunId: run.id,
+        title: "Synthesis",
+        status: "done",
+        resultSummary: "这是综合智能体生成的最终中文分析。",
+        sortOrder: 9999,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+    const completeRootTask = vi.fn();
+    const repos = makeRepos({ team, run, items });
+    const { AgentTeamOrchestrator } = await import("../AgentTeamOrchestrator");
+    const orch = new AgentTeamOrchestrator(
+      {
+        getDatabase: () => ({}) as Any,
+        getTaskById: async (id) => (id === rootTask.id ? rootTask : undefined),
+        createChildTask: vi.fn(),
+        cancelTask: async () => {},
+        completeRootTask,
+      },
+      repos,
+    );
+
+    await orch.tickRun(run.id, "test_synthesis_complete");
+
+    expect(completeRootTask).toHaveBeenCalledWith(
+      rootTask.id,
+      "completed",
+      "这是综合智能体生成的最终中文分析。",
+    );
+    expect(repos.runRepo.findById(run.id)).toMatchObject({
+      status: "completed",
+      phase: "complete",
+      summary: "这是综合智能体生成的最终中文分析。",
+    });
+  });
+
+  it("retries timed-out synthesis instead of prematurely completing the root task", async () => {
+    const now = Date.now();
+    const team: AgentTeam = {
+      id: "team-timeout-retry",
+      workspaceId: "ws-timeout-retry",
+      name: "Timeout retry team",
+      leadAgentRoleId: "role-lead",
+      maxParallelAgents: 2,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const run: AgentTeamRun = {
+      id: "run-timeout-retry",
+      teamId: team.id,
+      rootTaskId: "root-timeout-retry",
+      status: "running",
+      phase: "synthesize",
+      collaborativeMode: true,
+      startedAt: now,
+    };
+    const rootTask: Task = {
+      id: run.rootTaskId,
+      title: "团队分析",
+      prompt: "请完成团队分析",
+      status: "executing",
+      workspaceId: team.workspaceId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const items: AgentTeamItem[] = [
+      {
+        id: "completed-expert",
+        teamRunId: run.id,
+        title: "方案专家",
+        status: "done",
+        resultSummary: "专家已经完成的分析。",
+        sortOrder: 1,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: "timed-out-synthesis",
+        teamRunId: run.id,
+        title: "Synthesis",
+        sourceTaskId: "hung-synthesis-task",
+        status: "in_progress",
+        sortOrder: 9999,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+    const createChildTask = vi.fn(async (params: Any) => ({
+      id: "compact-synthesis-task",
+      title: params.title,
+      prompt: params.prompt,
+      status: "pending" as const,
+      workspaceId: params.workspaceId,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    const cancelTask = vi.fn(async () => {});
+    const completeRootTask = vi.fn();
+    const repos = makeRepos({ team, run, items });
+    const { AgentTeamOrchestrator } = await import("../AgentTeamOrchestrator");
+    const orch = new AgentTeamOrchestrator(
+      {
+        getDatabase: () => ({}) as Any,
+        getTaskById: async (id) => (id === rootTask.id ? rootTask : undefined),
+        createChildTask,
+        cancelTask,
+        completeRootTask,
+      },
+      repos,
+    );
+    vi.spyOn((orch as Any).thoughtRepo, "listByRun").mockReturnValue([]);
+
+    await (orch as Any).handleSynthesisWatchdogTimeout(
+      run.id,
+      rootTask.id,
+      "timed-out-synthesis",
+    );
+
+    expect(cancelTask).toHaveBeenCalledWith("hung-synthesis-task");
+    expect(completeRootTask).not.toHaveBeenCalled();
+    expect(createChildTask).toHaveBeenCalledOnce();
+    expect(repos.itemRepo.listByRun(run.id)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "timed-out-synthesis",
+          title: "Synthesis (timed out)",
+          status: "blocked",
+        }),
+        expect.objectContaining({
+          title: "Synthesis",
+          sourceTaskId: "compact-synthesis-task",
+          status: "in_progress",
+        }),
+      ]),
+    );
+    for (const timer of (orch as Any).synthesisWatchdogTimers.values()) clearTimeout(timer);
   });
 });

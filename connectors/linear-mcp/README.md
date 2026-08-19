@@ -1,6 +1,6 @@
 # Linear MCP Connector (MVP)
 
-This connector exposes Linear GraphQL APIs to CoWork OS through MCP tools.
+This connector exposes Linear GraphQL APIs to NeoWorker through MCP tools.
 
 ## Requirements
 

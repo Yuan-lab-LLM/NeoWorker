@@ -31,7 +31,8 @@ function humanizeToken(token: string): string {
 }
 
 function getEffectiveEventType(event: TaskEvent): string {
-  return typeof event.legacyType === "string" && event.legacyType.trim().length > 0
+  return typeof event.legacyType === "string" &&
+    event.legacyType.trim().length > 0
     ? event.legacyType
     : event.type;
 }
@@ -39,7 +40,11 @@ function getEffectiveEventType(event: TaskEvent): string {
 function inferRowActorFromEvent(event: TaskEvent): TaskTraceRowActor {
   const effectiveType = getEffectiveEventType(event);
   if (effectiveType === "user_message") return "user";
-  if (effectiveType === "assistant_message" || effectiveType === "agent_thought") return "agent";
+  if (
+    effectiveType === "assistant_message" ||
+    effectiveType === "agent_thought"
+  )
+    return "agent";
   if (effectiveType === "llm_usage") return "model";
   if (
     effectiveType === "task_completed" ||
@@ -58,7 +63,11 @@ function inferRowActorFromEvent(event: TaskEvent): TaskTraceRowActor {
   ) {
     return effectiveType === "tool_result" ? "result" : "tool";
   }
-  if (event.actor === "user" || event.actor === "agent" || event.actor === "tool") {
+  if (
+    event.actor === "user" ||
+    event.actor === "agent" ||
+    event.actor === "tool"
+  ) {
     return event.actor;
   }
   if (event.actor === "subagent") return "agent";
@@ -104,13 +113,16 @@ function extractEventMessage(payload: Record<string, unknown>): string {
   return "";
 }
 
-function extractDurationMs(payload: Record<string, unknown>): number | undefined {
+function extractDurationMs(
+  payload: Record<string, unknown>,
+): number | undefined {
   const direct = payload.durationMs;
   if (typeof direct === "number" && Number.isFinite(direct)) return direct;
   const elapsed = payload.elapsedMs;
   if (typeof elapsed === "number" && Number.isFinite(elapsed)) return elapsed;
   const resultDuration = asObject(payload.result).durationMs;
-  if (typeof resultDuration === "number" && Number.isFinite(resultDuration)) return resultDuration;
+  if (typeof resultDuration === "number" && Number.isFinite(resultDuration))
+    return resultDuration;
   return undefined;
 }
 
@@ -134,21 +146,33 @@ function toStatusTone(status: string | undefined): TaskTraceBadge["tone"] {
   }
 }
 
-function formatBadge(label: string, tone?: TaskTraceBadge["tone"]): TaskTraceBadge {
+function formatBadge(
+  label: string,
+  tone?: TaskTraceBadge["tone"],
+): TaskTraceBadge {
   return { label, ...(tone ? { tone } : {}) };
 }
 
-function buildInspectorFields(entries: Array<[string, string | undefined]>): TaskTraceInspectorField[] {
+function buildInspectorFields(
+  entries: Array<[string, string | undefined]>,
+): TaskTraceInspectorField[] {
   return entries
-    .filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0)
+    .filter(
+      (entry): entry is [string, string] =>
+        typeof entry[1] === "string" && entry[1].length > 0,
+    )
     .map(([label, value]) => ({ label, value }));
 }
 
 function getSemanticEventDuration(event: UiTimelineEvent): number | undefined {
-  return "durationMs" in event && typeof event.durationMs === "number" ? event.durationMs : undefined;
+  return "durationMs" in event && typeof event.durationMs === "number"
+    ? event.durationMs
+    : undefined;
 }
 
-function getSemanticEventActionKind(event: UiTimelineEvent): string | undefined {
+function getSemanticEventActionKind(
+  event: UiTimelineEvent,
+): string | undefined {
   return event.kind === "summary" ? event.actionKind : undefined;
 }
 
@@ -163,7 +187,9 @@ function inferTranscriptRowActor(
   event: UiTimelineEvent,
   matchedRawEvents: TaskEvent[],
 ): TaskTraceRowActor {
-  const rawTypes = matchedRawEvents.map((rawEvent) => getEffectiveEventType(rawEvent));
+  const rawTypes = matchedRawEvents.map((rawEvent) =>
+    getEffectiveEventType(rawEvent),
+  );
 
   if (rawTypes.some((type) => type === "user_message")) return "user";
   if (rawTypes.some((type) => type === "llm_usage")) return "model";
@@ -190,13 +216,18 @@ function inferTranscriptRowActor(
   ) {
     return rawTypes.includes("tool_result") ? "result" : "tool";
   }
-  if (rawTypes.some((type) => type === "assistant_message" || type === "agent_thought")) {
+  if (
+    rawTypes.some(
+      (type) => type === "assistant_message" || type === "agent_thought",
+    )
+  ) {
     return "agent";
   }
 
   if (event.kind === "approval") return "tool";
   const actionKind = getSemanticEventActionKind(event);
-  if (actionKind === "task.complete" || actionKind === "artifact.create") return "result";
+  if (actionKind === "task.complete" || actionKind === "artifact.create")
+    return "result";
   if (actionKind === "step.update") return "agent";
   return "tool";
 }
@@ -232,8 +263,12 @@ export function buildTaskTraceTranscriptRows(
       ...(typeof durationMs === "number"
         ? [formatBadge(`${Math.max(1, Math.round(durationMs / 1000))}s`)]
         : []),
-      ...(event.evidence.length > 0 ? [formatBadge(`${event.evidence.length} evidence`)] : []),
-      ...(event.rawEventIds.length > 0 ? [formatBadge(`${event.rawEventIds.length} raw`)] : []),
+      ...(event.evidence.length > 0
+        ? [formatBadge(`${event.evidence.length} evidence`)]
+        : []),
+      ...(event.rawEventIds.length > 0
+        ? [formatBadge(`${event.rawEventIds.length} raw`)]
+        : []),
     ];
 
     return {
@@ -243,7 +278,10 @@ export function buildTaskTraceTranscriptRows(
       label: toRowLabel(actor),
       title: event.summary,
       ...(bodyCandidate ? { body: truncate(bodyCandidate, 320) } : {}),
-      timestamp: Date.parse(event.startedAt) || matchedRawEvents[0]?.timestamp || Date.now(),
+      timestamp:
+        Date.parse(event.startedAt) ||
+        matchedRawEvents[0]?.timestamp ||
+        Date.now(),
       ...(typeof durationMs === "number" ? { durationMs } : {}),
       status,
       badges,
@@ -257,17 +295,23 @@ export function buildTaskTraceTranscriptRows(
           ["Phase", humanizeToken(event.phase)],
           ["Status", humanizeToken(status)],
           ["Action", actionKind ? humanizeToken(actionKind) : undefined],
-          ["Duration", typeof durationMs === "number" ? `${durationMs}ms` : undefined],
+          [
+            "Duration",
+            typeof durationMs === "number" ? `${durationMs}ms` : undefined,
+          ],
           [
             "Evidence",
             event.evidence.length > 0
               ? event.evidence
                   .map((item) => {
                     if (item.type === "file") return `File: ${item.path}`;
-                    if (item.type === "command") return `Command: ${item.command}`;
+                    if (item.type === "command")
+                      return `Command: ${item.command}`;
                     if (item.type === "query") return `Query: ${item.query}`;
-                    if (item.type === "artifact") return `Artifact: ${item.path}`;
-                    if (item.type === "approval") return `Approval: ${item.label}`;
+                    if (item.type === "artifact")
+                      return `Artifact: ${item.path}`;
+                    if (item.type === "approval")
+                      return `Approval: ${item.label}`;
                     if (item.type === "url") return `URL: ${item.url}`;
                     return `Runtime log: ${item.message}`;
                   })
@@ -292,9 +336,15 @@ export function buildTaskTraceTranscriptRows(
   });
 }
 
-function buildDebugRowTitle(event: TaskEvent, payload: Record<string, unknown>): string {
+function buildDebugRowTitle(
+  event: TaskEvent,
+  payload: Record<string, unknown>,
+): string {
   const effectiveType = getEffectiveEventType(event);
-  if (effectiveType === "user_message" || effectiveType === "assistant_message") {
+  if (
+    effectiveType === "user_message" ||
+    effectiveType === "assistant_message"
+  ) {
     const message = extractEventMessage(payload);
     return message ? truncate(message, 140) : humanizeToken(effectiveType);
   }
@@ -306,20 +356,24 @@ function buildDebugRowTitle(event: TaskEvent, payload: Record<string, unknown>):
     effectiveType === "tool_warning" ||
     effectiveType === "tool_blocked"
   ) {
-    const toolName = normalizeText(payload.tool) || normalizeText(payload.toolName) || "tool";
+    const toolName =
+      normalizeText(payload.tool) || normalizeText(payload.toolName) || "tool";
     return humanizeToken(toolName);
   }
 
   if (effectiveType === "llm_usage") {
     const provider = normalizeText(payload.providerType) || "model";
-    const model = normalizeText(payload.modelId) || normalizeText(payload.modelKey);
+    const model =
+      normalizeText(payload.modelId) || normalizeText(payload.modelKey);
     return truncate(`${provider}${model ? ` / ${model}` : ""}`, 140);
   }
 
   return humanizeToken(effectiveType);
 }
 
-function buildDebugRowBody(payload: Record<string, unknown>): string | undefined {
+function buildDebugRowBody(
+  payload: Record<string, unknown>,
+): string | undefined {
   const message = extractEventMessage(payload);
   if (message) return truncate(message, 260);
   try {
@@ -330,26 +384,37 @@ function buildDebugRowBody(payload: Record<string, unknown>): string | undefined
   }
 }
 
-export function buildTaskTraceDebugRows(rawEvents: TaskEvent[]): TaskTraceRow[] {
+export function buildTaskTraceDebugRows(
+  rawEvents: TaskEvent[],
+): TaskTraceRow[] {
   return rawEvents.map((event) => {
     const payload = asObject(event.payload);
     const effectiveType = getEffectiveEventType(event);
     const actor = inferRowActorFromEvent(event);
     const durationMs = extractDurationMs(payload);
-    const status = normalizeText(event.status) || normalizeText(payload.status) || undefined;
+    const status =
+      normalizeText(event.status) || normalizeText(payload.status) || undefined;
     const body = buildDebugRowBody(payload);
     const title = buildDebugRowTitle(event, payload);
     const badges: TaskTraceBadge[] = [
       formatBadge(humanizeToken(effectiveType)),
-      ...(status ? [formatBadge(humanizeToken(status), toStatusTone(status))] : []),
-      ...(typeof event.seq === "number" ? [formatBadge(`seq ${event.seq}`)] : []),
-      ...(typeof durationMs === "number" ? [formatBadge(`${Math.max(1, Math.round(durationMs / 1000))}s`)] : []),
+      ...(status
+        ? [formatBadge(humanizeToken(status), toStatusTone(status))]
+        : []),
+      ...(typeof event.seq === "number"
+        ? [formatBadge(`seq ${event.seq}`)]
+        : []),
+      ...(typeof durationMs === "number"
+        ? [formatBadge(`${Math.max(1, Math.round(durationMs / 1000))}s`)]
+        : []),
     ];
 
     const delta = asObject(payload.delta);
     if (effectiveType === "llm_usage") {
-      if (typeof delta.inputTokens === "number") badges.push(formatBadge(`in ${delta.inputTokens}`));
-      if (typeof delta.outputTokens === "number") badges.push(formatBadge(`out ${delta.outputTokens}`));
+      if (typeof delta.inputTokens === "number")
+        badges.push(formatBadge(`in ${delta.inputTokens}`));
+      if (typeof delta.outputTokens === "number")
+        badges.push(formatBadge(`out ${delta.outputTokens}`));
     }
 
     return {
@@ -373,13 +438,22 @@ export function buildTaskTraceDebugRows(rawEvents: TaskEvent[]): TaskTraceRow[] 
           ["Type", event.type],
           ["Legacy type", event.legacyType],
           ["Status", status ? humanizeToken(status) : undefined],
-          ["Actor", event.actor ? humanizeToken(event.actor) : toRowLabel(actor)],
+          [
+            "Actor",
+            event.actor ? humanizeToken(event.actor) : toRowLabel(actor),
+          ],
           ["Timestamp", new Date(event.timestamp).toISOString()],
-          ["Sequence", typeof event.seq === "number" ? String(event.seq) : undefined],
+          [
+            "Sequence",
+            typeof event.seq === "number" ? String(event.seq) : undefined,
+          ],
           ["Event ID", event.eventId],
           ["Step ID", event.stepId],
           ["Group ID", event.groupId],
-          ["Duration", typeof durationMs === "number" ? `${durationMs}ms` : undefined],
+          [
+            "Duration",
+            typeof durationMs === "number" ? `${durationMs}ms` : undefined,
+          ],
         ]),
         json: {
           id: event.id,
@@ -418,14 +492,20 @@ export function filterTaskTraceRows(
       row.inspector.content,
       ...row.inspector.fields.map((field) => `${field.label} ${field.value}`),
     ]
-      .filter((value): value is string => typeof value === "string" && value.length > 0)
+      .filter(
+        (value): value is string =>
+          typeof value === "string" && value.length > 0,
+      )
       .join(" ")
       .toLowerCase();
     return haystack.includes(normalizedQuery);
   });
 }
 
-export function serializeTaskTraceRows(rows: TaskTraceRow[], tab: TaskTraceTab): string {
+export function serializeTaskTraceRows(
+  rows: TaskTraceRow[],
+  tab: TaskTraceTab,
+): string {
   if (tab === "debug") {
     return JSON.stringify(
       rows.map((row) => ({
@@ -446,7 +526,9 @@ export function serializeTaskTraceRows(rows: TaskTraceRow[], tab: TaskTraceTab):
       const pieces = [
         `[${new Date(row.timestamp).toISOString()}] ${row.label}: ${row.title}`,
         row.body || row.inspector.content || "",
-        row.badges.length > 0 ? `Badges: ${row.badges.map((badge) => badge.label).join(", ")}` : "",
+        row.badges.length > 0
+          ? `Badges: ${row.badges.map((badge) => badge.label).join(", ")}`
+          : "",
       ].filter(Boolean);
       return pieces.join("\n");
     })

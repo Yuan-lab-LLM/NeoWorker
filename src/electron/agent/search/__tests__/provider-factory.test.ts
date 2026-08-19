@@ -271,7 +271,7 @@ describe("SearchProviderFactory", () => {
   });
 
   describe("provider execution order", () => {
-    it("should prefer Brave when multiple providers are configured", () => {
+    it("should respect the explicitly selected primary provider", () => {
       const settings = {
         primaryProvider: "tavily",
         fallbackProvider: "google",
@@ -283,7 +283,7 @@ describe("SearchProviderFactory", () => {
 
       const order = (SearchProviderFactory as Any).getProviderExecutionOrder(settings);
 
-      expect(order).toEqual(["brave", "tavily", "google", "serpapi", "duckduckgo"]);
+      expect(order).toEqual(["tavily", "google", "brave", "serpapi", "duckduckgo"]);
     });
 
     it("should not change order when Brave is not configured", () => {
@@ -299,7 +299,7 @@ describe("SearchProviderFactory", () => {
       expect(order).toEqual(["tavily", "google", "duckduckgo"]);
     });
 
-    it("includes Exa among configured providers while preserving Brave preference", () => {
+    it("includes Exa while preserving explicit primary and fallback preferences", () => {
       const settings = {
         primaryProvider: "exa",
         fallbackProvider: "tavily",
@@ -310,7 +310,20 @@ describe("SearchProviderFactory", () => {
 
       const order = (SearchProviderFactory as Any).getProviderExecutionOrder(settings);
 
-      expect(order).toEqual(["brave", "exa", "tavily", "duckduckgo"]);
+      expect(order).toEqual(["exa", "tavily", "brave", "duckduckgo"]);
+    });
+
+    it("allows built-in DuckDuckGo to be selected as the primary provider", () => {
+      const settings = {
+        primaryProvider: "duckduckgo",
+        fallbackProvider: "tavily",
+        tavily: { apiKey: "tavily" },
+        brave: { apiKey: "brave" },
+      } as Any;
+
+      const order = (SearchProviderFactory as Any).getProviderExecutionOrder(settings);
+
+      expect(order).toEqual(["duckduckgo", "tavily", "brave"]);
     });
   });
 

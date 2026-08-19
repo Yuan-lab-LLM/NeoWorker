@@ -36,10 +36,13 @@ export function AgentEventCard({
   showConnectorBelow = false,
   defaultExpanded = false,
 }: AgentEventCardProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded || event.status === "running");
+  const [expanded, setExpanded] = useState(
+    defaultExpanded || event.status === "running",
+  );
 
   const hasChildren = (event.children?.length ?? 0) > 0;
-  const hasDetails = event.evidence.length > 0 || event.rawEventIds.length > 0 || hasChildren;
+  const hasDetails =
+    event.evidence.length > 0 || event.rawEventIds.length > 0 || hasChildren;
   const duration = formatDuration(event.durationMs);
 
   return (
@@ -51,7 +54,10 @@ export function AgentEventCard({
     >
       <div className="event-indicator">
         {showConnectorAbove && (
-          <span className="event-connector event-connector-above" aria-hidden="true" />
+          <span
+            className="event-connector event-connector-above"
+            aria-hidden="true"
+          />
         )}
         <span
           className={`event-indicator-icon agent-indicator status-${event.status}`}
@@ -60,7 +66,10 @@ export function AgentEventCard({
           {STATUS_ICON[event.status] ?? "·"}
         </span>
         {showConnectorBelow && (
-          <span className="event-connector event-connector-below" aria-hidden="true" />
+          <span
+            className="event-connector event-connector-below"
+            aria-hidden="true"
+          />
         )}
       </div>
       <div className="event-content agent-event-content">
@@ -72,7 +81,8 @@ export function AgentEventCard({
           onKeyDown={
             hasDetails
               ? (e) => {
-                  if (e.key === "Enter" || e.key === " ") setExpanded((v) => !v);
+                  if (e.key === "Enter" || e.key === " ")
+                    setExpanded((v) => !v);
                 }
               : undefined
           }
@@ -99,7 +109,9 @@ export function AgentEventCard({
           </div>
           <div className="event-meta">
             {duration && <span className="event-duration">{duration}</span>}
-            <span className={`agent-status-chip status-${event.status}`}>{event.status}</span>
+            <span className={`agent-status-chip status-${event.status}`}>
+              {event.status}
+            </span>
           </div>
         </div>
         {expanded && hasDetails && (
@@ -118,7 +130,10 @@ export function AgentEventCard({
               </div>
             )}
             <EvidenceList evidence={event.evidence} />
-            <RawEventDrawer rawEventIds={event.rawEventIds} allEvents={allEvents} />
+            <RawEventDrawer
+              rawEventIds={event.rawEventIds}
+              allEvents={allEvents}
+            />
           </div>
         )}
       </div>

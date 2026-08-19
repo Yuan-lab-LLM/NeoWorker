@@ -1,13 +1,6 @@
-import {
-  useState,
-  useEffect,
-  useCallback,
-} from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import {
-  Task,
-  Workspace,
-} from "../../../shared/types";
+import { Task, Workspace } from "../../../shared/types";
 import {
   TASK_AUTOMATION_TEMPLATES,
   buildTaskAutomationSchedule,
@@ -27,8 +20,12 @@ import {
   Pin,
   X,
 } from "lucide-react";
+import { translate, useLanguage } from "../../i18n";
 
-export const TASK_AUTOMATION_SCHEDULE_LABEL: Record<TaskAutomationSchedulePreset, string> = {
+export const TASK_AUTOMATION_SCHEDULE_LABEL: Record<
+  TaskAutomationSchedulePreset,
+  string
+> = {
   every30m: "Every 30m",
   hourly: "Hourly",
   daily: "Daily",
@@ -37,7 +34,10 @@ export const TASK_AUTOMATION_SCHEDULE_LABEL: Record<TaskAutomationSchedulePreset
   custom: "Custom",
 };
 
-export const TASK_ROUTINE_TRIGGER_LABEL: Record<TaskRoutineTriggerPreset, string> = {
+export const TASK_ROUTINE_TRIGGER_LABEL: Record<
+  TaskRoutineTriggerPreset,
+  string
+> = {
   manual: "Manual",
   ...TASK_AUTOMATION_SCHEDULE_LABEL,
 };
@@ -49,7 +49,9 @@ export function isTurnThisIntoRoutinePrompt(value: string): boolean {
   );
 }
 
-export function taskCanBecomeRoutineFromFollowUp(task: Task | null | undefined): boolean {
+export function taskCanBecomeRoutineFromFollowUp(
+  task: Task | null | undefined,
+): boolean {
   if (!task) return false;
   if (task.status !== "completed") return false;
   return !task.terminalStatus || task.terminalStatus === "ok";
@@ -74,10 +76,13 @@ export function TaskAutomationModal({
   onClose,
   onCreated,
 }: TaskAutomationModalProps) {
+  useLanguage();
+  const t = translate;
   const [name, setName] = useState(defaultName);
   const [prompt, setPrompt] = useState(defaultPrompt);
   const [runMode, setRunMode] = useState<TaskAutomationRunMode>("chat");
-  const [triggerPreset, setTriggerPreset] = useState<TaskRoutineTriggerPreset>("manual");
+  const [triggerPreset, setTriggerPreset] =
+    useState<TaskRoutineTriggerPreset>("manual");
   const [customCron, setCustomCron] = useState("*/30 * * * *");
   const [openMenu, setOpenMenu] = useState<"run" | "schedule" | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
@@ -85,7 +90,9 @@ export function TaskAutomationModal({
   const [error, setError] = useState<string | null>(null);
   const hasWorktree = Boolean(task.worktreePath);
   const selectedSchedule =
-    triggerPreset === "manual" ? null : buildTaskAutomationSchedule(triggerPreset, customCron);
+    triggerPreset === "manual"
+      ? null
+      : buildTaskAutomationSchedule(triggerPreset, customCron);
   const workspaceId = task.workspaceId || workspace?.id || "";
   const canSave =
     name.trim().length > 0 &&
@@ -105,19 +112,36 @@ export function TaskAutomationModal({
     setOpenMenu(null);
   }, [defaultName, defaultPrompt, task.id]);
 
-  const handleBackdropClick = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
-    if (event.target === event.currentTarget && !saving) {
-      onClose();
-    }
-  }, [onClose, saving]);
+  const handleBackdropClick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (event.target === event.currentTarget && !saving) {
+        onClose();
+      }
+    },
+    [onClose, saving],
+  );
 
-  const handleTemplateSelect = useCallback((template: TaskAutomationTemplate) => {
-    setName(template.name);
-    setPrompt(template.prompt);
-    setTriggerPreset(template.schedulePreset);
-    setShowTemplates(false);
-    setError(null);
-  }, []);
+  const templateName = useCallback(
+    (template: TaskAutomationTemplate) =>
+      t(`taskAutomation.template.${template.id}.name`, template.name),
+    [t],
+  );
+  const templatePrompt = useCallback(
+    (template: TaskAutomationTemplate) =>
+      t(`taskAutomation.template.${template.id}.prompt`, template.prompt),
+    [t],
+  );
+
+  const handleTemplateSelect = useCallback(
+    (template: TaskAutomationTemplate) => {
+      setName(templateName(template));
+      setPrompt(templatePrompt(template));
+      setTriggerPreset(template.schedulePreset);
+      setShowTemplates(false);
+      setError(null);
+    },
+    [templateName, templatePrompt],
+  );
 
   const handleSave = useCallback(async () => {
     if (!canSave) return;
@@ -137,17 +161,33 @@ export function TaskAutomationModal({
         }),
       );
       if (!routine?.id) {
-        setError("Could not create routine.");
+        setError(t("taskAutomation.error.create", "Could not create routine."));
         return;
       }
       await onCreated?.(routine);
       onClose();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Could not create routine.");
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : t("taskAutomation.error.create", "Could not create routine."),
+      );
     } finally {
       setSaving(false);
     }
-  }, [canSave, deeplink, name, onClose, onCreated, prompt, runMode, selectedSchedule, task, triggerPreset, workspace]);
+  }, [
+    canSave,
+    deeplink,
+    name,
+    onClose,
+    onCreated,
+    prompt,
+    runMode,
+    selectedSchedule,
+    task,
+    triggerPreset,
+    workspace,
+  ]);
 
   const scheduleOptions: TaskRoutineTriggerPreset[] = [
     "manual",
@@ -169,11 +209,19 @@ export function TaskAutomationModal({
         className="task-automation-modal"
         role="dialog"
         aria-modal="true"
-        aria-label={showTemplates ? "Routine templates" : "Create routine"}
+        aria-label={
+          showTemplates
+            ? t("taskAutomation.templates.title", "Routine templates")
+            : t("taskAutomation.create.title", "Create routine")
+        }
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="task-automation-modal-header">
-          <h2>{showTemplates ? "Routine templates" : "Create routine"}</h2>
+          <h2>
+            {showTemplates
+              ? t("taskAutomation.templates.title", "Routine templates")
+              : t("taskAutomation.create.title", "Create routine")}
+          </h2>
           <div className="task-automation-modal-header-actions">
             {!showTemplates && (
               <button
@@ -186,7 +234,7 @@ export function TaskAutomationModal({
                 }}
                 disabled={saving}
               >
-                Clear
+                {t("common.clear", "Clear")}
               </button>
             )}
             <button
@@ -198,12 +246,14 @@ export function TaskAutomationModal({
               }}
               disabled={saving}
             >
-              {showTemplates ? "Create new" : "Use template"}
+              {showTemplates
+                ? t("taskAutomation.createNew", "Create new")
+                : t("taskAutomation.useTemplate", "Use template")}
             </button>
             <button
               type="button"
               className="task-automation-close-btn"
-              aria-label="Close"
+              aria-label={t("common.close", "Close")}
               onClick={onClose}
               disabled={saving}
             >
@@ -216,15 +266,18 @@ export function TaskAutomationModal({
           <div className="task-automation-template-grid">
             {TASK_AUTOMATION_TEMPLATES.map((template) => {
               const Icon = template.icon;
+              const name = templateName(template);
+              const prompt = templatePrompt(template);
               return (
                 <button
                   key={template.id}
                   type="button"
                   className="task-automation-template-card"
                   onClick={() => handleTemplateSelect(template)}
+                  title={name}
                 >
                   <Icon size={22} aria-hidden="true" />
-                  <span>{template.prompt}</span>
+                  <span>{prompt}</span>
                 </button>
               );
             })}
@@ -236,12 +289,17 @@ export function TaskAutomationModal({
                 className="task-automation-prompt-input"
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
-                placeholder="Add prompt e.g. look for crashes in $sentry"
+                placeholder={t(
+                  "taskAutomation.promptPlaceholder",
+                  "Add prompt e.g. look for crashes in $sentry",
+                )}
                 disabled={saving}
               />
               {triggerPreset === "custom" && (
                 <label className="task-automation-custom-schedule">
-                  <span>Cron expression</span>
+                  <span>
+                    {t("taskAutomation.cronExpression", "Cron expression")}
+                  </span>
                   <input
                     value={customCron}
                     onChange={(event) => setCustomCron(event.target.value)}
@@ -261,18 +319,34 @@ export function TaskAutomationModal({
                     className="task-automation-pill-control"
                     aria-haspopup="menu"
                     aria-expanded={openMenu === "run"}
-                    onClick={() => setOpenMenu((value) => (value === "run" ? null : "run"))}
+                    onClick={() =>
+                      setOpenMenu((value) => (value === "run" ? null : "run"))
+                    }
                     disabled={saving}
                   >
-                    {runMode === "chat" && <MessageCircle size={16} aria-hidden="true" />}
-                    {runMode === "local" && <Folder size={16} aria-hidden="true" />}
-                    {runMode === "worktree" && <GitFork size={16} aria-hidden="true" />}
-                    <span>{runMode === "chat" ? "Chat" : runMode === "local" ? "Local" : "Worktree"}</span>
+                    {runMode === "chat" && (
+                      <MessageCircle size={16} aria-hidden="true" />
+                    )}
+                    {runMode === "local" && (
+                      <Folder size={16} aria-hidden="true" />
+                    )}
+                    {runMode === "worktree" && (
+                      <GitFork size={16} aria-hidden="true" />
+                    )}
+                    <span>
+                      {runMode === "chat"
+                        ? t("taskAutomation.run.chat", "Chat")
+                        : runMode === "local"
+                          ? t("taskAutomation.run.local", "Local")
+                          : t("taskAutomation.run.worktree", "Worktree")}
+                    </span>
                     <ChevronDown size={15} aria-hidden="true" />
                   </button>
                   {openMenu === "run" && (
                     <div className="task-automation-popover" role="menu">
-                      <div className="task-automation-popover-title">Run in</div>
+                      <div className="task-automation-popover-title">
+                        {t("taskAutomation.runIn", "Run in")}
+                      </div>
                       <button
                         type="button"
                         className={`task-automation-popover-item ${runMode === "chat" ? "selected" : ""}`}
@@ -282,8 +356,10 @@ export function TaskAutomationModal({
                         }}
                       >
                         <MessageCircle size={16} aria-hidden="true" />
-                        <span>Chat</span>
-                        {runMode === "chat" && <CheckIcon size={16} aria-hidden="true" />}
+                        <span>{t("taskAutomation.run.chat", "Chat")}</span>
+                        {runMode === "chat" && (
+                          <CheckIcon size={16} aria-hidden="true" />
+                        )}
                       </button>
                       <button
                         type="button"
@@ -294,18 +370,25 @@ export function TaskAutomationModal({
                         }}
                       >
                         <Folder size={16} aria-hidden="true" />
-                        <span>Local</span>
-                        {runMode === "local" && <CheckIcon size={16} aria-hidden="true" />}
+                        <span>{t("taskAutomation.run.local", "Local")}</span>
+                        {runMode === "local" && (
+                          <CheckIcon size={16} aria-hidden="true" />
+                        )}
                       </button>
                       {hasWorktree && (
                         <button
                           type="button"
                           className="task-automation-popover-item disabled"
                           disabled
-                          title="Scheduled tasks cannot preserve task worktrees yet."
+                          title={t(
+                            "taskAutomation.worktreeDisabled",
+                            "Scheduled tasks cannot preserve task worktrees yet.",
+                          )}
                         >
                           <GitFork size={16} aria-hidden="true" />
-                          <span>Worktree</span>
+                          <span>
+                            {t("taskAutomation.run.worktree", "Worktree")}
+                          </span>
                         </button>
                       )}
                     </div>
@@ -317,9 +400,15 @@ export function TaskAutomationModal({
                   <input
                     value={name}
                     onChange={(event) => setName(event.target.value)}
-                    placeholder="Automation name"
+                    placeholder={t(
+                      "taskAutomation.namePlaceholder",
+                      "Automation name",
+                    )}
                     disabled={saving}
-                    aria-label="Automation name"
+                    aria-label={t(
+                      "taskAutomation.namePlaceholder",
+                      "Automation name",
+                    )}
                   />
                 </label>
 
@@ -329,16 +418,30 @@ export function TaskAutomationModal({
                     className="task-automation-pill-control"
                     aria-haspopup="menu"
                     aria-expanded={openMenu === "schedule"}
-                    onClick={() => setOpenMenu((value) => (value === "schedule" ? null : "schedule"))}
+                    onClick={() =>
+                      setOpenMenu((value) =>
+                        value === "schedule" ? null : "schedule",
+                      )
+                    }
                     disabled={saving}
                   >
                     <Clock size={16} aria-hidden="true" />
-                    <span>{TASK_ROUTINE_TRIGGER_LABEL[triggerPreset]}</span>
+                    <span>
+                      {t(
+                        `taskAutomation.schedule.${triggerPreset}`,
+                        TASK_ROUTINE_TRIGGER_LABEL[triggerPreset],
+                      )}
+                    </span>
                     <ChevronDown size={15} aria-hidden="true" />
                   </button>
                   {openMenu === "schedule" && (
-                    <div className="task-automation-popover schedule" role="menu">
-                      <div className="task-automation-popover-title">Trigger</div>
+                    <div
+                      className="task-automation-popover schedule"
+                      role="menu"
+                    >
+                      <div className="task-automation-popover-title">
+                        {t("taskAutomation.trigger", "Trigger")}
+                      </div>
                       {scheduleOptions.map((option) => (
                         <button
                           key={option}
@@ -349,8 +452,15 @@ export function TaskAutomationModal({
                             setOpenMenu(null);
                           }}
                         >
-                          <span>{TASK_ROUTINE_TRIGGER_LABEL[option]}</span>
-                          {triggerPreset === option && <CheckIcon size={16} aria-hidden="true" />}
+                          <span>
+                            {t(
+                              `taskAutomation.schedule.${option}`,
+                              TASK_ROUTINE_TRIGGER_LABEL[option],
+                            )}
+                          </span>
+                          {triggerPreset === option && (
+                            <CheckIcon size={16} aria-hidden="true" />
+                          )}
                         </button>
                       ))}
                     </div>
@@ -365,7 +475,7 @@ export function TaskAutomationModal({
                   onClick={onClose}
                   disabled={saving}
                 >
-                  Cancel
+                  {t("common.cancel", "Cancel")}
                 </button>
                 <button
                   type="button"
@@ -373,7 +483,9 @@ export function TaskAutomationModal({
                   onClick={() => void handleSave()}
                   disabled={!canSave}
                 >
-                  {saving ? "Saving" : "Create routine"}
+                  {saving
+                    ? t("common.savingShort", "Saving")
+                    : t("taskAutomation.create.title", "Create routine")}
                 </button>
               </div>
             </footer>

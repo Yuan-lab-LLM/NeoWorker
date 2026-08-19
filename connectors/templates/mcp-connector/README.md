@@ -1,6 +1,6 @@
 # MCP Connector Template
 
-This is a minimal MCP server template for building CoWork enterprise connectors.
+This is a minimal MCP server template for building NeoWorker enterprise connectors.
 
 ## Quick Start
 
@@ -17,7 +17,7 @@ npm run build
 npm start
 ```
 
-3. Add to CoWork MCP Settings:
+3. Add to NeoWorker MCP Settings:
 
 - **Command**: `node`
 - **Args**: `/absolute/path/to/connectors/templates/mcp-connector/dist/index.js`

@@ -11,7 +11,7 @@
 
 set -u
 
-MAX_ATTEMPTS="${COWORK_SETUP_NATIVE_SHELL_ATTEMPTS:-6}"
+MAX_ATTEMPTS="${NEOWORKER_SETUP_NATIVE_SHELL_ATTEMPTS:-6}"
 
 # Validate MAX_ATTEMPTS (fallback to 6).
 case "$MAX_ATTEMPTS" in
@@ -27,7 +27,7 @@ last_status=1
 
 while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
   if [ "$attempt" -gt 1 ]; then
-    echo "[cowork] setup:native shell retry ${attempt}/${MAX_ATTEMPTS} in ${delay}s..."
+    echo "[neoworker] setup:native shell retry ${attempt}/${MAX_ATTEMPTS} in ${delay}s..."
     sleep "$delay"
 
     # Exponential backoff (2,4,8,16,20,20,...) to give macOS time to recover.

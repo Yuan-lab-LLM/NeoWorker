@@ -227,7 +227,7 @@ async function readMarkdownExcerpt(
     ? [filePath]
     : [
         path.join(workspacePath, filePath),
-        ...(!normalizedPath.startsWith(".cowork/") ? [path.join(workspacePath, ".cowork", filePath)] : []),
+        ...(!normalizedPath.startsWith(".neoworker/") ? [path.join(workspacePath, ".neoworker", filePath)] : []),
       ];
 
   let raw = "";
@@ -338,7 +338,7 @@ export class QuoteRecallService {
     if (params.includeWorkspaceNotes !== false && allowSource("workspace_markdown")) {
       const noteHits = MemoryService.searchWorkspaceMarkdown(
         params.workspaceId,
-        path.join(params.workspacePath, ".cowork"),
+        path.join(params.workspacePath, ".neoworker"),
         query,
         candidateLimit,
       ).filter(

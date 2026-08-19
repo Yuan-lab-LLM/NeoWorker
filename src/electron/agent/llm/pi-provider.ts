@@ -39,7 +39,7 @@ const PLACEHOLDER_USAGE = {
  *
  * Pi (by Mario Zechner) provides a unified interface to multiple LLM providers
  * including Anthropic, OpenAI, Google, xAI, Groq, Cerebras, OpenRouter, and more.
- * This provider lets CoWork OS route LLM calls through pi-ai's API layer.
+ * This provider lets NeoWorker route LLM calls through pi-ai's API layer.
  */
 export class PiProvider implements LLMProvider {
   readonly type = "pi" as const;
@@ -97,7 +97,7 @@ export class PiProvider implements LLMProvider {
         signal: request.signal,
       });
 
-      // Convert pi-ai response to CoWork OS format
+      // Convert pi-ai response to NeoWorker format
       return this.convertPiAiResponse(response);
     } catch (error: Any) {
       if (error.name === "AbortError" || error.message?.includes("aborted")) {
@@ -330,7 +330,7 @@ export class PiProvider implements LLMProvider {
   }
 
   /**
-   * Convert pi-ai response to CoWork OS format
+   * Convert pi-ai response to NeoWorker format
    */
   private convertPiAiResponse(response: PiAiAssistantMessage): LLMResponse {
     const content: LLMContent[] = [];

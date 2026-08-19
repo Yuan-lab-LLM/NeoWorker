@@ -9,12 +9,14 @@
     {
       "name": "file1",
       "type": "string",
+      "input": "file",
       "description": "Path to the first file",
       "required": true
     },
     {
       "name": "file2",
       "type": "string",
+      "input": "file",
       "description": "Path to the second file",
       "required": true
     }

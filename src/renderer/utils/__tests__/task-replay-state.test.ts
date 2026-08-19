@@ -26,7 +26,11 @@ function makeTask(): Task {
   } as Task;
 }
 
-function makeEvent(type: TaskEvent["type"], timestamp: number, payload: Record<string, unknown> = {}): TaskEvent {
+function makeEvent(
+  type: TaskEvent["type"],
+  timestamp: number,
+  payload: Record<string, unknown> = {},
+): TaskEvent {
   return {
     id: `${type}-${timestamp}`,
     taskId: "task-1",
@@ -62,7 +66,11 @@ describe("deriveReplayTaskSnapshot", () => {
     const shared = deriveSharedTaskEventUiState({
       rawEvents: replayEvents,
       task: replayTask,
-      workspace: { id: "workspace-1", name: "Workspace", path: "/workspace" } as Any,
+      workspace: {
+        id: "workspace-1",
+        name: "Workspace",
+        path: "/workspace",
+      } as Any,
       verboseSteps: false,
     });
 

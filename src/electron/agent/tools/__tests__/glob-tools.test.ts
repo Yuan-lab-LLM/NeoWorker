@@ -140,7 +140,7 @@ describe("GlobTools", () => {
 
   describe("scan safeguards", () => {
     it("skips generated build folders case-insensitively and excludes worktrees", async () => {
-      const root = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-glob-"));
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-glob-"));
       tempDirs.push(root);
       fs.mkdirSync(path.join(root, "src"), { recursive: true });
       fs.mkdirSync(path.join(root, "Build"), { recursive: true });
@@ -172,7 +172,7 @@ describe("GlobTools", () => {
     });
 
     it("rejects explicit generated search roots", async () => {
-      const root = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-glob-"));
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-glob-"));
       tempDirs.push(root);
       fs.mkdirSync(path.join(root, "release"), { recursive: true });
       fs.writeFileSync(path.join(root, "release", "artifact.txt"), "artifact\n");

@@ -25,9 +25,30 @@ function makeEvent(
 describe("normalizeEventsForTimelineUi", () => {
   it("enforces monotonic sequence numbers per task even when persisted rows regress", () => {
     const events: TaskEvent[] = [
-      makeEvent("e1", "task-1", "timeline_step_started", { stepId: "step-1" }, 100, 5),
-      makeEvent("e2", "task-1", "timeline_step_updated", { stepId: "step-1" }, 110, 3),
-      makeEvent("e3", "task-1", "timeline_step_finished", { stepId: "step-1" }, 120, 6),
+      makeEvent(
+        "e1",
+        "task-1",
+        "timeline_step_started",
+        { stepId: "step-1" },
+        100,
+        5,
+      ),
+      makeEvent(
+        "e2",
+        "task-1",
+        "timeline_step_updated",
+        { stepId: "step-1" },
+        110,
+        3,
+      ),
+      makeEvent(
+        "e3",
+        "task-1",
+        "timeline_step_finished",
+        { stepId: "step-1" },
+        120,
+        6,
+      ),
     ];
 
     const normalized = normalizeEventsForTimelineUi(events);
@@ -36,10 +57,38 @@ describe("normalizeEventsForTimelineUi", () => {
 
   it("tracks sequence independently per task lane", () => {
     const events: TaskEvent[] = [
-      makeEvent("a1", "task-a", "timeline_step_started", { stepId: "a-step-1" }, 100, 2),
-      makeEvent("b1", "task-b", "timeline_step_started", { stepId: "b-step-1" }, 101, 1),
-      makeEvent("a2", "task-a", "timeline_step_finished", { stepId: "a-step-1" }, 102, 1),
-      makeEvent("b2", "task-b", "timeline_step_finished", { stepId: "b-step-1" }, 103, 2),
+      makeEvent(
+        "a1",
+        "task-a",
+        "timeline_step_started",
+        { stepId: "a-step-1" },
+        100,
+        2,
+      ),
+      makeEvent(
+        "b1",
+        "task-b",
+        "timeline_step_started",
+        { stepId: "b-step-1" },
+        101,
+        1,
+      ),
+      makeEvent(
+        "a2",
+        "task-a",
+        "timeline_step_finished",
+        { stepId: "a-step-1" },
+        102,
+        1,
+      ),
+      makeEvent(
+        "b2",
+        "task-b",
+        "timeline_step_finished",
+        { stepId: "b-step-1" },
+        103,
+        2,
+      ),
     ];
 
     const normalized = normalizeEventsForTimelineUi(events);
@@ -53,8 +102,20 @@ describe("normalizeEventsForTimelineUi", () => {
     const events: TaskEvent[] = [
       makeEvent("l1", "task-1", "task_created", { message: "start" }, 100),
       makeEvent("l2", "task-1", "tool_call", { tool: "run_command" }, 110),
-      makeEvent("l3", "task-1", "tool_result", { tool: "run_command", result: "ok" }, 120),
-      makeEvent("l4", "task-1", "task_completed", { resultSummary: "done" }, 130),
+      makeEvent(
+        "l3",
+        "task-1",
+        "tool_result",
+        { tool: "run_command", result: "ok" },
+        120,
+      ),
+      makeEvent(
+        "l4",
+        "task-1",
+        "task_completed",
+        { resultSummary: "done" },
+        130,
+      ),
     ];
 
     const first = normalizeEventsForTimelineUi(events);
@@ -63,4 +124,3 @@ describe("normalizeEventsForTimelineUi", () => {
     expect(second).toEqual(first);
   });
 });
-

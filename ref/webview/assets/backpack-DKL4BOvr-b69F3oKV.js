@@ -1,0 +1,3 @@
+import { n as e, t } from "./backpack-DKL4BOvr-Cs1_TsqT.js";
+e();
+export { t as default };

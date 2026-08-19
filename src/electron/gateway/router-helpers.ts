@@ -10,7 +10,7 @@ import * as path from "path";
 
 // ── Version helper ──────────────────────────────────────────────────────────
 
-export function getCoworkVersion(): string {
+export function getNeoWorkerVersion(): string {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
 // oxlint-disable-next-line typescript-eslint(no-require-imports)
@@ -53,7 +53,7 @@ export interface RouterConfig {
 }
 
 export const DEFAULT_CONFIG: RouterConfig = {
-  welcomeMessage: "👋 Welcome to CoWork! I can help you with tasks in your workspace.",
+  welcomeMessage: "👋 Welcome to NeoWorker! I can help you with tasks in your workspace.",
   unauthorizedMessage:
     "⚠️ You are not authorized to use this bot. Please contact the administrator.",
   pairingRequiredMessage: "🔐 Please enter your pairing code to get started.",
@@ -65,8 +65,8 @@ export const STREAMING_UPDATE_DEBOUNCE_MS = 1200;
 export const INLINE_ACTION_GUARD_TTL_MS = 10 * 60 * 1000;
 export const FEEDBACK_GUARD_TTL_MS = 72 * 60 * 60 * 1000;
 export const PENDING_FEEDBACK_TTL_MS = 10 * 60 * 1000;
-export const BRIEF_CRON_TAG = "cowork_brief_v1";
-export const SCHEDULE_CRON_TAG = "cowork_schedule_v1";
+export const BRIEF_CRON_TAG = "neoworker_brief_v1";
+export const SCHEDULE_CRON_TAG = "neoworker_schedule_v1";
 
 // ── Pure utility functions ──────────────────────────────────────────────────
 
@@ -203,7 +203,7 @@ export async function transcribeAudioAttachments(
 
       // Save audio file to temp directory for transcription
       try {
-        const tempDir = path.join(os.tmpdir(), "cowork-audio");
+        const tempDir = path.join(os.tmpdir(), "neoworker-audio");
         if (!fs.existsSync(tempDir)) {
           fs.mkdirSync(tempDir, { recursive: true });
         }

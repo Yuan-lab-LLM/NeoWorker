@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Plus, SquareTerminal, X } from "lucide-react";
 import type { ShellSessionInfo, Workspace } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 import "@xterm/xterm/css/xterm.css";
 import "./terminal-tabs-dock.css";
 
@@ -23,11 +24,15 @@ function uniqueTabs(tabs: ShellSessionInfo[]): ShellSessionInfo[] {
 }
 
 function getTabLabel(tab: ShellSessionInfo, workspace: Workspace): string {
-  return tab.cwd.split(/[\\/]/).filter(Boolean).pop() || workspace.name || "terminal";
+  return (
+    tab.cwd.split(/[\\/]/).filter(Boolean).pop() || workspace.name || "terminal"
+  );
 }
 
 function readCssVar(name: string, fallback: string): string {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
   return value || fallback;
 }
 
@@ -36,7 +41,10 @@ function buildTerminalTheme() {
     background: readCssVar("--color-bg-primary", "#ffffff"),
     foreground: readCssVar("--color-text-primary", "#242424"),
     cursor: readCssVar("--color-text-primary", "#242424"),
-    selectionBackground: readCssVar("--color-selection-bg", "rgba(125, 94, 255, 0.28)"),
+    selectionBackground: readCssVar(
+      "--color-selection-bg",
+      "rgba(125, 94, 255, 0.28)",
+    ),
   };
 }
 
@@ -48,18 +56,23 @@ export const TerminalTabsDock = memo(function TerminalTabsDock({
   taskId?: string | null;
   onClose: () => void;
 }) {
+  useLanguage();
+  const t = translate;
   const [tabs, setTabs] = useState<ShellSessionInfo[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [tabsLoaded, setTabsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dockBodyRef = useRef<HTMLDivElement | null>(null);
   const terminalHandlesRef = useRef<Record<string, TerminalHandle>>({});
-  const terminalContainersRef = useRef<Record<string, HTMLDivElement | null>>({});
+  const terminalContainersRef = useRef<Record<string, HTMLDivElement | null>>(
+    {},
+  );
   const createInFlightRef = useRef(false);
   const autoCreateAttemptedRef = useRef(false);
   const userClosedAllTabsRef = useRef(false);
   const attachedTabIdsRef = useRef<Set<string>>(new Set());
-  const activeTab = tabs.find((tab) => tab.id === activeTabId) || tabs[0] || null;
+  const activeTab =
+    tabs.find((tab) => tab.id === activeTabId) || tabs[0] || null;
   const activeTabRunning = Boolean(activeTab && activeTab.status === "running");
   const activeTabIdRef = useRef<string | null>(null);
 
@@ -67,18 +80,28 @@ export const TerminalTabsDock = memo(function TerminalTabsDock({
     activeTabIdRef.current = activeTabId;
   }, [activeTabId]);
 
-  const sendTerminalInput = useCallback((tabId: string, input: string) => {
-    if (!workspace?.id) return;
-    void window.electronAPI.writeTerminalTabInput({
-      tabId,
-      workspaceId: workspace.id,
-      input,
-    }).then(() => {
-      setError(null);
-    }).catch((err: unknown) => {
-      setError(err instanceof Error ? err.message : "Failed to send input.");
-    });
-  }, [workspace?.id]);
+  const sendTerminalInput = useCallback(
+    (tabId: string, input: string) => {
+      if (!workspace?.id) return;
+      void window.electronAPI
+        .writeTerminalTabInput({
+          tabId,
+          workspaceId: workspace.id,
+          input,
+        })
+        .then(() => {
+          setError(null);
+        })
+        .catch((err: unknown) => {
+          setError(
+            err instanceof Error
+              ? err.message
+              : t("terminal.error.sendInput", "Failed to send input."),
+          );
+        });
+    },
+    [workspace?.id],
+  );
 
   const refresh = useCallback(async () => {
     if (!workspace?.id) return;
@@ -87,7 +110,8 @@ export const TerminalTabsDock = memo(function TerminalTabsDock({
       const dedupedTabs = uniqueTabs(nextTabs);
       setTabs(dedupedTabs);
       setActiveTabId((current) => {
-        if (current && dedupedTabs.some((tab) => tab.id === current)) return current;
+        if (current && dedupedTabs.some((tab) => tab.id === current))
+          return current;
         return dedupedTabs[0]?.id || null;
       });
       setError(null);
@@ -96,7 +120,11 @@ export const TerminalTabsDock = memo(function TerminalTabsDock({
       setTabs([]);
       setActiveTabId(null);
       setTabsLoaded(true);
-      setError(err instanceof Error ? err.message : "Failed to load terminal tabs.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("terminal.error.loadTabs", "Failed to load terminal tabs."),
+      );
     }
   }, [workspace?.id]);
 
@@ -120,73 +148,93 @@ export const TerminalTabsDock = memo(function TerminalTabsDock({
     });
   }, []);
 
-  const ensureTerminal = useCallback((tabId: string): TerminalHandle => {
-    const existing = terminalHandlesRef.current[tabId];
-    if (existing) return existing;
-    const terminal = new Terminal({
-      allowProposedApi: false,
-      convertEol: false,
-      cursorBlink: true,
-      cursorStyle: "block",
-      disableStdin: false,
-      fontFamily: readCssVar("--font-mono", '"SF Mono", Menlo, Monaco, Consolas, monospace'),
-      fontSize: 12,
-      letterSpacing: 0,
-      lineHeight: 1.35,
-      scrollback: 10_000,
-      theme: buildTerminalTheme(),
-    });
-    const fitAddon = new FitAddon();
-    const webLinksAddon = new WebLinksAddon((_event, uri) => {
-      void window.electronAPI.openExternal(uri).catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Failed to open link.");
+  const ensureTerminal = useCallback(
+    (tabId: string): TerminalHandle => {
+      const existing = terminalHandlesRef.current[tabId];
+      if (existing) return existing;
+      const terminal = new Terminal({
+        allowProposedApi: false,
+        convertEol: false,
+        cursorBlink: true,
+        cursorStyle: "block",
+        disableStdin: false,
+        fontFamily: readCssVar(
+          "--font-mono",
+          '"SF Mono", Menlo, Monaco, Consolas, monospace',
+        ),
+        fontSize: 12,
+        letterSpacing: 0,
+        lineHeight: 1.35,
+        scrollback: 10_000,
+        theme: buildTerminalTheme(),
       });
-    });
-    terminal.loadAddon(fitAddon);
-    terminal.loadAddon(webLinksAddon);
-    const disposables = [
-      terminal.onResize(({ cols, rows }) => {
-        if (!workspace?.id) return;
-        void window.electronAPI.resizeTerminalTab({
-          tabId,
-          workspaceId: workspace.id,
-          cols,
-          rows,
-        }).then((updatedTab) => {
-          setTabs((current) => current.map((tab) => (tab.id === updatedTab.id ? updatedTab : tab)));
-        }).catch(() => {
-          // Resize failures are non-fatal; the next fit will retry.
+      const fitAddon = new FitAddon();
+      const webLinksAddon = new WebLinksAddon((_event, uri) => {
+        void window.electronAPI.openExternal(uri).catch((err: unknown) => {
+          setError(
+            err instanceof Error
+              ? err.message
+              : t("terminal.error.openLink", "Failed to open link."),
+          );
         });
-      }),
-      terminal.onData((data) => {
-        if (activeTabIdRef.current !== tabId) return;
-        sendTerminalInput(tabId, data);
-      }),
-    ];
-    const handle: TerminalHandle = {
-      terminal,
-      fitAddon,
-      disposables,
-      opened: false,
-    };
-    terminalHandlesRef.current[tabId] = handle;
-    return handle;
-  }, [sendTerminalInput, workspace?.id]);
+      });
+      terminal.loadAddon(fitAddon);
+      terminal.loadAddon(webLinksAddon);
+      const disposables = [
+        terminal.onResize(({ cols, rows }) => {
+          if (!workspace?.id) return;
+          void window.electronAPI
+            .resizeTerminalTab({
+              tabId,
+              workspaceId: workspace.id,
+              cols,
+              rows,
+            })
+            .then((updatedTab) => {
+              setTabs((current) =>
+                current.map((tab) =>
+                  tab.id === updatedTab.id ? updatedTab : tab,
+                ),
+              );
+            })
+            .catch(() => {
+              // Resize failures are non-fatal; the next fit will retry.
+            });
+        }),
+        terminal.onData((data) => {
+          if (activeTabIdRef.current !== tabId) return;
+          sendTerminalInput(tabId, data);
+        }),
+      ];
+      const handle: TerminalHandle = {
+        terminal,
+        fitAddon,
+        disposables,
+        opened: false,
+      };
+      terminalHandlesRef.current[tabId] = handle;
+      return handle;
+    },
+    [sendTerminalInput, workspace?.id],
+  );
 
-  const openTerminalInContainer = useCallback((tabId: string, element: HTMLDivElement | null) => {
-    terminalContainersRef.current[tabId] = element;
-    if (!element) return;
-    const handle = ensureTerminal(tabId);
-    if (!handle.opened) {
-      handle.terminal.open(element);
-      handle.opened = true;
-    }
-    requestAnimationFrame(() => {
-      if (tabId !== activeTabId) return;
-      fitTerminal(tabId);
-      handle.terminal.focus();
-    });
-  }, [activeTabId, ensureTerminal, fitTerminal]);
+  const openTerminalInContainer = useCallback(
+    (tabId: string, element: HTMLDivElement | null) => {
+      terminalContainersRef.current[tabId] = element;
+      if (!element) return;
+      const handle = ensureTerminal(tabId);
+      if (!handle.opened) {
+        handle.terminal.open(element);
+        handle.opened = true;
+      }
+      requestAnimationFrame(() => {
+        if (tabId !== activeTabId) return;
+        fitTerminal(tabId);
+        handle.terminal.focus();
+      });
+    },
+    [activeTabId, ensureTerminal, fitTerminal],
+  );
 
   const disposeTerminal = useCallback((tabId: string) => {
     const handle = terminalHandlesRef.current[tabId];
@@ -214,7 +262,9 @@ export const TerminalTabsDock = memo(function TerminalTabsDock({
       setTabs((current) => uniqueTabs([...current, tab]));
       setActiveTabId(tab.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create terminal tab.");
+      setError(
+        err instanceof Error ? err.message : "Failed to create terminal tab.",
+      );
     } finally {
       createInFlightRef.current = false;
     }
@@ -228,37 +278,58 @@ export const TerminalTabsDock = memo(function TerminalTabsDock({
         workspaceId: workspace.id,
       });
       if (updatedTab) {
-        setTabs((current) => current.map((tab) => (tab.id === updatedTab.id ? updatedTab : tab)));
+        setTabs((current) =>
+          current.map((tab) => (tab.id === updatedTab.id ? updatedTab : tab)),
+        );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to stop terminal tab.");
+      setError(
+        err instanceof Error ? err.message : "Failed to stop terminal tab.",
+      );
     }
   }, [activeTab, workspace?.id]);
 
-  const closeTab = useCallback(async (tabId: string) => {
-    if (!workspace?.id) return;
-    const closingIndex = tabs.findIndex((tab) => tab.id === tabId);
-    setError(null);
-    try {
-      await window.electronAPI.closeTerminalTab({ tabId, workspaceId: workspace.id });
-      disposeTerminal(tabId);
-      setTabs((current) => {
-        const next = uniqueTabs(current.filter((tab) => tab.id !== tabId));
-        if (next.length === 0) {
-          userClosedAllTabsRef.current = true;
-          setActiveTabId(null);
-          return next;
-        }
-        setActiveTabId((activeId) => {
-          if (activeId && activeId !== tabId && next.some((tab) => tab.id === activeId)) return activeId;
-          return next[Math.max(0, Math.min(closingIndex, next.length - 1))]?.id || next[0]?.id || null;
+  const closeTab = useCallback(
+    async (tabId: string) => {
+      if (!workspace?.id) return;
+      const closingIndex = tabs.findIndex((tab) => tab.id === tabId);
+      setError(null);
+      try {
+        await window.electronAPI.closeTerminalTab({
+          tabId,
+          workspaceId: workspace.id,
         });
-        return next;
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to close terminal tab.");
-    }
-  }, [disposeTerminal, tabs, workspace?.id]);
+        disposeTerminal(tabId);
+        setTabs((current) => {
+          const next = uniqueTabs(current.filter((tab) => tab.id !== tabId));
+          if (next.length === 0) {
+            userClosedAllTabsRef.current = true;
+            setActiveTabId(null);
+            return next;
+          }
+          setActiveTabId((activeId) => {
+            if (
+              activeId &&
+              activeId !== tabId &&
+              next.some((tab) => tab.id === activeId)
+            )
+              return activeId;
+            return (
+              next[Math.max(0, Math.min(closingIndex, next.length - 1))]?.id ||
+              next[0]?.id ||
+              null
+            );
+          });
+          return next;
+        });
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to close terminal tab.",
+        );
+      }
+    },
+    [disposeTerminal, tabs, workspace?.id],
+  );
 
   useEffect(() => {
     if (!workspace?.id) return;
@@ -292,13 +363,19 @@ export const TerminalTabsDock = memo(function TerminalTabsDock({
       ensureTerminal(tab.id);
       if (attachedTabIdsRef.current.has(tab.id)) continue;
       attachedTabIdsRef.current.add(tab.id);
-      void window.electronAPI.writeTerminalTabInput({
-        tabId: tab.id,
-        workspaceId: workspace.id,
-        input: "",
-      }).catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Failed to attach terminal tab.");
-      });
+      void window.electronAPI
+        .writeTerminalTabInput({
+          tabId: tab.id,
+          workspaceId: workspace.id,
+          input: "",
+        })
+        .catch((err: unknown) => {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Failed to attach terminal tab.",
+          );
+        });
     }
   }, [ensureTerminal, tabs, workspace?.id]);
 
@@ -308,16 +385,18 @@ export const TerminalTabsDock = memo(function TerminalTabsDock({
       const handle = ensureTerminal(event.tabId);
       handle.terminal.write(event.output);
       if (event.cwd || event.status) {
-        setTabs((current) => current.map((tab) => (
-          tab.id === event.tabId
-            ? {
-              ...tab,
-              cwd: event.cwd || tab.cwd,
-              status: event.status || tab.status,
-              updatedAt: event.timestamp,
-            }
-            : tab
-        )));
+        setTabs((current) =>
+          current.map((tab) =>
+            tab.id === event.tabId
+              ? {
+                  ...tab,
+                  cwd: event.cwd || tab.cwd,
+                  status: event.status || tab.status,
+                  updatedAt: event.timestamp,
+                }
+              : tab,
+          ),
+        );
       }
     });
   }, [ensureTerminal, workspace?.id]);
@@ -360,7 +439,10 @@ export const TerminalTabsDock = memo(function TerminalTabsDock({
       <div className="terminal-dock-tabbar">
         {tabs.length > 0 ? (
           tabs.map((tab) => (
-            <div key={tab.id} className={`terminal-dock-tab-wrap ${activeTab?.id === tab.id ? "active" : ""}`}>
+            <div
+              key={tab.id}
+              className={`terminal-dock-tab-wrap ${activeTab?.id === tab.id ? "active" : ""}`}
+            >
               <button
                 type="button"
                 className={`terminal-dock-tab ${activeTab?.id === tab.id ? "active" : ""}`}
@@ -378,38 +460,55 @@ export const TerminalTabsDock = memo(function TerminalTabsDock({
                   event.stopPropagation();
                   void closeTab(tab.id);
                 }}
-                title="Close terminal tab"
-                aria-label="Close terminal tab"
+                title={t("terminal.closeTab", "Close terminal tab")}
+                aria-label={t("terminal.closeTab", "Close terminal tab")}
               >
                 <X size={12} />
               </button>
             </div>
           ))
         ) : (
-          <button type="button" className="terminal-dock-tab active" onClick={() => void createTab()}>
+          <button
+            type="button"
+            className="terminal-dock-tab active"
+            onClick={() => void createTab()}
+          >
             <SquareTerminal size={13} />
             <span>{workspace.name || "terminal"}</span>
           </button>
         )}
-        <button type="button" className="terminal-dock-icon-btn" onClick={() => void createTab()} title="New terminal tab">
+        <button
+          type="button"
+          className="terminal-dock-icon-btn"
+          onClick={() => void createTab()}
+          title={t("terminal.newTab", "New terminal tab")}
+        >
           <Plus size={14} />
         </button>
         <div className="terminal-dock-spacer" />
         {activeTabRunning && (
-          <button type="button" className="terminal-dock-action" onClick={() => void stopTab()}>
-            Stop
+          <button
+            type="button"
+            className="terminal-dock-action"
+            onClick={() => void stopTab()}
+          >
+            {t("common.stop", "Stop")}
           </button>
         )}
         <button
           type="button"
           className="terminal-dock-icon-btn"
           onClick={onClose}
-          title="Close terminal"
+          title={t("terminal.close", "Close terminal")}
         >
           <X size={14} />
         </button>
       </div>
-      <div ref={dockBodyRef} className="terminal-dock-body" onMouseDown={focusActiveTerminal}>
+      <div
+        ref={dockBodyRef}
+        className="terminal-dock-body"
+        onMouseDown={focusActiveTerminal}
+      >
         {tabs.map((tab) => (
           <div
             key={tab.id}

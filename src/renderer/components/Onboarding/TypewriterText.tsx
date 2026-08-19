@@ -48,7 +48,9 @@ export function TypewriterText({
     <div className={`onboarding-typewriter ${className}`}>
       <span>{displayedText}</span>
       {showCursor && (
-        <span className={`onboarding-typewriter-cursor ${isComplete ? "hidden" : ""}`} />
+        <span
+          className={`onboarding-typewriter-cursor ${isComplete ? "hidden" : ""}`}
+        />
       )}
     </div>
   );

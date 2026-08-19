@@ -15,7 +15,7 @@ const MANIFEST_PATH = path.resolve(
   "resources",
   "plugin-packs",
   "codex-security",
-  "cowork.plugin.json",
+  "neoworker.plugin.json",
 );
 
 describe("Codex Security plugin pack", () => {

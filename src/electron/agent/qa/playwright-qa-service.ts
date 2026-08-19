@@ -140,7 +140,7 @@ export class PlaywrightQAService {
     }
 
     const run = this.currentRun;
-    const screenshotBase = this.screenshotDir || path.join(this.workspace.path, ".cowork", "qa-screenshots");
+    const screenshotBase = this.screenshotDir || path.join(this.workspace.path, ".neoworker", "qa-screenshots");
 
     switch (checkType) {
       case "console_errors":
@@ -204,7 +204,7 @@ export class PlaywrightQAService {
     };
 
     this.currentRun = run;
-    const screenshotBase = this.screenshotDir || path.join(this.workspace.path, ".cowork", "qa-screenshots");
+    const screenshotBase = this.screenshotDir || path.join(this.workspace.path, ".neoworker", "qa-screenshots");
     await fs.mkdir(screenshotBase, { recursive: true });
 
     try {
@@ -378,7 +378,7 @@ export class PlaywrightQAService {
           break;
 
         case "screenshot": {
-          const dir = this.screenshotDir || path.join(this.workspace.path, ".cowork", "qa-screenshots");
+          const dir = this.screenshotDir || path.join(this.workspace.path, ".neoworker", "qa-screenshots");
           const screenshotPath = await this.takeScreenshot(dir, step.value || "step");
           step.screenshotPath = screenshotPath;
           step.success = true;

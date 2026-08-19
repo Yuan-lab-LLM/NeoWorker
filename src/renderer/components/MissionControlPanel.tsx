@@ -33,6 +33,7 @@ import { StandupReportViewer } from "./StandupReportViewer";
 import { AgentTeamsPanel } from "./AgentTeamsPanel";
 import { AgentPerformanceReviewViewer } from "./AgentPerformanceReviewViewer";
 import { useAgentContext } from "../hooks/useAgentContext";
+import { translate, useLanguage } from "../i18n";
 import type { UiCopyKey } from "../utils/agentMessages";
 import { getEffectiveTaskEventType } from "../utils/task-event-compat";
 import { getEmojiIcon } from "../utils/emoji-icon-map";
@@ -73,25 +74,36 @@ export function MissionControlPanel({
   onClose: _onClose,
   initialCompanyId = null,
 }: MissionControlPanelProps) {
+  useLanguage();
+  const t = translate;
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
+    null,
+  );
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(
+    null,
+  );
   const [agents, setAgents] = useState<AgentRole[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [selectedGoalFilter, setSelectedGoalFilter] = useState<string>("all");
-  const [selectedProjectFilter, setSelectedProjectFilter] = useState<string>("all");
+  const [selectedProjectFilter, setSelectedProjectFilter] =
+    useState<string>("all");
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
-  const [selectedIssueRunId, setSelectedIssueRunId] = useState<string | null>(null);
+  const [selectedIssueRunId, setSelectedIssueRunId] = useState<string | null>(
+    null,
+  );
   const [issueComments, setIssueComments] = useState<IssueComment[]>([]);
   const [issueRuns, setIssueRuns] = useState<HeartbeatRun[]>([]);
   const [runEvents, setRunEvents] = useState<HeartbeatRunEvent[]>([]);
   const [activities, setActivities] = useState<ActivityData[]>([]);
   const [mentions, setMentions] = useState<MentionData[]>([]);
-  const [heartbeatStatuses, setHeartbeatStatuses] = useState<HeartbeatStatusInfo[]>([]);
+  const [heartbeatStatuses, setHeartbeatStatuses] = useState<
+    HeartbeatStatusInfo[]
+  >([]);
   const [events, setEvents] = useState<HeartbeatEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -101,7 +113,9 @@ export function MissionControlPanel({
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<"feed" | "task" | "ops">("feed");
-  const [feedFilter, setFeedFilter] = useState<"all" | "tasks" | "comments" | "status">("all");
+  const [feedFilter, setFeedFilter] = useState<
+    "all" | "tasks" | "comments" | "status"
+  >("all");
   const [currentTime, setCurrentTime] = useState(new Date());
   const [commentText, setCommentText] = useState("");
   const [postingComment, setPostingComment] = useState(false);
@@ -109,13 +123,17 @@ export function MissionControlPanel({
   const [teamsOpen, setTeamsOpen] = useState(false);
   const [reviewsOpen, setReviewsOpen] = useState(false);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
-  const [plannerConfig, setPlannerConfig] = useState<StrategicPlannerConfig | null>(null);
+  const [plannerConfig, setPlannerConfig] =
+    useState<StrategicPlannerConfig | null>(null);
   const [plannerRuns, setPlannerRuns] = useState<StrategicPlannerRun[]>([]);
-  const [commandCenterSummary, setCommandCenterSummary] = useState<CompanyCommandCenterSummary | null>(null);
+  const [commandCenterSummary, setCommandCenterSummary] =
+    useState<CompanyCommandCenterSummary | null>(null);
   const [plannerLoading, setPlannerLoading] = useState(false);
   const [plannerSaving, setPlannerSaving] = useState(false);
   const [plannerRunning, setPlannerRunning] = useState(false);
-  const [selectedPlannerRunId, setSelectedPlannerRunId] = useState<string | null>(null);
+  const [selectedPlannerRunId, setSelectedPlannerRunId] = useState<
+    string | null
+  >(null);
   const tasksRef = useRef<Task[]>([]);
   const workspaceIdRef = useRef<string | null>(null);
   const agentContext = useAgentContext();
@@ -189,7 +207,10 @@ export function MissionControlPanel({
       setCompanies(loaded);
       setSelectedCompanyId((prev) => {
         if (prev && loaded.some((company) => company.id === prev)) return prev;
-        if (initialCompanyId && loaded.some((company) => company.id === initialCompanyId)) {
+        if (
+          initialCompanyId &&
+          loaded.some((company) => company.id === initialCompanyId)
+        ) {
           return initialCompanyId;
         }
         return loaded[0]?.id || null;
@@ -209,7 +230,9 @@ export function MissionControlPanel({
       setPlannerConfig(config);
       setPlannerRuns(runs);
       setSelectedPlannerRunId((prev) =>
-        prev && runs.some((run) => run.id === prev) ? prev : runs[0]?.id || null,
+        prev && runs.some((run) => run.id === prev)
+          ? prev
+          : runs[0]?.id || null,
       );
     } catch (err) {
       console.error("Failed to load planner data:", err);
@@ -232,7 +255,9 @@ export function MissionControlPanel({
       setProjects(loadedProjects);
       setIssues(loadedIssues);
       setSelectedIssueId((prev) =>
-        prev && loadedIssues.some((issue) => issue.id === prev) ? prev : loadedIssues[0]?.id || null,
+        prev && loadedIssues.some((issue) => issue.id === prev)
+          ? prev
+          : loadedIssues[0]?.id || null,
       );
     } catch (err) {
       console.error("Failed to load company ops data:", err);
@@ -245,7 +270,8 @@ export function MissionControlPanel({
 
   const loadCommandCenterSummary = useCallback(async (companyId: string) => {
     try {
-      const summary = await window.electronAPI.getCommandCenterSummary(companyId);
+      const summary =
+        await window.electronAPI.getCommandCenterSummary(companyId);
       setCommandCenterSummary(summary);
     } catch (err) {
       console.error("Failed to load command center summary:", err);
@@ -253,40 +279,56 @@ export function MissionControlPanel({
     }
   }, []);
 
-  const loadIssueContext = useCallback(async (companyId: string, issueId: string) => {
-    try {
-      const [comments, runs] = await Promise.all([
-        window.electronAPI.listIssueComments(issueId),
-        window.electronAPI.listCompanyRuns(companyId, issueId, 20),
-      ]);
-      setIssueComments(comments);
-      setIssueRuns(runs);
-      setSelectedIssueRunId((prev) =>
-        prev && runs.some((run) => run.id === prev) ? prev : runs[0]?.id || null,
-      );
-    } catch (err) {
-      console.error("Failed to load issue context:", err);
-      setIssueComments([]);
-      setIssueRuns([]);
-      setSelectedIssueRunId(null);
-      setRunEvents([]);
-    }
-  }, []);
+  const loadIssueContext = useCallback(
+    async (companyId: string, issueId: string) => {
+      try {
+        const [comments, runs] = await Promise.all([
+          window.electronAPI.listIssueComments(issueId),
+          window.electronAPI.listCompanyRuns(companyId, issueId, 20),
+        ]);
+        setIssueComments(comments);
+        setIssueRuns(runs);
+        setSelectedIssueRunId((prev) =>
+          prev && runs.some((run) => run.id === prev)
+            ? prev
+            : runs[0]?.id || null,
+        );
+      } catch (err) {
+        console.error("Failed to load issue context:", err);
+        setIssueComments([]);
+        setIssueRuns([]);
+        setSelectedIssueRunId(null);
+        setRunEvents([]);
+      }
+    },
+    [],
+  );
 
   const loadData = useCallback(async (workspaceId: string) => {
     try {
       setLoading(true);
-      const [loadedAgents, statuses, loadedTasks, loadedActivities, loadedMentions] =
-        await Promise.all([
-          window.electronAPI.getAgentRoles(true),
-          window.electronAPI.getAllHeartbeatStatus(),
-          window.electronAPI.listTasks().catch(() => []),
-          window.electronAPI.listActivities({ workspaceId, limit: 200 }).catch(() => []),
-          window.electronAPI.listMentions({ workspaceId, limit: 200 }).catch(() => []),
-        ]);
+      const [
+        loadedAgents,
+        statuses,
+        loadedTasks,
+        loadedActivities,
+        loadedMentions,
+      ] = await Promise.all([
+        window.electronAPI.getAgentRoles(true),
+        window.electronAPI.getAllHeartbeatStatus(),
+        window.electronAPI.listTasks().catch(() => []),
+        window.electronAPI
+          .listActivities({ workspaceId, limit: 200 })
+          .catch(() => []),
+        window.electronAPI
+          .listMentions({ workspaceId, limit: 200 })
+          .catch(() => []),
+      ]);
       setAgents(loadedAgents);
       setHeartbeatStatuses(statuses);
-      const workspaceTasks = loadedTasks.filter((task: Task) => task.workspaceId === workspaceId);
+      const workspaceTasks = loadedTasks.filter(
+        (task: Task) => task.workspaceId === workspaceId,
+      );
       setTasks(workspaceTasks);
       setActivities(loadedActivities);
       setMentions(loadedMentions);
@@ -305,16 +347,17 @@ export function MissionControlPanel({
     try {
       setIsRefreshing(true);
       if (selectedWorkspaceId) {
-        const [statuses, loadedTasks, loadedActivities, loadedMentions] = await Promise.all([
-          window.electronAPI.getAllHeartbeatStatus().catch(() => []),
-          window.electronAPI.listTasks().catch(() => []),
-          window.electronAPI
-            .listActivities({ workspaceId: selectedWorkspaceId, limit: 200 })
-            .catch(() => []),
-          window.electronAPI
-            .listMentions({ workspaceId: selectedWorkspaceId, limit: 200 })
-            .catch(() => []),
-        ]);
+        const [statuses, loadedTasks, loadedActivities, loadedMentions] =
+          await Promise.all([
+            window.electronAPI.getAllHeartbeatStatus().catch(() => []),
+            window.electronAPI.listTasks().catch(() => []),
+            window.electronAPI
+              .listActivities({ workspaceId: selectedWorkspaceId, limit: 200 })
+              .catch(() => []),
+            window.electronAPI
+              .listMentions({ workspaceId: selectedWorkspaceId, limit: 200 })
+              .catch(() => []),
+          ]);
         setHeartbeatStatuses(statuses);
         const workspaceTasks = loadedTasks.filter(
           (task: Task) => task.workspaceId === selectedWorkspaceId,
@@ -333,7 +376,13 @@ export function MissionControlPanel({
     } finally {
       setIsRefreshing(false);
     }
-  }, [loadCommandCenterSummary, loadCompanyOps, loadPlannerData, selectedCompanyId, selectedWorkspaceId]);
+  }, [
+    loadCommandCenterSummary,
+    loadCompanyOps,
+    loadPlannerData,
+    selectedCompanyId,
+    selectedWorkspaceId,
+  ]);
 
   useEffect(() => {
     loadWorkspaces();
@@ -371,7 +420,12 @@ export function MissionControlPanel({
     }
     setSelectedGoalFilter("all");
     setSelectedProjectFilter("all");
-  }, [selectedCompanyId, loadCommandCenterSummary, loadCompanyOps, loadPlannerData]);
+  }, [
+    selectedCompanyId,
+    loadCommandCenterSummary,
+    loadCompanyOps,
+    loadPlannerData,
+  ]);
 
   useEffect(() => {
     if (!initialCompanyId) return;
@@ -408,68 +462,86 @@ export function MissionControlPanel({
   // and minimize re-subscription when workspace changes
   useEffect(() => {
     // Subscribe to heartbeat events (workspace-independent)
-    const unsubscribeHeartbeat = window.electronAPI.onHeartbeatEvent((event: HeartbeatEvent) => {
-      setEvents((prev) => [event, ...prev].slice(0, 100));
+    const unsubscribeHeartbeat = window.electronAPI.onHeartbeatEvent(
+      (event: HeartbeatEvent) => {
+        setEvents((prev) => [event, ...prev].slice(0, 100));
 
-      // Update status when event is received
-      setHeartbeatStatuses((prev) =>
-        prev.map((status) => {
-          if (status.agentRoleId === event.agentRoleId) {
-            return {
-              ...status,
-              heartbeatStatus:
-                event.type === "started"
-                  ? "running"
-                  : ["work_found", "no_work", "completed"].includes(event.type)
-                    ? "sleeping"
-                    : event.type === "error"
-                      ? "error"
-                      : status.heartbeatStatus,
-              lastHeartbeatAt: ["completed", "no_work", "work_found"].includes(event.type)
-                ? event.timestamp
-                : status.lastHeartbeatAt,
-            };
-          }
-          return status;
-        }),
-      );
-    });
+        // Update status when event is received
+        setHeartbeatStatuses((prev) =>
+          prev.map((status) => {
+            if (status.agentRoleId === event.agentRoleId) {
+              return {
+                ...status,
+                heartbeatStatus:
+                  event.type === "started"
+                    ? "running"
+                    : ["work_found", "no_work", "completed"].includes(
+                          event.type,
+                        )
+                      ? "sleeping"
+                      : event.type === "error"
+                        ? "error"
+                        : status.heartbeatStatus,
+                lastHeartbeatAt: [
+                  "completed",
+                  "no_work",
+                  "work_found",
+                ].includes(event.type)
+                  ? event.timestamp
+                  : status.lastHeartbeatAt,
+              };
+            }
+            return status;
+          }),
+        );
+      },
+    );
 
     // Activity events - filter by current workspace using ref
-    const unsubscribeActivities = window.electronAPI.onActivityEvent((event) => {
-      const currentWorkspaceId = workspaceIdRef.current;
-      switch (event.type) {
-        case "created":
-          if (event.activity?.workspaceId === currentWorkspaceId) {
-            setActivities((prev) => [event.activity!, ...prev].slice(0, 200));
-          }
-          break;
-        case "read":
-          setActivities((prev) =>
-            prev.map((activity) =>
-              activity.id === event.id ? { ...activity, isRead: true } : activity,
-            ),
-          );
-          break;
-        case "all_read":
-          if (event.workspaceId === currentWorkspaceId) {
-            setActivities((prev) => prev.map((activity) => ({ ...activity, isRead: true })));
-          }
-          break;
-        case "pinned":
-          if (event.activity) {
+    const unsubscribeActivities = window.electronAPI.onActivityEvent(
+      (event) => {
+        const currentWorkspaceId = workspaceIdRef.current;
+        switch (event.type) {
+          case "created":
+            if (event.activity?.workspaceId === currentWorkspaceId) {
+              setActivities((prev) => [event.activity!, ...prev].slice(0, 200));
+            }
+            break;
+          case "read":
             setActivities((prev) =>
               prev.map((activity) =>
-                activity.id === event.activity!.id ? event.activity! : activity,
+                activity.id === event.id
+                  ? { ...activity, isRead: true }
+                  : activity,
               ),
             );
-          }
-          break;
-        case "deleted":
-          setActivities((prev) => prev.filter((activity) => activity.id !== event.id));
-          break;
-      }
-    });
+            break;
+          case "all_read":
+            if (event.workspaceId === currentWorkspaceId) {
+              setActivities((prev) =>
+                prev.map((activity) => ({ ...activity, isRead: true })),
+              );
+            }
+            break;
+          case "pinned":
+            if (event.activity) {
+              setActivities((prev) =>
+                prev.map((activity) =>
+                  activity.id === event.activity!.id
+                    ? event.activity!
+                    : activity,
+                ),
+              );
+            }
+            break;
+          case "deleted":
+            setActivities((prev) =>
+              prev.filter((activity) => activity.id !== event.id),
+            );
+            break;
+        }
+      },
+    );
 
     // Mention events - filter by current workspace using ref
     const unsubscribeMentions = window.electronAPI.onMentionEvent((event) => {
@@ -484,85 +556,103 @@ export function MissionControlPanel({
         case "completed":
         case "dismissed":
           setMentions((prev) =>
-            prev.map((mention) => (mention.id === event.mention!.id ? event.mention! : mention)),
+            prev.map((mention) =>
+              mention.id === event.mention!.id ? event.mention! : mention,
+            ),
           );
           break;
       }
     });
 
     // Task events - handle new tasks and status updates
-    const unsubscribeTaskEvents = window.electronAPI.onTaskEvent((event: Any) => {
-      const effectiveType = getEffectiveTaskEventType(event as Any);
-      const currentWorkspaceId = workspaceIdRef.current;
-      const isAutoApprovalRequested =
-        effectiveType === "approval_requested" && event.payload?.autoApproved === true;
+    const unsubscribeTaskEvents = window.electronAPI.onTaskEvent(
+      (event: Any) => {
+        const effectiveType = getEffectiveTaskEventType(event as Any);
+        const currentWorkspaceId = workspaceIdRef.current;
+        const isAutoApprovalRequested =
+          effectiveType === "approval_requested" &&
+          event.payload?.autoApproved === true;
 
-      if (effectiveType === "task_created") {
-        const isNewTask = !tasksRef.current.some((task) => task.id === event.taskId);
-        if (isNewTask && currentWorkspaceId) {
-          // Fetch the task and add it if it belongs to current workspace
-          window.electronAPI
-            .getTask(event.taskId)
-            .then((incoming) => {
-              if (!incoming) return;
-              if (incoming.workspaceId === currentWorkspaceId) {
-                setTasks((prev) => {
-                  // Avoid duplicates
-                  if (prev.some((t) => t.id === incoming.id)) return prev;
-                  return [incoming, ...prev];
-                });
-              }
-            })
-            .catch((err) => console.debug("Failed to fetch new task", err));
+        if (effectiveType === "task_created") {
+          const isNewTask = !tasksRef.current.some(
+            (task) => task.id === event.taskId,
+          );
+          if (isNewTask && currentWorkspaceId) {
+            // Fetch the task and add it if it belongs to current workspace
+            window.electronAPI
+              .getTask(event.taskId)
+              .then((incoming) => {
+                if (!incoming) return;
+                if (incoming.workspaceId === currentWorkspaceId) {
+                  setTasks((prev) => {
+                    // Avoid duplicates
+                    if (prev.some((t) => t.id === incoming.id)) return prev;
+                    return [incoming, ...prev];
+                  });
+                }
+              })
+              .catch((err) => console.debug("Failed to fetch new task", err));
+          }
+          return;
         }
-        return;
-      }
 
-      const newStatus =
-        effectiveType === "task_status"
-          ? event.payload?.status
-          : TASK_EVENT_STATUS_MAP[effectiveType as keyof typeof TASK_EVENT_STATUS_MAP];
-      if (newStatus && !isAutoApprovalRequested) {
-        setTasks((prev) =>
-          prev.map((task) =>
-            task.id === event.taskId ? { ...task, status: newStatus, updatedAt: Date.now() } : task,
-          ),
-        );
-      }
-    });
+        const newStatus =
+          effectiveType === "task_status"
+            ? event.payload?.status
+            : TASK_EVENT_STATUS_MAP[
+                effectiveType as keyof typeof TASK_EVENT_STATUS_MAP
+              ];
+        if (newStatus && !isAutoApprovalRequested) {
+          setTasks((prev) =>
+            prev.map((task) =>
+              task.id === event.taskId
+                ? { ...task, status: newStatus, updatedAt: Date.now() }
+                : task,
+            ),
+          );
+        }
+      },
+    );
 
     // Task board events - handle column moves, priority changes, etc.
-    const unsubscribeBoard = window.electronAPI.onTaskBoardEvent((event: TaskBoardEvent) => {
-      setTasks((prev) =>
-        prev.map((task) => {
-          if (task.id !== event.taskId) return task;
-          switch (event.type) {
-            case "moved":
-              return { ...task, boardColumn: event.data?.column };
-            case "priorityChanged":
-              return { ...task, priority: event.data?.priority };
-            case "labelAdded":
-              return {
-                ...task,
-                labels: [...(task.labels || []), event.data?.labelId].filter((l): l is string =>
-                  Boolean(l),
-                ),
-              };
-            case "labelRemoved":
-              return {
-                ...task,
-                labels: (task.labels || []).filter((label) => label !== event.data?.labelId),
-              };
-            case "dueDateChanged":
-              return { ...task, dueDate: event.data?.dueDate ?? undefined };
-            case "estimateChanged":
-              return { ...task, estimatedMinutes: event.data?.estimatedMinutes ?? undefined };
-            default:
-              return task;
-          }
-        }),
-      );
-    });
+    const unsubscribeBoard = window.electronAPI.onTaskBoardEvent(
+      (event: TaskBoardEvent) => {
+        setTasks((prev) =>
+          prev.map((task) => {
+            if (task.id !== event.taskId) return task;
+            switch (event.type) {
+              case "moved":
+                return { ...task, boardColumn: event.data?.column };
+              case "priorityChanged":
+                return { ...task, priority: event.data?.priority };
+              case "labelAdded":
+                return {
+                  ...task,
+                  labels: [...(task.labels || []), event.data?.labelId].filter(
+                    (l): l is string => Boolean(l),
+                  ),
+                };
+              case "labelRemoved":
+                return {
+                  ...task,
+                  labels: (task.labels || []).filter(
+                    (label) => label !== event.data?.labelId,
+                  ),
+                };
+              case "dueDateChanged":
+                return { ...task, dueDate: event.data?.dueDate ?? undefined };
+              case "estimateChanged":
+                return {
+                  ...task,
+                  estimatedMinutes: event.data?.estimatedMinutes ?? undefined,
+                };
+              default:
+                return task;
+            }
+          }),
+        );
+      },
+    );
 
     return () => {
       unsubscribeHeartbeat();
@@ -635,7 +725,9 @@ export function MissionControlPanel({
           soul: agent.soul,
         });
         if (updated) {
-          setAgents((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+          setAgents((prev) =>
+            prev.map((a) => (a.id === updated.id ? updated : a)),
+          );
         }
       }
       setEditingAgent(null);
@@ -644,7 +736,10 @@ export function MissionControlPanel({
       const statuses = await window.electronAPI.getAllHeartbeatStatus();
       setHeartbeatStatuses(statuses);
     } catch (err: Any) {
-      setAgentError(err.message || "Failed to save agent");
+      setAgentError(
+        err.message ||
+          t("missionControl.error.saveAgent", "Failed to save agent"),
+      );
     }
   };
 
@@ -653,18 +748,35 @@ export function MissionControlPanel({
     const now = Date.now();
     const diff = now - timestamp;
     const abs = Math.abs(diff);
-    const format = (value: number, unit: string, suffix: string) => `${value}${unit} ${suffix}`;
-    if (abs < 60000) return diff < 0 ? "in <1m" : "just now";
+    if (abs < 60000) {
+      return diff < 0
+        ? t("missionControl.time.inUnderMinute", "in <1m")
+        : t("missionControl.time.justNow", "just now");
+    }
     if (abs < 3600000) {
       const minutes = Math.floor(abs / 60000);
-      return diff < 0 ? format(minutes, "m", "from now") : `${minutes}m ago`;
+      return diff < 0
+        ? t("missionControl.time.minutesFromNow", "{count}m from now", {
+            count: minutes,
+          })
+        : t("missionControl.time.minutesAgo", "{count}m ago", {
+            count: minutes,
+          });
     }
     if (abs < 86400000) {
       const hours = Math.floor(abs / 3600000);
-      return diff < 0 ? format(hours, "h", "from now") : `${hours}h ago`;
+      return diff < 0
+        ? t("missionControl.time.hoursFromNow", "{count}h from now", {
+            count: hours,
+          })
+        : t("missionControl.time.hoursAgo", "{count}h ago", { count: hours });
     }
     const days = Math.floor(abs / 86400000);
-    return diff < 0 ? format(days, "d", "from now") : `${days}d ago`;
+    return diff < 0
+      ? t("missionControl.time.daysFromNow", "{count}d from now", {
+          count: days,
+        })
+      : t("missionControl.time.daysAgo", "{count}d ago", { count: days });
   };
 
   const getAgentStatus = (agentId: string): "working" | "idle" | "offline" => {
@@ -681,7 +793,8 @@ export function MissionControlPanel({
     if (col === "review") return "review";
     if (col === "in_progress") return "in_progress";
     if (col === "todo") return "assigned";
-    if (col === "backlog") return task.assignedAgentRoleId ? "assigned" : "inbox";
+    if (col === "backlog")
+      return task.assignedAgentRoleId ? "assigned" : "inbox";
     if (col === "assigned" || col === "inbox") return col;
     return task.assignedAgentRoleId ? "assigned" : "inbox";
   }, []);
@@ -698,7 +811,10 @@ export function MissionControlPanel({
     () =>
       agents.filter(
         (a) =>
-          a.isActive && heartbeatStatuses.some((s) => s.agentRoleId === a.id && s.heartbeatEnabled),
+          a.isActive &&
+          heartbeatStatuses.some(
+            (s) => s.agentRoleId === a.id && s.heartbeatEnabled,
+          ),
       ).length,
     [agents, heartbeatStatuses],
   );
@@ -715,7 +831,9 @@ export function MissionControlPanel({
     [tasks, selectedTaskId],
   );
   const selectedWorkspace = useMemo(
-    () => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) || null,
+    () =>
+      workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ||
+      null,
     [workspaces, selectedWorkspaceId],
   );
   const selectedCompany = useMemo(
@@ -745,15 +863,22 @@ export function MissionControlPanel({
   const filteredIssues = useMemo(
     () =>
       plannerManagedIssues.filter((issue) => {
-        if (selectedGoalFilter !== "all" && issue.goalId !== selectedGoalFilter) return false;
-        if (selectedProjectFilter !== "all" && issue.projectId !== selectedProjectFilter) return false;
+        if (selectedGoalFilter !== "all" && issue.goalId !== selectedGoalFilter)
+          return false;
+        if (
+          selectedProjectFilter !== "all" &&
+          issue.projectId !== selectedProjectFilter
+        )
+          return false;
         return true;
       }),
     [plannerManagedIssues, selectedGoalFilter, selectedProjectFilter],
   );
   useEffect(() => {
     setSelectedIssueId((prev) =>
-      prev && filteredIssues.some((issue) => issue.id === prev) ? prev : filteredIssues[0]?.id || null,
+      prev && filteredIssues.some((issue) => issue.id === prev)
+        ? prev
+        : filteredIssues[0]?.id || null,
     );
   }, [filteredIssues]);
   const plannerRunIssueIds = useMemo(() => {
@@ -763,7 +888,10 @@ export function MissionControlPanel({
           updatedIssueIds?: string[];
         }
       | undefined;
-    return new Set([...(metadata?.createdIssueIds || []), ...(metadata?.updatedIssueIds || [])]);
+    return new Set([
+      ...(metadata?.createdIssueIds || []),
+      ...(metadata?.updatedIssueIds || []),
+    ]);
   }, [selectedPlannerRun]);
   const plannerRunIssues = useMemo(
     () => issues.filter((issue) => plannerRunIssueIds.has(issue.id)),
@@ -778,7 +906,9 @@ export function MissionControlPanel({
       map.set(task.assignedAgentRoleId, list);
     });
     map.forEach((list) =>
-      list.sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)),
+      list.sort(
+        (a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt),
+      ),
     );
     return map;
   }, [tasks]);
@@ -807,7 +937,9 @@ export function MissionControlPanel({
         await window.electronAPI.moveTaskToColumn(taskId, boardColumn);
         setTasks((prev) =>
           prev.map((task) =>
-            task.id === taskId ? { ...task, boardColumn, updatedAt: Date.now() } : task,
+            task.id === taskId
+              ? { ...task, boardColumn, updatedAt: Date.now() }
+              : task,
           ),
         );
       } catch (err) {
@@ -817,20 +949,27 @@ export function MissionControlPanel({
     [getBoardColumnForMission],
   );
 
-  const handleAssignTask = useCallback(async (taskId: string, agentRoleId: string | null) => {
-    try {
-      await window.electronAPI.assignAgentRoleToTask(taskId, agentRoleId);
-      setTasks((prev) =>
-        prev.map((task) =>
-          task.id === taskId
-            ? { ...task, assignedAgentRoleId: agentRoleId ?? undefined, updatedAt: Date.now() }
-            : task,
-        ),
-      );
-    } catch (err) {
-      console.error("Failed to assign agent:", err);
-    }
-  }, []);
+  const handleAssignTask = useCallback(
+    async (taskId: string, agentRoleId: string | null) => {
+      try {
+        await window.electronAPI.assignAgentRoleToTask(taskId, agentRoleId);
+        setTasks((prev) =>
+          prev.map((task) =>
+            task.id === taskId
+              ? {
+                  ...task,
+                  assignedAgentRoleId: agentRoleId ?? undefined,
+                  updatedAt: Date.now(),
+                }
+              : task,
+          ),
+        );
+      } catch (err) {
+        console.error("Failed to assign agent:", err);
+      }
+    },
+    [],
+  );
 
   const handleTriggerHeartbeat = useCallback(async (agentRoleId: string) => {
     try {
@@ -887,7 +1026,13 @@ export function MissionControlPanel({
     } finally {
       setPlannerRunning(false);
     }
-  }, [handleManualRefresh, loadCompanyOps, loadPlannerData, selectedCompanyId, selectedWorkspaceId]);
+  }, [
+    handleManualRefresh,
+    loadCompanyOps,
+    loadPlannerData,
+    selectedCompanyId,
+    selectedWorkspaceId,
+  ]);
 
   const handlePostComment = useCallback(async () => {
     if (!selectedWorkspaceId || !selectedTask) return;
@@ -915,9 +1060,11 @@ export function MissionControlPanel({
   const feedItems = useMemo(() => {
     const activityItems = activities.map((activity) => {
       const mappedType =
-        activity.activityType === "comment" || activity.activityType === "mention"
+        activity.activityType === "comment" ||
+        activity.activityType === "mention"
           ? "comments"
-          : activity.activityType.startsWith("task_") || activity.activityType === "agent_assigned"
+          : activity.activityType.startsWith("task_") ||
+              activity.activityType === "agent_assigned"
             ? "tasks"
             : "status";
       const agentName =
@@ -1014,7 +1161,9 @@ export function MissionControlPanel({
         <div className="mc-header-left">
           <h1>{agentContext.getUiCopy("mcTitle")}</h1>
           <div className="mc-workspace-select">
-            <span className="mc-workspace-label">{agentContext.getUiCopy("mcWorkspaceLabel")}</span>
+            <span className="mc-workspace-label">
+              {agentContext.getUiCopy("mcWorkspaceLabel")}
+            </span>
             <select
               value={selectedWorkspaceId || ""}
               onChange={(e) => setSelectedWorkspaceId(e.target.value)}
@@ -1030,39 +1179,52 @@ export function MissionControlPanel({
         <div className="mc-header-stats">
           <div className="mc-stat">
             <span className="mc-stat-value">{activeAgentsCount}</span>
-            <span className="mc-stat-label">{agentContext.getUiCopy("mcAgentsActiveLabel")}</span>
+            <span className="mc-stat-label">
+              {agentContext.getUiCopy("mcAgentsActiveLabel")}
+            </span>
           </div>
           <div className="mc-stat">
             <span className="mc-stat-value">{totalTasksInQueue}</span>
-            <span className="mc-stat-label">{agentContext.getUiCopy("mcTasksQueueLabel")}</span>
+            <span className="mc-stat-label">
+              {agentContext.getUiCopy("mcTasksQueueLabel")}
+            </span>
           </div>
           <div className="mc-stat">
             <span className="mc-stat-value">{pendingMentionsCount}</span>
-            <span className="mc-stat-label">{agentContext.getUiCopy("mcMentionsLabel")}</span>
+            <span className="mc-stat-label">
+              {agentContext.getUiCopy("mcMentionsLabel")}
+            </span>
           </div>
         </div>
         <div className="mc-header-right">
           <button
             className="mc-refresh-btn"
             onClick={handleManualRefresh}
-            disabled={(!selectedWorkspaceId && !selectedCompanyId) || isRefreshing}
-            title="Refresh mission control data"
+            disabled={
+              (!selectedWorkspaceId && !selectedCompanyId) || isRefreshing
+            }
+            title={t(
+              "missionControl.action.refreshTitle",
+              "Refresh mission control data",
+            )}
           >
-            {isRefreshing ? "Refreshing..." : "Refresh"}
+            {isRefreshing
+              ? t("common.refreshing", "Refreshing...")
+              : t("common.refresh", "Refresh")}
           </button>
           <button
             className="mc-standup-btn"
             onClick={() => setTeamsOpen(true)}
             disabled={!selectedWorkspace}
           >
-            Teams
+            {t("missionControl.action.teams", "Teams")}
           </button>
           <button
             className="mc-standup-btn"
             onClick={() => setReviewsOpen(true)}
             disabled={!supportsWorkspaceReports}
           >
-            Reviews
+            {t("missionControl.action.reviews", "Agent reviews")}
           </button>
           <button
             className="mc-standup-btn"
@@ -1078,7 +1240,9 @@ export function MissionControlPanel({
               second: "2-digit",
             })}
           </span>
-          <span className="mc-status-badge online">{agentContext.getUiCopy("mcStatusOnline")}</span>
+          <span className="mc-status-badge online">
+            {agentContext.getUiCopy("mcStatusOnline")}
+          </span>
         </div>
       </header>
 
@@ -1086,15 +1250,29 @@ export function MissionControlPanel({
         <section className="mc-planner-strip">
           <div className="mc-planner-summary">
             <div className="mc-planner-title-row">
-              <h2>Strategic Planner</h2>
-              <span className={`mc-planner-status ${plannerConfig?.enabled ? "enabled" : "disabled"}`}>
-                {plannerConfig?.enabled ? "Enabled" : "Disabled"}
+              <h2>{t("missionControl.planner.title", "Strategic Planner")}</h2>
+              <span
+                className={`mc-planner-status ${plannerConfig?.enabled ? "enabled" : "disabled"}`}
+              >
+                {plannerConfig?.enabled
+                  ? t("common.enabled", "Enabled")
+                  : t("common.disabled", "Disabled")}
               </span>
-              {plannerSaving && <span className="mc-planner-muted">Saving...</span>}
-              {plannerLoading && <span className="mc-planner-muted">Loading...</span>}
+              {plannerSaving && (
+                <span className="mc-planner-muted">
+                  {t("common.saving", "Saving...")}
+                </span>
+              )}
+              {plannerLoading && (
+                <span className="mc-planner-muted">
+                  {t("common.loading", "Loading...")}
+                </span>
+              )}
             </div>
             <div className="mc-planner-company">
-              <span className="mc-workspace-label">Company</span>
+              <span className="mc-workspace-label">
+                {t("missionControl.planner.company", "Company")}
+              </span>
               <select
                 value={selectedCompanyId || ""}
                 onChange={(e) => setSelectedCompanyId(e.target.value)}
@@ -1109,28 +1287,47 @@ export function MissionControlPanel({
           </div>
           <div className="mc-planner-metrics">
             <div className="mc-planner-metric">
-              <span className="mc-planner-metric-value">{goals.filter((goal) => goal.status === "active").length}</span>
-              <span className="mc-planner-metric-label">Active goals</span>
+              <span className="mc-planner-metric-value">
+                {goals.filter((goal) => goal.status === "active").length}
+              </span>
+              <span className="mc-planner-metric-label">
+                {t("missionControl.metric.activeGoals", "Active goals")}
+              </span>
             </div>
             <div className="mc-planner-metric">
               <span className="mc-planner-metric-value">
-                {projects.filter((project) => project.status !== "completed" && project.status !== "archived").length}
+                {
+                  projects.filter(
+                    (project) =>
+                      project.status !== "completed" &&
+                      project.status !== "archived",
+                  ).length
+                }
               </span>
-              <span className="mc-planner-metric-label">Open projects</span>
+              <span className="mc-planner-metric-label">
+                {t("missionControl.metric.openProjects", "Open projects")}
+              </span>
             </div>
             <div className="mc-planner-metric">
               <span className="mc-planner-metric-value">
                 {
                   plannerManagedIssues.filter(
-                    (issue) => issue.status !== "done" && issue.status !== "cancelled",
+                    (issue) =>
+                      issue.status !== "done" && issue.status !== "cancelled",
                   ).length
                 }
               </span>
-              <span className="mc-planner-metric-label">Managed issues</span>
+              <span className="mc-planner-metric-label">
+                {t("missionControl.metric.managedIssues", "Managed issues")}
+              </span>
             </div>
             <div className="mc-planner-metric">
-              <span className="mc-planner-metric-value">{plannerRuns.length}</span>
-              <span className="mc-planner-metric-label">Recent runs</span>
+              <span className="mc-planner-metric-value">
+                {plannerRuns.length}
+              </span>
+              <span className="mc-planner-metric-label">
+                {t("missionControl.metric.recentRuns", "Recent runs")}
+              </span>
             </div>
           </div>
           {plannerConfig && (
@@ -1139,20 +1336,38 @@ export function MissionControlPanel({
                 <input
                   type="checkbox"
                   checked={plannerConfig.enabled}
-                  onChange={(e) => void handlePlannerConfigChange({ enabled: e.target.checked })}
+                  onChange={(e) =>
+                    void handlePlannerConfigChange({
+                      enabled: e.target.checked,
+                    })
+                  }
                 />
-                <span>Schedule planner runs</span>
+                <span>
+                  {t(
+                    "missionControl.planner.scheduleRuns",
+                    "Schedule planner runs",
+                  )}
+                </span>
               </label>
               <label className="mc-planner-field checkbox">
                 <input
                   type="checkbox"
                   checked={plannerConfig.autoDispatch}
-                  onChange={(e) => void handlePlannerConfigChange({ autoDispatch: e.target.checked })}
+                  onChange={(e) =>
+                    void handlePlannerConfigChange({
+                      autoDispatch: e.target.checked,
+                    })
+                  }
                 />
-                <span>Auto-dispatch new issues</span>
+                <span>
+                  {t(
+                    "missionControl.planner.autoDispatch",
+                    "Auto-dispatch new issues",
+                  )}
+                </span>
               </label>
               <label className="mc-planner-field">
-                <span>Interval</span>
+                <span>{t("missionControl.planner.interval", "Interval")}</span>
                 <input
                   type="number"
                   min={5}
@@ -1166,7 +1381,7 @@ export function MissionControlPanel({
                 />
               </label>
               <label className="mc-planner-field">
-                <span>Workspace</span>
+                <span>{t("common.workspace", "Workspace")}</span>
                 <select
                   value={plannerConfig.planningWorkspaceId || ""}
                   onChange={(e) =>
@@ -1175,7 +1390,7 @@ export function MissionControlPanel({
                     })
                   }
                 >
-                  <option value="">None</option>
+                  <option value="">{t("common.none", "None")}</option>
                   {workspaces.map((workspace) => (
                     <option key={workspace.id} value={workspace.id}>
                       {workspace.name}
@@ -1184,7 +1399,9 @@ export function MissionControlPanel({
                 </select>
               </label>
               <label className="mc-planner-field">
-                <span>Planner agent</span>
+                <span>
+                  {t("missionControl.planner.agent", "Planner agent")}
+                </span>
                 <select
                   value={plannerConfig.plannerAgentRoleId || ""}
                   onChange={(e) =>
@@ -1193,7 +1410,9 @@ export function MissionControlPanel({
                     })
                   }
                 >
-                  <option value="">Auto-pick</option>
+                  <option value="">
+                    {t("missionControl.planner.autoPick", "Auto-pick")}
+                  </option>
                   {agents
                     .filter((agent) => agent.isActive)
                     .map((agent) => (
@@ -1204,33 +1423,58 @@ export function MissionControlPanel({
                 </select>
               </label>
               <label className="mc-planner-field">
-                <span>Approval preset</span>
+                <span>
+                  {t(
+                    "missionControl.planner.approvalPreset",
+                    "Approval preset",
+                  )}
+                </span>
                 <select
                   value={plannerConfig.approvalPreset}
                   onChange={(e) =>
                     void handlePlannerConfigChange({
-                      approvalPreset: e.target.value as "manual" | "safe_autonomy" | "founder_edge",
+                      approvalPreset: e.target.value as
+                        "manual" | "safe_autonomy" | "founder_edge",
                     })
                   }
                 >
-                  <option value="manual">Manual</option>
-                  <option value="safe_autonomy">Safe autonomy</option>
-                  <option value="founder_edge">Founder edge</option>
+                  <option value="manual">
+                    {t("missionControl.planner.preset.manual", "Manual")}
+                  </option>
+                  <option value="safe_autonomy">
+                    {t(
+                      "missionControl.planner.preset.safeAutonomy",
+                      "Safe autonomy",
+                    )}
+                  </option>
+                  <option value="founder_edge">
+                    {t(
+                      "missionControl.planner.preset.founderEdge",
+                      "Founder edge",
+                    )}
+                  </option>
                 </select>
               </label>
               <button
                 className="mc-refresh-btn"
                 onClick={() => void handleRunPlanner()}
                 disabled={plannerRunning}
-                title="Run planner immediately"
+                title={t(
+                  "missionControl.planner.runNowTitle",
+                  "Run planner immediately",
+                )}
               >
-                {plannerRunning ? "Running..." : "Run Planner"}
+                {plannerRunning
+                  ? t("common.running", "Running...")
+                  : t("missionControl.planner.run", "Run Planner")}
               </button>
             </div>
           )}
           <div className="mc-planner-runs">
             {plannerRuns.length === 0 ? (
-              <span className="mc-planner-muted">No planner runs yet.</span>
+              <span className="mc-planner-muted">
+                {t("missionControl.planner.noRuns", "No planner runs yet.")}
+              </span>
             ) : (
               plannerRuns.map((run) => (
                 <button
@@ -1244,7 +1488,9 @@ export function MissionControlPanel({
                           updatedIssueIds?: string[];
                         }
                       | undefined;
-                    const nextIssueId = metadata?.createdIssueIds?.[0] || metadata?.updatedIssueIds?.[0];
+                    const nextIssueId =
+                      metadata?.createdIssueIds?.[0] ||
+                      metadata?.updatedIssueIds?.[0];
                     if (nextIssueId) {
                       setSelectedIssueId(nextIssueId);
                     }
@@ -1253,10 +1499,15 @@ export function MissionControlPanel({
                   type="button"
                 >
                   <div className="mc-planner-run-main">
-                    <span className={`mc-planner-run-status ${run.status}`}>{run.status}</span>
-                    <span className="mc-planner-run-trigger">{run.trigger}</span>
+                    <span className={`mc-planner-run-status ${run.status}`}>
+                      {run.status}
+                    </span>
+                    <span className="mc-planner-run-trigger">
+                      {run.trigger}
+                    </span>
                     <span className="mc-planner-run-summary">
-                      {run.summary || `${run.createdIssueCount} created, ${run.dispatchedTaskCount} dispatched`}
+                      {run.summary ||
+                        `${run.createdIssueCount} created, ${run.dispatchedTaskCount} dispatched`}
                     </span>
                   </div>
                   <span className="mc-planner-run-time">
@@ -1280,15 +1531,20 @@ export function MissionControlPanel({
         <aside className="mc-agents-panel">
           <div className="mc-panel-header">
             <h2>{agentContext.getUiCopy("mcAgentsTitle")}</h2>
-            <span className="mc-count">{agents.filter((a) => a.isActive).length}</span>
+            <span className="mc-count">
+              {agents.filter((a) => a.isActive).length}
+            </span>
           </div>
           <div className="mc-agents-list">
             {agents
               .filter((a) => a.isActive)
               .map((agent) => {
                 const status = getAgentStatus(agent.id);
-                const badge = AUTONOMY_BADGES[agent.autonomyLevel || "specialist"];
-                const statusInfo = heartbeatStatuses.find((s) => s.agentRoleId === agent.id);
+                const badge =
+                  AUTONOMY_BADGES[agent.autonomyLevel || "specialist"];
+                const statusInfo = heartbeatStatuses.find(
+                  (s) => s.agentRoleId === agent.id,
+                );
                 const agentTasks = tasksByAgent.get(agent.id) || [];
                 const currentTask = agentTasks[0];
 
@@ -1296,12 +1552,19 @@ export function MissionControlPanel({
                   <div
                     key={agent.id}
                     className={`mc-agent-item ${selectedAgent === agent.id ? "selected" : ""}`}
-                    onClick={() => setSelectedAgent(selectedAgent === agent.id ? null : agent.id)}
+                    onClick={() =>
+                      setSelectedAgent(
+                        selectedAgent === agent.id ? null : agent.id,
+                      )
+                    }
                     onDoubleClick={() => handleEditAgent(agent)}
                     role="button"
                     tabIndex={0}
                   >
-                    <div className="mc-agent-avatar" style={{ backgroundColor: agent.color }}>
+                    <div
+                      className="mc-agent-avatar"
+                      style={{ backgroundColor: agent.color }}
+                    >
                       {(() => {
                         const Icon = getEmojiIcon(agent.icon || "🤖");
                         return <Icon size={18} strokeWidth={2} />;
@@ -1309,7 +1572,9 @@ export function MissionControlPanel({
                     </div>
                     <div className="mc-agent-info">
                       <div className="mc-agent-name-row">
-                        <span className="mc-agent-name">{agent.displayName}</span>
+                        <span className="mc-agent-name">
+                          {agent.displayName}
+                        </span>
                         <span
                           className="mc-autonomy-badge"
                           style={{ backgroundColor: badge.color }}
@@ -1321,16 +1586,22 @@ export function MissionControlPanel({
                         {agent.description?.slice(0, 30) || agent.name}
                       </span>
                       <span className="mc-agent-task">
-                        {currentTask ? currentTask.title : agentContext.getUiCopy("mcNoActiveTask")}
+                        {currentTask
+                          ? currentTask.title
+                          : agentContext.getUiCopy("mcNoActiveTask")}
                       </span>
                     </div>
                     <div className={`mc-agent-status ${status}`}>
                       <span className="mc-status-dot"></span>
-                      <span className="mc-status-text">{status.toUpperCase()}</span>
+                      <span className="mc-status-text">
+                        {status.toUpperCase()}
+                      </span>
                       {statusInfo?.nextHeartbeatAt && (
                         <span className="mc-heartbeat-time">
                           {agentContext.getUiCopy("mcHeartbeatNext", {
-                            time: formatRelativeTime(statusInfo.nextHeartbeatAt),
+                            time: formatRelativeTime(
+                              statusInfo.nextHeartbeatAt,
+                            ),
                           })}
                         </span>
                       )}
@@ -1401,7 +1672,9 @@ export function MissionControlPanel({
                       style={{ backgroundColor: column.color }}
                     ></span>
                     <span className="mc-column-label">{column.label}</span>
-                    <span className="mc-column-count">{columnTasks.length}</span>
+                    <span className="mc-column-count">
+                      {columnTasks.length}
+                    </span>
                   </div>
                   <div className="mc-column-tasks">
                     {columnTasks.map((task) => {
@@ -1435,7 +1708,9 @@ export function MissionControlPanel({
                             </div>
                           )}
                           <div className="mc-task-meta">
-                            <span className={`mc-task-status-pill status-${task.status}`}>
+                            <span
+                              className={`mc-task-status-pill status-${task.status}`}
+                            >
                               {task.status.replace("_", " ")}
                             </span>
                             <span className="mc-task-time">
@@ -1477,11 +1752,14 @@ export function MissionControlPanel({
                 className={`mc-tab-btn ${rightTab === "ops" ? "active" : ""}`}
                 onClick={() => setRightTab("ops")}
               >
-                Ops
+                {t("missionControl.ops", "Ops")}
               </button>
             </div>
             {rightTab === "task" && selectedTask && (
-              <button className="mc-clear-task" onClick={() => setSelectedTaskId(null)}>
+              <button
+                className="mc-clear-task"
+                onClick={() => setSelectedTaskId(null)}
+              >
                 {agentContext.getUiCopy("mcClearTask")}
               </button>
             )}
@@ -1490,15 +1768,17 @@ export function MissionControlPanel({
           {rightTab === "feed" ? (
             <>
               <div className="mc-feed-filters">
-                {(["all", "tasks", "comments", "status"] as const).map((filter) => (
-                  <button
-                    key={filter}
-                    className={`mc-filter-btn ${feedFilter === filter ? "active" : ""}`}
-                    onClick={() => setFeedFilter(filter)}
-                  >
-                    {agentContext.getUiCopy(filterLabels[filter])}
-                  </button>
-                ))}
+                {(["all", "tasks", "comments", "status"] as const).map(
+                  (filter) => (
+                    <button
+                      key={filter}
+                      className={`mc-filter-btn ${feedFilter === filter ? "active" : ""}`}
+                      onClick={() => setFeedFilter(filter)}
+                    >
+                      {agentContext.getUiCopy(filterLabels[filter])}
+                    </button>
+                  ),
+                )}
               </div>
               <div className="mc-feed-agents">
                 <span className="mc-feed-agents-label">
@@ -1513,7 +1793,9 @@ export function MissionControlPanel({
                         className={`mc-agent-chip ${selectedAgent === agent.id ? "active" : ""}`}
                         style={{ borderColor: agent.color }}
                         onClick={() =>
-                          setSelectedAgent(selectedAgent === agent.id ? null : agent.id)
+                          setSelectedAgent(
+                            selectedAgent === agent.id ? null : agent.id,
+                          )
                         }
                       >
                         {(() => {
@@ -1527,7 +1809,9 @@ export function MissionControlPanel({
               </div>
               <div className="mc-feed-list">
                 {feedItems.length === 0 ? (
-                  <div className="mc-feed-empty">{agentContext.getUiCopy("mcFeedEmpty")}</div>
+                  <div className="mc-feed-empty">
+                    {agentContext.getUiCopy("mcFeedEmpty")}
+                  </div>
                 ) : (
                   feedItems.map((item) => {
                     const agent = getAgent(item.agentId);
@@ -1535,18 +1819,35 @@ export function MissionControlPanel({
                       <div key={item.id} className="mc-feed-item">
                         <div className="mc-feed-item-header">
                           {agent && (
-                            <span className="mc-feed-agent" style={{ color: agent.color }}>
+                            <span
+                              className="mc-feed-agent"
+                              style={{ color: agent.color }}
+                            >
                               {(() => {
                                 const Icon = getEmojiIcon(agent.icon || "🤖");
-                                return <Icon size={14} strokeWidth={2} style={{ display: "inline", verticalAlign: "middle", marginRight: 4 }} />;
+                                return (
+                                  <Icon
+                                    size={14}
+                                    strokeWidth={2}
+                                    style={{
+                                      display: "inline",
+                                      verticalAlign: "middle",
+                                      marginRight: 4,
+                                    }}
+                                  />
+                                );
                               })()}
                               {agent.displayName}
                             </span>
                           )}
                           {!agent && item.agentName && (
-                            <span className="mc-feed-agent system">{item.agentName}</span>
+                            <span className="mc-feed-agent system">
+                              {item.agentName}
+                            </span>
                           )}
-                          <span className="mc-feed-time">{formatRelativeTime(item.timestamp)}</span>
+                          <span className="mc-feed-time">
+                            {formatRelativeTime(item.timestamp)}
+                          </span>
                         </div>
                         <div className="mc-feed-content">{item.content}</div>
                       </div>
@@ -1558,46 +1859,93 @@ export function MissionControlPanel({
           ) : rightTab === "ops" ? (
             <div className="mc-ops-panel">
               <div className="mc-ops-section">
-                <h3>Company Overview</h3>
+                <h3>
+                  {t("missionControl.ops.companyOverview", "Company Overview")}
+                </h3>
                 {selectedCompany && commandCenterSummary ? (
                   <>
-                    <p className="mc-ops-company-name">{selectedCompany.name}</p>
+                    <p className="mc-ops-company-name">
+                      {selectedCompany.name}
+                    </p>
                     {selectedCompany.description && (
-                      <p className="mc-ops-company-description">{selectedCompany.description}</p>
+                      <p className="mc-ops-company-description">
+                        {selectedCompany.description}
+                      </p>
                     )}
                     <div className="mc-ops-stats">
                       <div className="mc-ops-stat-card">
-                        <span className="mc-ops-stat-value">{commandCenterSummary.overview.activeGoalCount}</span>
-                        <span className="mc-ops-stat-label">Active goals</span>
+                        <span className="mc-ops-stat-value">
+                          {commandCenterSummary.overview.activeGoalCount}
+                        </span>
+                        <span className="mc-ops-stat-label">
+                          {t(
+                            "missionControl.metric.activeGoals",
+                            "Active goals",
+                          )}
+                        </span>
                       </div>
                       <div className="mc-ops-stat-card">
-                        <span className="mc-ops-stat-value">{commandCenterSummary.overview.activeProjectCount}</span>
-                        <span className="mc-ops-stat-label">Active projects</span>
+                        <span className="mc-ops-stat-value">
+                          {commandCenterSummary.overview.activeProjectCount}
+                        </span>
+                        <span className="mc-ops-stat-label">
+                          {t(
+                            "missionControl.metric.activeProjects",
+                            "Active projects",
+                          )}
+                        </span>
                       </div>
                       <div className="mc-ops-stat-card">
-                        <span className="mc-ops-stat-value">{commandCenterSummary.overview.openIssueCount}</span>
-                        <span className="mc-ops-stat-label">Open issues</span>
+                        <span className="mc-ops-stat-value">
+                          {commandCenterSummary.overview.openIssueCount}
+                        </span>
+                        <span className="mc-ops-stat-label">
+                          {t("missionControl.metric.openIssues", "Open issues")}
+                        </span>
                       </div>
                       <div className="mc-ops-stat-card">
-                        <span className="mc-ops-stat-value">{commandCenterSummary.overview.pendingReviewCount}</span>
-                        <span className="mc-ops-stat-label">Pending review</span>
+                        <span className="mc-ops-stat-value">
+                          {commandCenterSummary.overview.pendingReviewCount}
+                        </span>
+                        <span className="mc-ops-stat-label">
+                          {t(
+                            "missionControl.metric.pendingReview",
+                            "Pending review",
+                          )}
+                        </span>
                       </div>
                       <div className="mc-ops-stat-card">
-                        <span className="mc-ops-stat-value">{commandCenterSummary.overview.valuableOutputCount}</span>
-                        <span className="mc-ops-stat-label">Valuable outputs</span>
+                        <span className="mc-ops-stat-value">
+                          {commandCenterSummary.overview.valuableOutputCount}
+                        </span>
+                        <span className="mc-ops-stat-label">
+                          {t(
+                            "missionControl.metric.valuableOutputs",
+                            "Valuable outputs",
+                          )}
+                        </span>
                       </div>
                     </div>
                   </>
                 ) : (
-                  <div className="mc-feed-empty">No company selected.</div>
+                  <div className="mc-feed-empty">
+                    {t("missionControl.ops.noCompany", "No company selected.")}
+                  </div>
                 )}
               </div>
 
               <div className="mc-ops-section">
-                <h3>Operator Panel</h3>
+                <h3>
+                  {t("missionControl.ops.operatorPanel", "Operator Panel")}
+                </h3>
                 <div className="mc-ops-list">
                   {commandCenterOperators.length === 0 ? (
-                    <div className="mc-feed-empty">No operators linked to this company yet.</div>
+                    <div className="mc-feed-empty">
+                      {t(
+                        "missionControl.ops.noOperators",
+                        "No operators linked to this company yet.",
+                      )}
+                    </div>
                   ) : (
                     commandCenterOperators.map((operator) => (
                       <div key={operator.agentRoleId} className="mc-ops-row">
@@ -1608,17 +1956,44 @@ export function MissionControlPanel({
                             </span>
                           </div>
                           <div className="mc-ops-row-subtitle">
-                            {(operator.operatorMandate || "No mandate set") +
-                              (operator.currentBottleneck ? ` · Bottleneck: ${operator.currentBottleneck}` : "")}
+                            {(operator.operatorMandate ||
+                              t(
+                                "missionControl.ops.noMandate",
+                                "No mandate set",
+                              )) +
+                              (operator.currentBottleneck
+                                ? ` · ${t("missionControl.ops.bottleneck", "Bottleneck")}: ${operator.currentBottleneck}`
+                                : "")}
                           </div>
                           <div className="mc-ops-row-subtitle">
-                            {`Last useful output ${operator.lastUsefulOutputAt ? formatRelativeTime(operator.lastUsefulOutputAt) : "never"} · heartbeat ${operator.heartbeatStatus || "idle"}`}
+                            {t(
+                              "missionControl.ops.operatorHeartbeat",
+                              "Last useful output {time} · heartbeat {status}",
+                              {
+                                time: operator.lastUsefulOutputAt
+                                  ? formatRelativeTime(
+                                      operator.lastUsefulOutputAt,
+                                    )
+                                  : t("common.never", "never"),
+                                status:
+                                  operator.heartbeatStatus ||
+                                  t("common.idle", "idle"),
+                              },
+                            )}
                           </div>
                         </div>
                         <span className="mc-ops-pill">
                           {typeof operator.operatorHealthScore === "number"
-                            ? `${Math.round(operator.operatorHealthScore * 100)} health`
-                            : operator.activeLoop || "idle"}
+                            ? t(
+                                "missionControl.ops.healthScore",
+                                "{score} health",
+                                {
+                                  score: Math.round(
+                                    operator.operatorHealthScore * 100,
+                                  ),
+                                },
+                              )
+                            : operator.activeLoop || t("common.idle", "idle")}
                         </span>
                       </div>
                     ))
@@ -1627,10 +2002,15 @@ export function MissionControlPanel({
               </div>
 
               <div className="mc-ops-section">
-                <h3>Operations Feed</h3>
+                <h3>{t("missionControl.ops.feed", "Operations Feed")}</h3>
                 <div className="mc-ops-list">
                   {commandCenterOutputs.length === 0 ? (
-                    <div className="mc-feed-empty">No valuable outputs yet.</div>
+                    <div className="mc-feed-empty">
+                      {t(
+                        "missionControl.ops.noOutputs",
+                        "No valuable outputs yet.",
+                      )}
+                    </div>
                   ) : (
                     commandCenterOutputs.map((output) => (
                       <button
@@ -1638,7 +2018,8 @@ export function MissionControlPanel({
                         type="button"
                         className={`mc-ops-row mc-ops-row-button ${selectedIssueId === output.issueId ? "selected" : ""}`}
                         onClick={() => {
-                          if (output.issueId) setSelectedIssueId(output.issueId);
+                          if (output.issueId)
+                            setSelectedIssueId(output.issueId);
                         }}
                       >
                         <div>
@@ -1648,12 +2029,18 @@ export function MissionControlPanel({
                           </div>
                           {(output.whatChanged || output.nextStep) && (
                             <div className="mc-ops-row-subtitle">
-                              {[output.whatChanged, output.nextStep].filter(Boolean).join(" · ")}
+                              {[output.whatChanged, output.nextStep]
+                                .filter(Boolean)
+                                .join(" · ")}
                             </div>
                           )}
                         </div>
-                        <span className={`mc-ops-pill status-${output.status || "idle"}`}>
-                          {output.reviewRequired ? "review" : output.outputType}
+                        <span
+                          className={`mc-ops-pill status-${output.status || "idle"}`}
+                        >
+                          {output.reviewRequired
+                            ? t("missionControl.ops.review", "review")
+                            : output.outputType}
                         </span>
                       </button>
                     ))
@@ -1662,10 +2049,15 @@ export function MissionControlPanel({
               </div>
 
               <div className="mc-ops-section">
-                <h3>Review Queue</h3>
+                <h3>{t("missionControl.ops.reviewQueue", "Review Queue")}</h3>
                 <div className="mc-ops-list">
                   {commandCenterReviewQueue.length === 0 ? (
-                    <div className="mc-feed-empty">No human review gates queued.</div>
+                    <div className="mc-feed-empty">
+                      {t(
+                        "missionControl.ops.noReviewGates",
+                        "No human review gates queued.",
+                      )}
+                    </div>
                   ) : (
                     commandCenterReviewQueue.map((item) => (
                       <button
@@ -1681,9 +2073,15 @@ export function MissionControlPanel({
                           <div className="mc-ops-row-subtitle">
                             {`${item.reviewReason} · ${item.outputType || item.sourceType}`}
                           </div>
-                          {item.summary && <div className="mc-ops-row-subtitle">{item.summary}</div>}
+                          {item.summary && (
+                            <div className="mc-ops-row-subtitle">
+                              {item.summary}
+                            </div>
+                          )}
                         </div>
-                        <span className="mc-ops-pill">{formatRelativeTime(item.createdAt)}</span>
+                        <span className="mc-ops-pill">
+                          {formatRelativeTime(item.createdAt)}
+                        </span>
                       </button>
                     ))
                   )}
@@ -1691,10 +2089,15 @@ export function MissionControlPanel({
               </div>
 
               <div className="mc-ops-section">
-                <h3>Execution Map</h3>
+                <h3>{t("missionControl.ops.executionMap", "Execution Map")}</h3>
                 <div className="mc-ops-list">
                   {commandCenterExecutionMap.length === 0 ? (
-                    <div className="mc-feed-empty">No execution lineage yet.</div>
+                    <div className="mc-feed-empty">
+                      {t(
+                        "missionControl.ops.noLineage",
+                        "No execution lineage yet.",
+                      )}
+                    </div>
                   ) : (
                     commandCenterExecutionMap.slice(0, 12).map((entry) => (
                       <button
@@ -1704,20 +2107,34 @@ export function MissionControlPanel({
                         onClick={() => setSelectedIssueId(entry.issueId)}
                       >
                         <div>
-                          <div className="mc-ops-row-title">{entry.issueTitle}</div>
+                          <div className="mc-ops-row-title">
+                            {entry.issueTitle}
+                          </div>
                           <div className="mc-ops-row-subtitle">
                             {[
                               entry.goalTitle,
                               entry.projectName,
                               entry.outputType,
-                              entry.taskStatus ? `task:${entry.taskStatus}` : undefined,
+                              entry.taskStatus
+                                ? t(
+                                    "missionControl.ops.taskStatusMeta",
+                                    "task:{status}",
+                                    {
+                                      status: entry.taskStatus,
+                                    },
+                                  )
+                                : undefined,
                             ]
                               .filter(Boolean)
                               .join(" · ")}
                           </div>
                         </div>
-                        <span className={`mc-ops-pill status-${entry.issueStatus}`}>
-                          {entry.stale ? "stale" : entry.issueStatus}
+                        <span
+                          className={`mc-ops-pill status-${entry.issueStatus}`}
+                        >
+                          {entry.stale
+                            ? t("missionControl.ops.stale", "stale")
+                            : entry.issueStatus}
                         </span>
                       </button>
                     ))
@@ -1726,28 +2143,66 @@ export function MissionControlPanel({
               </div>
 
               <div className="mc-ops-section">
-                <h3>Planner Runs</h3>
+                <h3>{t("missionControl.ops.plannerRuns", "Planner Runs")}</h3>
                 {selectedPlannerRun ? (
                   <div className="mc-ops-run-card">
                     <div className="mc-ops-row">
                       <div>
-                        <div className="mc-ops-row-title">{selectedPlannerRun.summary || "Planner cycle"}</div>
+                        <div className="mc-ops-row-title">
+                          {selectedPlannerRun.summary ||
+                            t(
+                              "missionControl.ops.plannerCycle",
+                              "Planner cycle",
+                            )}
+                        </div>
                         <div className="mc-ops-row-subtitle">
-                          {selectedPlannerRun.trigger} · {formatRelativeTime(selectedPlannerRun.createdAt)}
+                          {selectedPlannerRun.trigger} ·{" "}
+                          {formatRelativeTime(selectedPlannerRun.createdAt)}
                         </div>
                       </div>
-                      <span className={`mc-ops-pill status-${selectedPlannerRun.status}`}>
+                      <span
+                        className={`mc-ops-pill status-${selectedPlannerRun.status}`}
+                      >
                         {selectedPlannerRun.status}
                       </span>
                     </div>
                     <div className="mc-ops-run-metrics">
-                      <span>{selectedPlannerRun.createdIssueCount} created</span>
-                      <span>{selectedPlannerRun.updatedIssueCount} updated</span>
-                      <span>{selectedPlannerRun.dispatchedTaskCount} dispatched</span>
+                      <span>
+                        {t(
+                          "missionControl.ops.createdCount",
+                          "{count} created",
+                          {
+                            count: selectedPlannerRun.createdIssueCount,
+                          },
+                        )}
+                      </span>
+                      <span>
+                        {t(
+                          "missionControl.ops.updatedCount",
+                          "{count} updated",
+                          {
+                            count: selectedPlannerRun.updatedIssueCount,
+                          },
+                        )}
+                      </span>
+                      <span>
+                        {t(
+                          "missionControl.ops.dispatchedCount",
+                          "{count} dispatched",
+                          {
+                            count: selectedPlannerRun.dispatchedTaskCount,
+                          },
+                        )}
+                      </span>
                     </div>
                     <div className="mc-ops-list">
                       {plannerRunIssues.length === 0 ? (
-                        <div className="mc-feed-empty">No issue details for this planner cycle.</div>
+                        <div className="mc-feed-empty">
+                          {t(
+                            "missionControl.ops.noIssueDetails",
+                            "No issue details for this planner cycle.",
+                          )}
+                        </div>
                       ) : (
                         plannerRunIssues.map((issue) => (
                           <button
@@ -1757,45 +2212,82 @@ export function MissionControlPanel({
                             onClick={() => setSelectedIssueId(issue.id)}
                           >
                             <div>
-                              <div className="mc-ops-row-title">{issue.title}</div>
+                              <div className="mc-ops-row-title">
+                                {issue.title}
+                              </div>
                               <div className="mc-ops-row-subtitle">
-                                {issue.projectId ? "Project-linked" : "Goal-linked"}
+                                {issue.projectId
+                                  ? t(
+                                      "missionControl.ops.projectLinked",
+                                      "Project-linked",
+                                    )
+                                  : t(
+                                      "missionControl.ops.goalLinked",
+                                      "Goal-linked",
+                                    )}
                               </div>
                             </div>
-                            <span className={`mc-ops-pill status-${issue.status}`}>{issue.status}</span>
+                            <span
+                              className={`mc-ops-pill status-${issue.status}`}
+                            >
+                              {issue.status}
+                            </span>
                           </button>
                         ))
                       )}
                     </div>
                   </div>
                 ) : (
-                  <div className="mc-feed-empty">Select a planner run above to inspect it.</div>
+                  <div className="mc-feed-empty">
+                    {t(
+                      "missionControl.ops.selectPlannerRun",
+                      "Select a planner run above to inspect it.",
+                    )}
+                  </div>
                 )}
               </div>
 
               <div className="mc-ops-section">
-                <h3>Selected issue</h3>
+                <h3>
+                  {t("missionControl.ops.selectedIssue", "Selected issue")}
+                </h3>
                 {selectedIssue ? (
                   <div className="mc-ops-run-card">
                     <div className="mc-ops-row">
                       <div>
-                        <div className="mc-ops-row-title">{selectedIssue.title}</div>
+                        <div className="mc-ops-row-title">
+                          {selectedIssue.title}
+                        </div>
                         <div className="mc-ops-row-subtitle">
                           {(selectedIssue.goalId
-                            ? goals.find((goal) => goal.id === selectedIssue.goalId)?.title
-                            : "No goal") || "No goal"}
+                            ? goals.find(
+                                (goal) => goal.id === selectedIssue.goalId,
+                              )?.title
+                            : t("missionControl.ops.noGoal", "No goal")) ||
+                            t("missionControl.ops.noGoal", "No goal")}
                           {" · "}
                           {(selectedIssue.projectId
-                            ? projects.find((project) => project.id === selectedIssue.projectId)?.name
-                            : "No project") || "No project"}
+                            ? projects.find(
+                                (project) =>
+                                  project.id === selectedIssue.projectId,
+                              )?.name
+                            : t(
+                                "missionControl.ops.noProject",
+                                "No project",
+                              )) ||
+                            t("missionControl.ops.noProject", "No project")}
                         </div>
                       </div>
-                      <span className={`mc-ops-pill status-${selectedIssue.status}`}>
+                      <span
+                        className={`mc-ops-pill status-${selectedIssue.status}`}
+                      >
                         {selectedIssue.status}
                       </span>
                     </div>
                     {selectedIssue.description && (
-                      <div className="mc-ops-company-description">{selectedIssue.description}</div>
+                      <div className="mc-ops-company-description">
+                        {selectedIssue.description}
+                      </div>
                     )}
                     <div className="mc-ops-actions">
                       <button
@@ -1803,43 +2295,66 @@ export function MissionControlPanel({
                         disabled={!selectedIssue.taskId}
                         onClick={async () => {
                           if (!selectedIssue.taskId) return;
-                          const task = await window.electronAPI.getTask(selectedIssue.taskId);
+                          const task = await window.electronAPI.getTask(
+                            selectedIssue.taskId,
+                          );
                           if (!task) return;
                           setSelectedTaskId(task.id);
                           setRightTab("task");
                         }}
                       >
-                        Open linked task
+                        {t(
+                          "missionControl.ops.openLinkedTask",
+                          "Open linked task",
+                        )}
                       </button>
                     </div>
                     <div className="mc-ops-split">
                       <div className="mc-ops-subsection">
-                        <h4>Comments</h4>
+                        <h4>{t("missionControl.ops.comments", "Comments")}</h4>
                         <div className="mc-ops-list">
                           {issueComments.length === 0 ? (
-                            <div className="mc-feed-empty">No issue comments yet.</div>
+                            <div className="mc-feed-empty">
+                              {t(
+                                "missionControl.ops.noComments",
+                                "No issue comments yet.",
+                              )}
+                            </div>
                           ) : (
                             issueComments.slice(-6).map((comment) => (
                               <div key={comment.id} className="mc-ops-row">
                                 <div>
                                   <div className="mc-ops-row-title">
                                     {comment.authorType === "agent"
-                                      ? getAgent(comment.authorAgentRoleId)?.displayName || "Agent"
+                                      ? getAgent(comment.authorAgentRoleId)
+                                          ?.displayName ||
+                                        t("missionControl.ops.agent", "Agent")
                                       : comment.authorType}
                                   </div>
-                                  <div className="mc-ops-row-subtitle">{comment.body}</div>
+                                  <div className="mc-ops-row-subtitle">
+                                    {comment.body}
+                                  </div>
                                 </div>
-                                <span className="mc-ops-pill">{formatRelativeTime(comment.createdAt)}</span>
+                                <span className="mc-ops-pill">
+                                  {formatRelativeTime(comment.createdAt)}
+                                </span>
                               </div>
                             ))
                           )}
                         </div>
                       </div>
                       <div className="mc-ops-subsection">
-                        <h4>Recent runs</h4>
+                        <h4>
+                          {t("missionControl.ops.recentRuns", "Recent runs")}
+                        </h4>
                         <div className="mc-ops-list">
                           {issueRuns.length === 0 ? (
-                            <div className="mc-feed-empty">No runs for this issue yet.</div>
+                            <div className="mc-feed-empty">
+                              {t(
+                                "missionControl.ops.noIssueRuns",
+                                "No runs for this issue yet.",
+                              )}
+                            </div>
                           ) : (
                             issueRuns.slice(0, 6).map((run) => (
                               <button
@@ -1850,14 +2365,27 @@ export function MissionControlPanel({
                               >
                                 <div>
                                   <div className="mc-ops-row-title">
-                                    {run.summary || `Run ${run.id.slice(0, 8)}`}
+                                    {run.summary ||
+                                      t(
+                                        "missionControl.ops.runId",
+                                        "Run {id}",
+                                        {
+                                          id: run.id.slice(0, 8),
+                                        },
+                                      )}
                                   </div>
                                   <div className="mc-ops-row-subtitle">
                                     {formatRelativeTime(run.updatedAt)}
-                                    {run.taskId ? " · task linked" : ""}
+                                    {run.taskId
+                                      ? ` · ${t("missionControl.ops.taskLinked", "task linked")}`
+                                      : ""}
                                   </div>
                                 </div>
-                                <span className={`mc-ops-pill status-${run.status}`}>{run.status}</span>
+                                <span
+                                  className={`mc-ops-pill status-${run.status}`}
+                                >
+                                  {run.status}
+                                </span>
                               </button>
                             ))
                           )}
@@ -1866,50 +2394,94 @@ export function MissionControlPanel({
                     </div>
                   </div>
                 ) : (
-                  <div className="mc-feed-empty">Select an issue to inspect it.</div>
+                  <div className="mc-feed-empty">
+                    {t(
+                      "missionControl.ops.selectIssue",
+                      "Select an issue to inspect it.",
+                    )}
+                  </div>
                 )}
               </div>
 
               <div className="mc-ops-section">
-                <h3>Selected run</h3>
+                <h3>{t("missionControl.ops.selectedRun", "Selected run")}</h3>
                 {selectedIssueRun ? (
                   <div className="mc-ops-run-card">
                     <div className="mc-ops-row">
                       <div>
                         <div className="mc-ops-row-title">
-                          {selectedIssueRun.summary || `Run ${selectedIssueRun.id.slice(0, 8)}`}
+                          {selectedIssueRun.summary ||
+                            t("missionControl.ops.runId", "Run {id}", {
+                              id: selectedIssueRun.id.slice(0, 8),
+                            })}
                         </div>
                         <div className="mc-ops-row-subtitle">
-                          {selectedIssueRun.status} · {formatRelativeTime(selectedIssueRun.createdAt)}
+                          {selectedIssueRun.status} ·{" "}
+                          {formatRelativeTime(selectedIssueRun.createdAt)}
                         </div>
                       </div>
-                      <span className={`mc-ops-pill status-${selectedIssueRun.status}`}>
+                      <span
+                        className={`mc-ops-pill status-${selectedIssueRun.status}`}
+                      >
                         {selectedIssueRun.status}
                       </span>
                     </div>
                     <div className="mc-ops-run-metrics">
-                      <span>{selectedIssueRun.taskId ? "Task linked" : "No task linked"}</span>
-                      <span>{selectedIssueRun.agentRoleId ? "Agent assigned" : "Unassigned"}</span>
-                      <span>{selectedIssueRun.error ? "Has error" : "No error"}</span>
+                      <span>
+                        {selectedIssueRun.taskId
+                          ? t(
+                              "missionControl.ops.taskLinkedTitle",
+                              "Task linked",
+                            )
+                          : t(
+                              "missionControl.ops.noTaskLinked",
+                              "No task linked",
+                            )}
+                      </span>
+                      <span>
+                        {selectedIssueRun.agentRoleId
+                          ? t(
+                              "missionControl.ops.agentAssigned",
+                              "Agent assigned",
+                            )
+                          : t("missionControl.ops.unassigned", "Unassigned")}
+                      </span>
+                      <span>
+                        {selectedIssueRun.error
+                          ? t("missionControl.ops.hasError", "Has error")
+                          : t("missionControl.ops.noError", "No error")}
+                      </span>
                     </div>
                     <div className="mc-ops-subsection">
-                      <h4>Timeline</h4>
+                      <h4>{t("missionControl.ops.timeline", "Timeline")}</h4>
                       <div className="mc-ops-list">
                         {runEvents.length === 0 ? (
-                          <div className="mc-feed-empty">No run events captured.</div>
+                          <div className="mc-feed-empty">
+                            {t(
+                              "missionControl.ops.noRunEvents",
+                              "No run events captured.",
+                            )}
+                          </div>
                         ) : (
                           runEvents.slice(-8).map((event) => (
                             <div key={event.id} className="mc-ops-row">
                               <div>
-                                <div className="mc-ops-row-title">{event.type}</div>
+                                <div className="mc-ops-row-title">
+                                  {event.type}
+                                </div>
                                 <div className="mc-ops-row-subtitle">
                                   {Object.entries(event.payload || {})
                                     .slice(0, 2)
-                                    .map(([key, value]) => `${key}: ${String(value)}`)
+                                    .map(
+                                      ([key, value]) =>
+                                        `${key}: ${String(value)}`,
+                                    )
                                     .join(" · ")}
                                 </div>
                               </div>
-                              <span className="mc-ops-pill">{formatRelativeTime(event.timestamp)}</span>
+                              <span className="mc-ops-pill">
+                                {formatRelativeTime(event.timestamp)}
+                              </span>
                             </div>
                           ))
                         )}
@@ -1918,14 +2490,26 @@ export function MissionControlPanel({
                     {selectedIssueRun.error && (
                       <div className="mc-ops-row">
                         <div>
-                          <div className="mc-ops-row-title">Latest error</div>
-                          <div className="mc-ops-row-subtitle">{selectedIssueRun.error}</div>
+                          <div className="mc-ops-row-title">
+                            {t(
+                              "missionControl.ops.latestError",
+                              "Latest error",
+                            )}
+                          </div>
+                          <div className="mc-ops-row-subtitle">
+                            {selectedIssueRun.error}
+                          </div>
                         </div>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="mc-feed-empty">Select an issue run to inspect it.</div>
+                  <div className="mc-feed-empty">
+                    {t(
+                      "missionControl.ops.selectIssueRun",
+                      "Select an issue run to inspect it.",
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -1936,7 +2520,9 @@ export function MissionControlPanel({
                   <div className="mc-task-detail-header">
                     <div className="mc-task-detail-title">
                       <h3>{selectedTask.title}</h3>
-                      <span className={`mc-task-detail-status status-${selectedTask.status}`}>
+                      <span
+                        className={`mc-task-detail-status status-${selectedTask.status}`}
+                      >
                         {selectedTask.status.replace("_", " ")}
                       </span>
                     </div>
@@ -1952,9 +2538,16 @@ export function MissionControlPanel({
                       {agentContext.getUiCopy("mcTaskAssigneeLabel")}
                       <select
                         value={selectedTask.assignedAgentRoleId || ""}
-                        onChange={(e) => handleAssignTask(selectedTask.id, e.target.value || null)}
+                        onChange={(e) =>
+                          handleAssignTask(
+                            selectedTask.id,
+                            e.target.value || null,
+                          )
+                        }
                       >
-                        <option value="">{agentContext.getUiCopy("mcTaskUnassigned")}</option>
+                        <option value="">
+                          {agentContext.getUiCopy("mcTaskUnassigned")}
+                        </option>
                         {agents
                           .filter((a) => a.isActive)
                           .map((agent) => (
@@ -1968,7 +2561,9 @@ export function MissionControlPanel({
                       {agentContext.getUiCopy("mcTaskStageLabel")}
                       <select
                         value={getMissionColumnForTask(selectedTask)}
-                        onChange={(e) => handleMoveTask(selectedTask.id, e.target.value)}
+                        onChange={(e) =>
+                          handleMoveTask(selectedTask.id, e.target.value)
+                        }
                       >
                         {BOARD_COLUMNS.map((column) => (
                           <option key={column.id} value={column.id}>
@@ -1980,9 +2575,13 @@ export function MissionControlPanel({
                   </div>
 
                   <div className="mc-task-detail-section mc-task-detail-section-brief">
-                    <h4 className="mc-task-detail-brief-title">{agentContext.getUiCopy("mcTaskBriefTitle")}</h4>
+                    <h4 className="mc-task-detail-brief-title">
+                      {agentContext.getUiCopy("mcTaskBriefTitle")}
+                    </h4>
                     <div className="mc-task-detail-brief-scroll">
-                      <p className="mc-task-detail-brief">{selectedTask.prompt}</p>
+                      <p className="mc-task-detail-brief">
+                        {selectedTask.prompt}
+                      </p>
                     </div>
                   </div>
 
@@ -1999,7 +2598,9 @@ export function MissionControlPanel({
                     )}
                     <div className="mc-comment-box">
                       <textarea
-                        placeholder={agentContext.getUiCopy("mcTaskUpdatePlaceholder")}
+                        placeholder={agentContext.getUiCopy(
+                          "mcTaskUpdatePlaceholder",
+                        )}
                         value={commentText}
                         onChange={(e) => setCommentText(e.target.value)}
                         rows={3}
@@ -2007,7 +2608,9 @@ export function MissionControlPanel({
                       <button
                         className="mc-comment-submit"
                         onClick={handlePostComment}
-                        disabled={postingComment || commentText.trim().length === 0}
+                        disabled={
+                          postingComment || commentText.trim().length === 0
+                        }
                       >
                         {postingComment
                           ? agentContext.getUiCopy("mcTaskPosting")
@@ -2023,15 +2626,22 @@ export function MissionControlPanel({
                         <MentionInput
                           workspaceId={selectedWorkspaceId}
                           taskId={selectedTask.id}
-                          placeholder={agentContext.getUiCopy("mcTaskMentionPlaceholder")}
+                          placeholder={agentContext.getUiCopy(
+                            "mcTaskMentionPlaceholder",
+                          )}
                         />
-                        <MentionList workspaceId={selectedWorkspaceId} taskId={selectedTask.id} />
+                        <MentionList
+                          workspaceId={selectedWorkspaceId}
+                          taskId={selectedTask.id}
+                        />
                       </>
                     )}
                   </div>
                 </>
               ) : (
-                <div className="mc-task-empty">{agentContext.getUiCopy("mcTaskEmpty")}</div>
+                <div className="mc-task-empty">
+                  {agentContext.getUiCopy("mcTaskEmpty")}
+                </div>
               )}
             </div>
           )}
@@ -2062,9 +2672,18 @@ export function MissionControlPanel({
                 setTeamsOpen(false);
               }}
             />
-            <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
-              <button className="mc-refresh-btn" onClick={() => setTeamsOpen(false)}>
-                Close
+            <div
+              style={{
+                marginTop: 10,
+                display: "flex",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                className="mc-refresh-btn"
+                onClick={() => setTeamsOpen(false)}
+              >
+                {t("common.close", "Close")}
               </button>
             </div>
           </div>
@@ -2082,7 +2701,6 @@ export function MissionControlPanel({
           </div>
         </div>
       )}
-
 
       <style>{styles}</style>
     </div>

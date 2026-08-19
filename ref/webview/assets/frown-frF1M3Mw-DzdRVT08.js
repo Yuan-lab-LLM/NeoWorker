@@ -1,0 +1,3 @@
+import { n as e, t } from "./frown-frF1M3Mw-DRRXSPF5.js";
+e();
+export { t as default };

@@ -1,7 +1,7 @@
 /**
  * Appearance Settings Manager
  *
- * Manages user appearance preferences (theme and accent color).
+ * Manages user appearance preferences.
  * Settings are stored encrypted in the database using SecureSettingsRepository.
  */
 
@@ -9,32 +9,92 @@ import * as fs from "fs";
 import * as path from "path";
 import {
   AppearanceSettings,
+  DEFAULT_ASSISTANT_NAME,
   ThemeMode,
-  VisualTheme,
-  AccentColor,
-  UiDensity,
   TimelineVerbosity,
 } from "../../shared/types";
 import { SecureSettingsRepository } from "../database/SecureSettingsRepository";
 import { getUserDataDir } from "../utils/user-data-dir";
 
 const LEGACY_SETTINGS_FILE = "appearance-settings.json";
-const DEV_LOG_SETTINGS_FILE = path.join(".cowork", "dev-log-settings.json");
+const DEV_LOG_SETTINGS_FILE = path.join(".neoworker", "dev-log-settings.json");
 
 const DEFAULT_SETTINGS: AppearanceSettings = {
   themeMode: "system",
-  visualTheme: "warm",
-  accentColor: "cyan",
-  transparencyEffectsEnabled: true,
-  uiDensity: "focused",
-  timelineVerbosity: "summary",
+  language: "zh-CN",
+  timelineVerbosity: "verbose",
+  timelineVerbosityConfigured: false,
   devRunLoggingEnabled: false,
   homeResearchVaultEnabled: false,
   homeNextActionsEnabled: false,
   disclaimerAccepted: false,
   onboardingCompleted: false,
   onboardingCompletedAt: undefined,
+  assistantName: DEFAULT_ASSISTANT_NAME,
 };
+
+type StoredAppearanceSettings = Partial<AppearanceSettings> & {
+  visualTheme?: unknown;
+  accentColor?: unknown;
+  uiDensity?: unknown;
+};
+
+const LEGACY_PRODUCT_ASSISTANT_NAMES = new Set([
+  "cowork os",
+  "cowork-os",
+  "coworkos",
+  "cowork-oss",
+  "crewwork",
+  "quiverready",
+]);
+
+function normalizeAssistantName(value: unknown): string {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return DEFAULT_ASSISTANT_NAME;
+  }
+  const trimmed = value.trim();
+  return LEGACY_PRODUCT_ASSISTANT_NAMES.has(trimmed.toLowerCase())
+    ? DEFAULT_ASSISTANT_NAME
+    : trimmed;
+}
+
+function sanitizeAppearanceSettings(
+  input: StoredAppearanceSettings,
+): AppearanceSettings {
+  return {
+    themeMode: isValidThemeMode(input.themeMode)
+      ? input.themeMode
+      : DEFAULT_SETTINGS.themeMode,
+    language:
+      typeof input.language === "string" && input.language.trim().length > 0
+        ? input.language
+        : DEFAULT_SETTINGS.language,
+    timelineVerbosity: isValidTimelineVerbosity(input.timelineVerbosity)
+      ? input.timelineVerbosity
+      : DEFAULT_SETTINGS.timelineVerbosity,
+    timelineVerbosityConfigured:
+      input.timelineVerbosityConfigured === true,
+    devRunLoggingEnabled:
+      typeof input.devRunLoggingEnabled === "boolean"
+        ? input.devRunLoggingEnabled
+        : DEFAULT_SETTINGS.devRunLoggingEnabled,
+    homeResearchVaultEnabled:
+      typeof input.homeResearchVaultEnabled === "boolean"
+        ? input.homeResearchVaultEnabled
+        : DEFAULT_SETTINGS.homeResearchVaultEnabled,
+    homeNextActionsEnabled:
+      typeof input.homeNextActionsEnabled === "boolean"
+        ? input.homeNextActionsEnabled
+        : DEFAULT_SETTINGS.homeNextActionsEnabled,
+    disclaimerAccepted:
+      input.disclaimerAccepted ?? DEFAULT_SETTINGS.disclaimerAccepted,
+    onboardingCompleted:
+      input.onboardingCompleted ?? DEFAULT_SETTINGS.onboardingCompleted,
+    onboardingCompletedAt:
+      input.onboardingCompletedAt ?? DEFAULT_SETTINGS.onboardingCompletedAt,
+    assistantName: normalizeAssistantName(input.assistantName),
+  };
+}
 
 export class AppearanceManager {
   private static legacySettingsPath: string;
@@ -95,20 +155,30 @@ export class AppearanceManager {
         // Read legacy settings
         const data = fs.readFileSync(this.legacySettingsPath, "utf-8");
         const parsed = JSON.parse(data);
-        const legacySettings = { ...DEFAULT_SETTINGS, ...parsed };
+        const legacySettings = sanitizeAppearanceSettings({
+          ...DEFAULT_SETTINGS,
+          ...parsed,
+        });
 
         // Save to encrypted database
         repository.save("appearance", legacySettings);
-        console.log("[AppearanceManager] Settings migrated to encrypted database");
+        console.log(
+          "[AppearanceManager] Settings migrated to encrypted database",
+        );
 
         // Migration successful - delete backup and original
         fs.unlinkSync(backupPath);
         fs.unlinkSync(this.legacySettingsPath);
-        console.log("[AppearanceManager] Migration complete, cleaned up legacy files");
+        console.log(
+          "[AppearanceManager] Migration complete, cleaned up legacy files",
+        );
 
         this.migrationCompleted = true;
       } catch (migrationError) {
-        console.error("[AppearanceManager] Migration failed, backup preserved at:", backupPath);
+        console.error(
+          "[AppearanceManager] Migration failed, backup preserved at:",
+          backupPath,
+        );
         throw migrationError;
       }
     } catch (error) {
@@ -127,69 +197,66 @@ export class AppearanceManager {
 
     let settings: AppearanceSettings = { ...DEFAULT_SETTINGS };
     let needsWrite = false;
+    let canPersistAutomaticRepairs = true;
 
     try {
       // Try to load from encrypted database
       if (SecureSettingsRepository.isInitialized()) {
         const repository = SecureSettingsRepository.getInstance();
-        const stored = repository.load<AppearanceSettings>("appearance");
+        const loadResult = repository.loadWithStatus<StoredAppearanceSettings>(
+          "appearance",
+        );
+        const stored = loadResult.data;
+        canPersistAutomaticRepairs =
+          loadResult.status === "success" || loadResult.status === "not_found";
+        if (!canPersistAutomaticRepairs) {
+          console.warn(
+            `[AppearanceManager] Appearance settings are temporarily unreadable (${loadResult.status}); using in-memory defaults without overwriting the stored profile`,
+          );
+        }
         if (stored) {
-          settings = { ...DEFAULT_SETTINGS, ...stored };
-          const recoveredLifecycleSettings = this.recoverLegacyLifecycleSettings(settings);
+          settings = sanitizeAppearanceSettings({
+            ...DEFAULT_SETTINGS,
+            ...stored,
+          });
+          // Detailed execution history used to be the product behavior. Older
+          // profiles received "summary" as an implicit default, which made
+          // step groups and tool results appear to vanish. Migrate only users
+          // who have not made an explicit verbosity choice.
+          if (stored.timelineVerbosityConfigured !== true) {
+            settings.timelineVerbosity = "verbose";
+            settings.timelineVerbosityConfigured = false;
+            needsWrite = true;
+          }
+          const recoveredLifecycleSettings =
+            this.recoverLegacyLifecycleSettings(settings);
           if (recoveredLifecycleSettings) {
             settings = recoveredLifecycleSettings;
             needsWrite = true;
           }
           // Persist defaults for newly added fields when missing/invalid.
           if (
-            typeof stored.transparencyEffectsEnabled !== "boolean" ||
-            !isValidUiDensity(stored.uiDensity) ||
+            "transparencyEffectsEnabled" in stored ||
             !isValidTimelineVerbosity(stored.timelineVerbosity) ||
+            typeof stored.timelineVerbosityConfigured !== "boolean" ||
             typeof stored.devRunLoggingEnabled !== "boolean" ||
             typeof stored.homeResearchVaultEnabled !== "boolean" ||
-            typeof stored.homeNextActionsEnabled !== "boolean"
+            typeof stored.homeNextActionsEnabled !== "boolean" ||
+            typeof stored.language !== "string" ||
+            stored.language.trim().length === 0 ||
+            stored.assistantName !== settings.assistantName ||
+            "visualTheme" in stored ||
+            "accentColor" in stored ||
+            "uiDensity" in stored
           ) {
             needsWrite = true;
           }
         }
       }
 
-      // Validate values
-      if (!isValidThemeMode(settings.themeMode)) {
-        settings.themeMode = DEFAULT_SETTINGS.themeMode;
-      }
-      if (!isValidVisualTheme(settings.visualTheme)) {
-        settings.visualTheme = DEFAULT_SETTINGS.visualTheme;
-      }
-      // Normalize deprecated 'oblivion' theme to 'warm'
-      if (settings.visualTheme === "oblivion") {
-        settings.visualTheme = "warm";
-      }
-      if (!isValidAccentColor(settings.accentColor)) {
-        settings.accentColor = DEFAULT_SETTINGS.accentColor;
-      }
-      if (typeof settings.transparencyEffectsEnabled !== "boolean") {
-        settings.transparencyEffectsEnabled = DEFAULT_SETTINGS.transparencyEffectsEnabled;
-        needsWrite = true;
-      }
-      if (!isValidUiDensity(settings.uiDensity)) {
-        settings.uiDensity = DEFAULT_SETTINGS.uiDensity;
-        needsWrite = true;
-      }
-      if (!isValidTimelineVerbosity(settings.timelineVerbosity)) {
-        settings.timelineVerbosity = DEFAULT_SETTINGS.timelineVerbosity;
-        needsWrite = true;
-      }
-      if (typeof settings.devRunLoggingEnabled !== "boolean") {
-        settings.devRunLoggingEnabled = DEFAULT_SETTINGS.devRunLoggingEnabled;
-        needsWrite = true;
-      }
-      if (typeof settings.homeResearchVaultEnabled !== "boolean") {
-        settings.homeResearchVaultEnabled = DEFAULT_SETTINGS.homeResearchVaultEnabled;
-        needsWrite = true;
-      }
-      if (typeof settings.homeNextActionsEnabled !== "boolean") {
-        settings.homeNextActionsEnabled = DEFAULT_SETTINGS.homeNextActionsEnabled;
+      const sanitizedSettings = sanitizeAppearanceSettings(settings);
+      if (JSON.stringify(sanitizedSettings) !== JSON.stringify(settings)) {
+        settings = sanitizedSettings;
         needsWrite = true;
       }
     } catch (error) {
@@ -201,26 +268,36 @@ export class AppearanceManager {
     syncDevLogSettingsFile(settings.devRunLoggingEnabled === true);
 
     // Persist defaults for newly added fields so they survive future saves
-    if (needsWrite && SecureSettingsRepository.isInitialized()) {
+    if (
+      needsWrite &&
+      canPersistAutomaticRepairs &&
+      SecureSettingsRepository.isInitialized()
+    ) {
       try {
         const repository = SecureSettingsRepository.getInstance();
-        repository.save("appearance", settings);
+        repository.save("appearance", sanitizeAppearanceSettings(settings));
         console.log(
           "[AppearanceManager] Persisted default appearance settings fields",
           JSON.stringify({
-            uiDensity: settings.uiDensity,
             timelineVerbosity: settings.timelineVerbosity,
             devRunLoggingEnabled: settings.devRunLoggingEnabled,
             homeResearchVaultEnabled: settings.homeResearchVaultEnabled,
             homeNextActionsEnabled: settings.homeNextActionsEnabled,
+            language: settings.language,
           }),
         );
-      } catch  {
+      } catch {
         // Non-fatal: cache is correct, DB will catch up on next save
       }
     }
 
-    console.debug("[AppearanceManager] Loaded settings → uiDensity:", settings.uiDensity);
+    console.debug(
+      "[AppearanceManager] Loaded settings",
+      JSON.stringify({
+        themeMode: settings.themeMode,
+        timelineVerbosity: settings.timelineVerbosity,
+      }),
+    );
     return settings;
   }
 
@@ -232,13 +309,16 @@ export class AppearanceManager {
     }
 
     try {
-      const parsed = JSON.parse(fs.readFileSync(this.legacySettingsPath, "utf-8")) as Partial<
-        AppearanceSettings
-      >;
+      const parsed = JSON.parse(
+        fs.readFileSync(this.legacySettingsPath, "utf-8"),
+      ) as Partial<AppearanceSettings>;
       const nextSettings = { ...settings };
       let recovered = false;
 
-      if (parsed.onboardingCompleted === true && settings.onboardingCompleted !== true) {
+      if (
+        parsed.onboardingCompleted === true &&
+        settings.onboardingCompleted !== true
+      ) {
         nextSettings.onboardingCompleted = true;
         recovered = true;
       }
@@ -252,18 +332,26 @@ export class AppearanceManager {
         recovered = true;
       }
 
-      if (parsed.disclaimerAccepted === true && settings.disclaimerAccepted !== true) {
+      if (
+        parsed.disclaimerAccepted === true &&
+        settings.disclaimerAccepted !== true
+      ) {
         nextSettings.disclaimerAccepted = true;
         recovered = true;
       }
 
       if (recovered) {
-        console.log("[AppearanceManager] Recovered onboarding lifecycle state from legacy file");
+        console.log(
+          "[AppearanceManager] Recovered onboarding lifecycle state from legacy file",
+        );
       }
 
       return recovered ? nextSettings : null;
     } catch (error) {
-      console.warn("[AppearanceManager] Failed to recover legacy onboarding state:", error);
+      console.warn(
+        "[AppearanceManager] Failed to recover legacy onboarding state:",
+        error,
+      );
       return null;
     }
   }
@@ -280,38 +368,26 @@ export class AppearanceManager {
       // Load existing settings to preserve fields not being updated
       const existingSettings = this.loadSettings();
 
-      // Validate and merge with existing settings
-      // Normalize deprecated 'oblivion' to 'warm' before saving
-      let normalizedVisualTheme = isValidVisualTheme(settings.visualTheme)
-        ? settings.visualTheme
-        : existingSettings.visualTheme;
-      if (normalizedVisualTheme === "oblivion") {
-        normalizedVisualTheme = "warm";
-      }
       const validatedSettings: AppearanceSettings = {
         themeMode: isValidThemeMode(settings.themeMode)
           ? settings.themeMode
           : existingSettings.themeMode,
-        visualTheme: normalizedVisualTheme,
-        accentColor: isValidAccentColor(settings.accentColor)
-            ? settings.accentColor
-            : existingSettings.accentColor,
-        transparencyEffectsEnabled:
-          typeof settings.transparencyEffectsEnabled === "boolean"
-            ? settings.transparencyEffectsEnabled
-            : existingSettings.transparencyEffectsEnabled,
         language: settings.language ?? existingSettings.language,
-        disclaimerAccepted: settings.disclaimerAccepted ?? existingSettings.disclaimerAccepted,
-        onboardingCompleted: settings.onboardingCompleted ?? existingSettings.onboardingCompleted,
+        disclaimerAccepted:
+          settings.disclaimerAccepted ?? existingSettings.disclaimerAccepted,
+        onboardingCompleted:
+          settings.onboardingCompleted ?? existingSettings.onboardingCompleted,
         onboardingCompletedAt:
-          settings.onboardingCompletedAt ?? existingSettings.onboardingCompletedAt,
+          settings.onboardingCompletedAt ??
+          existingSettings.onboardingCompletedAt,
         assistantName: settings.assistantName ?? existingSettings.assistantName,
-        uiDensity: isValidUiDensity(settings.uiDensity)
-          ? settings.uiDensity
-          : existingSettings.uiDensity,
         timelineVerbosity: isValidTimelineVerbosity(settings.timelineVerbosity)
           ? settings.timelineVerbosity
           : existingSettings.timelineVerbosity,
+        timelineVerbosityConfigured:
+          typeof settings.timelineVerbosityConfigured === "boolean"
+            ? settings.timelineVerbosityConfigured
+            : existingSettings.timelineVerbosityConfigured,
         devRunLoggingEnabled:
           typeof settings.devRunLoggingEnabled === "boolean"
             ? settings.devRunLoggingEnabled
@@ -368,29 +444,6 @@ function isValidThemeMode(value: unknown): value is ThemeMode {
   return value === "light" || value === "dark" || value === "system";
 }
 
-function isValidVisualTheme(value: unknown): value is VisualTheme {
-  return value === "terminal" || value === "warm" || value === "oblivion";
-}
-
-function isValidAccentColor(value: unknown): value is AccentColor {
-  const validColors: AccentColor[] = [
-    "cyan",
-    "blue",
-    "purple",
-    "pink",
-    "rose",
-    "orange",
-    "green",
-    "teal",
-    "coral",
-  ];
-  return validColors.includes(value as AccentColor);
-}
-
-function isValidUiDensity(value: unknown): value is UiDensity {
-  return value === "focused" || value === "full";
-}
-
 function isValidTimelineVerbosity(value: unknown): value is TimelineVerbosity {
   return value === "summary" || value === "verbose";
 }
@@ -415,6 +468,9 @@ function syncDevLogSettingsFile(captureEnabled: boolean): void {
       "utf-8",
     );
   } catch (error) {
-    console.warn("[AppearanceManager] Failed to sync dev-log settings file:", error);
+    console.warn(
+      "[AppearanceManager] Failed to sync dev-log settings file:",
+      error,
+    );
   }
 }

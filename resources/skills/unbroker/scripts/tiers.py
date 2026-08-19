@@ -90,7 +90,7 @@ def plan(subject_dossier: dict, brokers_list: list[dict], cfg: dict,
 
 
 def fanout(brokers_list: list[dict], batch_size: int = 5) -> dict:
-    """Group brokers into batches for parallel CoWork scan subagents.
+    """Group brokers into batches for parallel NeoWorker scan subagents.
 
     Scanning many brokers serially is slow and burns context; above `batch_size`
     the agent is expected to spawn one subagent per batch (see SKILL.md).

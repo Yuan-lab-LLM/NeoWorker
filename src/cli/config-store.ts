@@ -21,7 +21,7 @@ export interface ResolvedConnection {
 export const DEFAULT_CONTROL_PLANE_URL = "ws://127.0.0.1:18789";
 
 export function getConfigPath(): string {
-  const root = process.env.COWORK_CLI_CONFIG_DIR || path.join(os.homedir(), ".cowork-os", "cli");
+  const root = process.env.NEOWORKER_CLI_CONFIG_DIR || path.join(os.homedir(), ".neoworker", "cli");
   return path.join(root, "config.json");
 }
 
@@ -71,8 +71,8 @@ export function resolveConnection(options: {
   const config = options.config ?? loadCliConfig();
   const profileName = options.profile || config.defaultProfile || "local";
   const profile = config.profiles[profileName] || config.profiles.local || { url: DEFAULT_CONTROL_PLANE_URL };
-  const url = options.url || process.env.COWORK_CONTROL_PLANE_URL || profile.url || DEFAULT_CONTROL_PLANE_URL;
-  const token = options.token || process.env.COWORK_CONTROL_PLANE_TOKEN || profile.token || "";
+  const url = options.url || process.env.NEOWORKER_CONTROL_PLANE_URL || profile.url || DEFAULT_CONTROL_PLANE_URL;
+  const token = options.token || process.env.NEOWORKER_CONTROL_PLANE_TOKEN || profile.token || "";
   return { profileName, url, token };
 }
 

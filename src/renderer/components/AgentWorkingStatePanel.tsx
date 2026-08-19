@@ -1,7 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-import { AgentWorkingStateData, WorkingStateType, AgentRoleData } from "../../electron/preload";
+import {
+  AgentWorkingStateData,
+  WorkingStateType,
+  AgentRoleData,
+} from "../../electron/preload";
 import { getEmojiIcon } from "../utils/emoji-icon-map";
 import { useAgentContext } from "../hooks/useAgentContext";
+import { translate, useLanguage } from "../i18n";
 import { ThemeIcon } from "./ThemeIcon";
 import { ChartIcon, ClipboardIcon, EditIcon, TargetIcon } from "./LineIcons";
 
@@ -41,10 +46,22 @@ const STATE_TYPE_LABELS: Record<
 function formatTimeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
 
-  if (seconds < 60) return "just now";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 60) return translate("taskBoard.time.justNow", "just now");
+  if (seconds < 3600) {
+    return translate("taskBoard.time.minutesAgo", "{count}m ago", {
+      count: Math.floor(seconds / 60),
+    });
+  }
+  if (seconds < 86400) {
+    return translate("taskBoard.time.hoursAgo", "{count}h ago", {
+      count: Math.floor(seconds / 3600),
+    });
+  }
+  if (seconds < 604800) {
+    return translate("taskBoard.time.daysAgo", "{count}d ago", {
+      count: Math.floor(seconds / 86400),
+    });
+  }
 
   return new Date(timestamp).toLocaleDateString();
 }
@@ -55,10 +72,13 @@ export function AgentWorkingStatePanel({
   taskId,
   onEdit,
 }: AgentWorkingStatePanelProps) {
+  useLanguage();
   const [states, setStates] = useState<AgentWorkingStateData[]>([]);
   const [agent, setAgent] = useState<AgentRoleData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expandedType, setExpandedType] = useState<WorkingStateType | null>(null);
+  const [expandedType, setExpandedType] = useState<WorkingStateType | null>(
+    null,
+  );
   const agentContext = useAgentContext();
 
   const loadData = useCallback(async () => {
@@ -70,7 +90,12 @@ export function AgentWorkingStatePanel({
       setAgent(agentData ?? null);
 
       // Load all current working states for this agent/workspace
-      const stateTypes: WorkingStateType[] = ["context", "progress", "notes", "plan"];
+      const stateTypes: WorkingStateType[] = [
+        "context",
+        "progress",
+        "notes",
+        "plan",
+      ];
       const loadedStates: AgentWorkingStateData[] = [];
 
       for (const stateType of stateTypes) {
@@ -97,7 +122,9 @@ export function AgentWorkingStatePanel({
     loadData();
   }, [loadData]);
 
-  const getStateByType = (type: WorkingStateType): AgentWorkingStateData | undefined => {
+  const getStateByType = (
+    type: WorkingStateType,
+  ): AgentWorkingStateData | undefined => {
     return states.find((s) => s.stateType === type);
   };
 
@@ -114,7 +141,10 @@ export function AgentWorkingStatePanel({
       <div className="panel-header">
         {agent && (
           <div className="agent-info">
-            <span className="agent-avatar" style={{ backgroundColor: agent.color }}>
+            <span
+              className="agent-avatar"
+              style={{ backgroundColor: agent.color }}
+            >
               {(() => {
                 const Icon = getEmojiIcon(agent.icon || "🤖");
                 return <Icon size={18} strokeWidth={2} />;
@@ -122,7 +152,9 @@ export function AgentWorkingStatePanel({
             </span>
             <div className="agent-details">
               <span className="agent-name">{agent.displayName}</span>
-              <span className="agent-context">{agentContext.getUiCopy("workingStateTitle")}</span>
+              <span className="agent-context">
+                {agentContext.getUiCopy("workingStateTitle")}
+              </span>
             </div>
           </div>
         )}
@@ -145,10 +177,14 @@ export function AgentWorkingStatePanel({
               >
                 <div className="section-title">
                   <span className="section-icon">{config.icon}</span>
-                  <span className="section-name">{config.label}</span>
+                  <span className="section-name">
+                    {translate(`workingState.${type}`, config.label)}
+                  </span>
                   {state && (
                     <span className="section-updated">
-                      Updated {formatTimeAgo(state.updatedAt)}
+                      {translate("workingState.updatedAgo", "Updated {time}", {
+                        time: formatTimeAgo(state.updatedAt),
+                      })}
                     </span>
                   )}
                 </div>
@@ -190,25 +226,36 @@ export function AgentWorkingStatePanel({
                   {state ? (
                     <>
                       <div className="content-text">{state.content}</div>
-                      {state.fileReferences && state.fileReferences.length > 0 && (
-                        <div className="file-references">
-                          <span className="ref-label">
-                            {agentContext.getUiCopy("workingStateReferencedFiles")}
-                          </span>
-                          {state.fileReferences.map((file, idx) => (
-                            <span key={idx} className="file-ref">
-                              {file}
+                      {state.fileReferences &&
+                        state.fileReferences.length > 0 && (
+                          <div className="file-references">
+                            <span className="ref-label">
+                              {agentContext.getUiCopy(
+                                "workingStateReferencedFiles",
+                              )}
                             </span>
-                          ))}
-                        </div>
-                      )}
+                            {state.fileReferences.map((file, idx) => (
+                              <span key={idx} className="file-ref">
+                                {file}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                     </>
                   ) : (
                     <div className="empty-state">
-                      <p>{config.description}</p>
+                      <p>
+                        {translate(
+                          `workingState.${type}.description`,
+                          config.description,
+                        )}
+                      </p>
                       <p className="hint">
                         {agentContext.getUiCopy("workingStateEmptyHint", {
-                          label: config.label.toLowerCase(),
+                          label: translate(
+                            `workingState.${type}`,
+                            config.label,
+                          ).toLowerCase(),
                         })}
                       </p>
                     </div>

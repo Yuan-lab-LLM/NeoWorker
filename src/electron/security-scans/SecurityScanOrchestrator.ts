@@ -209,7 +209,7 @@ function buildPaths(input: SecurityScanPrepareInput, pluginDir: string): Securit
   if (!/^[A-Za-z0-9._-]{1,160}$/.test(scanId) || scanId.includes("..")) {
     throw new Error("Security scan id must contain only letters, numbers, dot, underscore, or dash");
   }
-  const securityScansDir = path.resolve(input.artifactRoot || path.join(repoRoot, ".cowork", "security-scans", repoName));
+  const securityScansDir = path.resolve(input.artifactRoot || path.join(repoRoot, ".neoworker", "security-scans", repoName));
   const scanDir = path.join(securityScansDir, scanId);
   if (!isPathWithin(securityScansDir, scanDir)) {
     throw new Error(`Security scan directory must stay under artifact root: ${scanDir}`);

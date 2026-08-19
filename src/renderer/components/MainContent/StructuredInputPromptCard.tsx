@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { InputRequest } from "../../../shared/types";
+import { translate, useLanguage } from "../../i18n";
 
-export type InputRequestAnswers = Record<string, { optionLabel?: string; otherText?: string }>;
+export type InputRequestAnswers = Record<
+  string,
+  { optionLabel?: string; otherText?: string }
+>;
 
 interface StructuredInputPromptCardProps {
   request: InputRequest;
@@ -9,10 +13,20 @@ interface StructuredInputPromptCardProps {
   onDismiss: () => void;
 }
 
-export function StructuredInputPromptCard({ request, onSubmit, onDismiss }: StructuredInputPromptCardProps) {
+export function StructuredInputPromptCard({
+  request,
+  onSubmit,
+  onDismiss,
+}: StructuredInputPromptCardProps) {
+  useLanguage();
+  const t = translate;
   const questions = Array.isArray(request.questions) ? request.questions : [];
-  const [selectedOptionByQuestion, setSelectedOptionByQuestion] = useState<Record<string, number>>({});
-  const [otherTextByQuestion, setOtherTextByQuestion] = useState<Record<string, string>>({});
+  const [selectedOptionByQuestion, setSelectedOptionByQuestion] = useState<
+    Record<string, number>
+  >({});
+  const [otherTextByQuestion, setOtherTextByQuestion] = useState<
+    Record<string, string>
+  >({});
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
 
   useEffect(() => {
@@ -52,21 +66,31 @@ export function StructuredInputPromptCard({ request, onSubmit, onDismiss }: Stru
 
   const activeQuestion = useMemo(() => {
     if (!questions.length) return null;
-    const safeIndex = Math.max(0, Math.min(questions.length - 1, activeQuestionIndex));
+    const safeIndex = Math.max(
+      0,
+      Math.min(questions.length - 1, activeQuestionIndex),
+    );
     return questions[safeIndex] ?? null;
   }, [activeQuestionIndex, questions]);
 
   const activeOptions = useMemo(
-    () => (activeQuestion && Array.isArray(activeQuestion.options) ? activeQuestion.options : []),
+    () =>
+      activeQuestion && Array.isArray(activeQuestion.options)
+        ? activeQuestion.options
+        : [],
     [activeQuestion],
   );
   const activeSelected =
-    activeQuestion && typeof selectedOptionByQuestion[activeQuestion.id] === "number"
+    activeQuestion &&
+    typeof selectedOptionByQuestion[activeQuestion.id] === "number"
       ? selectedOptionByQuestion[activeQuestion.id]
       : 0;
   const activeOtherSelected = activeSelected === activeOptions.length;
 
-  const getActiveOptionCount = useCallback(() => activeOptions.length + 1, [activeOptions.length]);
+  const getActiveOptionCount = useCallback(
+    () => activeOptions.length + 1,
+    [activeOptions.length],
+  );
 
   const goToNextQuestion = useCallback(() => {
     setActiveQuestionIndex((prev) => Math.min(questions.length - 1, prev + 1));
@@ -82,7 +106,9 @@ export function StructuredInputPromptCard({ request, onSubmit, onDismiss }: Stru
   );
 
   const canSubmit = useMemo(
-    () => questions.length > 0 && questions.every((question) => isQuestionAnswered(question)),
+    () =>
+      questions.length > 0 &&
+      questions.every((question) => isQuestionAnswered(question)),
     [isQuestionAnswered, questions],
   );
 
@@ -136,7 +162,10 @@ export function StructuredInputPromptCard({ request, onSubmit, onDismiss }: Stru
       }
       if (event.key === "ArrowDown" && !typingInInput) {
         event.preventDefault();
-        updateSelection(activeQuestion.id, Math.min(optionCount - 1, selected + 1));
+        updateSelection(
+          activeQuestion.id,
+          Math.min(optionCount - 1, selected + 1),
+        );
         return;
       }
 
@@ -147,7 +176,10 @@ export function StructuredInputPromptCard({ request, onSubmit, onDismiss }: Stru
       }
       if (event.key === "ArrowRight" && !typingInInput) {
         event.preventDefault();
-        if (activeQuestionIndex < questions.length - 1 && currentQuestionAnswered) {
+        if (
+          activeQuestionIndex < questions.length - 1 &&
+          currentQuestionAnswered
+        ) {
           goToNextQuestion();
         }
         return;
@@ -190,12 +222,20 @@ export function StructuredInputPromptCard({ request, onSubmit, onDismiss }: Stru
   }
 
   return (
-    <div className="input-request-composer-shell" role="dialog" aria-modal="true" aria-label="Structured input required">
+    <div
+      className="input-request-composer-shell"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("structuredInput.required", "Structured input required")}
+    >
       <div className="input-request-card input-request-card-inline">
         <div className="input-request-progress">
-          <span className="input-request-header">{activeQuestion.header || "Question"}</span>
+          <span className="input-request-header">
+            {activeQuestion.header || t("structuredInput.question", "Question")}
+          </span>
           <span className="input-request-progress-index">
-            {Math.min(activeQuestionIndex + 1, questions.length)} / {questions.length}
+            {Math.min(activeQuestionIndex + 1, questions.length)} /{" "}
+            {questions.length}
           </span>
         </div>
         <div className="input-request-title">{activeQuestion.question}</div>
@@ -208,10 +248,16 @@ export function StructuredInputPromptCard({ request, onSubmit, onDismiss }: Stru
                 updateSelection(activeQuestion.id, optionIndex);
               }}
             >
-              <span className="input-request-option-index">{optionIndex + 1}.</span>
+              <span className="input-request-option-index">
+                {optionIndex + 1}.
+              </span>
               <span className="input-request-option-copy">
-                <span className="input-request-option-label">{option.label}</span>
-                <span className="input-request-option-description">{option.description}</span>
+                <span className="input-request-option-label">
+                  {option.label}
+                </span>
+                <span className="input-request-option-description">
+                  {option.description}
+                </span>
               </span>
             </button>
           ))}
@@ -221,17 +267,29 @@ export function StructuredInputPromptCard({ request, onSubmit, onDismiss }: Stru
               updateSelection(activeQuestion.id, activeOptions.length);
             }}
           >
-            <span className="input-request-option-index">{activeOptions.length + 1}.</span>
+            <span className="input-request-option-index">
+              {activeOptions.length + 1}.
+            </span>
             <span className="input-request-option-copy">
-              <span className="input-request-option-label">Other</span>
-              <span className="input-request-option-description">Type a custom response</span>
+              <span className="input-request-option-label">
+                {t("structuredInput.other", "Other")}
+              </span>
+              <span className="input-request-option-description">
+                {t(
+                  "structuredInput.otherDescription",
+                  "Type a custom response",
+                )}
+              </span>
             </span>
           </button>
         </div>
         {activeOtherSelected && (
           <textarea
             className="input-request-other"
-            placeholder="Tell Codex what to do differently..."
+            placeholder={t(
+              "structuredInput.otherPlaceholder",
+              "Tell Codex what to do differently...",
+            )}
             value={otherTextByQuestion[activeQuestion.id] || ""}
             onChange={(event) =>
               setOtherTextByQuestion((prev) => ({
@@ -241,17 +299,22 @@ export function StructuredInputPromptCard({ request, onSubmit, onDismiss }: Stru
             }
           />
         )}
-        <div className="input-request-hint">Use 1-4 to choose, Enter to continue, Esc to dismiss.</div>
+        <div className="input-request-hint">
+          {t(
+            "structuredInput.hint",
+            "Use 1-4 to choose, Enter to continue, Esc to dismiss.",
+          )}
+        </div>
         <div className="input-request-actions">
           <button className="input-request-dismiss" onClick={onDismiss}>
-            Dismiss
+            {t("common.dismiss", "Dismiss")}
           </button>
           <button
             className="input-request-dismiss"
             onClick={goToPreviousQuestion}
             disabled={activeQuestionIndex === 0}
           >
-            Back
+            {t("common.back", "Back")}
           </button>
           {activeQuestionIndex < questions.length - 1 ? (
             <button
@@ -259,7 +322,7 @@ export function StructuredInputPromptCard({ request, onSubmit, onDismiss }: Stru
               onClick={goToNextQuestion}
               disabled={!currentQuestionAnswered}
             >
-              Next
+              {t("common.next", "Next")}
             </button>
           ) : (
             <button
@@ -267,7 +330,7 @@ export function StructuredInputPromptCard({ request, onSubmit, onDismiss }: Stru
               onClick={() => onSubmit(buildAnswers())}
               disabled={!canSubmit}
             >
-              Submit
+              {t("common.submit", "Submit")}
             </button>
           )}
         </div>

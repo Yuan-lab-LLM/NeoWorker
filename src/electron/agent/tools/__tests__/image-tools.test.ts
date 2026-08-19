@@ -100,4 +100,25 @@ describe("ImageTools", () => {
       }),
     );
   });
+
+  it("forwards widescreen aspect ratio for presentation artwork", async () => {
+    const generateSpy = vi
+      .spyOn(ImageGenerator.prototype, "generate")
+      .mockResolvedValue(generatedResult());
+    const daemon = { logEvent: vi.fn() };
+    const tools = new ImageTools(workspace(), daemon as Any, "task-1");
+
+    await tools.generateImage({
+      prompt: "text-free editorial presentation background",
+      imageSize: "2K",
+      aspectRatio: "16:9",
+    });
+
+    expect(generateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        imageSize: "2K",
+        aspectRatio: "16:9",
+      }),
+    );
+  });
 });

@@ -2,40 +2,39 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import type { Task } from "../../../../shared/types";
 import { MCOverviewTab } from "../MCOverviewTab";
 import type { MissionControlData } from "../useMissionControlData";
 
 function renderOverview(overrides: Partial<MissionControlData> = {}): string {
+  const tasks = (overrides.tasks || []) as Task[];
   const data = {
     missionControlBrief: null,
-    missionControlItems: [],
     activeAgentsCount: 2,
-    totalTasksInQueue: 0,
+    totalTasksInQueue: tasks.filter((task) => task.status !== "completed")
+      .length,
     pendingMentionsCount: 0,
     queueStatusState: "ready",
     runtimeRunningCount: 0,
     runtimeQueuedCount: 4,
-    runtimeQueueTotal: 4,
-    runtimeMaxConcurrent: 8,
     runtimeRunningTaskIds: [],
-    runtimeQueuedTaskIds: ["task-1", "task-2", "task-3", "task-4"],
-    runtimeRunningTasks: [],
-    runtimeQueuedTasks: [
-      {
-        id: "task-1",
-        title: "Queued runtime task",
-        status: "queued",
-        createdAt: Date.UTC(2026, 4, 26, 10, 0, 0),
-        updatedAt: Date.UTC(2026, 4, 26, 10, 5, 0),
-        workspaceId: "ws-1",
-      },
-    ],
     commandCenterReviewQueue: [],
     formatRelativeTime: () => "just now",
     setActiveTab: vi.fn(),
     setDetailPanel: vi.fn(),
     loadMissionControlIntelligence: vi.fn(),
     selectedWorkspaceId: "ws-1",
+    tasks,
+    agents: [],
+    tasksByAgent: new Map(),
+    getAgent: () => undefined,
+    getAgentStatus: () => "idle",
+    getWorkspaceName: () => "Workspace One",
+    getMissionColumnForTask: (task: Task) =>
+      task.status === "executing" ? "in_progress" : "assigned",
+    isTaskAttentionRequired: (task: Task) => (task.priority || 0) >= 3,
+    isTaskTerminal: (task: Task) =>
+      ["completed", "failed", "cancelled", "interrupted"].includes(task.status),
     ...overrides,
   } as unknown as MissionControlData;
 
@@ -43,63 +42,65 @@ function renderOverview(overrides: Partial<MissionControlData> = {}): string {
 }
 
 describe("MCOverviewTab", () => {
-  it("separates runtime queue counts from open board work", () => {
+  it("renders the daily orchestration brief and focused summary", () => {
     const markup = renderOverview();
 
-    expect(markup).toContain("global runtime queue");
-    expect(markup).toContain("0/8 running · 4 waiting");
-    expect(markup).toContain("open board work");
-    expect(markup).toContain("No open board work.");
-    expect(markup).toContain("Queued runtime task");
+    expect(markup).toContain("mc-command-briefing");
+    expect(markup).toContain("今天的工作进展已整理完成");
+    expect(markup).toContain("等待你的判断");
   });
 
-  it("explains enabled idle heartbeat agents when no work is queued", () => {
+  it("promotes attention-required work into the focus list", () => {
+    const now = Date.now();
     const markup = renderOverview({
-      runtimeQueuedCount: 0,
-      runtimeQueueTotal: 0,
-      runtimeQueuedTaskIds: [],
-      runtimeQueuedTasks: [],
+      tasks: [
+        {
+          id: "task-urgent",
+          title: "Approve customer refund",
+          status: "executing",
+          priority: 4,
+          createdAt: now - 60_000,
+          updatedAt: now,
+          workspaceId: "ws-1",
+        },
+      ] as Task[],
     });
 
-    expect(markup).toContain("2 Heartbeat agents are enabled and idle.");
-    expect(markup).toContain("All clear");
+    expect(markup).toContain("处理优先事项");
+    expect(markup).toContain("Approve customer refund");
+    expect(markup).toContain("mc-command-focus-row");
   });
 
-  it("does not render unavailable runtime queue state as all clear", () => {
+  it("renders active work from the real task collection", () => {
+    const now = Date.now();
     const markup = renderOverview({
-      queueStatusState: "error",
-      runtimeQueuedCount: 0,
-      runtimeQueueTotal: 0,
-      runtimeQueuedTaskIds: [],
-      runtimeQueuedTasks: [],
+      tasks: [
+        {
+          id: "task-active",
+          title: "Prepare weekly brief",
+          status: "executing",
+          priority: 1,
+          createdAt: now - 60_000,
+          updatedAt: now,
+          workspaceId: "ws-1",
+        },
+      ] as Task[],
     });
 
-    expect(markup).toContain("Runtime queue status is unavailable");
-    expect(markup).toContain("Unavailable");
-    expect(markup).not.toContain("All clear");
-    expect(markup).not.toContain("Heartbeat agents are enabled and idle.");
+    expect(markup).toContain("mc-command-schedule-row");
+    expect(markup).toContain("Prepare weekly brief");
+    expect(markup).toContain("执行中");
   });
 
-  it("preserves a brief active work count of zero", () => {
+  it("tolerates a brief while its sections are still loading", () => {
     const markup = renderOverview({
-      totalTasksInQueue: 3,
       missionControlBrief: {
-        generatedAt: Date.UTC(2026, 4, 26, 10, 0, 0),
-        attentionCount: 0,
-        activeWorkCount: 0,
-        reviewCount: 0,
-        learningCount: 0,
-        awarenessCount: 0,
-        evidenceCount: 0,
-        sections: [],
+        generatedAt: Date.now(),
         latestDecisions: [],
-        learningChanges: [],
-        awarenessClusters: [],
-        activeWork: [],
-        upcomingReviews: [],
-      },
+      } as unknown as MissionControlData["missionControlBrief"],
     });
 
-    expect(markup).toContain("<strong>0</strong><span>open board work</span>");
+    expect(markup).toContain("mc-command-overview");
+    expect(markup).toContain("今天的工作进展已整理完成");
   });
 });

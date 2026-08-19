@@ -193,7 +193,7 @@ class LinearClient {
       headers: {
         Authorization: this.getAuthHeader(),
         'Content-Type': 'application/json',
-        'User-Agent': 'CoWork-Linear-Connector/0.1.0',
+        'User-Agent': 'NeoWorker-Linear-Connector/0.1.0',
       },
       body: JSON.stringify({ query, variables }),
     });

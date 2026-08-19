@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChatGPTImportWizard } from "./ChatGPTImportWizard";
 import { PromptMemoryImportWizard } from "./PromptMemoryImportWizard";
+import { translate, useLanguage } from "../i18n";
 
 // Types inlined since preload types aren't directly importable in renderer
 type PrivacyMode = "normal" | "strict" | "disabled";
@@ -58,7 +59,8 @@ interface UserProfile {
   updatedAt: number;
 }
 
-type RelationshipLayer = "identity" | "preferences" | "context" | "history" | "commitments";
+type RelationshipLayer =
+  "identity" | "preferences" | "context" | "history" | "commitments";
 
 interface RelationshipMemoryItem {
   id: string;
@@ -110,8 +112,13 @@ function parseImportTag(content: string): {
   ignoredForPromptRecall: boolean;
   isImported: boolean;
 } {
-  const ignoredForPromptRecall = /^\s*\[cowork:prompt_recall=ignore\]/.test(content);
-  const normalizedContent = content.replace(/^\s*\[cowork:prompt_recall=ignore\]\s*(?:\r?\n)?/, "");
+  const ignoredForPromptRecall = /^\s*\[neoworker:prompt_recall=ignore\]/.test(
+    content,
+  );
+  const normalizedContent = content.replace(
+    /^\s*\[neoworker:prompt_recall=ignore\]\s*(?:\r?\n)?/,
+    "",
+  );
 
   const match = normalizedContent.match(
     /^\[Imported from\s+(.+?)\s*[-—]\s*"(.+?)"\s*(?:\([^)]+\))?\]\n?([\s\S]*)/,
@@ -124,17 +131,21 @@ function parseImportTag(content: string): {
       isImported: true,
     };
   }
-  const fallback = normalizedContent.match(/^\[Imported from\s+([^\]]+)\]\n?([\s\S]*)/);
+  const fallback = normalizedContent.match(
+    /^\[Imported from\s+([^\]]+)\]\n?([\s\S]*)/,
+  );
   if (fallback) {
     return {
-      title: `Imported from ${fallback[1]}`,
+      title: translate("memory.importedFrom", "Imported from {source}", {
+        source: fallback[1],
+      }),
       preview: (fallback[2] || "").slice(0, 200),
       ignoredForPromptRecall,
       isImported: true,
     };
   }
   return {
-    title: "Memory",
+    title: translate("memory.type.memory", "Memory"),
     preview: normalizedContent.slice(0, 200),
     ignoredForPromptRecall,
     isImported: false,
@@ -144,21 +155,47 @@ function parseImportTag(content: string): {
 function formatRelativeTime(timestamp: number): string {
   const deltaMs = Date.now() - timestamp;
   const minutes = Math.floor(deltaMs / (60 * 1000));
-  if (minutes < 1) return "Updated just now";
-  if (minutes < 60) return `Updated ${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  if (minutes < 1)
+    return translate("memory.time.updatedJustNow", "Updated just now");
+  if (minutes < 60) {
+    return translate(
+      "memory.time.updatedMinutesAgo",
+      "Updated {count} minute(s) ago",
+      {
+        count: minutes,
+      },
+    );
+  }
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `Updated ${hours} hour${hours === 1 ? "" : "s"} ago`;
+  if (hours < 24) {
+    return translate(
+      "memory.time.updatedHoursAgo",
+      "Updated {count} hour(s) ago",
+      {
+        count: hours,
+      },
+    );
+  }
   const days = Math.floor(hours / 24);
-  return `Updated ${days} day${days === 1 ? "" : "s"} ago`;
+  return translate("memory.time.updatedDaysAgo", "Updated {count} day(s) ago", {
+    count: days,
+  });
 }
 
 function formatMemoryTypeLabel(type?: string): string {
-  if (!type) return "Memory";
-  if (type === "screen_context") return "Screen context";
+  if (!type) return translate("memory.type.memory", "Memory");
+  if (type === "screen_context")
+    return translate("memory.type.screenContext", "Screen context");
   return `${type.charAt(0).toUpperCase()}${type.slice(1).replace(/_/g, " ")}`;
 }
 
-function ToggleRow({ title, description, checked, onChange, disabled }: ToggleRowProps) {
+function ToggleRow({
+  title,
+  description,
+  checked,
+  onChange,
+  disabled,
+}: ToggleRowProps) {
   return (
     <div className="settings-form-group">
       <div
@@ -170,12 +207,20 @@ function ToggleRow({ title, description, checked, onChange, disabled }: ToggleRo
         }}
       >
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 500, color: "var(--color-text-primary)" }}>{title}</div>
-          <p className="settings-form-hint" style={{ marginTop: "4px", marginBottom: 0 }}>
+          <div style={{ fontWeight: 500, color: "var(--color-text-primary)" }}>
+            {title}
+          </div>
+          <p
+            className="settings-form-hint"
+            style={{ marginTop: "4px", marginBottom: 0 }}
+          >
             {description}
           </p>
         </div>
-        <label className="settings-toggle" style={{ flexShrink: 0, marginTop: "2px" }}>
+        <label
+          className="settings-toggle"
+          style={{ flexShrink: 0, marginTop: "2px" }}
+        >
           <input
             type="checkbox"
             checked={checked}
@@ -191,7 +236,12 @@ function ToggleRow({ title, description, checked, onChange, disabled }: ToggleRo
 
 const PAGE_SIZE = 20;
 
-export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySettingsProps) {
+export function MemorySettings({
+  workspaceId,
+  onSettingsChanged,
+}: MemorySettingsProps) {
+  useLanguage();
+  const t = translate;
   const [settings, setSettings] = useState<MemorySettingsData | null>(null);
   const [stats, setStats] = useState<MemoryStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -202,31 +252,49 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
   const [showManageMemories, setShowManageMemories] = useState(false);
 
   // Imported memories state
-  const [importedStats, setImportedStats] = useState<ImportedStats | null>(null);
+  const [importedStats, setImportedStats] = useState<ImportedStats | null>(
+    null,
+  );
   const [showImported, setShowImported] = useState(false);
   const [importedMemories, setImportedMemories] = useState<MemoryItem[]>([]);
   const [importedOffset, setImportedOffset] = useState(0);
   const [importedHasMore, setImportedHasMore] = useState(false);
   const [loadingImported, setLoadingImported] = useState(false);
   const [deletingImported, setDeletingImported] = useState(false);
-  const [deletingImportedEntryId, setDeletingImportedEntryId] = useState<string | null>(null);
-  const [updatingImportedEntryId, setUpdatingImportedEntryId] = useState<string | null>(null);
+  const [deletingImportedEntryId, setDeletingImportedEntryId] = useState<
+    string | null
+  >(null);
+  const [updatingImportedEntryId, setUpdatingImportedEntryId] = useState<
+    string | null
+  >(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [newFact, setNewFact] = useState("");
-  const [newFactCategory, setNewFactCategory] = useState<UserFactCategory>("preference");
+  const [newFactCategory, setNewFactCategory] =
+    useState<UserFactCategory>("preference");
   const [savingFact, setSavingFact] = useState(false);
-  const [relationshipItems, setRelationshipItems] = useState<RelationshipMemoryItem[]>([]);
-  const [dueSoonItems, setDueSoonItems] = useState<RelationshipMemoryItem[]>([]);
+  const [relationshipItems, setRelationshipItems] = useState<
+    RelationshipMemoryItem[]
+  >([]);
+  const [dueSoonItems, setDueSoonItems] = useState<RelationshipMemoryItem[]>(
+    [],
+  );
   const [dueSoonReminder, setDueSoonReminder] = useState("");
-  const [cleaningRecurringHistory, setCleaningRecurringHistory] = useState(false);
+  const [cleaningRecurringHistory, setCleaningRecurringHistory] =
+    useState(false);
   const [recurringCleanupMessage, setRecurringCleanupMessage] = useState("");
   const [recentMemories, setRecentMemories] = useState<MemoryItem[]>([]);
-  const [chronicleObservations, setChronicleObservations] = useState<ChronicleObservationItem[]>([]);
+  const [chronicleObservations, setChronicleObservations] = useState<
+    ChronicleObservationItem[]
+  >([]);
   const [memorySearchQuery, setMemorySearchQuery] = useState("");
-  const [memorySearchResults, setMemorySearchResults] = useState<MemoryItem[]>([]);
+  const [memorySearchResults, setMemorySearchResults] = useState<MemoryItem[]>(
+    [],
+  );
   const [searchingMemories, setSearchingMemories] = useState(false);
   const [clearingChronicle, setClearingChronicle] = useState(false);
-  const [deletingChronicleId, setDeletingChronicleId] = useState<string | null>(null);
+  const [deletingChronicleId, setDeletingChronicleId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (workspaceId) {
@@ -251,23 +319,39 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
         window.electronAPI.getMemoryStats(workspaceId),
         window.electronAPI.getImportedMemoryStats(workspaceId),
         window.electronAPI.getUserProfile(),
-        window.electronAPI.listRelationshipMemory({ limit: 80, includeDone: false }),
+        window.electronAPI.listRelationshipMemory({
+          limit: 80,
+          includeDone: false,
+        }),
         window.electronAPI.getDueSoonCommitments(72),
         window.electronAPI.getRecentMemories({ workspaceId, limit: 20 }),
-        window.electronAPI.listChronicleObservations({ workspaceId, limit: 50 }),
+        window.electronAPI.listChronicleObservations({
+          workspaceId,
+          limit: 50,
+        }),
       ]);
       setSettings(loadedSettings);
       setStats(loadedStats);
       setImportedStats(loadedImportedStats);
       setUserProfile(loadedUserProfile);
-      setRelationshipItems(Array.isArray(loadedRelationshipItems) ? loadedRelationshipItems : []);
-      setDueSoonItems(Array.isArray(loadedDueSoon?.items) ? loadedDueSoon.items : []);
-      setDueSoonReminder(
-        typeof loadedDueSoon?.reminderText === "string" ? loadedDueSoon.reminderText : "",
+      setRelationshipItems(
+        Array.isArray(loadedRelationshipItems) ? loadedRelationshipItems : [],
       );
-      setRecentMemories(Array.isArray(loadedRecentMemories) ? loadedRecentMemories : []);
+      setDueSoonItems(
+        Array.isArray(loadedDueSoon?.items) ? loadedDueSoon.items : [],
+      );
+      setDueSoonReminder(
+        typeof loadedDueSoon?.reminderText === "string"
+          ? loadedDueSoon.reminderText
+          : "",
+      );
+      setRecentMemories(
+        Array.isArray(loadedRecentMemories) ? loadedRecentMemories : [],
+      );
       setChronicleObservations(
-        Array.isArray(loadedChronicleObservations) ? loadedChronicleObservations : [],
+        Array.isArray(loadedChronicleObservations)
+          ? loadedChronicleObservations
+          : [],
       );
     } catch (error) {
       console.error("Failed to load memory settings:", error);
@@ -294,7 +378,9 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
           limit: 30,
         });
         if (cancelled) return;
-        const details = await window.electronAPI.getMemoryDetails(results.map((r) => r.id));
+        const details = await window.electronAPI.getMemoryDetails(
+          results.map((r) => r.id),
+        );
         if (cancelled) return;
         setMemorySearchResults(Array.isArray(details) ? details : []);
       } catch (error) {
@@ -350,7 +436,10 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
   const handleDeleteImported = async () => {
     if (
       !confirm(
-        "Are you sure you want to delete all imported memories? Native memories will not be affected. This cannot be undone.",
+        t(
+          "memory.confirm.deleteImported",
+          "Are you sure you want to delete all imported memories? Native memories will not be affected. This cannot be undone.",
+        ),
       )
     ) {
       return;
@@ -371,12 +460,22 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
   };
 
   const handleDeleteImportedEntry = async (memoryId: string) => {
-    if (!confirm("Delete this imported memory entry? This cannot be undone.")) {
+    if (
+      !confirm(
+        t(
+          "memory.confirm.deleteImportedEntry",
+          "Delete this imported memory entry? This cannot be undone.",
+        ),
+      )
+    ) {
       return;
     }
     try {
       setDeletingImportedEntryId(memoryId);
-      await window.electronAPI.deleteImportedMemoryEntry({ workspaceId, memoryId });
+      await window.electronAPI.deleteImportedMemoryEntry({
+        workspaceId,
+        memoryId,
+      });
       await loadImportedMemories(0);
       await loadData();
     } catch (error) {
@@ -392,11 +491,12 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
   ) => {
     try {
       setUpdatingImportedEntryId(memoryId);
-      const result = await window.electronAPI.setImportedMemoryPromptRecallIgnored({
-        workspaceId,
-        memoryId,
-        ignored: !currentlyIgnored,
-      });
+      const result =
+        await window.electronAPI.setImportedMemoryPromptRecallIgnored({
+          workspaceId,
+          memoryId,
+          ignored: !currentlyIgnored,
+        });
 
       if (result?.memory) {
         setImportedMemories((prev) =>
@@ -418,7 +518,10 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
 
       await loadData();
     } catch (error) {
-      console.error("Failed to update imported memory prompt-recall state:", error);
+      console.error(
+        "Failed to update imported memory prompt-recall state:",
+        error,
+      );
     } finally {
       setUpdatingImportedEntryId(null);
     }
@@ -428,7 +531,10 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
     if (!settings) return;
     try {
       setSaving(true);
-      await window.electronAPI.saveMemorySettings({ workspaceId, settings: updates });
+      await window.electronAPI.saveMemorySettings({
+        workspaceId,
+        settings: updates,
+      });
       setSettings({ ...settings, ...updates });
       onSettingsChanged?.();
     } catch (error) {
@@ -441,7 +547,10 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
   const handleClear = async () => {
     if (
       !confirm(
-        "Are you sure you want to clear all memories for this workspace? This cannot be undone.",
+        t(
+          "memory.confirm.clearAll",
+          "Are you sure you want to clear all memories for this workspace? This cannot be undone.",
+        ),
       )
     ) {
       return;
@@ -464,7 +573,10 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
   const handleDeleteChronicleObservation = async (observationId: string) => {
     try {
       setDeletingChronicleId(observationId);
-      await window.electronAPI.deleteChronicleObservation({ workspaceId, observationId });
+      await window.electronAPI.deleteChronicleObservation({
+        workspaceId,
+        observationId,
+      });
       await loadData();
     } catch (error) {
       console.error("Failed to delete Chronicle observation:", error);
@@ -537,7 +649,9 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
         return {
           ...prev,
           updatedAt: Date.now(),
-          facts: prev.facts.map((existing) => (existing.id === updated.id ? updated : existing)),
+          facts: prev.facts.map((existing) =>
+            existing.id === updated.id ? updated : existing,
+          ),
         };
       });
     } catch (error) {
@@ -563,7 +677,9 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
         status: nextStatus,
       });
       if (!updated) return;
-      setRelationshipItems((prev) => prev.map((entry) => (entry.id === item.id ? updated : entry)));
+      setRelationshipItems((prev) =>
+        prev.map((entry) => (entry.id === item.id ? updated : entry)),
+      );
       if (nextStatus === "done") {
         setDueSoonItems((prev) => prev.filter((entry) => entry.id !== item.id));
       }
@@ -573,7 +689,10 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
   };
 
   const handleEditRelationship = async (item: RelationshipMemoryItem) => {
-    const nextText = prompt("Edit memory item", item.text);
+    const nextText = prompt(
+      t("memory.relationship.editPrompt", "Edit memory item"),
+      item.text,
+    );
     if (nextText == null) return;
     const trimmed = nextText.trim();
     if (!trimmed) return;
@@ -583,8 +702,12 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
         text: trimmed,
       });
       if (!updated) return;
-      setRelationshipItems((prev) => prev.map((entry) => (entry.id === item.id ? updated : entry)));
-      setDueSoonItems((prev) => prev.map((entry) => (entry.id === item.id ? updated : entry)));
+      setRelationshipItems((prev) =>
+        prev.map((entry) => (entry.id === item.id ? updated : entry)),
+      );
+      setDueSoonItems((prev) =>
+        prev.map((entry) => (entry.id === item.id ? updated : entry)),
+      );
     } catch (error) {
       console.error("Failed to edit relationship memory:", error);
     }
@@ -593,23 +716,42 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
   const handleCleanupRecurringHistory = async () => {
     if (
       !confirm(
-        "Collapse duplicate recurring completed-task history entries and keep only the latest per task title?",
+        t(
+          "memory.confirm.cleanupRecurring",
+          "Collapse duplicate recurring completed-task history entries and keep only the latest per task title?",
+        ),
       )
     ) {
       return;
     }
     try {
       setCleaningRecurringHistory(true);
-      const result = await window.electronAPI.cleanupRecurringRelationshipHistory();
+      const result =
+        await window.electronAPI.cleanupRecurringRelationshipHistory();
       setRecurringCleanupMessage(
         result.collapsed > 0
-          ? `Cleaned ${result.collapsed} duplicate entries across ${result.groupsCollapsed} recurring task title(s).`
-          : "No duplicate recurring history entries found.",
+          ? t(
+              "memory.relationship.cleanupSuccess",
+              "Cleaned {collapsed} duplicate entries across {groups} recurring task title(s).",
+              {
+                collapsed: result.collapsed,
+                groups: result.groupsCollapsed,
+              },
+            )
+          : t(
+              "memory.relationship.cleanupNone",
+              "No duplicate recurring history entries found.",
+            ),
       );
       await loadData();
     } catch (error) {
       console.error("Failed to cleanup recurring relationship history:", error);
-      setRecurringCleanupMessage("Failed to clean recurring history. Please try again.");
+      setRecurringCleanupMessage(
+        t(
+          "memory.relationship.cleanupFailed",
+          "Failed to clean recurring history. Please try again.",
+        ),
+      );
     } finally {
       setCleaningRecurringHistory(false);
     }
@@ -618,7 +760,9 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
   if (loading || !settings) {
     return (
       <div className="settings-section">
-        <div className="settings-loading">Loading memory settings...</div>
+        <div className="settings-loading">
+          {t("memory.loading", "Loading memory settings...")}
+        </div>
       </div>
     );
   }
@@ -638,9 +782,12 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
   }
 
   const latestMemory =
-    recentMemories.find((memory) => !/^\s*[{[]/.test((memory.content || "").trim())) ||
-    recentMemories[0];
-  const selectedManageMemories = memorySearchQuery.trim() ? memorySearchResults : recentMemories;
+    recentMemories.find(
+      (memory) => !/^\s*[{[]/.test((memory.content || "").trim()),
+    ) || recentMemories[0];
+  const selectedManageMemories = memorySearchQuery.trim()
+    ? memorySearchResults
+    : recentMemories;
 
   return (
     <div className="settings-section">
@@ -653,32 +800,45 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
         }}
       >
         <h3 className="settings-section-title" style={{ margin: 0 }}>
-          Memory
+          {t("memory.title", "Memory")}
         </h3>
         <button
           className="settings-button"
           onClick={() => setShowManageMemories((prev) => !prev)}
           style={{ whiteSpace: "nowrap" }}
         >
-          {showManageMemories ? "Hide Manage" : "Manage"}
+          {showManageMemories
+            ? t("memory.action.hideManage", "Hide Manage")
+            : t("memory.action.manage", "Manage")}
         </button>
       </div>
       <p className="settings-section-description">
-        Keep useful context over time, control what gets remembered, and review or delete memory
-        whenever you want.
+        {t(
+          "memory.description",
+          "Keep useful context over time, control what gets remembered, and review or delete memory whenever you want.",
+        )}
       </p>
 
       <ToggleRow
-        title="Use memory in responses"
-        description="Allows the assistant to reference saved memories while responding."
+        title={t("memory.toggle.use.title", "Use memory in responses")}
+        description={t(
+          "memory.toggle.use.description",
+          "Allows the assistant to reference saved memories while responding.",
+        )}
         checked={settings.enabled}
         onChange={(checked) => handleSave({ enabled: checked })}
         disabled={saving}
       />
 
       <ToggleRow
-        title="Generate memory from chat history"
-        description="Automatically stores useful context from chats/tasks. Turn this off to stop new memory creation."
+        title={t(
+          "memory.toggle.autoCapture.title",
+          "Generate memory from chat history",
+        )}
+        description={t(
+          "memory.toggle.autoCapture.description",
+          "Automatically stores useful context from chats/tasks. Turn this off to stop new memory creation.",
+        )}
         checked={settings.autoCapture}
         onChange={(checked) => handleSave({ autoCapture: checked })}
         disabled={saving || !settings.enabled}
@@ -686,77 +846,122 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
 
       <div className="settings-form-group memory-preview-card">
         <div style={{ fontWeight: 500, color: "var(--color-text-primary)" }}>
-          Memory from your chats
+          {t("memory.preview.title", "Memory from your chats")}
         </div>
-        <p className="settings-form-hint" style={{ marginTop: "4px", marginBottom: "10px" }}>
-          {latestMemory ? formatRelativeTime(latestMemory.createdAt) : "No memory captured yet"}
+        <p
+          className="settings-form-hint"
+          style={{ marginTop: "4px", marginBottom: "10px" }}
+        >
+          {latestMemory
+            ? formatRelativeTime(latestMemory.createdAt)
+            : t("memory.preview.emptyTime", "No memory captured yet")}
         </p>
-        <div className="settings-card" style={{ color: "var(--color-text-secondary)", fontSize: "13px", lineHeight: "1.45" }}>
+        <div
+          className="settings-card"
+          style={{
+            color: "var(--color-text-secondary)",
+            fontSize: "13px",
+            lineHeight: "1.45",
+          }}
+        >
           {latestMemory
             ? (() => {
                 const preview =
-                  parseImportTag(latestMemory.content).preview || latestMemory.content;
+                  parseImportTag(latestMemory.content).preview ||
+                  latestMemory.content;
                 return /^\s*[{[]/.test(preview.trim())
-                  ? "Recent memory is technical/system content. Open Manage to inspect all memories."
+                  ? t(
+                      "memory.preview.technical",
+                      "Recent memory is technical/system content. Open Manage to inspect all memories.",
+                    )
                   : preview;
               })()
-            : "No memory preview available yet."}
+            : t("memory.preview.empty", "No memory preview available yet.")}
         </div>
       </div>
 
       {/* Import from other AI providers */}
-      <div
-        className="settings-form-group memory-section"
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div className="settings-form-group memory-section">
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
           <div>
             <div
-              style={{ fontWeight: 500, color: "var(--color-text-primary)", marginBottom: "4px" }}
+              style={{
+                fontWeight: 500,
+                color: "var(--color-text-primary)",
+                marginBottom: "4px",
+              }}
             >
-              Import memory from other AI providers
+              {t(
+                "memory.promptImport.title",
+                "Import memory from other AI providers",
+              )}
             </div>
             <p className="settings-form-hint" style={{ margin: 0 }}>
-              Bring relevant context and data from another AI provider. CoWork OS gives you a prompt
-              to fetch memory from Claude, Gemini, Meta AI, and others.
+              {t(
+                "memory.promptImport.description",
+                "Bring relevant context and data from another AI provider. NeoWorker gives you a prompt to fetch memory from Claude, Gemini, Meta AI, and others.",
+              )}
             </p>
           </div>
           <button
             className="chatgpt-import-btn chatgpt-import-btn-primary"
             onClick={() => setShowPromptImportWizard(true)}
             disabled={!settings.enabled}
-            style={{ opacity: settings.enabled ? 1 : 0.5, whiteSpace: "nowrap" }}
+            style={{
+              opacity: settings.enabled ? 1 : 0.5,
+              whiteSpace: "nowrap",
+            }}
           >
-            Start Import
+            {t("memory.action.startImport", "Start Import")}
           </button>
         </div>
       </div>
 
       {showManageMemories && (
         <>
-          <div
-            className="settings-form-group memory-section"
-          >
+          <div className="settings-form-group memory-section">
             <div
-              style={{ fontWeight: 500, color: "var(--color-text-primary)", marginBottom: "8px" }}
+              style={{
+                fontWeight: 500,
+                color: "var(--color-text-primary)",
+                marginBottom: "8px",
+              }}
             >
-              Manage memories
+              {t("memory.manage.title", "Manage memories")}
             </div>
             <input
               className="settings-input"
               type="text"
               value={memorySearchQuery}
               onChange={(e) => setMemorySearchQuery(e.target.value)}
-              placeholder="Search memories"
+              placeholder={t(
+                "memory.manage.searchPlaceholder",
+                "Search memories",
+              )}
               style={{ marginBottom: "10px" }}
             />
             <div className="memory-list" style={{ maxHeight: "220px" }}>
               {searchingMemories && (
-                <div className="memory-list-item" style={{ color: "var(--color-text-secondary)", fontSize: "13px" }}>
-                  Searching...
+                <div
+                  className="memory-list-item"
+                  style={{
+                    color: "var(--color-text-secondary)",
+                    fontSize: "13px",
+                  }}
+                >
+                  {t("common.searching", "Searching...")}
                 </div>
               )}
               {!searchingMemories && selectedManageMemories.length === 0 && (
-                <div className="settings-empty">No memories found.</div>
+                <div className="settings-empty">
+                  {t("memory.manage.empty", "No memories found.")}
+                </div>
               )}
               {!searchingMemories &&
                 selectedManageMemories.slice(0, 30).map((memory) => {
@@ -777,7 +982,12 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                       >
                         {title}
                       </div>
-                      <div style={{ color: "var(--color-text-secondary)", fontSize: "12px" }}>
+                      <div
+                        style={{
+                          color: "var(--color-text-secondary)",
+                          fontSize: "12px",
+                        }}
+                      >
                         {parsed.preview || memory.content.slice(0, 180)}
                       </div>
                       <div
@@ -788,7 +998,9 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                         }}
                       >
                         {new Date(memory.createdAt).toLocaleDateString()}
-                        {typeof memory.tokens === "number" ? ` • ${memory.tokens} tokens` : ""}
+                        {typeof memory.tokens === "number"
+                          ? ` • ${t("memory.tokensCount", "{count} tokens", { count: memory.tokens })}`
+                          : ""}
                       </div>
                     </div>
                   );
@@ -805,23 +1017,37 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                 marginBottom: "8px",
               }}
             >
-              <div style={{ fontWeight: 500, color: "var(--color-text-primary)" }}>
-                Chronicle observations
+              <div
+                style={{ fontWeight: 500, color: "var(--color-text-primary)" }}
+              >
+                {t("memory.chronicle.title", "Chronicle observations")}
               </div>
               <button
                 className="settings-button"
                 onClick={handleClearChronicleObservations}
-                disabled={clearingChronicle || chronicleObservations.length === 0}
+                disabled={
+                  clearingChronicle || chronicleObservations.length === 0
+                }
               >
-                {clearingChronicle ? "Clearing..." : "Clear Chronicle"}
+                {clearingChronicle
+                  ? t("common.clearing", "Clearing...")
+                  : t("memory.chronicle.clear", "Clear Chronicle")}
               </button>
             </div>
             <p className="settings-form-hint" style={{ marginTop: 0 }}>
-              Promoted Chronicle screen-context entries that were actually used by tasks.
+              {t(
+                "memory.chronicle.description",
+                "Promoted Chronicle screen-context entries that were actually used by tasks.",
+              )}
             </p>
             <div className="memory-list" style={{ maxHeight: "220px" }}>
               {chronicleObservations.length === 0 && (
-                <div className="settings-empty">No Chronicle observations stored yet.</div>
+                <div className="settings-empty">
+                  {t(
+                    "memory.chronicle.empty",
+                    "No Chronicle observations stored yet.",
+                  )}
+                </div>
               )}
               {chronicleObservations.map((observation) => (
                 <div
@@ -835,14 +1061,27 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                   }}
                 >
                   <div>
-                    <div style={{ color: "var(--color-text-primary)", fontSize: "13px" }}>
-                      {observation.windowTitle || observation.appName || "Screen context"}
+                    <div
+                      style={{
+                        color: "var(--color-text-primary)",
+                        fontSize: "13px",
+                      }}
+                    >
+                      {observation.windowTitle ||
+                        observation.appName ||
+                        t("memory.type.screenContext", "Screen context")}
                     </div>
-                    <div style={{ color: "var(--color-text-secondary)", fontSize: "12px" }}>
+                    <div
+                      style={{
+                        color: "var(--color-text-secondary)",
+                        fontSize: "12px",
+                      }}
+                    >
                       {[observation.appName, observation.localTextSnippet]
                         .filter(Boolean)
                         .join(" • ")
-                        .slice(0, 220) || "No OCR text cached yet."}
+                        .slice(0, 220) ||
+                        t("memory.chronicle.noOcr", "No OCR text cached yet.")}
                     </div>
                     <div
                       style={{
@@ -855,15 +1094,21 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                       {observation.destinationHints?.length
                         ? ` • ${observation.destinationHints.join(", ")}`
                         : ""}
-                      {observation.memoryId ? " • memory linked" : ""}
+                      {observation.memoryId
+                        ? ` • ${t("memory.chronicle.memoryLinked", "memory linked")}`
+                        : ""}
                     </div>
                   </div>
                   <button
                     className="memory-inline-btn danger"
                     disabled={deletingChronicleId === observation.id}
-                    onClick={() => void handleDeleteChronicleObservation(observation.id)}
+                    onClick={() =>
+                      void handleDeleteChronicleObservation(observation.id)
+                    }
                   >
-                    {deletingChronicleId === observation.id ? "Deleting..." : "Delete"}
+                    {deletingChronicleId === observation.id
+                      ? t("common.deleting", "Deleting...")
+                      : t("common.delete", "Delete")}
                   </button>
                 </div>
               ))}
@@ -871,42 +1116,72 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
           </div>
 
           {/* User Profile Facts */}
-          <div
-            className="settings-form-group memory-section"
-          >
+          <div className="settings-form-group memory-section">
             <div
-              style={{ fontWeight: 500, color: "var(--color-text-primary)", marginBottom: "4px" }}
+              style={{
+                fontWeight: 500,
+                color: "var(--color-text-primary)",
+                marginBottom: "4px",
+              }}
             >
-              User Memory Facts
+              {t("memory.facts.title", "User Memory Facts")}
             </div>
             <p className="settings-form-hint" style={{ marginTop: 0 }}>
-              Curate what the assistant remembers about preferences and context.
+              {t(
+                "memory.facts.description",
+                "Curate what the assistant remembers about preferences and context.",
+              )}
             </p>
 
             <div className="memory-fact-form">
               <select
                 className="settings-select"
                 value={newFactCategory}
-                onChange={(e) => setNewFactCategory(e.target.value as UserFactCategory)}
+                onChange={(e) =>
+                  setNewFactCategory(e.target.value as UserFactCategory)
+                }
                 disabled={savingFact}
               >
-                <option value="identity">Identity</option>
-                <option value="preference">Preference</option>
-                <option value="bio">Profile</option>
-                <option value="work">Work</option>
-                <option value="goal">Goal</option>
-                <option value="operating">Operating Style</option>
-                <option value="voice">Voice</option>
-                <option value="accountability">Accountability</option>
-                <option value="constraint">Constraint</option>
-                <option value="other">Other</option>
+                <option value="identity">
+                  {t("memory.category.identity", "Identity")}
+                </option>
+                <option value="preference">
+                  {t("memory.category.preference", "Preference")}
+                </option>
+                <option value="bio">
+                  {t("memory.category.bio", "Profile")}
+                </option>
+                <option value="work">
+                  {t("memory.category.work", "Work")}
+                </option>
+                <option value="goal">
+                  {t("memory.category.goal", "Goal")}
+                </option>
+                <option value="operating">
+                  {t("memory.category.operating", "Operating Style")}
+                </option>
+                <option value="voice">
+                  {t("memory.category.voice", "Voice")}
+                </option>
+                <option value="accountability">
+                  {t("memory.category.accountability", "Accountability")}
+                </option>
+                <option value="constraint">
+                  {t("memory.category.constraint", "Constraint")}
+                </option>
+                <option value="other">
+                  {t("memory.category.other", "Other")}
+                </option>
               </select>
               <input
                 className="settings-input"
                 type="text"
                 value={newFact}
                 onChange={(e) => setNewFact(e.target.value)}
-                placeholder="Add a fact (for example: Prefers concise responses)"
+                placeholder={t(
+                  "memory.facts.placeholder",
+                  "Add a fact (for example: Prefers concise responses)",
+                )}
                 disabled={savingFact}
               />
               <button
@@ -915,13 +1190,17 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                 disabled={savingFact || !newFact.trim()}
                 style={{ minWidth: "74px" }}
               >
-                {savingFact ? "Saving..." : "Add"}
+                {savingFact
+                  ? t("common.saving", "Saving...")
+                  : t("common.add", "Add")}
               </button>
             </div>
 
             <div className="memory-list" style={{ maxHeight: "220px" }}>
               {(!userProfile?.facts || userProfile.facts.length === 0) && (
-                <div className="settings-empty">No user facts stored yet.</div>
+                <div className="settings-empty">
+                  {t("memory.facts.empty", "No user facts stored yet.")}
+                </div>
               )}
 
               {(userProfile?.facts || [])
@@ -929,7 +1208,8 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                 .sort((a, b) => {
                   if ((a.pinned ? 1 : 0) !== (b.pinned ? 1 : 0))
                     return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
-                  if (a.confidence !== b.confidence) return b.confidence - a.confidence;
+                  if (a.confidence !== b.confidence)
+                    return b.confidence - a.confidence;
                   return b.lastUpdatedAt - a.lastUpdatedAt;
                 })
                 .map((fact) => (
@@ -944,7 +1224,12 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                     }}
                   >
                     <div>
-                      <div style={{ color: "var(--color-text-primary)", fontSize: "13px" }}>
+                      <div
+                        style={{
+                          color: "var(--color-text-primary)",
+                          fontSize: "13px",
+                        }}
+                      >
                         {fact.value}
                       </div>
                       <div
@@ -954,7 +1239,10 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                           marginTop: "2px",
                         }}
                       >
-                        {fact.category} • {Math.round(fact.confidence * 100)}% confidence
+                        {fact.category} •{" "}
+                        {t("memory.confidence", "{percent}% confidence", {
+                          percent: Math.round(fact.confidence * 100),
+                        })}
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: "6px" }}>
@@ -962,13 +1250,15 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                         className={`memory-inline-btn${fact.pinned ? " active" : ""}`}
                         onClick={() => handleToggleFactPin(fact)}
                       >
-                        {fact.pinned ? "Pinned" : "Pin"}
+                        {fact.pinned
+                          ? t("memory.facts.pinned", "Pinned")
+                          : t("memory.facts.pin", "Pin")}
                       </button>
                       <button
                         className="memory-inline-btn danger"
                         onClick={() => handleDeleteFact(fact.id)}
                       >
-                        Delete
+                        {t("common.delete", "Delete")}
                       </button>
                     </div>
                   </div>
@@ -977,9 +1267,7 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
           </div>
 
           {/* Relationship Memory */}
-          <div
-            className="settings-form-group memory-section"
-          >
+          <div className="settings-form-group memory-section">
             <div
               style={{
                 display: "flex",
@@ -988,29 +1276,41 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                 marginBottom: "6px",
               }}
             >
-              <div style={{ fontWeight: 500, color: "var(--color-text-primary)" }}>
-                Relationship Memory
+              <div
+                style={{ fontWeight: 500, color: "var(--color-text-primary)" }}
+              >
+                {t("memory.relationship.title", "Relationship Memory")}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
                 <button
                   className="settings-button"
                   style={{ padding: "4px 10px" }}
                   onClick={handleCleanupRecurringHistory}
                   disabled={cleaningRecurringHistory}
                 >
-                  {cleaningRecurringHistory ? "Cleaning..." : "Clean Old Recurring History"}
+                  {cleaningRecurringHistory
+                    ? t("memory.relationship.cleaning", "Cleaning...")
+                    : t(
+                        "memory.relationship.cleanOld",
+                        "Clean Old Recurring History",
+                      )}
                 </button>
                 <button
                   className="settings-button"
                   style={{ padding: "4px 10px" }}
                   onClick={() => loadData()}
                 >
-                  Refresh
+                  {t("common.refresh", "Refresh")}
                 </button>
               </div>
             </div>
             <p className="settings-form-hint" style={{ marginTop: 0 }}>
-              Continuity memory across identity, preferences, context, history, and commitments.
+              {t(
+                "memory.relationship.description",
+                "Continuity memory across identity, preferences, context, history, and commitments.",
+              )}
             </p>
             {recurringCleanupMessage && (
               <div
@@ -1031,12 +1331,18 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                 color: "var(--color-text-secondary)",
               }}
             >
-              {dueSoonReminder || "No commitments due soon."}
+              {dueSoonReminder ||
+                t("memory.relationship.noDueSoon", "No commitments due soon.")}
             </div>
 
             <div className="memory-list">
               {relationshipItems.length === 0 && (
-                <div className="settings-empty">No relationship memory items stored yet.</div>
+                <div className="settings-empty">
+                  {t(
+                    "memory.relationship.empty",
+                    "No relationship memory items stored yet.",
+                  )}
+                </div>
               )}
               {relationshipItems.map((item) => (
                 <div
@@ -1050,7 +1356,12 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                   }}
                 >
                   <div>
-                    <div style={{ color: "var(--color-text-primary)", fontSize: "13px" }}>
+                    <div
+                      style={{
+                        color: "var(--color-text-primary)",
+                        fontSize: "13px",
+                      }}
+                    >
                       {item.text}
                     </div>
                     <div
@@ -1060,9 +1371,16 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                         marginTop: "2px",
                       }}
                     >
-                      {item.layer} • {Math.round(item.confidence * 100)}% confidence
+                      {item.layer} •{" "}
+                      {t("memory.confidence", "{percent}% confidence", {
+                        percent: Math.round(item.confidence * 100),
+                      })}
                       {item.status ? ` • ${item.status}` : ""}
-                      {item.dueAt ? ` • due ${new Date(item.dueAt).toLocaleDateString()}` : ""}
+                      {item.dueAt
+                        ? ` • ${t("memory.relationship.due", "due {date}", {
+                            date: new Date(item.dueAt).toLocaleDateString(),
+                          })}`
+                        : ""}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
@@ -1071,14 +1389,22 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                         className={`memory-inline-btn${item.status === "done" ? " active" : ""}`}
                         onClick={() => handleToggleCommitmentStatus(item)}
                       >
-                        {item.status === "done" ? "Reopen" : "Done"}
+                        {item.status === "done"
+                          ? t("memory.relationship.reopen", "Reopen")
+                          : t("memory.relationship.done", "Done")}
                       </button>
                     )}
-                    <button className="memory-inline-btn" onClick={() => handleEditRelationship(item)}>
-                      Edit
+                    <button
+                      className="memory-inline-btn"
+                      onClick={() => handleEditRelationship(item)}
+                    >
+                      {t("common.edit", "Edit")}
                     </button>
-                    <button className="memory-inline-btn danger" onClick={() => handleDeleteRelationship(item.id)}>
-                      Forget
+                    <button
+                      className="memory-inline-btn danger"
+                      onClick={() => handleDeleteRelationship(item.id)}
+                    >
+                      {t("memory.relationship.forget", "Forget")}
                     </button>
                   </div>
                 </div>
@@ -1093,7 +1419,7 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                   color: "var(--color-text-secondary)",
                 }}
               >
-                Due soon:{" "}
+                {t("memory.relationship.dueSoon", "Due soon:")}{" "}
                 {dueSoonItems
                   .slice(0, 3)
                   .map((item) => item.text)
@@ -1106,20 +1432,36 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
           {stats && (
             <div className="memory-stats-grid">
               <div className="stat-card">
-                <div className="stat-value">{(stats.count ?? 0).toLocaleString()}</div>
-                <div className="stat-label">Memories</div>
+                <div className="stat-value">
+                  {(stats.count ?? 0).toLocaleString()}
+                </div>
+                <div className="stat-label">
+                  {t("memory.stats.memories", "Memories")}
+                </div>
               </div>
               <div className="stat-card">
-                <div className="stat-value">{(stats.totalTokens ?? 0).toLocaleString()}</div>
-                <div className="stat-label">Tokens</div>
+                <div className="stat-value">
+                  {(stats.totalTokens ?? 0).toLocaleString()}
+                </div>
+                <div className="stat-label">
+                  {t("memory.stats.tokens", "Tokens")}
+                </div>
               </div>
               <div className="stat-card">
-                <div className="stat-value">{(stats.compressedCount ?? 0).toLocaleString()}</div>
-                <div className="stat-label">Compressed</div>
+                <div className="stat-value">
+                  {(stats.compressedCount ?? 0).toLocaleString()}
+                </div>
+                <div className="stat-label">
+                  {t("memory.stats.compressed", "Compressed")}
+                </div>
               </div>
               <div className="stat-card">
-                <div className="stat-value">{Math.round((stats.compressionRatio ?? 0) * 100)}%</div>
-                <div className="stat-label">Ratio</div>
+                <div className="stat-value">
+                  {Math.round((stats.compressionRatio ?? 0) * 100)}%
+                </div>
+                <div className="stat-label">
+                  {t("memory.stats.ratio", "Ratio")}
+                </div>
               </div>
             </div>
           )}
@@ -1135,16 +1477,28 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                   marginBottom: "12px",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <div style={{ fontWeight: 500, color: "var(--color-text-primary)" }}>
-                    Imported Memories
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                >
+                  <div
+                    style={{
+                      fontWeight: 500,
+                      color: "var(--color-text-primary)",
+                    }}
+                  >
+                    {t("memory.imported.title", "Imported Memories")}
                   </div>
                   <span className="settings-badge settings-badge--success">
                     {importedStats.count.toLocaleString()}
                   </span>
                 </div>
-                <button className="memory-inline-btn" onClick={handleToggleImported}>
-                  {showImported ? "Hide" : "View"}
+                <button
+                  className="memory-inline-btn"
+                  onClick={handleToggleImported}
+                >
+                  {showImported
+                    ? t("common.hide", "Hide")
+                    : t("common.view", "View")}
                 </button>
               </div>
 
@@ -1167,8 +1521,13 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                     alignItems: "center",
                   }}
                 >
-                  <span style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>
-                    Conversations
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-secondary)",
+                    }}
+                  >
+                    {t("memory.imported.conversations", "Conversations")}
                   </span>
                   <span
                     style={{
@@ -1190,8 +1549,13 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                     alignItems: "center",
                   }}
                 >
-                  <span style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>
-                    Tokens
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--color-text-secondary)",
+                    }}
+                  >
+                    {t("memory.stats.tokens", "Tokens")}
                   </span>
                   <span
                     style={{
@@ -1210,11 +1574,17 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                 <div>
                   <div className="memory-list" style={{ maxHeight: "300px" }}>
                     {importedMemories.map((memory) => {
-                      const { title, preview, ignoredForPromptRecall } = parseImportTag(memory.content);
+                      const { title, preview, ignoredForPromptRecall } =
+                        parseImportTag(memory.content);
                       const busy =
-                        deletingImportedEntryId === memory.id || updatingImportedEntryId === memory.id;
+                        deletingImportedEntryId === memory.id ||
+                        updatingImportedEntryId === memory.id;
                       return (
-                        <div key={memory.id} className="memory-list-item" style={{ fontSize: "13px" }}>
+                        <div
+                          key={memory.id}
+                          className="memory-list-item"
+                          style={{ fontSize: "13px" }}
+                        >
                           <div
                             style={{
                               display: "flex",
@@ -1244,8 +1614,14 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                                 {title}
                               </div>
                               {ignoredForPromptRecall && (
-                                <span className="settings-badge settings-badge--warning" style={{ fontSize: "10px" }}>
-                                  ignored in prompts
+                                <span
+                                  className="settings-badge settings-badge--warning"
+                                  style={{ fontSize: "10px" }}
+                                >
+                                  {t(
+                                    "memory.imported.ignoredInPrompts",
+                                    "ignored in prompts",
+                                  )}
                                 </span>
                               )}
                             </div>
@@ -1256,8 +1632,9 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                                 whiteSpace: "nowrap",
                               }}
                             >
-                              {new Date(memory.createdAt).toLocaleDateString()} · {memory.tokens}{" "}
-                              tokens
+                              {new Date(memory.createdAt).toLocaleDateString()}{" "}
+                              · {memory.tokens}{" "}
+                              {t("memory.stats.tokensLower", "tokens")}
                             </div>
                           </div>
                           <div
@@ -1285,35 +1662,60 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                             <button
                               className="memory-inline-btn active"
                               onClick={() =>
-                                handleToggleImportedPromptRecallIgnored(memory.id, ignoredForPromptRecall)
+                                handleToggleImportedPromptRecallIgnored(
+                                  memory.id,
+                                  ignoredForPromptRecall,
+                                )
                               }
                               disabled={busy}
                               style={{ opacity: busy ? 0.6 : 1 }}
                             >
                               {updatingImportedEntryId === memory.id
-                                ? "Saving..."
+                                ? t("common.saving", "Saving...")
                                 : ignoredForPromptRecall
-                                  ? "Use in prompts"
-                                  : "Ignore in prompts"}
+                                  ? t(
+                                      "memory.imported.useInPrompts",
+                                      "Use in prompts",
+                                    )
+                                  : t(
+                                      "memory.imported.ignoreInPrompts",
+                                      "Ignore in prompts",
+                                    )}
                             </button>
                             <button
                               className="memory-inline-btn danger"
-                              onClick={() => handleDeleteImportedEntry(memory.id)}
+                              onClick={() =>
+                                handleDeleteImportedEntry(memory.id)
+                              }
                               disabled={busy}
                               style={{ opacity: busy ? 0.6 : 1 }}
                             >
-                              {deletingImportedEntryId === memory.id ? "Deleting..." : "Delete"}
+                              {deletingImportedEntryId === memory.id
+                                ? t("common.deleting", "Deleting...")
+                                : t("common.delete", "Delete")}
                             </button>
                           </div>
                         </div>
                       );
                     })}
                     {importedMemories.length === 0 && !loadingImported && (
-                      <div className="settings-empty">No imported memories found.</div>
+                      <div className="settings-empty">
+                        {t(
+                          "memory.imported.empty",
+                          "No imported memories found.",
+                        )}
+                      </div>
                     )}
                     {loadingImported && (
-                      <div className="memory-list-item" style={{ textAlign: "center", color: "var(--color-text-secondary)", fontSize: "13px" }}>
-                        Loading...
+                      <div
+                        className="memory-list-item"
+                        style={{
+                          textAlign: "center",
+                          color: "var(--color-text-secondary)",
+                          fontSize: "13px",
+                        }}
+                      >
+                        {t("common.loading", "Loading...")}
                       </div>
                     )}
                   </div>
@@ -1322,9 +1724,14 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                     <button
                       className="memory-inline-btn"
                       onClick={() => loadImportedMemories(importedOffset)}
-                      style={{ display: "block", width: "100%", marginTop: "8px", textAlign: "center" }}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        marginTop: "8px",
+                        textAlign: "center",
+                      }}
                     >
-                      Load more...
+                      {t("memory.action.loadMore", "Load more...")}
                     </button>
                   )}
 
@@ -1332,9 +1739,19 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                     className="settings-button settings-button-danger"
                     onClick={handleDeleteImported}
                     disabled={deletingImported}
-                    style={{ display: "block", width: "100%", marginTop: "8px", opacity: deletingImported ? 0.6 : 1 }}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      marginTop: "8px",
+                      opacity: deletingImported ? 0.6 : 1,
+                    }}
                   >
-                    {deletingImported ? "Deleting..." : "Delete All Imported Memories"}
+                    {deletingImported
+                      ? t("common.deleting", "Deleting...")
+                      : t(
+                          "memory.imported.deleteAll",
+                          "Delete All Imported Memories",
+                        )}
                   </button>
                 </div>
               )}
@@ -1342,10 +1759,14 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
           )}
 
           {/* Import from ChatGPT */}
-          <div
-            className="settings-form-group memory-section"
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div className="settings-form-group memory-section">
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
               <div>
                 <div
                   style={{
@@ -1354,21 +1775,35 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                     marginBottom: "4px",
                   }}
                 >
-                  Import from ChatGPT (JSON export)
+                  {t(
+                    "memory.chatgptImport.title",
+                    "Import from ChatGPT (JSON export)",
+                  )}
                 </div>
                 <p className="settings-form-hint" style={{ margin: 0 }}>
                   {importedStats && importedStats.count > 0
-                    ? "Import more conversations to append to existing imported memories. Duplicates are automatically skipped."
-                    : "Import your ChatGPT conversation history to build richer context. Your data stays on your device."}
+                    ? t(
+                        "memory.chatgptImport.moreDescription",
+                        "Import more conversations to append to existing imported memories. Duplicates are automatically skipped.",
+                      )
+                    : t(
+                        "memory.chatgptImport.description",
+                        "Import your ChatGPT conversation history to build richer context. Your data stays on your device.",
+                      )}
                 </p>
               </div>
               <button
                 className="chatgpt-import-btn chatgpt-import-btn-primary"
                 onClick={() => setShowImportWizard(true)}
                 disabled={!settings.enabled}
-                style={{ opacity: settings.enabled ? 1 : 0.5, whiteSpace: "nowrap" }}
+                style={{
+                  opacity: settings.enabled ? 1 : 0.5,
+                  whiteSpace: "nowrap",
+                }}
               >
-                {importedStats && importedStats.count > 0 ? "Import More" : "Import"}
+                {importedStats && importedStats.count > 0
+                  ? t("memory.action.importMore", "Import More")
+                  : t("memory.action.import", "Import")}
               </button>
             </div>
           </div>
@@ -1390,63 +1825,109 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                     marginBottom: "4px",
                   }}
                 >
-                  Advanced memory settings
+                  {t("memory.advanced.title", "Advanced memory settings")}
                 </div>
                 <p className="settings-form-hint" style={{ margin: 0 }}>
-                  Tune memory quality, privacy, retention, and storage behavior.
+                  {t(
+                    "memory.advanced.description",
+                    "Tune memory quality, privacy, retention, and storage behavior.",
+                  )}
                 </p>
               </div>
 
               {/* Compression Toggle */}
               <ToggleRow
-                title="Enable compression"
-                description="Uses LLM to summarize memories, reducing token usage by ~10x."
+                title={t("memory.compression.title", "Enable compression")}
+                description={t(
+                  "memory.compression.description",
+                  "Uses LLM to summarize memories, reducing token usage by ~10x.",
+                )}
                 checked={settings.compressionEnabled}
-                onChange={(checked) => handleSave({ compressionEnabled: checked })}
+                onChange={(checked) =>
+                  handleSave({ compressionEnabled: checked })
+                }
                 disabled={saving}
               />
 
               {/* Privacy Mode */}
               <div className="settings-form-group">
-                <label className="settings-label">Privacy Mode</label>
+                <label className="settings-label">
+                  {t("memory.privacy.title", "Privacy Mode")}
+                </label>
                 <select
                   value={settings.privacyMode}
-                  onChange={(e) => handleSave({ privacyMode: e.target.value as PrivacyMode })}
+                  onChange={(e) =>
+                    handleSave({ privacyMode: e.target.value as PrivacyMode })
+                  }
                   disabled={saving}
                   className="settings-select"
                 >
-                  <option value="normal">Normal - Auto-detect sensitive data</option>
-                  <option value="strict">Strict - Mark all as private</option>
-                  <option value="disabled">Disabled - No memory capture</option>
+                  <option value="normal">
+                    {t(
+                      "memory.privacy.normal",
+                      "Normal - Auto-detect sensitive data",
+                    )}
+                  </option>
+                  <option value="strict">
+                    {t("memory.privacy.strict", "Strict - Mark all as private")}
+                  </option>
+                  <option value="disabled">
+                    {t(
+                      "memory.privacy.disabled",
+                      "Disabled - No memory capture",
+                    )}
+                  </option>
                 </select>
                 <p className="settings-form-hint">
-                  Controls how sensitive data is handled in memories.
+                  {t(
+                    "memory.privacy.hint",
+                    "Controls how sensitive data is handled in memories.",
+                  )}
                 </p>
               </div>
 
               {/* Retention Period */}
               <div className="settings-form-group">
-                <label className="settings-label">Retention Period</label>
+                <label className="settings-label">
+                  {t("memory.retention.title", "Retention Period")}
+                </label>
                 <select
                   value={settings.retentionDays}
-                  onChange={(e) => handleSave({ retentionDays: parseInt(e.target.value) })}
+                  onChange={(e) =>
+                    handleSave({ retentionDays: parseInt(e.target.value) })
+                  }
                   disabled={saving}
                   className="settings-select"
                 >
-                  <option value="7">7 days</option>
-                  <option value="30">30 days</option>
-                  <option value="90">90 days</option>
-                  <option value="180">180 days</option>
-                  <option value="365">1 year</option>
+                  <option value="7">
+                    {t("memory.retention.days", "{count} days", { count: 7 })}
+                  </option>
+                  <option value="30">
+                    {t("memory.retention.days", "{count} days", { count: 30 })}
+                  </option>
+                  <option value="90">
+                    {t("memory.retention.days", "{count} days", { count: 90 })}
+                  </option>
+                  <option value="180">
+                    {t("memory.retention.days", "{count} days", { count: 180 })}
+                  </option>
+                  <option value="365">
+                    {t("memory.retention.year", "1 year")}
+                  </option>
                 </select>
                 <p className="settings-form-hint">
-                  Memories older than this will be automatically deleted.
+                  {t(
+                    "memory.retention.hint",
+                    "Memories older than this will be automatically deleted.",
+                  )}
                 </p>
               </div>
 
               {/* Storage Cap */}
               <div className="settings-form-group">
-                <label className="settings-label">Storage Cap (MB)</label>
+                <label className="settings-label">
+                  {t("memory.storage.title", "Storage Cap (MB)")}
+                </label>
                 <input
                   type="number"
                   min={10}
@@ -1456,7 +1937,10 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                   onChange={(e) => {
                     const value = Math.max(
                       10,
-                      Math.min(5000, parseInt(e.target.value || "0", 10) || 100),
+                      Math.min(
+                        5000,
+                        parseInt(e.target.value || "0", 10) || 100,
+                      ),
                     );
                     handleSave({ maxStorageMb: value });
                   }}
@@ -1464,7 +1948,10 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                   className="settings-input"
                 />
                 <p className="settings-form-hint">
-                  Oldest memories are pruned automatically when this limit is exceeded.
+                  {t(
+                    "memory.storage.hint",
+                    "Oldest memories are pruned automatically when this limit is exceeded.",
+                  )}
                 </p>
               </div>
 
@@ -1483,10 +1970,15 @@ export function MemorySettings({ workspaceId, onSettingsChanged }: MemorySetting
                   disabled={saving || clearing}
                   style={{ opacity: clearing ? 0.6 : 1 }}
                 >
-                  {clearing ? "Clearing..." : "Clear All Memories"}
+                  {clearing
+                    ? t("common.clearing", "Clearing...")
+                    : t("memory.action.clearAll", "Clear All Memories")}
                 </button>
                 <p className="settings-form-hint" style={{ marginTop: "8px" }}>
-                  Permanently deletes all memories for this workspace.
+                  {t(
+                    "memory.action.clearAllHint",
+                    "Permanently deletes all memories for this workspace.",
+                  )}
                 </p>
               </div>
             </>

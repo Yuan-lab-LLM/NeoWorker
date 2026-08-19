@@ -66,8 +66,8 @@ const DEFAULT_RENDER_SCALE = 1800;
 const IMAGE_HEAVY_COVERAGE_THRESHOLD = 0.45;
 const IMAGE_HEAVY_AVG_CHAR_THRESHOLD = 140;
 const IMAGE_HEAVY_AVG_WORD_THRESHOLD = 20;
-const OCR_TEMP_PREFIX = "cowork-pdf-ocr-";
-const OCRMYPDF_TEMP_PREFIX = "cowork-pdf-ocrmypdf-";
+const OCR_TEMP_PREFIX = "neoworker-pdf-ocr-";
+const OCRMYPDF_TEMP_PREFIX = "neoworker-pdf-ocrmypdf-";
 const OCRMYPDF_TIMEOUT_MS = 5 * 60 * 1000;
 
 let ocrmypdfChecked = false;

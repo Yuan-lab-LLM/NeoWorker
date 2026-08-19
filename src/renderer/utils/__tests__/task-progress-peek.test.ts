@@ -87,8 +87,16 @@ describe("deriveTaskProgressPeekModel", () => {
       now: 130_000,
       events: [
         makeEvent("progress_update", { message: "thinking" }, 100_000),
-        makeEvent("progress_update", { message: "Reading renderer timeline code" }, 110_000),
-        makeEvent("step_completed", { step: { id: "a", description: "Inspect files" } }, 120_000),
+        makeEvent(
+          "progress_update",
+          { message: "Reading renderer timeline code" },
+          110_000,
+        ),
+        makeEvent(
+          "step_completed",
+          { step: { id: "a", description: "Inspect files" } },
+          120_000,
+        ),
       ],
     });
 
@@ -116,11 +124,17 @@ describe("deriveTaskProgressPeekModel", () => {
 describe("humanizeProgressStepDescription", () => {
   it("removes leaked tool-call and markdown syntax", () => {
     expect(
-      humanizeProgressStepDescription("Use the `Skill` tool with skill ID `novelist`."),
+      humanizeProgressStepDescription(
+        "Use the `Skill` tool with skill ID `novelist`.",
+      ),
     ).toBe("Run the Novelist skill");
-    expect(humanizeProgressStepDescription("assistant to=read_file path=`src/App.tsx`")).toBe(
-      "Read file",
+    expect(
+      humanizeProgressStepDescription(
+        "assistant to=read_file path=`src/App.tsx`",
+      ),
+    ).toBe("Read file");
+    expect(humanizeProgressStepDescription("Review **renderer** state")).toBe(
+      "Review renderer state",
     );
-    expect(humanizeProgressStepDescription("Review **renderer** state")).toBe("Review renderer state");
   });
 });

@@ -6,7 +6,7 @@ import {
   permissionRuleFingerprint,
 } from "./permission-utils";
 
-const MANIFEST_RELATIVE_PATH = path.join(".cowork", "policy", "permissions.json");
+const MANIFEST_RELATIVE_PATH = path.join(".neoworker", "policy", "permissions.json");
 
 export interface WorkspacePermissionManifest {
   version: 1;

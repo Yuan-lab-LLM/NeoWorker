@@ -16,7 +16,7 @@
   "enabled": true,
   "metadata": {
     "version": "1.0.0",
-    "author": "cowork-os",
+    "author": "neoworker",
     "routing": {
       "useWhen": "Use when the user wants to extract business information, contact details, or lead data from websites.",
       "dontUseWhen": "Don't use for personal data harvesting without consent or for spam purposes.",

@@ -39,7 +39,10 @@ describe("retainSelectedThreadInUnreadList", () => {
       "unread",
     );
 
-    expect(nextThreads.map((thread) => thread.id)).toEqual(["thread-1", "thread-2"]);
+    expect(nextThreads.map((thread) => thread.id)).toEqual([
+      "thread-1",
+      "thread-2",
+    ]);
     expect(nextThreads[0]?.unreadCount).toBe(0);
   });
 

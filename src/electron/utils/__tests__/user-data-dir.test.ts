@@ -3,7 +3,7 @@ import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Don't mock electron globally - the module uses try/catch for require('electron')
-// so it will naturally fall through to the $HOME/.cowork fallback in test env.
+// so it will naturally fall through to the $HOME/.neoworker fallback in test env.
 
 describe("getUserDataDir", () => {
   let originalArgv: string[];
@@ -24,29 +24,37 @@ describe("getUserDataDir", () => {
     Object.assign(process.env, envSnapshot);
   });
 
-  it("returns COWORK_USER_DATA_DIR when env var is set", async () => {
-    process.env.COWORK_USER_DATA_DIR = "/custom/data";
+  it("returns NEOWORKER_USER_DATA_DIR when env var is set", async () => {
+    process.env.NEOWORKER_USER_DATA_DIR = "/custom/data";
     process.argv = ["node", "app"];
     const { getUserDataDir } = await import("../user-data-dir");
     expect(getUserDataDir()).toBe("/custom/data");
   });
 
-  it("expands tilde in COWORK_USER_DATA_DIR", async () => {
-    process.env.COWORK_USER_DATA_DIR = "~/cowork-data";
+  it("promotes the legacy NOVAREADY_USER_DATA_DIR override", async () => {
+    delete process.env.NEOWORKER_USER_DATA_DIR;
+    process.env.NOVAREADY_USER_DATA_DIR = "/legacy/novaready-data";
     process.argv = ["node", "app"];
     const { getUserDataDir } = await import("../user-data-dir");
-    expect(getUserDataDir()).toBe(path.join(os.homedir(), "cowork-data"));
+    expect(getUserDataDir()).toBe("/legacy/novaready-data");
   });
 
-  it("expands bare tilde in COWORK_USER_DATA_DIR", async () => {
-    process.env.COWORK_USER_DATA_DIR = "~";
+  it("expands tilde in NEOWORKER_USER_DATA_DIR", async () => {
+    process.env.NEOWORKER_USER_DATA_DIR = "~/neoworker-data";
+    process.argv = ["node", "app"];
+    const { getUserDataDir } = await import("../user-data-dir");
+    expect(getUserDataDir()).toBe(path.join(os.homedir(), "neoworker-data"));
+  });
+
+  it("expands bare tilde in NEOWORKER_USER_DATA_DIR", async () => {
+    process.env.NEOWORKER_USER_DATA_DIR = "~";
     process.argv = ["node", "app"];
     const { getUserDataDir } = await import("../user-data-dir");
     expect(getUserDataDir()).toBe(os.homedir());
   });
 
-  it("ignores empty COWORK_USER_DATA_DIR", async () => {
-    process.env.COWORK_USER_DATA_DIR = "   ";
+  it("ignores empty NEOWORKER_USER_DATA_DIR", async () => {
+    process.env.NEOWORKER_USER_DATA_DIR = "   ";
     process.argv = ["node", "app"];
     const { getUserDataDir } = await import("../user-data-dir");
     const result = getUserDataDir();
@@ -54,53 +62,53 @@ describe("getUserDataDir", () => {
   });
 
   it("returns --user-data-dir value from argv (space form)", async () => {
-    delete process.env.COWORK_USER_DATA_DIR;
+    delete process.env.NEOWORKER_USER_DATA_DIR;
     process.argv = ["node", "app", "--user-data-dir", "/from/argv"];
     const { getUserDataDir } = await import("../user-data-dir");
     expect(getUserDataDir()).toBe("/from/argv");
   });
 
   it("returns --user-data-dir value from argv (equals form)", async () => {
-    delete process.env.COWORK_USER_DATA_DIR;
+    delete process.env.NEOWORKER_USER_DATA_DIR;
     process.argv = ["node", "app", "--user-data-dir=/from/argv"];
     const { getUserDataDir } = await import("../user-data-dir");
     expect(getUserDataDir()).toBe("/from/argv");
   });
 
   it("expands tilde in --user-data-dir", async () => {
-    delete process.env.COWORK_USER_DATA_DIR;
+    delete process.env.NEOWORKER_USER_DATA_DIR;
     process.argv = ["node", "app", "--user-data-dir", "~/my-data"];
     const { getUserDataDir } = await import("../user-data-dir");
     expect(getUserDataDir()).toBe(path.join(os.homedir(), "my-data"));
   });
 
-  it("falls back to $HOME/.cowork when no overrides and no Electron", async () => {
-    delete process.env.COWORK_USER_DATA_DIR;
+  it("falls back to $HOME/.neoworker when no overrides and no Electron", async () => {
+    delete process.env.NEOWORKER_USER_DATA_DIR;
     process.argv = ["node", "app"];
     const { getUserDataDir } = await import("../user-data-dir");
     const result = getUserDataDir();
-    // In test env (no Electron runtime), it should fall through to $HOME/.cowork
-    const expected = path.join(os.homedir(), ".cowork");
+    // In test env (no Electron runtime), it should fall through to $HOME/.neoworker
+    const expected = path.join(os.homedir(), ".neoworker");
     expect(result).toBe(expected);
   });
 
-  it("uses stable cowork-os Electron userData regardless of display app name", async () => {
+  it("uses stable neoworker Electron userData regardless of display app name", async () => {
     const { getStableElectronUserDataRoot } = await import("../user-data-dir");
     expect(getStableElectronUserDataRoot("/Users/test/Library/Application Support")).toBe(
-      "/Users/test/Library/Application Support/cowork-os",
+      "/Users/test/Library/Application Support/neoworker",
     );
   });
 
   it("env var takes priority over argv", async () => {
-    process.env.COWORK_USER_DATA_DIR = "/from/env";
+    process.env.NEOWORKER_USER_DATA_DIR = "/from/env";
     process.argv = ["node", "app", "--user-data-dir", "/from/argv"];
     const { getUserDataDir } = await import("../user-data-dir");
     expect(getUserDataDir()).toBe("/from/env");
   });
 
   it("scopes named profile paths under profiles directory", async () => {
-    process.env.COWORK_USER_DATA_DIR = "/custom/data";
-    process.env.COWORK_PROFILE = "Work Alpha";
+    process.env.NEOWORKER_USER_DATA_DIR = "/custom/data";
+    process.env.NEOWORKER_PROFILE = "Work Alpha";
     process.argv = ["node", "app"];
     const { getUserDataDir, getActiveProfileId } = await import("../user-data-dir");
     expect(getActiveProfileId()).toBe("work-alpha");
@@ -108,8 +116,8 @@ describe("getUserDataDir", () => {
   });
 
   it("keeps default profile on the root userData path", async () => {
-    process.env.COWORK_USER_DATA_DIR = "/custom/data";
-    process.env.COWORK_PROFILE = "default";
+    process.env.NEOWORKER_USER_DATA_DIR = "/custom/data";
+    process.env.NEOWORKER_PROFILE = "default";
     process.argv = ["node", "app"];
     const { getUserDataDir, getActiveProfileId } = await import("../user-data-dir");
     expect(getActiveProfileId()).toBe("default");
@@ -117,8 +125,8 @@ describe("getUserDataDir", () => {
   });
 
   it("reads profile from argv when env is absent", async () => {
-    process.env.COWORK_USER_DATA_DIR = "/custom/data";
-    delete process.env.COWORK_PROFILE;
+    process.env.NEOWORKER_USER_DATA_DIR = "/custom/data";
+    delete process.env.NEOWORKER_PROFILE;
     process.argv = ["node", "app", "--profile", "qa-profile"];
     const { getUserDataDir, getActiveProfileId } = await import("../user-data-dir");
     expect(getActiveProfileId()).toBe("qa-profile");
@@ -126,8 +134,8 @@ describe("getUserDataDir", () => {
   });
 
   it("prefers argv profile over env profile", async () => {
-    process.env.COWORK_USER_DATA_DIR = "/custom/data";
-    process.env.COWORK_PROFILE = "ops";
+    process.env.NEOWORKER_USER_DATA_DIR = "/custom/data";
+    process.env.NEOWORKER_PROFILE = "ops";
     process.argv = ["node", "app", "--profile", "qa-profile"];
     const { getUserDataDir, getActiveProfileId } = await import("../user-data-dir");
     expect(getActiveProfileId()).toBe("qa-profile");

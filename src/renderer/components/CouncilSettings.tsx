@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { UsersRound } from "lucide-react";
 import type {
   CouncilConfig,
   CouncilMemo,
@@ -13,6 +14,7 @@ import {
   BUILTIN_LLM_PROVIDER_TYPES,
   MULTI_LLM_PROVIDER_DISPLAY,
 } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 type GatewayChannel = {
   id: string;
@@ -41,7 +43,9 @@ function createDefaultParticipant(index: number): CouncilParticipant {
   return {
     providerType: "ollama",
     modelKey: "",
-    seatLabel: `Seat ${index + 1}`,
+    seatLabel: translate("council.defaultSeatLabel", "Seat {index}", {
+      index: index + 1,
+    }),
     roleInstruction: "",
   };
 }
@@ -49,7 +53,7 @@ function createDefaultParticipant(index: number): CouncilParticipant {
 function createDraft(workspaceId: string): CouncilDraft {
   return {
     workspaceId,
-    name: "R&D Council",
+    name: translate("council.defaultName", "R&D Council"),
     enabled: true,
     scheduleExpr: DEFAULT_SCHEDULE,
     participants: [createDefaultParticipant(0), createDefaultParticipant(1)],
@@ -103,7 +107,7 @@ function draftFromConfig(config: CouncilConfig): CouncilDraft {
 }
 
 function formatDateTime(value?: number): string {
-  if (!value) return "Never";
+  if (!value) return translate("common.never", "Never");
   return new Date(value).toLocaleString();
 }
 
@@ -119,7 +123,11 @@ function buildPayload(draft: CouncilDraft): CreateCouncilConfigRequest {
     participants: draft.participants.map((participant, index) => ({
       providerType: participant.providerType,
       modelKey: participant.modelKey.trim(),
-      seatLabel: participant.seatLabel.trim() || `Seat ${index + 1}`,
+      seatLabel:
+        participant.seatLabel.trim() ||
+        translate("council.defaultSeatLabel", "Seat {index}", {
+          index: index + 1,
+        }),
       roleInstruction: participant.roleInstruction?.trim() || undefined,
     })),
     judgeSeatIndex: draft.judgeSeatIndex,
@@ -133,7 +141,8 @@ function buildPayload(draft: CouncilDraft): CreateCouncilConfigRequest {
     },
     executionPolicy: {
       mode: draft.executionPolicy.mode,
-      maxParallelParticipants: draft.executionPolicy.maxParallelParticipants || undefined,
+      maxParallelParticipants:
+        draft.executionPolicy.maxParallelParticipants || undefined,
     },
   };
 }
@@ -145,12 +154,20 @@ export function CouncilSettings({
   workspaceId?: string;
   onOpenTask?: (taskId: string) => void;
 }) {
+  useLanguage();
+  const t = translate;
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [channels, setChannels] = useState<GatewayChannel[]>([]);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(workspaceId || "");
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(
+    workspaceId || "",
+  );
   const [councils, setCouncils] = useState<CouncilConfig[]>([]);
-  const [selectedCouncilId, setSelectedCouncilId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<CouncilDraft>(() => createDraft(workspaceId || ""));
+  const [selectedCouncilId, setSelectedCouncilId] = useState<string | null>(
+    null,
+  );
+  const [draft, setDraft] = useState<CouncilDraft>(() =>
+    createDraft(workspaceId || ""),
+  );
   const [runs, setRuns] = useState<CouncilRun[]>([]);
   const [memo, setMemo] = useState<CouncilMemo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -166,23 +183,34 @@ export function CouncilSettings({
   });
 
   const selectedChannel = useMemo(
-    () => channels.find((channel) => channel.id === draft.deliveryConfig.channelDbId),
+    () =>
+      channels.find(
+        (channel) => channel.id === draft.deliveryConfig.channelDbId,
+      ),
     [channels, draft.deliveryConfig.channelDbId],
   );
   const isAllLocal =
     draft.participants.length > 0 &&
-    draft.participants.every((participant) => participant.providerType === "ollama");
+    draft.participants.every(
+      (participant) => participant.providerType === "ollama",
+    );
 
   const loadRunsAndMemo = async (councilId: string) => {
     const [runList, latestMemo] = await Promise.all([
-      window.electronAPI.listCouncilRuns({ councilConfigId: councilId, limit: 20 }),
+      window.electronAPI.listCouncilRuns({
+        councilConfigId: councilId,
+        limit: 20,
+      }),
       window.electronAPI.getCouncilMemo({ councilConfigId: councilId }),
     ]);
     setRuns(runList);
     setMemo(latestMemo);
   };
 
-  const loadCouncils = async (targetWorkspaceId: string, preferredCouncilId?: string | null) => {
+  const loadCouncils = async (
+    targetWorkspaceId: string,
+    preferredCouncilId?: string | null,
+  ) => {
     if (!targetWorkspaceId) {
       setCouncils([]);
       setSelectedCouncilId(null);
@@ -225,7 +253,9 @@ export function CouncilSettings({
         ]);
         if (cancelled) return;
         setWorkspaces(workspaceList);
-        setChannels(gatewayChannels.filter((channel: GatewayChannel) => channel.enabled));
+        setChannels(
+          gatewayChannels.filter((channel: GatewayChannel) => channel.enabled),
+        );
 
         const nextWorkspaceId = workspaceId || workspaceList[0]?.id || "";
         setSelectedWorkspaceId(nextWorkspaceId);
@@ -256,7 +286,9 @@ export function CouncilSettings({
       setMemo(null);
       return;
     }
-    const config = councils.find((item) => item.id === councilId) || (await window.electronAPI.getCouncil(councilId));
+    const config =
+      councils.find((item) => item.id === councilId) ||
+      (await window.electronAPI.getCouncil(councilId));
     if (!config) return;
     setDraft(draftFromConfig(config));
     await loadRunsAndMemo(config.id);
@@ -270,7 +302,9 @@ export function CouncilSettings({
     setDraft((current) => ({
       ...current,
       participants: current.participants.map((participant, participantIndex) =>
-        participantIndex === index ? { ...participant, [key]: value } : participant,
+        participantIndex === index
+          ? { ...participant, [key]: value }
+          : participant,
       ),
     }));
   };
@@ -324,8 +358,10 @@ export function CouncilSettings({
           judgeSeatIndex: payload.judgeSeatIndex,
           rotatingIdeaSeatIndex: payload.rotatingIdeaSeatIndex,
           sourceBundle: payload.sourceBundle as CouncilConfig["sourceBundle"],
-          deliveryConfig: payload.deliveryConfig as CouncilConfig["deliveryConfig"],
-          executionPolicy: payload.executionPolicy as CouncilConfig["executionPolicy"],
+          deliveryConfig:
+            payload.deliveryConfig as CouncilConfig["deliveryConfig"],
+          executionPolicy:
+            payload.executionPolicy as CouncilConfig["executionPolicy"],
         };
         saved = await window.electronAPI.updateCouncil(updatePayload);
       } else {
@@ -364,7 +400,10 @@ export function CouncilSettings({
       await window.electronAPI.runCouncilNow(selectedCouncilId);
       await loadRunsAndMemo(selectedCouncilId);
     } catch (runError: Any) {
-      setError(runError?.message || "Failed to start council run.");
+      setError(
+        runError?.message ||
+          t("council.error.run", "Failed to start council run."),
+      );
     } finally {
       setRunning(false);
     }
@@ -380,23 +419,46 @@ export function CouncilSettings({
   };
 
   if (loading) {
-    return <div className="settings-description">Loading council settings…</div>;
+    return (
+      <div className="settings-description">
+        {t("council.loading", "Loading council settings…")}
+      </div>
+    );
   }
 
   return (
-    <div className="council-settings">
+    <div className="automation-page council-settings">
+      <div className="automation-page-intro council-page-intro">
+        <div className="automation-page-heading">
+          <span className="automation-page-heading-icon" aria-hidden="true">
+            <UsersRound size={18} />
+          </span>
+          <h3>{t("council.title", "R&D Council")}</h3>
+          <p className="settings-description">
+            {t(
+              "council.description",
+              "Create a repeatable multi-model review with clear roles, sources, and delivery rules.",
+            )}
+          </p>
+        </div>
+      </div>
       <div className="council-settings-sidebar">
         <div className="settings-section">
           <div className="settings-section-header">
             <div>
-              <h3>Workspace Councils</h3>
+              <h3>
+                {t("council.workspaceCouncils.title", "Workspace Councils")}
+              </h3>
               <p className="settings-description">
-                Each council owns one managed cron job and keeps its own memo history.
+                {t(
+                  "council.workspaceCouncils.description",
+                  "Each council owns one managed cron job and keeps its own memo history.",
+                )}
               </p>
             </div>
           </div>
           <div className="form-group">
-            <label>Workspace</label>
+            <label>{t("common.workspace", "Workspace")}</label>
             <select
               value={selectedWorkspaceId}
               onChange={(event) => {
@@ -417,7 +479,7 @@ export function CouncilSettings({
               void selectCouncil(null);
             }}
           >
-            New Council
+            {t("council.actions.new", "New Council")}
           </button>
           <div className="council-list">
             {councils.map((council) => (
@@ -431,17 +493,32 @@ export function CouncilSettings({
               >
                 <div className="council-list-item-header">
                   <strong>{council.name}</strong>
-                  <span className={`council-status-pill ${council.enabled ? "enabled" : "disabled"}`}>
-                    {council.enabled ? "Enabled" : "Disabled"}
+                  <span
+                    className={`council-status-pill ${council.enabled ? "enabled" : "disabled"}`}
+                  >
+                    {council.enabled
+                      ? t("common.enabled", "Enabled")
+                      : t("common.disabled", "Disabled")}
                   </span>
                 </div>
                 <span className="council-list-item-meta">
-                  {council.participants.length} seats • {council.schedule.kind === "cron" ? council.schedule.expr : council.schedule.kind}
+                  {t("council.list.meta", "{count} seats • {schedule}", {
+                    count: council.participants.length,
+                    schedule:
+                      council.schedule.kind === "cron"
+                        ? council.schedule.expr
+                        : council.schedule.kind,
+                  })}
                 </span>
               </button>
             ))}
             {councils.length === 0 && (
-              <div className="settings-description">No councils configured for this workspace yet.</div>
+              <div className="settings-description">
+                {t(
+                  "council.empty.workspace",
+                  "No councils configured for this workspace yet.",
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -451,9 +528,16 @@ export function CouncilSettings({
         <div className="settings-section">
           <div className="settings-section-header">
             <div>
-              <h3>{selectedCouncilId ? "Edit Council" : "Create Council"}</h3>
+              <h3>
+                {selectedCouncilId
+                  ? t("council.editor.editTitle", "Edit Council")
+                  : t("council.editor.createTitle", "Create Council")}
+              </h3>
               <p className="settings-description">
-                Configure the participant seats, curated sources, memo delivery, and execution policy.
+                {t(
+                  "council.editor.description",
+                  "Configure the participant seats, curated sources, memo delivery, and execution policy.",
+                )}
               </p>
             </div>
             <div className="settings-section-actions">
@@ -470,25 +554,54 @@ export function CouncilSettings({
                         void loadCouncils(updated.workspaceId, updated.id);
                       })
                       .catch((toggleError: Any) => {
-                        setError(toggleError?.message || "Failed to update council state.");
+                        setError(
+                          toggleError?.message ||
+                            t(
+                              "council.error.toggle",
+                              "Failed to update council state.",
+                            ),
+                        );
                       });
                   }}
                 >
-                  {draft.enabled ? "Disable" : "Enable"}
+                  {draft.enabled
+                    ? t("common.disable", "Disable")
+                    : t("common.enable", "Enable")}
                 </button>
               )}
               {selectedCouncilId && (
-                <button className="btn btn-secondary" type="button" onClick={() => void handleRunNow()} disabled={running}>
-                  {running ? "Running…" : "Run Now"}
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={() => void handleRunNow()}
+                  disabled={running}
+                >
+                  {running
+                    ? t("council.actions.running", "Running…")
+                    : t("council.actions.runNow", "Run Now")}
                 </button>
               )}
               {selectedCouncilId && (
-                <button className="btn btn-secondary" type="button" onClick={() => void handleDelete()} disabled={saving}>
-                  Delete
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={() => void handleDelete()}
+                  disabled={saving}
+                >
+                  {t("common.delete", "Delete")}
                 </button>
               )}
-              <button className="btn btn-primary" type="button" onClick={() => void handleSave()} disabled={saving}>
-                {saving ? "Saving…" : selectedCouncilId ? "Save Changes" : "Create Council"}
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={() => void handleSave()}
+                disabled={saving}
+              >
+                {saving
+                  ? t("common.saving", "Saving…")
+                  : selectedCouncilId
+                    ? t("common.saveChanges", "Save Changes")
+                    : t("council.actions.create", "Create Council")}
               </button>
             </div>
           </div>
@@ -497,20 +610,30 @@ export function CouncilSettings({
 
           <div className="form-row">
             <div className="form-group form-group-flex">
-              <label>Name</label>
+              <label>{t("common.name", "Name")}</label>
               <input
                 type="text"
                 value={draft.name}
-                onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
               />
             </div>
             <div className="form-group form-group-flex">
-              <label>Schedule (cron)</label>
+              <label>
+                {t("council.fields.scheduleCron", "Schedule (cron)")}
+              </label>
               <input
                 type="text"
                 value={draft.scheduleExpr}
                 onChange={(event) =>
-                  setDraft((current) => ({ ...current, scheduleExpr: event.target.value }))
+                  setDraft((current) => ({
+                    ...current,
+                    scheduleExpr: event.target.value,
+                  }))
                 }
                 placeholder={DEFAULT_SCHEDULE}
               />
@@ -519,7 +642,7 @@ export function CouncilSettings({
 
           <div className="form-row">
             <div className="form-group form-group-flex">
-              <label>Judge Seat</label>
+              <label>{t("council.fields.judgeSeat", "Judge Seat")}</label>
               <select
                 value={draft.judgeSeatIndex}
                 onChange={(event) =>
@@ -530,14 +653,22 @@ export function CouncilSettings({
                 }
               >
                 {draft.participants.map((participant, index) => (
-                  <option key={`${participant.seatLabel}-${index}`} value={index}>
-                    {participant.seatLabel || `Seat ${index + 1}`}
+                  <option
+                    key={`${participant.seatLabel}-${index}`}
+                    value={index}
+                  >
+                    {participant.seatLabel ||
+                      t("council.defaultSeatLabel", "Seat {index}", {
+                        index: index + 1,
+                      })}
                   </option>
                 ))}
               </select>
             </div>
             <div className="form-group form-group-flex">
-              <label>Rotating Idea Seat</label>
+              <label>
+                {t("council.fields.rotatingIdeaSeat", "Rotating Idea Seat")}
+              </label>
               <select
                 value={draft.rotatingIdeaSeatIndex}
                 onChange={(event) =>
@@ -548,14 +679,22 @@ export function CouncilSettings({
                 }
               >
                 {draft.participants.map((participant, index) => (
-                  <option key={`${participant.seatLabel}-idea-${index}`} value={index}>
-                    {participant.seatLabel || `Seat ${index + 1}`}
+                  <option
+                    key={`${participant.seatLabel}-idea-${index}`}
+                    value={index}
+                  >
+                    {participant.seatLabel ||
+                      t("council.defaultSeatLabel", "Seat {index}", {
+                        index: index + 1,
+                      })}
                   </option>
                 ))}
               </select>
             </div>
             <div className="form-group form-group-flex">
-              <label>Execution Policy</label>
+              <label>
+                {t("council.fields.executionPolicy", "Execution Policy")}
+              </label>
               <select
                 value={draft.executionPolicy.mode}
                 onChange={(event) =>
@@ -563,18 +702,25 @@ export function CouncilSettings({
                     ...current,
                     executionPolicy: {
                       ...current.executionPolicy,
-                      mode: event.target.value as CouncilConfig["executionPolicy"]["mode"],
+                      mode: event.target
+                        .value as CouncilConfig["executionPolicy"]["mode"],
                     },
                   }))
                 }
               >
-                <option value="auto">Auto</option>
-                <option value="full_parallel">Full Parallel</option>
-                <option value="capped_local">Capped Local</option>
+                <option value="auto">
+                  {t("council.execution.auto", "Auto")}
+                </option>
+                <option value="full_parallel">
+                  {t("council.execution.fullParallel", "Full Parallel")}
+                </option>
+                <option value="capped_local">
+                  {t("council.execution.cappedLocal", "Capped Local")}
+                </option>
               </select>
             </div>
             <div className="form-group form-group-sm">
-              <label>Max Parallel</label>
+              <label>{t("council.fields.maxParallel", "Max Parallel")}</label>
               <input
                 type="number"
                 min={1}
@@ -598,17 +744,26 @@ export function CouncilSettings({
 
           <div className="settings-description">
             {isAllLocal
-              ? "All seats are Ollama. Auto mode will cap parallel launches to 2 unless you override it."
-              : "Mixed-provider councils default to full participant parallelism in auto mode."}
+              ? t(
+                  "council.execution.localHint",
+                  "All seats are Ollama. Auto mode will cap parallel launches to 2 unless you override it.",
+                )
+              : t(
+                  "council.execution.mixedHint",
+                  "Mixed-provider councils default to full participant parallelism in auto mode.",
+                )}
           </div>
         </div>
 
         <div className="settings-section">
           <div className="settings-section-header">
             <div>
-              <h3>Participants</h3>
+              <h3>{t("council.participants.title", "Participants")}</h3>
               <p className="settings-description">
-                Duplicate provider rows are supported. Use multiple Ollama seats if you want an all-local council.
+                {t(
+                  "council.participants.description",
+                  "Duplicate provider rows are supported. Use multiple Ollama seats if you want an all-local council.",
+                )}
               </p>
             </div>
             <div className="settings-section-actions">
@@ -618,36 +773,54 @@ export function CouncilSettings({
                 onClick={() =>
                   setDraft((current) => ({
                     ...current,
-                    participants: [...current.participants, createDefaultParticipant(current.participants.length)],
+                    participants: [
+                      ...current.participants,
+                      createDefaultParticipant(current.participants.length),
+                    ],
                   }))
                 }
                 disabled={draft.participants.length >= 8}
               >
-                Add Seat
+                {t("council.actions.addSeat", "Add Seat")}
               </button>
             </div>
           </div>
           <div className="council-seat-grid">
             {draft.participants.map((participant, index) => {
-              const providerMeta = MULTI_LLM_PROVIDER_DISPLAY[participant.providerType] || {
+              const providerMeta = MULTI_LLM_PROVIDER_DISPLAY[
+                participant.providerType
+              ] || {
                 name: participant.providerType,
                 icon: "•",
               };
               return (
-                <div key={`${participant.seatLabel}-${index}`} className="council-seat-card">
+                <div
+                  key={`${participant.seatLabel}-${index}`}
+                  className="council-seat-card"
+                >
                   <div className="council-seat-card-header">
-                    <strong>{providerMeta.icon} Seat {index + 1}</strong>
+                    <strong>
+                      {providerMeta.icon}{" "}
+                      {t("council.defaultSeatLabel", "Seat {index}", {
+                        index: index + 1,
+                      })}
+                    </strong>
                     <button
                       className="btn btn-secondary"
                       type="button"
                       onClick={() =>
                         setDraft((current) => {
-                          const participants = current.participants.filter((_, itemIndex) => itemIndex !== index);
+                          const participants = current.participants.filter(
+                            (_, itemIndex) => itemIndex !== index,
+                          );
                           const nextLength = participants.length;
                           return {
                             ...current,
                             participants,
-                            judgeSeatIndex: Math.min(current.judgeSeatIndex, Math.max(0, nextLength - 1)),
+                            judgeSeatIndex: Math.min(
+                              current.judgeSeatIndex,
+                              Math.max(0, nextLength - 1),
+                            ),
                             rotatingIdeaSeatIndex: Math.min(
                               current.rotatingIdeaSeatIndex,
                               Math.max(0, nextLength - 1),
@@ -657,49 +830,80 @@ export function CouncilSettings({
                       }
                       disabled={draft.participants.length <= 2}
                     >
-                      Remove
+                      {t("common.remove", "Remove")}
                     </button>
                   </div>
                   <div className="form-group">
-                    <label>Seat Label</label>
+                    <label>{t("council.fields.seatLabel", "Seat Label")}</label>
                     <input
                       type="text"
                       value={participant.seatLabel}
-                      onChange={(event) => updateParticipant(index, "seatLabel", event.target.value)}
+                      onChange={(event) =>
+                        updateParticipant(
+                          index,
+                          "seatLabel",
+                          event.target.value,
+                        )
+                      }
                     />
                   </div>
                   <div className="form-row">
                     <div className="form-group form-group-flex">
-                      <label>Provider</label>
+                      <label>{t("common.provider", "Provider")}</label>
                       <select
                         value={participant.providerType}
                         onChange={(event) =>
-                          updateParticipant(index, "providerType", event.target.value as LLMProviderType)
+                          updateParticipant(
+                            index,
+                            "providerType",
+                            event.target.value as LLMProviderType,
+                          )
                         }
                       >
                         {BUILTIN_LLM_PROVIDER_TYPES.map((provider) => (
                           <option key={provider} value={provider}>
-                            {MULTI_LLM_PROVIDER_DISPLAY[provider]?.name || provider}
+                            {MULTI_LLM_PROVIDER_DISPLAY[provider]?.name ||
+                              provider}
                           </option>
                         ))}
                       </select>
                     </div>
                     <div className="form-group form-group-flex">
-                      <label>Model Key</label>
+                      <label>{t("council.fields.modelKey", "Model Key")}</label>
                       <input
                         type="text"
                         value={participant.modelKey}
-                        onChange={(event) => updateParticipant(index, "modelKey", event.target.value)}
-                        placeholder="llama3.2, gpt-4o, gemini-2.0-flash..."
+                        onChange={(event) =>
+                          updateParticipant(
+                            index,
+                            "modelKey",
+                            event.target.value,
+                          )
+                        }
+                        placeholder={t(
+                          "council.placeholders.modelKey",
+                          "llama3.2, gpt-4o, gemini-2.0-flash...",
+                        )}
                       />
                     </div>
                   </div>
                   <div className="form-group">
-                    <label>Role Instruction</label>
+                    <label>
+                      {t("council.fields.roleInstruction", "Role Instruction")}
+                    </label>
                     <textarea
                       value={participant.roleInstruction || ""}
-                      onChange={(event) => updateParticipant(index, "roleInstruction", event.target.value)}
-                      placeholder="Revenue critic, product strategist, growth PM, pricing skeptic..."
+                      onChange={(event) =>
+                        updateParticipant(
+                          index,
+                          "roleInstruction",
+                          event.target.value,
+                        )
+                      }
+                      placeholder={t(
+                        "council.placeholders.roleInstruction",
+                        "Revenue critic, product strategist, growth PM, pricing skeptic...",
+                      )}
                     />
                   </div>
                 </div>
@@ -711,9 +915,12 @@ export function CouncilSettings({
         <div className="settings-section">
           <div className="settings-section-header">
             <div>
-              <h3>Curated Sources</h3>
+              <h3>{t("council.sources.title", "Curated Sources")}</h3>
               <p className="settings-description">
-                The council only sees what you explicitly add here. No workspace-wide auto-discovery.
+                {t(
+                  "council.sources.description",
+                  "The council only sees what you explicitly add here. No workspace-wide auto-discovery.",
+                )}
               </p>
             </div>
             <div className="settings-section-actions">
@@ -738,14 +945,14 @@ export function CouncilSettings({
                   });
                 }}
               >
-                Add Files
+                {t("council.actions.addFiles", "Add Files")}
               </button>
             </div>
           </div>
 
           <div className="council-source-grid">
             <div className="council-source-card">
-              <h4>Files</h4>
+              <h4>{t("council.sources.files", "Files")}</h4>
               {draft.sourceBundle.files.map((file, index) => (
                 <div key={`${file.path}-${index}`} className="council-chip-row">
                   <span>{file.label || file.path}</span>
@@ -757,20 +964,26 @@ export function CouncilSettings({
                         ...current,
                         sourceBundle: {
                           ...current.sourceBundle,
-                          files: current.sourceBundle.files.filter((_, itemIndex) => itemIndex !== index),
+                          files: current.sourceBundle.files.filter(
+                            (_, itemIndex) => itemIndex !== index,
+                          ),
                         },
                       }))
                     }
                   >
-                    Remove
+                    {t("common.remove", "Remove")}
                   </button>
                 </div>
               ))}
-              {draft.sourceBundle.files.length === 0 && <div className="settings-description">No files selected.</div>}
+              {draft.sourceBundle.files.length === 0 && (
+                <div className="settings-description">
+                  {t("council.sources.noFiles", "No files selected.")}
+                </div>
+              )}
             </div>
 
             <div className="council-source-card">
-              <h4>URLs</h4>
+              <h4>{t("council.sources.urls", "URLs")}</h4>
               {draft.sourceBundle.urls.map((item, index) => (
                 <div key={`${item.url}-${index}`} className="council-chip-row">
                   <span>{item.label || item.url}</span>
@@ -782,35 +995,46 @@ export function CouncilSettings({
                         ...current,
                         sourceBundle: {
                           ...current.sourceBundle,
-                          urls: current.sourceBundle.urls.filter((_, itemIndex) => itemIndex !== index),
+                          urls: current.sourceBundle.urls.filter(
+                            (_, itemIndex) => itemIndex !== index,
+                          ),
                         },
                       }))
                     }
                   >
-                    Remove
+                    {t("common.remove", "Remove")}
                   </button>
                 </div>
               ))}
               <div className="form-row">
                 <div className="form-group form-group-flex">
-                  <label>Label</label>
+                  <label>{t("council.fields.label", "Label")}</label>
                   <input
                     type="text"
                     value={urlDraft.label}
                     onChange={(event) =>
-                      setUrlDraft((current) => ({ ...current, label: event.target.value }))
+                      setUrlDraft((current) => ({
+                        ...current,
+                        label: event.target.value,
+                      }))
                     }
                   />
                 </div>
                 <div className="form-group form-group-flex">
-                  <label>URL</label>
+                  <label>{t("council.fields.url", "URL")}</label>
                   <input
                     type="text"
                     value={urlDraft.url}
                     onChange={(event) =>
-                      setUrlDraft((current) => ({ ...current, url: event.target.value }))
+                      setUrlDraft((current) => ({
+                        ...current,
+                        url: event.target.value,
+                      }))
                     }
-                    placeholder="https://example.com"
+                    placeholder={t(
+                      "council.placeholders.url",
+                      "https://example.com",
+                    )}
                   />
                 </div>
               </div>
@@ -833,14 +1057,22 @@ export function CouncilSettings({
                   setUrlDraft({ label: "", url: "" });
                 }}
               >
-                Add URL
+                {t("council.actions.addUrl", "Add URL")}
               </button>
             </div>
 
             <div className="council-source-card">
-              <h4>Connector References</h4>
+              <h4>
+                {t(
+                  "council.sources.connectorReferences",
+                  "Connector References",
+                )}
+              </h4>
               {draft.sourceBundle.connectors.map((item, index) => (
-                <div key={`${item.provider}-${item.label}-${index}`} className="council-chip-row">
+                <div
+                  key={`${item.provider}-${item.label}-${index}`}
+                  className="council-chip-row"
+                >
                   <span>
                     {item.label} [{item.provider}]
                   </span>
@@ -859,52 +1091,70 @@ export function CouncilSettings({
                       }))
                     }
                   >
-                    Remove
+                    {t("common.remove", "Remove")}
                   </button>
                 </div>
               ))}
               <div className="form-row">
                 <div className="form-group form-group-flex">
-                  <label>Provider</label>
+                  <label>{t("common.provider", "Provider")}</label>
                   <input
                     type="text"
                     value={connectorDraft.provider}
                     onChange={(event) =>
-                      setConnectorDraft((current) => ({ ...current, provider: event.target.value }))
+                      setConnectorDraft((current) => ({
+                        ...current,
+                        provider: event.target.value,
+                      }))
                     }
-                    placeholder="notion, drive, hubspot..."
+                    placeholder={t(
+                      "council.placeholders.connectorProvider",
+                      "notion, drive, hubspot...",
+                    )}
                   />
                 </div>
                 <div className="form-group form-group-flex">
-                  <label>Label</label>
+                  <label>{t("council.fields.label", "Label")}</label>
                   <input
                     type="text"
                     value={connectorDraft.label}
                     onChange={(event) =>
-                      setConnectorDraft((current) => ({ ...current, label: event.target.value }))
+                      setConnectorDraft((current) => ({
+                        ...current,
+                        label: event.target.value,
+                      }))
                     }
-                    placeholder="Roadmap board"
+                    placeholder={t(
+                      "council.placeholders.connectorLabel",
+                      "Roadmap board",
+                    )}
                   />
                 </div>
               </div>
               <div className="form-row">
                 <div className="form-group form-group-flex">
-                  <label>Resource ID</label>
+                  <label>{t("council.fields.resourceId", "Resource ID")}</label>
                   <input
                     type="text"
                     value={connectorDraft.resourceId}
                     onChange={(event) =>
-                      setConnectorDraft((current) => ({ ...current, resourceId: event.target.value }))
+                      setConnectorDraft((current) => ({
+                        ...current,
+                        resourceId: event.target.value,
+                      }))
                     }
                   />
                 </div>
                 <div className="form-group form-group-flex">
-                  <label>Notes</label>
+                  <label>{t("council.fields.notes", "Notes")}</label>
                   <input
                     type="text"
                     value={connectorDraft.notes}
                     onChange={(event) =>
-                      setConnectorDraft((current) => ({ ...current, notes: event.target.value }))
+                      setConnectorDraft((current) => ({
+                        ...current,
+                        notes: event.target.value,
+                      }))
                     }
                   />
                 </div>
@@ -925,16 +1175,22 @@ export function CouncilSettings({
                         {
                           provider,
                           label,
-                          resourceId: connectorDraft.resourceId.trim() || undefined,
+                          resourceId:
+                            connectorDraft.resourceId.trim() || undefined,
                           notes: connectorDraft.notes.trim() || undefined,
                         },
                       ],
                     },
                   }));
-                  setConnectorDraft({ provider: "", label: "", resourceId: "", notes: "" });
+                  setConnectorDraft({
+                    provider: "",
+                    label: "",
+                    resourceId: "",
+                    notes: "",
+                  });
                 }}
               >
-                Add Connector
+                {t("council.actions.addConnector", "Add Connector")}
               </button>
             </div>
           </div>
@@ -943,9 +1199,12 @@ export function CouncilSettings({
         <div className="settings-section">
           <div className="settings-section-header">
             <div>
-              <h3>Memo Delivery</h3>
+              <h3>{t("council.delivery.title", "Memo Delivery")}</h3>
               <p className="settings-description">
-                Every run saves an in-app memo and notification. External delivery is optional.
+                {t(
+                  "council.delivery.description",
+                  "Every run saves an in-app memo and notification. External delivery is optional.",
+                )}
               </p>
             </div>
           </div>
@@ -966,29 +1225,44 @@ export function CouncilSettings({
                 }))
               }
             />
-            <span>Deliver memo to a gateway channel</span>
+            <span>
+              {t(
+                "council.delivery.toGateway",
+                "Deliver memo to a gateway channel",
+              )}
+            </span>
           </label>
 
           {draft.deliveryConfig.enabled && (
             <>
               <div className="form-row">
                 <div className="form-group form-group-flex">
-                  <label>Gateway Account</label>
+                  <label>
+                    {t("council.delivery.gatewayAccount", "Gateway Account")}
+                  </label>
                   <select
                     value={draft.deliveryConfig.channelDbId || ""}
                     onChange={(event) => {
-                      const nextChannel = channels.find((item) => item.id === event.target.value);
+                      const nextChannel = channels.find(
+                        (item) => item.id === event.target.value,
+                      );
                       setDraft((current) => ({
                         ...current,
                         deliveryConfig: {
                           ...current.deliveryConfig,
                           channelDbId: event.target.value,
-                          channelType: nextChannel?.type as CouncilConfig["deliveryConfig"]["channelType"],
+                          channelType:
+                            nextChannel?.type as CouncilConfig["deliveryConfig"]["channelType"],
                         },
                       }));
                     }}
                   >
-                    <option value="">Select a connected channel</option>
+                    <option value="">
+                      {t(
+                        "council.delivery.selectChannel",
+                        "Select a connected channel",
+                      )}
+                    </option>
                     {channels.map((channel) => (
                       <option key={channel.id} value={channel.id}>
                         {channel.name} ({channel.type})
@@ -997,7 +1271,12 @@ export function CouncilSettings({
                   </select>
                 </div>
                 <div className="form-group form-group-flex">
-                  <label>Destination Chat / Channel ID</label>
+                  <label>
+                    {t(
+                      "council.delivery.destinationChannel",
+                      "Destination Chat / Channel ID",
+                    )}
+                  </label>
                   <input
                     type="text"
                     value={draft.deliveryConfig.channelId || ""}
@@ -1015,7 +1294,14 @@ export function CouncilSettings({
               </div>
               {selectedChannel && (
                 <div className="settings-description">
-                  Delivery account: {selectedChannel.name} ({selectedChannel.type})
+                  {t(
+                    "council.delivery.accountLabel",
+                    "Delivery account: {name} ({type})",
+                    {
+                      name: selectedChannel.name,
+                      type: selectedChannel.type,
+                    },
+                  )}
                 </div>
               )}
             </>
@@ -1026,20 +1312,40 @@ export function CouncilSettings({
           <div className="settings-section">
             <div className="settings-section-header">
               <div>
-                <h3>Recent Runs</h3>
+                <h3>{t("council.runs.title", "Recent Runs")}</h3>
                 <p className="settings-description">
-                  Proposer rotation advances per run and the memo is persisted even if channel delivery fails.
+                  {t(
+                    "council.runs.description",
+                    "Proposer rotation advances per run and the memo is persisted even if channel delivery fails.",
+                  )}
                 </p>
               </div>
             </div>
-            {runs.length === 0 && <div className="settings-description">No runs yet.</div>}
+            {runs.length === 0 && (
+              <div className="settings-description">
+                {t("council.runs.empty", "No runs yet.")}
+              </div>
+            )}
             <div className="council-run-list">
               {runs.map((run) => (
                 <div key={run.id} className="council-run-item">
                   <div>
-                    <strong>{run.status === "running" ? "Running" : run.status === "failed" ? "Failed" : "Completed"}</strong>
+                    <strong>
+                      {run.status === "running"
+                        ? t("council.runStatus.running", "Running")
+                        : run.status === "failed"
+                          ? t("council.runStatus.failed", "Failed")
+                          : t("council.runStatus.completed", "Completed")}
+                    </strong>
                     <div className="council-run-meta">
-                      Started {formatDateTime(run.startedAt)} • proposer seat {run.proposerSeatIndex + 1}
+                      {t(
+                        "council.runs.meta",
+                        "Started {time} • proposer seat {seat}",
+                        {
+                          time: formatDateTime(run.startedAt),
+                          seat: run.proposerSeatIndex + 1,
+                        },
+                      )}
                     </div>
                   </div>
                   <div className="settings-section-actions">
@@ -1050,15 +1356,21 @@ export function CouncilSettings({
                         onClick={() => {
                           const memoId = run.memoId;
                           if (!memoId) return;
-                          void window.electronAPI.getCouncilMemo(memoId).then(setMemo);
+                          void window.electronAPI
+                            .getCouncilMemo(memoId)
+                            .then(setMemo);
                         }}
                       >
-                        View Memo
+                        {t("council.actions.viewMemo", "View Memo")}
                       </button>
                     )}
                     {run.taskId && onOpenTask && (
-                      <button className="btn btn-secondary" type="button" onClick={() => onOpenTask(run.taskId!)}>
-                        Open Task
+                      <button
+                        className="btn btn-secondary"
+                        type="button"
+                        onClick={() => onOpenTask(run.taskId!)}
+                      >
+                        {t("council.actions.openTask", "Open Task")}
                       </button>
                     )}
                   </div>
@@ -1070,18 +1382,42 @@ export function CouncilSettings({
           <div className="settings-section">
             <div className="settings-section-header">
               <div>
-                <h3>Latest Memo</h3>
+                <h3>{t("council.memo.title", "Latest Memo")}</h3>
                 <p className="settings-description">
-                  Fixed v1 format: executive summary, agreement, disagreement, actions, experiments, and risks.
+                  {t(
+                    "council.memo.description",
+                    "Fixed v1 format: executive summary, agreement, disagreement, actions, experiments, and risks.",
+                  )}
                 </p>
               </div>
             </div>
-            {!memo && <div className="settings-description">No memo available yet.</div>}
+            {!memo && (
+              <div className="settings-description">
+                {t("council.memo.empty", "No memo available yet.")}
+              </div>
+            )}
             {memo && (
               <>
                 <div className="council-run-meta">
-                  Saved {formatDateTime(memo.createdAt)} • proposer seat {memo.proposerSeatIndex + 1} •{" "}
-                  {memo.delivered ? "delivered" : memo.deliveryError ? `delivery failed: ${memo.deliveryError}` : "in-app only"}
+                  {t(
+                    "council.memo.metaPrefix",
+                    "Saved {time} • proposer seat {seat} • {status}",
+                    {
+                      time: formatDateTime(memo.createdAt),
+                      seat: memo.proposerSeatIndex + 1,
+                      status: memo.delivered
+                        ? t("council.memo.delivered", "delivered")
+                        : memo.deliveryError
+                          ? t(
+                              "council.memo.deliveryFailed",
+                              "delivery failed: {error}",
+                              {
+                                error: memo.deliveryError,
+                              },
+                            )
+                          : t("council.memo.inAppOnly", "in-app only"),
+                    },
+                  )}
                 </div>
                 <pre className="council-memo-preview">{memo.content}</pre>
               </>

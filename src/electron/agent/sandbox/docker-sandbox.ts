@@ -59,7 +59,7 @@ const DEFAULT_OPTIONS: Required<SandboxOptions> = {
 
 const PROTECTED_WORKSPACE_WRITE_RELATIVE_PATHS = [
   ".git",
-  ".cowork",
+  ".neoworker",
   ".env",
   ".env.local",
   ".env.production",
@@ -169,14 +169,17 @@ export class DockerSandbox implements ISandbox {
         }
       });
 
-      proc.on("close", (code) => {
+      proc.on("close", (code, signal) => {
         clearTimeout(timeoutHandle);
+        const terminationError = signal ? `Process terminated by signal ${signal}` : undefined;
         resolve({
           exitCode: code ?? 1,
           stdout,
-          stderr,
+          stderr: stderr || terminationError || "",
           killed,
           timedOut,
+          signal,
+          error: terminationError,
         });
       });
 
@@ -199,7 +202,7 @@ export class DockerSandbox implements ISandbox {
    */
   async executeCode(code: string, language: "python" | "javascript"): Promise<SandboxResult> {
     const ext = language === "python" ? ".py" : ".js";
-    const tempFile = path.join(os.tmpdir(), `cowork_script_${Date.now()}${ext}`);
+    const tempFile = path.join(os.tmpdir(), `neoworker_script_${Date.now()}${ext}`);
 
     try {
       fs.writeFileSync(tempFile, code, "utf8");
@@ -325,7 +328,7 @@ export class DockerSandbox implements ISandbox {
    */
   private buildDockerArgs(options: SandboxOptions): string[] {
     // Generate unique container name for cleanup tracking
-    const containerName = `cowork-sandbox-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const containerName = `neoworker-sandbox-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     this.currentContainerName = containerName;
 
     const args: string[] = ["run", "--rm", "--name", containerName];

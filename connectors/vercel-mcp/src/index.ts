@@ -98,7 +98,7 @@ class VercelClient {
       headers: {
         Authorization: this.getAuthHeader(),
         Accept: 'application/json',
-        'User-Agent': 'CoWork-Vercel-Connector/0.1.0',
+        'User-Agent': 'NeoWorker-Vercel-Connector/0.1.0',
       },
     });
 

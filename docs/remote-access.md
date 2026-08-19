@@ -1,10 +1,10 @@
 # Remote Access Guide
 
-CoWork OS provides multiple options for remote access to your Control Plane, allowing you to manage tasks, monitor progress, and interact with agents from anywhere.
+NeoWorker provides multiple options for remote access to your Control Plane, allowing you to manage tasks, monitor progress, and interact with agents from anywhere.
 
 Remote access is now also the foundation for the desktop **Devices** tab. The same Control Plane connection can be saved as a managed remote device, letting you:
 
-- connect and reconnect a remote CoWork node from the desktop UI
+- connect and reconnect a remote NeoWorker node from the desktop UI
 - launch tasks on that machine
 - inspect remote task history in a remote session view
 - browse remote workspaces
@@ -20,23 +20,23 @@ The Control Plane WebSocket server binds to `127.0.0.1:18789` by default for sec
 | **Tailscale Serve** | Private network access (Tailnet only) | Medium |
 | **Tailscale Funnel** | Public internet access | Medium |
 
-For private MCP tool access, use [Secure MCP Tunnels](secure-mcp-tunnels.md) instead of exposing a local MCP port. Secure MCP Tunnels open an outbound WebSocket from the local CoWork app to a relay you operate and forward only authenticated MCP JSON-RPC requests.
+For private MCP tool access, use [Secure MCP Tunnels](secure-mcp-tunnels.md) instead of exposing a local MCP port. Secure MCP Tunnels open an outbound WebSocket from the local NeoWorker app to a relay you operate and forward only authenticated MCP JSON-RPC requests.
 
 When the server is running, it also serves a minimal web dashboard at `/` (same host/port).
 This is useful for headless/VPS setups: open the URL in a browser (via tunnel/Tailscale), paste the token, and manage tasks, approvals, and pending structured input requests.
 It also includes basic workspace, channel, and account management so you can bring up a fresh VPS without a desktop UI.
 
-In headless/managed deployments, CoWork fails closed on raw public binds. Binding the Control Plane to `0.0.0.0` or `::` is blocked unless Tailscale is enabled, the process is running inside a privately published container (`COWORK_CONTROL_PLANE_BIND_CONTEXT=container`), or you set the break-glass `COWORK_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND=1`.
+In headless/managed deployments, NeoWorker fails closed on raw public binds. Binding the Control Plane to `0.0.0.0` or `::` is blocked unless Tailscale is enabled, the process is running inside a privately published container (`NEOWORKER_CONTROL_PLANE_BIND_CONTEXT=container`), or you set the break-glass `NEOWORKER_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND=1`.
 
 ## Finding the Remote Address
 
-Before connecting from your main CoWork machine, determine the address that is actually reachable from the client.
+Before connecting from your main NeoWorker machine, determine the address that is actually reachable from the client.
 
 ### Same Local Network
 
 If the remote machine is a Mac mini, laptop, or VM on the same LAN:
 
-1. Enable **Allow LAN Connections** in CoWork Settings > Control Plane.
+1. Enable **Allow LAN Connections** in NeoWorker Settings > Control Plane.
 2. On the remote machine, find its local IP:
 
 ```bash
@@ -64,25 +64,25 @@ If the remote machine is not on the same local network:
 - Preferred: use **Tailscale** and connect with the Tailscale hostname / `wss://` URL
 - Safe fallback: use an **SSH tunnel** and connect locally to `ws://127.0.0.1:18789`
 - Direct public IP is possible only with an explicit break-glass public-bind override, firewall rules, TLS, and a strong token
-- Reverse proxies should preserve a loopback/private daemon bind when possible. If the browser dashboard is served through a public origin, set `COWORK_CONTROL_PLANE_ALLOWED_ORIGINS=https://your-host.example`; only set `COWORK_CONTROL_PLANE_TRUST_PROXY=1` behind a proxy you control.
+- Reverse proxies should preserve a loopback/private daemon bind when possible. If the browser dashboard is served through a public origin, set `NEOWORKER_CONTROL_PLANE_ALLOWED_ORIGINS=https://your-host.example`; only set `NEOWORKER_CONTROL_PLANE_TRUST_PROXY=1` behind a proxy you control.
 
 If you are using a VPS or another network you do not fully control, prefer Tailscale or SSH tunnel over a raw public WebSocket endpoint.
 
 ## SSH Tunnel (Recommended for Personal Use)
 
-SSH tunnels provide secure remote access using standard SSH port forwarding. This is ideal if you already have SSH access to the machine running CoWork.
+SSH tunnels provide secure remote access using standard SSH port forwarding. This is ideal if you already have SSH access to the machine running NeoWorker.
 
 ### Prerequisites
 
-- SSH access to the remote machine running CoWork
-- Control Plane enabled. For a packaged Linux server release or source Node daemon, start `node bin/coworkd-node.js`; for headless Electron, start `node bin/coworkd.js`; for desktop, use Settings UI.
+- SSH access to the remote machine running NeoWorker
+- Control Plane enabled. For a packaged Linux server release or source Node daemon, start `node bin/neoworkerd-node.js`; for headless Electron, start `node bin/neoworkerd.js`; for desktop, use Settings UI.
 - Authentication token available (printed on first generation, or via `--print-control-plane-token`)
 
 ### Setup
 
-1. **Enable Control Plane** in CoWork Settings > Control Plane
-   - Packaged Linux server release: run `node bin/coworkd-node.js --print-control-plane-token` from the extracted package directory.
-   - Source/headless: start with `node bin/coworkd-node.js` (Node daemon) or `node bin/coworkd.js` (headless Electron).
+1. **Enable Control Plane** in NeoWorker Settings > Control Plane
+   - Packaged Linux server release: run `node bin/neoworkerd-node.js --print-control-plane-token` from the extracted package directory.
+   - Source/headless: start with `node bin/neoworkerd-node.js` (Node daemon) or `node bin/neoworkerd.js` (headless Electron).
 2. **Note your token** (copy it for client configuration)
 3. **Create SSH tunnel** from your local machine:
 
@@ -110,7 +110,7 @@ ssh -fN -L 18789:127.0.0.1:18789 user@remote-host
 
 ### Custom Port
 
-If you've configured a different port in CoWork:
+If you've configured a different port in NeoWorker:
 
 ```bash
 # Replace 18789 with your configured port
@@ -135,7 +135,7 @@ autossh -M 0 -N -L 18789:127.0.0.1:18789 \
 
 ## Tailscale Integration
 
-Tailscale provides zero-config VPN networking. CoWork supports two modes:
+Tailscale provides zero-config VPN networking. NeoWorker supports two modes:
 
 ### Tailscale Serve (Private Network)
 
@@ -143,7 +143,7 @@ Exposes your Control Plane to devices on your Tailnet only.
 
 1. **Install Tailscale** from [tailscale.com](https://tailscale.com)
 2. **Connect to your Tailnet**: `tailscale up`
-3. **Enable in CoWork**: Settings > Control Plane > Tailscale Mode > "Serve"
+3. **Enable in NeoWorker**: Settings > Control Plane > Tailscale Mode > "Serve"
 4. **Access via**: `wss://<hostname>.<tailnet>.ts.net`
 
 ### Tailscale Funnel (Public Internet)
@@ -151,7 +151,7 @@ Exposes your Control Plane to devices on your Tailnet only.
 Exposes your Control Plane to the public internet (requires Tailscale subscription).
 
 1. **Enable Funnel** on your Tailscale account
-2. **Enable in CoWork**: Settings > Control Plane > Tailscale Mode > "Funnel"
+2. **Enable in NeoWorker**: Settings > Control Plane > Tailscale Mode > "Funnel"
 3. **Access via**: `wss://<hostname>.<tailnet>.ts.net` from anywhere
 
 ## Security Considerations
@@ -159,16 +159,16 @@ Exposes your Control Plane to the public internet (requires Tailscale subscripti
 ### Best Practices
 
 1. **Keep gateway loopback-only**: Headless/managed startup blocks `0.0.0.0`/`::` unless Tailscale, private container context, or a break-glass override is configured
-2. **Use strong tokens**: CoWork generates 256-bit tokens by default
-3. **Pin browser origins behind proxies**: set `COWORK_CONTROL_PLANE_ALLOWED_ORIGINS` for reverse-proxied dashboards
+2. **Use strong tokens**: NeoWorker generates 256-bit tokens by default
+3. **Pin browser origins behind proxies**: set `NEOWORKER_CONTROL_PLANE_ALLOWED_ORIGINS` for reverse-proxied dashboards
 4. **Rotate tokens regularly**: Use the "Regenerate Token" button periodically
 5. **Enable TLS**: Use `wss://` over public networks (automatic with Tailscale)
-6. **Rate limiting**: CoWork automatically blocks IPs after 5 failed auth attempts
+6. **Rate limiting**: NeoWorker automatically blocks IPs after 5 failed auth attempts
 
 ### Authentication Flow
 
 ```
-Client                              CoWork Control Plane
+Client                              NeoWorker Control Plane
   │                                        │
   │  ─────── WebSocket Connect ──────────► │
   │                                        │
@@ -242,9 +242,9 @@ async def connect():
 asyncio.run(connect())
 ```
 
-## Remote Client Mode (Connecting to Remote CoWork)
+## Remote Client Mode (Connecting to Remote NeoWorker)
 
-CoWork can also operate as a client connecting to a remote Control Plane. This is useful when you want to use a local CoWork instance to manage tasks on a remote machine.
+NeoWorker can also operate as a client connecting to a remote Control Plane. This is useful when you want to use a local NeoWorker instance to manage tasks on a remote machine.
 
 ### Configuration
 
@@ -271,7 +271,7 @@ Once the remote endpoint is reachable:
    - attach files from a remote workspace
    - inspect tasks, alerts, apps, storage, and device details
 
-When you open a remote task from that tab, CoWork shows a remote-session banner so you can tell you are reviewing another machine's task history rather than the local machine's active session.
+When you open a remote task from that tab, NeoWorker shows a remote-session banner so you can tell you are reviewing another machine's task history rather than the local machine's active session.
 | **TLS Fingerprint** | (Optional) Certificate pin for `wss://` connections |
 
 ### Examples
@@ -284,7 +284,7 @@ When you open a remote task from that tab, CoWork shows a remote-session banner 
 
 | Mode | Description |
 |------|-------------|
-| **Local** | This CoWork instance runs the Control Plane server |
+| **Local** | This NeoWorker instance runs the Control Plane server |
 | **Remote** | Connect to a Control Plane on another machine |
 
 ## Troubleshooting
@@ -293,7 +293,7 @@ When you open a remote task from that tab, CoWork shows a remote-session banner 
 
 **Connection refused:**
 ```bash
-# Check if CoWork is running and Control Plane is enabled
+# Check if NeoWorker is running and Control Plane is enabled
 curl http://127.0.0.1:18789/health
 ```
 
@@ -313,7 +313,7 @@ ssh -N -L 18789:127.0.0.1:18789 \
 - Or restart the Control Plane server
 
 **"Invalid token":**
-- Verify token matches the one in CoWork settings
+- Verify token matches the one in NeoWorker settings
 - Check for extra whitespace when copying
 
 ### Tailscale Issues

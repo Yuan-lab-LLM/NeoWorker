@@ -27,44 +27,44 @@ export function getArgValue(flag: string): string | undefined {
 }
 
 export function isHeadlessMode(): boolean {
-  return hasArgFlag("--headless") || hasArgFlag("--no-ui") || getEnvFlag("COWORK_HEADLESS");
+  return hasArgFlag("--headless") || hasArgFlag("--no-ui") || getEnvFlag("NEOWORKER_HEADLESS");
 }
 
 export function shouldEnableControlPlaneFromArgsOrEnv(): boolean {
-  return hasArgFlag("--enable-control-plane") || getEnvFlag("COWORK_CONTROL_PLANE_ENABLE");
+  return hasArgFlag("--enable-control-plane") || getEnvFlag("NEOWORKER_CONTROL_PLANE_ENABLE");
 }
 
 export function shouldPrintControlPlaneTokenFromArgsOrEnv(): boolean {
   return (
-    hasArgFlag("--print-control-plane-token") || getEnvFlag("COWORK_PRINT_CONTROL_PLANE_TOKEN")
+    hasArgFlag("--print-control-plane-token") || getEnvFlag("NEOWORKER_PRINT_CONTROL_PLANE_TOKEN")
   );
 }
 
 export function shouldImportEnvSettingsFromArgsOrEnv(): boolean {
-  return hasArgFlag("--import-env-settings") || getEnvFlag("COWORK_IMPORT_ENV_SETTINGS");
+  return hasArgFlag("--import-env-settings") || getEnvFlag("NEOWORKER_IMPORT_ENV_SETTINGS");
 }
 
 export function shouldUseManagedDeploymentModeFromEnv(): boolean {
-  return getEnvFlag("COWORK_MANAGED_DEPLOYMENT");
+  return getEnvFlag("NEOWORKER_MANAGED_DEPLOYMENT");
 }
 
 export type ControlPlaneBindContext = "host" | "container";
 
 export function getControlPlaneBindContextFromEnv(): ControlPlaneBindContext {
-  const raw = String(process.env.COWORK_CONTROL_PLANE_BIND_CONTEXT || "").trim().toLowerCase();
+  const raw = String(process.env.NEOWORKER_CONTROL_PLANE_BIND_CONTEXT || "").trim().toLowerCase();
   return raw === "container" ? "container" : "host";
 }
 
 export function shouldAllowInsecureControlPlanePublicBindFromEnv(): boolean {
-  return getEnvFlag("COWORK_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND");
+  return getEnvFlag("NEOWORKER_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND");
 }
 
 export function shouldTrustControlPlaneProxyFromEnv(): boolean {
-  return getEnvFlag("COWORK_CONTROL_PLANE_TRUST_PROXY");
+  return getEnvFlag("NEOWORKER_CONTROL_PLANE_TRUST_PROXY");
 }
 
 export function getControlPlaneAllowedOriginsFromEnv(): string[] | undefined {
-  const raw = process.env.COWORK_CONTROL_PLANE_ALLOWED_ORIGINS;
+  const raw = process.env.NEOWORKER_CONTROL_PLANE_ALLOWED_ORIGINS;
   if (typeof raw !== "string") return undefined;
   const origins = raw
     .split(",")
@@ -78,7 +78,7 @@ export type EnvSettingsImportMode = "merge" | "overwrite";
 export function getEnvSettingsImportModeFromArgsOrEnv(): EnvSettingsImportMode {
   const raw = (
     getArgValue("--import-env-settings-mode") ||
-    process.env.COWORK_IMPORT_ENV_SETTINGS_MODE ||
+    process.env.NEOWORKER_IMPORT_ENV_SETTINGS_MODE ||
     ""
   )
     .trim()

@@ -78,7 +78,7 @@ export class RemoteGatewayClient {
       autoReconnect: true,
       reconnectIntervalMs: 5000,
       maxReconnectAttempts: 10,
-      deviceName: "CoWork Remote Client",
+      deviceName: "NeoWorker Remote Client",
       ...options,
     };
   }

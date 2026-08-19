@@ -188,14 +188,14 @@ describe("Chat transcript outgoing_user formatting", () => {
   }
 
   it('labels outgoing_user as "Me"', () => {
-    expect(formatSpeaker("outgoing_user", "CoWork")).toBe("Me");
+    expect(formatSpeaker("outgoing_user", "NeoWorker")).toBe("Me");
   });
 
   it("labels outgoing as agent name", () => {
-    expect(formatSpeaker("outgoing", "CoWork")).toBe("CoWork");
+    expect(formatSpeaker("outgoing", "NeoWorker")).toBe("NeoWorker");
   });
 
   it('labels incoming as "User"', () => {
-    expect(formatSpeaker("incoming", "CoWork")).toBe("User");
+    expect(formatSpeaker("incoming", "NeoWorker")).toBe("User");
   });
 });

@@ -1,0 +1,3 @@
+import { n as e, t } from "./power-BxBMomhj-CAbPoNM_.js";
+e();
+export { t as default };

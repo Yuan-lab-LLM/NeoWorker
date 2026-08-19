@@ -43,7 +43,7 @@ export interface ACPHandlerDeps {
     capabilities: string[];
     isActive: boolean;
   }>;
-  /** Function to create a CoWork task for local agent delegation */
+  /** Function to create a NeoWorker task for local agent delegation */
   createTask?: (params: {
     title: string;
     prompt: string;
@@ -60,14 +60,14 @@ export interface ACPHandlerDeps {
     remote: boolean;
   }) => Promise<{
     status: string;
-    coworkTaskId?: string;
+    neoworkerTaskId?: string;
     remoteTaskId?: string;
     result?: string;
     error?: string;
   }>;
   getDelegatedGraphStatus?: (acpTaskId: string) => {
     status: string;
-    coworkTaskId?: string;
+    neoworkerTaskId?: string;
     remoteTaskId?: string;
     result?: string;
     error?: string;
@@ -144,7 +144,7 @@ function mapRowToTask(row: Record<string, unknown>): ACPTask {
     status: String(row.status || "pending") as ACPTask["status"],
     result: typeof row.result === "string" ? row.result : undefined,
     error: typeof row.error === "string" ? row.error : undefined,
-    coworkTaskId: typeof row.cowork_task_id === "string" ? row.cowork_task_id : undefined,
+    neoworkerTaskId: typeof row.neoworker_task_id === "string" ? row.neoworker_task_id : undefined,
     remoteTaskId: typeof row.remote_task_id === "string" ? row.remote_task_id : undefined,
     workspaceId: typeof row.workspace_id === "string" ? row.workspace_id : undefined,
     createdAt: Number(row.created_at || Date.now()),
@@ -159,7 +159,7 @@ function loadPersistedTasks(db?: Database.Database): void {
   const rows = db
     .prepare(
       `SELECT id, requester_id, assignee_id, title, prompt, status, result, error,
-              cowork_task_id, remote_task_id, workspace_id, created_at, updated_at, completed_at
+              neoworker_task_id, remote_task_id, workspace_id, created_at, updated_at, completed_at
        FROM acp_tasks
        ORDER BY created_at DESC`,
     )
@@ -177,7 +177,7 @@ function persistTask(db: Database.Database | undefined, task: ACPTask): void {
   db.prepare(
     `INSERT INTO acp_tasks (
       id, requester_id, assignee_id, title, prompt, status, result, error,
-      cowork_task_id, remote_task_id, workspace_id, created_at, updated_at, completed_at
+      neoworker_task_id, remote_task_id, workspace_id, created_at, updated_at, completed_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       requester_id = excluded.requester_id,
@@ -187,7 +187,7 @@ function persistTask(db: Database.Database | undefined, task: ACPTask): void {
       status = excluded.status,
       result = excluded.result,
       error = excluded.error,
-      cowork_task_id = excluded.cowork_task_id,
+      neoworker_task_id = excluded.neoworker_task_id,
       remote_task_id = excluded.remote_task_id,
       workspace_id = excluded.workspace_id,
       updated_at = excluded.updated_at,
@@ -201,7 +201,7 @@ function persistTask(db: Database.Database | undefined, task: ACPTask): void {
     task.status,
     task.result || null,
     task.error || null,
-    task.coworkTaskId || null,
+    task.neoworkerTaskId || null,
     task.remoteTaskId || null,
     task.workspaceId || null,
     task.createdAt,
@@ -221,7 +221,7 @@ async function syncTaskStatus(
       task.status = graphStatus.status as ACPTask["status"];
       task.result = graphStatus.result;
       task.error = graphStatus.error;
-      task.coworkTaskId = graphStatus.coworkTaskId;
+      task.neoworkerTaskId = graphStatus.neoworkerTaskId;
       task.remoteTaskId = graphStatus.remoteTaskId;
       task.updatedAt = Date.now();
       if (task.status === "completed" || task.status === "failed" || task.status === "cancelled") {
@@ -231,9 +231,9 @@ async function syncTaskStatus(
       return task;
     }
   }
-  if (task.coworkTaskId && deps.getTask) {
-    const coworkTask = deps.getTask(task.coworkTaskId);
-    if (coworkTask) {
+  if (task.neoworkerTaskId && deps.getTask) {
+    const neoworkerTask = deps.getTask(task.neoworkerTaskId);
+    if (neoworkerTask) {
       const statusMap: Record<string, ACPTask["status"]> = {
         pending: "pending",
         running: "running",
@@ -241,7 +241,7 @@ async function syncTaskStatus(
         failed: "failed",
         cancelled: "cancelled",
       };
-      const newStatus = statusMap[coworkTask.status] || task.status;
+      const newStatus = statusMap[neoworkerTask.status] || task.status;
       if (newStatus !== task.status) {
         task.status = newStatus;
         task.updatedAt = Date.now();
@@ -249,8 +249,8 @@ async function syncTaskStatus(
           task.completedAt = Date.now();
         }
       }
-      if (coworkTask.error) {
-        task.error = coworkTask.error;
+      if (neoworkerTask.error) {
+        task.error = neoworkerTask.error;
       }
       persistTask(deps.db, task);
     }
@@ -486,7 +486,7 @@ export function registerACPMethods(server: ControlPlaneServer, deps: ACPHandlerD
           assignedAgentRoleId: assignee.origin === "local" ? assignee.localRoleId : undefined,
           remote: assignee.origin === "remote",
         });
-        acpTask.coworkTaskId = result.coworkTaskId;
+        acpTask.neoworkerTaskId = result.neoworkerTaskId;
         acpTask.remoteTaskId = result.remoteTaskId;
         acpTask.status = result.status as ACPTask["status"];
         acpTask.result = result.result;
@@ -499,7 +499,7 @@ export function registerACPMethods(server: ControlPlaneServer, deps: ACPHandlerD
         acpTask.error = err?.message || "Failed to create delegated graph task";
       }
     } else if (assignee.origin === "local" && assignee.localRoleId && deps.createTask) {
-      // If assignee is a local agent, delegate to the CoWork task system
+      // If assignee is a local agent, delegate to the NeoWorker task system
       try {
         const result = await deps.createTask({
           title,
@@ -507,7 +507,7 @@ export function registerACPMethods(server: ControlPlaneServer, deps: ACPHandlerD
           workspaceId: p.workspaceId || "",
           assignedAgentRoleId: assignee.localRoleId,
         });
-        acpTask.coworkTaskId = result.taskId;
+        acpTask.neoworkerTaskId = result.taskId;
         acpTask.status = "running";
       } catch (err: Any) {
         acpTask.status = "failed";
@@ -611,9 +611,9 @@ export function registerACPMethods(server: ControlPlaneServer, deps: ACPHandlerD
 
     if (deps.cancelDelegatedGraphTask) {
       await deps.cancelDelegatedGraphTask(acpTask.id);
-    } else if (acpTask.coworkTaskId && deps.cancelTask) {
-      // Cancel the underlying CoWork task if it exists
-      await deps.cancelTask(acpTask.coworkTaskId);
+    } else if (acpTask.neoworkerTaskId && deps.cancelTask) {
+      // Cancel the underlying NeoWorker task if it exists
+      await deps.cancelTask(acpTask.neoworkerTaskId);
     } else if (acpTask.remoteTaskId) {
       const roles = deps.getActiveRoles();
       const assignee = reg.getAgent(acpTask.assigneeId, roles);

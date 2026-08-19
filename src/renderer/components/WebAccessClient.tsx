@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { translate, useLanguage } from "../i18n";
 
 interface WebWorkspace {
   id: string;
@@ -21,7 +22,11 @@ interface WebTaskEvent {
   payload?: unknown;
 }
 
-async function apiRequest<T>(path: string, token: string, init?: RequestInit): Promise<T> {
+async function apiRequest<T>(
+  path: string,
+  token: string,
+  init?: RequestInit,
+): Promise<T> {
   const headers = new Headers(init?.headers || {});
   headers.set("Content-Type", "application/json");
   const trimmedToken = token.trim();
@@ -51,6 +56,8 @@ function formatDate(ts?: number): string {
 }
 
 export function WebAccessClient() {
+  useLanguage();
+  const t = translate;
   const initialToken = useMemo(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -66,10 +73,14 @@ export function WebAccessClient() {
   const [taskEvents, setTaskEvents] = useState<WebTaskEvent[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState("");
-  const [title, setTitle] = useState("Web Access Task");
+  const [title, setTitle] = useState(
+    t("webAccess.defaultTaskTitle", "Web Access Task"),
+  );
   const [prompt, setPrompt] = useState("");
   const [followupMessage, setFollowupMessage] = useState("");
-  const [statusMessage, setStatusMessage] = useState("Disconnected");
+  const [statusMessage, setStatusMessage] = useState(
+    t("connectorProfile.status.disconnected", "Disconnected"),
+  );
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -105,9 +116,13 @@ export function WebAccessClient() {
     setBusy(true);
     try {
       await refreshData();
-      setStatusMessage("Connected");
+      setStatusMessage(t("connectorProfile.status.connected", "Connected"));
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Connection failed");
+      setStatusMessage(
+        error instanceof Error
+          ? error.message
+          : t("legacyOnboarding.connectionFailed", "Connection failed"),
+      );
     } finally {
       setBusy(false);
     }
@@ -115,14 +130,17 @@ export function WebAccessClient() {
 
   const createTask = async () => {
     if (!prompt.trim()) {
-      setStatusMessage("Task prompt is required");
+      setStatusMessage(
+        t("webAccess.promptRequired", "Task prompt is required"),
+      );
       return;
     }
     setBusy(true);
     try {
       const payload: Record<string, string> = {
         prompt: prompt.trim(),
-        title: title.trim() || "Web Access Task",
+        title:
+          title.trim() || t("webAccess.defaultTaskTitle", "Web Access Task"),
       };
       if (selectedWorkspaceId) {
         payload.workspaceId = selectedWorkspaceId;
@@ -132,10 +150,14 @@ export function WebAccessClient() {
         body: JSON.stringify(payload),
       });
       setPrompt("");
-      setStatusMessage("Task created");
+      setStatusMessage(t("webAccess.taskCreated", "Task created"));
       await refreshData();
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Task create failed");
+      setStatusMessage(
+        error instanceof Error
+          ? error.message
+          : t("webAccess.taskCreateFailed", "Task create failed"),
+      );
     } finally {
       setBusy(false);
     }
@@ -145,11 +167,22 @@ export function WebAccessClient() {
     if (!selectedTaskId) return;
     setBusy(true);
     try {
-      const events = await apiRequest<WebTaskEvent[]>(`/api/tasks/${selectedTaskId}/events`, token);
+      const events = await apiRequest<WebTaskEvent[]>(
+        `/api/tasks/${selectedTaskId}/events`,
+        token,
+      );
       setTaskEvents(events || []);
-      setStatusMessage(`Loaded ${events?.length || 0} event(s)`);
+      setStatusMessage(
+        t("webAccess.loadedEvents", "Loaded {count} event(s)", {
+          count: events?.length || 0,
+        }),
+      );
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Failed to load task events");
+      setStatusMessage(
+        error instanceof Error
+          ? error.message
+          : t("webAccess.loadEventsFailed", "Failed to load task events"),
+      );
     } finally {
       setBusy(false);
     }
@@ -164,10 +197,14 @@ export function WebAccessClient() {
         body: JSON.stringify({ message: followupMessage.trim() }),
       });
       setFollowupMessage("");
-      setStatusMessage("Message sent");
+      setStatusMessage(t("webAccess.messageSent", "Message sent"));
       await loadTaskEvents();
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Failed to send message");
+      setStatusMessage(
+        error instanceof Error
+          ? error.message
+          : t("webAccess.sendMessageFailed", "Failed to send message"),
+      );
     } finally {
       setBusy(false);
     }
@@ -180,15 +217,20 @@ export function WebAccessClient() {
         padding: 20,
         color: "#e5e7eb",
         background:
-          "radial-gradient(1200px 600px at 15% 10%, rgba(34,211,238,0.12), transparent 55%), radial-gradient(900px 500px at 85% 5%, rgba(251,146,60,0.10), transparent 55%), #0b1020",
+          "radial-gradient(1200px 600px at 15% 10%, rgba(17, 24, 39, 0.12), transparent 55%), radial-gradient(900px 500px at 85% 5%, rgba(255, 224, 174, 0.16), transparent 55%), #0b1020",
         fontFamily:
           '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", system-ui, sans-serif',
       }}
     >
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <h1 style={{ marginBottom: 6, fontSize: 22 }}>CoWork OS Web Access</h1>
+        <h1 style={{ marginBottom: 6, fontSize: 22 }}>
+          {t("webAccess.title", "NeoWorker Web Access")}
+        </h1>
         <p style={{ margin: 0, color: "#9ca3af", fontSize: 13 }}>
-          Browser client for the Web Access REST API.
+          {t(
+            "webAccess.subtitle",
+            "Browser client for the Web Access REST API.",
+          )}
         </p>
 
         <div
@@ -200,16 +242,33 @@ export function WebAccessClient() {
             border: "1px solid rgba(255,255,255,0.12)",
           }}
         >
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              alignItems: "end",
+            }}
+          >
             <div style={{ minWidth: 260, flex: "1 1 260px" }}>
-              <label style={{ fontSize: 12, color: "#9ca3af", display: "block", marginBottom: 6 }}>
-                Access Token
+              <label
+                style={{
+                  fontSize: 12,
+                  color: "#9ca3af",
+                  display: "block",
+                  marginBottom: 6,
+                }}
+              >
+                {t("webAccess.accessToken", "Access Token")}
               </label>
               <input
                 type="password"
                 value={token}
                 onChange={(event) => setToken(event.target.value)}
-                placeholder="Paste Access Token from Settings"
+                placeholder={t(
+                  "webAccess.accessTokenPlaceholder",
+                  "Paste Access Token from Settings",
+                )}
                 style={{
                   width: "100%",
                   padding: "10px 12px",
@@ -227,13 +286,13 @@ export function WebAccessClient() {
               style={{
                 padding: "10px 14px",
                 borderRadius: 8,
-                border: "1px solid rgba(34,211,238,0.4)",
-                background: "rgba(34,211,238,0.15)",
+                border: "1px solid rgba(17, 24, 39, 0.4)",
+                background: "rgba(17, 24, 39, 0.15)",
                 color: "#e5e7eb",
                 cursor: "pointer",
               }}
             >
-              Connect
+              {t("common.connect", "Connect")}
             </button>
             <button
               type="button"
@@ -248,19 +307,40 @@ export function WebAccessClient() {
                 cursor: "pointer",
               }}
             >
-              Refresh
+              {t("common.refresh", "Refresh")}
             </button>
           </div>
           <div style={{ marginTop: 10, fontSize: 12, color: "#9ca3af" }}>
-            Health:{" "}
-            <strong style={{ color: healthOk === true ? "#34d399" : healthOk === false ? "#f87171" : "#fbbf24" }}>
-              {healthOk === null ? "checking..." : healthOk ? "ok" : "down"}
+            {t("webAccess.health", "Health")}:{" "}
+            <strong
+              style={{
+                color:
+                  healthOk === true
+                    ? "#34d399"
+                    : healthOk === false
+                      ? "#f87171"
+                      : "#fbbf24",
+              }}
+            >
+              {healthOk === null
+                ? t("webAccess.health.checking", "checking...")
+                : healthOk
+                  ? t("webAccess.health.ok", "ok")
+                  : t("webAccess.health.down", "down")}
             </strong>{" "}
-            | Status: <strong style={{ color: "#e5e7eb" }}>{statusMessage}</strong>
+            | {t("common.status", "Status")}:{" "}
+            <strong style={{ color: "#e5e7eb" }}>{statusMessage}</strong>
           </div>
         </div>
 
-        <div style={{ display: "grid", gap: 14, marginTop: 14, gridTemplateColumns: "1fr 1fr" }}>
+        <div
+          style={{
+            display: "grid",
+            gap: 14,
+            marginTop: 14,
+            gridTemplateColumns: "1fr 1fr",
+          }}
+        >
           <div
             style={{
               padding: 14,
@@ -269,9 +349,25 @@ export function WebAccessClient() {
               border: "1px solid rgba(255,255,255,0.12)",
             }}
           >
-            <h2 style={{ marginTop: 0, marginBottom: 10, fontSize: 14, color: "#9ca3af" }}>Create Task</h2>
-            <label style={{ fontSize: 12, color: "#9ca3af", display: "block", marginBottom: 6 }}>
-              Workspace
+            <h2
+              style={{
+                marginTop: 0,
+                marginBottom: 10,
+                fontSize: 14,
+                color: "#9ca3af",
+              }}
+            >
+              {t("webAccess.createTask", "Create Task")}
+            </h2>
+            <label
+              style={{
+                fontSize: 12,
+                color: "#9ca3af",
+                display: "block",
+                marginBottom: 6,
+              }}
+            >
+              {t("workspace.label", "Workspace")}
             </label>
             <select
               value={selectedWorkspaceId}
@@ -285,7 +381,9 @@ export function WebAccessClient() {
                 color: "#e5e7eb",
               }}
             >
-              <option value="">Default workspace</option>
+              <option value="">
+                {t("webAccess.defaultWorkspace", "Default workspace")}
+              </option>
               {workspaces.map((workspace) => (
                 <option key={workspace.id} value={workspace.id}>
                   {workspace.name}
@@ -294,9 +392,15 @@ export function WebAccessClient() {
             </select>
 
             <label
-              style={{ fontSize: 12, color: "#9ca3af", display: "block", marginTop: 10, marginBottom: 6 }}
+              style={{
+                fontSize: 12,
+                color: "#9ca3af",
+                display: "block",
+                marginTop: 10,
+                marginBottom: 6,
+              }}
             >
-              Title
+              {t("common.title", "Title")}
             </label>
             <input
               value={title}
@@ -312,14 +416,23 @@ export function WebAccessClient() {
             />
 
             <label
-              style={{ fontSize: 12, color: "#9ca3af", display: "block", marginTop: 10, marginBottom: 6 }}
+              style={{
+                fontSize: 12,
+                color: "#9ca3af",
+                display: "block",
+                marginTop: 10,
+                marginBottom: 6,
+              }}
             >
-              Prompt
+              {t("webAccess.prompt", "Prompt")}
             </label>
             <textarea
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="What should the agent do?"
+              placeholder={t(
+                "webAccess.promptPlaceholder",
+                "What should the agent do?",
+              )}
               style={{
                 width: "100%",
                 minHeight: 120,
@@ -338,13 +451,13 @@ export function WebAccessClient() {
                 marginTop: 10,
                 padding: "10px 14px",
                 borderRadius: 8,
-                border: "1px solid rgba(34,211,238,0.4)",
-                background: "rgba(34,211,238,0.15)",
+                border: "1px solid rgba(17, 24, 39, 0.4)",
+                background: "rgba(17, 24, 39, 0.15)",
                 color: "#e5e7eb",
                 cursor: "pointer",
               }}
             >
-              Create Task
+              {t("webAccess.createTask", "Create Task")}
             </button>
           </div>
 
@@ -356,9 +469,25 @@ export function WebAccessClient() {
               border: "1px solid rgba(255,255,255,0.12)",
             }}
           >
-            <h2 style={{ marginTop: 0, marginBottom: 10, fontSize: 14, color: "#9ca3af" }}>Task Control</h2>
-            <label style={{ fontSize: 12, color: "#9ca3af", display: "block", marginBottom: 6 }}>
-              Task
+            <h2
+              style={{
+                marginTop: 0,
+                marginBottom: 10,
+                fontSize: 14,
+                color: "#9ca3af",
+              }}
+            >
+              {t("webAccess.taskControl", "Task Control")}
+            </h2>
+            <label
+              style={{
+                fontSize: 12,
+                color: "#9ca3af",
+                display: "block",
+                marginBottom: 6,
+              }}
+            >
+              {t("activity.task", "Task")}
             </label>
             <select
               value={selectedTaskId}
@@ -372,10 +501,16 @@ export function WebAccessClient() {
                 color: "#e5e7eb",
               }}
             >
-              <option value="">Select task</option>
+              <option value="">
+                {t("webAccess.selectTask", "Select task")}
+              </option>
               {tasks.map((task) => (
                 <option key={task.id} value={task.id}>
-                  {(task.title || "Untitled").slice(0, 40)} [{task.status || "unknown"}]
+                  {(task.title || t("common.untitled", "Untitled")).slice(
+                    0,
+                    40,
+                  )}{" "}
+                  [{task.status || t("common.unknown", "unknown")}]
                 </option>
               ))}
             </select>
@@ -394,18 +529,27 @@ export function WebAccessClient() {
                 cursor: "pointer",
               }}
             >
-              Load Events
+              {t("webAccess.loadEvents", "Load Events")}
             </button>
 
             <label
-              style={{ fontSize: 12, color: "#9ca3af", display: "block", marginTop: 10, marginBottom: 6 }}
+              style={{
+                fontSize: 12,
+                color: "#9ca3af",
+                display: "block",
+                marginTop: 10,
+                marginBottom: 6,
+              }}
             >
-              Follow-up Message
+              {t("webAccess.followupMessage", "Follow-up Message")}
             </label>
             <textarea
               value={followupMessage}
               onChange={(event) => setFollowupMessage(event.target.value)}
-              placeholder="Send message to selected task"
+              placeholder={t(
+                "webAccess.followupPlaceholder",
+                "Send message to selected task",
+              )}
               style={{
                 width: "100%",
                 minHeight: 90,
@@ -419,7 +563,12 @@ export function WebAccessClient() {
             <button
               type="button"
               onClick={() => void sendTaskMessage()}
-              disabled={busy || !token.trim() || !selectedTaskId || !followupMessage.trim()}
+              disabled={
+                busy ||
+                !token.trim() ||
+                !selectedTaskId ||
+                !followupMessage.trim()
+              }
               style={{
                 marginTop: 10,
                 padding: "10px 14px",
@@ -430,7 +579,7 @@ export function WebAccessClient() {
                 cursor: "pointer",
               }}
             >
-              Send Message
+              {t("common.sendMessage", "Send Message")}
             </button>
           </div>
         </div>
@@ -444,12 +593,23 @@ export function WebAccessClient() {
             border: "1px solid rgba(255,255,255,0.12)",
           }}
         >
-          <h2 style={{ marginTop: 0, marginBottom: 10, fontSize: 14, color: "#9ca3af" }}>
-            Tasks ({tasks.length})
+          <h2
+            style={{
+              marginTop: 0,
+              marginBottom: 10,
+              fontSize: 14,
+              color: "#9ca3af",
+            }}
+          >
+            {t("webAccess.tasksCount", "Tasks ({count})", {
+              count: tasks.length,
+            })}
           </h2>
           <div style={{ maxHeight: 260, overflow: "auto", fontSize: 13 }}>
             {tasks.length === 0 ? (
-              <div style={{ color: "#9ca3af" }}>No tasks yet.</div>
+              <div style={{ color: "#9ca3af" }}>
+                {t("webAccess.noTasks", "No tasks yet.")}
+              </div>
             ) : (
               tasks.map((task) => (
                 <div
@@ -463,12 +623,16 @@ export function WebAccessClient() {
                   }}
                 >
                   <div>
-                    <div style={{ color: "#e5e7eb" }}>{task.title || "Untitled"}</div>
+                    <div style={{ color: "#e5e7eb" }}>
+                      {task.title || t("common.untitled", "Untitled")}
+                    </div>
                     <div style={{ color: "#9ca3af", fontSize: 12 }}>
                       {task.id} · {task.status || "unknown"}
                     </div>
                   </div>
-                  <div style={{ color: "#9ca3af", fontSize: 12 }}>{formatDate(task.createdAt)}</div>
+                  <div style={{ color: "#9ca3af", fontSize: 12 }}>
+                    {formatDate(task.createdAt)}
+                  </div>
                 </div>
               ))
             )}
@@ -484,8 +648,17 @@ export function WebAccessClient() {
             border: "1px solid rgba(255,255,255,0.12)",
           }}
         >
-          <h2 style={{ marginTop: 0, marginBottom: 10, fontSize: 14, color: "#9ca3af" }}>
-            Task Events ({taskEvents.length})
+          <h2
+            style={{
+              marginTop: 0,
+              marginBottom: 10,
+              fontSize: 14,
+              color: "#9ca3af",
+            }}
+          >
+            {t("webAccess.taskEventsCount", "Task Events ({count})", {
+              count: taskEvents.length,
+            })}
           </h2>
           <pre
             style={{

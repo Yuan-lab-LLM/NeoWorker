@@ -2,7 +2,15 @@
  * Tests for step failure/verification behavior in TaskExecutor.executeStep
  */
 
-import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { AwaitingUserInputError, TaskExecutor } from "../executor";
@@ -27,7 +35,10 @@ vi.mock("../../memory/MemoryService", () => ({
   },
 }));
 
-function toolUseResponse(name: string, input: Record<string, Any>): LLMResponse {
+function toolUseResponse(
+  name: string,
+  input: Record<string, Any>,
+): LLMResponse {
   return {
     stopReason: "tool_use",
     content: [
@@ -128,12 +139,12 @@ function applyExecutorFieldDefaults(executor: Any): void {
   executor.softDeadlineTriggered = false;
   executor.wrapUpRequested = false;
   executor.logTag = "[Executor:test]";
-  executor.infraContextProvider = {
-    getStatus: () => ({ enabled: false }),
-  };
 }
 
-function createExecutorWithStubs(responses: LLMResponse[], toolResults: Record<string, Any>) {
+function createExecutorWithStubs(
+  responses: LLMResponse[],
+  toolResults: Record<string, Any>,
+) {
   const executor = Object.create(TaskExecutor.prototype) as Any;
   const fallbackTextResponse =
     [...responses]
@@ -154,7 +165,13 @@ function createExecutorWithStubs(responses: LLMResponse[], toolResults: Record<s
   executor.workspace = {
     id: "workspace-1",
     path: "/tmp",
-    permissions: { read: true, write: true, delete: true, network: true, shell: true },
+    permissions: {
+      read: true,
+      write: true,
+      delete: true,
+      network: true,
+      shell: true,
+    },
   };
   executor.daemon = {
     logEvent: vi.fn(),
@@ -170,7 +187,12 @@ function createExecutorWithStubs(responses: LLMResponse[], toolResults: Record<s
         availableTokens: 1_000_000,
         originalTokens: 0,
         truncatedToolResults: { didTruncate: false, count: 0, tokensAfter: 0 },
-        removedMessages: { didRemove: false, count: 0, tokensAfter: 0, messages: [] },
+        removedMessages: {
+          didRemove: false,
+          count: 0,
+          tokensAfter: 0,
+          messages: [],
+        },
         kind: "none",
       },
     })),
@@ -180,19 +202,66 @@ function createExecutorWithStubs(responses: LLMResponse[], toolResults: Record<s
   executor.checkBudgets = vi.fn();
   executor.updateTracking = vi.fn();
   executor.getAvailableTools = vi.fn().mockReturnValue([
-    { name: "run_command", description: "", input_schema: { type: "object", properties: {} } },
-    { name: "glob", description: "", input_schema: { type: "object", properties: {} } },
-    { name: "read_file", description: "", input_schema: { type: "object", properties: {} } },
-    { name: "parse_document", description: "", input_schema: { type: "object", properties: {} } },
-    { name: "read_pdf_visual", description: "", input_schema: { type: "object", properties: {} } },
-    { name: "list_directory", description: "", input_schema: { type: "object", properties: {} } },
-    { name: "get_file_info", description: "", input_schema: { type: "object", properties: {} } },
-    { name: "system_info", description: "", input_schema: { type: "object", properties: {} } },
-    { name: "infra_status", description: "", input_schema: { type: "object", properties: {} } },
-    { name: "web_search", description: "", input_schema: { type: "object", properties: {} } },
-    { name: "web_fetch", description: "", input_schema: { type: "object", properties: {} } },
-    { name: "write_file", description: "", input_schema: { type: "object", properties: {} } },
-    { name: "create_document", description: "", input_schema: { type: "object", properties: {} } },
+    {
+      name: "run_command",
+      description: "",
+      input_schema: { type: "object", properties: {} },
+    },
+    {
+      name: "glob",
+      description: "",
+      input_schema: { type: "object", properties: {} },
+    },
+    {
+      name: "read_file",
+      description: "",
+      input_schema: { type: "object", properties: {} },
+    },
+    {
+      name: "parse_document",
+      description: "",
+      input_schema: { type: "object", properties: {} },
+    },
+    {
+      name: "read_pdf_visual",
+      description: "",
+      input_schema: { type: "object", properties: {} },
+    },
+    {
+      name: "list_directory",
+      description: "",
+      input_schema: { type: "object", properties: {} },
+    },
+    {
+      name: "get_file_info",
+      description: "",
+      input_schema: { type: "object", properties: {} },
+    },
+    {
+      name: "system_info",
+      description: "",
+      input_schema: { type: "object", properties: {} },
+    },
+    {
+      name: "web_search",
+      description: "",
+      input_schema: { type: "object", properties: {} },
+    },
+    {
+      name: "web_fetch",
+      description: "",
+      input_schema: { type: "object", properties: {} },
+    },
+    {
+      name: "write_file",
+      description: "",
+      input_schema: { type: "object", properties: {} },
+    },
+    {
+      name: "create_document",
+      description: "",
+      input_schema: { type: "object", properties: {} },
+    },
     {
       name: "generate_document",
       description: "",
@@ -218,8 +287,16 @@ function createExecutorWithStubs(responses: LLMResponse[], toolResults: Record<s
       description: "",
       input_schema: { type: "object", properties: {} },
     },
-    { name: "create_diagram", description: "", input_schema: { type: "object", properties: {} } },
-    { name: "edit_file", description: "", input_schema: { type: "object", properties: {} } },
+    {
+      name: "create_diagram",
+      description: "",
+      input_schema: { type: "object", properties: {} },
+    },
+    {
+      name: "edit_file",
+      description: "",
+      input_schema: { type: "object", properties: {} },
+    },
   ]);
   executor.handleCanvasPushFallback = vi.fn();
   executor.getToolTimeoutMs = vi.fn().mockReturnValue(1000);
@@ -273,12 +350,17 @@ function createExecutorWithStubs(responses: LLMResponse[], toolResults: Record<s
   executor.abortController = new AbortController();
 
   return executor as TaskExecutor & {
-    daemon: { logEvent: ReturnType<typeof vi.fn>; updateTaskStatus: ReturnType<typeof vi.fn> };
+    daemon: {
+      logEvent: ReturnType<typeof vi.fn>;
+      updateTaskStatus: ReturnType<typeof vi.fn>;
+    };
     toolRegistry: { executeTool: ReturnType<typeof vi.fn> };
   };
 }
 
-function createExecutorWithLLMHandler(handler: (messages: Any[]) => LLMResponse) {
+function createExecutorWithLLMHandler(
+  handler: (messages: Any[]) => LLMResponse,
+) {
   const executor = Object.create(TaskExecutor.prototype) as Any;
 
   executor.task = {
@@ -290,7 +372,13 @@ function createExecutorWithLLMHandler(handler: (messages: Any[]) => LLMResponse)
   executor.workspace = {
     id: "workspace-1",
     path: "/tmp",
-    permissions: { read: true, write: true, delete: true, network: true, shell: true },
+    permissions: {
+      read: true,
+      write: true,
+      delete: true,
+      network: true,
+      shell: true,
+    },
   };
   executor.daemon = {
     logEvent: vi.fn(),
@@ -306,7 +394,12 @@ function createExecutorWithLLMHandler(handler: (messages: Any[]) => LLMResponse)
         availableTokens: 1_000_000,
         originalTokens: 0,
         truncatedToolResults: { didTruncate: false, count: 0, tokensAfter: 0 },
-        removedMessages: { didRemove: false, count: 0, tokensAfter: 0, messages: [] },
+        removedMessages: {
+          didRemove: false,
+          count: 0,
+          tokensAfter: 0,
+          messages: [],
+        },
         kind: "none",
       },
     })),
@@ -355,9 +448,11 @@ function createExecutorWithLLMHandler(handler: (messages: Any[]) => LLMResponse)
   executor.provider = {
     createMessage: vi.fn(async (args: Any) => handler(args.messages)),
   };
-  executor.callLLMWithRetry = vi.fn().mockImplementation(async (requestFn: Any) => {
-    return requestFn();
-  });
+  executor.callLLMWithRetry = vi
+    .fn()
+    .mockImplementation(async (requestFn: Any) => {
+      return requestFn();
+    });
   executor.abortController = new AbortController();
 
   return executor as TaskExecutor & {
@@ -388,13 +483,20 @@ describe("TaskExecutor executeStep failure handling", () => {
 
   it("keeps the step failed when run_command fails even if a direct completion text follows", async () => {
     executor = createExecutorWithStubs(
-      [toolUseResponse("run_command", { command: "exit 1" }), textResponse("done")],
+      [
+        toolUseResponse("run_command", { command: "exit 1" }),
+        textResponse("done"),
+      ],
       {
         run_command: { success: false, exitCode: 1 },
       },
     );
 
-    const step: Any = { id: "1", description: "Execute a command", status: "pending" };
+    const step: Any = {
+      id: "1",
+      description: "Execute a command",
+      status: "pending",
+    };
 
     await (executor as Any).executeStep(step);
 
@@ -406,17 +508,25 @@ describe("TaskExecutor executeStep failure handling", () => {
     executor = createExecutorWithStubs(
       [
         toolUseResponse("run_command", { command: "echo test" }),
-        textResponse("Completed with existing context after duplicate tool call was blocked."),
+        textResponse(
+          "Completed with existing context after duplicate tool call was blocked.",
+        ),
       ],
       {},
     );
-    (executor as Any).toolCallDeduplicator.checkDuplicate = vi.fn().mockReturnValue({
-      isDuplicate: true,
-      reason: "duplicate_call",
-      cachedResult: null,
-    });
+    (executor as Any).toolCallDeduplicator.checkDuplicate = vi
+      .fn()
+      .mockReturnValue({
+        isDuplicate: true,
+        reason: "duplicate_call",
+        cachedResult: null,
+      });
 
-    const step: Any = { id: "1b", description: "Execute command once", status: "pending" };
+    const step: Any = {
+      id: "1b",
+      description: "Execute command once",
+      status: "pending",
+    };
 
     await (executor as Any).executeStep(step);
 
@@ -444,12 +554,25 @@ describe("TaskExecutor executeStep failure handling", () => {
         textResponse("hello world"),
       ],
       {
-        run_command: { success: true, stdout: "hello world\n", stderr: "", exitCode: 0 },
+        run_command: {
+          success: true,
+          stdout: "hello world\n",
+          stderr: "",
+          exitCode: 0,
+        },
       },
     );
 
-    const step1: Any = { id: "cmd-1", description: "Execute `echo hello world`.", status: "pending" };
-    const step2: Any = { id: "cmd-2", description: "Return the result directly.", status: "pending" };
+    const step1: Any = {
+      id: "cmd-1",
+      description: "Execute `echo hello world`.",
+      status: "pending",
+    };
+    const step2: Any = {
+      id: "cmd-2",
+      description: "Return the result directly.",
+      status: "pending",
+    };
     (executor as Any).plan = { description: "Plan", steps: [step1, step2] };
 
     await (executor as Any).executeStep(step1);
@@ -471,20 +594,25 @@ describe("TaskExecutor executeStep failure handling", () => {
       ],
       {},
     );
-    const tempDir = fs.mkdtempSync("/tmp/cowork-dup-bypass-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-dup-bypass-");
     (executor as Any).workspace.path = tempDir;
     (executor as Any).reliabilityV2DisableBootstrapWrite = true;
     (executor as Any).toolCallDeduplicator.checkDuplicate = vi
       .fn()
       .mockReturnValue({ isDuplicate: true, reason: "duplicate_call" });
-    (executor as Any).toolRegistry.executeTool = vi.fn(async (name: string, input: Any) => {
-      if (name === "write_file") {
-        const filePath = path.resolve(tempDir, String(input?.path || "script.js"));
-        fs.writeFileSync(filePath, String(input?.content || ""), "utf8");
-        return { success: true, path: "script.js" };
-      }
-      return { success: true };
-    });
+    (executor as Any).toolRegistry.executeTool = vi.fn(
+      async (name: string, input: Any) => {
+        if (name === "write_file") {
+          const filePath = path.resolve(
+            tempDir,
+            String(input?.path || "script.js"),
+          );
+          fs.writeFileSync(filePath, String(input?.content || ""), "utf8");
+          return { success: true, path: "script.js" };
+        }
+        return { success: true };
+      },
+    );
 
     const step: Any = {
       id: "dup-bypass-step",
@@ -559,7 +687,11 @@ describe("TaskExecutor executeStep failure handling", () => {
     (executor as Any).crossStepToolFailures = new Map();
     (executor as Any).pendingFollowUps = [];
 
-    const step: Any = { id: "step-turn-budget", description: "Search for source links", status: "pending" };
+    const step: Any = {
+      id: "step-turn-budget",
+      description: "Search for source links",
+      status: "pending",
+    };
 
     await expect((executor as Any).executeStep(step)).resolves.toBeUndefined();
     expect(String(step.error || "")).not.toContain("followUpToolCallsLocked");
@@ -593,7 +725,10 @@ describe("TaskExecutor executeStep failure handling", () => {
   it("marks verification step failed when no new image is found", async () => {
     const oldTimestamp = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     executor = createExecutorWithStubs(
-      [toolUseResponse("glob", { pattern: "**/*.{png,jpg,jpeg,webp}" }), textResponse("checked")],
+      [
+        toolUseResponse("glob", { pattern: "**/*.{png,jpg,jpeg,webp}" }),
+        textResponse("checked"),
+      ],
       {
         glob: {
           success: true,
@@ -604,7 +739,8 @@ describe("TaskExecutor executeStep failure handling", () => {
 
     const step: Any = {
       id: "2",
-      description: "Verify: Confirm the generated image file exists and report the result",
+      description:
+        "Verify: Confirm the generated image file exists and report the result",
       status: "pending",
     };
 
@@ -623,13 +759,28 @@ describe("TaskExecutor executeStep failure handling", () => {
       ],
       {
         browser_navigate: { success: true, url: "http://localhost:3000" },
-        browser_get_content: { success: true, content: "<html>timeline</html>" },
+        browser_get_content: {
+          success: true,
+          content: "<html>timeline</html>",
+        },
       },
     );
     (executor as Any).getAvailableTools = vi.fn().mockReturnValue([
-      { name: "browser_navigate", description: "", input_schema: { type: "object", properties: {} } },
-      { name: "browser_get_content", description: "", input_schema: { type: "object", properties: {} } },
-      { name: "read_file", description: "", input_schema: { type: "object", properties: {} } },
+      {
+        name: "browser_navigate",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
+      {
+        name: "browser_get_content",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
+      {
+        name: "read_file",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
     ]);
 
     const step: Any = {
@@ -639,7 +790,9 @@ describe("TaskExecutor executeStep failure handling", () => {
       status: "pending",
     };
 
-    expect((executor as Any).resolveVerificationModeForStep(step)).toBe("browser_session");
+    expect((executor as Any).resolveVerificationModeForStep(step)).toBe(
+      "browser_session",
+    );
     await (executor as Any).executeStep(step);
 
     expect(step.status).toBe("completed");
@@ -658,7 +811,9 @@ describe("TaskExecutor executeStep failure handling", () => {
 
     const contract = (executor as Any).resolveStepExecutionContract(step);
     expect(Array.from(contract.requiredTools)).toContain("write_file");
-    expect(Array.from(contract.requiredTools)).not.toContain("create_directory");
+    expect(Array.from(contract.requiredTools)).not.toContain(
+      "create_directory",
+    );
   });
 
   it("passes browser-session final verification via deterministic checklist even when text is not OK", async () => {
@@ -680,8 +835,16 @@ describe("TaskExecutor executeStep failure handling", () => {
       },
     );
     (executor as Any).getAvailableTools = vi.fn().mockReturnValue([
-      { name: "browser_navigate", description: "", input_schema: { type: "object", properties: {} } },
-      { name: "browser_get_content", description: "", input_schema: { type: "object", properties: {} } },
+      {
+        name: "browser_navigate",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
+      {
+        name: "browser_get_content",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
     ]);
 
     const step: Any = {
@@ -691,7 +854,9 @@ describe("TaskExecutor executeStep failure handling", () => {
       status: "pending",
     };
     (executor as Any).plan = { description: "Plan", steps: [step] };
-    expect((executor as Any).resolveVerificationModeForStep(step)).toBe("browser_session");
+    expect((executor as Any).resolveVerificationModeForStep(step)).toBe(
+      "browser_session",
+    );
 
     await (executor as Any).executeStep(step);
 
@@ -716,7 +881,9 @@ describe("TaskExecutor executeStep failure handling", () => {
       status: "pending",
     };
 
-    expect((executor as Any).resolveVerificationModeForStep(step)).toBe("artifact_file");
+    expect((executor as Any).resolveVerificationModeForStep(step)).toBe(
+      "artifact_file",
+    );
   });
 
   it("accepts artifact verification evidence from file inspection tools when step text is generic", async () => {
@@ -728,7 +895,11 @@ describe("TaskExecutor executeStep failure handling", () => {
       ],
       {
         get_file_info: { success: true, path: "inner_world.docx", size: 1234 },
-        read_file: { success: true, path: "inner_world.docx", content: "The Quiet Atlas" },
+        read_file: {
+          success: true,
+          path: "inner_world.docx",
+          content: "The Quiet Atlas",
+        },
       },
     );
     (executor as Any).fileOperationTracker = {
@@ -752,9 +923,16 @@ describe("TaskExecutor executeStep failure handling", () => {
 
   it("rejects unrelated artifact inspection for generic verification steps", async () => {
     executor = createExecutorWithStubs(
-      [toolUseResponse("read_file", { path: "other.docx" }), textResponse("OK")],
+      [
+        toolUseResponse("read_file", { path: "other.docx" }),
+        textResponse("OK"),
+      ],
       {
-        read_file: { success: true, path: "other.docx", content: "Unrelated content" },
+        read_file: {
+          success: true,
+          path: "other.docx",
+          content: "Unrelated content",
+        },
       },
     );
     (executor as Any).fileOperationTracker = {
@@ -773,14 +951,23 @@ describe("TaskExecutor executeStep failure handling", () => {
     await (executor as Any).executeStep(step);
 
     expect(step.status).toBe("failed");
-    expect(String(step.error || "")).toContain("expected artifact file evidence");
+    expect(String(step.error || "")).toContain(
+      "expected artifact file evidence",
+    );
   });
 
   it("rejects same-basename artifact inspection from a different directory", async () => {
     executor = createExecutorWithStubs(
-      [toolUseResponse("read_file", { path: "tmp/report.docx" }), textResponse("OK")],
+      [
+        toolUseResponse("read_file", { path: "tmp/report.docx" }),
+        textResponse("OK"),
+      ],
       {
-        read_file: { success: true, path: "tmp/report.docx", content: "Wrong artifact" },
+        read_file: {
+          success: true,
+          path: "tmp/report.docx",
+          content: "Wrong artifact",
+        },
       },
     );
     (executor as Any).fileOperationTracker = {
@@ -790,7 +977,8 @@ describe("TaskExecutor executeStep failure handling", () => {
 
     const step: Any = {
       id: "verify-artifact-same-name-different-dir",
-      description: "Verify completion: ensure the Word document is present and readable.",
+      description:
+        "Verify completion: ensure the Word document is present and readable.",
       status: "pending",
     };
     (executor as Any).plan = { description: "Plan", steps: [step] };
@@ -798,17 +986,23 @@ describe("TaskExecutor executeStep failure handling", () => {
     await (executor as Any).executeStep(step);
 
     expect(step.status).toBe("failed");
-    expect(String(step.error || "")).toContain("expected artifact file evidence");
+    expect(String(step.error || "")).toContain(
+      "expected artifact file evidence",
+    );
   });
 
   it("requires all prompt-required artifact types during artifact verification", async () => {
     executor = createExecutorWithStubs(
-      [toolUseResponse("read_file", { path: "report.csv" }), textResponse("OK")],
+      [
+        toolUseResponse("read_file", { path: "report.csv" }),
+        textResponse("OK"),
+      ],
       {
         read_file: { success: true, path: "report.csv", content: "col\n1" },
       },
     );
-    (executor as Any).task.prompt = "Create both a CSV and JSON report file from this data.";
+    (executor as Any).task.prompt =
+      "Create both a CSV and JSON report file from this data.";
     expect((executor as Any).inferRequiredArtifactExtensions()).toEqual(
       expect.arrayContaining([".csv", ".json"]),
     );
@@ -828,20 +1022,25 @@ describe("TaskExecutor executeStep failure handling", () => {
     await (executor as Any).executeStep(step);
 
     expect(step.status).toBe("failed");
-    expect(String(step.error || "")).toContain("missing required artifact types");
+    expect(String(step.error || "")).toContain(
+      "missing required artifact types",
+    );
     expect(String(step.error || "")).toContain(".json");
   });
 
   it("ignores strategy-context docx cues when inferring required artifact types", () => {
     executor = createExecutorWithStubs([textResponse("OK")], {});
-    (executor as Any).task.prompt = `Create a fully working website simulating the Windows 95 UI.
+    (executor as Any).task.prompt =
+      `Create a fully working website simulating the Windows 95 UI.
 
 [AGENT_STRATEGY_CONTEXT_V1]
 relationship_memory:
 - Completed task: create a short word document ... Outcome: inner_world.docx created.
 [/AGENT_STRATEGY_CONTEXT_V1]`;
 
-    expect((executor as Any).inferRequiredArtifactExtensions()).not.toContain(".docx");
+    expect((executor as Any).inferRequiredArtifactExtensions()).not.toContain(
+      ".docx",
+    );
   });
 
   it("still infers docx when the user explicitly requests a DOCX report", () => {
@@ -849,7 +1048,9 @@ relationship_memory:
     (executor as Any).task.prompt =
       "Create a DOCX report for this quarter and include a short executive summary.";
 
-    expect((executor as Any).inferRequiredArtifactExtensions()).toContain(".docx");
+    expect((executor as Any).inferRequiredArtifactExtensions()).toContain(
+      ".docx",
+    );
   });
 
   it("does not require in-app canvas tools for app-internal canvas gameplay wording", () => {
@@ -878,7 +1079,9 @@ relationship_memory:
     };
 
     expect((executor as Any).stepRequiresImageVerification(step)).toBe(false);
-    expect((executor as Any).resolveVerificationModeForStep(step)).toBe("canvas_session");
+    expect((executor as Any).resolveVerificationModeForStep(step)).toBe(
+      "canvas_session",
+    );
   });
 
   it("detects follow-up requests that require an in-app canvas action", () => {
@@ -888,13 +1091,19 @@ relationship_memory:
         "open the generated html inside this app canvas, not outside",
       ),
     ).toBe(true);
-    expect((executor as Any).followUpRequiresCanvasAction("show it in app canvas")).toBe(true);
+    expect(
+      (executor as Any).followUpRequiresCanvasAction("show it in app canvas"),
+    ).toBe(true);
   });
 
   it("does not classify informational canvas follow-ups as required canvas actions", () => {
     executor = createExecutorWithStubs([textResponse("OK")], {});
-    expect((executor as Any).followUpRequiresCanvasAction("what is in-app canvas?")).toBe(false);
-    expect((executor as Any).followUpRequiresCanvasAction("ok thanks")).toBe(false);
+    expect(
+      (executor as Any).followUpRequiresCanvasAction("what is in-app canvas?"),
+    ).toBe(false);
+    expect((executor as Any).followUpRequiresCanvasAction("ok thanks")).toBe(
+      false,
+    );
   });
 
   it("treats inline Mermaid flowchart steps as diagram output rather than file artifacts", () => {
@@ -902,7 +1111,8 @@ relationship_memory:
     const step: Any = {
       id: "diagram-contract",
       kind: "primary",
-      description: "Create a Mermaid flowchart of a typical CI/CD pipeline and display it inline.",
+      description:
+        "Create a Mermaid flowchart of a typical CI/CD pipeline and display it inline.",
       status: "pending",
     };
 
@@ -919,7 +1129,8 @@ relationship_memory:
     const step: Any = {
       id: "diagram-verify",
       kind: "verification",
-      description: "Verify the Mermaid flowchart is displayed inline and includes the main CI/CD stages.",
+      description:
+        "Verify the Mermaid flowchart is displayed inline and includes the main CI/CD stages.",
       status: "pending",
     };
 
@@ -933,7 +1144,8 @@ relationship_memory:
     const step: Any = {
       id: "verify-command-output",
       kind: "verification",
-      description: 'Verify the output is exactly `hello world` and the exit code is `0`.',
+      description:
+        "Verify the output is exactly `hello world` and the exit code is `0`.",
       status: "pending",
     };
 
@@ -947,7 +1159,7 @@ relationship_memory:
     const step: Any = {
       id: "verify-stdout-output",
       kind: "verification",
-      description: 'Verify that standard output is exactly `hello world`.',
+      description: "Verify that standard output is exactly `hello world`.",
       status: "pending",
     };
 
@@ -960,7 +1172,8 @@ relationship_memory:
     const step: Any = {
       id: "verify-heartbeat-review",
       kind: "verification",
-      description: "Review the most recent heartbeat evidence for Project Manager.",
+      description:
+        "Review the most recent heartbeat evidence for Project Manager.",
       status: "pending",
     };
 
@@ -978,14 +1191,18 @@ relationship_memory:
         textResponse("Displayed the CI/CD pipeline as a Mermaid flowchart."),
       ],
       {
-        create_diagram: { success: true, message: 'Diagram "CI/CD Pipeline" is now displayed in the UI.' },
+        create_diagram: {
+          success: true,
+          message: 'Diagram "CI/CD Pipeline" is now displayed in the UI.',
+        },
       },
     );
 
     const step: Any = {
       id: "diagram-step",
       kind: "primary",
-      description: "Create a Mermaid flowchart of a typical CI/CD pipeline and display it inline.",
+      description:
+        "Create a Mermaid flowchart of a typical CI/CD pipeline and display it inline.",
       status: "pending",
     };
     (executor as Any).plan = { description: "Plan", steps: [step] };
@@ -1003,7 +1220,9 @@ relationship_memory:
 
   it("enforces required-tool contract when create_document is required but never called", async () => {
     executor = createExecutorWithStubs(
-      Array.from({ length: 6 }, () => textResponse("Draft ready, final text prepared.")),
+      Array.from({ length: 6 }, () =>
+        textResponse("Draft ready, final text prepared."),
+      ),
       {},
     );
     const step: Any = {
@@ -1038,9 +1257,12 @@ relationship_memory:
         },
       },
     );
-    const tempDir = fs.mkdtempSync("/tmp/cowork-doc-alias-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-doc-alias-");
     (executor as Any).workspace.path = tempDir;
-    fs.writeFileSync(path.join(tempDir, "sample_inner_world.docx"), "docx-bytes");
+    fs.writeFileSync(
+      path.join(tempDir, "sample_inner_world.docx"),
+      "docx-bytes",
+    );
 
     const step: Any = {
       id: "doc-contract-generate-alias",
@@ -1075,10 +1297,26 @@ relationship_memory:
     );
 
     (executor as Any).getAvailableTools = vi.fn().mockReturnValue([
-      { name: "canvas_create", description: "", input_schema: { type: "object", properties: {} } },
-      { name: "canvas_push", description: "", input_schema: { type: "object", properties: {} } },
-      { name: "read_file", description: "", input_schema: { type: "object", properties: {} } },
-      { name: "glob", description: "", input_schema: { type: "object", properties: {} } },
+      {
+        name: "canvas_create",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
+      {
+        name: "canvas_push",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
+      {
+        name: "read_file",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
+      {
+        name: "glob",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
     ]);
 
     const step: Any = {
@@ -1098,45 +1336,83 @@ relationship_memory:
     );
   });
 
+  it("keeps canvas tools available for HTML preview follow-ups", () => {
+    executor = createExecutorWithStubs([], {});
+    (executor as Any).task.title = "Create an HTML report";
+    (executor as Any).task.prompt = "Generate a polished web report.";
+    (executor as Any).lastUserMessage =
+      "Open the generated HTML in a live preview.";
+
+    const filtered = (executor as Any).applyAdaptiveToolAvailabilityFilter([
+      { name: "canvas_create", description: "Create preview" },
+      { name: "canvas_push", description: "Update preview" },
+      { name: "run_command", description: "Run a command" },
+    ]);
+
+    expect(filtered.map((tool: Any) => tool.name)).toEqual(
+      expect.arrayContaining(["canvas_create", "canvas_push"]),
+    );
+  });
+
   it("fails executePlan when a step remains unfinished", async () => {
     executor = createExecutorWithStubs([textResponse("done")], {});
-    const step: Any = { id: "plan-1", description: "Do the work", status: "pending" };
+    const step: Any = {
+      id: "plan-1",
+      description: "Do the work",
+      status: "pending",
+    };
     (executor as Any).plan = { description: "Plan", steps: [step] };
     (executor as Any).executeStep = vi.fn(async (target: Any) => {
       // Simulate a broken executor path that never finalizes to completed/failed.
       target.status = "in_progress";
     });
 
-    await expect((executor as Any).executePlan()).rejects.toThrow("Task incomplete");
+    await expect((executor as Any).executePlan()).rejects.toThrow(
+      "Task incomplete",
+    );
   });
 
   it("emits failed-step progress instead of completed-step progress when step execution fails", async () => {
     executor = createExecutorWithStubs([textResponse("done")], {});
-    const step: Any = { id: "plan-2", description: "Fetch transcript", status: "pending" };
+    const step: Any = {
+      id: "plan-2",
+      description: "Fetch transcript",
+      status: "pending",
+    };
     (executor as Any).plan = { description: "Plan", steps: [step] };
     (executor as Any).executeStep = vi.fn(async (target: Any) => {
       target.status = "failed";
-      target.error = "All required tools are unavailable or failed. Unable to complete this step.";
+      target.error =
+        "All required tools are unavailable or failed. Unable to complete this step.";
       target.completedAt = Date.now();
     });
 
-    await expect((executor as Any).executePlan()).rejects.toThrow("Task failed");
+    await expect((executor as Any).executePlan()).rejects.toThrow(
+      "Task failed",
+    );
 
     const progressMessages = (executor as Any).daemon.logEvent.mock.calls
       .filter((call: Any[]) => call[1] === "progress_update")
       .map((call: Any[]) => String(call[2]?.message || ""));
 
-    expect(progressMessages.some((message: string) => message.includes("Step failed"))).toBe(true);
-    expect(progressMessages.some((message: string) => message.includes("Completed step"))).toBe(
-      false,
-    );
+    expect(
+      progressMessages.some((message: string) =>
+        message.includes("Step failed"),
+      ),
+    ).toBe(true);
+    expect(
+      progressMessages.some((message: string) =>
+        message.includes("Completed step"),
+      ),
+    ).toBe(false);
   });
 
   it("fails executePlan when a verification-labeled step fails", async () => {
     executor = createExecutorWithStubs([textResponse("done")], {});
     const step: Any = {
       id: "plan-verify-1",
-      description: "Verify: Read the created document and present recommendation",
+      description:
+        "Verify: Read the created document and present recommendation",
       status: "pending",
     };
     (executor as Any).plan = { description: "Plan", steps: [step] };
@@ -1146,7 +1422,9 @@ relationship_memory:
       target.completedAt = Date.now();
     });
 
-    await expect((executor as Any).executePlan()).rejects.toThrow("Task failed");
+    await expect((executor as Any).executePlan()).rejects.toThrow(
+      "Task failed",
+    );
   });
 
   it("reconciles create_directory-only contract misses when equivalent artifacts were written later", async () => {
@@ -1159,7 +1437,8 @@ relationship_memory:
     };
     const step2: Any = {
       id: "plan-impl-2",
-      description: "Implement timeline rendering in script.js and wire controls.",
+      description:
+        "Implement timeline rendering in script.js and wire controls.",
       status: "pending",
     };
     (executor as Any).plan = { description: "Plan", steps: [step1, step2] };
@@ -1174,7 +1453,9 @@ relationship_memory:
 
       target.status = "completed";
       target.completedAt = Date.now();
-      const record = (executor as Any).recordArtifactMutationLedgerEntry.bind(executor);
+      const record = (executor as Any).recordArtifactMutationLedgerEntry.bind(
+        executor,
+      );
       for (const relPath of ["index.html", "styles.css", "script.js"]) {
         record(relPath, {
           stepId: target.id,
@@ -1204,7 +1485,11 @@ relationship_memory:
 
   it("returns from executePlan without emitting a timeout when the task was cancelled by the user", async () => {
     executor = createExecutorWithStubs([textResponse("done")], {});
-    const step: Any = { id: "plan-cancel-1", description: "Keep working", status: "pending" };
+    const step: Any = {
+      id: "plan-cancel-1",
+      description: "Keep working",
+      status: "pending",
+    };
     (executor as Any).plan = { description: "Plan", steps: [step] };
     (executor as Any).executeStep = vi.fn(async () => {
       (executor as Any).cancelled = true;
@@ -1224,7 +1509,11 @@ relationship_memory:
 
   it("still emits step_timeout when the abort came from an execution timeout", async () => {
     executor = createExecutorWithStubs([textResponse("done")], {});
-    const step: Any = { id: "plan-timeout-1", description: "Keep working", status: "pending" };
+    const step: Any = {
+      id: "plan-timeout-1",
+      description: "Keep working",
+      status: "pending",
+    };
     (executor as Any).plan = { description: "Plan", steps: [step] };
     (executor as Any).executeStep = vi.fn(async () => {
       (executor as Any).cancelled = true;
@@ -1232,7 +1521,9 @@ relationship_memory:
       throw new Error("Request cancelled");
     });
 
-    await expect((executor as Any).executePlan()).rejects.toThrow("Task failed");
+    await expect((executor as Any).executePlan()).rejects.toThrow(
+      "Task failed",
+    );
 
     expect(step.status).toBe("failed");
     expect((executor as Any).daemon.logEvent).toHaveBeenCalledWith(
@@ -1253,7 +1544,8 @@ relationship_memory:
     (executor as Any).fileOperationTracker.getCreatedFiles.mockReturnValue([
       "Dan_Koe_Video_Review.pdf",
     ]);
-    (executor as Any).lastNonVerificationOutput = "Created: Dan_Koe_Video_Review.pdf";
+    (executor as Any).lastNonVerificationOutput =
+      "Created: Dan_Koe_Video_Review.pdf";
     (executor as Any).lastAssistantOutput = "Created document successfully.";
 
     const guardError = (executor as Any).getFinalResponseGuardError();
@@ -1272,7 +1564,13 @@ relationship_memory:
       "Recommendation: Skip this video unless you are new to creator-economy basics; it is likely not worth your time.";
     (executor as Any).plan = {
       description: "Plan",
-      steps: [{ id: "1", description: "Review transcript and recommend", status: "completed" }],
+      steps: [
+        {
+          id: "1",
+          description: "Review transcript and recommend",
+          status: "completed",
+        },
+      ],
     };
 
     const guardError = (executor as Any).getFinalResponseGuardError();
@@ -1282,8 +1580,11 @@ relationship_memory:
   it("does not require direct answer for artifact-only tasks without question intent", () => {
     executor = createExecutorWithStubs([textResponse("done")], {});
     (executor as Any).task.title = "Generate PDF report";
-    (executor as Any).task.prompt = "Create a PDF report from the attached data.";
-    (executor as Any).fileOperationTracker.getCreatedFiles.mockReturnValue(["report.pdf"]);
+    (executor as Any).task.prompt =
+      "Create a PDF report from the attached data.";
+    (executor as Any).fileOperationTracker.getCreatedFiles.mockReturnValue([
+      "report.pdf",
+    ]);
     (executor as Any).lastNonVerificationOutput = "Created: report.pdf";
 
     const guardError = (executor as Any).getFinalResponseGuardError();
@@ -1313,7 +1614,11 @@ relationship_memory:
     (executor as Any).shouldPauseForQuestions = true;
     (executor as Any).shouldPauseForRequiredDecision = true;
 
-    const step: Any = { id: "3", description: "Clarify requirements", status: "pending" };
+    const step: Any = {
+      id: "3",
+      description: "Clarify requirements",
+      status: "pending",
+    };
 
     await expect((executor as Any).executeStep(step)).rejects.toMatchObject({
       name: "AwaitingUserInputError",
@@ -1328,8 +1633,12 @@ relationship_memory:
       "Please choose the required input file path:\n1) inputs/demand-letter.txt\n2) inputs/buyer-demand-letter.txt\nReply with 1 or 2.";
     (executor as Any).lastAssistantOutput = (executor as Any).lastAssistantText;
     (executor as Any).lastNonVerificationOutput = "required_decision";
-    (executor as Any).buildResultSummary = vi.fn().mockReturnValue("required_decision");
-    (executor as Any).getContentFallback = vi.fn().mockReturnValue("required_decision");
+    (executor as Any).buildResultSummary = vi
+      .fn()
+      .mockReturnValue("required_decision");
+    (executor as Any).getContentFallback = vi
+      .fn()
+      .mockReturnValue("required_decision");
 
     (executor as Any).pauseForOutstandingRequiredDecision();
 
@@ -1337,7 +1646,9 @@ relationship_memory:
       "task-1",
       "task_paused",
       expect.objectContaining({
-        message: expect.stringContaining("Please choose the required input file path"),
+        message: expect.stringContaining(
+          "Please choose the required input file path",
+        ),
         reason: "required_decision",
       }),
     );
@@ -1355,8 +1666,12 @@ relationship_memory:
 
     (executor as Any).plan = { steps: [step] };
     (executor as Any).preflightWorkspaceCheck = vi.fn().mockReturnValue(false);
-    (executor as Any).maybeRealignLowAlignmentStep = vi.fn().mockResolvedValue(false);
-    (executor as Any).maybeDecomposeComplexStep = vi.fn().mockResolvedValue(false);
+    (executor as Any).maybeRealignLowAlignmentStep = vi
+      .fn()
+      .mockResolvedValue(false);
+    (executor as Any).maybeDecomposeComplexStep = vi
+      .fn()
+      .mockResolvedValue(false);
     (executor as Any).executeStep = vi.fn().mockRejectedValue(
       new AwaitingUserInputError("user_action_required_failure", {
         reasonCode: "user_action_required_failure",
@@ -1393,7 +1708,9 @@ relationship_memory:
 
     expect(prompt).toContain("user-specific facts");
     expect(prompt).toContain("exact dates, years, amounts, identifiers");
-    expect(prompt).toContain("collect those facts from the user instead of inventing them");
+    expect(prompt).toContain(
+      "collect those facts from the user instead of inventing them",
+    );
   });
 
   it("pauses when verification feedback requires the user's exact dates", async () => {
@@ -1410,7 +1727,8 @@ relationship_memory:
 
     const step: Any = {
       id: "3-dates",
-      description: "Verification: one written problem statement with your dates.",
+      description:
+        "Verification: one written problem statement with your dates.",
       status: "pending",
       kind: "verification",
     };
@@ -1438,7 +1756,11 @@ relationship_memory:
     (executor as Any).shouldPauseForQuestions = false;
     (executor as Any).shouldPauseForRequiredDecision = false;
 
-    const step: Any = { id: "3b", description: "Clarify requirements", status: "pending" };
+    const step: Any = {
+      id: "3b",
+      description: "Clarify requirements",
+      status: "pending",
+    };
 
     await (executor as Any).executeStep(step);
 
@@ -1448,13 +1770,21 @@ relationship_memory:
 
   it("does not treat non-blocking exploratory questions as required-decision blockers", async () => {
     executor = createExecutorWithStubs(
-      [textResponse("Who is the primary user for this feature and what outcomes matter most?")],
+      [
+        textResponse(
+          "Who is the primary user for this feature and what outcomes matter most?",
+        ),
+      ],
       {},
     );
     (executor as Any).shouldPauseForQuestions = false;
     (executor as Any).shouldPauseForRequiredDecision = true;
 
-    const step: Any = { id: "3d", description: "Explore product context", status: "pending" };
+    const step: Any = {
+      id: "3d",
+      description: "Explore product context",
+      status: "pending",
+    };
 
     await (executor as Any).executeStep(step);
     expect(step.status).toBe("completed");
@@ -1472,7 +1802,11 @@ relationship_memory:
     (executor as Any).shouldPauseForQuestions = true;
     (executor as Any).shouldPauseForRequiredDecision = true;
 
-    const step: Any = { id: "3d2", description: "Continue implementation", status: "pending" };
+    const step: Any = {
+      id: "3d2",
+      description: "Continue implementation",
+      status: "pending",
+    };
 
     await (executor as Any).executeStep(step);
     expect(step.status).toBe("completed");
@@ -1490,7 +1824,11 @@ relationship_memory:
     (executor as Any).shouldPauseForQuestions = true;
     (executor as Any).shouldPauseForRequiredDecision = true;
 
-    const step: Any = { id: "3d3", description: "Configure app group", status: "pending" };
+    const step: Any = {
+      id: "3d3",
+      description: "Configure app group",
+      status: "pending",
+    };
 
     await expect((executor as Any).executeStep(step)).rejects.toMatchObject({
       name: "AwaitingUserInputError",
@@ -1509,7 +1847,11 @@ relationship_memory:
     (executor as Any).shouldPauseForQuestions = true;
     (executor as Any).shouldPauseForRequiredDecision = true;
 
-    const step: Any = { id: "3e", description: "Capture mention context", status: "pending" };
+    const step: Any = {
+      id: "3e",
+      description: "Capture mention context",
+      status: "pending",
+    };
 
     await (executor as Any).executeStep(step);
     expect(step.status).toBe("completed");
@@ -1527,7 +1869,11 @@ relationship_memory:
     (executor as Any).shouldPauseForQuestions = false;
     (executor as Any).shouldPauseForRequiredDecision = true;
 
-    const step: Any = { id: "3c", description: "Resolve required documents", status: "pending" };
+    const step: Any = {
+      id: "3c",
+      description: "Resolve required documents",
+      status: "pending",
+    };
 
     await expect((executor as Any).executeStep(step)).rejects.toMatchObject({
       name: "AwaitingUserInputError",
@@ -1549,7 +1895,9 @@ relationship_memory:
     );
     (executor as Any).toolRegistry.executeTool = vi.fn(async (name: string) => {
       if (name === "read_file") {
-        throw new Error("Failed to read file: EISDIR: illegal operation on a directory, read");
+        throw new Error(
+          "Failed to read file: EISDIR: illegal operation on a directory, read",
+        );
       }
       if (name === "glob") {
         return { success: true, matches: ["tmp.txt"] };
@@ -1557,7 +1905,11 @@ relationship_memory:
       return { success: true };
     });
 
-    const step: Any = { id: "3f", description: "Fallback lane checks", status: "pending" };
+    const step: Any = {
+      id: "3f",
+      description: "Fallback lane checks",
+      status: "pending",
+    };
 
     await (executor as Any).executeStep(step);
     expect(step.status).toBe("completed");
@@ -1565,7 +1917,10 @@ relationship_memory:
   });
 
   it("skips quality refine passes for recovery steps even when qualityPasses=2", async () => {
-    executor = createExecutorWithStubs([textResponse("Fallback path complete.")], {});
+    executor = createExecutorWithStubs(
+      [textResponse("Fallback path complete.")],
+      {},
+    );
     (executor as Any).task.agentConfig = { qualityPasses: 2 };
     const step: Any = {
       id: "3g",
@@ -1584,7 +1939,9 @@ relationship_memory:
   it("skips workspace preflight pauses when user input is disabled", () => {
     executor = createExecutorWithStubs([textResponse("done")], {});
     (executor as Any).shouldPauseForQuestions = false;
-    (executor as Any).classifyWorkspaceNeed = vi.fn().mockReturnValue("needs_existing");
+    (executor as Any).classifyWorkspaceNeed = vi
+      .fn()
+      .mockReturnValue("needs_existing");
     (executor as Any).pauseForUserInput = vi.fn();
 
     const shouldPause = (executor as Any).preflightWorkspaceCheck();
@@ -1596,15 +1953,22 @@ relationship_memory:
   it("treats provider cancellation messages as abort-like errors", () => {
     executor = createExecutorWithStubs([textResponse("done")], {});
 
-    expect((executor as Any).isAbortLikeError(new Error("Request cancelled"))).toBe(true);
-    expect((executor as Any).isAbortLikeError(new Error("Request canceled"))).toBe(true);
+    expect(
+      (executor as Any).isAbortLikeError(new Error("Request cancelled")),
+    ).toBe(true);
+    expect(
+      (executor as Any).isAbortLikeError(new Error("Request canceled")),
+    ).toBe(true);
   });
 
   it("does not infer write_file content from assistant narration fallback", () => {
     executor = createExecutorWithStubs([textResponse("done")], {});
-    (executor as Any).lastAssistantText = "Now let me write the full whitepaper:";
-    (executor as Any).lastNonVerificationOutput = "Now let me write the full whitepaper:";
-    (executor as Any).lastAssistantOutput = "Now let me write the full whitepaper:";
+    (executor as Any).lastAssistantText =
+      "Now let me write the full whitepaper:";
+    (executor as Any).lastNonVerificationOutput =
+      "Now let me write the full whitepaper:";
+    (executor as Any).lastAssistantOutput =
+      "Now let me write the full whitepaper:";
 
     const inferred = (executor as Any).inferMissingParameters("write_file", {
       path: "NexusChain-Whitepaper.md",
@@ -1615,14 +1979,20 @@ relationship_memory:
 
   it("does not infer create_document content from assistant narration fallback", () => {
     executor = createExecutorWithStubs([textResponse("done")], {});
-    (executor as Any).lastAssistantText = "Now let me write the full whitepaper:";
-    (executor as Any).lastNonVerificationOutput = "Now let me write the full whitepaper:";
-    (executor as Any).lastAssistantOutput = "Now let me write the full whitepaper:";
+    (executor as Any).lastAssistantText =
+      "Now let me write the full whitepaper:";
+    (executor as Any).lastNonVerificationOutput =
+      "Now let me write the full whitepaper:";
+    (executor as Any).lastAssistantOutput =
+      "Now let me write the full whitepaper:";
 
-    const inferred = (executor as Any).inferMissingParameters("create_document", {
-      filename: "spec.docx",
-      format: "docx",
-    });
+    const inferred = (executor as Any).inferMissingParameters(
+      "create_document",
+      {
+        filename: "spec.docx",
+        format: "docx",
+      },
+    );
 
     expect(inferred.input.content).toBeUndefined();
   });
@@ -1697,7 +2067,9 @@ relationship_memory:
         },
       ],
     ]);
-    expect((executor.callLLMWithRetry as Any).mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(
+      (executor.callLLMWithRetry as Any).mock.calls.length,
+    ).toBeGreaterThanOrEqual(3);
 
     const finalUserMessage = (executor.conversationHistory as Any[])
       .filter((entry) => entry.role === "user")
@@ -1705,20 +2077,26 @@ relationship_memory:
       .flat()
       .filter((block: Any) => block?.type === "text")
       .map((block: Any) => String(block.text || ""))
-      .find((text: string) => text.includes("Do not finalize this step with text-only output."));
+      .find((text: string) =>
+        text.includes("Do not finalize this step with text-only output."),
+      );
 
-    expect(finalUserMessage).toContain("workspace/canvas mutation is still required");
+    expect(finalUserMessage).toContain(
+      "workspace/canvas mutation is still required",
+    );
   });
 
   it("does not treat directory-only mutation evidence as satisfying write contract", () => {
     executor = createExecutorWithStubs([textResponse("done")], {});
-    const tempDir = fs.mkdtempSync("/tmp/cowork-dir-evidence-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-dir-evidence-");
     (executor as Any).workspace.path = tempDir;
     const dirPath = path.join(tempDir, "backend/src/services/ais");
     fs.mkdirSync(dirPath, { recursive: true });
 
     try {
-      const satisfies = (executor as Any).mutationEvidenceSatisfiesWriteContract({
+      const satisfies = (
+        executor as Any
+      ).mutationEvidenceSatisfiesWriteContract({
         tool_success: true,
         canonical_tool: "create_directory",
         reported_path: dirPath,
@@ -1737,13 +2115,14 @@ relationship_memory:
     executor = createExecutorWithStubs(
       [
         toolUseResponse("run_command", {
-          command: "mkdir -p research/wiki && printf '# Research Wiki\\n' > research/wiki/index.md",
+          command:
+            "mkdir -p research/wiki && printf '# Research Wiki\\n' > research/wiki/index.md",
         }),
         textResponse("Saved research/wiki/index.md"),
       ],
       {},
     );
-    const tempDir = fs.mkdtempSync("/tmp/cowork-run-command-write-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-run-command-write-");
     (executor as Any).workspace.path = tempDir;
     (executor as Any).toolRegistry.executeTool = vi.fn(async (name: string) => {
       if (name === "run_command") {
@@ -1757,7 +2136,8 @@ relationship_memory:
 
     const step: Any = {
       id: "artifact-run-command-write",
-      description: "Write the research vault home note to `research/wiki/index.md`.",
+      description:
+        "Write the research vault home note to `research/wiki/index.md`.",
       status: "pending",
     };
 
@@ -1773,18 +2153,26 @@ relationship_memory:
   it("treats run_command task file events as satisfying write_file contract when the command mutates a workspace file", async () => {
     executor = createExecutorWithStubs(
       [
-        toolUseResponse("run_command", { command: "node scripts/build-wiki.js" }),
+        toolUseResponse("run_command", {
+          command: "node scripts/build-wiki.js",
+        }),
         textResponse("Saved the research wiki home note."),
       ],
       {},
     );
-    const tempDir = fs.mkdtempSync("/tmp/cowork-run-command-event-write-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-run-command-event-write-");
     const mutationEvents: Any[] = [];
     (executor as Any).workspace.path = tempDir;
-    (executor as Any).daemon.getTaskEvents = vi.fn((_taskId: string, opts?: Any) => {
-      const requestedTypes = Array.isArray(opts?.types) ? new Set(opts.types) : null;
-      return mutationEvents.filter((event) => !requestedTypes || requestedTypes.has(event.type));
-    });
+    (executor as Any).daemon.getTaskEvents = vi.fn(
+      (_taskId: string, opts?: Any) => {
+        const requestedTypes = Array.isArray(opts?.types)
+          ? new Set(opts.types)
+          : null;
+        return mutationEvents.filter(
+          (event) => !requestedTypes || requestedTypes.has(event.type),
+        );
+      },
+    );
     (executor as Any).toolRegistry.executeTool = vi.fn(async (name: string) => {
       if (name === "run_command") {
         const relativePath = "research/wiki/home.md";
@@ -1820,7 +2208,7 @@ relationship_memory:
 
   it("does not treat run_command path mentions without a real file write as mutation evidence", () => {
     executor = createExecutorWithStubs([textResponse("done")], {});
-    const tempDir = fs.mkdtempSync("/tmp/cowork-run-command-path-only-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-run-command-path-only-");
     (executor as Any).workspace.path = tempDir;
 
     try {
@@ -1845,7 +2233,7 @@ relationship_memory:
 
   it("does not treat directory-only run_command mutations as satisfying write contract", () => {
     executor = createExecutorWithStubs([textResponse("done")], {});
-    const tempDir = fs.mkdtempSync("/tmp/cowork-run-command-dir-only-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-run-command-dir-only-");
     (executor as Any).workspace.path = tempDir;
 
     try {
@@ -1864,25 +2252,45 @@ relationship_memory:
 
   it("fails fast with write checkpoint when required write_file is never attempted", async () => {
     const responses: LLMResponse[] = Array.from({ length: 16 }, (_, i) =>
-      toolUseResponse("create_directory", { path: `backend/src/services/ais/p${i}` }),
+      toolUseResponse("create_directory", {
+        path: `backend/src/services/ais/p${i}`,
+      }),
     );
     executor = createExecutorWithStubs(responses, {});
     (executor as Any).getAvailableTools = vi.fn().mockReturnValue([
-      { name: "create_directory", description: "", input_schema: { type: "object", properties: {} } },
-      { name: "write_file", description: "", input_schema: { type: "object", properties: {} } },
-      { name: "list_directory", description: "", input_schema: { type: "object", properties: {} } },
-      { name: "read_file", description: "", input_schema: { type: "object", properties: {} } },
+      {
+        name: "create_directory",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
+      {
+        name: "write_file",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
+      {
+        name: "list_directory",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
+      {
+        name: "read_file",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
     ]);
-    const tempDir = fs.mkdtempSync("/tmp/cowork-required-write-checkpoint-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-required-write-checkpoint-");
     (executor as Any).workspace.path = tempDir;
-    (executor as Any).toolRegistry.executeTool = vi.fn(async (name: string, input: Any) => {
-      if (name === "create_directory") {
-        const relPath = String(input?.path || "");
-        fs.mkdirSync(path.resolve(tempDir, relPath), { recursive: true });
-        return { success: true, path: relPath };
-      }
-      return { success: true };
-    });
+    (executor as Any).toolRegistry.executeTool = vi.fn(
+      async (name: string, input: Any) => {
+        if (name === "create_directory") {
+          const relPath = String(input?.path || "");
+          fs.mkdirSync(path.resolve(tempDir, relPath), { recursive: true });
+          return { success: true, path: relPath };
+        }
+        return { success: true };
+      },
+    );
 
     const step: Any = {
       id: "ais-ingestion-write-checkpoint",
@@ -1897,7 +2305,9 @@ relationship_memory:
       expect(String(step.error || "")).toMatch(
         /artifact_write_checkpoint_failed|tool-only turns with policy-blocked/i,
       );
-      expect((executor as Any).callLLMWithRetry.mock.calls.length).toBeLessThanOrEqual(7);
+      expect(
+        (executor as Any).callLLMWithRetry.mock.calls.length,
+      ).toBeLessThanOrEqual(7);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
@@ -1910,7 +2320,9 @@ relationship_memory:
           filename: "contract_negotiation_training.pptx",
           slides: [{ title: "Intro", bullets: ["A"] }],
         }),
-        ...Array.from({ length: 6 }, () => textResponse("Saved contract_negotiation_training.pptx")),
+        ...Array.from({ length: 6 }, () =>
+          textResponse("Saved contract_negotiation_training.pptx"),
+        ),
       ],
       {
         generate_presentation: {
@@ -1920,7 +2332,7 @@ relationship_memory:
         },
       },
     );
-    const tempDir = fs.mkdtempSync("/tmp/cowork-pptx-missing-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-pptx-missing-");
     (executor as Any).workspace.path = tempDir;
 
     const step: Any = {
@@ -1944,14 +2356,17 @@ relationship_memory:
   it("keeps write/create deliverable steps completed when a file mutation succeeds", async () => {
     executor = createExecutorWithStubs(
       [
-        toolUseResponse("write_file", { path: "KARU_Whitepaper.md", content: "# KARU" }),
+        toolUseResponse("write_file", {
+          path: "KARU_Whitepaper.md",
+          content: "# KARU",
+        }),
         textResponse("Saved the complete whitepaper to KARU_Whitepaper.md"),
       ],
       {
         write_file: { success: true, path: "KARU_Whitepaper.md" },
       },
     );
-    const tempDir = fs.mkdtempSync("/tmp/cowork-write-file-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-write-file-");
     (executor as Any).workspace.path = tempDir;
     fs.writeFileSync(path.join(tempDir, "KARU_Whitepaper.md"), "# KARU");
 
@@ -1972,25 +2387,31 @@ relationship_memory:
   it("does not fail descriptive meta steps for mutation when they do not express read-only intent", async () => {
     executor = createExecutorWithStubs(
       [
-        toolUseResponse("write_file", { path: "report.md", content: "# Findings" }),
+        toolUseResponse("write_file", {
+          path: "report.md",
+          content: "# Findings",
+        }),
         textResponse("Saved the markdown report."),
       ],
       {
         write_file: { success: true, path: "report.md" },
       },
     );
-    const tempDir = fs.mkdtempSync("/tmp/cowork-meta-step-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-meta-step-");
     (executor as Any).workspace.path = tempDir;
     fs.writeFileSync(path.join(tempDir, "report.md"), "# Findings");
 
     const step: Any = {
       id: "meta-output-step",
-      description: "Output should be a written Markdown report unless you want a different format later.",
+      description:
+        "Output should be a written Markdown report unless you want a different format later.",
       status: "pending",
     };
 
     try {
-      expect((executor as Any).resolveStepExecutionContract(step).mode).toBe("analysis_only");
+      expect((executor as Any).resolveStepExecutionContract(step).mode).toBe(
+        "analysis_only",
+      );
       await (executor as Any).executeStep(step);
       expect(step.status, String(step.error || "")).toBe("completed");
     } finally {
@@ -2001,28 +2422,36 @@ relationship_memory:
   it("still fails true inspection steps when they mutate the workspace", async () => {
     executor = createExecutorWithStubs(
       [
-        toolUseResponse("write_file", { path: "report.md", content: "# Findings" }),
+        toolUseResponse("write_file", {
+          path: "report.md",
+          content: "# Findings",
+        }),
         textResponse("Saved the markdown report."),
       ],
       {
         write_file: { success: true, path: "report.md" },
       },
     );
-    const tempDir = fs.mkdtempSync("/tmp/cowork-inspection-step-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-inspection-step-");
     (executor as Any).workspace.path = tempDir;
     fs.writeFileSync(path.join(tempDir, "report.md"), "# Findings");
 
     const step: Any = {
       id: "inspection-step",
-      description: "Inspect the current landing page structure and review the existing files before changing anything.",
+      description:
+        "Inspect the current landing page structure and review the existing files before changing anything.",
       status: "pending",
     };
 
     try {
-      expect((executor as Any).resolveStepExecutionContract(step).mode).toBe("analysis_only");
+      expect((executor as Any).resolveStepExecutionContract(step).mode).toBe(
+        "analysis_only",
+      );
       await (executor as Any).executeStep(step);
       expect(step.status).toBe("failed");
-      expect(String(step.error || "")).toContain("Analysis/inspection step performed a workspace mutation");
+      expect(String(step.error || "")).toContain(
+        "Analysis/inspection step performed a workspace mutation",
+      );
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2035,10 +2464,14 @@ relationship_memory:
         textResponse("Validated existing style changes."),
       ],
       {
-        read_file: { success: true, path: "styles.css", content: "/* styles */" },
+        read_file: {
+          success: true,
+          path: "styles.css",
+          content: "/* styles */",
+        },
       },
     );
-    const tempDir = fs.mkdtempSync("/tmp/cowork-prior-mutation-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-prior-mutation-");
     (executor as Any).workspace.path = tempDir;
     fs.writeFileSync(path.join(tempDir, "styles.css"), "/* previous */");
     const normalizedTarget = path
@@ -2064,7 +2497,8 @@ relationship_memory:
 
     const step: Any = {
       id: "style-refinement",
-      description: "Style interactions in `styles.css`: refine hover states and spacing.",
+      description:
+        "Style interactions in `styles.css`: refine hover states and spacing.",
       status: "pending",
     };
 
@@ -2087,13 +2521,19 @@ relationship_memory:
     executor = createExecutorWithStubs(
       [
         toolUseResponse("read_file", { path: "styles.css" }),
-        ...Array.from({ length: 6 }, () => textResponse("Reviewed styles file.")),
+        ...Array.from({ length: 6 }, () =>
+          textResponse("Reviewed styles file."),
+        ),
       ],
       {
-        read_file: { success: true, path: "styles.css", content: "/* styles */" },
+        read_file: {
+          success: true,
+          path: "styles.css",
+          content: "/* styles */",
+        },
       },
     );
-    const tempDir = fs.mkdtempSync("/tmp/cowork-prior-mutation-explicit-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-prior-mutation-explicit-");
     (executor as Any).workspace.path = tempDir;
     fs.writeFileSync(path.join(tempDir, "styles.css"), "/* previous */");
     const normalizedTarget = path
@@ -2119,7 +2559,8 @@ relationship_memory:
 
     const step: Any = {
       id: "style-explicit-delta",
-      description: "Implement new interactions in `styles.css` and add new animation classes.",
+      description:
+        "Implement new interactions in `styles.css` and add new animation classes.",
       status: "pending",
     };
 
@@ -2136,11 +2577,18 @@ relationship_memory:
 
   it("does not count deterministic bootstrap as success when target file already exists and is non-empty", async () => {
     executor = createExecutorWithStubs([textResponse("OK")], {});
-    const tempDir = fs.mkdtempSync("/tmp/cowork-bootstrap-existing-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-bootstrap-existing-");
     (executor as Any).workspace.path = tempDir;
-    fs.writeFileSync(path.join(tempDir, "styles.css"), "body { color: red; }\n");
+    fs.writeFileSync(
+      path.join(tempDir, "styles.css"),
+      "body { color: red; }\n",
+    );
 
-    const step: Any = { id: "bootstrap-existing", description: "Style interactions", status: "pending" };
+    const step: Any = {
+      id: "bootstrap-existing",
+      description: "Style interactions",
+      status: "pending",
+    };
     const stepContract: Any = {
       requiredTools: new Set(["write_file"]),
       mode: "mutation_required",
@@ -2155,10 +2603,9 @@ relationship_memory:
     };
 
     try {
-      const bootstrap = await (executor as Any).performDeterministicArtifactBootstrap(
-        step,
-        stepContract,
-      );
+      const bootstrap = await (
+        executor as Any
+      ).performDeterministicArtifactBootstrap(step, stepContract);
       expect(bootstrap.attempted).toBe(true);
       expect(bootstrap.succeeded).toBe(false);
       expect(bootstrap.error).toBe("target_already_exists_nonempty");
@@ -2169,10 +2616,14 @@ relationship_memory:
 
   it("bootstraps missing css artifacts and records prior-mutation ledger evidence", async () => {
     executor = createExecutorWithStubs([textResponse("OK")], {});
-    const tempDir = fs.mkdtempSync("/tmp/cowork-bootstrap-css-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-bootstrap-css-");
     (executor as Any).workspace.path = tempDir;
 
-    const step: Any = { id: "bootstrap-css", description: "Style interactions", status: "pending" };
+    const step: Any = {
+      id: "bootstrap-css",
+      description: "Style interactions",
+      status: "pending",
+    };
     const stepContract: Any = {
       requiredTools: new Set(["write_file"]),
       mode: "mutation_required",
@@ -2187,10 +2638,9 @@ relationship_memory:
     };
 
     try {
-      const bootstrap = await (executor as Any).performDeterministicArtifactBootstrap(
-        step,
-        stepContract,
-      );
+      const bootstrap = await (
+        executor as Any
+      ).performDeterministicArtifactBootstrap(step, stepContract);
       expect(bootstrap.attempted).toBe(true);
       expect(bootstrap.succeeded).toBe(true);
 
@@ -2201,7 +2651,9 @@ relationship_memory:
         .resolve(tempDir, "styles.css")
         .replace(/\\/g, "/")
         .toLowerCase();
-      expect((executor as Any).artifactMutationLedger[normalizedTarget]).toBeTruthy();
+      expect(
+        (executor as Any).artifactMutationLedger[normalizedTarget],
+      ).toBeTruthy();
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2209,7 +2661,7 @@ relationship_memory:
 
   it("prefers synthesized directory+basename target for deterministic bootstrap", async () => {
     executor = createExecutorWithStubs([textResponse("OK")], {});
-    const tempDir = fs.mkdtempSync("/tmp/cowork-bootstrap-synth-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-bootstrap-synth-");
     (executor as Any).workspace.path = tempDir;
 
     const step: Any = {
@@ -2232,17 +2684,27 @@ relationship_memory:
     };
 
     try {
-      const preferred = (executor as Any).getPreferredMutationTargetPath(step, stepContract);
-      expect(preferred).toBe(path.join("server/src/chokepoints", "chokepointMonitor.ts"));
-
-      const bootstrap = await (executor as Any).performDeterministicArtifactBootstrap(
+      const preferred = (executor as Any).getPreferredMutationTargetPath(
         step,
         stepContract,
       );
+      expect(preferred).toBe(
+        path.join("server/src/chokepoints", "chokepointMonitor.ts"),
+      );
+
+      const bootstrap = await (
+        executor as Any
+      ).performDeterministicArtifactBootstrap(step, stepContract);
       expect(bootstrap.attempted).toBe(true);
       expect(bootstrap.succeeded).toBe(true);
-      expect(bootstrap.path).toBe(path.resolve(tempDir, "server/src/chokepoints/chokepointMonitor.ts"));
-      expect(fs.existsSync(path.join(tempDir, "server/src/chokepoints/chokepointMonitor.ts"))).toBe(true);
+      expect(bootstrap.path).toBe(
+        path.resolve(tempDir, "server/src/chokepoints/chokepointMonitor.ts"),
+      );
+      expect(
+        fs.existsSync(
+          path.join(tempDir, "server/src/chokepoints/chokepointMonitor.ts"),
+        ),
+      ).toBe(true);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2250,9 +2712,14 @@ relationship_memory:
 
   it("falls back to second candidate when first target already exists and is non-empty", async () => {
     executor = createExecutorWithStubs([textResponse("OK")], {});
-    const tempDir = fs.mkdtempSync("/tmp/cowork-bootstrap-fallback-existing-");
+    const tempDir = fs.mkdtempSync(
+      "/tmp/neoworker-bootstrap-fallback-existing-",
+    );
     (executor as Any).workspace.path = tempDir;
-    fs.writeFileSync(path.join(tempDir, "styles.css"), "body { color: red; }\n");
+    fs.writeFileSync(
+      path.join(tempDir, "styles.css"),
+      "body { color: red; }\n",
+    );
 
     const step: Any = {
       id: "bootstrap-existing-fallback",
@@ -2273,16 +2740,15 @@ relationship_memory:
     };
 
     try {
-      const bootstrap = await (executor as Any).performDeterministicArtifactBootstrap(
-        step,
-        stepContract,
-      );
+      const bootstrap = await (
+        executor as Any
+      ).performDeterministicArtifactBootstrap(step, stepContract);
       expect(bootstrap.attempted).toBe(true);
       expect(bootstrap.succeeded).toBe(true);
       expect(bootstrap.path).toBe(path.resolve(tempDir, "alt/styles.css"));
-      expect(fs.readFileSync(path.join(tempDir, "alt/styles.css"), "utf8")).toContain(
-        "bootstrap artifact stub",
-      );
+      expect(
+        fs.readFileSync(path.join(tempDir, "alt/styles.css"), "utf8"),
+      ).toContain("bootstrap artifact stub");
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2290,12 +2756,13 @@ relationship_memory:
 
   it("skips unsupported extensions and succeeds on later supported candidate", async () => {
     executor = createExecutorWithStubs([textResponse("OK")], {});
-    const tempDir = fs.mkdtempSync("/tmp/cowork-bootstrap-fallback-ext-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-bootstrap-fallback-ext-");
     (executor as Any).workspace.path = tempDir;
 
     const step: Any = {
       id: "bootstrap-ext-fallback",
-      description: "Write `notes.unsupported` and `server/src/chokepoints/chokepointMonitor.ts`.",
+      description:
+        "Write `notes.unsupported` and `server/src/chokepoints/chokepointMonitor.ts`.",
       status: "pending",
     };
     const stepContract: Any = {
@@ -2303,7 +2770,10 @@ relationship_memory:
       mode: "mutation_required",
       requiresMutation: true,
       requiresArtifactEvidence: true,
-      targetPaths: ["notes.unsupported", "server/src/chokepoints/chokepointMonitor.ts"],
+      targetPaths: [
+        "notes.unsupported",
+        "server/src/chokepoints/chokepointMonitor.ts",
+      ],
       requiredExtensions: [".unsupported", ".ts"],
       enforcementLevel: "strict",
       contractReason: "step_requires_artifact_mutation",
@@ -2312,14 +2782,19 @@ relationship_memory:
     };
 
     try {
-      const bootstrap = await (executor as Any).performDeterministicArtifactBootstrap(
-        step,
-        stepContract,
-      );
+      const bootstrap = await (
+        executor as Any
+      ).performDeterministicArtifactBootstrap(step, stepContract);
       expect(bootstrap.attempted).toBe(true);
       expect(bootstrap.succeeded).toBe(true);
-      expect(bootstrap.path).toBe(path.resolve(tempDir, "server/src/chokepoints/chokepointMonitor.ts"));
-      expect(fs.existsSync(path.join(tempDir, "server/src/chokepoints/chokepointMonitor.ts"))).toBe(true);
+      expect(bootstrap.path).toBe(
+        path.resolve(tempDir, "server/src/chokepoints/chokepointMonitor.ts"),
+      );
+      expect(
+        fs.existsSync(
+          path.join(tempDir, "server/src/chokepoints/chokepointMonitor.ts"),
+        ),
+      ).toBe(true);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2346,10 +2821,17 @@ relationship_memory:
       artifactKind: "file",
     };
 
-    const template = (executor as Any).buildWriteRecoveryTemplate(step, stepContract);
+    const template = (executor as Any).buildWriteRecoveryTemplate(
+      step,
+      stepContract,
+    );
     expect(template.templateId).toContain("write_recovery");
-    expect(JSON.stringify(template.steps)).toContain("server/src/chokepoints/chokepointMonitor.ts");
-    expect(JSON.stringify(template.steps)).not.toContain('"server/src/chokepoints/"');
+    expect(JSON.stringify(template.steps)).toContain(
+      "server/src/chokepoints/chokepointMonitor.ts",
+    );
+    expect(JSON.stringify(template.steps)).not.toContain(
+      '"server/src/chokepoints/"',
+    );
   });
 
   it("uses create_diagram recovery for inline diagram mutation steps", () => {
@@ -2372,7 +2854,10 @@ relationship_memory:
       artifactKind: "diagram",
     };
 
-    const template = (executor as Any).buildWriteRecoveryTemplate(step, stepContract);
+    const template = (executor as Any).buildWriteRecoveryTemplate(
+      step,
+      stepContract,
+    );
     expect(template.templateId).toBe("write_recovery:create_diagram");
     expect(JSON.stringify(template.steps)).toContain("create_diagram");
     expect(JSON.stringify(template.steps)).not.toContain("write_file");
@@ -2395,9 +2880,12 @@ relationship_memory:
         },
       },
     );
-    const tempDir = fs.mkdtempSync("/tmp/cowork-pptx-alias-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-pptx-alias-");
     (executor as Any).workspace.path = tempDir;
-    fs.writeFileSync(path.join(tempDir, "contract_negotiation_training.pptx"), "pptx-bytes");
+    fs.writeFileSync(
+      path.join(tempDir, "contract_negotiation_training.pptx"),
+      "pptx-bytes",
+    );
 
     const step: Any = {
       id: "artifact-generate-pptx-1",
@@ -2409,7 +2897,9 @@ relationship_memory:
     try {
       await (executor as Any).executeStep(step);
       expect(step.status).toBe("completed");
-      expect(String(step.error || "")).not.toContain("artifact_write_checkpoint_failed");
+      expect(String(step.error || "")).not.toContain(
+        "artifact_write_checkpoint_failed",
+      );
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2417,8 +2907,9 @@ relationship_memory:
 
   it("requires the presentation generator for slide authoring steps in presentation tasks", () => {
     executor = createExecutorWithStubs([], {});
-    (executor as Any).task.title = "CoWork OS presentation";
-    (executor as Any).task.prompt = "Create a concise presentation about CoWork OS.";
+    (executor as Any).task.title = "NeoWorker presentation";
+    (executor as Any).task.prompt =
+      "Create a concise presentation about NeoWorker.";
 
     const step: Any = {
       id: "draft-slide-outline",
@@ -2434,20 +2925,183 @@ relationship_memory:
     expect(contract.requiredExtensions).toContain(".pptx");
   });
 
+  it("requires the source-first command workflow when Presentation Studio is active", () => {
+    executor = createExecutorWithStubs([], {});
+    (executor as Any).task.title = "NeoWorker presentation";
+    (executor as Any).task.prompt =
+      "Create a concise presentation about NeoWorker.";
+    (executor as Any).appliedSkills = [
+      {
+        skillId: "presentation-studio",
+        skillName: "Presentation Studio",
+        trigger: "model",
+        content: "Build an editable project and render every slide.",
+        reason: "Default PowerPoint workflow",
+        appliedAt: Date.now(),
+      },
+    ];
+
+    const step: Any = {
+      id: "draft-presentation-studio-deck",
+      description: "Draft the slides and create the PowerPoint deck",
+      status: "pending",
+    };
+
+    const contract = (executor as Any).resolveStepExecutionContract(step);
+
+    expect(Array.from(contract.requiredTools)).toContain("run_command");
+    expect(Array.from(contract.requiredTools)).not.toContain(
+      "create_presentation",
+    );
+    expect(contract.requiredExtensions).toContain(".pptx");
+
+    const workflowHint = (executor as Any).buildDeterministicWorkflowHint(
+      contract,
+    );
+    expect(workflowHint).toContain("PRESENTATION STUDIO WORKFLOW");
+    expect(workflowHint).toContain("exactly one final .pptx artifact");
+    expect(workflowHint).toContain("run_command");
+    expect(workflowHint).not.toContain(
+      "Create the .pptx with create_presentation or generate_presentation",
+    );
+  });
+
+  it("blocks legacy presentation generators while Presentation Studio is active", () => {
+    executor = createExecutorWithStubs([], {});
+    (executor as Any).appliedSkills = [
+      {
+        skillId: "presentation-studio",
+        skillName: "Presentation Studio",
+        trigger: "model",
+        content: "Build an editable project and render every slide.",
+        reason: "Default PowerPoint workflow",
+        appliedAt: Date.now(),
+      },
+    ];
+
+    for (const toolName of ["create_presentation", "generate_presentation"]) {
+      const policyResult = (executor as Any).applyPreToolUsePolicyHook({
+        toolName,
+        input: { filename: "duplicate.pptx" },
+        stepMode: "mutation_required",
+      });
+
+      expect(policyResult.blockedResult?.error).toContain("legacy");
+      expect(policyResult.blockedResult?.error).toContain(
+        "exactly one final .pptx artifact",
+      );
+    }
+  });
+
+  it("requires artwork plus the hybrid compiler when Visual Presentation is active", () => {
+    executor = createExecutorWithStubs([], {});
+    (executor as Any).task.title = "Visual launch deck";
+    (executor as Any).task.prompt = "Create a beautiful product launch PPT.";
+    (executor as Any).appliedSkills = [
+      {
+        skillId: "visual-presentation",
+        skillName: "Visual Presentation",
+        trigger: "model",
+        content: "Generate text-free artwork and native editable copy.",
+        reason: "Visual PowerPoint workflow",
+        appliedAt: Date.now(),
+      },
+    ];
+
+    const step: Any = {
+      id: "build-visual-deck",
+      description: "Create the visual PowerPoint deck",
+      status: "pending",
+    };
+    const contract = (executor as Any).resolveStepExecutionContract(step);
+
+    expect(Array.from(contract.requiredTools)).toContain("generate_image");
+    expect(Array.from(contract.requiredTools)).toContain("run_command");
+    expect(Array.from(contract.requiredTools)).not.toContain(
+      "create_presentation",
+    );
+
+    const workflowHint = (executor as Any).buildDeterministicWorkflowHint(
+      contract,
+    );
+    expect(workflowHint).toContain("VISUAL PRESENTATION WORKFLOW");
+    expect(workflowHint).toContain("text-free 16:9 artwork");
+    expect(workflowHint).toContain("exactly one new versioned PPTX");
+
+    for (const toolName of ["create_presentation", "generate_presentation"]) {
+      const policyResult = (executor as Any).applyPreToolUsePolicyHook({
+        toolName,
+        input: { filename: "duplicate.pptx" },
+        stepMode: "mutation_required",
+      });
+      expect(policyResult.blockedResult?.error).toContain(
+        "Visual Presentation",
+      );
+      expect(policyResult.blockedResult?.error).toContain(
+        "exactly one final .pptx artifact",
+      );
+    }
+
+    const template = (executor as Any).buildWriteRecoveryTemplate(
+      step,
+      contract,
+    );
+    expect(template.templateId).toBe("write_recovery:visual_presentation");
+    expect(JSON.stringify(template.steps)).toContain("generate_image");
+    expect(JSON.stringify(template.steps)).toContain("run_command");
+  });
+
   it("uses presentation-specific write recovery instead of generic file writes", () => {
     executor = createExecutorWithStubs([], {});
     const step: Any = {
       id: "presentation-recovery",
-      description: "Create a concise presentation about CoWork OS.",
+      description: "Create a concise presentation about NeoWorker.",
       status: "pending",
     };
     const stepContract = (executor as Any).resolveStepExecutionContract(step);
 
-    const template = (executor as Any).buildWriteRecoveryTemplate(step, stepContract);
+    const template = (executor as Any).buildWriteRecoveryTemplate(
+      step,
+      stepContract,
+    );
 
     expect(template.templateId).toBe("write_recovery:create_presentation");
     expect(JSON.stringify(template.steps)).toContain("create_presentation");
     expect(JSON.stringify(template.steps)).toContain("generate_presentation");
+  });
+
+  it("keeps write recovery on Presentation Studio when that workflow is active", () => {
+    executor = createExecutorWithStubs([], {});
+    (executor as Any).task.title = "NeoWorker presentation";
+    (executor as Any).task.prompt =
+      "Create a concise presentation about NeoWorker.";
+    (executor as Any).appliedSkills = [
+      {
+        skillId: "presentation-studio",
+        skillName: "Presentation Studio",
+        trigger: "model",
+        content: "Build an editable project and render every slide.",
+        reason: "Default PowerPoint workflow",
+        appliedAt: Date.now(),
+      },
+    ];
+    const step: Any = {
+      id: "presentation-studio-recovery",
+      description: "Create a concise presentation about NeoWorker.",
+      status: "pending",
+    };
+    const stepContract = (executor as Any).resolveStepExecutionContract(step);
+
+    const template = (executor as Any).buildWriteRecoveryTemplate(
+      step,
+      stepContract,
+    );
+
+    expect(template.templateId).toBe("write_recovery:presentation_studio");
+    expect(JSON.stringify(template.steps)).toContain("run_command");
+    expect(JSON.stringify(template.steps)).toContain(
+      "do not call create_presentation",
+    );
   });
 
   it("does not trigger first-write checkpoint failure after repeated successful generate_presentation calls", async () => {
@@ -2465,7 +3119,9 @@ relationship_memory:
           filename: "contract_negotiation_training_v3.pptx",
           slides: [{ title: "Close", bullets: ["C"] }],
         }),
-        textResponse("Completed the presentation outline and generated the deck."),
+        textResponse(
+          "Completed the presentation outline and generated the deck.",
+        ),
       ],
       {
         generate_presentation: {
@@ -2475,9 +3131,12 @@ relationship_memory:
         },
       },
     );
-    const tempDir = fs.mkdtempSync("/tmp/cowork-pptx-retry-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-pptx-retry-");
     (executor as Any).workspace.path = tempDir;
-    fs.writeFileSync(path.join(tempDir, "contract_negotiation_training.pptx"), "pptx-bytes");
+    fs.writeFileSync(
+      path.join(tempDir, "contract_negotiation_training.pptx"),
+      "pptx-bytes",
+    );
 
     const step: Any = {
       id: "artifact-generate-pptx-2",
@@ -2489,8 +3148,12 @@ relationship_memory:
     try {
       await (executor as Any).executeStep(step);
       expect(step.status).toBe("completed");
-      expect(String(step.error || "")).not.toContain("first_write_checkpoint_no_attempt");
-      expect(String(step.error || "")).not.toContain("artifact_write_checkpoint_failed");
+      expect(String(step.error || "")).not.toContain(
+        "first_write_checkpoint_no_attempt",
+      );
+      expect(String(step.error || "")).not.toContain(
+        "artifact_write_checkpoint_failed",
+      );
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2512,11 +3175,15 @@ relationship_memory:
         "Step contract failure [contract_unmet_write_required][artifact_write_checkpoint_failed]: iteration 7 reached without successful file/canvas mutation.",
     };
 
-    const inserted = (executor as Any).tryInjectArtifactRecoveryBeforeCircuitBreaker(failedStep, 2);
+    const inserted = (
+      executor as Any
+    ).tryInjectArtifactRecoveryBeforeCircuitBreaker(failedStep, 2);
     expect(inserted).toBe(true);
     expect((executor as Any).requestPlanRevision).toHaveBeenCalledTimes(1);
     expect((executor as Any).autoRecoveryStepsPlanned).toBe(1);
-    expect((executor as Any).recoveredFailureStepIds.has("failed-artifact-step")).toBe(true);
+    expect(
+      (executor as Any).recoveredFailureStepIds.has("failed-artifact-step"),
+    ).toBe(true);
   });
 
   it("keeps breaker behavior when recovery insertion is blocked by budget", () => {
@@ -2528,13 +3195,16 @@ relationship_memory:
 
     const failedStep: Any = {
       id: "failed-artifact-step-budget",
-      description: "Expose backend services in `server/src/api/` and write `routes.ts`.",
+      description:
+        "Expose backend services in `server/src/api/` and write `routes.ts`.",
       status: "failed",
       error:
         "Step contract failure [contract_unmet_write_required][artifact_write_checkpoint_failed]: iteration 7 reached without successful file/canvas mutation.",
     };
 
-    const inserted = (executor as Any).tryInjectArtifactRecoveryBeforeCircuitBreaker(failedStep, 2);
+    const inserted = (
+      executor as Any
+    ).tryInjectArtifactRecoveryBeforeCircuitBreaker(failedStep, 2);
     expect(inserted).toBe(false);
     expect((executor as Any).requestPlanRevision).not.toHaveBeenCalled();
   });
@@ -2555,31 +3225,34 @@ relationship_memory:
       {},
     );
 
-    const tempDir = fs.mkdtempSync("/tmp/cowork-multi-write-");
+    const tempDir = fs.mkdtempSync("/tmp/neoworker-multi-write-");
     (executor as Any).workspace.path = tempDir;
-    (executor as Any).toolRegistry.executeTool = vi.fn(async (name: string, input: Any) => {
-      if (name === "write_file") {
-        const relPath = String(input?.path || "").trim();
-        const absolutePath = path.resolve(tempDir, relPath);
-        fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
-        fs.writeFileSync(absolutePath, String(input?.content || ""), "utf8");
-        return { success: true, path: relPath };
-      }
-      return { success: true };
-    });
+    (executor as Any).toolRegistry.executeTool = vi.fn(
+      async (name: string, input: Any) => {
+        if (name === "write_file") {
+          const relPath = String(input?.path || "").trim();
+          const absolutePath = path.resolve(tempDir, relPath);
+          fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+          fs.writeFileSync(absolutePath, String(input?.content || ""), "utf8");
+          return { success: true, path: relPath };
+        }
+        return { success: true };
+      },
+    );
 
     const step: Any = {
       id: "artifact-multi-write-1",
-      description: "Create `win95-ui/scripts/main.js` and `win95-ui/scripts/apps.js` with starter code.",
+      description:
+        "Create `win95-ui/scripts/main.js` and `win95-ui/scripts/apps.js` with starter code.",
       status: "pending",
     };
 
     try {
       await (executor as Any).executeStep(step);
       expect(step.status).toBe("completed");
-      const writeCalls = ((executor as Any).toolRegistry.executeTool as Any).mock.calls.filter(
-        (call: Any[]) => call[0] === "write_file",
-      );
+      const writeCalls = (
+        (executor as Any).toolRegistry.executeTool as Any
+      ).mock.calls.filter((call: Any[]) => call[0] === "write_file");
       expect(writeCalls.length).toBe(2);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -2587,7 +3260,10 @@ relationship_memory:
   });
 
   it("accepts artifact presence for compile/summary steps without requiring new writes", async () => {
-    executor = createExecutorWithStubs([textResponse("Compiled summary is complete.")], {});
+    executor = createExecutorWithStubs(
+      [textResponse("Compiled summary is complete.")],
+      {},
+    );
     const existingArtifact = "/tmp/KARU_Whitepaper.md";
     fs.writeFileSync(existingArtifact, "# Existing artifact\n");
     (executor as Any).fileOperationTracker = {
@@ -2614,7 +3290,10 @@ relationship_memory:
   });
 
   it("requires step-local artifact evidence for compile/summary steps", async () => {
-    executor = createExecutorWithStubs([textResponse("Prepared final summary.")], {});
+    executor = createExecutorWithStubs(
+      [textResponse("Prepared final summary.")],
+      {},
+    );
     (executor as Any).fileOperationTracker = {
       getKnowledgeSummary: vi.fn().mockReturnValue(""),
       // Simulate a previously created file from earlier steps, with no new writes in this step.
@@ -2654,7 +3333,8 @@ relationship_memory:
 
     const step: Any = {
       id: "artifact-presence-inspected",
-      description: "Prepare final summary document in deliverables/final-summary.md",
+      description:
+        "Prepare final summary document in deliverables/final-summary.md",
       status: "pending",
     };
 
@@ -2664,11 +3344,15 @@ relationship_memory:
   });
 
   it("does not require artifact evidence when step explicitly allows inline output", async () => {
-    executor = createExecutorWithStubs([textResponse("Here is the inventory inline.")], {});
+    executor = createExecutorWithStubs(
+      [textResponse("Here is the inventory inline.")],
+      {},
+    );
 
     const step: Any = {
       id: "artifact-inline-1",
-      description: "Compile final output into artifacts/box_file_inventory.md (or return inline)",
+      description:
+        "Compile final output into artifacts/box_file_inventory.md (or return inline)",
       status: "pending",
     };
 
@@ -2678,7 +3362,7 @@ relationship_memory:
     expect(step.error).toBeUndefined();
   });
 
-  it("enforces hard tool-call budget contracts", () => {
+  it("keeps the hard total tool budget but routes exhausted paid web search to DuckDuckGo", () => {
     executor = createExecutorWithStubs([], {});
     (executor as Any).budgetContractsEnabled = true;
     (executor as Any).budgetContract = {
@@ -2690,15 +3374,22 @@ relationship_memory:
     };
     (executor as Any).totalToolCallCount = 1;
     (executor as Any).webSearchToolCallCount = 1;
+    (executor as Any).paidWebSearchToolCallCount = 1;
     (executor as Any).webSearchMaxUsesPerTask = 4;
     (executor as Any).webSearchMaxUsesPerStep = 3;
 
-    expect(() => (executor as Any).enforceToolBudget("write_file")).toThrow("Tool-call budget");
+    expect(() => (executor as Any).enforceToolBudget("write_file")).toThrow(
+      "Tool-call budget",
+    );
     (executor as Any).totalToolCallCount = 0;
-    expect(() => (executor as Any).enforceToolBudget("web_search")).not.toThrow();
-    const webSearchBudgetCheck = (executor as Any).evaluateWebSearchPolicyAndBudget({ query: "x" }, 0);
-    expect(webSearchBudgetCheck.blocked).toBe(true);
-    expect(webSearchBudgetCheck.failureClass).toBe("budget_exhausted");
+    expect(() =>
+      (executor as Any).enforceToolBudget("web_search"),
+    ).not.toThrow();
+    const webSearchBudgetCheck = (
+      executor as Any
+    ).evaluateWebSearchPolicyAndBudget({ query: "x" }, 0);
+    expect(webSearchBudgetCheck.blocked).toBe(false);
+    expect(webSearchBudgetCheck.fallbackToDuckDuckGo).toBe(true);
     expect(webSearchBudgetCheck.scope).toBe("task");
   });
 
@@ -2715,11 +3406,78 @@ relationship_memory:
     (executor as Any).webSearchMaxUsesPerTask = 5;
     (executor as Any).webSearchMaxUsesPerStep = 3;
 
-    const taskLimit = (executor as Any).getEffectiveWebSearchTaskLimit({ maxUses: 10 });
-    const stepLimit = (executor as Any).getEffectiveWebSearchStepLimit({ maxUses: 10 });
+    const taskLimit = (executor as Any).getEffectiveWebSearchTaskLimit({
+      maxUses: 10,
+    });
+    const stepLimit = (executor as Any).getEffectiveWebSearchStepLimit({
+      maxUses: 10,
+    });
 
     expect(taskLimit).toBe(4);
     expect(stepLimit).toBe(3);
+  });
+
+  it("routes searches beyond the per-step paid allowance to DuckDuckGo", () => {
+    executor = createExecutorWithStubs([], {});
+    (executor as Any).webSearchMaxUsesPerTask = 8;
+    (executor as Any).webSearchMaxUsesPerStep = 2;
+    (executor as Any).paidWebSearchToolCallCount = 0;
+
+    const prepared = (executor as Any).prepareWebSearchInputForBudget(
+      { query: "third query", provider: "tavily" },
+      2,
+      "search-step",
+    );
+
+    expect(prepared.policy.blocked).toBe(false);
+    expect(prepared.policy.fallbackToDuckDuckGo).toBe(true);
+    expect(prepared.policy.scope).toBe("step");
+    expect(prepared.input.provider).toBe("duckduckgo");
+  });
+
+  it("does not re-budget an explicit DuckDuckGo search", () => {
+    executor = createExecutorWithStubs([], {});
+    (executor as Any).webSearchMaxUsesPerTask = 1;
+    (executor as Any).webSearchMaxUsesPerStep = 1;
+    (executor as Any).paidWebSearchToolCallCount = 10;
+
+    const prepared = (executor as Any).prepareWebSearchInputForBudget(
+      { query: "free search", provider: "duckduckgo" },
+      10,
+      "free-search-step",
+    );
+
+    expect(prepared.policy.blocked).toBe(false);
+    expect(prepared.policy.fallbackToDuckDuckGo).toBeUndefined();
+    expect(prepared.input.provider).toBe("duckduckgo");
+  });
+
+  it("uses DuckDuckGo instead of failing a consecutive research step", () => {
+    executor = createExecutorWithStubs([], {});
+    (executor as Any).budgetContractsEnabled = true;
+    (executor as Any).budgetContract = {
+      maxTurns: 20,
+      maxToolCalls: 24,
+      maxWebSearchCalls: 6,
+      maxConsecutiveSearchSteps: 2,
+      maxAutoRecoverySteps: 1,
+    };
+    (executor as Any).consecutiveSearchStepCount = 2;
+
+    expect(() =>
+      (executor as Any).enforceSearchStepBudget({
+        id: "third-research-step",
+        description: "Research another source",
+      }),
+    ).not.toThrow();
+
+    const prepared = (executor as Any).prepareWebSearchInputForBudget(
+      { query: "more evidence", provider: "tavily" },
+      0,
+      "third-research-step",
+    );
+    expect(prepared.policy.scope).toBe("consecutive_steps");
+    expect(prepared.input.provider).toBe("duckduckgo");
   });
 
   it("accepts structured checklist verification responses when all required checks pass", async () => {
@@ -2769,7 +3527,8 @@ relationship_memory:
 
     const step: Any = {
       id: "verify-1",
-      description: "Final verification: Review the completed whitepaper for completeness",
+      description:
+        "Final verification: Review the completed whitepaper for completeness",
       status: "pending",
     };
     (executor as Any).plan = { description: "Plan", steps: [step] };
@@ -2784,7 +3543,10 @@ relationship_memory:
     executor = createExecutorWithStubs(
       [
         toolUseResponse("read_file", { path: "Sens_et_Dieu_finale.pdf" }),
-        toolUseResponse("read_pdf_visual", { path: "Sens_et_Dieu_finale.pdf", pages: "1-3" }),
+        toolUseResponse("read_pdf_visual", {
+          path: "Sens_et_Dieu_finale.pdf",
+          pages: "1-3",
+        }),
         textResponse(
           "Metinden yeterli içerik çıkarıldı. Bu belge felsefi değerlendirme için yeterli metinsel kapsam sağlıyor.",
         ),
@@ -2798,7 +3560,8 @@ relationship_memory:
         },
         read_pdf_visual: {
           success: false,
-          error: "OpenAI API key not configured (OpenAI OAuth sign-in does not support image analysis here yet).",
+          error:
+            "OpenAI API key not configured (OpenAI OAuth sign-in does not support image analysis here yet).",
           nonBlocking: true,
           recoverableFallback: true,
           fallbackHint:
@@ -2825,8 +3588,12 @@ relationship_memory:
     executor = createExecutorWithStubs(
       [
         toolUseResponse("read_file", { path: "Sens_et_Dieu_finale.pdf" }),
-        toolUseResponse("browser_navigate", { url: "file:///tmp/Sens_et_Dieu_finale.pdf" }),
-        textResponse("Metinsel çıkarım yeterli olduğu için değerlendirmeyi tamamladım."),
+        toolUseResponse("browser_navigate", {
+          url: "file:///tmp/Sens_et_Dieu_finale.pdf",
+        }),
+        textResponse(
+          "Metinsel çıkarım yeterli olduğu için değerlendirmeyi tamamladım.",
+        ),
       ],
       {
         read_file: {
@@ -2838,7 +3605,11 @@ relationship_memory:
       },
     );
     (executor as Any).getAvailableTools = vi.fn().mockReturnValue([
-      { name: "read_file", description: "", input_schema: { type: "object", properties: {} } },
+      {
+        name: "read_file",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
       {
         name: "browser_navigate",
         description: "",
@@ -2858,17 +3629,24 @@ relationship_memory:
 
     expect(step.status, String(step.error || "")).toBe("completed");
     expect(executor.toolRegistry.executeTool).toHaveBeenCalledTimes(1);
-    expect(executor.toolRegistry.executeTool).toHaveBeenCalledWith("read_file", {
-      path: "Sens_et_Dieu_finale.pdf",
-    });
+    expect(executor.toolRegistry.executeTool).toHaveBeenCalledWith(
+      "read_file",
+      {
+        path: "Sens_et_Dieu_finale.pdf",
+      },
+    );
   });
 
   it("blocks alternate OCR probing after reliable PDF extraction already succeeded", async () => {
     executor = createExecutorWithStubs(
       [
         toolUseResponse("read_file", { path: "Sens_et_Dieu_finale.pdf" }),
-        toolUseResponse("run_command", { command: "which pdftotext && which ocrmypdf" }),
-        textResponse("PDF metni zaten güvenilir biçimde çıkarıldı; değerlendirmeyi bu metne dayanarak tamamladım."),
+        toolUseResponse("run_command", {
+          command: "which pdftotext && which ocrmypdf",
+        }),
+        textResponse(
+          "PDF metni zaten güvenilir biçimde çıkarıldı; değerlendirmeyi bu metne dayanarak tamamladım.",
+        ),
       ],
       {
         read_file: {
@@ -2900,21 +3678,28 @@ relationship_memory:
 
     expect(step.status, String(step.error || "")).toBe("completed");
     expect(executor.toolRegistry.executeTool).toHaveBeenCalledTimes(1);
-    expect(executor.toolRegistry.executeTool).toHaveBeenCalledWith("read_file", {
-      path: "Sens_et_Dieu_finale.pdf",
-    });
+    expect(executor.toolRegistry.executeTool).toHaveBeenCalledWith(
+      "read_file",
+      {
+        path: "Sens_et_Dieu_finale.pdf",
+      },
+    );
   });
 
   it("retries final verification once via rewind and completes after returning OK", async () => {
     executor = createExecutorWithStubs(
-      [textResponse("The whitepaper is missing required sections."), textResponse("OK")],
+      [
+        textResponse("The whitepaper is missing required sections."),
+        textResponse("OK"),
+      ],
       {},
     );
     (executor as Any).verificationOutcomeV2Enabled = true;
 
     const step: Any = {
       id: "verify-rewind-1",
-      description: "Final verification: Review the completed whitepaper for completeness",
+      description:
+        "Final verification: Review the completed whitepaper for completeness",
       status: "pending",
     };
     (executor as Any).plan = { description: "Plan", steps: [step] };
@@ -2932,9 +3717,11 @@ relationship_memory:
         checkpointType: "rewind",
       }),
     );
-    expect((executor as Any).blockingVerificationFailedStepIds.has("verify-rewind-1")).toBe(
-      false,
-    );
+    expect(
+      (executor as Any).blockingVerificationFailedStepIds.has(
+        "verify-rewind-1",
+      ),
+    ).toBe(false);
   });
 
   it("rethrows abort-like errors without marking step as failed inside executeStep", async () => {
@@ -2949,7 +3736,9 @@ relationship_memory:
       status: "pending",
     };
 
-    await expect((executor as Any).executeStep(step)).rejects.toThrow("Request cancelled");
+    await expect((executor as Any).executeStep(step)).rejects.toThrow(
+      "Request cancelled",
+    );
     expect(step.status).not.toBe("failed");
     expect(step.error).toBeUndefined();
     expect((executor as Any).daemon.logEvent).not.toHaveBeenCalledWith(
@@ -2972,14 +3761,18 @@ relationship_memory:
       },
     );
 
-    const step: Any = { id: "4", description: "Search and summarize", status: "pending" };
+    const step: Any = {
+      id: "4",
+      description: "Search and summarize",
+      status: "pending",
+    };
 
     await (executor as Any).executeStep(step);
 
     expect(step.status).toBe("completed");
   });
 
-  it("soft-blocks web_search on budget exhaustion and still completes the step with prior evidence", async () => {
+  it("routes web_search to DuckDuckGo on paid-budget exhaustion and still completes the step", async () => {
     executor = createExecutorWithStubs(
       [
         toolUseResponse("run_command", { command: "echo ready" }),
@@ -2989,27 +3782,52 @@ relationship_memory:
       ],
       {
         run_command: { success: true, output: "ready" },
+        web_search: { success: true, provider: "duckduckgo", results: [] },
         list_directory: { success: true, path: ".", items: [] },
       },
     );
     (executor as Any).webSearchMaxUsesPerTask = 1;
     (executor as Any).webSearchMaxUsesPerStep = 1;
     (executor as Any).webSearchToolCallCount = 1; // Exhaust before the requested call
+    (executor as Any).paidWebSearchToolCallCount = 1;
 
-    const step: Any = { id: "budget-soft-1", description: "Research and summarize", status: "pending" };
+    const step: Any = {
+      id: "budget-soft-1",
+      description: "Research and summarize",
+      status: "pending",
+    };
 
     await (executor as Any).executeStep(step);
 
     expect(step.status).toBe("completed");
-    expect((executor as Any).toolRegistry.executeTool).toHaveBeenCalledWith("list_directory", {
-      path: ".",
-    });
-    expect((executor as Any).toolRegistry.executeTool).not.toHaveBeenCalledWith("web_search", expect.anything());
+    expect((executor as Any).toolRegistry.executeTool).toHaveBeenCalledWith(
+      "list_directory",
+      {
+        path: ".",
+      },
+    );
+    expect((executor as Any).toolRegistry.executeTool).toHaveBeenCalledWith(
+      "web_search",
+      {
+        query: "latest news",
+        maxUses: 2,
+        provider: "duckduckgo",
+      },
+    );
     expect(executor.daemon.logEvent).toHaveBeenCalledWith(
       "task-1",
       "log",
       expect.objectContaining({
-        metric: "web_search_budget_hit",
+        metric: "web_search_free_fallback_selected",
+        provider: "duckduckgo",
+      }),
+    );
+    expect(executor.daemon.logEvent).not.toHaveBeenCalledWith(
+      "task-1",
+      "tool_error",
+      expect.objectContaining({
+        tool: "web_search",
+        failureClass: "budget_exhausted",
       }),
     );
   });
@@ -3026,17 +3844,26 @@ relationship_memory:
       },
     );
     (executor as Any).webSearchMode = "cached";
-    (executor as Any).task.prompt = "Research the latest updates and summarize findings.";
-    (executor as Any).lastUserMessage = "Research the latest updates and summarize findings.";
+    (executor as Any).task.prompt =
+      "Research the latest updates and summarize findings.";
+    (executor as Any).lastUserMessage =
+      "Research the latest updates and summarize findings.";
 
-    const step: Any = { id: "cached-fetch-1", description: "Research and summarize", status: "pending" };
+    const step: Any = {
+      id: "cached-fetch-1",
+      description: "Research and summarize",
+      status: "pending",
+    };
 
     await (executor as Any).executeStep(step);
 
     expect(step.status).toBe("completed");
-    expect((executor as Any).toolRegistry.executeTool).toHaveBeenCalledWith("list_directory", {
-      path: ".",
-    });
+    expect((executor as Any).toolRegistry.executeTool).toHaveBeenCalledWith(
+      "list_directory",
+      {
+        path: ".",
+      },
+    );
     expect((executor as Any).toolRegistry.executeTool).not.toHaveBeenCalledWith(
       "web_fetch",
       expect.anything(),
@@ -3055,23 +3882,35 @@ relationship_memory:
   it("allows web_fetch in cached mode when user explicitly requested the exact URL", async () => {
     const targetUrl = "https://example.com/article";
     executor = createExecutorWithStubs(
-      [toolUseResponse("web_fetch", { url: targetUrl }), textResponse("Fetched requested URL.")],
+      [
+        toolUseResponse("web_fetch", { url: targetUrl }),
+        textResponse("Fetched requested URL."),
+      ],
       {
         web_fetch: { success: true, url: targetUrl, content: "Article body" },
       },
     );
     (executor as Any).webSearchMode = "cached";
-    (executor as Any).task.prompt = `Read this exact URL and summarize it: ${targetUrl}`;
-    (executor as Any).lastUserMessage = `Read this exact URL and summarize it: ${targetUrl}`;
+    (executor as Any).task.prompt =
+      `Read this exact URL and summarize it: ${targetUrl}`;
+    (executor as Any).lastUserMessage =
+      `Read this exact URL and summarize it: ${targetUrl}`;
 
-    const step: Any = { id: "cached-fetch-2", description: "Fetch requested page", status: "pending" };
+    const step: Any = {
+      id: "cached-fetch-2",
+      description: "Fetch requested page",
+      status: "pending",
+    };
 
     await (executor as Any).executeStep(step);
 
     expect(step.status).toBe("completed");
-    expect((executor as Any).toolRegistry.executeTool).toHaveBeenCalledWith("web_fetch", {
-      url: targetUrl,
-    });
+    expect((executor as Any).toolRegistry.executeTool).toHaveBeenCalledWith(
+      "web_fetch",
+      {
+        url: targetUrl,
+      },
+    );
   });
 
   it("fails fast when tool returns unrecoverable failure (Skill not currently executable)", async () => {
@@ -3094,17 +3933,35 @@ relationship_memory:
       },
     );
     executorWithTools.getAvailableTools = vi.fn().mockReturnValue([
-      { name: "run_command", description: "", input_schema: { type: "object", properties: {} } },
-      { name: "glob", description: "", input_schema: { type: "object", properties: {} } },
-      { name: "Skill", description: "", input_schema: { type: "object", properties: {} } },
+      {
+        name: "run_command",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
+      {
+        name: "glob",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
+      {
+        name: "Skill",
+        description: "",
+        input_schema: { type: "object", properties: {} },
+      },
     ]);
 
-    const step: Any = { id: "7", description: "Create transcript and summary", status: "pending" };
+    const step: Any = {
+      id: "7",
+      description: "Create transcript and summary",
+      status: "pending",
+    };
 
     await (executorWithTools as Any).executeStep(step);
 
     expect(step.status).toBe("failed");
-    expect((executorWithTools as Any).callLLMWithRetry).toHaveBeenCalledTimes(1);
+    expect((executorWithTools as Any).callLLMWithRetry).toHaveBeenCalledTimes(
+      1,
+    );
     expect(step.error).toMatch(
       /not currently executable|All required tools are unavailable or failed/,
     );
@@ -3114,7 +3971,10 @@ relationship_memory:
     const toolSpy = vi.fn(async () => ({ success: true, results: [] }));
     executor = createExecutorWithStubs(
       [
-        toolUseResponse("functions.web_search", { query: "test", searchType: "web" }),
+        toolUseResponse("functions.web_search", {
+          query: "test",
+          searchType: "web",
+        }),
         textResponse("summary"),
       ],
       {
@@ -3123,11 +3983,18 @@ relationship_memory:
     );
     (executor as Any).toolRegistry.executeTool = toolSpy;
 
-    const step: Any = { id: "5", description: "Search for info", status: "pending" };
+    const step: Any = {
+      id: "5",
+      description: "Search for info",
+      status: "pending",
+    };
 
     await (executor as Any).executeStep(step);
 
-    expect(toolSpy).toHaveBeenCalledWith("web_search", { query: "test", searchType: "web" });
+    expect(toolSpy).toHaveBeenCalledWith("web_search", {
+      query: "test",
+      searchType: "web",
+    });
     expect(step.status).toBe("completed");
   });
 
@@ -3146,8 +4013,12 @@ relationship_memory:
       }
 
       verifyContextHasFinalStep = stepContext.includes("FINAL step");
-      verifyContextHasDeliverable = stepContext.includes("MOST RECENT DELIVERABLE");
-      verifyContextIncludesSummary = stepContext.includes("Summary: Key F1 headlines from today.");
+      verifyContextHasDeliverable = stepContext.includes(
+        "MOST RECENT DELIVERABLE",
+      );
+      verifyContextIncludesSummary = stepContext.includes(
+        "Summary: Key F1 headlines from today.",
+      );
 
       return textResponse(
         "Recap: Summary: Key F1 headlines from today. Verification: Sources dated today.",
@@ -3165,7 +4036,10 @@ relationship_memory:
       status: "pending",
     };
 
-    (executor as Any).plan = { description: "Plan", steps: [summaryStep, verifyStep] };
+    (executor as Any).plan = {
+      description: "Plan",
+      steps: [summaryStep, verifyStep],
+    };
 
     await (executor as Any).executeStep(summaryStep);
     await (executor as Any).executeStep(verifyStep);
@@ -3180,8 +4054,12 @@ relationship_memory:
 
   it("detects recovery intent from user messaging in simple phrases", () => {
     const executor = createExecutorWithStubs([textResponse("done")], {});
-    expect((executor as Any).isRecoveryIntent("I need you to find another way")).toBe(true);
-    expect((executor as Any).isRecoveryIntent("Can't do this in this environment")).toBe(true);
+    expect(
+      (executor as Any).isRecoveryIntent("I need you to find another way"),
+    ).toBe(true);
+    expect(
+      (executor as Any).isRecoveryIntent("Can't do this in this environment"),
+    ).toBe(true);
     expect((executor as Any).isRecoveryIntent("Please continue")).toBe(false);
   });
 
@@ -3193,9 +4071,15 @@ relationship_memory:
       ),
     ).toBe(false);
     expect(
-      (executor as Any).isRecoveryIntent("This is not possible with the current configuration"),
+      (executor as Any).isRecoveryIntent(
+        "This is not possible with the current configuration",
+      ),
     ).toBe(false);
-    expect((executor as Any).isRecoveryIntent("Another approach may be better later")).toBe(false);
+    expect(
+      (executor as Any).isRecoveryIntent(
+        "Another approach may be better later",
+      ),
+    ).toBe(false);
   });
 
   it("resets attempt-level plan revision state on retry", () => {
@@ -3233,7 +4117,9 @@ relationship_memory:
     expect(executor.lastAssistantOutput).toBeNull();
     expect(executor.lastNonVerificationOutput).toBeNull();
     expect(executor.planRevisionCount).toBe(0);
-    expect((executor as Any).conversationHistory.at(-1)?.content).toContain("This is attempt 2");
+    expect((executor as Any).conversationHistory.at(-1)?.content).toContain(
+      "This is attempt 2",
+    );
   });
 
   it("inserts local-runtime recovery steps when recovery mode is active", async () => {
@@ -3245,14 +4131,31 @@ relationship_memory:
         textResponse(""),
       ],
       {
-        run_command: { success: false, error: "cannot complete this task without a workaround" },
+        run_command: {
+          success: false,
+          error: "cannot complete this task without a workaround",
+        },
       },
     );
-    const handlePlanRevisionSpy = vi.spyOn(executor as Any, "handlePlanRevision");
-    const failedStep: Any = { id: "1", description: "Run baseline task", status: "pending" };
-    const retainedPendingStep: Any = { id: "2", description: "Validate output", status: "pending" };
+    const handlePlanRevisionSpy = vi.spyOn(
+      executor as Any,
+      "handlePlanRevision",
+    );
+    const failedStep: Any = {
+      id: "1",
+      description: "Run baseline task",
+      status: "pending",
+    };
+    const retainedPendingStep: Any = {
+      id: "2",
+      description: "Validate output",
+      status: "pending",
+    };
 
-    executor.plan = { description: "Plan", steps: [failedStep, retainedPendingStep] };
+    executor.plan = {
+      description: "Plan",
+      steps: [failedStep, retainedPendingStep],
+    };
     executor.maxPlanRevisions = 5;
     executor.planRevisionCount = 0;
     executor.recoveryRequestActive = true;
@@ -3262,9 +4165,13 @@ relationship_memory:
 
     expect(handlePlanRevisionSpy).toHaveBeenCalledTimes(1);
     expect(executor.planRevisionCount).toBe(1);
-    const planDescriptions = executor.plan.steps.map((step: Any) => step.description);
+    const planDescriptions = executor.plan.steps.map(
+      (step: Any) => step.description,
+    );
     expect(
-      planDescriptions.some((desc: string) => desc.includes("local-runtime remediation path")),
+      planDescriptions.some((desc: string) =>
+        desc.includes("local-runtime remediation path"),
+      ),
     ).toBe(true);
     expect(planDescriptions.length).toBeGreaterThan(2);
   });
@@ -3293,10 +4200,24 @@ relationship_memory:
       };
     });
 
-    const handlePlanRevisionSpy = vi.spyOn(executor as Any, "handlePlanRevision");
-    const failedStep: Any = { id: "1", description: "Run baseline task", status: "pending" };
-    const retainedPendingStep: Any = { id: "2", description: "Validate output", status: "pending" };
-    executor.plan = { description: "Plan", steps: [failedStep, retainedPendingStep] };
+    const handlePlanRevisionSpy = vi.spyOn(
+      executor as Any,
+      "handlePlanRevision",
+    );
+    const failedStep: Any = {
+      id: "1",
+      description: "Run baseline task",
+      status: "pending",
+    };
+    const retainedPendingStep: Any = {
+      id: "2",
+      description: "Validate output",
+      status: "pending",
+    };
+    executor.plan = {
+      description: "Plan",
+      steps: [failedStep, retainedPendingStep],
+    };
     executor.maxPlanRevisions = 5;
     executor.planRevisionCount = 0;
     executor.recoveryRequestActive = true;
@@ -3305,9 +4226,13 @@ relationship_memory:
     await (executor as Any).executeStep(failedStep);
 
     expect(handlePlanRevisionSpy).toHaveBeenCalledTimes(2);
-    const planDescriptions = executor.plan.steps.map((step: Any) => step.description);
+    const planDescriptions = executor.plan.steps.map(
+      (step: Any) => step.description,
+    );
     expect(
-      planDescriptions.some((desc: string) => desc.includes("local-runtime remediation path")),
+      planDescriptions.some((desc: string) =>
+        desc.includes("local-runtime remediation path"),
+      ),
     ).toBe(true);
     expect(planDescriptions.length).toBeGreaterThan(2);
     expect(executor.planRevisionCount).toBe(2);
@@ -3321,9 +4246,20 @@ relationship_memory:
       },
     );
 
-    const failedStep: Any = { id: "1", description: "Run baseline task", status: "pending" };
-    const retainedPendingStep: Any = { id: "2", description: "Validate output", status: "pending" };
-    executor.plan = { description: "Plan", steps: [failedStep, retainedPendingStep] };
+    const failedStep: Any = {
+      id: "1",
+      description: "Run baseline task",
+      status: "pending",
+    };
+    const retainedPendingStep: Any = {
+      id: "2",
+      description: "Validate output",
+      status: "pending",
+    };
+    executor.plan = {
+      description: "Plan",
+      steps: [failedStep, retainedPendingStep],
+    };
     executor.maxPlanRevisions = 5;
     executor.recoveryRequestActive = true;
     executor.planRevisionCount = 0;
@@ -3331,7 +4267,9 @@ relationship_memory:
     await (executor as Any).executeStep(failedStep);
 
     expect(failedStep.status).toBe("failed");
-    const planDescriptions = executor.plan.steps.map((step: Any) => step.description);
+    const planDescriptions = executor.plan.steps.map(
+      (step: Any) => step.description,
+    );
     expect(planDescriptions).toContain("Validate output");
     expect(planDescriptions.length).toBe(4);
   });
@@ -3352,18 +4290,28 @@ relationship_memory:
 
     const failedStep: Any = {
       id: "1",
-      description: "Research the current workspace context and summarize the findings.",
+      description:
+        "Research the current workspace context and summarize the findings.",
       status: "pending",
     };
-    const retainedPendingStep: Any = { id: "2", description: "Validate output", status: "pending" };
-    executor.plan = { description: "Plan", steps: [failedStep, retainedPendingStep] };
+    const retainedPendingStep: Any = {
+      id: "2",
+      description: "Validate output",
+      status: "pending",
+    };
+    executor.plan = {
+      description: "Plan",
+      steps: [failedStep, retainedPendingStep],
+    };
     executor.maxPlanRevisions = 5;
     executor.recoveryRequestActive = true;
     executor.planRevisionCount = 0;
 
     await (executor as Any).executeStep(failedStep);
 
-    const planDescriptions = executor.plan.steps.map((step: Any) => step.description);
+    const planDescriptions = executor.plan.steps.map(
+      (step: Any) => step.description,
+    );
     expect(planDescriptions).toContain(
       "If normal tools are blocked, continue with a read-only fallback path and complete the goal from existing evidence and tool outputs.",
     );
@@ -3376,13 +4324,27 @@ relationship_memory:
     const executor = createExecutorWithStubs(
       [toolUseResponse("run_command", { command: "exit 1" }), textResponse("")],
       {
-        run_command: { success: false, error: "cannot complete this task without a workaround" },
+        run_command: {
+          success: false,
+          error: "cannot complete this task without a workaround",
+        },
       },
     );
     executor.recoveryRequestActive = false;
-    const failedStep: Any = { id: "1", description: "Run baseline task", status: "pending" };
-    const retainedPendingStep: Any = { id: "2", description: "Validate output", status: "pending" };
-    executor.plan = { description: "Plan", steps: [failedStep, retainedPendingStep] };
+    const failedStep: Any = {
+      id: "1",
+      description: "Run baseline task",
+      status: "pending",
+    };
+    const retainedPendingStep: Any = {
+      id: "2",
+      description: "Validate output",
+      status: "pending",
+    };
+    executor.plan = {
+      description: "Plan",
+      steps: [failedStep, retainedPendingStep],
+    };
     executor.maxPlanRevisions = 5;
     executor.planRevisionCount = 0;
     (executor as Any).isRecoveryIntent = vi.fn((reason: string) =>
@@ -3391,7 +4353,9 @@ relationship_memory:
 
     await (executor as Any).executeStep(failedStep);
 
-    const planDescriptions = executor.plan.steps.map((step: Any) => step.description);
+    const planDescriptions = executor.plan.steps.map(
+      (step: Any) => step.description,
+    );
     expect(planDescriptions.length).toBeGreaterThan(2);
     expect(planDescriptions).toContain("Validate output");
     expect(failedStep.status).toBe("failed");
@@ -3402,7 +4366,8 @@ relationship_memory:
     executor.logTag = "[Executor:test]";
     const completedRecovery = {
       id: "recovery-1",
-      description: "Try an alternative toolchain or different input strategy for: Create the seed record",
+      description:
+        "Try an alternative toolchain or different input strategy for: Create the seed record",
       kind: "recovery",
       status: "completed",
     };
@@ -3449,7 +4414,9 @@ relationship_memory:
       status: "pending",
     };
 
-    const contractMode = (executor as Any).resolveStepArtifactContractMode(step);
+    const contractMode = (executor as Any).resolveStepArtifactContractMode(
+      step,
+    );
     expect(contractMode).toBe("artifact_write_required");
   });
 
@@ -3464,7 +4431,9 @@ relationship_memory:
     };
 
     expect((executor as Any).isSummaryStep(step)).toBe(false);
-    expect((executor as Any).resolveStepArtifactContractMode(step)).toBe("artifact_write_required");
+    expect((executor as Any).resolveStepArtifactContractMode(step)).toBe(
+      "artifact_write_required",
+    );
   });
 
   it("returns artifact_presence_required for summary steps without a concrete target path", () => {
@@ -3472,11 +4441,14 @@ relationship_memory:
 
     const step: Any = {
       id: "compile-summary-no-path",
-      description: "Compile and summarize the key findings into a comprehensive report.",
+      description:
+        "Compile and summarize the key findings into a comprehensive report.",
       status: "pending",
     };
 
-    const contractMode = (executor as Any).resolveStepArtifactContractMode(step);
+    const contractMode = (executor as Any).resolveStepArtifactContractMode(
+      step,
+    );
     expect(contractMode).toBe("artifact_presence_required");
   });
 
@@ -3508,11 +4480,14 @@ relationship_memory:
     // "save" is an explicit write verb, so write intent + concrete path → artifact_write_required
     const saveStep: Any = {
       id: "save-to-file",
-      description: "Save the compiled analysis to /workspace/output/final-analysis.json.",
+      description:
+        "Save the compiled analysis to /workspace/output/final-analysis.json.",
       status: "pending",
     };
 
-    const contractMode = (executor as Any).resolveStepArtifactContractMode(saveStep);
+    const contractMode = (executor as Any).resolveStepArtifactContractMode(
+      saveStep,
+    );
     expect(contractMode).toBe("artifact_write_required");
   });
 
@@ -3522,13 +4497,13 @@ relationship_memory:
     const researchWriteStep: Any = {
       id: "research-write-file",
       description:
-        "Review changes in this release, shortlist the useful ones for Cowork OS, and write the findings to research/cowork_os_showcase_shortlist.md.",
+        "Review changes in this release, shortlist the useful ones for NeoWorker OS, and write the findings to research/neoworker_showcase_shortlist.md.",
       status: "pending",
     };
 
-    expect((executor as Any).resolveStepArtifactContractMode(researchWriteStep)).toBe(
-      "artifact_write_required",
-    );
+    expect(
+      (executor as Any).resolveStepArtifactContractMode(researchWriteStep),
+    ).toBe("artifact_write_required");
   });
 
   it("returns artifact_presence_required for compile-only steps even with a file target", () => {
@@ -3537,11 +4512,14 @@ relationship_memory:
     // "compile" is not a write verb, so even with a concrete path it stays presence_required
     const compileStep: Any = {
       id: "compile-to-file",
-      description: "Compile the analysis into /workspace/output/final-analysis.json.",
+      description:
+        "Compile the analysis into /workspace/output/final-analysis.json.",
       status: "pending",
     };
 
-    const contractMode = (executor as Any).resolveStepArtifactContractMode(compileStep);
+    const contractMode = (executor as Any).resolveStepArtifactContractMode(
+      compileStep,
+    );
     expect(contractMode).toBe("artifact_presence_required");
   });
 
@@ -3575,6 +4553,8 @@ relationship_memory:
       { success: true },
     );
 
-    expect(mockTracker.recordFileCreation).toHaveBeenCalledWith("/tmp/test-output.md");
+    expect(mockTracker.recordFileCreation).toHaveBeenCalledWith(
+      "/tmp/test-output.md",
+    );
   });
 });

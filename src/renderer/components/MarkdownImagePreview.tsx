@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { translate, useLanguage } from "../i18n";
 
 type MarkdownImagePreviewProps = {
   src?: string;
@@ -15,7 +16,9 @@ function normalizeFileSrc(src: string): string {
   if (src.startsWith("file://")) {
     const rawPath = src.replace(/^file:\/\//, "");
     try {
-      return decodeURIComponent(rawPath).replace(/^\/([a-zA-Z]:\/)/, "$1").split(/[?#]/)[0];
+      return decodeURIComponent(rawPath)
+        .replace(/^\/([a-zA-Z]:\/)/, "$1")
+        .split(/[?#]/)[0];
     } catch {
       return rawPath.replace(/^\/([a-zA-Z]:\/)/, "$1").split(/[?#]/)[0];
     }
@@ -26,7 +29,8 @@ function normalizeFileSrc(src: string): string {
 function isLocalImageSrc(src: string): boolean {
   if (!src || src.startsWith("#")) return false;
   if (DATA_IMAGE_RE.test(src) || REMOTE_IMAGE_RE.test(src)) return false;
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(src) && !src.startsWith("file://")) return false;
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(src) && !src.startsWith("file://"))
+    return false;
   return true;
 }
 
@@ -36,13 +40,17 @@ export function MarkdownImagePreview({
   title,
   workspacePath,
 }: MarkdownImagePreviewProps) {
+  useLanguage();
+  const t = translate;
   const trimmedSrc = src.trim();
   const localPath = useMemo(
     () => (isLocalImageSrc(trimmedSrc) ? normalizeFileSrc(trimmedSrc) : null),
     [trimmedSrc],
   );
   const [displaySrc, setDisplaySrc] = useState(
-    DATA_IMAGE_RE.test(trimmedSrc) || REMOTE_IMAGE_RE.test(trimmedSrc) ? trimmedSrc : "",
+    DATA_IMAGE_RE.test(trimmedSrc) || REMOTE_IMAGE_RE.test(trimmedSrc)
+      ? trimmedSrc
+      : "",
   );
   const [fileName, setFileName] = useState("");
   const [loading, setLoading] = useState(Boolean(localPath && workspacePath));
@@ -51,9 +59,20 @@ export function MarkdownImagePreview({
 
   useEffect(() => {
     if (!localPath || !workspacePath) {
-      setDisplaySrc(DATA_IMAGE_RE.test(trimmedSrc) || REMOTE_IMAGE_RE.test(trimmedSrc) ? trimmedSrc : "");
+      setDisplaySrc(
+        DATA_IMAGE_RE.test(trimmedSrc) || REMOTE_IMAGE_RE.test(trimmedSrc)
+          ? trimmedSrc
+          : "",
+      );
       setLoading(false);
-      setError(localPath ? "Image preview needs an active workspace." : "");
+      setError(
+        localPath
+          ? t(
+              "markdownImagePreview.error.workspaceRequired",
+              "Image preview needs an active workspace.",
+            )
+          : "",
+      );
       setFileName("");
       return;
     }
@@ -68,15 +87,32 @@ export function MarkdownImagePreview({
       .readFileForViewer(localPath, workspacePath)
       .then((response) => {
         if (cancelled) return;
-        if (!response.success || !response.data?.content || response.data.fileType !== "image") {
-          setError(response.error || "Image preview unavailable.");
+        if (
+          !response.success ||
+          !response.data?.content ||
+          response.data.fileType !== "image"
+        ) {
+          setError(
+            response.error ||
+              t(
+                "markdownImagePreview.error.unavailable",
+                "Image preview unavailable.",
+              ),
+          );
           return;
         }
         setDisplaySrc(response.data.content);
         setFileName(response.data.fileName || "");
       })
       .catch((err: Any) => {
-        if (!cancelled) setError(err?.message || "Image preview unavailable.");
+        if (!cancelled)
+          setError(
+            err?.message ||
+              t(
+                "markdownImagePreview.error.unavailable",
+                "Image preview unavailable.",
+              ),
+          );
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -97,15 +133,26 @@ export function MarkdownImagePreview({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isExpanded]);
 
-  const label = title || alt || fileName || localPath || "Image";
+  const label =
+    title ||
+    alt ||
+    fileName ||
+    localPath ||
+    t("markdownImagePreview.image", "Image");
 
   if (!trimmedSrc) return null;
 
   return (
     <>
       <span className="markdown-image-preview">
-        {loading && <span className="markdown-image-preview-placeholder">Loading image...</span>}
-        {!loading && error && <span className="markdown-image-preview-error">{error}</span>}
+        {loading && (
+          <span className="markdown-image-preview-placeholder">
+            {t("inlinePreview.image.loading", "Loading image...")}
+          </span>
+        )}
+        {!loading && error && (
+          <span className="markdown-image-preview-error">{error}</span>
+        )}
         {!loading && !error && displaySrc && (
           <button
             type="button"
@@ -115,8 +162,12 @@ export function MarkdownImagePreview({
               event.stopPropagation();
               setIsExpanded(true);
             }}
-            title="Open larger preview"
-            aria-label={`Open larger preview for ${label}`}
+            title={t("markdownImagePreview.openLarger", "Open larger preview")}
+            aria-label={t(
+              "markdownImagePreview.openLargerFor",
+              "Open larger preview for {label}",
+              { label },
+            )}
           >
             <img
               src={displaySrc}
@@ -146,13 +197,22 @@ export function MarkdownImagePreview({
                 type="button"
                 className="markdown-image-lightbox-close"
                 onClick={() => setIsExpanded(false)}
-                aria-label="Close image preview"
-                title="Close"
+                aria-label={t(
+                  "markdownImagePreview.closePreview",
+                  "Close image preview",
+                )}
+                title={t("common.close", "Close")}
               >
                 x
               </button>
-              <img src={displaySrc} alt={alt || label} className="markdown-image-lightbox-img" />
-              {label && <div className="markdown-image-lightbox-caption">{label}</div>}
+              <img
+                src={displaySrc}
+                alt={alt || label}
+                className="markdown-image-lightbox-img"
+              />
+              {label && (
+                <div className="markdown-image-lightbox-caption">{label}</div>
+              )}
             </div>
           </div>,
           document.body,

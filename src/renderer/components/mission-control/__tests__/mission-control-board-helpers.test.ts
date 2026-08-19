@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatTaskEstimate,
+  getTaskAttentionReasonForUi,
   getTaskDueInfo,
   getTaskPriorityMeta,
   isTaskStaleForUi,
@@ -82,7 +83,10 @@ describe("Mission Control board helpers", () => {
   it("formats estimates and priority metadata for decision-ready cards", () => {
     expect(formatTaskEstimate(45)).toBe("45m");
     expect(formatTaskEstimate(180)).toBe("3h");
-    expect(getTaskPriorityMeta(4)).toMatchObject({ label: "Urgent", shortLabel: "P4" });
+    expect(getTaskPriorityMeta(4)).toMatchObject({
+      label: "Urgent",
+      shortLabel: "P4",
+    });
   });
 
   it("marks long-running active work as stale but ignores closed work", () => {
@@ -109,5 +113,25 @@ describe("Mission Control board helpers", () => {
         now,
       ),
     ).toBe(false);
+  });
+
+  it("never marks completed work overdue or ownerless", () => {
+    const now = Date.UTC(2026, 2, 30, 12, 0, 0);
+    expect(
+      getTaskAttentionReasonForUi(
+        {
+          id: "completed-task",
+          title: "Completed report",
+          prompt: "Create the report",
+          status: "completed",
+          workspaceId: "workspace-1",
+          createdAt: now - 2 * 86_400_000,
+          updatedAt: now - 86_400_000,
+          dueDate: now - 60_000,
+          boardColumn: "backlog",
+        },
+        now,
+      ),
+    ).toBeNull();
   });
 });

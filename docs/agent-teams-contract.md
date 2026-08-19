@@ -1,7 +1,7 @@
 # Agentic Tribe Contract
 
 ## Goal
-Define a first-class Tribe Lead + Members model on top of existing CoWork task/agent primitives.
+Define a first-class Tribe Lead + Members model on top of existing NeoWorker task/agent primitives.
 
 > Current state: team runs are dispatched through the shared orchestration graph engine. This document describes the team contract and projection surfaces, not a standalone execution runtime.
 

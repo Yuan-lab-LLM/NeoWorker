@@ -319,7 +319,7 @@ describe("tool failure normalization", () => {
     });
 
     expect(compacted.length).toBeLessThan(4_000);
-    expect(compacted).toContain("_cowork_compacted_for_local_model");
+    expect(compacted).toContain("_neoworker_compacted_for_local_model");
     expect(compacted).toContain("https://api.github.com/repos/example/project/releases");
     expect(compacted).toContain("v1.0");
     expect(compacted).toContain("published_at");
@@ -357,7 +357,7 @@ describe("tool failure normalization", () => {
     });
 
     expect(normal.toolResult.content.length).toBeGreaterThan(compacted.toolResult.content.length);
-    expect(compacted.toolResult.content).toContain("_cowork_compacted_for_local_model");
+    expect(compacted.toolResult.content).toContain("_neoworker_compacted_for_local_model");
     expect(compacted.toolResult.content).toContain("https://raw.githubusercontent.com/example/project/main/README.md");
   });
 });

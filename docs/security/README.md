@@ -1,6 +1,6 @@
-# CoWork OS Security Documentation
+# NeoWorker Security Documentation
 
-This documentation covers the security architecture of CoWork OS, an AI-powered task automation platform.
+This documentation covers the security architecture of NeoWorker, an AI-powered task automation platform.
 
 ## Contents
 
@@ -12,7 +12,7 @@ This documentation covers the security architecture of CoWork OS, an AI-powered 
 
 ## Quick Start
 
-CoWork OS is designed with security in mind. By default:
+NeoWorker is designed with security in mind. By default:
 
 - **Pairing mode** is enabled for all channels - users must enter a pairing code to connect
 - **Sandboxing** isolates command execution using macOS sandbox-exec or Docker
@@ -30,4 +30,4 @@ CoWork OS is designed with security in mind. By default:
 ## Need Help?
 
 - For security questions, see the [FAQ section](./best-practices.md#faq)
-- To report a security issue, please email info@coworkosapp.com
+- To report a security issue, please email info@neoworkerapp.com

@@ -157,6 +157,9 @@ function buildDefaultEvidence(params: BuildToolResultEnvelopeParams): ToolResult
     params.toolName === "generate_document" ||
     params.toolName === "generate_presentation" ||
     params.toolName === "generate_spreadsheet" ||
+    params.toolName === "create_document" ||
+    params.toolName === "create_presentation" ||
+    params.toolName === "create_spreadsheet" ||
     params.toolName === "generate_epub" ||
     params.toolName === "generate_narration_audio";
   if (artifactTool && artifactPath) {

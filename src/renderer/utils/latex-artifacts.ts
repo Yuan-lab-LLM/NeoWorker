@@ -25,7 +25,10 @@ function basenameWithoutExt(filePath: string): string {
 }
 
 function sameStemAndFolder(left: string, right: string): boolean {
-  return dirname(left) === dirname(right) && basenameWithoutExt(left) === basenameWithoutExt(right);
+  return (
+    dirname(left) === dirname(right) &&
+    basenameWithoutExt(left) === basenameWithoutExt(right)
+  );
 }
 
 export function findLatexPdfPair(
@@ -66,7 +69,9 @@ export function findLatexPdfPair(
     ) {
       continue;
     }
-    const eventPath = normalizePath(event.payload?.path || event.payload?.to || event.payload?.from);
+    const eventPath = normalizePath(
+      event.payload?.path || event.payload?.to || event.payload?.from,
+    );
     const sourcePath = normalizePath(event.payload?.sourcePath);
     addPath(eventPath);
     addPath(sourcePath);

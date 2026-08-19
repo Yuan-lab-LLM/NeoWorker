@@ -1,0 +1,3 @@
+import { n as e, t } from "./folder-output-Bs0FXRdg-8cPLyOne.js";
+e();
+export { t as default };

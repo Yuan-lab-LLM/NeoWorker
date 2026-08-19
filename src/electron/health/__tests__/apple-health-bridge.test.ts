@@ -49,17 +49,17 @@ describe("AppleHealthBridge", () => {
     spawnMock.mockReset();
     accessSyncMock.mockImplementation(() => undefined);
     platformSpy = vi.spyOn(process, "platform", "get").mockReturnValue("darwin");
-    directLaunchEnv = process.env.COWORK_HEALTHKIT_BRIDGE_DIRECT;
-    process.env.COWORK_HEALTHKIT_BRIDGE_DIRECT = "1";
+    directLaunchEnv = process.env.NEOWORKER_HEALTHKIT_BRIDGE_DIRECT;
+    process.env.NEOWORKER_HEALTHKIT_BRIDGE_DIRECT = "1";
   });
 
   afterEach(() => {
     platformSpy?.mockRestore();
     platformSpy = null;
     if (directLaunchEnv === undefined) {
-      delete process.env.COWORK_HEALTHKIT_BRIDGE_DIRECT;
+      delete process.env.NEOWORKER_HEALTHKIT_BRIDGE_DIRECT;
     } else {
-      process.env.COWORK_HEALTHKIT_BRIDGE_DIRECT = directLaunchEnv;
+      process.env.NEOWORKER_HEALTHKIT_BRIDGE_DIRECT = directLaunchEnv;
     }
   });
 
@@ -173,14 +173,14 @@ describe("AppleHealthBridge", () => {
       readFileSync: vi.fn(),
       rmSync: vi.fn(),
     }));
-    delete process.env.COWORK_HEALTHKIT_BRIDGE_DIRECT;
+    delete process.env.NEOWORKER_HEALTHKIT_BRIDGE_DIRECT;
 
     const { AppleHealthBridge } = await import("../apple-health-bridge");
     const status = await AppleHealthBridge.getStatus("native");
 
     expect(status.available).toBe(false);
     expect(status.lastError).toContain("embedded provisioning profile");
-    expect(status.lastError).toContain("com.cowork.healthkitbridge");
+    expect(status.lastError).toContain("com.neoworker.healthkitbridge");
     expect(spawnMock).not.toHaveBeenCalled();
   });
 });

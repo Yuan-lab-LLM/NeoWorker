@@ -1,7 +1,9 @@
 import * as fs from "fs/promises";
+import * as os from "os";
 import * as path from "path";
 import { createHash } from "crypto";
 import { execFile } from "child_process";
+import { pathToFileURL } from "url";
 import { promisify } from "util";
 import { resolveCodexArtifactToolRuntime } from "./codex-artifact-tool-runtime";
 import { getUserDataDir } from "./user-data-dir";
@@ -14,9 +16,12 @@ import {
 const execFileAsync = promisify(execFile);
 const DEFAULT_RENDER_TIMEOUT_MS = 45_000;
 const DEFAULT_MAX_RENDERED_SLIDES = 80;
+const PPTX_PREVIEW_CACHE_VERSION = "4-cjk-font-aliases";
+const PPTX_FONTCONFIG_VERSION = "2-cjk-font-aliases";
 
 export type PptxPreviewRenderMode = "fast" | "full";
-export type PptxPreviewRenderStatus = "cached" | "rendering" | "rendered" | "text_only" | "failed";
+export type PptxPreviewRenderStatus =
+  "cached" | "rendering" | "rendered" | "text_only" | "failed";
 
 export interface PptxPreviewSlide {
   index: number;
@@ -38,7 +43,12 @@ export interface PptxPresentationPreview {
 type CommandRunner = (
   command: string,
   args: string[],
-  options: { timeout: number; maxBuffer?: number; cwd?: string },
+  options: {
+    timeout: number;
+    maxBuffer?: number;
+    cwd?: string;
+    env?: NodeJS.ProcessEnv;
+  },
 ) => Promise<unknown>;
 
 type ArtifactToolRunner = (
@@ -78,12 +88,23 @@ export class PptxPreviewService {
   private readonly artifactToolRunner: ArtifactToolRunner | null;
   private readonly renderTimeoutMs: number;
   private readonly maxRenderedSlides: number;
-  private readonly imageUrlFactory?: (imagePath: string) => string | Promise<string>;
-  private readonly inFlightRenders = new Map<string, Promise<{ images: Map<number, PreviewImage>; message?: string }>>();
+  private readonly imageUrlFactory?: (
+    imagePath: string,
+  ) => string | Promise<string>;
+  private readonly inFlightRenders = new Map<
+    string,
+    Promise<{ images: Map<number, PreviewImage>; message?: string }>
+  >();
+  private readonly inFlightExtractions = new Map<
+    string,
+    Promise<PptxStructuredExtract>
+  >();
+  private fontconfigEnvironmentPromise?: Promise<NodeJS.ProcessEnv>;
 
   constructor(options: PptxPreviewServiceOptions = {}) {
     this.cacheRoot =
-      options.cacheRoot ?? path.join(getUserDataDir(), "cache", "pptx-previews");
+      options.cacheRoot ??
+      path.join(getUserDataDir(), "cache", "pptx-previews");
     this.commandRunner =
       options.commandRunner ??
       ((command, args, execOptions) =>
@@ -91,7 +112,11 @@ export class PptxPreviewService {
     this.artifactToolRunner =
       options.artifactToolRunner === undefined
         ? (input, runnerOptions) =>
-            runArtifactToolPptxRenderer(this.commandRunner, input, runnerOptions)
+            runArtifactToolPptxRenderer(
+              this.commandRunner,
+              input,
+              runnerOptions,
+            )
         : options.artifactToolRunner;
     this.renderTimeoutMs = options.renderTimeoutMs ?? DEFAULT_RENDER_TIMEOUT_MS;
     this.maxRenderedSlides =
@@ -102,14 +127,30 @@ export class PptxPreviewService {
   async buildPreview(input: {
     filePath: string;
     workspaceRoot?: string;
+    allowedRoots?: string[];
     renderMode?: PptxPreviewRenderMode;
   }): Promise<PptxPresentationPreview> {
     const resolvedPath = await fs.realpath(path.resolve(input.filePath));
     if (input.workspaceRoot) {
-      const resolvedWorkspaceRoot = await fs.realpath(
-        path.resolve(input.workspaceRoot),
+      const candidateRoots = [
+        input.workspaceRoot,
+        ...(input.allowedRoots || []),
+      ];
+      const resolvedRoots = await Promise.all(
+        candidateRoots.map(async (root) => {
+          try {
+            return await fs.realpath(path.resolve(root));
+          } catch {
+            return null;
+          }
+        }),
       );
-      if (!isPathInside(resolvedPath, resolvedWorkspaceRoot)) {
+      if (
+        !resolvedRoots.some(
+          (root): root is string =>
+            typeof root === "string" && isPathInside(resolvedPath, root),
+        )
+      ) {
         throw new Error(
           "Access denied: PPTX preview path is outside the workspace",
         );
@@ -118,13 +159,29 @@ export class PptxPreviewService {
 
     const stats = await fs.stat(resolvedPath);
     const cacheDir = this.getCacheDir(resolvedPath, stats);
-    const cachedImages = await this.readCachedImages(cacheDir, resolvedPath, stats);
-    let structured = await this.extractStructuredContent(resolvedPath, cachedImages.size);
+    const cacheKey = cacheDir;
+    const cachedImagesPromise = this.readCachedImages(
+      cacheDir,
+      resolvedPath,
+      stats,
+    );
+    const structuredPromise = this.getStructuredContent(
+      cacheKey,
+      resolvedPath,
+      0,
+    );
+    const cachedImages = await cachedImagesPromise;
     if (cachedImages.size > 0) {
-      return this.toPreview(structured, cachedImages, input.renderMode === "fast" ? "cached" : "rendered");
+      const structured = await structuredPromise;
+      return this.toPreview(
+        structured,
+        cachedImages,
+        input.renderMode === "fast" ? "cached" : "rendered",
+      );
     }
 
     if (input.renderMode === "fast") {
+      const structured = await structuredPromise;
       return this.toPreview(
         structured,
         new Map(),
@@ -133,9 +190,18 @@ export class PptxPreviewService {
       );
     }
 
-    const renderResult = await this.renderSlideImages(resolvedPath, stats, cacheDir);
-    if (structured.slideCount <= 1 && !structured.slides.some((slide) => slide.text.trim())) {
-      structured = await this.extractStructuredContent(resolvedPath, renderResult.images.size);
+    let [structured, renderResult] = await Promise.all([
+      structuredPromise,
+      this.renderSlideImages(resolvedPath, stats, cacheDir),
+    ]);
+    if (
+      structured.slideCount <= 1 &&
+      !structured.slides.some((slide) => slide.text.trim())
+    ) {
+      structured = await this.extractStructuredContent(
+        resolvedPath,
+        renderResult.images.size,
+      );
     }
     return this.toPreview(
       structured,
@@ -143,6 +209,24 @@ export class PptxPreviewService {
       renderResult.images.size > 0 ? "rendered" : "text_only",
       renderResult.message,
     );
+  }
+
+  private getStructuredContent(
+    cacheKey: string,
+    resolvedPath: string,
+    renderedSlideCount: number,
+  ): Promise<PptxStructuredExtract> {
+    const inFlight = this.inFlightExtractions.get(cacheKey);
+    if (inFlight) return inFlight;
+
+    const extraction = this.extractStructuredContent(
+      resolvedPath,
+      renderedSlideCount,
+    ).finally(() => {
+      this.inFlightExtractions.delete(cacheKey);
+    });
+    this.inFlightExtractions.set(cacheKey, extraction);
+    return extraction;
   }
 
   private async extractStructuredContent(
@@ -197,12 +281,27 @@ export class PptxPreviewService {
     };
   }
 
-  private getCacheDir(resolvedPath: string, stats: { size: number; mtimeMs: number }): string {
+  private getCacheDir(
+    resolvedPath: string,
+    stats: { size: number; mtimeMs: number },
+  ): string {
     const key = createHash("sha256")
-      .update(`${resolvedPath}\n${stats.size}\n${Math.floor(stats.mtimeMs)}`)
+      .update(
+        `${PPTX_PREVIEW_CACHE_VERSION}\n${resolvedPath}\n${stats.size}\n${Math.floor(stats.mtimeMs)}`,
+      )
       .digest("hex")
       .slice(0, 24);
     return path.join(this.cacheRoot, key);
+  }
+
+  private getFontconfigEnvironment(): Promise<NodeJS.ProcessEnv> {
+    if (!this.fontconfigEnvironmentPromise) {
+      this.fontconfigEnvironmentPromise =
+        createPresentationFontconfigEnvironment(this.cacheRoot).catch(() => ({
+          ...process.env,
+        }));
+    }
+    return this.fontconfigEnvironmentPromise;
   }
 
   private async readCachedImages(
@@ -211,7 +310,10 @@ export class PptxPreviewService {
     stats: { size: number; mtimeMs: number },
   ): Promise<Map<number, PreviewImage>> {
     try {
-      const manifestRaw = await fs.readFile(path.join(cacheDir, "manifest.json"), "utf-8");
+      const manifestRaw = await fs.readFile(
+        path.join(cacheDir, "manifest.json"),
+        "utf-8",
+      );
       const manifest = JSON.parse(manifestRaw) as CachedRenderManifest;
       if (
         manifest.sourcePath !== resolvedPath ||
@@ -243,10 +345,13 @@ export class PptxPreviewService {
     const inFlight = this.inFlightRenders.get(cacheKey);
     if (inFlight) return inFlight;
 
-    const renderPromise = this.renderSlideImagesUncached(resolvedPath, stats, cacheDir)
-      .finally(() => {
-        this.inFlightRenders.delete(cacheKey);
-      });
+    const renderPromise = this.renderSlideImagesUncached(
+      resolvedPath,
+      stats,
+      cacheDir,
+    ).finally(() => {
+      this.inFlightRenders.delete(cacheKey);
+    });
     this.inFlightRenders.set(cacheKey, renderPromise);
     return renderPromise;
   }
@@ -256,29 +361,32 @@ export class PptxPreviewService {
     stats: { size: number; mtimeMs: number },
     cacheDir: string,
   ): Promise<{ images: Map<number, PreviewImage>; message?: string }> {
-    const artifactResult = await this.renderSlideImagesWithArtifactTool(
-      resolvedPath,
-      stats,
-      cacheDir,
-    );
-    if (artifactResult.images.size > 0) {
-      return artifactResult;
-    }
-
+    // LibreOffice is the substantially faster renderer for native Office
+    // files in the bundled runtime. Keep artifact-tool as a compatibility
+    // fallback for decks that LibreOffice cannot convert.
     const libreOfficeResult = await this.renderSlideImagesWithLibreOffice(
       resolvedPath,
       stats,
       cacheDir,
     );
-    if (libreOfficeResult.images.size > 0 || !artifactResult.message) {
+    if (libreOfficeResult.images.size > 0) {
       return libreOfficeResult;
+    }
+
+    const artifactResult = await this.renderSlideImagesWithArtifactTool(
+      resolvedPath,
+      stats,
+      cacheDir,
+    );
+    if (artifactResult.images.size > 0 || !libreOfficeResult.message) {
+      return artifactResult;
     }
 
     return {
       images: new Map(),
-      message: libreOfficeResult.message
-        ? `${artifactResult.message} ${libreOfficeResult.message}`
-        : artifactResult.message,
+      message: artifactResult.message
+        ? `${libreOfficeResult.message} ${artifactResult.message}`
+        : libreOfficeResult.message,
     };
   }
 
@@ -307,7 +415,10 @@ export class PptxPreviewService {
         { timeout: this.renderTimeoutMs },
       );
 
-      const imageFiles = await listRenderedSlideFiles(cacheDir, this.maxRenderedSlides);
+      const imageFiles = await listRenderedSlideFiles(
+        cacheDir,
+        this.maxRenderedSlides,
+      );
       if (imageFiles.length === 0) {
         return {
           images: new Map(),
@@ -315,7 +426,13 @@ export class PptxPreviewService {
         };
       }
 
-      await this.writeRenderManifest(cacheDir, resolvedPath, stats, imageFiles, "artifact_tool");
+      await this.writeRenderManifest(
+        cacheDir,
+        resolvedPath,
+        stats,
+        imageFiles,
+        "artifact_tool",
+      );
       return {
         images: await this.readRenderedImages(imageFiles),
       };
@@ -340,10 +457,14 @@ export class PptxPreviewService {
       await fs.mkdir(this.cacheRoot, { recursive: true });
       tempDir = await fs.mkdtemp(path.join(this.cacheRoot, "convert-"));
       await fs.mkdir(cacheDir, { recursive: true });
+      const libreOfficeProfileDir = path.join(tempDir, "libreoffice-profile");
+      await fs.mkdir(libreOfficeProfileDir, { recursive: true });
+      const fontconfigEnvironment = await this.getFontconfigEnvironment();
 
       await this.commandRunner(
         "soffice",
         [
+          `-env:UserInstallation=${pathToFileURL(libreOfficeProfileDir).href}`,
           "--headless",
           "--convert-to",
           "pdf",
@@ -351,7 +472,11 @@ export class PptxPreviewService {
           tempDir,
           resolvedPath,
         ],
-        { timeout: this.renderTimeoutMs, maxBuffer: 8 * 1024 * 1024 },
+        {
+          timeout: this.renderTimeoutMs,
+          maxBuffer: 8 * 1024 * 1024,
+          env: fontconfigEnvironment,
+        },
       );
 
       const pdfPath = await findConvertedPdf(tempDir, resolvedPath);
@@ -377,8 +502,17 @@ export class PptxPreviewService {
         { timeout: this.renderTimeoutMs, maxBuffer: 8 * 1024 * 1024 },
       );
 
-      const imageFiles = await listRenderedSlideFiles(cacheDir, this.maxRenderedSlides);
-      await this.writeRenderManifest(cacheDir, resolvedPath, stats, imageFiles, "libreoffice");
+      const imageFiles = await listRenderedSlideFiles(
+        cacheDir,
+        this.maxRenderedSlides,
+      );
+      await this.writeRenderManifest(
+        cacheDir,
+        resolvedPath,
+        stats,
+        imageFiles,
+        "libreoffice",
+      );
       return {
         images: await this.readRenderedImages(imageFiles),
       };
@@ -416,7 +550,11 @@ export class PptxPreviewService {
         fileName: path.basename(image.path),
       })),
     };
-    await fs.writeFile(path.join(cacheDir, "manifest.json"), JSON.stringify(manifest), "utf-8");
+    await fs.writeFile(
+      path.join(cacheDir, "manifest.json"),
+      JSON.stringify(manifest),
+      "utf-8",
+    );
   }
 
   private async readRenderedImages(
@@ -430,7 +568,9 @@ export class PptxPreviewService {
     return images;
   }
 
-  private async readPreviewImage(imagePath: string): Promise<PreviewImage | null> {
+  private async readPreviewImage(
+    imagePath: string,
+  ): Promise<PreviewImage | null> {
     if (this.imageUrlFactory) {
       try {
         const imageUrl = await this.imageUrlFactory(imagePath);
@@ -443,6 +583,98 @@ export class PptxPreviewService {
     const imageDataUrl = await readPngDataUrl(imagePath);
     return imageDataUrl ? { imageDataUrl } : null;
   }
+}
+
+async function createPresentationFontconfigEnvironment(
+  cacheRoot: string,
+): Promise<NodeJS.ProcessEnv> {
+  const fontconfigDir = path.join(cacheRoot, "fontconfig");
+  const fontCacheDir = path.join(fontconfigDir, "cache");
+  const fontconfigPath = path.join(fontconfigDir, "fonts.conf");
+  await fs.mkdir(fontCacheDir, { recursive: true });
+
+  const fontDirs = await getPresentationFontDirectories();
+  const config = [
+    '<?xml version="1.0"?>',
+    '<!DOCTYPE fontconfig SYSTEM "fonts.dtd">',
+    "<fontconfig>",
+    ...fontDirs.map(
+      (fontDir) => `  <dir>${escapeFontconfigXml(fontDir)}</dir>`,
+    ),
+    `  <cachedir>${escapeFontconfigXml(fontCacheDir)}</cachedir>`,
+    "  <alias><family>PingFang SC</family><prefer><family>PingFang SC</family><family>Hiragino Sans GB</family><family>Heiti SC</family><family>Microsoft YaHei</family><family>Noto Sans CJK SC</family><family>Arial Unicode MS</family></prefer></alias>",
+    "  <alias><family>Microsoft YaHei</family><prefer><family>PingFang SC</family><family>Hiragino Sans GB</family><family>Heiti SC</family><family>Noto Sans CJK SC</family><family>Arial Unicode MS</family></prefer></alias>",
+    "  <alias><family>Microsoft JhengHei</family><prefer><family>PingFang SC</family><family>Hiragino Sans GB</family><family>Heiti SC</family><family>Noto Sans CJK SC</family><family>Arial Unicode MS</family></prefer></alias>",
+    "  <alias><family>SimHei</family><prefer><family>PingFang SC</family><family>Hiragino Sans GB</family><family>Heiti SC</family><family>Noto Sans CJK SC</family><family>Arial Unicode MS</family></prefer></alias>",
+    "  <alias><family>SimSun</family><prefer><family>Songti SC</family><family>STSong</family><family>PingFang SC</family><family>Noto Serif CJK SC</family><family>Arial Unicode MS</family></prefer></alias>",
+    "  <alias><family>Aptos</family><prefer><family>PingFang SC</family><family>Hiragino Sans GB</family><family>Microsoft YaHei</family><family>Noto Sans CJK SC</family><family>Arial Unicode MS</family></prefer></alias>",
+    "  <alias><family>Calibri</family><prefer><family>PingFang SC</family><family>Hiragino Sans GB</family><family>Microsoft YaHei</family><family>Noto Sans CJK SC</family><family>Arial Unicode MS</family></prefer></alias>",
+    "  <alias><family>Arial</family><prefer><family>PingFang SC</family><family>Hiragino Sans GB</family><family>Microsoft YaHei</family><family>Noto Sans CJK SC</family><family>Arial Unicode MS</family></prefer></alias>",
+    "  <alias><family>sans-serif</family><prefer><family>PingFang SC</family><family>Hiragino Sans GB</family><family>Microsoft YaHei</family><family>Noto Sans CJK SC</family><family>Arial Unicode MS</family></prefer></alias>",
+    "  <alias><family>serif</family><prefer><family>Songti SC</family><family>STSong</family><family>Arial Unicode MS</family></prefer></alias>",
+    "</fontconfig>",
+    "",
+  ].join("\n");
+
+  const markerPath = path.join(fontconfigDir, "version");
+  const currentVersion = await fs.readFile(markerPath, "utf-8").catch(() => "");
+  if (currentVersion.trim() !== PPTX_FONTCONFIG_VERSION) {
+    await fs.writeFile(fontconfigPath, config, "utf-8");
+    await fs.writeFile(markerPath, PPTX_FONTCONFIG_VERSION, "utf-8");
+  } else {
+    await fs
+      .access(fontconfigPath)
+      .catch(() => fs.writeFile(fontconfigPath, config, "utf-8"));
+  }
+
+  return {
+    ...process.env,
+    FONTCONFIG_FILE: fontconfigPath,
+    FONTCONFIG_PATH: fontconfigDir,
+  };
+}
+
+async function getPresentationFontDirectories(): Promise<string[]> {
+  const candidates = new Set<string>();
+  if (process.platform === "darwin") {
+    candidates.add("/System/Library/Fonts");
+    candidates.add("/System/Library/Fonts/Supplemental");
+    candidates.add("/System/Library/AssetsV2/com_apple_MobileAsset_Font7");
+    candidates.add("/Library/Fonts");
+    candidates.add(path.join(os.homedir(), "Library", "Fonts"));
+  } else if (process.platform === "win32") {
+    const windowsDir = process.env.WINDIR || "C:\\Windows";
+    candidates.add(path.join(windowsDir, "Fonts"));
+    if (process.env.LOCALAPPDATA) {
+      candidates.add(
+        path.join(process.env.LOCALAPPDATA, "Microsoft", "Windows", "Fonts"),
+      );
+    }
+  } else {
+    candidates.add("/usr/share/fonts");
+    candidates.add("/usr/local/share/fonts");
+    candidates.add(path.join(os.homedir(), ".fonts"));
+    candidates.add(path.join(os.homedir(), ".local", "share", "fonts"));
+  }
+
+  const available: string[] = [];
+  for (const candidate of candidates) {
+    try {
+      const stats = await fs.stat(candidate);
+      if (stats.isDirectory()) available.push(candidate);
+    } catch {
+      // Optional platform font location.
+    }
+  }
+  return available;
+}
+
+function escapeFontconfigXml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
 
 async function runArtifactToolPptxRenderer(
@@ -495,11 +727,20 @@ for (let index = 0; index < slideCount; index += 1) {
 function isPathInside(targetPath: string, rootPath: string): boolean {
   const normalizedRoot = path.resolve(rootPath);
   const relative = path.relative(normalizedRoot, targetPath);
-  return relative === "" || (!!relative && !relative.startsWith("..") && !path.isAbsolute(relative));
+  return (
+    relative === "" ||
+    (!!relative && !relative.startsWith("..") && !path.isAbsolute(relative))
+  );
 }
 
-async function findConvertedPdf(tempDir: string, sourcePath: string): Promise<string | null> {
-  const expected = path.join(tempDir, `${path.basename(sourcePath, path.extname(sourcePath))}.pdf`);
+async function findConvertedPdf(
+  tempDir: string,
+  sourcePath: string,
+): Promise<string | null> {
+  const expected = path.join(
+    tempDir,
+    `${path.basename(sourcePath, path.extname(sourcePath))}.pdf`,
+  );
   try {
     await fs.access(expected);
     return expected;
@@ -517,14 +758,18 @@ async function listRenderedSlideFiles(
   const entries = await fs.readdir(cacheDir);
   return entries
     .map((entry) => {
-      const match = entry.match(/^slide-(\d+)\.png$/i) || entry.match(/^slide\.png$/i);
+      const match =
+        entry.match(/^slide-(\d+)\.png$/i) || entry.match(/^slide\.png$/i);
       if (!match) return null;
       return {
         index: match[1] ? Number(match[1]) : 1,
         path: path.join(cacheDir, entry),
       };
     })
-    .filter((entry): entry is { index: number; path: string } => !!entry && entry.index > 0)
+    .filter(
+      (entry): entry is { index: number; path: string } =>
+        !!entry && entry.index > 0,
+    )
     .sort((a, b) => a.index - b.index)
     .slice(0, maxRenderedSlides);
 }

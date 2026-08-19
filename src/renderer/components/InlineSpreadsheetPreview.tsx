@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { translate, useLanguage } from "../i18n";
 
 type InlineSpreadsheetPreviewProps = {
   filePath: string;
@@ -32,7 +33,9 @@ function parseSheets(content: string): ParsedSheet[] {
       name = lines[0].replace("## Sheet: ", "");
       dataLines = lines.slice(1);
     }
-    const rows = dataLines.filter((l) => l.length > 0).map((line) => line.split("\t"));
+    const rows = dataLines
+      .filter((l) => l.length > 0)
+      .map((line) => line.split("\t"));
     return { name, rows };
   });
 }
@@ -42,6 +45,8 @@ export function InlineSpreadsheetPreview({
   workspacePath,
   onOpenViewer,
 }: InlineSpreadsheetPreviewProps) {
+  useLanguage();
+  const t = translate;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sheets, setSheets] = useState<ParsedSheet[]>([]);
@@ -58,21 +63,42 @@ export function InlineSpreadsheetPreview({
       setActiveSheet(0);
 
       try {
-        const response = await window.electronAPI.readFileForViewer(filePath, workspacePath);
+        const response = await window.electronAPI.readFileForViewer(
+          filePath,
+          workspacePath,
+        );
         if (cancelled) return;
         if (!response.success || !response.data) {
-          setError(response.error || "Failed to load spreadsheet");
+          setError(
+            response.error ||
+              t(
+                "inlinePreview.spreadsheet.error.load",
+                "Failed to load spreadsheet",
+              ),
+          );
           return;
         }
         if (response.data.fileType !== "xlsx" || !response.data.content) {
-          setError("File is not a spreadsheet or cannot be previewed.");
+          setError(
+            t(
+              "inlinePreview.spreadsheet.error.unsupported",
+              "File is not a spreadsheet or cannot be previewed.",
+            ),
+          );
           return;
         }
         setFileName(response.data.fileName);
         setSheets(parseSheets(response.data.content));
       } catch (e: unknown) {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : "Failed to load spreadsheet");
+        setError(
+          e instanceof Error
+            ? e.message
+            : t(
+                "inlinePreview.spreadsheet.error.load",
+                "Failed to load spreadsheet",
+              ),
+        );
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -106,7 +132,9 @@ export function InlineSpreadsheetPreview({
   if (loading) {
     return (
       <div className="inline-spreadsheet-preview">
-        <div className="inline-spreadsheet-loading">Loading spreadsheet…</div>
+        <div className="inline-spreadsheet-loading">
+          {t("inlinePreview.spreadsheet.loading", "Loading spreadsheet...")}
+        </div>
       </div>
     );
   }
@@ -142,9 +170,30 @@ export function InlineSpreadsheetPreview({
                 stroke="currentColor"
                 strokeWidth="2"
               />
-              <line x1="3" y1="9" x2="21" y2="9" stroke="currentColor" strokeWidth="2" />
-              <line x1="3" y1="15" x2="21" y2="15" stroke="currentColor" strokeWidth="2" />
-              <line x1="9" y1="3" x2="9" y2="21" stroke="currentColor" strokeWidth="2" />
+              <line
+                x1="3"
+                y1="9"
+                x2="21"
+                y2="9"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <line
+                x1="3"
+                y1="15"
+                x2="21"
+                y2="15"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <line
+                x1="9"
+                y1="3"
+                x2="9"
+                y2="21"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
             </svg>
           </div>
           <span className="inline-spreadsheet-filename">
@@ -155,7 +204,7 @@ export function InlineSpreadsheetPreview({
           <button
             className="inline-spreadsheet-action-btn"
             onClick={handleDownload}
-            title="Open in external app"
+            title={t("fileViewer.openExternal", "Open in external app")}
           >
             <svg
               width="16"
@@ -174,7 +223,7 @@ export function InlineSpreadsheetPreview({
             <button
               className="inline-spreadsheet-action-btn"
               onClick={handleOpenViewer}
-              title="Expand preview"
+              title={t("inlinePreview.expandPreview", "Expand preview")}
             >
               <svg
                 width="16"
@@ -209,12 +258,20 @@ export function InlineSpreadsheetPreview({
           </thead>
           <tbody>
             {previewRows.map((row, ri) => (
-              <tr key={ri} className={ri === 0 ? "inline-spreadsheet-header-row" : ""}>
+              <tr
+                key={ri}
+                className={ri === 0 ? "inline-spreadsheet-header-row" : ""}
+              >
                 <td className="inline-spreadsheet-row-number">{ri + 1}</td>
                 {Array.from({ length: maxCols }, (_, ci) => {
                   const CellTag = ri === 0 ? "th" : "td";
                   return (
-                    <CellTag key={ci} className={ri === 0 ? "inline-spreadsheet-data-header" : ""}>
+                    <CellTag
+                      key={ci}
+                      className={
+                        ri === 0 ? "inline-spreadsheet-data-header" : ""
+                      }
+                    >
                       {row[ci] || ""}
                     </CellTag>
                   );
@@ -228,7 +285,14 @@ export function InlineSpreadsheetPreview({
       {/* Truncation notice */}
       {isTruncated && (
         <div className="inline-spreadsheet-truncated">
-          Showing {MAX_PREVIEW_ROWS} of {sheet.rows.length - 1} rows
+          {t(
+            "inlinePreview.spreadsheet.truncated",
+            "Showing {visible} of {total} rows",
+            {
+              visible: MAX_PREVIEW_ROWS,
+              total: sheet.rows.length - 1,
+            },
+          )}
         </div>
       )}
 

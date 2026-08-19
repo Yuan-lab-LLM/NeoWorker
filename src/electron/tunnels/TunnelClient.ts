@@ -223,8 +223,8 @@ export class TunnelClient extends EventEmitter {
   }
 
   private getTargetDescription(): string {
-    if (this.config.targetType === "cowork-host") {
-      return `http://127.0.0.1:${this.config.coworkHostPort || 3333}/mcp`;
+    if (this.config.targetType === "neoworker-host") {
+      return `http://127.0.0.1:${this.config.neoworkerHostPort || 3333}/mcp`;
     }
     return this.config.targetUrl || "";
   }

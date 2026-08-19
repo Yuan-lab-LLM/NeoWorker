@@ -1,0 +1,3 @@
+import { n as e, t } from "./package-search-DqDkZa-K-CqMQGty9.js";
+e();
+export { t as default };

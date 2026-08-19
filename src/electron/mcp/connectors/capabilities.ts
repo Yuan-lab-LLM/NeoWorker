@@ -313,15 +313,15 @@ const CAPABILITIES: Record<ConnectorCapabilityId, ConnectorCapability> = {
     name: "Rhino",
     registryEntryId: "rhino",
     authMethods: ["api_key"],
-    readinessAny: [["COWORK_ARCH_PROJECT_ROOT"]],
+    readinessAny: [["NEOWORKER_ARCH_PROJECT_ROOT"]],
     healthTool: "rhino.health",
     links: {
       dashboard: "https://www.rhino3d.com/",
       api_keys_docs: "https://developer.rhino3d.com/",
     },
     inputHints: {
-      COWORK_ARCH_PROJECT_ROOT: {
-        field: "COWORK_ARCH_PROJECT_ROOT",
+      NEOWORKER_ARCH_PROJECT_ROOT: {
+        field: "NEOWORKER_ARCH_PROJECT_ROOT",
         label: "Architecture project root",
         prompt: "Provide the workspace folder where Rhino project files may be read and written.",
         docs_url: "https://developer.rhino3d.com/",
@@ -339,15 +339,15 @@ const CAPABILITIES: Record<ConnectorCapabilityId, ConnectorCapability> = {
     name: "Blender",
     registryEntryId: "blender",
     authMethods: ["api_key"],
-    readinessAny: [["COWORK_ARCH_PROJECT_ROOT"]],
+    readinessAny: [["NEOWORKER_ARCH_PROJECT_ROOT"]],
     healthTool: "blender.health",
     links: {
       dashboard: "https://www.blender.org/",
       api_keys_docs: "https://docs.blender.org/api/current/",
     },
     inputHints: {
-      COWORK_ARCH_PROJECT_ROOT: {
-        field: "COWORK_ARCH_PROJECT_ROOT",
+      NEOWORKER_ARCH_PROJECT_ROOT: {
+        field: "NEOWORKER_ARCH_PROJECT_ROOT",
         label: "Architecture project root",
         prompt: "Provide the workspace folder where Blender project files may be read and written.",
         docs_url: "https://docs.blender.org/api/current/",
@@ -365,15 +365,15 @@ const CAPABILITIES: Record<ConnectorCapabilityId, ConnectorCapability> = {
     name: "ComfyUI",
     registryEntryId: "comfyui",
     authMethods: ["api_key"],
-    readinessAny: [["COWORK_ARCH_PROJECT_ROOT"]],
+    readinessAny: [["NEOWORKER_ARCH_PROJECT_ROOT"]],
     healthTool: "comfyui.health",
     links: {
       dashboard: "https://github.com/comfyanonymous/ComfyUI",
       api_keys_docs: "https://github.com/comfyanonymous/ComfyUI",
     },
     inputHints: {
-      COWORK_ARCH_PROJECT_ROOT: {
-        field: "COWORK_ARCH_PROJECT_ROOT",
+      NEOWORKER_ARCH_PROJECT_ROOT: {
+        field: "NEOWORKER_ARCH_PROJECT_ROOT",
         label: "Architecture project root",
         prompt: "Provide the workspace folder where ComfyUI workflow files and outputs may be read and written.",
         docs_url: "https://github.com/comfyanonymous/ComfyUI",

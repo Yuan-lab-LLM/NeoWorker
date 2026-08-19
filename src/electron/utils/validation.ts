@@ -69,6 +69,8 @@ const OriginChannelSchema = z.preprocess(
     "teams",
     "googlechat",
     "feishu",
+    "dingtalk",
+    "weixin",
     "wecom",
     "x",
   ] as const),
@@ -324,6 +326,7 @@ export const AgentConfigSchema = z
       .strict()
       .optional(),
     videoGenerationMode: z.boolean().optional(),
+    requestedSkillId: z.string().min(1).max(200).optional(),
   })
   .strict();
 
@@ -429,8 +432,12 @@ export const TaskCreateSchema = z.object({
   title: z.string().min(1).max(MAX_TITLE_LENGTH),
   prompt: z.string().min(1).max(MAX_PROMPT_LENGTH),
   workspaceId: WorkspaceIdSchema,
+  projectId: z.string().uuid().optional(),
+  companyId: z.string().uuid().optional(),
+  sessionId: z.string().uuid().optional(),
   budgetTokens: z.number().int().positive().optional(),
   budgetCost: z.number().positive().optional(),
+  assignedAgentRoleId: z.string().uuid().optional(),
   agentConfig: AgentConfigSchema.optional(),
   images: z.array(ImageAttachmentSchema).max(MAX_IMAGES_PER_MESSAGE).optional(),
 });
@@ -443,6 +450,11 @@ export const TaskRenameSchema = z.object({
 export const TaskWorkspaceUpdateSchema = z.object({
   taskId: z.string().uuid(),
   workspaceId: WorkspaceIdSchema,
+});
+
+export const TaskProjectUpdateSchema = z.object({
+  taskId: z.string().uuid(),
+  projectId: z.string().uuid(),
 });
 
 export const TaskMessageSchema = z
@@ -461,6 +473,20 @@ export const TaskMessageSchema = z
         truncated: z.boolean().optional(),
       })
       .optional(),
+    activeArtifactContext: z
+      .object({
+        kind: z.enum(["spreadsheet", "document", "presentation", "webpage"]),
+        path: z.string().trim().min(1).max(10000),
+      })
+      .strict()
+      .optional(),
+    executionMode: z
+      .enum(["execute", "chat", "plan", "analyze", "verified", "debug"])
+      .optional(),
+    taskDomain: z
+      .enum(["auto", "code", "research", "operations", "writing", "general", "media"])
+      .optional(),
+    requestedSkillId: z.string().trim().min(1).max(200).optional(),
     permissionMode: PermissionModeSchema.optional(),
     shellAccess: z.boolean().optional(),
     integrationMentions: z
@@ -503,6 +529,31 @@ export const TaskMessageSchema = z
       });
     }
   });
+
+export const TaskFollowUpQueueListSchema = z.object({
+  taskId: z.string().uuid(),
+});
+
+export const TaskFollowUpQueueUpdateSchema = z.object({
+  taskId: z.string().uuid(),
+  queueId: z.string().uuid(),
+  message: z.string().trim().min(1).max(MAX_PROMPT_LENGTH),
+});
+
+export const TaskFollowUpQueueReorderSchema = z.object({
+  taskId: z.string().uuid(),
+  queueIds: z
+    .array(z.string().uuid())
+    .max(100)
+    .refine((queueIds) => new Set(queueIds).size === queueIds.length, {
+      message: "Queued follow-up IDs must be unique",
+    }),
+});
+
+export const TaskFollowUpQueueRemoveSchema = z.object({
+  taskId: z.string().uuid(),
+  queueId: z.string().uuid(),
+});
 
 export const StepFeedbackSchema = z.object({
   taskId: z.string().uuid(),
@@ -787,6 +838,7 @@ export const KimiSettingsSchema = z
 
 export const OpenAICompatibleSettingsSchema = z
   .object({
+    displayName: z.string().max(100).optional(),
     apiKey: z.string().max(500).optional(),
     baseUrl: z.string().max(500).optional(),
     model: z.string().max(200).optional(),
@@ -854,6 +906,17 @@ export const CustomProviderConfigSchema = z.object({
 
 export const CustomProvidersSchema = z
   .record(z.string(), CustomProviderConfigSchema)
+  .optional();
+
+export const ProviderModelRegistrySchema = z
+  .record(
+    z.string(),
+    z.object({
+      models: z.array(z.string().trim().min(1).max(500)).max(100).optional(),
+      enabled: z.record(z.string(), z.boolean()).optional(),
+      updatedAt: z.number().optional(),
+    }),
+  )
   .optional();
 
 // ============ Video Generation Settings Schema ============
@@ -968,6 +1031,7 @@ export const LLMSettingsSchema = z.object({
   openaiCompatible: OpenAICompatibleSettingsSchema,
   moa: MoaSettingsSchema,
   customProviders: CustomProvidersSchema,
+  providerModelRegistry: ProviderModelRegistrySchema,
   imageGeneration: z
     .object({
       defaultProvider: z
@@ -1199,8 +1263,8 @@ export const SharePointSettingsSchema = z.object({
 
 export const GuardrailSettingsSchema = z.object({
   // Token budget
-  maxTokensPerTask: z.number().int().min(1000).max(10000000).default(100000),
-  tokenBudgetEnabled: z.boolean().default(true),
+  maxTokensPerTask: z.number().int().min(1000).max(100000000).default(100000),
+  tokenBudgetEnabled: z.boolean().default(false),
 
   // Cost budget
   maxCostPerTask: z.number().min(0.01).max(100).default(1.0),
@@ -1216,7 +1280,7 @@ export const GuardrailSettingsSchema = z.object({
 
   // File size
   maxFileSizeMB: z.number().int().min(1).max(500).default(50),
-  fileSizeLimitEnabled: z.boolean().default(true),
+  fileSizeLimitEnabled: z.boolean().default(false),
 
   // Network domains
   enforceAllowedDomains: z.boolean().default(false),
@@ -1230,8 +1294,8 @@ export const GuardrailSettingsSchema = z.object({
   webSearchBlockedDomains: z.array(z.string().max(255)).max(100).default([]),
 
   // Iterations
-  maxIterationsPerTask: z.number().int().min(5).max(500).default(50),
-  iterationLimitEnabled: z.boolean().default(true),
+  maxIterationsPerTask: z.number().int().min(5).max(500).default(100),
+  iterationLimitEnabled: z.boolean().default(false),
 
   // Execution continuation
   autoContinuationEnabled: z.boolean().default(true),
@@ -1256,46 +1320,6 @@ export const GuardrailSettingsSchema = z.object({
   // Cross-Channel Persona Coherence
   channelPersonaEnabled: z.boolean().default(false),
 });
-
-// ============ Infrastructure Settings Schema ============
-
-export const InfraSettingsSchema = z
-  .object({
-    enabled: z.boolean(),
-    showWalletInSidebar: z.boolean(),
-    e2b: z.object({
-      apiKey: z.string().max(500),
-      defaultRegion: z.string().max(100),
-    }),
-    domains: z.object({
-      provider: z.literal("namecheap"),
-      apiKey: z.string().max(500),
-      username: z.string().max(200),
-      clientIp: z.string().max(45),
-    }),
-    wallet: z.object({
-      enabled: z.boolean(),
-      provider: z.enum(["local", "coinbase_agentic"]),
-      coinbase: z.object({
-        enabled: z.boolean(),
-        signerEndpoint: z.string().max(500),
-        network: z.enum(["base-mainnet", "base-sepolia"]),
-        accountId: z.string().max(200),
-      }),
-    }),
-    payments: z.object({
-      requireApproval: z.boolean(),
-      maxAutoApproveUsd: z.number().min(0).max(1000),
-      hardLimitUsd: z.number().min(0).max(10000),
-      allowedHosts: z.array(z.string().max(255)).max(200),
-    }),
-    enabledCategories: z.object({
-      sandbox: z.boolean(),
-      domains: z.boolean(),
-      payments: z.boolean(),
-    }),
-  })
-  .strict();
 
 // ============ Gateway/Channel Schemas ============
 
@@ -1556,6 +1580,14 @@ export const AddFeishuChannelSchema = z.object({
   securityMode: SecurityModeSchema.optional(),
 });
 
+export const AddDingTalkChannelSchema = z.object({
+  type: z.literal("dingtalk"),
+  name: z.string().min(1).max(MAX_TITLE_LENGTH),
+  dingtalkClientId: z.string().trim().min(1).max(200),
+  dingtalkClientSecret: z.string().trim().min(1).max(500),
+  securityMode: SecurityModeSchema.optional(),
+});
+
 export const AddWeComChannelSchema = z.object({
   type: z.literal("wecom"),
   name: z.string().min(1).max(MAX_TITLE_LENGTH),
@@ -1566,6 +1598,27 @@ export const AddWeComChannelSchema = z.object({
   wecomEncodingAESKey: z.string().length(43).optional(),
   webhookPort: z.number().int().min(1024).max(65535).optional(),
   webhookPath: z.string().min(1).max(200).optional(),
+  securityMode: SecurityModeSchema.optional(),
+});
+
+export const AddWeixinChannelSchema = z.object({
+  type: z.literal("weixin"),
+  name: z.string().min(1).max(MAX_TITLE_LENGTH),
+  weixinAccountId: z.string().min(1).max(300),
+  weixinBotToken: z.string().min(1).max(4000),
+  weixinBaseUrl: z
+    .string()
+    .url()
+    .max(500)
+    .refine((value) => {
+      try {
+        const url = new URL(value);
+        return url.protocol === "https:" && url.hostname === "ilinkai.weixin.qq.com";
+      } catch {
+        return false;
+      }
+    }, "Invalid WeChat iLink service URL"),
+  weixinUserId: z.string().max(300).optional(),
   securityMode: SecurityModeSchema.optional(),
 });
 
@@ -1947,6 +2000,8 @@ export const AddChannelSchema = z.discriminatedUnion("type", [
   AddBlueBubblesChannelSchema,
   AddGoogleChatChannelSchema,
   AddFeishuChannelSchema,
+  AddDingTalkChannelSchema,
+  AddWeixinChannelSchema,
   AddWeComChannelSchema,
   AddXChannelSchema,
   AddEmailChannelSchema,
@@ -2044,6 +2099,8 @@ const CHANNEL_TYPE_VALUES = [
   "teams",
   "googlechat",
   "feishu",
+  "dingtalk",
+  "weixin",
   "wecom",
   "x",
 ] as const;
@@ -3061,6 +3118,8 @@ export const HookMappingChannelSchema = z.enum([
   "bluebubbles",
   "email",
   "feishu",
+  "dingtalk",
+  "weixin",
   "wecom",
   "last",
 ]);

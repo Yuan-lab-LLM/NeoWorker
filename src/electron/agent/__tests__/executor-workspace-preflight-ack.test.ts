@@ -32,7 +32,9 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
       pauseForUserInput,
     };
 
-    const shouldPause = (TaskExecutor as Any).prototype.preflightWorkspaceCheck.call(fakeThis);
+    const shouldPause = (
+      TaskExecutor as Any
+    ).prototype.preflightWorkspaceCheck.call(fakeThis);
     expect(shouldPause).toBe(false);
     expect(pauseForUserInput).not.toHaveBeenCalled();
   });
@@ -53,7 +55,9 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
       pauseForUserInput,
     };
 
-    const shouldPause = (TaskExecutor as Any).prototype.preflightWorkspaceCheck.call(fakeThis);
+    const shouldPause = (
+      TaskExecutor as Any
+    ).prototype.preflightWorkspaceCheck.call(fakeThis);
     expect(shouldPause).toBe(false);
     expect(pauseForUserInput).not.toHaveBeenCalled();
     expect(tryAutoSwitch).not.toHaveBeenCalled();
@@ -74,7 +78,9 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
       pauseForUserInput,
     };
 
-    const shouldPause = (TaskExecutor as Any).prototype.preflightWorkspaceCheck.call(fakeThis);
+    const shouldPause = (
+      TaskExecutor as Any
+    ).prototype.preflightWorkspaceCheck.call(fakeThis);
     expect(shouldPause).toBe(true);
     expect(pauseForUserInput).toHaveBeenCalledTimes(1);
     expect(pauseForUserInput.mock.calls[0][1]).toBe("workspace_read_failed");
@@ -90,7 +96,9 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
       pauseForUserInput,
     };
 
-    const shouldPause = (TaskExecutor as Any).prototype.preflightWorkspaceCheck.call(fakeThis);
+    const shouldPause = (
+      TaskExecutor as Any
+    ).prototype.preflightWorkspaceCheck.call(fakeThis);
     expect(shouldPause).toBe(false);
     expect(pauseForUserInput).not.toHaveBeenCalled();
   });
@@ -103,7 +111,9 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
       pauseForUserInput,
     };
 
-    const shouldPause = (TaskExecutor as Any).prototype.preflightWorkspaceCheck.call(fakeThis);
+    const shouldPause = (
+      TaskExecutor as Any
+    ).prototype.preflightWorkspaceCheck.call(fakeThis);
     expect(shouldPause).toBe(true);
     expect(pauseForUserInput).toHaveBeenCalledTimes(1);
     expect(pauseForUserInput.mock.calls[0][1]).toBe("workspace_required");
@@ -120,7 +130,9 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
       pauseForUserInput,
     };
 
-    const shouldPause = (TaskExecutor as Any).prototype.preflightWorkspaceCheck.call(fakeThis);
+    const shouldPause = (
+      TaskExecutor as Any
+    ).prototype.preflightWorkspaceCheck.call(fakeThis);
     expect(shouldPause).toBe(false);
     expect(pauseForUserInput).not.toHaveBeenCalled();
     expect(tryAutoSwitch).not.toHaveBeenCalled();
@@ -135,7 +147,9 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
       pauseForUserInput,
     };
 
-    const shouldPause = (TaskExecutor as Any).prototype.preflightWorkspaceCheck.call(fakeThis);
+    const shouldPause = (
+      TaskExecutor as Any
+    ).prototype.preflightWorkspaceCheck.call(fakeThis);
     expect(shouldPause).toBe(false);
     expect(pauseForUserInput).not.toHaveBeenCalled();
   });
@@ -151,10 +165,14 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
       pauseForUserInput,
     };
 
-    const shouldPause = (TaskExecutor as Any).prototype.preflightShellExecutionCheck.call(fakeThis);
+    const shouldPause = (
+      TaskExecutor as Any
+    ).prototype.preflightShellExecutionCheck.call(fakeThis);
     expect(shouldPause).toBe(true);
     expect(pauseForUserInput).toHaveBeenCalledTimes(1);
-    expect(pauseForUserInput.mock.calls[0][1]).toBe("shell_permission_required");
+    expect(pauseForUserInput.mock.calls[0][1]).toBe(
+      "shell_permission_required",
+    );
   });
 
   it("does not pause for shell when user explicitly chose to continue without shell", () => {
@@ -168,14 +186,19 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
       pauseForUserInput,
     };
 
-    const shouldPause = (TaskExecutor as Any).prototype.preflightShellExecutionCheck.call(fakeThis);
+    const shouldPause = (
+      TaskExecutor as Any
+    ).prototype.preflightShellExecutionCheck.call(fakeThis);
     expect(shouldPause).toBe(false);
     expect(pauseForUserInput).not.toHaveBeenCalled();
   });
 
   it("keeps shell-intent parsing aligned with the UI shortcut phrases", () => {
     expect(
-      (TaskExecutor as Any).prototype.classifyShellPermissionDecision.call({}, "enable shell"),
+      (TaskExecutor as Any).prototype.classifyShellPermissionDecision.call(
+        {},
+        "enable shell",
+      ),
     ).toBe("enable_shell");
     expect(
       (TaskExecutor as Any).prototype.classifyShellPermissionDecision.call(
@@ -186,16 +209,21 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
   });
 
   it("tells the model not to call shell disabled when another policy layer blocks it", () => {
-    const instruction = (TaskExecutor as Any).prototype.buildExecutionRequiredFollowUpInstruction.call(
+    const instruction = (
+      TaskExecutor as Any
+    ).prototype.buildExecutionRequiredFollowUpInstruction.call(
       {},
       {
         attemptedExecutionTool: true,
-        lastExecutionError: 'Tool "run_command" blocked by policy: blocked by workspace or gateway policy',
+        lastExecutionError:
+          'Tool "run_command" blocked by policy: blocked by workspace or gateway policy',
         shellEnabled: true,
       },
     );
 
-    expect(instruction).toContain("Shell is already enabled for this workspace");
+    expect(instruction).toContain(
+      "Shell is already enabled for this workspace",
+    );
     expect(instruction).toContain("Do not describe this as shell being off");
   });
 
@@ -208,7 +236,9 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
       pauseForUserInput,
     };
 
-    const shouldPause = (TaskExecutor as Any).prototype.preflightWorkspaceCheck.call(fakeThis);
+    const shouldPause = (
+      TaskExecutor as Any
+    ).prototype.preflightWorkspaceCheck.call(fakeThis);
     expect(shouldPause).toBe(false);
     expect(pauseForUserInput).not.toHaveBeenCalled();
   });
@@ -218,7 +248,13 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
       id: "ws-preferred",
       name: "Preferred",
       path: process.cwd(),
-      permissions: { read: true, write: true, delete: false, network: true, shell: false },
+      permissions: {
+        read: true,
+        write: true,
+        delete: false,
+        network: true,
+        shell: false,
+      },
     };
     const fakeThis: Any = {
       workspace: { isTemp: true, id: TEMP_WORKSPACE_ID, path: process.cwd() },
@@ -248,8 +284,13 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
     expect(switched).toBe(true);
     expect(fakeThis.workspace.id).toBe("ws-preferred");
     expect(fakeThis.task.workspaceId).toBe("ws-preferred");
-    expect(fakeThis.toolRegistry.setWorkspace).toHaveBeenCalledWith(preferredWorkspace);
-    expect(fakeThis.daemon.updateTaskWorkspace).toHaveBeenCalledWith("t1", "ws-preferred");
+    expect(fakeThis.toolRegistry.setWorkspace).toHaveBeenCalledWith(
+      preferredWorkspace,
+    );
+    expect(fakeThis.daemon.updateTaskWorkspace).toHaveBeenCalledWith(
+      "t1",
+      "ws-preferred",
+    );
   });
 
   it("does not preflight-fail create/build steps that mention artifacts to be created", () => {
@@ -263,10 +304,9 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
       status: "pending",
     };
 
-    const reason = (TaskExecutor as Any).prototype.getMissingWorkspaceArtifactPreflightReason.call(
-      fakeThis,
-      step,
-    );
+    const reason = (
+      TaskExecutor as Any
+    ).prototype.getMissingWorkspaceArtifactPreflightReason.call(fakeThis, step);
     expect(reason).toBeNull();
   });
 
@@ -289,8 +329,12 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
     };
     fakeThis.plan = { steps: [step] };
 
-    const contract = (TaskExecutor as Any).prototype.resolveStepExecutionContract.call(fakeThis, step);
-    const reason = (TaskExecutor as Any).prototype.getMissingWorkspaceArtifactPreflightReason.call(
+    const contract = (
+      TaskExecutor as Any
+    ).prototype.resolveStepExecutionContract.call(fakeThis, step);
+    const reason = (
+      TaskExecutor as Any
+    ).prototype.getMissingWorkspaceArtifactPreflightReason.call(
       fakeThis,
       step,
       contract.verificationPathDecisions,
@@ -307,7 +351,7 @@ describe("TaskExecutor workspace preflight acknowledgement", () => {
     fakeThis.workspace = { path: process.cwd() };
     fakeThis.task = {
       id: "t-build-health",
-      title: "CoWork OS Build Health Watcher",
+      title: "NeoWorker Build Health Watcher",
       prompt: `Run a fresh build-health check.
 
 Required checks:
@@ -334,7 +378,9 @@ End with a final section titled "Verification Evidence".`,
     };
     fakeThis.plan = { steps: [step] };
 
-    const contract = (TaskExecutor as Any).prototype.resolveStepExecutionContract.call(fakeThis, step);
+    const contract = (
+      TaskExecutor as Any
+    ).prototype.resolveStepExecutionContract.call(fakeThis, step);
 
     expect(contract.mode).toBe("analysis_only");
     expect(contract.requiresMutation).toBe(false);
@@ -353,10 +399,9 @@ End with a final section titled "Verification Evidence".`,
       status: "pending",
     };
 
-    const reason = (TaskExecutor as Any).prototype.getMissingWorkspaceArtifactPreflightReason.call(
-      fakeThis,
-      step,
-    );
+    const reason = (
+      TaskExecutor as Any
+    ).prototype.getMissingWorkspaceArtifactPreflightReason.call(fakeThis, step);
     expect(reason).toBeNull();
   });
 
@@ -371,10 +416,9 @@ End with a final section titled "Verification Evidence".`,
       status: "pending",
     };
 
-    const reason = (TaskExecutor as Any).prototype.getMissingWorkspaceArtifactPreflightReason.call(
-      fakeThis,
-      step,
-    );
+    const reason = (
+      TaskExecutor as Any
+    ).prototype.getMissingWorkspaceArtifactPreflightReason.call(fakeThis, step);
     expect(reason).toBeNull();
   });
 
@@ -390,10 +434,9 @@ End with a final section titled "Verification Evidence".`,
       status: "pending",
     };
 
-    const reason = (TaskExecutor as Any).prototype.getMissingWorkspaceArtifactPreflightReason.call(
-      fakeThis,
-      step,
-    );
+    const reason = (
+      TaskExecutor as Any
+    ).prototype.getMissingWorkspaceArtifactPreflightReason.call(fakeThis, step);
     expect(reason).toBeNull();
   });
 
@@ -403,9 +446,15 @@ End with a final section titled "Verification Evidence".`,
     fakeThis.maxPlanRevisions = 5;
     fakeThis.classifyRecoveryFailure = vi.fn(() => "local_runtime");
     fakeThis.isRecoveryPlanStep = vi.fn(() => false);
-    const step = { id: "s-recovery-1", description: "Check VM-side logs", kind: "primary" };
+    const step = {
+      id: "s-recovery-1",
+      description: "Check VM-side logs",
+      kind: "primary",
+    };
 
-    const shouldRecover = (TaskExecutor as Any).prototype.shouldAutoPlanRecovery.call(
+    const shouldRecover = (
+      TaskExecutor as Any
+    ).prototype.shouldAutoPlanRecovery.call(
       fakeThis,
       step,
       "missing_required_workspace_artifact: /var/log/auth.log, /var/log/secure",
@@ -419,9 +468,15 @@ End with a final section titled "Verification Evidence".`,
     fakeThis.maxPlanRevisions = 5;
     fakeThis.classifyRecoveryFailure = vi.fn(() => "local_runtime");
     fakeThis.isRecoveryPlanStep = vi.fn(() => false);
-    const step = { id: "s-recovery-2", description: "Run SSH diagnostics", kind: "primary" };
+    const step = {
+      id: "s-recovery-2",
+      description: "Run SSH diagnostics",
+      kind: "primary",
+    };
 
-    const shouldRecover = (TaskExecutor as Any).prototype.shouldAutoPlanRecovery.call(
+    const shouldRecover = (
+      TaskExecutor as Any
+    ).prototype.shouldAutoPlanRecovery.call(
       fakeThis,
       step,
       "Tool run_command has failed 6 times across previous steps",
@@ -429,23 +484,38 @@ End with a final section titled "Verification Evidence".`,
     expect(shouldRecover).toBe(true);
   });
 
-  it("does not apply cross-step failure hard block to execution tools", () => {
+  it("does not apply cross-step failure hard block to execution or artifact generation tools", () => {
     const fakeThis: Any = Object.create((TaskExecutor as Any).prototype);
-    const exemptRunCommand = (TaskExecutor as Any).prototype.isCrossStepFailureBlockExemptTool.call(
-      fakeThis,
-      "run_command",
-    );
-    const exemptAppleScript = (TaskExecutor as Any).prototype.isCrossStepFailureBlockExemptTool.call(
+    const exemptRunCommand = (
+      TaskExecutor as Any
+    ).prototype.isCrossStepFailureBlockExemptTool.call(fakeThis, "run_command");
+    const exemptAppleScript = (
+      TaskExecutor as Any
+    ).prototype.isCrossStepFailureBlockExemptTool.call(
       fakeThis,
       "run_applescript",
     );
-    const exemptWebSearch = (TaskExecutor as Any).prototype.isCrossStepFailureBlockExemptTool.call(
+    const exemptWebSearch = (
+      TaskExecutor as Any
+    ).prototype.isCrossStepFailureBlockExemptTool.call(fakeThis, "web_search");
+    const exemptPresentation = (
+      TaskExecutor as Any
+    ).prototype.isCrossStepFailureBlockExemptTool.call(
       fakeThis,
-      "web_search",
+      "generate_presentation",
     );
+    const exemptDocument = (
+      TaskExecutor as Any
+    ).prototype.isCrossStepFailureBlockExemptTool.call(fakeThis, "generate_document");
+    const exemptSpreadsheet = (
+      TaskExecutor as Any
+    ).prototype.isCrossStepFailureBlockExemptTool.call(fakeThis, "create_spreadsheet");
 
     expect(exemptRunCommand).toBe(true);
     expect(exemptAppleScript).toBe(true);
+    expect(exemptPresentation).toBe(true);
+    expect(exemptDocument).toBe(true);
+    expect(exemptSpreadsheet).toBe(true);
     expect(exemptWebSearch).toBe(false);
   });
 
@@ -460,10 +530,9 @@ End with a final section titled "Verification Evidence".`,
       status: "pending",
     };
 
-    const reason = (TaskExecutor as Any).prototype.getMissingWorkspaceArtifactPreflightReason.call(
-      fakeThis,
-      step,
-    );
+    const reason = (
+      TaskExecutor as Any
+    ).prototype.getMissingWorkspaceArtifactPreflightReason.call(fakeThis, step);
     expect(reason).toBeNull();
   });
 
@@ -478,10 +547,9 @@ End with a final section titled "Verification Evidence".`,
       status: "pending",
     };
 
-    const reason = (TaskExecutor as Any).prototype.getMissingWorkspaceArtifactPreflightReason.call(
-      fakeThis,
-      step,
-    );
+    const reason = (
+      TaskExecutor as Any
+    ).prototype.getMissingWorkspaceArtifactPreflightReason.call(fakeThis, step);
     expect(reason).toBeNull();
   });
 
@@ -496,10 +564,9 @@ End with a final section titled "Verification Evidence".`,
       status: "pending",
     };
 
-    const decisions = (TaskExecutor as Any).prototype.getVerificationArtifactPathDecisions.call(
-      fakeThis,
-      step,
-    );
+    const decisions = (
+      TaskExecutor as Any
+    ).prototype.getVerificationArtifactPathDecisions.call(fakeThis, step);
     expect(decisions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -512,7 +579,9 @@ End with a final section titled "Verification Evidence".`,
   });
 
   it("requires existing-only checklist writes when target file exists", () => {
-    const tempDir = fs.mkdtempSync(path.join(process.cwd(), "tmp-checklist-policy-"));
+    const tempDir = fs.mkdtempSync(
+      path.join(process.cwd(), "tmp-checklist-policy-"),
+    );
     const checklistPath = path.join(tempDir, "final-checklist.md");
     fs.writeFileSync(checklistPath, "# Existing checklist\n", "utf8");
 
@@ -527,7 +596,9 @@ End with a final section titled "Verification Evidence".`,
         status: "pending",
       };
 
-      const contract = (TaskExecutor as Any).prototype.resolveStepExecutionContract.call(fakeThis, step);
+      const contract = (
+        TaskExecutor as Any
+      ).prototype.resolveStepExecutionContract.call(fakeThis, step);
       expect(Array.from(contract.requiredTools)).toContain("write_file");
       expect(contract.mode).toBe("mutation_required");
     } finally {
@@ -546,10 +617,9 @@ End with a final section titled "Verification Evidence".`,
       status: "pending",
     };
 
-    const reason = (TaskExecutor as Any).prototype.getMissingWorkspaceArtifactPreflightReason.call(
-      fakeThis,
-      step,
-    );
+    const reason = (
+      TaskExecutor as Any
+    ).prototype.getMissingWorkspaceArtifactPreflightReason.call(fakeThis, step);
     expect(reason).toBeNull();
   });
 
@@ -564,16 +634,17 @@ End with a final section titled "Verification Evidence".`,
       status: "pending",
     };
 
-    const reason = (TaskExecutor as Any).prototype.getMissingWorkspaceArtifactPreflightReason.call(
-      fakeThis,
-      step,
-    );
+    const reason = (
+      TaskExecutor as Any
+    ).prototype.getMissingWorkspaceArtifactPreflightReason.call(fakeThis, step);
     expect(reason).toBeNull();
   });
 
   it("requires write_file for write-intent steps that target source/project artifact files", () => {
     const fakeThis: Any = Object.create((TaskExecutor as Any).prototype);
-    const requiredTools = (TaskExecutor as Any).prototype.extractRequiredToolsFromStepDescription.call(
+    const requiredTools = (
+      TaskExecutor as Any
+    ).prototype.extractRequiredToolsFromStepDescription.call(
       fakeThis,
       "Build widget UI in SystemMetricsWidgetExtension/SystemMetricsWidget.swift and wire the provider.",
     ) as Set<string>;
@@ -583,18 +654,38 @@ End with a final section titled "Verification Evidence".`,
 
   it("requires create_spreadsheet for Excel workbook artifact steps", () => {
     const fakeThis: Any = Object.create((TaskExecutor as Any).prototype);
-    const requiredTools = (TaskExecutor as Any).prototype.extractRequiredToolsFromStepDescription.call(
+    const requiredTools = (
+      TaskExecutor as Any
+    ).prototype.extractRequiredToolsFromStepDescription.call(
       fakeThis,
-      "Create the final Excel workbook `.cowork/openai_text_models.xlsx` containing the researched spreadsheet data.",
+      "Create the final Excel workbook `.neoworker/openai_text_models.xlsx` containing the researched spreadsheet data.",
     ) as Set<string>;
 
     expect(requiredTools.has("create_spreadsheet")).toBe(true);
     expect(requiredTools.has("write_file")).toBe(false);
   });
 
+  it("recognizes a Chinese Excel plan step and does not append a duplicate workbook step", () => {
+    const fakeThis: Any = Object.create((TaskExecutor as Any).prototype);
+    const contains = (
+      TaskExecutor as Any
+    ).prototype.planContainsXlsxArtifactStep.call(fakeThis, [
+      {
+        id: "5",
+        description:
+          "生成 Excel 明细：融资事件明细表、估值趋势数据，含来源列。",
+        status: "pending",
+      },
+    ]);
+
+    expect(contains).toBe(true);
+  });
+
   it("ignores non-tool via phrases such as localStorage when inferring required tools", () => {
     const fakeThis: Any = Object.create((TaskExecutor as Any).prototype);
-    const requiredTools = (TaskExecutor as Any).prototype.extractRequiredToolsFromStepDescription.call(
+    const requiredTools = (
+      TaskExecutor as Any
+    ).prototype.extractRequiredToolsFromStepDescription.call(
       fakeThis,
       "Implement Notepad save/load via localStorage and keyboard shortcuts.",
     ) as Set<string>;
@@ -609,7 +700,9 @@ End with a final section titled "Verification Evidence".`,
         executionMode: "plan",
       },
     };
-    const requiredTools = (TaskExecutor as Any).prototype.extractRequiredToolsFromStepDescription.call(
+    const requiredTools = (
+      TaskExecutor as Any
+    ).prototype.extractRequiredToolsFromStepDescription.call(
       fakeThis,
       "Use request_user_input to confirm the target GitHub repository in `owner/repo` format and the review scope if it cannot be derived from the current workspace git metadata.",
     ) as Set<string>;
@@ -619,7 +712,9 @@ End with a final section titled "Verification Evidence".`,
 
   it("still infers real tools from via phrases when the tool exists", () => {
     const fakeThis: Any = Object.create((TaskExecutor as Any).prototype);
-    const requiredTools = (TaskExecutor as Any).prototype.extractRequiredToolsFromStepDescription.call(
+    const requiredTools = (
+      TaskExecutor as Any
+    ).prototype.extractRequiredToolsFromStepDescription.call(
       fakeThis,
       "Research the error via web_search and summarize likely root causes.",
     ) as Set<string>;
@@ -629,7 +724,9 @@ End with a final section titled "Verification Evidence".`,
 
   it("requires run_command for generic command execution steps with stdout-style success criteria", () => {
     const fakeThis: Any = Object.create((TaskExecutor as Any).prototype);
-    const requiredTools = (TaskExecutor as Any).prototype.extractRequiredToolsFromStepDescription.call(
+    const requiredTools = (
+      TaskExecutor as Any
+    ).prototype.extractRequiredToolsFromStepDescription.call(
       fakeThis,
       "You want the command run in the current session context, and success means it prints `hello world`.",
     ) as Set<string>;
@@ -642,7 +739,9 @@ End with a final section titled "Verification Evidence".`,
     fakeThis.toolRegistry = {
       getTools: () => [{ name: "task_events" }],
     };
-    const requiredTools = (TaskExecutor as Any).prototype.extractRequiredToolsFromStepDescription.call(
+    const requiredTools = (
+      TaskExecutor as Any
+    ).prototype.extractRequiredToolsFromStepDescription.call(
       fakeThis,
       'Call tool `task_events` with period="custom" and include_payload=true.',
     ) as Set<string>;
@@ -655,7 +754,9 @@ End with a final section titled "Verification Evidence".`,
     fakeThis.toolRegistry = {
       getTools: () => [{ name: "task_events" }],
     };
-    const requiredTools = (TaskExecutor as Any).prototype.extractRequiredToolsFromStepDescription.call(
+    const requiredTools = (
+      TaskExecutor as Any
+    ).prototype.extractRequiredToolsFromStepDescription.call(
       fakeThis,
       "From `task_events` output, summarize retained events into Topics and Stats.",
     ) as Set<string>;
@@ -674,7 +775,9 @@ End with a final section titled "Verification Evidence".`,
       status: "pending",
     };
 
-    const contract = (TaskExecutor as Any).prototype.resolveStepExecutionContract.call(fakeThis, step);
+    const contract = (
+      TaskExecutor as Any
+    ).prototype.resolveStepExecutionContract.call(fakeThis, step);
     expect(contract.mode).not.toBe("mutation_required");
   });
 
@@ -685,12 +788,14 @@ End with a final section titled "Verification Evidence".`,
     const step = {
       id: "lock-requirements",
       description:
-        "Lock requirements in /tmp/linux/coworkos/requirements.md with Debian defaults.",
+        "Lock requirements in /tmp/linux/neoworker/requirements.md with Debian defaults.",
       kind: "primary",
       status: "pending",
     };
 
-    const contract = (TaskExecutor as Any).prototype.resolveStepExecutionContract.call(fakeThis, step);
+    const contract = (
+      TaskExecutor as Any
+    ).prototype.resolveStepExecutionContract.call(fakeThis, step);
     expect(contract.mode).toBe("mutation_required");
     expect(Array.from(contract.requiredTools)).toContain("write_file");
   });
@@ -708,14 +813,21 @@ End with a final section titled "Verification Evidence".`,
     };
     fakeThis.emitEvent = vi.fn();
 
-    const step = { id: "s-align-1", description: "Write file", kind: "primary", status: "pending" };
+    const step = {
+      id: "s-align-1",
+      description: "Write file",
+      kind: "primary",
+      status: "pending",
+    };
     const stepContract = {
       mode: "mutation_required",
       requiredTools: new Set(["write_file"]),
       contractReason: "step_requires_artifact_mutation",
     } as Any;
 
-    const alignment = (TaskExecutor as Any).prototype.alignExecutionModeForMutationContract.call(
+    const alignment = (
+      TaskExecutor as Any
+    ).prototype.alignExecutionModeForMutationContract.call(
       fakeThis,
       step,
       stepContract,
@@ -725,7 +837,9 @@ End with a final section titled "Verification Evidence".`,
     expect(fakeThis.task.agentConfig.executionMode).toBe("execute");
     expect(fakeThis.task.agentConfig.executionModeSource).toBe("auto_promote");
     expect(
-      fakeThis.emitEvent.mock.calls.some((call: Any[]) => call[0] === "execution_mode_auto_promoted"),
+      fakeThis.emitEvent.mock.calls.some(
+        (call: Any[]) => call[0] === "execution_mode_auto_promoted",
+      ),
     ).toBe(true);
   });
 
@@ -742,14 +856,21 @@ End with a final section titled "Verification Evidence".`,
     };
     fakeThis.emitEvent = vi.fn();
 
-    const step = { id: "s-align-2", description: "Write file", kind: "primary", status: "pending" };
+    const step = {
+      id: "s-align-2",
+      description: "Write file",
+      kind: "primary",
+      status: "pending",
+    };
     const stepContract = {
       mode: "mutation_required",
       requiredTools: new Set(["write_file"]),
       contractReason: "step_requires_artifact_mutation",
     } as Any;
 
-    const alignment = (TaskExecutor as Any).prototype.alignExecutionModeForMutationContract.call(
+    const alignment = (
+      TaskExecutor as Any
+    ).prototype.alignExecutionModeForMutationContract.call(
       fakeThis,
       step,
       stepContract,
@@ -758,8 +879,128 @@ End with a final section titled "Verification Evidence".`,
     expect(alignment.status).toBe("conflict");
     expect(fakeThis.task.agentConfig.executionMode).toBe("plan");
     expect(
-      fakeThis.emitEvent.mock.calls.some((call: Any[]) => call[0] === "plan_contract_conflict"),
+      fakeThis.emitEvent.mock.calls.some(
+        (call: Any[]) => call[0] === "plan_contract_conflict",
+      ),
     ).toBe(true);
+  });
+
+  it("rewrites an unsolicited final file-write step to an in-chat answer in read-only research mode", () => {
+    const fakeThis: Any = Object.create((TaskExecutor as Any).prototype);
+    fakeThis.workspace = {
+      path: process.cwd(),
+      permissions: { shell: true },
+    };
+    fakeThis.task = {
+      id: "task-read-only-research",
+      title: "分析 AI Coding 行业的商业模式演变",
+      prompt: "从 2023 年到现在，找出关键转折点和驱动因素。",
+      agentConfig: {
+        executionMode: "chat",
+        executionModeSource: "user",
+        taskDomain: "research",
+      },
+    };
+    fakeThis.agentPolicyConfig = null;
+    fakeThis.plan = null;
+    fakeThis.toolRegistry = { getTools: () => [] };
+    fakeThis.emitEvent = vi.fn();
+
+    const step = {
+      id: "4",
+      description:
+        "将全部结论整理为结构化分析报告，写入工作区文件 `ai-coding-business-model-evolution.md`。",
+      kind: "primary",
+      status: "pending",
+    };
+    const originalContract = (
+      TaskExecutor as Any
+    ).prototype.resolveStepExecutionContract.call(fakeThis, step);
+    expect(originalContract.mode).toBe("mutation_required");
+
+    const rewritten = (
+      TaskExecutor as Any
+    ).prototype.rewriteUnexpectedReadOnlyMutationStep.call(
+      fakeThis,
+      step,
+      originalContract,
+    );
+
+    expect(rewritten).toBe(true);
+    expect(step.description).toContain("直接向用户返回");
+    expect(step.description).not.toContain(".md");
+    const reconciledContract = (
+      TaskExecutor as Any
+    ).prototype.resolveStepExecutionContract.call(fakeThis, step);
+    expect(reconciledContract.mode).toBe("analysis_only");
+    expect(
+      fakeThis.emitEvent.mock.calls.some(
+        (call: Any[]) =>
+          call[0] === "plan_step_rewritten_for_read_only_mode",
+      ),
+    ).toBe(true);
+  });
+
+  it("preserves a mutation step when the user's own request explicitly asks for a file", () => {
+    const fakeThis: Any = Object.create((TaskExecutor as Any).prototype);
+    fakeThis.workspace = {
+      path: process.cwd(),
+      permissions: { shell: true },
+    };
+    fakeThis.task = {
+      id: "task-explicit-file",
+      title: "生成 AI Coding 商业模式报告",
+      prompt: "请将完整分析写入工作区文件 `ai-coding-report.md`。",
+      agentConfig: {
+        executionMode: "chat",
+        executionModeSource: "user",
+        taskDomain: "research",
+      },
+    };
+    fakeThis.agentPolicyConfig = null;
+    fakeThis.plan = null;
+    fakeThis.toolRegistry = { getTools: () => [] };
+    fakeThis.emitEvent = vi.fn();
+
+    const step = {
+      id: "2",
+      description: "将完整分析写入工作区文件 `ai-coding-report.md`。",
+      kind: "primary",
+      status: "pending",
+    };
+    const contract = (
+      TaskExecutor as Any
+    ).prototype.resolveStepExecutionContract.call(fakeThis, step);
+    const rewritten = (
+      TaskExecutor as Any
+    ).prototype.rewriteUnexpectedReadOnlyMutationStep.call(
+      fakeThis,
+      step,
+      contract,
+    );
+
+    expect(rewritten).toBe(false);
+    expect(step.description).toContain("ai-coding-report.md");
+  });
+
+  it("deduplicates canonical mutation probe tools in contract errors", () => {
+    const probes = (
+      TaskExecutor as Any
+    ).prototype.getMutationModeProbeTools.call(
+      {},
+      {
+        requiredTools: new Set([
+          "create_document",
+          "generate_document",
+          "create_spreadsheet",
+          "generate_spreadsheet",
+          "create_presentation",
+          "generate_presentation",
+        ]),
+      },
+    ) as string[];
+
+    expect(new Set(probes).size).toBe(probes.length);
   });
 
   it("treats legacy read-only execution modes as user-owned during mutation alignment", () => {
@@ -787,7 +1028,9 @@ End with a final section titled "Verification Evidence".`,
       contractReason: "step_requires_artifact_mutation",
     } as Any;
 
-    const alignment = (TaskExecutor as Any).prototype.alignExecutionModeForMutationContract.call(
+    const alignment = (
+      TaskExecutor as Any
+    ).prototype.alignExecutionModeForMutationContract.call(
       fakeThis,
       step,
       stepContract,
@@ -797,10 +1040,14 @@ End with a final section titled "Verification Evidence".`,
     expect(fakeThis.task.agentConfig.executionMode).toBe("plan");
     expect(fakeThis.task.agentConfig.executionModeSource).toBeUndefined();
     expect(
-      fakeThis.emitEvent.mock.calls.some((call: Any[]) => call[0] === "execution_mode_auto_promoted"),
+      fakeThis.emitEvent.mock.calls.some(
+        (call: Any[]) => call[0] === "execution_mode_auto_promoted",
+      ),
     ).toBe(false);
     expect(
-      fakeThis.emitEvent.mock.calls.some((call: Any[]) => call[0] === "plan_contract_conflict"),
+      fakeThis.emitEvent.mock.calls.some(
+        (call: Any[]) => call[0] === "plan_contract_conflict",
+      ),
     ).toBe(true);
   });
 
@@ -810,24 +1057,25 @@ End with a final section titled "Verification Evidence".`,
     fakeThis.emitEvent = vi.fn();
     fakeThis.reliabilityWorkspaceAliasRewriteV5Enabled = true;
     fakeThis.workspacePathAliasPolicy = "rewrite_and_retry";
-    fakeThis.executeToolWithHeartbeat = vi.fn(async (_tool: string, input: Any) => ({
-      success: true,
-      files: [],
-      path: input.path,
-    }));
-
-    const recovered = await (TaskExecutor as Any).prototype.tryWorkspaceBoundaryRecovery.call(
-      fakeThis,
-      {
-        toolName: "list_directory",
-        input: { path: "/" },
-        errorMessage:
-          'Path is outside workspace boundary. Attempted path: /. Workspace: /tmp/linux.',
-        toolTimeoutMs: 1_000,
-        targetPaths: ["/tmp/linux/coworkos/requirements.md"],
-        stepId: "s-boundary",
-      },
+    fakeThis.executeToolWithHeartbeat = vi.fn(
+      async (_tool: string, input: Any) => ({
+        success: true,
+        files: [],
+        path: input.path,
+      }),
     );
+
+    const recovered = await (
+      TaskExecutor as Any
+    ).prototype.tryWorkspaceBoundaryRecovery.call(fakeThis, {
+      toolName: "list_directory",
+      input: { path: "/" },
+      errorMessage:
+        "Path is outside workspace boundary. Attempted path: /. Workspace: /tmp/linux.",
+      toolTimeoutMs: 1_000,
+      targetPaths: ["/tmp/linux/neoworker/requirements.md"],
+      stepId: "s-boundary",
+    });
 
     expect(recovered.recovered).toBe(true);
     expect(recovered.input?.path).toBe(".");
@@ -841,24 +1089,31 @@ End with a final section titled "Verification Evidence".`,
     fakeThis.reliabilityWorkspaceAliasRewriteV5Enabled = true;
     fakeThis.reliabilityAliasRecoveryRetryV5Enabled = true;
     fakeThis.workspacePathAliasPolicy = "rewrite_and_retry";
-    fakeThis.executeToolWithHeartbeat = vi.fn(async (_tool: string, input: Any) => ({
-      success: true,
-      path: input.path,
-    }));
-
-    const recovered = await (TaskExecutor as Any).prototype.tryWorkspaceBoundaryRecovery.call(
-      fakeThis,
-      {
-        toolName: "write_file",
-        input: { path: "/workspace/influencer-chat-app/src/data/influencers.ts", content: "x" },
-        errorMessage: "Failed to write file: ENOENT: no such file or directory, mkdir '/workspace'",
-        toolTimeoutMs: 1_000,
-        stepId: "s-alias",
-      },
+    fakeThis.executeToolWithHeartbeat = vi.fn(
+      async (_tool: string, input: Any) => ({
+        success: true,
+        path: input.path,
+      }),
     );
 
+    const recovered = await (
+      TaskExecutor as Any
+    ).prototype.tryWorkspaceBoundaryRecovery.call(fakeThis, {
+      toolName: "write_file",
+      input: {
+        path: "/workspace/influencer-chat-app/src/data/influencers.ts",
+        content: "x",
+      },
+      errorMessage:
+        "Failed to write file: ENOENT: no such file or directory, mkdir '/workspace'",
+      toolTimeoutMs: 1_000,
+      stepId: "s-alias",
+    });
+
     expect(recovered.recovered).toBe(true);
-    expect(recovered.input?.path).toBe("influencer-chat-app/src/data/influencers.ts");
+    expect(recovered.input?.path).toBe(
+      "influencer-chat-app/src/data/influencers.ts",
+    );
     expect(
       fakeThis.emitEvent.mock.calls.some(
         (call: Any[]) => call[0] === "workspace_path_alias_recovery_attempted",
@@ -886,9 +1141,16 @@ End with a final section titled "Verification Evidence".`,
       ],
     };
 
-    const sanitized = (TaskExecutor as Any).prototype.sanitizePlan.call(fakeThis, plan);
-    expect(String(sanitized.steps[0].description)).toContain("influencer-chat-app/src/data/influencers.ts");
-    expect(String(sanitized.steps[0].description)).not.toContain("/workspace/influencer-chat-app");
+    const sanitized = (TaskExecutor as Any).prototype.sanitizePlan.call(
+      fakeThis,
+      plan,
+    );
+    expect(String(sanitized.steps[0].description)).toContain(
+      "influencer-chat-app/src/data/influencers.ts",
+    );
+    expect(String(sanitized.steps[0].description)).not.toContain(
+      "/workspace/influencer-chat-app",
+    );
     expect(
       fakeThis.emitEvent.mock.calls.some(
         (call: Any[]) => call[0] === "workspace_path_alias_normalized",
@@ -929,18 +1191,29 @@ End with a final section titled "Verification Evidence".`,
       ],
     };
 
-    const sanitized = (TaskExecutor as Any).prototype.sanitizePlan.call(fakeThis, plan);
+    const sanitized = (TaskExecutor as Any).prototype.sanitizePlan.call(
+      fakeThis,
+      plan,
+    );
     const secondStepDescription = String(sanitized.steps[1].description);
     expect(fakeThis.taskPinnedRoot).toBe("influencer-chat");
     expect(secondStepDescription).toContain("influencer-chat/app/page.tsx");
-    expect(secondStepDescription).toContain("influencer-chat/data/influencers.json");
-    expect(secondStepDescription).toContain("influencer-chat/components/Composer.tsx");
-    expect(fakeThis.emitEvent.mock.calls.some((call: Any[]) => call[0] === "task_path_root_pinned")).toBe(
-      true,
+    expect(secondStepDescription).toContain(
+      "influencer-chat/data/influencers.json",
     );
-    expect(fakeThis.emitEvent.mock.calls.some((call: Any[]) => call[0] === "task_path_rewrite_applied")).toBe(
-      true,
+    expect(secondStepDescription).toContain(
+      "influencer-chat/components/Composer.tsx",
     );
+    expect(
+      fakeThis.emitEvent.mock.calls.some(
+        (call: Any[]) => call[0] === "task_path_root_pinned",
+      ),
+    ).toBe(true);
+    expect(
+      fakeThis.emitEvent.mock.calls.some(
+        (call: Any[]) => call[0] === "task_path_rewrite_applied",
+      ),
+    ).toBe(true);
   });
 
   it("does not pin task root from non-scaffold timing phrases", () => {
@@ -987,10 +1260,12 @@ End with a final section titled "Verification Evidence".`,
     fakeThis.workspace = { path: process.cwd() };
     fakeThis.task = { id: "task-v6" };
     fakeThis.emitEvent = vi.fn();
-    fakeThis.executeToolWithHeartbeat = vi.fn(async (_tool: string, input: Any) => ({
-      success: true,
-      path: input.path,
-    }));
+    fakeThis.executeToolWithHeartbeat = vi.fn(
+      async (_tool: string, input: Any) => ({
+        success: true,
+        path: input.path,
+      }),
+    );
     fakeThis.reliabilityTaskRootPinningV6Enabled = true;
     fakeThis.reliabilityPathDriftRewriteV6Enabled = true;
     fakeThis.reliabilityPathDriftRetryV6Enabled = true;
@@ -1002,16 +1277,15 @@ End with a final section titled "Verification Evidence".`,
     fakeThis.pathDriftRecoverySignatureAttempts = Object.create(null);
     fakeThis.reliabilityAliasRecoveryRetryV5Enabled = false;
 
-    const recovered = await (TaskExecutor as Any).prototype.tryWorkspaceBoundaryRecovery.call(
-      fakeThis,
-      {
-        toolName: "read_file",
-        input: { path: "data/influencers.json" },
-        errorMessage: "Failed to read file: ENOENT: no such file or directory",
-        toolTimeoutMs: 1_000,
-        stepId: "s-v6-recover",
-      },
-    );
+    const recovered = await (
+      TaskExecutor as Any
+    ).prototype.tryWorkspaceBoundaryRecovery.call(fakeThis, {
+      toolName: "read_file",
+      input: { path: "data/influencers.json" },
+      errorMessage: "Failed to read file: ENOENT: no such file or directory",
+      toolTimeoutMs: 1_000,
+      stepId: "s-v6-recover",
+    });
 
     expect(recovered.recovered).toBe(true);
     expect(recovered.input?.path).toBe("influencer-chat/data/influencers.json");
@@ -1039,20 +1313,23 @@ End with a final section titled "Verification Evidence".`,
     fakeThis.pathDriftRecoverySignatureAttempts = Object.create(null);
     fakeThis.reliabilityAliasRecoveryRetryV5Enabled = false;
 
-    const recovered = await (TaskExecutor as Any).prototype.tryWorkspaceBoundaryRecovery.call(
-      fakeThis,
-      {
-        toolName: "read_file",
-        input: { path: "data/influencers.json" },
-        errorMessage: "Failed to read file: ENOENT: no such file or directory",
-        toolTimeoutMs: 1_000,
-        stepId: "s-v6-budget",
-      },
-    );
+    const recovered = await (
+      TaskExecutor as Any
+    ).prototype.tryWorkspaceBoundaryRecovery.call(fakeThis, {
+      toolName: "read_file",
+      input: { path: "data/influencers.json" },
+      errorMessage: "Failed to read file: ENOENT: no such file or directory",
+      toolTimeoutMs: 1_000,
+      stepId: "s-v6-budget",
+    });
 
     expect(recovered.recovered).toBe(false);
-    expect(String(recovered.failureHint || "")).toContain("Do not retry the same missing path");
-    expect(String(recovered.failureHint || "")).toContain("glob, list_directory, or search_files");
+    expect(String(recovered.failureHint || "")).toContain(
+      "Do not retry the same missing path",
+    );
+    expect(String(recovered.failureHint || "")).toContain(
+      "glob, list_directory, or search_files",
+    );
     expect(
       fakeThis.emitEvent.mock.calls.some(
         (call: Any[]) =>
@@ -1070,7 +1347,9 @@ End with a final section titled "Verification Evidence".`,
     fakeThis.taskPinnedRoot = "influencer-chat";
     fakeThis.taskPinnedRootSource = "plan";
 
-    const violation = (TaskExecutor as Any).prototype.detectStrictTaskRootPathViolationInInput.call(
+    const violation = (
+      TaskExecutor as Any
+    ).prototype.detectStrictTaskRootPathViolationInInput.call(
       fakeThis,
       "write_file",
       { path: "app/page.tsx", content: "x" },
@@ -1086,9 +1365,15 @@ End with a final section titled "Verification Evidence".`,
     fakeThis.maxPlanRevisions = 5;
     fakeThis.classifyRecoveryFailure = vi.fn(() => "local_runtime");
     fakeThis.isRecoveryPlanStep = vi.fn(() => false);
-    const step = { id: "s-recovery-boundary", description: "List files", kind: "primary" };
+    const step = {
+      id: "s-recovery-boundary",
+      description: "List files",
+      kind: "primary",
+    };
 
-    const shouldRecover = (TaskExecutor as Any).prototype.shouldAutoPlanRecovery.call(
+    const shouldRecover = (
+      TaskExecutor as Any
+    ).prototype.shouldAutoPlanRecovery.call(
       fakeThis,
       step,
       'Path is outside workspace boundary. Enable "Unrestricted File Access" or add allowed paths.',
@@ -1098,7 +1383,9 @@ End with a final section titled "Verification Evidence".`,
 
   it("still infers write_file for explicit draft-to-file steps", () => {
     const fakeThis: Any = Object.create((TaskExecutor as Any).prototype);
-    const requiredTools = (TaskExecutor as Any).prototype.extractRequiredToolsFromStepDescription.call(
+    const requiredTools = (
+      TaskExecutor as Any
+    ).prototype.extractRequiredToolsFromStepDescription.call(
       fakeThis,
       "Draft daily-ai-agent-trends-2026-03-03.md with sections and citations.",
     ) as Set<string>;

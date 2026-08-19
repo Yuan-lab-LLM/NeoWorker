@@ -8,7 +8,7 @@ import { generateEPUB } from "../epub-generator";
 import { generateLandingPage } from "../html-page-generator";
 
 function makeTempDir(): string {
-  const dir = path.join(os.tmpdir(), `cowork-docgen-${randomUUID()}`);
+  const dir = path.join(os.tmpdir(), `neoworker-docgen-${randomUUID()}`);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -20,7 +20,7 @@ describe("ebook and landing page generators", () => {
 
     const result = await generateEPUB(outputPath, {
       title: "Test Novel",
-      author: "CoWork OS",
+      author: "NeoWorker",
       chapters: [
         { title: "Chapter 1", content: "# One\nThis is chapter one." },
         { title: "Chapter 2", content: "# Two\nThis is chapter two." },
@@ -45,7 +45,7 @@ describe("ebook and landing page generators", () => {
       title: "Test Novel",
       subtitle: "A fiction project",
       description: "A short landing page for a story pipeline.",
-      author: "CoWork OS",
+      author: "NeoWorker",
       badge: "Novelist",
       callToAction: { label: "Read more", href: "#details" },
       sections: [{ title: "Overview", content: "This is a story project." }],

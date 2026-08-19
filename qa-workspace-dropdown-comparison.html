@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>最近文件夹弹层 · 设计对比</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 28px;
+        color: #121826;
+        background: #f4f5f7;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      h1 { margin: 0 0 20px; font-size: 20px; }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 22px;
+        align-items: start;
+      }
+      .card {
+        padding: 16px;
+        background: white;
+        border: 1px solid #dfe3e8;
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      }
+      .label {
+        margin-bottom: 12px;
+        color: #596273;
+        font-size: 13px;
+        font-weight: 650;
+      }
+      .frame {
+        height: 540px;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        overflow: hidden;
+        background: #fafafa;
+        border: 1px solid #eef0f3;
+        border-radius: 11px;
+      }
+      .source img { width: 100%; height: 100%; object-fit: contain; }
+      .implementation .frame { height: 260px; align-items: center; }
+      .implementation img { width: 100%; height: auto; }
+      .meta {
+        margin-top: 12px;
+        color: #6b7280;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>最近文件夹弹层 · 设计对比</h1>
+    <div class="grid">
+      <section class="card source">
+        <div class="label">设计基准（方案 1）</div>
+        <div class="frame"><img src="qa-workspace-dropdown-source.png" alt="设计基准" /></div>
+        <div class="meta">目标：Codex 风格的克制层级、清晰选中态、紧凑但可读的路径信息。</div>
+      </section>
+      <section class="card implementation">
+        <div class="label">当前实现（浏览器空数据状态）</div>
+        <div class="frame"><img src="qa-workspace-dropdown-implementation-focus.png" alt="当前实现" /></div>
+        <div class="meta">验证：宽度 356px、圆角 12px、实体白色背景、轻量阴影、42px 底部操作行。完整最近文件夹数据由 Electron 桥接提供。</div>
+      </section>
+    </div>
+  </body>
+</html>

@@ -24,11 +24,11 @@ describeWithSqlite("DatabaseManager temporal kg edge migration", () => {
   let previousUserDataDir: string | undefined;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-schema-kg-temporal-"));
-    previousUserDataDir = process.env.COWORK_USER_DATA_DIR;
-    process.env.COWORK_USER_DATA_DIR = tmpDir;
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-schema-kg-temporal-"));
+    previousUserDataDir = process.env.NEOWORKER_USER_DATA_DIR;
+    process.env.NEOWORKER_USER_DATA_DIR = tmpDir;
 
-    const dbPath = path.join(tmpDir, "cowork-os.db");
+    const dbPath = path.join(tmpDir, "neoworker.db");
     const db = new Database(dbPath);
     db.exec(`
       CREATE TABLE kg_edges (
@@ -50,9 +50,9 @@ describeWithSqlite("DatabaseManager temporal kg edge migration", () => {
 
   afterEach(() => {
     if (previousUserDataDir === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = previousUserDataDir;
+      process.env.NEOWORKER_USER_DATA_DIR = previousUserDataDir;
     }
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

@@ -73,7 +73,7 @@ export class MatrixAdapter implements ChannelAdapter {
     };
 
     // Set up attachments directory
-    this.attachmentsDir = path.join(os.tmpdir(), "cowork-matrix-attachments");
+    this.attachmentsDir = path.join(os.tmpdir(), "neoworker-matrix-attachments");
     if (!fs.existsSync(this.attachmentsDir)) {
       fs.mkdirSync(this.attachmentsDir, { recursive: true });
     }

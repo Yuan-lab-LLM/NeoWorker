@@ -25,7 +25,7 @@ vi.mock("fs/promises", async () => {
 });
 
 vi.mock("../utils/user-data-dir", () => ({
-  getUserDataDir: () => "/tmp/cowork-user-data",
+  getUserDataDir: () => "/tmp/neoworker-user-data",
 }));
 
 const originalPlatform = process.platform;

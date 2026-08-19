@@ -378,7 +378,7 @@ export class MemorySynthesizer {
     };
 
     const text = parts.length
-      ? `<cowork_hot_memory>\n${parts.join("\n")}\n</cowork_hot_memory>`
+      ? `<neoworker_hot_memory>\n${parts.join("\n")}\n</neoworker_hot_memory>`
       : "";
     return {
       text,
@@ -448,7 +448,7 @@ export class MemorySynthesizer {
     };
 
     const text = parts.length
-      ? `<cowork_structured_memory>\n${parts.join("\n")}\n</cowork_structured_memory>`
+      ? `<neoworker_structured_memory>\n${parts.join("\n")}\n</neoworker_structured_memory>`
       : "";
     return {
       text,
@@ -482,7 +482,7 @@ export class MemorySynthesizer {
       hints.push("- Use `memory_topics_load` when the task is topical and needs a focused L2 topic pack.");
     }
     return hints.length
-      ? `<cowork_recall_hints>\n## L2/L3 Recall Guidance\n${hints.join("\n")}\n</cowork_recall_hints>`
+      ? `<neoworker_recall_hints>\n## L2/L3 Recall Guidance\n${hints.join("\n")}\n</neoworker_recall_hints>`
       : "";
   }
 

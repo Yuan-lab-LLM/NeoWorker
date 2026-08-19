@@ -1,0 +1,3 @@
+import { n as e, t } from "./spray-can-CpQWhHAF-Cmn-F2xx.js";
+e();
+export { t as default };

@@ -153,16 +153,16 @@ interface DirectRunArgs {
 export async function main(argv = process.argv.slice(2)): Promise<number> {
   const args = parseDirectRunArgs(argv);
   if (args.command === "run" && !args.prompt) {
-    process.stderr.write('Usage: cowork-direct-run --prompt "task" [--cwd <path>]\n');
+    process.stderr.write('Usage: neoworker-direct-run --prompt "task" [--cwd <path>]\n');
     return 1;
   }
 
-  process.env.COWORK_HEADLESS = process.env.COWORK_HEADLESS || "1";
+  process.env.NEOWORKER_HEADLESS = process.env.NEOWORKER_HEADLESS || "1";
   const allowEnvImport = shouldImportEnvForCommand(args.command);
   if (allowEnvImport) {
-    process.env.COWORK_IMPORT_ENV_SETTINGS =
-      process.env.COWORK_IMPORT_ENV_SETTINGS ||
-      (hasProviderEnv() ? "1" : process.env.COWORK_IMPORT_ENV_SETTINGS || "");
+    process.env.NEOWORKER_IMPORT_ENV_SETTINGS =
+      process.env.NEOWORKER_IMPORT_ENV_SETTINGS ||
+      (hasProviderEnv() ? "1" : process.env.NEOWORKER_IMPORT_ENV_SETTINGS || "");
   }
 
   let daemon: AgentDaemon | null = null;
@@ -220,7 +220,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     }
     const cliRunId = randomUUID();
     const cliOwnership: CliTaskOwnership = {
-      owner: "cowork-run",
+      owner: "neoworker-run",
       runId: cliRunId,
       pid: process.pid,
       startedAt: Date.now(),
@@ -798,7 +798,7 @@ async function runLocalMetadataCommand(
         args,
         payload,
         [
-          `CoWork OS ${pkg.version}`,
+          `NeoWorker ${pkg.version}`,
           `Node ${process.versions.node}`,
           ...(process.versions.electron ? [`Electron ${process.versions.electron}`] : []),
           `${process.platform} ${process.arch}`,
@@ -827,7 +827,7 @@ async function runLocalMetadataCommand(
       return 0;
     }
     case "providers-configure": {
-      if (!args.providerType) throw new Error("Usage: cowork providers configure <provider> [--api-key <key>] [--model <model>] [--base-url <url>]");
+      if (!args.providerType) throw new Error("Usage: neoworker providers configure <provider> [--api-key <key>] [--model <model>] [--base-url <url>]");
       const result = configureLocalProvider(args);
       writeEvent(
         args,
@@ -874,7 +874,7 @@ async function runLocalMetadataCommand(
       return 0;
     }
     case "tail": {
-      if (!args.taskId) throw new Error("Usage: cowork tail <taskId> [--limit <n>]");
+      if (!args.taskId) throw new Error("Usage: neoworker tail <taskId> [--limit <n>]");
       const task = tasks.findById(args.taskId);
       if (!task) throw new Error(`Task not found: ${args.taskId}`);
       const events = taskEvents.findRecentByTaskId(args.taskId, args.limit || 200);
@@ -926,7 +926,7 @@ async function runLocalMetadataCommand(
         args,
         payload,
         [
-          "CoWork OS local status",
+          "NeoWorker local status",
           "- runtime: local direct runner",
           "- control plane: not required",
           `- provider: ${providerStatus.currentProvider} (${providerStatus.currentModel || "default model"})`,
@@ -1072,7 +1072,7 @@ async function exportSession(
 function renameSession(sessionRetention: SessionRetentionService, args: DirectRunArgs): number {
   const sessionId = requireSessionId(args);
   const name = (args.name || args.title || "").trim();
-  if (!name) throw new Error("Usage: cowork sessions rename <sessionId> <name>");
+  if (!name) throw new Error("Usage: neoworker sessions rename <sessionId> <name>");
   sessionRetention.renameSession(sessionId, name);
   writeEvent(args, { type: "session_renamed", sessionId, name }, `Renamed session ${sessionId} to "${name}".`);
   return 0;
@@ -1207,7 +1207,7 @@ function cancelCliTask(
   args: DirectRunArgs,
 ): number {
   const taskId = (args.taskId || args.name || args.prompt || "").trim();
-  if (!taskId) throw new Error("Usage: cowork tasks cancel <taskId>");
+  if (!taskId) throw new Error("Usage: neoworker tasks cancel <taskId>");
   const task = taskRepo.findById(taskId);
   if (!task) throw new Error(`Task not found: ${taskId}`);
   if (isTerminalTaskStatus(task.status)) {
@@ -1216,7 +1216,7 @@ function cancelCliTask(
   }
   if (!getCliOwnership(task)) {
     throw new Error(
-      "Local task cancellation is limited to CLI-owned tasks. Use `cowork tasks cancel <taskId> --remote` to cancel a task owned by the desktop app.",
+      "Local task cancellation is limited to CLI-owned tasks. Use `neoworker tasks cancel <taskId> --remote` to cancel a task owned by the desktop app.",
     );
   }
   terminateCliOwner(task);
@@ -1231,7 +1231,7 @@ async function attachCliTask(
   args: DirectRunArgs,
 ): Promise<number> {
   const taskId = (args.taskId || args.name || args.prompt || "").trim();
-  if (!taskId) throw new Error("Usage: cowork tasks attach <taskId>");
+  if (!taskId) throw new Error("Usage: neoworker tasks attach <taskId>");
   const task = taskRepo.findById(taskId);
   if (!task) throw new Error(`Task not found: ${taskId}`);
   const seen = new Set<string>();
@@ -1283,7 +1283,7 @@ function cleanupStaleCliTasks(
   args: DirectRunArgs,
 ): number {
   if (!args.interruptedCli) {
-    throw new Error("Usage: cowork tasks cleanup --interrupted-cli --yes");
+    throw new Error("Usage: neoworker tasks cleanup --interrupted-cli --yes");
   }
   const rows = findStaleCliTasks(taskRepo, args.limit || 1000);
   if (!args.yes) {
@@ -1323,7 +1323,7 @@ async function logsCommand(args: DirectRunArgs): Promise<number> {
   let lines = text.split(/\r?\n/).filter(Boolean);
   if (args.command === "logs-grep") {
     const query = (args.query || args.prompt || "").trim();
-    if (!query) throw new Error("Usage: cowork logs grep <query>");
+    if (!query) throw new Error("Usage: neoworker logs grep <query>");
     lines = lines.filter((line) => line.toLowerCase().includes(query.toLowerCase()));
   }
   const tail = lines.slice(-limit);
@@ -1350,7 +1350,7 @@ function toolsCommand(args: DirectRunArgs): number {
     return 0;
   }
   const target = args.category || args.tool || args.name || args.prompt;
-  if (!target) throw new Error("Usage: cowork tools info|enable|disable <category-or-tool>");
+  if (!target) throw new Error("Usage: neoworker tools info|enable|disable <category-or-tool>");
   const categories = settings.categories as Any;
   const isCategory = Boolean(categories[target]);
   if (args.command === "tools-info") {
@@ -1395,7 +1395,7 @@ function mcpSettingsCommand(args: DirectRunArgs): number {
   }
   if (args.command === "mcp-add") {
     const name = (args.name || "").trim();
-    if (!name) throw new Error("Usage: cowork mcp add --name <name> (--command <cmd> | --url <url>)");
+    if (!name) throw new Error("Usage: neoworker mcp add --name <name> (--command <cmd> | --url <url>)");
     const transport = normalizeMcpTransport(args.transport || (args.url ? "streamable-http" : "stdio"));
     const commandParts = args.commandLine ? splitCommandLine(args.commandLine) : [];
     if (transport === "stdio" && commandParts.length === 0) throw new Error("stdio MCP servers require --command.");
@@ -1412,7 +1412,7 @@ function mcpSettingsCommand(args: DirectRunArgs): number {
     return 0;
   }
   const id = args.name || args.prompt || "";
-  if (!id) throw new Error("Usage: cowork mcp remove|enable|disable <serverId>");
+  if (!id) throw new Error("Usage: neoworker mcp remove|enable|disable <serverId>");
   if (args.command === "mcp-remove") {
     const removed = MCPSettingsManager.removeServer(id);
     writeEvent(args, { type: "mcp_server_removed", id, removed }, removed ? `Removed MCP server ${id}.` : `MCP server not found: ${id}.`);
@@ -1459,7 +1459,7 @@ async function skillsCommand(skillRepo: SkillRepository, args: DirectRunArgs): P
   }
   if (args.command === "skills-info") {
     const query = (args.name || args.prompt || "").toLowerCase();
-    if (!query) throw new Error("Usage: cowork skills info <skillId-or-name>");
+    if (!query) throw new Error("Usage: neoworker skills info <skillId-or-name>");
     const skill = skills.find((candidate) => candidate.id === query || candidate.name.toLowerCase() === query || candidate.name.toLowerCase().includes(query));
     if (!skill) throw new Error(`Skill not found: ${query}`);
     writeEvent(args, { type: "skill", skill }, JSON.stringify(skill, null, 2));
@@ -1507,7 +1507,7 @@ function providerFallbackCommand(args: DirectRunArgs): number {
     return 0;
   }
   if (args.command === "providers-fallback-add") {
-    if (!args.providerType) throw new Error("Usage: cowork providers fallback add <provider> [--model <model>]");
+    if (!args.providerType) throw new Error("Usage: neoworker providers fallback add <provider> [--model <model>]");
     const next = [...fallbacks, { providerType: normalizeProviderType(args.providerType), ...(args.model ? { modelKey: args.model } : {}) }];
     settings.fallbackProviders = next;
     LLMProviderFactory.saveSettings(settings as ReturnType<typeof LLMProviderFactory.loadSettings>);
@@ -1515,7 +1515,7 @@ function providerFallbackCommand(args: DirectRunArgs): number {
     return 0;
   }
   const provider = normalizeProviderType(args.providerType || args.name || args.prompt || "");
-  if (!provider) throw new Error("Usage: cowork providers fallback remove <provider>");
+  if (!provider) throw new Error("Usage: neoworker providers fallback remove <provider>");
   const next = fallbacks.filter((fallback: Any) => fallback.providerType !== provider);
   settings.fallbackProviders = next;
   LLMProviderFactory.saveSettings(settings as ReturnType<typeof LLMProviderFactory.loadSettings>);
@@ -1529,7 +1529,7 @@ async function createBackup(dbManager: DatabaseManager, args: DirectRunArgs): Pr
   }
   const db = dbManager.getDatabase();
   const payload = {
-    type: "cowork_backup",
+    type: "neoworker_backup",
     version: (await readPackageInfo()).version,
     exportedAt: new Date().toISOString(),
     includeSecrets: Boolean(args.includeSecrets),
@@ -1543,7 +1543,7 @@ async function createBackup(dbManager: DatabaseManager, args: DirectRunArgs): Pr
     mcp: sanitizeMcpForBackup(args.includeSecrets ? MCPSettingsManager.loadSettings() : MCPSettingsManager.getSettingsForDisplay(), Boolean(args.includeSecrets)),
     skills: new SkillRepository(db).findAll(),
   };
-  const output = args.output || path.resolve(process.cwd(), `cowork-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
+  const output = args.output || path.resolve(process.cwd(), `neoworker-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
   await fs.writeFile(path.resolve(output), JSON.stringify(payload, null, 2));
   writeEvent(args, { type: "backup_created", output: path.resolve(output) }, `Created backup: ${path.resolve(output)}`);
   return 0;
@@ -1551,9 +1551,9 @@ async function createBackup(dbManager: DatabaseManager, args: DirectRunArgs): Pr
 
 async function restoreBackup(args: DirectRunArgs): Promise<number> {
   const input = args.output || args.prompt;
-  if (!input) throw new Error("Usage: cowork backup restore <backup.json> [--dry-run] [--yes]");
+  if (!input) throw new Error("Usage: neoworker backup restore <backup.json> [--dry-run] [--yes]");
   const parsed = JSON.parse(await fs.readFile(path.resolve(input), "utf8")) as Any;
-  if (parsed.type !== "cowork_backup") throw new Error("Not a CoWork backup file.");
+  if (parsed.type !== "neoworker_backup") throw new Error("Not a NeoWorker backup file.");
   const summary = {
     workspaces: Array.isArray(parsed.workspaces) ? parsed.workspaces.length : 0,
     tasks: Array.isArray(parsed.tasks) ? parsed.tasks.length : 0,
@@ -1616,7 +1616,7 @@ function securityRulesListCommand(db: Database.Database, args: DirectRunArgs): n
 
 function securityRulesRemoveCommand(db: Database.Database, args: DirectRunArgs): number {
   const id = args.ruleId || args.name || args.prompt || "";
-  if (!id) throw new Error("Usage: cowork security rules remove <ruleId> --yes");
+  if (!id) throw new Error("Usage: neoworker security rules remove <ruleId> --yes");
   if (!args.yes) {
     writeEvent(args, { type: "security_rule_remove_preview", id, requiresYes: true }, `Re-run with --yes to remove permission rule ${id}.`);
     return 1;
@@ -1629,7 +1629,7 @@ function securityRulesRemoveCommand(db: Database.Database, args: DirectRunArgs):
 
 function promptCommand(args: DirectRunArgs): number {
   const text = args.prompt || "";
-  if (!text) throw new Error(`Usage: cowork ${args.command === "prompt-size" ? "prompt-size" : "prompt-preview"} <prompt text>`);
+  if (!text) throw new Error(`Usage: neoworker ${args.command === "prompt-size" ? "prompt-size" : "prompt-preview"} <prompt text>`);
   const chars = text.length;
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   const estimatedTokens = Math.max(1, Math.ceil(chars / 4));
@@ -1771,7 +1771,7 @@ function shouldImportEnvForCommand(command: DirectRunArgs["command"]): boolean {
 
 function getCliOwnership(task: Task | undefined | null): CliTaskOwnership | undefined {
   const cli = task?.agentConfig?.cli;
-  if (!cli || cli.owner !== "cowork-run" || typeof cli.runId !== "string") return undefined;
+  if (!cli || cli.owner !== "neoworker-run" || typeof cli.runId !== "string") return undefined;
   return cli;
 }
 
@@ -1959,9 +1959,9 @@ async function readPackageInfo(): Promise<{ name: string; version: string }> {
   const root = await findPackageRoot();
   try {
     const pkg = JSON.parse(await fs.readFile(path.join(root, "package.json"), "utf8")) as { name?: string; version?: string };
-    return { name: pkg.name || "cowork-os", version: pkg.version || "dev" };
+    return { name: pkg.name || "neoworker", version: pkg.version || "dev" };
   } catch {
-    return { name: "cowork-os", version: "dev" };
+    return { name: "neoworker", version: "dev" };
   }
 }
 
@@ -1975,7 +1975,7 @@ async function findPackageRoot(): Promise<string> {
     try {
       const text = await fs.readFile(path.join(candidate, "package.json"), "utf8");
       const pkg = JSON.parse(text) as { name?: string };
-      if (pkg.name === "cowork-os" || pkg.name === "@cowork/os") return candidate;
+      if (pkg.name === "neoworker" || pkg.name === "@neoworker/os") return candidate;
     } catch {
       // Try the next layout.
     }
@@ -2116,7 +2116,7 @@ async function readOnlySkillStatus(args: DirectRunArgs): Promise<{
   const dirs = [
     { source: "bundled" as const, dir: path.join(root, "resources", "skills") },
     { source: "managed" as const, dir: path.join(getUserDataDir(), "skills") },
-    { source: "workspace" as const, dir: path.join(path.resolve(args.cwd), ".cowork", "skills") },
+    { source: "workspace" as const, dir: path.join(path.resolve(args.cwd), ".neoworker", "skills") },
   ];
   const byId = new Map<string, CliSkillEntry>();
   for (const entry of dirs) {
@@ -2302,7 +2302,7 @@ function formatDoctor(payload: Record<string, unknown>): string {
     ? payload.configuredProviders as Array<{ name?: string; type?: string }>
     : [];
   return [
-    "CoWork CLI doctor",
+    "NeoWorker CLI doctor",
     "- runtime: local direct runner",
     "- control plane: not required for local CLI",
     `- cwd: ${payload.cwd || process.cwd()}`,
@@ -2402,14 +2402,14 @@ function hasProviderEnv(): boolean {
 
 function formatError(error: unknown): string {
   if (!(error instanceof Error)) return String(error);
-  if (process.env.COWORK_CLI_DEBUG === "1" || process.env.COWORK_CLI_DEBUG === "true") {
+  if (process.env.NEOWORKER_CLI_DEBUG === "1" || process.env.NEOWORKER_CLI_DEBUG === "true") {
     return error.stack || error.message;
   }
   return error.message;
 }
 
 function installCliLogFilter(): () => void {
-  if (process.env.COWORK_CLI_DEBUG === "1" || process.env.COWORK_CLI_DEBUG === "true") {
+  if (process.env.NEOWORKER_CLI_DEBUG === "1" || process.env.NEOWORKER_CLI_DEBUG === "true") {
     return () => {};
   }
 

@@ -55,6 +55,12 @@ describe("executor-loop-utils guardrails", () => {
     expect(messages.length).toBe(2);
     expect(messages[0].role).toBe("assistant");
     expect(messages[1].role).toBe("user");
+    expect(String((messages[1].content as Any[])[0]?.text || "")).toContain(
+      "Continue exactly from the cutoff",
+    );
+    expect(String((messages[1].content as Any[])[0]?.text || "")).toContain(
+      "below 6000 characters",
+    );
   });
 
   it("treats unavailable tools with explicit alternatives as recoverable", () => {

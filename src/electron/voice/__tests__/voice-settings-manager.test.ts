@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const ORIGINAL_COWORK_USER_DATA_DIR = process.env.COWORK_USER_DATA_DIR;
+const ORIGINAL_NEOWORKER_USER_DATA_DIR = process.env.NEOWORKER_USER_DATA_DIR;
 
 // Define mock functions at module scope before imports
 const mockRepositorySave = vi.fn();
@@ -96,7 +96,7 @@ const mockDb = {
 
 describe("VoiceSettingsManager", () => {
   beforeEach(() => {
-    process.env.COWORK_USER_DATA_DIR = "/mock/user/data";
+    process.env.NEOWORKER_USER_DATA_DIR = "/mock/user/data";
 
     vi.clearAllMocks();
     // Reset cached settings and repository
@@ -112,10 +112,10 @@ describe("VoiceSettingsManager", () => {
   });
 
   afterEach(() => {
-    if (ORIGINAL_COWORK_USER_DATA_DIR === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+    if (ORIGINAL_NEOWORKER_USER_DATA_DIR === undefined) {
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = ORIGINAL_COWORK_USER_DATA_DIR;
+      process.env.NEOWORKER_USER_DATA_DIR = ORIGINAL_NEOWORKER_USER_DATA_DIR;
     }
     vi.clearAllMocks();
   });

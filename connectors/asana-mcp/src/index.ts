@@ -179,7 +179,7 @@ class AsanaClient {
       headers: {
         Authorization: this.getAuthHeader(),
         'Content-Type': 'application/json',
-        'User-Agent': 'CoWork-Asana-Connector/0.1.0',
+        'User-Agent': 'NeoWorker-Asana-Connector/0.1.0',
       },
       body: body ? JSON.stringify(body) : undefined,
     });

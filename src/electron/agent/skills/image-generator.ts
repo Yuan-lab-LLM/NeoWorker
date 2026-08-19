@@ -34,6 +34,7 @@ export type ImageModel =
  * Image size options
  */
 export type ImageSize = "1K" | "2K";
+export type ImageAspectRatio = "1:1" | "16:9" | "4:3" | "9:16";
 type OpenAIImageSize = "auto" | "1024x1024" | "1024x1536" | "1536x1024";
 
 /**
@@ -54,6 +55,7 @@ export interface ImageGenerationRequest {
   model?: ImageModel;
   filename?: string;
   imageSize?: ImageSize;
+  aspectRatio?: ImageAspectRatio;
   numberOfImages?: number;
   /** Internal cancellation signal from the task executor. */
   signal?: AbortSignal;
@@ -714,6 +716,7 @@ export class ImageGenerator {
     const modelOverride = typeof request.model === "string" ? request.model : undefined;
     const filename = request.filename;
     const imageSize = request.imageSize || "1K";
+    const aspectRatio = request.aspectRatio;
     const numberOfImages = request.numberOfImages || 1;
     const signal = request.signal;
     const onProgress = request.onProgress;
@@ -817,6 +820,7 @@ export class ImageGenerator {
               prompt,
               filename,
               imageSize,
+              aspectRatio,
               numberOfImages,
               signal: attemptSignal,
             }),
@@ -857,6 +861,7 @@ export class ImageGenerator {
               prompt,
               filename,
               imageSize,
+              aspectRatio,
               numberOfImages,
               signal: attemptSignal,
             }),
@@ -906,6 +911,7 @@ export class ImageGenerator {
               prompt,
               filename,
               imageSize,
+              aspectRatio,
               numberOfImages,
               signal: attemptSignal,
             }),
@@ -974,6 +980,7 @@ export class ImageGenerator {
                 prompt,
                 filename,
                 imageSize,
+                aspectRatio,
                 numberOfImages,
                 signal: attemptSignal,
               }),
@@ -1055,6 +1062,7 @@ export class ImageGenerator {
               prompt,
               filename,
               imageSize,
+              aspectRatio,
               numberOfImages,
               signal: attemptSignal,
             }),
@@ -1132,9 +1140,18 @@ export class ImageGenerator {
     ];
   }
 
-  private mapOpenAIImageSize(size: ImageSize): OpenAIImageSize {
+  private mapOpenAIImageSize(
+    size: ImageSize,
+    aspectRatio?: ImageAspectRatio,
+    model?: string,
+  ): OpenAIImageSize {
     // OpenAI image models support "auto" and a fixed set of sizes depending on model.
-    // Use conservative defaults; "2K" maps to auto (larger output when supported).
+    // DALL-E deployments are less consistent than GPT Image, so keep them square.
+    if (String(model || "").toLowerCase().startsWith("dall-e-")) return "1024x1024";
+    if (aspectRatio === "9:16") return "1024x1536";
+    if (aspectRatio === "16:9" || aspectRatio === "4:3") return "1536x1024";
+    if (aspectRatio === "1:1") return "1024x1024";
+    // Use conservative defaults; "2K" maps to auto when no ratio was requested.
     if (size === "2K") return "auto";
     return "1024x1024";
   }
@@ -1145,6 +1162,7 @@ export class ImageGenerator {
     prompt: string;
     filename?: string;
     imageSize: ImageSize;
+    aspectRatio?: ImageAspectRatio;
     numberOfImages: number;
     signal?: AbortSignal;
   }): Promise<ImageGenerationResult> {
@@ -1171,7 +1189,10 @@ export class ImageGenerator {
             contents: [{ role: "user", parts: [{ text: args.prompt }] }],
             generationConfig: {
               responseModalities: ["IMAGE", "TEXT"],
-              imageConfig: { imageSize: args.imageSize },
+              imageConfig: {
+                imageSize: args.imageSize,
+                ...(args.aspectRatio ? { aspectRatio: args.aspectRatio } : {}),
+              },
             },
           }),
         });
@@ -1269,12 +1290,13 @@ export class ImageGenerator {
     prompt: string;
     filename?: string;
     imageSize: ImageSize;
+    aspectRatio?: ImageAspectRatio;
     numberOfImages: number;
     signal?: AbortSignal;
   }): Promise<ImageGenerationResult> {
     const baseFilename = args.filename || `generated_${Date.now()}`;
     const outputDir = this.workspace.path;
-    const size = this.mapOpenAIImageSize(args.imageSize);
+    const size = this.mapOpenAIImageSize(args.imageSize, args.aspectRatio, args.model);
 
     try {
       console.log(`[ImageGenerator] Generating image with openai (${args.model})`);
@@ -1389,12 +1411,13 @@ export class ImageGenerator {
     prompt: string;
     filename?: string;
     imageSize: ImageSize;
+    aspectRatio?: ImageAspectRatio;
     numberOfImages: number;
     signal?: AbortSignal;
   }): Promise<ImageGenerationResult> {
     const baseFilename = args.filename || `generated_${Date.now()}`;
     const outputDir = this.workspace.path;
-    const size = this.mapOpenAIImageSize(args.imageSize);
+    const size = this.mapOpenAIImageSize(args.imageSize, args.aspectRatio, args.model);
     const writtenPaths: string[] = [];
     const cleanupWrittenImages = async () => {
       await Promise.all(
@@ -1413,7 +1436,7 @@ export class ImageGenerator {
         defaultHeaders: {
           "chatgpt-account-id": accountId,
           "OpenAI-Beta": "responses=experimental",
-          originator: "cowork-os",
+          originator: "neoworker",
         },
       });
 
@@ -1522,12 +1545,13 @@ export class ImageGenerator {
     prompt: string;
     filename?: string;
     imageSize: ImageSize;
+    aspectRatio?: ImageAspectRatio;
     numberOfImages: number;
     signal?: AbortSignal;
   }): Promise<ImageGenerationResult> {
     const baseFilename = args.filename || `generated_${Date.now()}`;
     const outputDir = this.workspace.path;
-    const size = this.mapOpenAIImageSize(args.imageSize);
+    const size = this.mapOpenAIImageSize(args.imageSize, args.aspectRatio, args.deployment);
     const endpoint = normalizeAzureImageBaseEndpoint(args.endpoint);
     const deployment = encodeURIComponent(args.deployment);
     const apiVersion = encodeURIComponent(args.apiVersion);
@@ -1655,6 +1679,7 @@ export class ImageGenerator {
     prompt: string;
     filename?: string;
     imageSize: ImageSize;
+    aspectRatio?: ImageAspectRatio;
     numberOfImages: number;
     signal?: AbortSignal;
   }): Promise<ImageGenerationResult> {
@@ -1669,7 +1694,10 @@ export class ImageGenerator {
         model: args.model,
         messages: [{ role: "user", content: args.prompt }],
         modalities: ["image", "text"],
-        image_config: { image_size: args.imageSize },
+        image_config: {
+          image_size: args.imageSize,
+          ...(args.aspectRatio ? { aspect_ratio: args.aspectRatio } : {}),
+        },
       };
 
       throwIfImageGenerationAborted(args.signal);

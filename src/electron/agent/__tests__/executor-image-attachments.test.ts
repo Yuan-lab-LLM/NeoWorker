@@ -108,12 +108,12 @@ describe("TaskExecutor image attachment routing", () => {
     executor.emitEvent = vi.fn();
 
     const video = {
-      filePath: "/workspace/.cowork/uploads/clip.mp4",
+      filePath: "/workspace/.neoworker/uploads/clip.mp4",
       mimeType: "video/mp4",
       filename: "clip.mp4",
       sizeBytes: 1024,
-      videoContactSheetPath: "/workspace/.cowork/video-frames/clip/contact_sheet.jpg",
-      videoFramePaths: ["/workspace/.cowork/video-frames/clip/frame_001.jpg"],
+      videoContactSheetPath: "/workspace/.neoworker/video-frames/clip/contact_sheet.jpg",
+      videoFramePaths: ["/workspace/.neoworker/video-frames/clip/frame_001.jpg"],
     };
 
     executor.emitVideoPreviewArtifacts(video, "clip.mp4");
@@ -121,14 +121,14 @@ describe("TaskExecutor image attachment routing", () => {
 
     expect(executor.emitEvent).toHaveBeenCalledTimes(2);
     expect(executor.emitEvent).toHaveBeenNthCalledWith(1, "artifact_created", {
-      path: ".cowork/video-frames/clip/contact_sheet.jpg",
+      path: ".neoworker/video-frames/clip/contact_sheet.jpg",
       mimeType: "image/jpeg",
       type: "image",
       label: "Video contact sheet: clip.mp4",
       source: "video_attachment",
     });
     expect(executor.emitEvent).toHaveBeenNthCalledWith(2, "artifact_created", {
-      path: ".cowork/video-frames/clip/frame_001.jpg",
+      path: ".neoworker/video-frames/clip/frame_001.jpg",
       mimeType: "image/jpeg",
       type: "image",
       label: "Video representative frame: clip.mp4",

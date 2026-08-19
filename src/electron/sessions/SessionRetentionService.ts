@@ -10,6 +10,8 @@ import {
 
 type Any = Record<string, any>;
 
+export const TASK_TRASH_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
 export interface TaskSessionSummary {
   id: string;
   title: string;
@@ -95,6 +97,29 @@ export class SessionRetentionService {
     }
     return {
       metadata: this.metadataRepo.archive(sessionId),
+      taskCount: rows.length,
+    };
+  }
+
+  unarchiveSession(
+    sessionId: string,
+    now = Date.now(),
+  ): { metadata: TaskSessionMetadata; taskCount: number } {
+    const rows = this.tasksForSession(sessionId, 10000);
+    if (rows.length === 0) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    const metadata = this.metadataRepo.findBySessionIds([sessionId]).get(sessionId);
+    if (!metadata?.archivedAt) {
+      throw new Error(`Session is not archived: ${sessionId}`);
+    }
+    if (now - metadata.archivedAt > TASK_TRASH_RETENTION_MS) {
+      throw new Error(`Session restore window expired: ${sessionId}`);
+    }
+
+    return {
+      metadata: this.metadataRepo.unarchive(sessionId),
       taskCount: rows.length,
     };
   }

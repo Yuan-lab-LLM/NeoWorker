@@ -1,6 +1,6 @@
 # Browser V2 Architecture
 
-Browser V2 is CoWork OS's unified browser integration for agent work. It replaces the old split model of renderer-side webview scripts plus a separate Playwright fallback with one browser session layer, one tool contract, and one visible default surface.
+Browser V2 is NeoWorker's unified browser integration for agent work. It replaces the old split model of renderer-side webview scripts plus a separate Playwright fallback with one browser session layer, one tool contract, and one visible default surface.
 
 The product goal is simple: when the agent works on the web, the user should see and trust the same browser state the agent is using. Background/headless browsers and real signed-in Chrome/Edge control remain available, but they are explicit fallback modes rather than the normal path.
 
@@ -185,7 +185,7 @@ CSS selectors remain valid for old prompts and tools. New browser prompts should
 
 ## UI Contract
 
-The Browser Workbench is the default visible surface for Browser V2. It should feel like a compact real browser inside CoWork OS, not a debug preview.
+The Browser Workbench is the default visible surface for Browser V2. It should feel like a compact real browser inside NeoWorker, not a debug preview.
 
 Required visible controls:
 

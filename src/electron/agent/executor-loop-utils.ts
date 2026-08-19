@@ -124,13 +124,13 @@ export function appendMaxTokensRecoveryUserMessage(messages: LLMMessage[]): void
       {
         type: "text",
         text:
-          "Your response was cut off because it exceeded the output token limit. " +
-          "You MUST reduce the size of your next response. Strategies:\n" +
-          "1. If writing a file, split the content across MULTIPLE write_file calls " +
-          "(e.g., write the first half now, then the second half in the next turn).\n" +
-          "2. Reduce parallel tool calls to only what is necessary (use serial calls when output pressure is high).\n" +
-          "3. Write shorter, more concise content.\n" +
-          "Continue from where you left off.",
+          "The previous response has been preserved but was cut off by NeoWorker's per-turn output budget. " +
+          "Continue exactly from the cutoff. Do not restart, repeat, or rewrite completed sections.\n" +
+          "1. If producing a large file, keep the existing skeleton and add only the next bounded section. " +
+          "Use multiple write/edit calls with text-bearing arguments below 6000 characters.\n" +
+          "2. Use one necessary tool call at a time when output pressure is high.\n" +
+          "3. For Office files, continue through the dedicated Office artifact workflow; never replace PPTX/DOCX/XLSX with HTML.\n" +
+          "4. Verify the final file exists and opens before claiming completion.",
       },
     ],
   });
@@ -165,6 +165,10 @@ export function handleMaxTokensRecovery(opts: {
   opts.emitMaxTokensRecovery({
     attempt: nextRecoveryCount,
     maxAttempts: opts.maxRecoveries,
+    message:
+      nextRecoveryCount <= opts.maxRecoveries
+        ? "已达到 NeoWorker 本轮输出预算，已有内容已保留，正在从中断位置继续。"
+        : "已达到 NeoWorker 本轮输出预算，自动续写次数已用完。",
     ...opts.eventPayload,
   });
 

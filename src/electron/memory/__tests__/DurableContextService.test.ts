@@ -71,7 +71,7 @@ describeWithNativeDb("DurableContextService", () => {
         { role: "user", content: "Remember the alpha migration constraint." },
         {
           role: "assistant",
-          content: "<cowork_recall_hints>\nUse search_memories.\n</cowork_recall_hints>",
+          content: "<neoworker_recall_hints>\nUse search_memories.\n</neoworker_recall_hints>",
         },
         { role: "assistant", content: "We chose the beta rollout path." },
       ],
@@ -89,7 +89,7 @@ describeWithNativeDb("DurableContextService", () => {
     const injectedHits = DurableContextService.search({
       workspaceId: "ws-1",
       taskId: "task-1",
-      query: "cowork_recall_hints",
+      query: "neoworker_recall_hints",
     });
     expect(injectedHits).toHaveLength(0);
   });
@@ -213,7 +213,7 @@ describeWithNativeDb("DurableContextService", () => {
         { role: "assistant", content: "The key tradeoff was retrieval precision." },
       ],
       summaryBlock:
-        "<cowork_compaction_summary>\nSummary-only marker: build a source-linked tree index.\n</cowork_compaction_summary>",
+        "<neoworker_compaction_summary>\nSummary-only marker: build a source-linked tree index.\n</neoworker_compaction_summary>",
       contextLabel: "test compaction",
     });
 
@@ -234,7 +234,7 @@ describeWithNativeDb("DurableContextService", () => {
     });
     expect(described?.kind).toBe("summary");
     expect(described?.text).toContain("source-linked tree index");
-    expect(described?.text).not.toContain("cowork_compaction_summary");
+    expect(described?.text).not.toContain("neoworker_compaction_summary");
     expect(described?.sourceMessages).toHaveLength(2);
     expect(described?.sourceMessages?.[0]?.text).toContain("old workspace search");
   });

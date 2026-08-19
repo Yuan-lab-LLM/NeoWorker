@@ -1,6 +1,6 @@
 # Skills Runtime Model
 
-CoWork OS now uses an additive skill model. Skills can still be selected proactively from the task text, but they no longer replace the task itself.
+NeoWorker now uses an additive skill model. Skills can still be selected proactively from the task text, but they no longer replace the task itself.
 
 This redesign exists to enforce one core invariant:
 
@@ -26,7 +26,7 @@ The canonical prompt is resolved in one order everywhere:
 2. `userPrompt`
 3. `prompt`
 
-For newly created tasks, the repository normalizes these fields so `rawPrompt` is always present. If a caller only provides `prompt`, CoWork persists that value into `rawPrompt` and safely defaults `userPrompt` as well.
+For newly created tasks, the repository normalizes these fields so `rawPrompt` is always present. If a caller only provides `prompt`, NeoWorker persists that value into `rawPrompt` and safely defaults `userPrompt` as well.
 
 This matters because the executor, planner, safety checks, and UI now all read the same canonical task text instead of mixing decorated prompt variants.
 
@@ -135,7 +135,7 @@ Natural-language skill routing is still proactive, but it is now shortlist-based
 
 ### What Still Happens Automatically
 
-- CoWork ranks relevant skills for the canonical task intent
+- NeoWorker ranks relevant skills for the canonical task intent
 - the planner sees concise relevant-skill hints
 - the model can decide to call `use_skill`
 - explicit mentions like "use the frontend skill" can boost or pin a skill in that shortlist
@@ -187,7 +187,7 @@ The main message box now has one `/` picker for both deterministic app commands 
 
 Plugin aliases are resolved before direct skill IDs when an enabled alias and a direct skill share the same visible token. This keeps backend execution aligned with the picker display. If an alias target is missing or disabled, the resolver can fall back to an enabled direct skill ID.
 
-See [Message Box Shortcuts](message-box-shortcuts.md) for picker ordering, app command behavior, plugin alias resolution, and the bundled CoWork Shortcuts pack. See [Claude-for-Legal Workflows](claude-for-legal.md) for the legal pack extension that can show main-view matter intake cards after a legal slash workflow starts.
+See [Message Box Shortcuts](message-box-shortcuts.md) for picker ordering, app command behavior, plugin alias resolution, and the bundled NeoWorker Shortcuts pack. See [Claude-for-Legal Workflows](claude-for-legal.md) for the legal pack extension that can show main-view matter intake cards after a legal slash workflow starts.
 
 Gateway channels use the same additive skill execution model when a user sends `/<skill-slug> args`. The remote command registry handles command ownership first, `/skill <id>` remains the toggle command, and enabled skill slugs are forwarded as deterministic skill invocations rather than ordinary chat text. See [Gateway Message Lifecycle](gateway-message-lifecycle.md).
 
@@ -232,7 +232,7 @@ Important events:
 
 These events exist to answer two operator questions:
 
-- why did CoWork think a skill was relevant?
+- why did NeoWorker think a skill was relevant?
 - what skill context was actually applied to the task?
 
 They intentionally avoid inventing a second synthetic "task definition" in logs.
@@ -248,7 +248,7 @@ Bundled skills, managed installs, ClawHub imports, Git-based installs, read-only
 
 The additive contract is runtime-wide, not limited to bundled skills.
 
-Directory-backed plugin-pack skills are declared with `skillDirectories` in `cowork.plugin.json`. They load `SKILL.md` plus relative support files from the pack directory, but once registered they are invoked the same way as other skills. The Codex Security pack uses this path so its scan workflows can keep their shared references, scripts, assets, and agent configuration together.
+Directory-backed plugin-pack skills are declared with `skillDirectories` in `neoworker.plugin.json`. They load `SKILL.md` plus relative support files from the pack directory, but once registered they are invoked the same way as other skills. The Codex Security pack uses this path so its scan workflows can keep their shared references, scripts, assets, and agent configuration together.
 
 ## Migration Notes
 

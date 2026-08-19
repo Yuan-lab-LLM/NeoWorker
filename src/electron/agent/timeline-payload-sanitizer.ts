@@ -84,7 +84,7 @@ function safeStringify(value: unknown): string {
     return JSON.stringify(value);
   } catch {
     return JSON.stringify({
-      __coworkPayloadTruncated: true,
+      __neoworkerPayloadTruncated: true,
       reason: "payload could not be serialized for timeline storage",
     });
   }
@@ -120,7 +120,7 @@ function buildRetainedSummary(
       SUMMARY_FIELD_NAMES.has(key) ||
       key.endsWith("Omitted") ||
       key.endsWith("OriginalChars") ||
-      key.startsWith("__cowork");
+      key.startsWith("__neoworker");
     if (!shouldRetain) continue;
 
     const scalar = summarizeScalar(child);
@@ -157,7 +157,7 @@ function enforcePayloadByteLimit(value: unknown, maxBytes: number): unknown {
   const retained = buildRetainedSummary(value);
   const compact = {
     ...retained,
-    __coworkPayloadTruncated: true,
+    __neoworkerPayloadTruncated: true,
     originalPayloadBytes: bytes,
     maxPayloadBytes: maxBytes,
     preview: serialized.slice(0, MAX_TIMELINE_PAYLOAD_PREVIEW_CHARS),
@@ -166,7 +166,7 @@ function enforcePayloadByteLimit(value: unknown, maxBytes: number): unknown {
   if (serializedBytes(compact) <= maxBytes) return compact;
 
   return {
-    __coworkPayloadTruncated: true,
+    __neoworkerPayloadTruncated: true,
     originalPayloadBytes: bytes,
     maxPayloadBytes: maxBytes,
     preview: serialized.slice(0, 1000),
@@ -271,7 +271,7 @@ function sanitizeValue(
       sanitized[entryKey] = sanitizedValue;
     }
     if (entries.length > MAX_TIMELINE_OBJECT_KEYS) {
-      sanitized.__coworkOmittedKeys = entries.length - MAX_TIMELINE_OBJECT_KEYS;
+      sanitized.__neoworkerOmittedKeys = entries.length - MAX_TIMELINE_OBJECT_KEYS;
     }
     return sanitized;
   } finally {

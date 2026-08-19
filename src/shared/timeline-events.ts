@@ -1,5 +1,5 @@
 /**
- * Semantic timeline event model for the CoWork OS UI layer.
+ * Semantic timeline event model for the NeoWorker UI layer.
  *
  * These types represent the *presentation* model produced by the timeline
  * normalizer. They are derived from raw task_events on read and are never

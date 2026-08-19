@@ -1,10 +1,10 @@
 # ACP / acpx Integration Guide
 
-How to integrate an OpenClaw + acpx-style coding agent stack into Cowork OS.
+How to integrate an OpenClaw + acpx-style coding agent stack into NeoWorker OS.
 
 ## Status Update
 
-Cowork now supports more than ACP discovery-only plumbing:
+NeoWorker now supports more than ACP discovery-only plumbing:
 
 - remote ACP agent registrations can be persisted locally
 - `acp.task.create` can invoke remote agents over an A2A-compatible JSON-RPC/HTTP bridge
@@ -24,7 +24,7 @@ Cowork now supports more than ACP discovery-only plumbing:
 - Orchestrators talk to coding agents (Codex, Pi, Gemini, and similar tools) over a **structured protocol** instead of PTY scraping
 - acpx provides: persistent sessions, prompt queueing, typed output (thinking, tool calls, diffs), crash reconnect, and a single command surface for multiple agents
 
-**Cowork OS** already has:
+**NeoWorker OS** already has:
 
 - Full **ACP server** on the Control Plane (`acp.discover`, `acp.task.create`, `acp.agent.register`, etc.)
 - Coding agents invoked via **bash + PTY** (`run_command` wrapping `codex exec`, `claude`, etc.)
@@ -35,7 +35,7 @@ Cowork now supports more than ACP discovery-only plumbing:
 
 ### Option 1: acpx as CLI Wrapper (Lowest Friction)
 
-Use acpx instead of raw `codex` / `claude` commands. Cowork’s executor keeps using `run_command`, but the command becomes `acpx codex "..."` instead of `codex exec "..."`.
+Use acpx instead of raw `codex` / `claude` commands. NeoWorker’s executor keeps using `run_command`, but the command becomes `acpx codex "..."` instead of `codex exec "..."`.
 
 **Benefits:**
 
@@ -81,13 +81,13 @@ Use acpx instead of raw `codex` / `claude` commands. Cowork’s executor keeps u
 
 ### Option 2: acpx as ACP Runtime (OpenClaw-Style)
 
-Add an “ACP runtime” mode so that when the user says “run this in Codex”, Cowork spawns acpx as the ACP backend instead of raw Codex. acpx manages the Codex process and speaks ACP.
+Add an “ACP runtime” mode so that when the user says “run this in Codex”, NeoWorker spawns acpx as the ACP backend instead of raw Codex. acpx manages the Codex process and speaks ACP.
 
 **Flow:**
 
 1. User: “Run this in Codex”
-2. Cowork creates a child task with `capability_hint: "cli-agent"` and `runtime: "acp"`
-3. Instead of `run_command("codex exec ...")`, Cowork invokes acpx (e.g. `acpx codex "..."` or acpx’s programmatic API if available)
+2. NeoWorker creates a child task with `capability_hint: "cli-agent"` and `runtime: "acp"`
+3. Instead of `run_command("codex exec ...")`, NeoWorker invokes acpx (e.g. `acpx codex "..."` or acpx’s programmatic API if available)
 4. acpx spawns Codex, runs the task, returns structured output
 
 **Implementation sketch:**
@@ -105,20 +105,20 @@ Add an “ACP runtime” mode so that when the user says “run this in Codex”
 
 ---
 
-### Option 3: acpx Connects to Cowork as ACP Client
+### Option 3: acpx Connects to NeoWorker as ACP Client
 
-Run acpx in a mode where it connects to Cowork’s Control Plane and registers as a **remote ACP agent**. Cowork’s orchestrator discovers it via `acp.discover` and delegates via `acp.task.create`.
+Run acpx in a mode where it connects to NeoWorker’s Control Plane and registers as a **remote ACP agent**. NeoWorker’s orchestrator discovers it via `acp.discover` and delegates via `acp.task.create`.
 
 **Flow:**
 
-1. acpx runs as a service, connects to `ws://127.0.0.1:18789` (Cowork Control Plane)
+1. acpx runs as a service, connects to `ws://127.0.0.1:18789` (NeoWorker Control Plane)
 2. acpx calls `acp.agent.register` with `name: "codex-via-acpx"`, `capabilities: [{ id: "code", ... }]`
 3. User: “Run this in Codex”
-4. Cowork’s executor calls `acp.task.create` with `assigneeId: "remote:codex-via-acpx"`
+4. NeoWorker’s executor calls `acp.task.create` with `assigneeId: "remote:codex-via-acpx"`
 5. acpx (or a bridge) must poll for tasks or receive them via Control Plane events
 6. acpx spawns Codex, runs the task, updates task status/result
 
-**Current state:** Cowork can already forward remote ACP work to an external endpoint and poll it for status. The remaining work for a specific acpx deployment is mostly adapter-specific:
+**Current state:** NeoWorker can already forward remote ACP work to an external endpoint and poll it for status. The remaining work for a specific acpx deployment is mostly adapter-specific:
 
 - a bridge or service that exposes the acpx-managed agent behind an HTTP endpoint
 - authentication/header conventions for that endpoint
@@ -131,9 +131,9 @@ Run acpx in a mode where it connects to Cowork’s Control Plane and registers a
 
 ---
 
-### Option 4: Cowork as acpx Target (Reverse)
+### Option 4: NeoWorker as acpx Target (Reverse)
 
-Configure acpx to use Cowork as an ACP server. OpenClaw’s config shows:
+Configure acpx to use NeoWorker as an ACP server. OpenClaw’s config shows:
 
 ```json
 {
@@ -145,24 +145,24 @@ Configure acpx to use Cowork as an ACP server. OpenClaw’s config shows:
 }
 ```
 
-So acpx’s “openclaw” agent runs OpenClaw’s ACP bridge, which connects to OpenClaw’s gateway. For Cowork to be an acpx target, you’d need:
+So acpx’s “openclaw” agent runs OpenClaw’s ACP bridge, which connects to OpenClaw’s gateway. For NeoWorker to be an acpx target, you’d need:
 
-- A Cowork ACP bridge that speaks the same WebSocket/ACP format acpx expects
-- Cowork’s Control Plane already has `acp.*` methods; the question is wire format compatibility with [ACP spec](https://agentclientprotocol.com)
+- A NeoWorker ACP bridge that speaks the same WebSocket/ACP format acpx expects
+- NeoWorker’s Control Plane already has `acp.*` methods; the question is wire format compatibility with [ACP spec](https://agentclientprotocol.com)
 
-If compatible, you could add a `cowork` agent to acpx:
+If compatible, you could add a `neoworker` agent to acpx:
 
 ```json
 {
   "agents": {
-    "cowork": {
-      "command": "node ./cowork-acp-bridge.js --url ws://127.0.0.1:18789 --token $TOKEN"
+    "neoworker": {
+      "command": "node ./neoworker-acp-bridge.js --url ws://127.0.0.1:18789 --token $TOKEN"
     }
   }
 }
 ```
 
-Then `acpx cowork "run this task"` would delegate to Cowork’s agent.
+Then `acpx neoworker "run this task"` would delegate to NeoWorker’s agent.
 
 ---
 
@@ -170,7 +170,7 @@ Then `acpx cowork "run this task"` would delegate to Cowork’s agent.
 
 **Short term:** Option 1 (acpx as CLI wrapper). Minimal changes, immediate benefit from structured output and session management.
 
-**Medium term:** Option 3 is now practical. Register acpx (or an adapter) as a remote ACP agent and let Cowork delegate to it through the shipped remote-invocation path.
+**Medium term:** Option 3 is now practical. Register acpx (or an adapter) as a remote ACP agent and let NeoWorker delegate to it through the shipped remote-invocation path.
 
 **Long term:** Option 2 or 4 if you want deeper runtime-level integration, richer structured event streaming, or bidirectional ACP peer interoperability.
 
@@ -183,7 +183,7 @@ When registering a remote ACP agent:
 - prefer `https` endpoints
 - plain `http` is only appropriate for local loopback development
 - private/link-local IP targets are rejected by the remote invoker validation layer
-- requests are bounded by a timeout, so a bad remote endpoint cannot hang the CoWork main process indefinitely
+- requests are bounded by a timeout, so a bad remote endpoint cannot hang the NeoWorker main process indefinitely
 
 Operational guidance:
 
@@ -223,4 +223,4 @@ acpx --approve-all codex "apply patch and run tests"
 - [acpx GitHub](https://github.com/openclaw/acpx)
 - [OpenClaw ACP Agents docs](https://docs.openclaw.ai/tools/acp-agents)
 - [Agent Client Protocol](https://agentclientprotocol.com)
-- Cowork ACP: `src/electron/acp/`, `src/electron/control-plane/protocol.ts` (ACPMethods, ACPEvents)
+- NeoWorker ACP: `src/electron/acp/`, `src/electron/control-plane/protocol.ts` (ACPMethods, ACPEvents)

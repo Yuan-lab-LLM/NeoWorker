@@ -1,27 +1,49 @@
 import React from "react";
-import type { Task, TaskEvent, QuotedAssistantMessage } from "../../../shared/types";
-import { getEffectiveTaskEventType, getTimelineErrorText } from "../../utils/task-event-compat";
+import {
+  Check,
+  ChevronRight,
+  ExternalLink,
+  Globe2,
+  TriangleAlert,
+} from "lucide-react";
+import type {
+  Task,
+  TaskEvent,
+  QuotedAssistantMessage,
+} from "../../../shared/types";
+import {
+  getEffectiveTaskEventType,
+  getTimelineErrorText,
+} from "../../utils/task-event-compat";
 import {
   normalizeMarkdownForDisplay,
   cleanAssistantMessageForDisplay,
   stripHtmlTags,
 } from "./markdown-normalization";
-import { humanizeTimelineMessage, condenseStepText } from "./task-event-presentation";
+import {
+  humanizeTimelineMessage,
+  condenseStepText,
+} from "./task-event-presentation";
 import {
   shouldRenderOpenArtifactCardAtEvent,
   getInlinePreviewKindForGeneratedFile,
-  extractGeneratedArtifactPathsFromText,
+  getTaskEventArtifactPaths,
   type GeneratedInlinePreviewKind,
 } from "./artifact-logic";
 import { SpreadsheetArtifactCard } from "../SpreadsheetArtifactCard";
 import { DocumentArtifactCard } from "../DocumentArtifactCard";
 import { PresentationArtifactCard } from "../PresentationArtifactCard";
 import { WebArtifactCard } from "../WebArtifactCard";
+import { ArtifactDownloadButton } from "../ArtifactDownloadButton";
 import { InlineVideoPreview } from "../InlineVideoPreview";
 import { InlineImagePreview } from "../InlineImagePreview";
 import { InlineDocumentPreview } from "../InlineDocumentPreview";
 import { LatexArtifactWorkbench } from "../LatexArtifactWorkbench";
-import { friendlyToolCallTitle, friendlyToolResultTitle } from "../../utils/timeline-tool-labels";
+import {
+  friendlyToolCallTitle,
+  friendlyToolResultTitle,
+  isLikelyMojibakeText,
+} from "../../utils/timeline-tool-labels";
 import { buildApprovalCommandPreview } from "../../../shared/approval-command-preview";
 import { formatTimelineActivityLabel } from "../../../shared/timeline-v2";
 import {
@@ -43,21 +65,16 @@ import { isVerificationStepDescription } from "../../../shared/plan-utils";
 import { isWordDocumentArtifactFile } from "../../../shared/document-formats";
 import { getMessage } from "../../utils/agentMessages";
 import type { AgentContext } from "../../hooks/useAgentContext";
-import { DEFAULT_QUIRKS } from "../../../shared/types";
+import { DEFAULT_ASSISTANT_NAME, DEFAULT_QUIRKS } from "../../../shared/types";
 import { JsonlPreview, parseJsonlPreview } from "../JsonlPreview";
 import { getStepCompletionPreviewPath } from "../../utils/step-document-preview";
 import { findLatexPdfPair } from "../../utils/latex-artifacts";
 import { formatFileSize } from "./attachments";
-import {
-  DeferredMarkdown,
-  HighlightedCodePreview,
-  MessageCopyButton,
-  MessageForkButton,
-  MessageSpeakButton,
-  MessageQuoteButton,
-  createQuotedAssistantMessage,
-} from "./message-ui";
+import { DeferredMarkdown, HighlightedCodePreview } from "./message-ui";
 import type { CommandOutputSession } from "../../utils/task-event-derived";
+import { translate } from "../../i18n";
+import { localizeProgressText } from "../../utils/localized-progress-text";
+import { localizeErrorText } from "../../utils/localized-error-text";
 import {
   VIDEO_FILE_EXT_RE,
   HTML_FILE_EXT_RE,
@@ -75,6 +92,439 @@ const END_OF_TASK_ARTIFACT_KINDS = new Set<GeneratedInlinePreviewKind>([
   "document",
 ]);
 
+const TOOL_PAYLOAD_SUMMARY_KEYS = [
+  "application_summary",
+  "applicationSummary",
+  "message",
+  "summary",
+  "error",
+] as const;
+
+function compactToolPayloadText(value: string, maxLength = 240): string {
+  if (isLikelyMojibakeText(value)) {
+    return translate(
+      "timeline.toolPayload.legacyEncodingHidden",
+      "This historical page used an unsupported text encoding. Fetch it again to display readable content.",
+    );
+  }
+  const compact = stripHtmlTags(value).replace(/\s+/g, " ").trim();
+  if (compact.length <= maxLength) return compact;
+  return `${compact.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+export function getToolPayloadSummary(value: unknown): string {
+  if (typeof value === "string") {
+    return compactToolPayloadText(value);
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return "";
+  }
+
+  const record = value as Record<string, unknown>;
+  for (const key of TOOL_PAYLOAD_SUMMARY_KEYS) {
+    const candidate = record[key];
+    if (typeof candidate === "string" && candidate.trim()) {
+      return compactToolPayloadText(candidate);
+    }
+  }
+  return "";
+}
+
+function isFailedToolPayload(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  if (record.recoverableFallback === true || record.nonBlocking === true)
+    return false;
+  return (
+    record.success === false ||
+    (typeof record.error === "string" && record.error.trim() !== "")
+  );
+}
+
+function serializeToolPayload(value: unknown): string {
+  if (typeof value === "string") return compactToolPayloadText(value, 6000);
+  if (value === undefined) return "";
+  try {
+    return JSON.stringify(
+      value,
+      (_key, entry) =>
+        typeof entry === "string" && isLikelyMojibakeText(entry)
+          ? translate(
+              "timeline.toolPayload.legacyEncodingHidden",
+              "This historical page used an unsupported text encoding. Fetch it again to display readable content.",
+            )
+          : entry,
+      2,
+    );
+  } catch {
+    return String(value);
+  }
+}
+
+function ToolPayloadDetails({
+  value,
+  showSummary,
+}: {
+  value: unknown;
+  showSummary: boolean;
+}) {
+  const summary = showSummary ? getToolPayloadSummary(value) : "";
+  const serialized = serializeToolPayload(value);
+  const failed = isFailedToolPayload(value);
+
+  if (!summary && !serialized) return null;
+
+  return (
+    <div
+      className={`event-details tool-payload-details${failed ? " is-error" : ""}`}
+    >
+      {summary ? <div className="tool-payload-summary">{summary}</div> : null}
+      {serialized ? (
+        <details className="tool-payload-technical">
+          <summary>
+            {translate(
+              "timeline.toolPayload.technicalDetails",
+              "Technical details",
+            )}
+          </summary>
+          <pre className="tool-payload-code">
+            {truncateForDisplay(serialized, 6000)}
+          </pre>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+export function shouldAutoExpandActiveTimelineEvent(event: TaskEvent): boolean {
+  const effectiveType = getEffectiveTaskEventType(event);
+  // Approval requests already have a dedicated dialog. Keeping the timeline
+  // row forced open duplicates that UI and exposes raw permission metadata.
+  // Leave the compact row visible and let people expand it deliberately.
+  if (effectiveType === "approval_requested") return false;
+  if (effectiveType === "tool_call") return false;
+  if (effectiveType === "tool_result")
+    return isFailedToolPayload(event.payload?.result);
+  return true;
+}
+
+function WebSearchEventDetails({
+  value,
+  completed,
+}: {
+  value: unknown;
+  completed: boolean;
+}) {
+  const record =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const searchType =
+    typeof record.searchType === "string" ? record.searchType.trim() : "";
+  const countValue = completed ? record.resultCount : record.maxResults;
+  const resultCount =
+    typeof countValue === "number" && Number.isFinite(countValue)
+      ? Math.max(0, Math.round(countValue))
+      : null;
+  const provider =
+    typeof record.provider === "string" ? record.provider.trim() : "";
+  const parts = [
+    searchType
+      ? searchType.toLowerCase() === "news"
+        ? translate("timeline.webSearch.news", "News")
+        : searchType
+      : "",
+    resultCount !== null
+      ? completed
+        ? translate("timeline.webSearch.results", "{count} results", {
+            count: resultCount,
+          })
+        : translate("timeline.webSearch.maxResults", "Up to {count} results", {
+            count: resultCount,
+          })
+      : "",
+    provider ? provider.charAt(0).toUpperCase() + provider.slice(1) : "",
+  ].filter(Boolean);
+
+  if (parts.length === 0) return null;
+  return (
+    <div className="event-details web-search-event-details">
+      {parts.map((part, index) => (
+        <span key={`${part}-${index}`}>{part}</span>
+      ))}
+    </div>
+  );
+}
+
+export type WebFetchResultDisplay = {
+  url: string;
+  title: string;
+  siteLabel: string;
+  pathLabel: string;
+  method: string;
+  status: number | null;
+  statusText: string;
+  contentLength: number | null;
+  truncated: boolean | null;
+  unavailable: boolean;
+  failed: boolean;
+};
+
+export function getWebFetchResultDisplay(
+  value: unknown,
+): WebFetchResultDisplay | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const url = typeof record.url === "string" ? record.url.trim() : "";
+  const rawTitle = typeof record.title === "string" ? record.title.trim() : "";
+  const title = isLikelyMojibakeText(rawTitle) ? "" : rawTitle;
+  const method =
+    typeof record.method === "string" && record.method.trim()
+      ? record.method.trim().toUpperCase()
+      : url
+        ? "GET"
+        : "";
+  const numericStatus =
+    typeof record.status === "number"
+      ? record.status
+      : typeof record.status === "string"
+        ? Number(record.status)
+        : Number.NaN;
+  const status =
+    Number.isFinite(numericStatus) && numericStatus >= 0
+      ? Math.round(numericStatus)
+      : null;
+  const statusText =
+    typeof record.statusText === "string" ? record.statusText.trim() : "";
+  const numericLength =
+    typeof record.contentLength === "number"
+      ? record.contentLength
+      : typeof record.contentLength === "string"
+        ? Number(record.contentLength)
+        : Number.NaN;
+  const contentLength =
+    Number.isFinite(numericLength) && numericLength >= 0
+      ? Math.round(numericLength)
+      : null;
+  const truncated =
+    typeof record.truncated === "boolean" ? record.truncated : null;
+  const unavailable =
+    record.success === false &&
+    (record.recoverableFallback === true ||
+      record.nonBlocking === true ||
+      record.failureKind === "source_unavailable");
+  const failed =
+    !unavailable &&
+    (record.success === false ||
+      (status !== null && (status === 0 || status >= 400)));
+
+  if (
+    !url &&
+    !title &&
+    !method &&
+    status === null &&
+    contentLength === null &&
+    truncated === null
+  ) {
+    return null;
+  }
+
+  let siteLabel = "";
+  let pathLabel = "";
+  if (url) {
+    try {
+      const parsed = new URL(url);
+      siteLabel = parsed.hostname.replace(/^www\./i, "");
+      pathLabel = `${parsed.pathname || "/"}${parsed.search}`;
+    } catch {
+      pathLabel = url;
+    }
+  }
+
+  return {
+    url,
+    title,
+    siteLabel:
+      siteLabel || title || translate("timeline.webFetch.webpage", "Web page"),
+    pathLabel: pathLabel || url,
+    method,
+    status,
+    statusText,
+    contentLength,
+    truncated,
+    unavailable,
+    failed,
+  };
+}
+
+function WebFetchEventDetails({
+  value,
+  completed,
+  toolName,
+}: {
+  value: unknown;
+  completed: boolean;
+  toolName: "web_fetch" | "http_request";
+}) {
+  const display = getWebFetchResultDisplay(value);
+  if (!display) return null;
+  const statusTone = display.unavailable
+    ? "is-skipped"
+    : display.failed
+      ? "is-error"
+      : completed
+        ? "is-success"
+        : "is-pending";
+  const statusLabel = display.unavailable
+    ? translate(
+        "timeline.webFetch.sourceSkipped",
+        "Source unavailable, skipped",
+      )
+    : display.failed
+      ? translate("timeline.webFetch.requestFailed", "Request failed")
+      : completed
+        ? toolName === "http_request"
+          ? translate("timeline.webFetch.requestSucceeded", "Request succeeded")
+          : translate("timeline.webFetch.completed", "Fetched")
+        : translate("timeline.webFetch.pending", "Ready to fetch");
+  const responseSize =
+    display.contentLength === null
+      ? ""
+      : toolName === "http_request"
+        ? formatFileSize(display.contentLength)
+        : translate("timeline.webFetch.characters", "{count} characters", {
+            count: display.contentLength.toLocaleString(),
+          });
+  const statusValue =
+    display.status === null
+      ? ""
+      : `${display.status}${display.statusText ? ` ${display.statusText}` : ""}`;
+
+  const openPage = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!display.url) return;
+    void window.electronAPI
+      .openExternal(display.url)
+      .catch((error: unknown) => {
+        console.error("Failed to open fetched page:", error);
+      });
+  };
+
+  return (
+    <div className={`event-details web-fetch-result-card ${statusTone}`}>
+      <div className="web-fetch-result-main">
+        <span className="web-fetch-result-icon" aria-hidden="true">
+          <Globe2 size={16} strokeWidth={1.8} />
+        </span>
+        <div className="web-fetch-result-copy">
+          <div className="web-fetch-result-heading">
+            {display.method ? (
+              <span className="web-fetch-method">{display.method}</span>
+            ) : null}
+            <strong>{display.title || display.siteLabel}</strong>
+          </div>
+          {display.pathLabel ? (
+            <span className="web-fetch-result-path" title={display.url}>
+              {display.title ? `${display.siteLabel} · ` : ""}
+              {display.pathLabel}
+            </span>
+          ) : null}
+        </div>
+        {display.url ? (
+          <button
+            type="button"
+            onClick={openPage}
+            aria-label={translate("timeline.webFetch.open", "Open")}
+            title={translate("timeline.webFetch.open", "Open")}
+          >
+            <ExternalLink size={12} aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
+      <div className="web-fetch-result-meta">
+        <span className={`web-fetch-status ${statusTone}`}>
+          <span className="web-fetch-status-dot" aria-hidden="true" />
+          {display.status !== null ? `${display.status} · ` : ""}
+          {statusLabel}
+        </span>
+        {responseSize ? (
+          <span className="web-fetch-meta-item">
+            {translate("timeline.webFetch.responseSize", "Response {size}", {
+              size: responseSize,
+            })}
+          </span>
+        ) : null}
+        {display.truncated !== null ? (
+          <span
+            className={`web-fetch-meta-item${display.truncated ? " is-warning" : " is-complete"}`}
+          >
+            {display.truncated ? (
+              <TriangleAlert size={12} aria-hidden="true" />
+            ) : (
+              <Check size={12} aria-hidden="true" />
+            )}
+            {display.truncated
+              ? translate("timeline.webFetch.truncated", "Content clipped")
+              : translate("timeline.webFetch.completeContent", "Full content")}
+          </span>
+        ) : null}
+      </div>
+      <details className="web-fetch-technical-details">
+        <summary>
+          <ChevronRight size={13} aria-hidden="true" />
+          {translate("timeline.webFetch.requestDetails", "Request details")}
+        </summary>
+        <dl>
+          {display.url ? (
+            <div className="web-fetch-detail-wide">
+              <dt>
+                {translate("timeline.webFetch.requestUrl", "Request URL")}
+              </dt>
+              <dd title={display.url}>{display.url}</dd>
+            </div>
+          ) : null}
+          {display.method ? (
+            <div>
+              <dt>{translate("timeline.webFetch.requestMethod", "Method")}</dt>
+              <dd>{display.method}</dd>
+            </div>
+          ) : null}
+          {statusValue ? (
+            <div>
+              <dt>{translate("timeline.webFetch.responseStatus", "Status")}</dt>
+              <dd>{statusValue}</dd>
+            </div>
+          ) : null}
+          {responseSize ? (
+            <div>
+              <dt>
+                {translate("timeline.webFetch.responseData", "Response data")}
+              </dt>
+              <dd>{responseSize}</dd>
+            </div>
+          ) : null}
+          {display.truncated !== null ? (
+            <div>
+              <dt>
+                {translate("timeline.webFetch.responseContent", "Content")}
+              </dt>
+              <dd>
+                {display.truncated
+                  ? translate("timeline.webFetch.truncated", "Content clipped")
+                  : translate(
+                      "timeline.webFetch.completeContent",
+                      "Full content",
+                    )}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+      </details>
+    </div>
+  );
+}
+
 function getEvidenceSiteLabel(hostname: string): string {
   const normalized = hostname.replace(/^www\./i, "");
   const parts = normalized.split(".").filter(Boolean);
@@ -84,7 +534,10 @@ function getEvidenceSiteLabel(hostname: string): string {
   return parts.slice(-2).join(".");
 }
 
-function getWebEvidenceDisplay(source: string, snippet: string): {
+function getWebEvidenceDisplay(
+  source: string,
+  snippet: string,
+): {
   siteLabel: string;
   label: string;
 } | null {
@@ -174,7 +627,10 @@ export function describeLoopRisk(loopRisk: number): "low" | "medium" | "high" {
 /**
  * Truncate long text for display, with expand option handled via CSS
  */
-export function truncateForDisplay(text: string, maxLength: number = 2000): string {
+export function truncateForDisplay(
+  text: string,
+  maxLength: number = 2000,
+): string {
   if (!text || text.length <= maxLength) return text;
   return text.slice(0, maxLength) + "\n\n... [content truncated for display]";
 }
@@ -184,7 +640,11 @@ export function coerceStepFailureText(value: unknown): string {
 }
 
 export function normalizeStepFailureTextForComparison(value: string): string {
-  return value.toLowerCase().replace(/\s+/g, " ").replace(/[.。]+$/g, "").trim();
+  return value
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[.。]+$/g, "")
+    .trim();
 }
 
 export function unwrapTaskFailureText(reason: string): string {
@@ -195,13 +655,20 @@ export function unwrapTaskFailureText(reason: string): string {
     .trim();
 }
 
-export function formatCompletionGuardFailureTitle(reason: string): string | null {
+export function formatCompletionGuardFailureTitle(
+  reason: string,
+): string | null {
   const unwrapped = unwrapTaskFailureText(reason);
-  if (/^Task missing verification evidence\b/i.test(unwrapped)) return "Verification evidence missing";
-  if (/^Task missing direct answer\b/i.test(unwrapped)) return "Direct answer missing";
-  if (/^Task missing artifact evidence\b/i.test(unwrapped)) return "Output artifact missing";
-  if (/^Task missing execution evidence\b/i.test(unwrapped)) return "Execution evidence missing";
-  if (/^Task missing required tool evidence\b/i.test(unwrapped)) return "Required tool evidence missing";
+  if (/^Task missing verification evidence\b/i.test(unwrapped))
+    return "Verification evidence missing";
+  if (/^Task missing direct answer\b/i.test(unwrapped))
+    return "Direct answer missing";
+  if (/^Task missing artifact evidence\b/i.test(unwrapped))
+    return "Output artifact missing";
+  if (/^Task missing execution evidence\b/i.test(unwrapped))
+    return "Execution evidence missing";
+  if (/^Task missing required tool evidence\b/i.test(unwrapped))
+    return "Required tool evidence missing";
   return null;
 }
 
@@ -210,7 +677,8 @@ export function formatTimelineErrorTitleForDisplay(message: string): string {
 }
 
 export function formatStepFailedTitleForDisplay(payload: Any): string {
-  const step = payload?.step && typeof payload.step === "object" ? payload.step : {};
+  const step =
+    payload?.step && typeof payload.step === "object" ? payload.step : {};
   const description = coerceStepFailureText((step as Any).description);
   const reason =
     coerceStepFailureText(payload?.reason) ||
@@ -267,7 +735,11 @@ export function getSummaryStageLabel(stage: string): string | null {
 }
 
 export function getApprovalPayload(event: TaskEvent): Any | null {
-  if (!event?.payload || typeof event.payload !== "object" || Array.isArray(event.payload)) {
+  if (
+    !event?.payload ||
+    typeof event.payload !== "object" ||
+    Array.isArray(event.payload)
+  ) {
     return null;
   }
   const approval = (event.payload as Any).approval;
@@ -282,6 +754,128 @@ export function getApprovalDescription(approval: Any | null): string {
   return typeof description === "string" ? description.trim() : "";
 }
 
+function getApprovalDetailsRecord(approval: Any | null): Any {
+  const details = approval?.details;
+  return details && typeof details === "object" && !Array.isArray(details)
+    ? details
+    : {};
+}
+
+function getApprovalParamsRecord(approval: Any | null): Any {
+  const params = getApprovalDetailsRecord(approval).params;
+  return params && typeof params === "object" && !Array.isArray(params)
+    ? params
+    : {};
+}
+
+export function getApprovalToolName(approval: Any | null): string {
+  const tool = getApprovalDetailsRecord(approval).tool;
+  return typeof tool === "string" ? tool.trim() : "";
+}
+
+function getApprovalParamString(
+  approval: Any | null,
+  key: string,
+): string {
+  const details = getApprovalDetailsRecord(approval);
+  const direct = details[key];
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+  const nested = getApprovalParamsRecord(approval)[key];
+  return typeof nested === "string" ? nested.trim() : "";
+}
+
+function getApprovalTargetHost(url: string): string {
+  if (!url) return "";
+  try {
+    return new URL(url).hostname || url;
+  } catch {
+    return url;
+  }
+}
+
+function isNetworkApprovalTool(toolName: string): boolean {
+  return ["http_request", "web_fetch", "web_search"].includes(toolName);
+}
+
+function isGeneratedToolApprovalDescription(description: string): boolean {
+  return /^Approve tool call:\s*[a-z0-9_-]+\s*$/i.test(description);
+}
+
+export function getApprovalTimelineDescription(approval: Any | null): string {
+  const description = getApprovalDescription(approval);
+  const toolName = getApprovalToolName(approval);
+  const targetUrl = getApprovalParamString(approval, "url");
+  const targetHost = getApprovalTargetHost(targetUrl);
+
+  if (isGeneratedToolApprovalDescription(description)) {
+    if (isNetworkApprovalTool(toolName)) {
+      return targetHost
+        ? translate(
+            "timeline.approval.networkTargetDescription",
+            "NeoWorker needs to access {target} to continue this task.",
+            { target: targetHost },
+          )
+        : translate(
+            "approval.description.networkTool",
+            "NeoWorker needs network access to continue this task.",
+          );
+    }
+    if (toolName === "write_file") {
+      return translate(
+        "approval.description.writeFile",
+        "NeoWorker needs to create or update a file to continue this task.",
+      );
+    }
+    if (toolName === "edit_file") {
+      return translate(
+        "approval.description.editFile",
+        "NeoWorker needs to update a file to continue this task.",
+      );
+    }
+    return translate(
+      "approval.description.toolCall",
+      "NeoWorker needs to use {tool} to continue this task.",
+      { tool: toolName.replace(/_/g, " ") || "this action" },
+    );
+  }
+
+  return description;
+}
+
+export function getApprovalTimelineTitle(approval: Any | null): string {
+  const toolName = getApprovalToolName(approval);
+  const params = getApprovalParamsRecord(approval);
+  const targetUrl = getApprovalParamString(approval, "url");
+  const targetHost = getApprovalTargetHost(targetUrl);
+  const targetPath = getApprovalParamString(approval, "path");
+
+  if (isNetworkApprovalTool(toolName) && targetHost) {
+    return translate(
+      "timeline.approval.networkTargetTitle",
+      "Approval required: access {target}",
+      { target: targetHost },
+    );
+  }
+  if (targetPath) {
+    const targetName = targetPath.replace(/\\/g, "/").split("/").pop();
+    return translate(
+      "timeline.approval.fileTargetTitle",
+      "Approval required: change {target}",
+      { target: targetName || targetPath },
+    );
+  }
+  if (toolName) {
+    return translate(
+      "timeline.approval.actionTitle",
+      "Approval required: {action}",
+      {
+        action: localizeProgressText(friendlyToolCallTitle(toolName, params)),
+      },
+    );
+  }
+  return translate("timeline.approval.required", "Approval required");
+}
+
 export function extractApprovalCommand(approval: Any | null): string | null {
   const commandFromDetails = approval?.details?.command;
   if (typeof commandFromDetails === "string") {
@@ -292,7 +886,9 @@ export function extractApprovalCommand(approval: Any | null): string | null {
   const description = getApprovalDescription(approval);
   if (!description) return null;
 
-  const commandMatch = description.match(/^Run(?:ning)? command(?:\s*\([^)]+\))?:\s*([\s\S]+)$/i);
+  const commandMatch = description.match(
+    /^Run(?:ning)? command(?:\s*\([^)]+\))?:\s*([\s\S]+)$/i,
+  );
   if (!commandMatch || typeof commandMatch[1] !== "string") return null;
   const command = commandMatch[1].trim();
   return command.length > 0 ? command : null;
@@ -330,7 +926,9 @@ export function getTimelineEventStepId(event: TaskEvent): string | null {
   return null;
 }
 
-export function getParallelGroupOwnerStepId(groupId: string | null | undefined): string | null {
+export function getParallelGroupOwnerStepId(
+  groupId: string | null | undefined,
+): string | null {
   if (typeof groupId !== "string") return null;
   const parts = groupId.split(":");
   if (parts.length < 5 || parts[0] !== "tools") return null;
@@ -343,7 +941,8 @@ export function canStepEventOwnParallelChildren(event: TaskEvent): boolean {
   const effectiveType = getEffectiveTaskEventType(event);
   return (
     effectiveType === "step_started" ||
-    (event.type === "timeline_step_updated" && effectiveType === "progress_update")
+    (event.type === "timeline_step_updated" &&
+      effectiveType === "progress_update")
   );
 }
 
@@ -368,7 +967,7 @@ export function renderEventTitle(
         quirks: agentCtx.quirks,
       }
     : {
-        agentName: "CoWork",
+        agentName: DEFAULT_ASSISTANT_NAME,
         userName: undefined,
         personality: "professional" as const,
         persona: undefined,
@@ -379,24 +978,30 @@ export function renderEventTitle(
 
   const getStepStartedDetail = (): string => {
     const rawStepDescription =
-      typeof event.payload?.step?.description === "string" ? event.payload.step.description : "";
+      typeof event.payload?.step?.description === "string"
+        ? event.payload.step.description
+        : "";
     if (rawStepDescription.trim().length > 0) {
       return rawStepDescription;
     }
 
     const rawGroupLabel =
-      typeof event.payload?.groupLabel === "string" ? event.payload.groupLabel : "";
+      typeof event.payload?.groupLabel === "string"
+        ? event.payload.groupLabel
+        : "";
     if (rawGroupLabel.trim().length > 0) {
       return rawGroupLabel;
     }
 
-    const rawMessage = typeof event.payload?.message === "string" ? event.payload.message : "";
+    const rawMessage =
+      typeof event.payload?.message === "string" ? event.payload.message : "";
     const normalizedMessage = rawMessage.replace(/^Starting\s+/i, "").trim();
     if (normalizedMessage.length > 0) {
       return normalizedMessage;
     }
 
-    const rawStage = typeof event.payload?.stage === "string" ? event.payload.stage : "";
+    const rawStage =
+      typeof event.payload?.stage === "string" ? event.payload.stage : "";
     if (rawStage.trim().length > 0) {
       return rawStage.trim();
     }
@@ -404,71 +1009,118 @@ export function renderEventTitle(
     return "Getting started...";
   };
 
-  if (event.type === "timeline_group_started" || event.type === "timeline_group_finished") {
+  if (
+    event.type === "timeline_group_started" ||
+    event.type === "timeline_group_finished"
+  ) {
     const stage =
-      typeof event.payload?.stage === "string" ? event.payload.stage.trim().toUpperCase() : "";
+      typeof event.payload?.stage === "string"
+        ? event.payload.stage.trim().toUpperCase()
+        : "";
     const groupLabel =
-      (typeof event.payload?.groupLabel === "string" && event.payload.groupLabel.trim()) || "";
+      (typeof event.payload?.groupLabel === "string" &&
+        event.payload.groupLabel.trim()) ||
+      "";
     const label = groupLabel || stage || "Group";
     const summaryStageLabel = stage ? getSummaryStageLabel(stage) : null;
-    const isSubStage = Boolean(groupLabel && groupLabel.toUpperCase() !== stage);
+    const isSubStage = Boolean(
+      groupLabel && groupLabel.toUpperCase() !== stage,
+    );
     if (summaryMode) {
       // Prefer sub-stage label (e.g. "Preparing workspace") over generic stage label (e.g. "Applying fixes")
-      if (isSubStage) return groupLabel;
-      if (summaryStageLabel) return summaryStageLabel;
+      if (isSubStage) return localizeProgressText(groupLabel);
+      if (summaryStageLabel) return localizeProgressText(summaryStageLabel);
     }
 
     if (isSubStage) {
-      return event.type === "timeline_group_finished" ? `${groupLabel} complete` : groupLabel;
+      return localizeProgressText(
+        event.type === "timeline_group_finished"
+          ? `${groupLabel} complete`
+          : groupLabel,
+      );
     }
     if (summaryStageLabel) {
-      return event.type === "timeline_group_finished" ? `${summaryStageLabel} complete` : summaryStageLabel;
+      return localizeProgressText(
+        event.type === "timeline_group_finished"
+          ? `${summaryStageLabel} complete`
+          : summaryStageLabel,
+      );
     }
 
     const maxParallel =
-      typeof event.payload?.maxParallel === "number" && Number.isFinite(event.payload.maxParallel)
+      typeof event.payload?.maxParallel === "number" &&
+      Number.isFinite(event.payload.maxParallel)
         ? Math.max(1, Math.floor(event.payload.maxParallel))
         : null;
-    const base = event.type === "timeline_group_started" ? `Starting ${label}` : `Completed ${label}`;
-    return !summaryMode && maxParallel && event.type === "timeline_group_started"
-      ? `${base} (${maxParallel} parallel)`
-      : base;
+    const base =
+      event.type === "timeline_group_started"
+        ? `Starting ${label}`
+        : `Completed ${label}`;
+    return !summaryMode &&
+      maxParallel &&
+      event.type === "timeline_group_started"
+      ? localizeProgressText(`${base} (${maxParallel} parallel)`)
+      : localizeProgressText(base);
   }
 
   if (event.type === "timeline_evidence_attached") {
-    const refs = Array.isArray(event.payload?.evidenceRefs) ? event.payload.evidenceRefs : [];
+    const refs = Array.isArray(event.payload?.evidenceRefs)
+      ? event.payload.evidenceRefs
+      : [];
     const count = refs.length;
-    return count > 0 ? `Attached ${count} evidence link${count === 1 ? "" : "s"}` : "Attached evidence";
+    return count > 0
+      ? localizeProgressText(
+          `Attached ${count} evidence link${count === 1 ? "" : "s"}`,
+        )
+      : localizeProgressText("Attached evidence");
   }
 
   if (event.type === "timeline_artifact_emitted") {
-    const path = typeof event.payload?.path === "string" ? event.payload.path : "";
+    const path =
+      typeof event.payload?.path === "string" ? event.payload.path : "";
     const label =
-      typeof event.payload?.label === "string" && event.payload.label.trim().length > 0
+      typeof event.payload?.label === "string" &&
+      event.payload.label.trim().length > 0
         ? event.payload.label
         : path;
     return path ? (
       <span>
-        Output ready:{" "}
-        <ClickableFilePath path={path} workspacePath={workspacePath} onOpenViewer={onOpenViewer} />
-        {label && label !== path && <span className="event-title-meta"> ({label})</span>}
+        {translate("timeline.outputReady", "Output ready")}:{" "}
+        <ClickableFilePath
+          path={path}
+          workspacePath={workspacePath}
+          onOpenViewer={onOpenViewer}
+        />
+        {label && label !== path && (
+          <span className="event-title-meta"> ({label})</span>
+        )}
       </span>
-    ) : "Output ready";
+    ) : (
+      translate("timeline.outputReady", "Output ready")
+    );
   }
 
   if (event.type === "timeline_error") {
     const message = getTimelineErrorText(event);
-    if (isLongOsascriptCommandText(message)) return "Command failed: osascript";
-    return message ? formatTimelineErrorTitleForDisplay(message) : getMessage("error", msgCtx);
+    if (isLongOsascriptCommandText(message))
+      return localizeProgressText("Command failed: osascript");
+    return message
+      ? localizeErrorText(formatTimelineErrorTitleForDisplay(message))
+      : getMessage("error", msgCtx);
   }
 
-  if (event.type === "timeline_step_updated" && effectiveType === "progress_update") {
+  if (
+    event.type === "timeline_step_updated" &&
+    effectiveType === "progress_update"
+  ) {
     const rawMsg =
-      typeof event.payload?.message === "string" ? event.payload.message : "Progress update";
+      typeof event.payload?.message === "string"
+        ? event.payload.message
+        : "Progress update";
     if (rawMsg === "Thinking...") {
       return (
         <span className="thinking-title">
-          Thinking
+          {translate("task.status.thinking", "Thinking")}
           <span className="thinking-ellipsis">
             <span>.</span>
             <span>.</span>
@@ -477,77 +1129,228 @@ export function renderEventTitle(
         </span>
       );
     }
-    return humanizeTimelineMessage(rawMsg);
+    return localizeProgressText(humanizeTimelineMessage(rawMsg));
   }
 
   switch (effectiveType) {
     case "task_created":
-      return getMessage("taskStart", msgCtx);
+      return localizeProgressText(getMessage("taskStart", msgCtx));
     case "task_completed":
       return event.payload?.terminalStatus === "needs_user_action"
-        ? "Completed - action required"
+        ? localizeProgressText("Completed - action required")
         : event.payload?.terminalStatus === "partial_success"
-          ? "Completed - partial success"
-          : getMessage("taskComplete", msgCtx);
+          ? localizeProgressText("Completed - partial success")
+          : localizeProgressText(getMessage("taskComplete", msgCtx));
     case "follow_up_completed": {
       const followUpMessage =
         typeof event.payload?.followUpMessage === "string"
           ? event.payload.followUpMessage.trim()
           : "";
-      return followUpMessage ? `Follow-up: ${followUpMessage}` : "Follow-up received";
+      return followUpMessage
+        ? localizeProgressText(`Follow-up: ${followUpMessage}`)
+        : localizeProgressText("Follow-up received");
     }
     case "plan_created":
-      return getMessage("planCreated", msgCtx);
+      return localizeProgressText(getMessage("planCreated", msgCtx));
+    case "llm_retry": {
+      const attempt =
+        typeof event.payload?.attempt === "number" ? event.payload.attempt : 1;
+      const maxRetries =
+        typeof event.payload?.maxRetries === "number"
+          ? event.payload.maxRetries
+          : attempt;
+      const delaySeconds =
+        typeof event.payload?.delayMs === "number"
+          ? Math.max(1, Math.round(event.payload.delayMs / 1000))
+          : 0;
+      const retryKind =
+        typeof event.payload?.retryKind === "string"
+          ? event.payload.retryKind
+          : "unknown";
+      const retryMessage = (() => {
+        if (retryKind === "request_timeout") {
+          return delaySeconds > 0
+            ? [
+                "timeline.modelTimeoutRetryWithDelay",
+                "Model response timed out; retrying {attempt}/{maxRetries} in {delay}s",
+              ]
+            : [
+                "timeline.modelTimeoutRetry",
+                "Model response timed out; retrying {attempt}/{maxRetries}",
+              ];
+        }
+        if (retryKind === "network") {
+          return delaySeconds > 0
+            ? [
+                "timeline.modelNetworkRetryWithDelay",
+                "Model connection was interrupted; retrying {attempt}/{maxRetries} in {delay}s",
+              ]
+            : [
+                "timeline.modelNetworkRetry",
+                "Model connection was interrupted; retrying {attempt}/{maxRetries}",
+              ];
+        }
+        if (retryKind === "rate_limit") {
+          return delaySeconds > 0
+            ? [
+                "timeline.modelRateLimitRetryWithDelay",
+                "Model request limit reached; retrying {attempt}/{maxRetries} in {delay}s",
+              ]
+            : [
+                "timeline.modelRateLimitRetry",
+                "Model request limit reached; retrying {attempt}/{maxRetries}",
+              ];
+        }
+        return delaySeconds > 0
+          ? [
+              "timeline.modelRetryWithDelay",
+              "Model service is busy; retrying {attempt}/{maxRetries} in {delay}s",
+            ]
+          : [
+              "timeline.modelRetry",
+              "Model service is busy; retrying {attempt}/{maxRetries}",
+            ];
+      })();
+      return delaySeconds > 0
+        ? translate(
+            retryMessage[0],
+            retryMessage[1],
+            { attempt, maxRetries, delay: delaySeconds },
+          )
+        : translate(
+            retryMessage[0],
+            retryMessage[1],
+            { attempt, maxRetries },
+          );
+    }
+    case "llm_routing_changed": {
+      const primaryProvider =
+        typeof event.payload?.currentProvider === "string"
+          ? event.payload.currentProvider
+          : typeof event.payload?.providerType === "string"
+            ? event.payload.providerType
+            : "model";
+      const activeProvider =
+        typeof event.payload?.activeProvider === "string"
+          ? event.payload.activeProvider
+          : primaryProvider;
+      if (
+        event.payload?.fallbackOccurred === true &&
+        activeProvider !== primaryProvider
+      ) {
+        return translate(
+          "timeline.providerSwitched",
+          "{provider} request did not finish; switched to {fallback}",
+          { provider: primaryProvider, fallback: activeProvider },
+        );
+      }
+      return translate(
+        "timeline.providerUnavailableRetrying",
+        "{provider} request did not finish; retrying the current route",
+        { provider: primaryProvider },
+      );
+    }
+    case "task_queued": {
+      const rawMessage =
+        typeof event.payload?.message === "string" ? event.payload.message : "";
+      const retryMatch = /Retrying\s+(\d+)\/(\d+)\s+in\s+(\d+)s/i.exec(
+        rawMessage,
+      );
+      return retryMatch
+        ? translate(
+            "timeline.taskRetryQueued",
+            "Temporary provider issue; retrying {attempt}/{maxRetries} in {delay}s",
+            {
+              attempt: retryMatch[1],
+              maxRetries: retryMatch[2],
+              delay: retryMatch[3],
+            },
+          )
+        : localizeProgressText(
+            humanizeTimelineMessage(rawMessage || "Waiting to retry"),
+          );
+    }
+    case "task_dequeued": {
+      const rawMessage =
+        typeof event.payload?.message === "string" ? event.payload.message : "";
+      const retryMatch = /retry\s+(\d+)\/(\d+)/i.exec(rawMessage);
+      return retryMatch
+        ? translate(
+            "timeline.taskRetryStarted",
+            "Starting retry {attempt}/{maxRetries}",
+            { attempt: retryMatch[1], maxRetries: retryMatch[2] },
+          )
+        : translate(
+            "timeline.queuedFollowUpStarting",
+            "Starting the queued message",
+          );
+    }
+    case "executing":
+      return localizeProgressText("Starting the work");
     case "step_started":
-      return (
+      return localizeProgressText(
         formatTimelineActivityLabel(
-          sanitizeToolCallTextFromAssistant(getStepStartedDetail()).text || "Getting started...",
-        ) || "Getting started"
+          sanitizeToolCallTextFromAssistant(getStepStartedDetail()).text ||
+            "Getting started...",
+        ) || "Getting started",
       );
     case "step_completed":
-      return getMessage(
-        "stepCompleted",
-        msgCtx,
-        sanitizeToolCallTextFromAssistant(event.payload.step?.description || event.payload.message || "").text,
+      return localizeProgressText(
+        getMessage(
+          "stepCompleted",
+          msgCtx,
+          sanitizeToolCallTextFromAssistant(
+            event.payload.step?.description || event.payload.message || "",
+          ).text,
+        ),
       );
     case "step_failed":
       if (
         isLongOsascriptCommandText(
-          event.payload.step?.description || event.payload.reason || event.payload.error || "",
+          event.payload.step?.description ||
+            event.payload.reason ||
+            event.payload.error ||
+            "",
         )
       ) {
-        return "Command failed: osascript";
+        return localizeProgressText("Command failed: osascript");
       }
-      return formatStepFailedTitleForDisplay(event.payload);
+      return localizeProgressText(
+        formatStepFailedTitleForDisplay(event.payload),
+      );
     case "continuation_decision":
-      return "Deciding next steps";
+      return localizeProgressText("Deciding next steps");
     case "auto_continuation_started":
-      return "Continuing";
+      return localizeProgressText("Continuing");
     case "auto_continuation_blocked":
-      return "Paused before continuing";
+      return localizeProgressText("Paused before continuing");
     case "context_compaction_started":
-      return "Making room to continue";
+      return localizeProgressText("Making room to continue");
     case "context_compaction_completed":
-      return "Ready to continue";
+      return localizeProgressText("Ready to continue");
     case "context_compaction_failed":
-      return "Continuing with available context";
+      return localizeProgressText("Continuing with available context");
     case "step_contract_escalated":
       return typeof event.payload?.reason === "string"
-        ? formatStepContractEscalatedMessage(event.payload.reason)
-        : "Adjusting approach";
+        ? localizeProgressText(
+            formatStepContractEscalatedMessage(event.payload.reason),
+          )
+        : localizeProgressText("Adjusting approach");
     case "no_progress_circuit_breaker":
-      return "Paused to avoid getting stuck";
+      return localizeProgressText("Paused to avoid getting stuck");
     case "tool_call": {
       const tcTool = event.payload.tool;
       const tcInput = event.payload.input;
       return friendlyToolCallTitle(
         typeof tcTool === "string" ? tcTool : undefined,
-        tcInput && typeof tcInput === "object" ? (tcInput as Record<string, unknown>) : undefined,
+        tcInput && typeof tcInput === "object"
+          ? (tcInput as Record<string, unknown>)
+          : undefined,
       );
     }
     case "tool_result": {
       const result = event.payload.result;
-      const success = result?.success !== false && !result?.error;
+      const success = !isFailedToolPayload(result);
 
       // schedule_task is user-facing; surface a compact summary in the title.
       if (event.payload.tool === "schedule_task") {
@@ -580,7 +1383,10 @@ export function renderEventTitle(
 
         const describeScheduleShort = (schedule: Any): string | null => {
           if (!schedule || typeof schedule !== "object") return null;
-          if (schedule.kind === "every" && typeof schedule.everyMs === "number") {
+          if (
+            schedule.kind === "every" &&
+            typeof schedule.everyMs === "number"
+          ) {
             return describeEvery(schedule.everyMs);
           }
           if (schedule.kind === "cron" && typeof schedule.expr === "string") {
@@ -594,21 +1400,30 @@ export function renderEventTitle(
 
         // Error-first title for schedule failures.
         if (!success && result?.error) {
-          const errorMsg = typeof result.error === "string" ? result.error : "Unknown error";
-          const clipped = errorMsg.slice(0, 80) + (errorMsg.length > 80 ? "..." : "");
+          const errorMsg =
+            typeof result.error === "string" ? result.error : "Unknown error";
+          const clipped =
+            errorMsg.slice(0, 80) + (errorMsg.length > 80 ? "..." : "");
           return `schedule_task issue: ${clipped}`;
         }
 
         // "create"/"update" responses include { success, job }.
         const job = result?.job;
         if (job && typeof job === "object") {
-          const jobName = String((job as Any).name || "").trim() || "Scheduled task";
+          const jobName =
+            String((job as Any).name || "").trim() || "Scheduled task";
           const scheduleDesc = describeScheduleShort((job as Any).schedule);
           const nextRunAtMs = (job as Any).state?.nextRunAtMs;
           const next =
-            typeof nextRunAtMs === "number" ? new Date(nextRunAtMs).toLocaleString() : null;
-          const parts = [scheduleDesc, next ? `Next: ${next}` : null].filter(Boolean) as string[];
-          return parts.length > 0 ? `${jobName} → ${parts.join(" • ")}` : jobName;
+            typeof nextRunAtMs === "number"
+              ? new Date(nextRunAtMs).toLocaleString()
+              : null;
+          const parts = [scheduleDesc, next ? `Next: ${next}` : null].filter(
+            Boolean,
+          ) as string[];
+          return parts.length > 0
+            ? `${jobName} → ${parts.join(" • ")}`
+            : jobName;
         }
 
         // "list" returns an array of jobs.
@@ -620,7 +1435,9 @@ export function renderEventTitle(
 
       return friendlyToolResultTitle(
         typeof event.payload.tool === "string" ? event.payload.tool : undefined,
-        result && typeof result === "object" ? (result as Record<string, unknown>) : undefined,
+        result && typeof result === "object"
+          ? (result as Record<string, unknown>)
+          : undefined,
         success,
       );
     }
@@ -691,66 +1508,86 @@ export function renderEventTitle(
       return acPath ? (
         <span>
           Output ready:{" "}
-          <ClickableFilePath path={acPath} workspacePath={workspacePath} onOpenViewer={onOpenViewer} />
+          <ClickableFilePath
+            path={acPath}
+            workspacePath={workspacePath}
+            onOpenViewer={onOpenViewer}
+          />
           <span className="event-title-meta"> ({acType})</span>
         </span>
-      ) : `Output ready (${acType})`;
+      ) : (
+        `Output ready (${acType})`
+      );
     }
     case "diagram_created": {
-      const title = typeof event.payload?.title === "string" ? event.payload.title : "Diagram";
+      const title =
+        typeof event.payload?.title === "string"
+          ? event.payload.title
+          : "Diagram";
       return (
         <span>
-          Diagram:{" "}
-          <span className="event-title-meta">{title}</span>
+          Diagram: <span className="event-title-meta">{title}</span>
         </span>
       );
     }
     case "error":
-      return getMessage("error", msgCtx);
+      return localizeProgressText(getMessage("error", msgCtx));
     case "approval_requested": {
       const approval = getApprovalPayload(event);
       if (isRunCommandApproval(approval)) {
         return "Running command:";
       }
-      const description = getApprovalDescription(approval);
-      return description ? `${getMessage("approval", msgCtx)} ${description}` : getMessage("approval", msgCtx);
+      return getApprovalTimelineTitle(approval);
     }
     case "input_request_created":
-      return "Structured input requested";
+      return localizeProgressText("Structured input requested");
     case "input_request_resolved":
-      return "Structured input submitted";
+      return localizeProgressText("Structured input submitted");
     case "input_request_dismissed":
-      return "Structured input dismissed";
+      return localizeProgressText("Structured input dismissed");
     case "log": {
       const logMsg = event.payload?.message;
-      return typeof logMsg === "string" ? humanizeTimelineMessage(logMsg) : "Log";
+      return typeof logMsg === "string"
+        ? localizeProgressText(humanizeTimelineMessage(logMsg))
+        : localizeProgressText("Log");
     }
     case "verification_started":
-      return getMessage("verifying", msgCtx);
+      return localizeProgressText(getMessage("verifying", msgCtx));
     case "verification_passed":
-      return `${getMessage("verifyPassed", msgCtx)} (attempt ${event.payload.attempt})`;
+      return localizeProgressText(
+        `${getMessage("verifyPassed", msgCtx)} (attempt ${event.payload.attempt})`,
+      );
     case "verification_failed": {
       const attempt = event.payload?.attempt;
       const maxAttempts = event.payload?.maxAttempts;
       if (typeof attempt === "number" && typeof maxAttempts === "number") {
-        return `${getMessage("verifyFailed", msgCtx)} (attempt ${attempt}/${maxAttempts})`;
+        return localizeProgressText(
+          `${getMessage("verifyFailed", msgCtx)} (attempt ${attempt}/${maxAttempts})`,
+        );
       }
-      return getMessage("verifyFailed", msgCtx);
+      return localizeProgressText(getMessage("verifyFailed", msgCtx));
     }
     case "verification_pending_user_action":
-      return "Verification requires user action";
+      return translate(
+        "timeline.verificationRequiresUserAction",
+        "Verification requires user action",
+      );
     case "retry_started":
-      return getMessage("retrying", msgCtx, String(event.payload.attempt));
+      return localizeProgressText(
+        getMessage("retrying", msgCtx, String(event.payload.attempt)),
+      );
     default: {
       const friendly = humanizeTimelineMessage(event.type);
-      return friendly !== event.type ? friendly : event.type;
+      return localizeProgressText(
+        friendly !== event.type ? friendly : event.type,
+      );
     }
   }
 }
 
 export function renderEventDetails(
   event: TaskEvent,
-  voiceEnabled: boolean,
+  _voiceEnabled: boolean,
   markdownComponents: Any,
   options?: {
     workspacePath?: string;
@@ -778,19 +1615,20 @@ export function renderEventDetails(
   const onOpenDocumentArtifact = options?.onOpenDocumentArtifact;
   const onOpenPresentationArtifact = options?.onOpenPresentationArtifact;
   const onOpenWebArtifact = options?.onOpenWebArtifact;
-  const onQuoteAssistantMessage = options?.onQuoteAssistantMessage;
-  const onForkTaskSession = options?.onForkTaskSession;
   const eventStream = options?.events || [];
   const onViewOutputs = options?.onViewOutputs;
   const summaryMode = options?.summaryMode === true;
   const taskForEvent =
     options?.task?.id === event.taskId
       ? options.task
-      : options?.childTasks?.find((t) => t.id === event.taskId) ?? options?.task;
+      : (options?.childTasks?.find((t) => t.id === event.taskId) ??
+        options?.task);
   const effectiveType = getEffectiveTaskEventType(event);
   const stepCompletionPreviewPath = getStepCompletionPreviewPath(event);
   const shouldRenderOpenArtifactCard = (artifactPath: string) => {
-    const previewKind = getInlinePreviewKindForGeneratedFile({ path: artifactPath });
+    const previewKind = getInlinePreviewKindForGeneratedFile({
+      path: artifactPath,
+    });
     if (
       options?.deferEndOfTaskArtifactCards &&
       previewKind &&
@@ -806,14 +1644,18 @@ export function renderEventDetails(
   };
   const renderLinkedArtifactCards = (text: string) => {
     if (!workspacePath) return null;
-    const artifactPaths = extractGeneratedArtifactPathsFromText(text)
-      .filter((artifactPath) => shouldRenderOpenArtifactCard(artifactPath));
+    if (!text.trim()) return null;
+    const artifactPaths = getTaskEventArtifactPaths(event, eventStream).filter(
+      (artifactPath) => shouldRenderOpenArtifactCard(artifactPath),
+    );
     if (artifactPaths.length === 0) return null;
 
     return (
       <div className="assistant-artifact-cards">
         {artifactPaths.map((artifactPath) => {
-          const previewKind = getInlinePreviewKindForGeneratedFile({ path: artifactPath });
+          const previewKind = getInlinePreviewKindForGeneratedFile({
+            path: artifactPath,
+          });
           if (previewKind === "spreadsheet") {
             return (
               <SpreadsheetArtifactCard
@@ -860,23 +1702,35 @@ export function renderEventDetails(
     );
   };
 
-  if (event.type === "timeline_group_started" || event.type === "timeline_group_finished") {
+  if (
+    event.type === "timeline_group_started" ||
+    event.type === "timeline_group_finished"
+  ) {
     if (summaryMode) return null;
     const stage =
-      typeof event.payload?.stage === "string" && event.payload.stage.trim().length > 0
+      typeof event.payload?.stage === "string" &&
+      event.payload.stage.trim().length > 0
         ? event.payload.stage.trim()
         : "";
     const groupLabel =
-      (typeof event.payload?.groupLabel === "string" && event.payload.groupLabel.trim()) || "";
+      (typeof event.payload?.groupLabel === "string" &&
+        event.payload.groupLabel.trim()) ||
+      "";
     const maxParallel =
-      typeof event.payload?.maxParallel === "number" && Number.isFinite(event.payload.maxParallel)
+      typeof event.payload?.maxParallel === "number" &&
+      Number.isFinite(event.payload.maxParallel)
         ? Math.max(1, Math.floor(event.payload.maxParallel))
         : undefined;
     const phaseLabel = stage ? getSummaryStageLabel(stage) || stage : null;
     const isSubStage = groupLabel && groupLabel.toUpperCase() !== stage;
     return (
       <div className="event-details">
-        {phaseLabel ? <div>Phase: {phaseLabel}</div> : null}
+        {phaseLabel ? (
+          <div>
+            {translate("timeline.phaseLabel", "Phase")}:{" "}
+            {localizeProgressText(phaseLabel)}
+          </div>
+        ) : null}
         {isSubStage ? <div>Step: {groupLabel}</div> : null}
         {typeof maxParallel === "number" && maxParallel > 1 ? (
           <div>{maxParallel} tasks in parallel</div>
@@ -886,32 +1740,45 @@ export function renderEventDetails(
   }
 
   if (event.type === "timeline_evidence_attached") {
-    const refs = Array.isArray(event.payload?.evidenceRefs) ? event.payload.evidenceRefs : [];
+    const refs = Array.isArray(event.payload?.evidenceRefs)
+      ? event.payload.evidenceRefs
+      : [];
     if (!refs.length) return null;
     return (
       <div className="event-details evidence-event-details">
-        <div className="evidence-event-details-title">Evidence</div>
+        <div className="evidence-event-details-title">
+          {translate("timeline.evidence", "Evidence")}
+        </div>
         <div className="evidence-event-details-scroll">
           <ul className="evidence-event-details-list">
             {refs.map((entry: Any, index: number) => {
               const source =
-                typeof entry?.sourceUrlOrPath === "string" ? entry.sourceUrlOrPath.trim() : "";
+                typeof entry?.sourceUrlOrPath === "string"
+                  ? entry.sourceUrlOrPath.trim()
+                  : "";
               if (!source) return null;
               const snippet =
                 typeof entry?.snippet === "string"
                   ? stripHtmlTags(entry.snippet).replace(/\s+/g, " ").trim()
                   : "";
               const isWeb = /^https?:\/\//i.test(source);
-              const webDisplay = isWeb ? getWebEvidenceDisplay(source, snippet) : null;
+              const webDisplay = isWeb
+                ? getWebEvidenceDisplay(source, snippet)
+                : null;
               return (
-                <li key={`${source}-${index}`} className="evidence-event-details-item">
+                <li
+                  key={`${source}-${index}`}
+                  className="evidence-event-details-item"
+                >
                   {webDisplay ? (
                     <a
                       className="evidence-event-link"
                       href={source}
                       target="_blank"
                       rel="noreferrer"
-                      title={snippet ? `${webDisplay.label}\n${source}` : source}
+                      title={
+                        snippet ? `${webDisplay.label}\n${source}` : source
+                      }
                     >
                       <span
                         className="evidence-event-favicon"
@@ -919,14 +1786,23 @@ export function renderEventDetails(
                       >
                         {webDisplay.siteLabel.charAt(0).toUpperCase()}
                       </span>
-                      <span className="evidence-event-domain">{webDisplay.siteLabel}</span>
+                      <span className="evidence-event-domain">
+                        {webDisplay.siteLabel}
+                      </span>
                       {snippet ? (
-                        <span className="evidence-event-link-title">{webDisplay.label}</span>
+                        <span className="evidence-event-link-title">
+                          {webDisplay.label}
+                        </span>
                       ) : null}
                     </a>
                   ) : (
-                    <span className="evidence-event-link evidence-event-link-static" title={source}>
-                      <span className="evidence-event-link-title">{snippet || source}</span>
+                    <span
+                      className="evidence-event-link evidence-event-link-static"
+                      title={source}
+                    >
+                      <span className="evidence-event-link-title">
+                        {snippet || source}
+                      </span>
                     </span>
                   )}
                 </li>
@@ -947,11 +1823,16 @@ export function renderEventDetails(
         </div>
       );
     }
-    return <div className="event-details event-details-failure">{message || "Timeline error"}</div>;
+    return (
+      <div className="event-details event-details-failure">
+        {localizeErrorText(message || "Timeline error")}
+      </div>
+    );
   }
 
   if (effectiveType === "diagram_created") {
-    const diagram = typeof event.payload?.diagram === "string" ? event.payload.diagram : "";
+    const diagram =
+      typeof event.payload?.diagram === "string" ? event.payload.diagram : "";
     if (!diagram.trim()) return null;
     return (
       <div className="diagram-event-details">
@@ -962,8 +1843,12 @@ export function renderEventDetails(
 
   switch (effectiveType) {
     case "task_completed": {
-      const outputSummary = resolveTaskOutputSummaryFromCompletionEvent(event, eventStream);
-      const isNeedsUserAction = event.payload?.terminalStatus === "needs_user_action";
+      const outputSummary = resolveTaskOutputSummaryFromCompletionEvent(
+        event,
+        eventStream,
+      );
+      const isNeedsUserAction =
+        event.payload?.terminalStatus === "needs_user_action";
       if (!hasTaskOutputs(outputSummary) && !isNeedsUserAction) return null;
 
       const primaryOutputPath = outputSummary?.primaryOutputPath;
@@ -971,33 +1856,45 @@ export function renderEventDetails(
         ? primaryOutputPath.split("/").pop() || primaryOutputPath
         : "";
       const primaryOutputIsVideo =
-        typeof primaryOutputPath === "string" && VIDEO_FILE_EXT_RE.test(primaryOutputPath);
+        typeof primaryOutputPath === "string" &&
+        VIDEO_FILE_EXT_RE.test(primaryOutputPath);
       const primaryOutputIsHtml =
-        typeof primaryOutputPath === "string" && HTML_FILE_EXT_RE.test(primaryOutputPath);
+        typeof primaryOutputPath === "string" &&
+        HTML_FILE_EXT_RE.test(primaryOutputPath);
       const primaryOutputIsPresentation =
-        typeof primaryOutputPath === "string" && PRESENTATION_FILE_EXT_RE.test(primaryOutputPath);
+        typeof primaryOutputPath === "string" &&
+        PRESENTATION_FILE_EXT_RE.test(primaryOutputPath);
       const primaryOutputIsSpreadsheet =
-        typeof primaryOutputPath === "string" && SPREADSHEET_FILE_EXT_RE.test(primaryOutputPath);
+        typeof primaryOutputPath === "string" &&
+        SPREADSHEET_FILE_EXT_RE.test(primaryOutputPath);
       const primaryOutputIsDocument =
-        typeof primaryOutputPath === "string" && isWordDocumentArtifactFile(primaryOutputPath);
+        typeof primaryOutputPath === "string" &&
+        isWordDocumentArtifactFile(primaryOutputPath);
       const latexPair = findLatexPdfPair(eventStream, outputSummary);
       const outputCount = outputSummary?.outputCount ?? 0;
       const outputLabel =
-        outputCount === 1
-          ? `1 output ready`
-          : `${outputCount} outputs ready`;
+        outputCount === 1 ? `1 output ready` : `${outputCount} outputs ready`;
 
-      const pendingChecklist: string[] = Array.isArray(event.payload?.pendingChecklist)
-        ? event.payload.pendingChecklist.filter((item: unknown): item is string => typeof item === "string")
+      const pendingChecklist: string[] = Array.isArray(
+        event.payload?.pendingChecklist,
+      )
+        ? event.payload.pendingChecklist.filter(
+            (item: unknown): item is string => typeof item === "string",
+          )
         : [];
       return (
         <div className="event-details completion-output-card">
           <div className="completion-output-header">
-            {isNeedsUserAction ? "Action required" : "Output ready"}
+            {isNeedsUserAction
+              ? translate("timeline.actionRequired", "Action required")
+              : translate("timeline.outputReady", "Output ready")}
           </div>
           {isNeedsUserAction && (
             <div className="completion-output-subtitle">
-              Complete the pending verification items to fully close this task.
+              {translate(
+                "timeline.completePendingVerification",
+                "Complete the pending verification items to fully close this task.",
+              )}
             </div>
           )}
           {hasTaskOutputs(outputSummary) && (
@@ -1012,77 +1909,85 @@ export function renderEventDetails(
                   />
                 </div>
               )}
-              {!latexPair && primaryOutputIsVideo && primaryOutputPath && workspacePath && (
-                <div className="completion-output-preview">
-                  <InlineVideoPreview
-                    filePath={primaryOutputPath}
-                    workspacePath={workspacePath}
-                    onOpenViewer={onOpenViewer}
-                  />
-                </div>
-              )}
+              {!latexPair &&
+                primaryOutputIsVideo &&
+                primaryOutputPath &&
+                workspacePath && (
+                  <div className="completion-output-preview">
+                    <InlineVideoPreview
+                      filePath={primaryOutputPath}
+                      workspacePath={workspacePath}
+                      onOpenViewer={onOpenViewer}
+                    />
+                  </div>
+                )}
               {!latexPair &&
                 primaryOutputIsHtml &&
                 primaryOutputPath &&
                 workspacePath &&
                 shouldRenderOpenArtifactCard(primaryOutputPath) && (
-                <div className="completion-output-preview">
-                  <WebArtifactCard
-                    filePath={primaryOutputPath}
-                    workspacePath={workspacePath}
-                    onOpenViewer={onOpenWebArtifact || onOpenViewer}
-                  />
-                </div>
-              )}
+                  <div className="completion-output-preview">
+                    <WebArtifactCard
+                      filePath={primaryOutputPath}
+                      workspacePath={workspacePath}
+                      onOpenViewer={onOpenWebArtifact || onOpenViewer}
+                    />
+                  </div>
+                )}
               {!latexPair &&
                 primaryOutputIsPresentation &&
                 primaryOutputPath &&
                 workspacePath &&
                 shouldRenderOpenArtifactCard(primaryOutputPath) && (
-                <div className="completion-output-preview">
-                  <PresentationArtifactCard
-                    filePath={primaryOutputPath}
-                    workspacePath={workspacePath}
-                    onOpenViewer={onOpenPresentationArtifact || onOpenViewer}
-                  />
-                </div>
-              )}
+                  <div className="completion-output-preview">
+                    <PresentationArtifactCard
+                      filePath={primaryOutputPath}
+                      workspacePath={workspacePath}
+                      onOpenViewer={onOpenPresentationArtifact || onOpenViewer}
+                    />
+                  </div>
+                )}
               {!latexPair &&
                 primaryOutputIsSpreadsheet &&
                 primaryOutputPath &&
                 workspacePath &&
                 shouldRenderOpenArtifactCard(primaryOutputPath) && (
-                <div className="completion-output-preview">
-                  <SpreadsheetArtifactCard
-                    filePath={primaryOutputPath}
-                    workspacePath={workspacePath}
-                    onOpenViewer={onOpenSpreadsheetArtifact || onOpenViewer}
-                  />
-                </div>
-              )}
+                  <div className="completion-output-preview">
+                    <SpreadsheetArtifactCard
+                      filePath={primaryOutputPath}
+                      workspacePath={workspacePath}
+                      onOpenViewer={onOpenSpreadsheetArtifact || onOpenViewer}
+                    />
+                  </div>
+                )}
               {!latexPair &&
                 primaryOutputIsDocument &&
                 primaryOutputPath &&
                 workspacePath &&
                 shouldRenderOpenArtifactCard(primaryOutputPath) && (
-                <div className="completion-output-preview">
-                  <DocumentArtifactCard
-                    filePath={primaryOutputPath}
-                    workspacePath={workspacePath}
-                    onOpenViewer={onOpenDocumentArtifact || onOpenViewer}
-                  />
-                </div>
-              )}
+                  <div className="completion-output-preview">
+                    <DocumentArtifactCard
+                      filePath={primaryOutputPath}
+                      workspacePath={workspacePath}
+                      onOpenViewer={onOpenDocumentArtifact || onOpenViewer}
+                    />
+                  </div>
+                )}
               <div className="completion-output-subtitle">{outputLabel}</div>
               {primaryOutputPath && (
                 <div className="completion-output-primary">
-                  Primary file:{" "}
+                  {translate("timeline.primaryFile", "Primary file")}:{" "}
                   <ClickableFilePath
                     path={primaryOutputPath}
                     workspacePath={workspacePath}
                     onOpenViewer={onOpenViewer}
                   />
-                  {primaryOutputName && <span className="event-title-meta"> ({primaryOutputName})</span>}
+                  {primaryOutputName && (
+                    <span className="event-title-meta">
+                      {" "}
+                      ({primaryOutputName})
+                    </span>
+                  )}
                 </div>
               )}
               <div className="completion-output-actions">
@@ -1093,11 +1998,21 @@ export function renderEventDetails(
                     e.preventDefault();
                     e.stopPropagation();
                     if (!primaryOutputPath) return;
-                    void window.electronAPI.openFile(primaryOutputPath, workspacePath);
+                    void window.electronAPI.openFile(
+                      primaryOutputPath,
+                      workspacePath,
+                    );
                   }}
                 >
-                  Open file
+                  {translate("timeline.openFile", "Open file")}
                 </button>
+                {primaryOutputPath && (
+                  <ArtifactDownloadButton
+                    filePath={primaryOutputPath}
+                    workspacePath={workspacePath}
+                    className="completion-output-btn secondary"
+                  />
+                )}
                 <button
                   className="completion-output-btn secondary"
                   disabled={!primaryOutputPath}
@@ -1105,10 +2020,13 @@ export function renderEventDetails(
                     e.preventDefault();
                     e.stopPropagation();
                     if (!primaryOutputPath) return;
-                    void window.electronAPI.showInFinder(primaryOutputPath, workspacePath);
+                    void window.electronAPI.showInFinder(
+                      primaryOutputPath,
+                      workspacePath,
+                    );
                   }}
                 >
-                  Show in Finder
+                  {translate("timeline.showInFinder", "Show in Finder")}
                 </button>
                 <button
                   className="completion-output-btn secondary"
@@ -1118,7 +2036,7 @@ export function renderEventDetails(
                     onViewOutputs?.(event.taskId, primaryOutputPath);
                   }}
                 >
-                  View in Files
+                  {translate("timeline.viewInFiles", "View in Files")}
                 </button>
               </div>
             </>
@@ -1140,7 +2058,9 @@ export function renderEventDetails(
           : "";
       return (
         <div className="event-details follow-up-completed-details">
-          <div className="follow-up-completed-title">Follow-up received</div>
+          <div className="follow-up-completed-title">
+            {translate("timeline.followUpReceived", "Follow-up received")}
+          </div>
           {followUpMessage && (
             <div className="markdown-content">
               <DeferredMarkdown withBreaks components={markdownComponents}>
@@ -1158,15 +2078,21 @@ export function renderEventDetails(
         // Keep each list item inline; avoid wrapping with extra <p> inside <li>.
         p: ({ children }: Any) => <>{children}</>,
       };
-      const planSteps = Array.isArray(event.payload.plan?.steps) ? event.payload.plan.steps : [];
+      const planSteps = Array.isArray(event.payload.plan?.steps)
+        ? event.payload.plan.steps
+        : [];
       const visiblePlanSteps = options?.hideVerificationSteps
-        ? planSteps.filter((step: Any) => !isVerificationStepDescription(step?.description))
+        ? planSteps.filter(
+            (step: Any) => !isVerificationStepDescription(step?.description),
+          )
         : planSteps;
       return (
         <div className="event-details markdown-content">
           <div style={{ marginBottom: 8, fontWeight: 500 }}>
             <DeferredMarkdown components={markdownComponents}>
-              {normalizeMarkdownForDisplay(String(event.payload.plan?.description || ""))}
+              {normalizeMarkdownForDisplay(
+                String(event.payload.plan?.description || ""),
+              )}
             </DeferredMarkdown>
           </div>
           {visiblePlanSteps.length > 0 && (
@@ -1176,7 +2102,9 @@ export function renderEventDetails(
                   <span className="plan-checklist-circle" />
                   <span className="plan-checklist-text">
                     <DeferredMarkdown components={inlinePlanMarkdownComponents}>
-                      {normalizeMarkdownForDisplay(String(step?.description || ""))}
+                      {normalizeMarkdownForDisplay(
+                        String(step?.description || ""),
+                      )}
                     </DeferredMarkdown>
                   </span>
                 </div>
@@ -1190,6 +2118,19 @@ export function renderEventDetails(
       const tcToolName = event.payload.tool;
       const tcInput = event.payload.input;
 
+      if (tcToolName === "web_search") {
+        return <WebSearchEventDetails value={tcInput} completed={false} />;
+      }
+      if (tcToolName === "web_fetch" || tcToolName === "http_request") {
+        return (
+          <WebFetchEventDetails
+            value={tcInput}
+            completed={false}
+            toolName={tcToolName}
+          />
+        );
+      }
+
       // run_command: embed CLI output inside tool call frame when available
       if (tcToolName === "run_command" && tcInput?.command) {
         const cmdSessions = options?.commandOutputSessions ?? [];
@@ -1201,11 +2142,7 @@ export function renderEventDetails(
             </div>
           );
         }
-        return (
-          <div className="event-details event-details-scrollable">
-            <pre>{truncateForDisplay(JSON.stringify(tcInput, null, 2))}</pre>
-          </div>
-        );
+        return <ToolPayloadDetails value={tcInput} showSummary={false} />;
       }
 
       // write_file: show path + code preview
@@ -1223,7 +2160,9 @@ export function renderEventDetails(
               <code>{truncateForDisplay(tcPreview, 1500)}</code>
             </pre>
             {tcLines.length > 20 && (
-              <div className="code-preview-truncated">... {tcLines.length - 20} more lines</div>
+              <div className="code-preview-truncated">
+                ... {tcLines.length - 20} more lines
+              </div>
             )}
           </div>
         );
@@ -1233,11 +2172,17 @@ export function renderEventDetails(
       if (tcToolName === "edit_file" && tcInput?.file_path) {
         const oldDiffPreview =
           typeof tcInput.old_string === "string"
-            ? normalizeCodeBlockTextForDisplay(truncateForDisplay(tcInput.old_string, 500), "diff")
+            ? normalizeCodeBlockTextForDisplay(
+                truncateForDisplay(tcInput.old_string, 500),
+                "diff",
+              )
             : "";
         const newDiffPreview =
           typeof tcInput.new_string === "string"
-            ? normalizeCodeBlockTextForDisplay(truncateForDisplay(tcInput.new_string, 500), "diff")
+            ? normalizeCodeBlockTextForDisplay(
+                truncateForDisplay(tcInput.new_string, 500),
+                "diff",
+              )
             : "";
         return (
           <div className="event-details event-details-scrollable event-details-code-preview">
@@ -1266,22 +2211,38 @@ export function renderEventDetails(
         );
       }
 
-      // Default: formatted JSON
-      return (
-        <div className="event-details event-details-scrollable">
-          <pre>{truncateForDisplay(JSON.stringify(tcInput, null, 2))}</pre>
-        </div>
-      );
+      // Keep raw parameters available without letting implementation details
+      // dominate the task transcript.
+      return <ToolPayloadDetails value={tcInput} showSummary={false} />;
     }
     case "tool_result":
+      if (event.payload.tool === "web_search") {
+        return (
+          <WebSearchEventDetails
+            value={event.payload.result}
+            completed={true}
+          />
+        );
+      }
+      if (
+        event.payload.tool === "web_fetch" ||
+        event.payload.tool === "http_request"
+      ) {
+        return (
+          <WebFetchEventDetails
+            value={event.payload.result}
+            completed={true}
+            toolName={event.payload.tool}
+          />
+        );
+      }
       return (
-        <div className="event-details event-details-scrollable">
-          <pre>{truncateForDisplay(JSON.stringify(event.payload.result, null, 2))}</pre>
-        </div>
+        <ToolPayloadDetails value={event.payload.result} showSummary={true} />
       );
     case "assistant_message": {
-      const linkedMessage = cleanAssistantMessageForDisplay(event.payload.message);
-      const quote = createQuotedAssistantMessage(linkedMessage, event.id, event.taskId);
+      const linkedMessage = cleanAssistantMessageForDisplay(
+        event.payload.message,
+      );
       return (
         <div className="event-details assistant-message event-details-scrollable">
           <div className="markdown-content">
@@ -1293,16 +2254,6 @@ export function renderEventDetails(
             />
           </div>
           {renderLinkedArtifactCards(linkedMessage)}
-          <div className="message-actions">
-            <MessageCopyButton text={event.payload.message} />
-            <MessageSpeakButton text={event.payload.message} voiceEnabled={voiceEnabled} />
-            {quote && onQuoteAssistantMessage && (
-              <MessageQuoteButton onQuote={() => onQuoteAssistantMessage(quote)} />
-            )}
-            {event.id && onForkTaskSession && (
-              <MessageForkButton onFork={() => onForkTaskSession(event)} />
-            )}
-          </div>
         </div>
       );
     }
@@ -1322,8 +2273,13 @@ export function renderEventDetails(
     }
     case "step_failed": {
       const rawReason =
-        event.payload?.reason || event.payload?.step?.error || event.payload?.error || "Step failed.";
-      const displayReason = formatProviderErrorForDisplay(String(rawReason), { task: taskForEvent });
+        event.payload?.reason ||
+        event.payload?.step?.error ||
+        event.payload?.error ||
+        "Step failed.";
+      const displayReason = formatProviderErrorForDisplay(String(rawReason), {
+        task: taskForEvent,
+      });
       if (isLongOsascriptCommandText(displayReason)) {
         return (
           <div className="event-details event-details-command-error">
@@ -1331,18 +2287,32 @@ export function renderEventDetails(
           </div>
         );
       }
-      return <div className="event-details event-details-failure">{displayReason}</div>;
+      return (
+        <div className="event-details event-details-failure">
+          {localizeErrorText(displayReason)}
+        </div>
+      );
     }
     case "verification_pending_user_action": {
       const checklist: string[] = Array.isArray(event.payload?.pendingChecklist)
-        ? event.payload.pendingChecklist.filter((item: unknown): item is string => typeof item === "string")
+        ? event.payload.pendingChecklist.filter(
+            (item: unknown): item is string => typeof item === "string",
+          )
         : [];
       return (
         <div className="event-details">
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>Verification pending user action</div>
-          {typeof event.payload?.message === "string" && event.payload.message.trim().length > 0 && (
-            <div style={{ marginBottom: checklist.length > 0 ? 6 : 0 }}>{event.payload.message}</div>
-          )}
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>
+            {translate(
+              "timeline.verificationPendingUserAction",
+              "Verification pending user action",
+            )}
+          </div>
+          {typeof event.payload?.message === "string" &&
+            event.payload.message.trim().length > 0 && (
+              <div style={{ marginBottom: checklist.length > 0 ? 6 : 0 }}>
+                {event.payload.message}
+              </div>
+            )}
           {checklist.length > 0 && (
             <ul style={{ margin: 0, paddingLeft: 18 }}>
               {checklist.map((item, idx) => (
@@ -1357,33 +2327,55 @@ export function renderEventDetails(
       const approval = getApprovalPayload(event);
       if (!approval) return null;
 
-      const description = getApprovalDescription(approval);
       const command = extractApprovalCommand(approval);
-      const cwd = typeof approval?.details?.cwd === "string" ? approval.details.cwd : "";
+      const cwd =
+        typeof approval?.details?.cwd === "string" ? approval.details.cwd : "";
       const timeoutMs =
-        typeof approval?.details?.timeout === "number" && Number.isFinite(approval.details.timeout)
+        typeof approval?.details?.timeout === "number" &&
+        Number.isFinite(approval.details.timeout)
           ? approval.details.timeout
           : null;
       const timeoutLabel =
-        typeof timeoutMs === "number" ? `${Math.max(1, Math.round(timeoutMs / 1000))}s` : null;
+        typeof timeoutMs === "number"
+          ? `${Math.max(1, Math.round(timeoutMs / 1000))}s`
+          : null;
 
       if (command) {
         const commandPreview = buildApprovalCommandPreview(command);
         return (
           <div className="event-details">
-            <div style={{ marginBottom: 6, fontWeight: 600 }}>Running command:</div>
-            <div className="session-approval-code-scroll" role="region" aria-label="Command">
-              <code className="session-approval-code session-approval-code--multiline">{commandPreview.text}</code>
+            <div style={{ marginBottom: 6, fontWeight: 600 }}>
+              {translate("timeline.runningCommand", "Running command:")}
+            </div>
+            <div
+              className="session-approval-code-scroll"
+              role="region"
+              aria-label={translate("timeline.command", "Command")}
+            >
+              <code className="session-approval-code session-approval-code--multiline">
+                {commandPreview.text}
+              </code>
             </div>
             {commandPreview.truncated ? (
               <div className="session-approval-preview-note">
-                Preview condensed for readability. Approval still applies to the full command.
+                {translate(
+                  "timeline.commandPreviewCondensed",
+                  "Preview condensed for readability. Approval still applies to the full command.",
+                )}
               </div>
             ) : null}
             {(cwd || timeoutLabel) && (
               <div style={{ marginTop: 8 }}>
-                {cwd && <div>CWD: {cwd}</div>}
-                {timeoutLabel && <div>Timeout: {timeoutLabel}</div>}
+                {cwd && (
+                  <div>
+                    {translate("timeline.cwd", "CWD")}: {cwd}
+                  </div>
+                )}
+                {timeoutLabel && (
+                  <div>
+                    {translate("timeline.timeout", "Timeout")}: {timeoutLabel}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1391,35 +2383,79 @@ export function renderEventDetails(
       }
 
       return (
-        <div className="event-details event-details-scrollable">
-          {description ? <div style={{ marginBottom: approval.details ? 8 : 0 }}>{description}</div> : null}
-          {approval.details && <pre>{truncateForDisplay(JSON.stringify(approval.details, null, 2), 4000)}</pre>}
+        <div className="event-details approval-event-summary">
+          <p>{getApprovalTimelineDescription(approval)}</p>
+          <dl>
+            {getApprovalToolName(approval) ? (
+              <>
+                <dt>{translate("timeline.approval.action", "Action")}</dt>
+                <dd>
+                  {localizeProgressText(
+                    friendlyToolCallTitle(
+                      getApprovalToolName(approval),
+                      getApprovalParamsRecord(approval),
+                    ),
+                  )}
+                </dd>
+              </>
+            ) : null}
+            {getApprovalParamString(approval, "url") ? (
+              <>
+                <dt>{translate("timeline.approval.target", "Target")}</dt>
+                <dd title={getApprovalParamString(approval, "url")}>
+                  {getApprovalTargetHost(
+                    getApprovalParamString(approval, "url"),
+                  )}
+                </dd>
+              </>
+            ) : null}
+            {getApprovalParamString(approval, "path") ? (
+              <>
+                <dt>{translate("timeline.approval.target", "Target")}</dt>
+                <dd title={getApprovalParamString(approval, "path")}>
+                  {getApprovalParamString(approval, "path")}
+                </dd>
+              </>
+            ) : null}
+          </dl>
         </div>
       );
     }
     case "input_request_created": {
       const request = event.payload?.request;
-      const questions: Array<{ question?: string; options?: Array<{ label?: string }> }> = Array.isArray(
-        request?.questions,
-      )
-        ? request.questions
-        : [];
+      const questions: Array<{
+        question?: string;
+        options?: Array<{ label?: string }>;
+      }> = Array.isArray(request?.questions) ? request.questions : [];
       if (questions.length === 0) return null;
       return (
         <div className="event-details event-details-scrollable">
-          <div style={{ marginBottom: 8, fontWeight: 600 }}>Pending structured prompt</div>
+          <div style={{ marginBottom: 8, fontWeight: 600 }}>
+            {translate(
+              "timeline.pendingStructuredPrompt",
+              "Pending structured prompt",
+            )}
+          </div>
           <ol style={{ margin: 0, paddingLeft: 18 }}>
             {questions.map((question, idx) => (
               <li key={`${idx}-${question?.question || "q"}`}>
-                <div>{question?.question || "Question"}</div>
-                {Array.isArray(question?.options) && question.options.length > 0 && (
-                  <div style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
-                    {question.options
-                      .map((option) => (typeof option?.label === "string" ? option.label : ""))
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </div>
-                )}
+                <div>
+                  {question?.question ||
+                    translate("structuredInput.question", "Question")}
+                </div>
+                {Array.isArray(question?.options) &&
+                  question.options.length > 0 && (
+                    <div
+                      style={{ color: "var(--color-text-muted)", fontSize: 12 }}
+                    >
+                      {question.options
+                        .map((option) =>
+                          typeof option?.label === "string" ? option.label : "",
+                        )
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
+                  )}
               </li>
             ))}
           </ol>
@@ -1440,7 +2476,9 @@ export function renderEventDetails(
         if (summaryMode && fcIsScreenshot) {
           return (
             <div className="event-details">
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>Screenshot output</div>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                {translate("timeline.screenshotOutput", "Screenshot output")}
+              </div>
               <ClickableFilePath
                 path={fcPath}
                 workspacePath={workspacePath}
@@ -1541,7 +2579,9 @@ export function renderEventDetails(
       }
 
       const fcMimeType =
-        typeof fcPayload?.mimeType === "string" ? fcPayload.mimeType.toLowerCase() : "";
+        typeof fcPayload?.mimeType === "string"
+          ? fcPayload.mimeType.toLowerCase()
+          : "";
       const fcIsMarkdown =
         fcPayload?.type === "markdown" ||
         fcMimeType === "text/markdown" ||
@@ -1555,7 +2595,8 @@ export function renderEventDetails(
         fcPayload?.type === "text" ||
         fcPayload?.type === "code" ||
         fcMimeType === "application/pdf" ||
-        fcMimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        fcMimeType ===
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
         fcMimeType === "text/markdown" ||
         DOCUMENT_PREVIEW_EXT_RE.test(String(fcPath || ""));
 
@@ -1580,14 +2621,18 @@ export function renderEventDetails(
         const isJsonlPreview =
           fcLanguage === "jsonl" || /\.jsonl$/i.test(fcPathString);
         const canRenderJsonlPreview =
-          isJsonlPreview && parseJsonlPreview(fcPayload.contentPreview) !== null;
+          isJsonlPreview &&
+          parseJsonlPreview(fcPayload.contentPreview) !== null;
         return (
           <div className="event-details event-details-scrollable event-details-code-preview">
             <div className="code-preview-header">
-              <span className="code-preview-language">{fcPayload.language || "text"}</span>
+              <span className="code-preview-language">
+                {fcPayload.language || "text"}
+              </span>
               {fcPayload.previewTruncated && (
                 <span className="code-preview-truncated">
-                  showing first {previewLineCount} of {fcPayload.lineCount} lines
+                  showing first {previewLineCount} of {fcPayload.lineCount}{" "}
+                  lines
                 </span>
               )}
             </div>
@@ -1597,7 +2642,10 @@ export function renderEventDetails(
                 truncated={Boolean(fcPayload.previewTruncated)}
               />
             ) : (
-              <HighlightedCodePreview code={fcPayload.contentPreview} language={fcPayload.language} />
+              <HighlightedCodePreview
+                code={fcPayload.contentPreview}
+                language={fcPayload.language}
+              />
             )}
           </div>
         );
@@ -1645,7 +2693,9 @@ export function renderEventDetails(
         if (summaryMode && fmIsScreenshot) {
           return (
             <div className="event-details">
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>Screenshot output</div>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                {translate("timeline.screenshotOutput", "Screenshot output")}
+              </div>
               <ClickableFilePath
                 path={fmPath}
                 workspacePath={workspacePath}
@@ -1746,7 +2796,10 @@ export function renderEventDetails(
       }
 
       // Edit diff preview
-      if (fmPayload?.type === "edit" && (fmPayload?.oldPreview || fmPayload?.newPreview)) {
+      if (
+        fmPayload?.type === "edit" &&
+        (fmPayload?.oldPreview || fmPayload?.newPreview)
+      ) {
         const oldDiffPreview =
           typeof fmPayload.oldPreview === "string"
             ? normalizeCodeBlockTextForDisplay(fmPayload.oldPreview, "diff")
@@ -1804,7 +2857,9 @@ export function renderEventDetails(
       const artifactPath = event.payload?.path;
       if (typeof artifactPath === "string" && artifactPath.trim().length > 0) {
         const artifactContentPreview =
-          typeof event.payload?.contentPreview === "string" ? event.payload.contentPreview : "";
+          typeof event.payload?.contentPreview === "string"
+            ? event.payload.contentPreview
+            : "";
         if (
           artifactContentPreview &&
           /\.jsonl$/i.test(artifactPath) &&
@@ -1815,7 +2870,9 @@ export function renderEventDetails(
               <div className="code-preview-header">
                 <span className="code-preview-language">jsonl</span>
                 {event.payload?.previewTruncated ? (
-                  <span className="code-preview-truncated">preview truncated</span>
+                  <span className="code-preview-truncated">
+                    preview truncated
+                  </span>
                 ) : null}
               </div>
               <JsonlPreview
@@ -1833,10 +2890,13 @@ export function renderEventDetails(
           type: event.payload?.type,
         });
         const artifactMimeType =
-          typeof event.payload?.mimeType === "string" ? event.payload.mimeType.toLowerCase() : "";
+          typeof event.payload?.mimeType === "string"
+            ? event.payload.mimeType.toLowerCase()
+            : "";
         const artifactIsDocument =
           artifactMimeType === "application/pdf" ||
-          artifactMimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+          artifactMimeType ===
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
           artifactMimeType === "text/markdown" ||
           artifactMimeType.startsWith("text/") ||
           DOCUMENT_PREVIEW_EXT_RE.test(String(artifactPath || ""));
@@ -1970,9 +3030,11 @@ export function renderEventDetails(
     case "error":
       return (
         <div className="event-details event-details-failure">
-          {formatProviderErrorForDisplay(
-            String(event.payload.error || event.payload.message || ""),
-            { task: taskForEvent },
+          {localizeErrorText(
+            formatProviderErrorForDisplay(
+              String(event.payload.error || event.payload.message || ""),
+              { task: taskForEvent },
+            ),
           )}
         </div>
       );

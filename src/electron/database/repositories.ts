@@ -34,6 +34,9 @@ import {
   ChannelSpecialization,
   CreateChannelSpecializationRequest,
   UpdateChannelSpecializationRequest,
+  TaskProvenanceRecord,
+  TaskAccessPolicy,
+  TaskAccessWorkspaceScope,
 } from "../../shared/types";
 import { isActiveTaskStatus, normalizeTaskLifecycleState } from "../../shared/task-status";
 import { isTimelineEventType, normalizeTaskEventToTimelineV2 } from "../../shared/timeline-v2";
@@ -176,6 +179,12 @@ export class WorkspaceRepository {
     stmt.run(lastUsedAt, id);
   }
 
+  /** Archive or restore a workspace without touching its local files. */
+  updateArchivedAt(id: string, archivedAt?: number): void {
+    const stmt = this.db.prepare("UPDATE workspaces SET archived_at = ? WHERE id = ?");
+    stmt.run(archivedAt ?? null, id);
+  }
+
   /**
    * Update workspace path after the folder is moved.
    */
@@ -226,6 +235,7 @@ export class WorkspaceRepository {
       path: row.path,
       createdAt: row.created_at,
       lastUsedAt: row.last_used_at ?? undefined,
+      archivedAt: row.archived_at ?? undefined,
       permissions: mergedPermissions,
       isTemp: isTempWorkspaceId(typeof row.id === "string" ? row.id : undefined),
     };
@@ -1004,7 +1014,29 @@ export class TaskRepository {
           WHEN agent_config IS NOT NULL AND json_valid(agent_config)
           THEN json_extract(agent_config, '$.executionModeSource')
           ELSE NULL
-        END AS agent_config_execution_mode_source
+        END AS agent_config_execution_mode_source,
+        (
+          SELECT json_object(
+            'sourceKind', source_kind,
+            'providerKey', provider_key,
+            'providerLabel', provider_label,
+            'count', source_count
+          )
+          FROM (
+            SELECT
+              source_kind,
+              provider_key,
+              provider_label,
+              occurred_at,
+              created_at,
+              id,
+              COUNT(*) OVER () AS source_count
+            FROM task_provenance
+            WHERE task_id = tasks.id AND source_kind <> 'manual'
+          )
+          ORDER BY occurred_at DESC, created_at DESC, id DESC
+          LIMIT 1
+        ) AS provenance_summary
       FROM tasks
       ${where}
       ${orderBy}
@@ -1053,6 +1085,33 @@ export class TaskRepository {
       ORDER BY created_at DESC
     `);
     const rows = stmt.all(workspaceId) as Any[];
+    return rows.map((row) => this.mapRowToTask(row));
+  }
+
+  findByProjectId(
+    projectId: string,
+    limit = 500,
+    offset = 0,
+    includeArchivedSessions = false,
+  ): Task[] {
+    const normalizedProjectId = String(projectId || "").trim();
+    if (!normalizedProjectId) return [];
+    const safeLimit = Math.max(1, Math.min(5000, Math.floor(limit)));
+    const safeOffset = Math.max(0, Math.floor(offset));
+    const archiveClause = includeArchivedSessions
+      ? ""
+      : `AND NOT EXISTS (
+          SELECT 1 FROM task_session_metadata
+          WHERE task_session_metadata.session_id = COALESCE(NULLIF(tasks.session_id, ''), tasks.id)
+            AND task_session_metadata.archived_at IS NOT NULL
+        )`;
+    const rows = this.db.prepare(`
+      SELECT * FROM tasks
+      WHERE project_id = ?
+      ${archiveClause}
+      ORDER BY COALESCE(updated_at, created_at) DESC, created_at DESC, id DESC
+      LIMIT ? OFFSET ?
+    `).all(normalizedProjectId, safeLimit, safeOffset) as Any[];
     return rows.map((row) => this.mapRowToTask(row));
   }
 
@@ -1435,6 +1494,9 @@ export class TaskRepository {
       branchLabel: row.branch_label || undefined,
       resumeStrategy: row.resume_strategy || undefined,
       source: (row.source as Task["source"]) || undefined,
+      provenanceSummary: row.provenance_summary
+        ? safeJsonParse(row.provenance_summary, undefined, "task.provenanceSummary")
+        : undefined,
       strategyLock: Number(row.strategy_lock) === 1,
       budgetProfile: row.budget_profile || undefined,
       terminalStatus: row.terminal_status || undefined,
@@ -1913,6 +1975,21 @@ export class TaskEventRepository {
     return this.mapRowsToEvents(rows).events;
   }
 
+  /** Narrow event projection used by Task Access; excludes timeline/chat payload noise. */
+  findAccessUsageByTaskId(taskId: string): TaskEvent[] {
+    const rows = this.db
+      .prepare(
+        `
+          SELECT * FROM task_events
+          WHERE task_id = ?
+            AND COALESCE(legacy_type, type) IN ('skill_applied', 'skill_used', 'tool_call')
+          ORDER BY COALESCE(seq, timestamp) ASC, timestamp ASC
+        `,
+      )
+      .all(taskId) as Any[];
+    return this.mapRowsToEvents(rows).events;
+  }
+
   findRecentByTaskId(taskId: string, maxEvents: number): TaskEvent[] {
     const safeLimit =
       typeof maxEvents === "number" && Number.isFinite(maxEvents) && maxEvents > 0
@@ -2144,14 +2221,37 @@ export class TaskEventRepository {
       cursorWhere.length === 0
         ? this.findLatestTimelineContextRow(taskId, "plan_created", selectedRows)
         : null;
-    const selectedRowsForEvents = planContextRow ? [...selectedRows, planContextRow] : selectedRows;
-    if (planContextRow) {
-      const planPayloadBytes =
-        typeof planContextRow.payload_bytes === "number" && Number.isFinite(planContextRow.payload_bytes)
-          ? planContextRow.payload_bytes
-          : Buffer.byteLength(String(planContextRow.payload ?? ""), "utf8");
-      payloadBytes += planPayloadBytes;
-      largestEventPayloadBytes = Math.max(largestEventPayloadBytes, planPayloadBytes);
+    const latestPlanRow =
+      planContextRow ||
+      selectedRows.find(
+        (row) => String(row.legacy_type || row.type || "").trim() === "plan_created",
+      );
+    const planStepContextRows =
+      cursorWhere.length === 0 && latestPlanRow
+        ? this.findLatestPlanStepContextRows(taskId, latestPlanRow, selectedRows)
+        : [];
+    const contextRows = [planContextRow, ...planStepContextRows].filter(
+      (row): row is Any => !!row,
+    );
+    const selectedIds = new Set(
+      selectedRows
+        .map((row) => (typeof row.id === "string" ? row.id : ""))
+        .filter((id) => id.length > 0),
+    );
+    const uniqueContextRows = contextRows.filter((row) => {
+      const id = typeof row.id === "string" ? row.id : "";
+      if (id && selectedIds.has(id)) return false;
+      if (id) selectedIds.add(id);
+      return true;
+    });
+    const selectedRowsForEvents = [...selectedRows, ...uniqueContextRows];
+    for (const contextRow of uniqueContextRows) {
+      const contextPayloadBytes =
+        typeof contextRow.payload_bytes === "number" && Number.isFinite(contextRow.payload_bytes)
+          ? contextRow.payload_bytes
+          : Buffer.byteLength(String(contextRow.payload ?? ""), "utf8");
+      payloadBytes += contextPayloadBytes;
+      largestEventPayloadBytes = Math.max(largestEventPayloadBytes, contextPayloadBytes);
     }
 
     const selectedRowsAscending = [...selectedRowsForEvents].sort((a, b) => {
@@ -2218,6 +2318,64 @@ export class TaskEventRepository {
       .get(taskId, effectiveType) as Any;
     if (!row || selectedIds.has(String(row.id ?? ""))) return null;
     return row;
+  }
+
+  private findLatestPlanStepContextRows(
+    taskId: string,
+    planRow: Any,
+    selectedRows: Any[],
+  ): Any[] {
+    if (!taskId || !planRow) return [];
+    let payload: Any = {};
+    try {
+      payload =
+        typeof planRow.payload === "string" ? JSON.parse(planRow.payload) : planRow.payload || {};
+    } catch {
+      return [];
+    }
+    const rawSteps = Array.isArray(payload?.plan?.steps) ? payload.plan.steps : [];
+    const planStepIds = new Set(
+      rawSteps
+        .map((step: Any) => (typeof step?.id === "string" ? step.id.trim() : ""))
+        .filter((id: string) => id.length > 0),
+    );
+    if (planStepIds.size === 0) return [];
+
+    const planOrder = Number(planRow.timeline_order ?? planRow.seq ?? planRow.timestamp) || 0;
+    const rows = this.db
+      .prepare(`
+        SELECT
+          *,
+          COALESCE(seq, timestamp) AS timeline_order,
+          LENGTH(COALESCE(payload, '')) AS payload_bytes
+        FROM task_events
+        WHERE task_id = ?
+          AND COALESCE(seq, timestamp) > ?
+          AND COALESCE(legacy_type, type) IN (
+            'step_started',
+            'step_completed',
+            'step_failed',
+            'step_skipped'
+          )
+        ORDER BY COALESCE(seq, timestamp) DESC, timestamp DESC, id DESC
+      `)
+      .all(taskId, planOrder) as Any[];
+
+    const selectedIds = new Set(
+      selectedRows
+        .map((row) => (typeof row.id === "string" ? row.id : ""))
+        .filter((id) => id.length > 0),
+    );
+    const latestByStepId = new Map<string, Any>();
+    for (const row of rows) {
+      const stepId = typeof row.step_id === "string" ? row.step_id.trim() : "";
+      if (!planStepIds.has(stepId) || latestByStepId.has(stepId)) continue;
+      latestByStepId.set(stepId, row);
+    }
+
+    return Array.from(latestByStepId.values()).filter(
+      (row) => !selectedIds.has(String(row.id ?? "")),
+    );
   }
 
   findEventDetailById(
@@ -2356,7 +2514,7 @@ export class TaskEventRepository {
     return {
       ...row,
       payload: JSON.stringify({
-        __coworkPayloadTruncated: true,
+        __neoworkerPayloadTruncated: true,
         originalPayloadBytes: payloadBytes,
         preview,
         eventId: row.id,
@@ -2761,6 +2919,44 @@ export class ArtifactRepository {
     return newArtifact;
   }
 
+  upsertForTaskPath(artifact: Omit<Artifact, "id">): Artifact {
+    const existingRow = this.db
+      .prepare(
+        "SELECT * FROM artifacts WHERE task_id = ? AND path = ? ORDER BY created_at DESC LIMIT 1",
+      )
+      .get(artifact.taskId, artifact.path) as Any;
+
+    if (!existingRow) {
+      return this.create(artifact);
+    }
+
+    this.db
+      .prepare(
+        `UPDATE artifacts
+         SET mime_type = ?, sha256 = ?, size = ?, created_at = ?
+         WHERE id = ?`,
+      )
+      .run(
+        artifact.mimeType,
+        artifact.sha256,
+        artifact.size,
+        artifact.createdAt,
+        existingRow.id,
+      );
+
+    return {
+      ...artifact,
+      id: existingRow.id,
+    };
+  }
+
+  relocateForTask(taskId: string, oldPath: string, newPath: string): number {
+    const result = this.db
+      .prepare("UPDATE artifacts SET path = ? WHERE task_id = ? AND path = ?")
+      .run(newPath, taskId, oldPath);
+    return result.changes;
+  }
+
   findByTaskId(taskId: string): Artifact[] {
     const stmt = this.db.prepare(
       "SELECT * FROM artifacts WHERE task_id = ? ORDER BY created_at DESC",
@@ -3072,6 +3268,16 @@ export class ApprovalRepository {
       WHERE id = ?
     `);
     stmt.run(status, Date.now(), id);
+  }
+
+  findById(id: string): ApprovalRequest | null {
+    const row = this.db
+      .prepare(`
+        SELECT * FROM approvals
+        WHERE id = ?
+      `)
+      .get(id) as Any | undefined;
+    return row ? this.mapRowToApproval(row) : null;
   }
 
   findPendingByTaskId(taskId: string): ApprovalRequest[] {
@@ -3505,6 +3711,7 @@ export class LLMModelRepository {
 
 const channelRepoLogger = createLogger("ChannelRepository");
 const CHANNEL_CONFIG_ENCRYPTED_PREFIX = "enc:";
+const unreadableChannelConfigsLogged = new Set<string>();
 
 interface ChannelConfigReadResult {
   json: string;
@@ -3555,21 +3762,30 @@ function decryptChannelConfig(value: string): ChannelConfigReadResult {
     }
     const readError =
       "Channel configuration is encrypted with OS secure storage and cannot be decrypted in this environment.";
-    channelRepoLogger.error(readError);
+    logUnreadableChannelConfigOnce(value, readError);
     return {
       json: "{}",
       encrypted: true,
       readError,
     };
   } catch (error) {
-    channelRepoLogger.error("Failed to decrypt channel config:", error);
+    const readError =
+      "Channel configuration was encrypted by an earlier app identity and must be reconnected in NeoWorker.";
+    logUnreadableChannelConfigOnce(value, readError);
     return {
       json: "{}",
       encrypted: true,
-      readError:
-        "Channel configuration is encrypted but could not be decrypted. Refusing to overwrite it until secure storage is available again.",
+      readError,
     };
   }
+}
+
+function logUnreadableChannelConfigOnce(value: string, message: string): void {
+  if (unreadableChannelConfigsLogged.has(value)) return;
+  unreadableChannelConfigsLogged.add(value);
+  channelRepoLogger.warn(
+    `${message} The encrypted value is preserved and the channel is disabled until it is reconnected.`,
+  );
 }
 
 export interface Channel {
@@ -3634,7 +3850,7 @@ export interface ChannelMessage {
   /**
    * Message direction as recorded by the gateway.
    * - incoming: message received from another user/device
-   * - outgoing: message sent by CoWork OS back into the chat
+   * - outgoing: message sent by NeoWorker back into the chat
    * - outgoing_user: message sent by the local user (captured from some channels when enabled)
    */
   direction: "incoming" | "outgoing" | "outgoing_user";
@@ -3764,7 +3980,10 @@ export class ChannelRepository {
       id: row.id as string,
       type: row.type as string,
       name: row.name as string,
-      enabled: row.enabled === 1,
+      // A brand migration changes the macOS Safe Storage identity. Keep the
+      // ciphertext untouched, but do not let an unreadable legacy channel run
+      // with an empty config or flood the tray refresh loop with retries.
+      enabled: configState.readError ? false : row.enabled === 1,
       config: safeJsonParse(configState.json, {}, "channel.config"),
       configEncrypted: configState.encrypted,
       configReadError: configState.readError,
@@ -4408,6 +4627,23 @@ export class ChannelMessageRepository {
     return rows.map((row) => this.mapRowToMessage(row)).reverse();
   }
 
+  findByChannelMessageId(
+    channelId: string,
+    channelMessageId: string,
+  ): ChannelMessage | undefined {
+    const row = this.db
+      .prepare(
+        `
+          SELECT * FROM channel_messages
+          WHERE channel_id = ? AND channel_message_id = ?
+          ORDER BY timestamp DESC
+          LIMIT 1
+        `,
+      )
+      .get(channelId, channelMessageId) as Record<string, unknown> | undefined;
+    return row ? this.mapRowToMessage(row) : undefined;
+  }
+
   deleteByChannelId(channelId: string): void {
     const stmt = this.db.prepare("DELETE FROM channel_messages WHERE channel_id = ?");
     stmt.run(channelId);
@@ -4451,6 +4687,622 @@ export class ChannelMessageRepository {
         : undefined,
       timestamp: row.timestamp as number,
     };
+  }
+}
+
+export type CreateTaskProvenanceInput = Omit<
+  TaskProvenanceRecord,
+  "id" | "createdAt" | "attachments"
+> & {
+  id?: string;
+  createdAt?: number;
+  attachments?: TaskProvenanceRecord["attachments"];
+};
+
+const TASK_PROVENANCE_EXCERPT_MAX_CHARS = 4096;
+const TASK_PROVENANCE_ATTACHMENT_LIMIT = 50;
+const TASK_PROVENANCE_METADATA_KEYS = new Set([
+  "replyTo",
+  "isGroup",
+  "triggerName",
+  "requestId",
+  "jobId",
+  "runKey",
+  "recordType",
+]);
+
+function asTaskProvenanceObject(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function redactTaskProvenanceText(value: string, maxLength: number): string {
+  return value
+    .replace(
+      /(authorization|token|access[_ -]?token|refresh[_ -]?token|api[-_ ]?key|oauth[_ -]?code|secret|password|passwd|cookie|set-cookie|session)\s*[=:]\s*(?:bearer\s+)?([^\s"';&]+)/gi,
+      "$1=[REDACTED]",
+    )
+    .replace(/\bbearer\s+[a-z0-9._~+/-]+=*/gi, "Bearer [REDACTED]")
+    .replace(
+      /([?&](?:access_token|refresh_token|token|api_key|password|secret|session)=[^&#\s]*)/gi,
+      "[REDACTED_PARAM]",
+    )
+    .slice(0, maxLength);
+}
+
+function normalizeTaskProvenanceMetadataValue(value: unknown): unknown {
+  if (typeof value === "string") return redactTaskProvenanceText(value, 500);
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "boolean" || value === null) return value;
+  return undefined;
+}
+
+function normalizeTaskProvenanceInput(
+  input: CreateTaskProvenanceInput,
+): TaskProvenanceRecord {
+  const rawExcerpt = typeof input.excerpt === "string" ? input.excerpt : undefined;
+  const excerptTruncated = Boolean(
+    input.excerptTruncated ||
+      (rawExcerpt && rawExcerpt.length > TASK_PROVENANCE_EXCERPT_MAX_CHARS),
+  );
+  const rawActor = asTaskProvenanceObject(input.actor);
+  const rawConversation = asTaskProvenanceObject(input.conversation);
+  const rawOpenTarget = asTaskProvenanceObject(input.openTarget);
+  const rawMetadata = asTaskProvenanceObject(input.metadata);
+  const metadataEntries = Object.entries(rawMetadata || {})
+    .filter(([key]) => TASK_PROVENANCE_METADATA_KEYS.has(key))
+    .slice(0, TASK_PROVENANCE_METADATA_KEYS.size)
+    .flatMap(([key, value]) => {
+      const normalized = normalizeTaskProvenanceMetadataValue(value);
+      return normalized === undefined ? [] : [[key, normalized] as const];
+    });
+  const metadata =
+    metadataEntries.length > 0 ? Object.fromEntries(metadataEntries) : undefined;
+
+  return {
+    ...input,
+    id: input.id || uuidv4(),
+    providerKey: input.providerKey?.trim().slice(0, 120) || undefined,
+    providerLabel: input.providerLabel?.trim().slice(0, 120) || undefined,
+    sourceRef: input.sourceRef?.trim().slice(0, 500) || undefined,
+    externalId: input.externalId?.trim().slice(0, 500) || undefined,
+    actor: rawActor
+      ? {
+          id:
+            typeof rawActor.id === "string"
+              ? rawActor.id.trim().slice(0, 500) || undefined
+              : undefined,
+          displayName:
+            typeof rawActor.displayName === "string"
+              ? rawActor.displayName.trim().slice(0, 240) || undefined
+              : undefined,
+          username:
+            typeof rawActor.username === "string"
+              ? rawActor.username.trim().slice(0, 240) || undefined
+              : undefined,
+          kind:
+            rawActor.kind === "user" ||
+            rawActor.kind === "automation" ||
+            rawActor.kind === "system"
+              ? rawActor.kind
+              : "unknown",
+        }
+      : undefined,
+    conversation: rawConversation
+      ? {
+          id:
+            typeof rawConversation.id === "string"
+              ? rawConversation.id.trim().slice(0, 500) || undefined
+              : undefined,
+          label:
+            typeof rawConversation.label === "string"
+              ? rawConversation.label.trim().slice(0, 240) || undefined
+              : undefined,
+          threadId:
+            typeof rawConversation.threadId === "string"
+              ? rawConversation.threadId.trim().slice(0, 500) || undefined
+              : undefined,
+          isGroup: rawConversation.isGroup === true || undefined,
+        }
+      : undefined,
+    excerpt: rawExcerpt
+      ? redactTaskProvenanceText(rawExcerpt, TASK_PROVENANCE_EXCERPT_MAX_CHARS)
+      : undefined,
+    excerptTruncated,
+    attachments: (Array.isArray(input.attachments) ? input.attachments : [])
+      .slice(0, TASK_PROVENANCE_ATTACHMENT_LIMIT)
+      .filter(
+        (attachment) =>
+          Boolean(attachment) &&
+          typeof attachment === "object" &&
+          typeof (attachment as { name?: unknown }).name === "string",
+      )
+      .map((attachment) => ({
+        name:
+          typeof attachment.name === "string"
+            ? attachment.name.trim().slice(0, 500)
+            : "",
+        mimeType:
+          typeof attachment.mimeType === "string"
+            ? attachment.mimeType.trim().slice(0, 200) || undefined
+            : undefined,
+        size:
+          typeof attachment.size === "number" &&
+          Number.isFinite(attachment.size) &&
+          attachment.size >= 0
+            ? Math.floor(attachment.size)
+            : undefined,
+        artifactId:
+          typeof attachment.artifactId === "string"
+            ? attachment.artifactId.trim().slice(0, 500) || undefined
+            : undefined,
+      }))
+      .filter((attachment) => attachment.name.length > 0),
+    openTarget: rawOpenTarget
+      ? {
+          kind:
+            rawOpenTarget.kind === "external_url" ||
+            rawOpenTarget.kind === "gateway_message" ||
+            rawOpenTarget.kind === "mail_thread" ||
+            rawOpenTarget.kind === "connector_record" ||
+            rawOpenTarget.kind === "automation_run"
+              ? rawOpenTarget.kind
+              : "none",
+          locator:
+            typeof rawOpenTarget.locator === "string"
+              ? rawOpenTarget.locator.trim().slice(0, 4096) || undefined
+              : undefined,
+        }
+      : undefined,
+    occurredAt: Number.isFinite(input.occurredAt)
+      ? Math.floor(input.occurredAt)
+      : Date.now(),
+    createdAt:
+      typeof input.createdAt === "number" && Number.isFinite(input.createdAt)
+        ? Math.floor(input.createdAt)
+        : Date.now(),
+    metadata,
+  };
+}
+
+/** Durable task input provenance, kept separate from task origin and access policy. */
+export class TaskProvenanceRepository {
+  constructor(private db: Database.Database) {}
+
+  create(input: CreateTaskProvenanceInput): TaskProvenanceRecord {
+    const record = normalizeTaskProvenanceInput(input);
+    this.insert(record, false);
+    return record;
+  }
+
+  createOrGetByExternalId(input: CreateTaskProvenanceInput): TaskProvenanceRecord {
+    const record = normalizeTaskProvenanceInput(input);
+    if (!record.externalId) {
+      this.insert(record, false);
+      return record;
+    }
+
+    const result = this.insert(record, true);
+    if (result.changes > 0) return record;
+
+    const existing = this.db
+      .prepare(
+        `
+          SELECT * FROM task_provenance
+          WHERE task_id = ?
+            AND source_kind = ?
+            AND COALESCE(provider_key, '') = COALESCE(?, '')
+            AND external_id = ?
+          LIMIT 1
+        `,
+      )
+      .get(
+        record.taskId,
+        record.sourceKind,
+        record.providerKey || null,
+        record.externalId,
+      ) as Record<string, unknown> | undefined;
+
+    if (!existing) {
+      throw new Error("Task provenance dedupe lookup failed");
+    }
+    return this.mapRow(existing);
+  }
+
+  listByTaskId(taskId: string, limit = 20, offset = 0): TaskProvenanceRecord[] {
+    const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
+    const safeOffset = Math.max(0, Math.floor(offset));
+    const rows = this.db
+      .prepare(
+        `
+          SELECT * FROM task_provenance
+          WHERE task_id = ?
+          ORDER BY occurred_at ASC, created_at ASC, id ASC
+          LIMIT ? OFFSET ?
+        `,
+      )
+      .all(taskId, safeLimit, safeOffset) as Record<string, unknown>[];
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  /** Recent-first page query returned in chronological order for renderer stacking. */
+  listRecentByTaskId(taskId: string, limit = 20, offset = 0): TaskProvenanceRecord[] {
+    const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
+    const safeOffset = Math.max(0, Math.floor(offset));
+    const rows = this.db
+      .prepare(
+        `
+          SELECT * FROM task_provenance
+          WHERE task_id = ? AND source_kind <> 'manual'
+          ORDER BY occurred_at DESC, created_at DESC, id DESC
+          LIMIT ? OFFSET ?
+        `,
+      )
+      .all(taskId, safeLimit, safeOffset) as Record<string, unknown>[];
+    return rows.reverse().map((row) => this.mapRow(row));
+  }
+
+  findByIdForTask(taskId: string, provenanceId: string): TaskProvenanceRecord | undefined {
+    const row = this.db
+      .prepare(
+        `
+          SELECT * FROM task_provenance
+          WHERE task_id = ? AND id = ?
+          LIMIT 1
+        `,
+      )
+      .get(taskId, provenanceId) as Record<string, unknown> | undefined;
+    return row ? this.mapRow(row) : undefined;
+  }
+
+  findByExternalIdentity(input: {
+    taskId: string;
+    sourceKind: TaskProvenanceRecord["sourceKind"];
+    providerKey?: string;
+    externalId: string;
+  }): TaskProvenanceRecord | undefined {
+    const row = this.db
+      .prepare(
+        `
+          SELECT * FROM task_provenance
+          WHERE task_id = ?
+            AND source_kind = ?
+            AND COALESCE(provider_key, '') = COALESCE(?, '')
+            AND external_id = ?
+          LIMIT 1
+        `,
+      )
+      .get(
+        input.taskId,
+        input.sourceKind,
+        input.providerKey || null,
+        input.externalId,
+      ) as Record<string, unknown> | undefined;
+    return row ? this.mapRow(row) : undefined;
+  }
+
+  listByTaskIds(taskIds: string[], limitPerTask = 3): TaskProvenanceRecord[] {
+    const uniqueTaskIds = Array.from(new Set(taskIds.filter(Boolean))).slice(0, 100);
+    if (uniqueTaskIds.length === 0) return [];
+    const safeLimit = Math.max(1, Math.min(20, Math.floor(limitPerTask)));
+    const placeholders = uniqueTaskIds.map(() => "?").join(", ");
+    const rows = this.db
+      .prepare(
+        `
+          SELECT * FROM (
+            SELECT task_provenance.*,
+              ROW_NUMBER() OVER (
+                PARTITION BY task_id
+                ORDER BY occurred_at DESC, created_at DESC, id DESC
+              ) AS row_number
+            FROM task_provenance
+            WHERE task_id IN (${placeholders})
+          )
+          WHERE row_number <= ?
+          ORDER BY occurred_at ASC, created_at ASC, id ASC
+        `,
+      )
+      .all(...uniqueTaskIds, safeLimit) as Record<string, unknown>[];
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  cloneReferences(
+    sourceTaskId: string,
+    targetTaskId: string,
+    relation: TaskProvenanceRecord["relation"] = "inherited",
+  ): TaskProvenanceRecord[] {
+    return this.listRecentByTaskId(sourceTaskId, 200).map((record) =>
+      this.createOrGetByExternalId({
+        ...record,
+        id: undefined,
+        taskId: targetTaskId,
+        relation,
+        createdAt: Date.now(),
+      }),
+    );
+  }
+
+  deleteByTaskId(taskId: string): number {
+    return this.db.prepare("DELETE FROM task_provenance WHERE task_id = ?").run(taskId).changes;
+  }
+
+  private insert(
+    record: TaskProvenanceRecord,
+    ignoreDuplicate: boolean,
+  ): Database.RunResult {
+    const verb = ignoreDuplicate ? "INSERT OR IGNORE" : "INSERT";
+    return this.db
+      .prepare(
+        `
+          ${verb} INTO task_provenance (
+            id, task_id, relation, source_kind, provider_key, provider_label,
+            source_ref, external_id, actor_json, conversation_json, excerpt,
+            excerpt_truncated, attachments_json, open_target_json, occurred_at,
+            metadata_json, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(
+        record.id,
+        record.taskId,
+        record.relation,
+        record.sourceKind,
+        record.providerKey || null,
+        record.providerLabel || null,
+        record.sourceRef || null,
+        record.externalId || null,
+        record.actor ? JSON.stringify(record.actor) : null,
+        record.conversation ? JSON.stringify(record.conversation) : null,
+        record.excerpt || null,
+        record.excerptTruncated ? 1 : 0,
+        JSON.stringify(record.attachments),
+        record.openTarget ? JSON.stringify(record.openTarget) : null,
+        record.occurredAt,
+        record.metadata ? JSON.stringify(record.metadata) : null,
+        record.createdAt,
+      );
+  }
+
+  private mapRow(row: Record<string, unknown>): TaskProvenanceRecord {
+    return normalizeTaskProvenanceInput({
+      id: String(row.id),
+      taskId: String(row.task_id),
+      relation: row.relation as TaskProvenanceRecord["relation"],
+      sourceKind: row.source_kind as TaskProvenanceRecord["sourceKind"],
+      providerKey: (row.provider_key as string) || undefined,
+      providerLabel: (row.provider_label as string) || undefined,
+      sourceRef: (row.source_ref as string) || undefined,
+      externalId: (row.external_id as string) || undefined,
+      actor: row.actor_json
+        ? safeJsonParse(
+            String(row.actor_json),
+            undefined,
+            "taskProvenance.actor",
+          )
+        : undefined,
+      conversation: row.conversation_json
+        ? safeJsonParse(
+            String(row.conversation_json),
+            undefined,
+            "taskProvenance.conversation",
+          )
+        : undefined,
+      excerpt: (row.excerpt as string) || undefined,
+      excerptTruncated: Number(row.excerpt_truncated || 0) === 1,
+      attachments: safeJsonParse(
+        String(row.attachments_json || "[]"),
+        [],
+        "taskProvenance.attachments",
+      ),
+      openTarget: row.open_target_json
+        ? safeJsonParse(
+            String(row.open_target_json),
+            undefined,
+            "taskProvenance.openTarget",
+          )
+        : undefined,
+      occurredAt: Number(row.occurred_at),
+      createdAt: Number(row.created_at),
+      metadata: row.metadata_json
+        ? safeJsonParse(
+            String(row.metadata_json),
+            undefined,
+            "taskProvenance.metadata",
+          )
+        : undefined,
+    });
+  }
+}
+
+export class TaskAccessPolicyConflictError extends Error {
+  constructor() {
+    super("Task access policy revision conflict");
+    this.name = "TaskAccessPolicyConflictError";
+  }
+}
+
+const TASK_ACCESS_LIST_LIMIT = 100;
+
+function normalizeTaskAccessStringList(values: unknown): string[] | undefined {
+  if (!Array.isArray(values)) return undefined;
+  return Array.from(
+    new Set(
+      values
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
+    ),
+  ).slice(0, TASK_ACCESS_LIST_LIMIT);
+}
+
+function normalizeTaskAccessWorkspaceScopes(scopes: unknown): TaskAccessWorkspaceScope[] {
+  if (!Array.isArray(scopes)) return [];
+  const unique = new Map<string, TaskAccessWorkspaceScope>();
+  for (const candidate of scopes.slice(0, 20)) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
+    const scope = candidate as Partial<TaskAccessWorkspaceScope>;
+    if (typeof scope.workspaceId !== "string") continue;
+    const workspaceId = scope.workspaceId.trim();
+    if (!workspaceId) continue;
+    unique.set(workspaceId, {
+      workspaceId,
+      rootPath:
+        typeof scope.rootPath === "string"
+          ? scope.rootPath.trim().slice(0, 4096) || undefined
+          : undefined,
+      access: scope.access === "write" ? "write" : "read",
+      primary: scope.primary === true || undefined,
+    });
+  }
+  return Array.from(unique.values());
+}
+
+/** Persisted P1 task access policy with optimistic revision control. */
+export class TaskAccessPolicyRepository {
+  constructor(private db: Database.Database) {}
+
+  get(taskId: string): TaskAccessPolicy | undefined {
+    const row = this.db
+      .prepare("SELECT * FROM task_access_policies WHERE task_id = ?")
+      .get(taskId) as Record<string, unknown> | undefined;
+    return row ? this.mapRow(row) : undefined;
+  }
+
+  createInitial(taskId: string, policy: Omit<TaskAccessPolicy, "taskId" | "revision">): TaskAccessPolicy {
+    const normalized = this.normalize({ ...policy, taskId, revision: 1 });
+    this.db
+      .prepare(
+        `
+          INSERT OR IGNORE INTO task_access_policies (
+            task_id, revision, connector_ids_json, workspace_scopes_json,
+            allowed_tools_json, blocked_tools_json, permission_mode,
+            shell_access, effective_from_turn, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(...this.toParams(normalized));
+    return this.get(taskId) || normalized;
+  }
+
+  update(
+    taskId: string,
+    expectedRevision: number,
+    patch: Partial<Pick<
+      TaskAccessPolicy,
+      | "connectorIds"
+      | "workspaceScopes"
+      | "allowedTools"
+      | "blockedTools"
+      | "permissionMode"
+      | "shellAccess"
+      | "effectiveFromTurn"
+    >>,
+  ): TaskAccessPolicy {
+    const current = this.get(taskId);
+    if (!current || current.revision !== expectedRevision) {
+      throw new TaskAccessPolicyConflictError();
+    }
+    const next = this.normalize({
+      ...current,
+      ...patch,
+      taskId,
+      revision: current.revision + 1,
+      updatedAt: Date.now(),
+    });
+    const result = this.db
+      .prepare(
+        `
+          UPDATE task_access_policies
+          SET revision = ?, connector_ids_json = ?, workspace_scopes_json = ?,
+              allowed_tools_json = ?, blocked_tools_json = ?, permission_mode = ?,
+              shell_access = ?, effective_from_turn = ?, updated_at = ?
+          WHERE task_id = ? AND revision = ?
+        `,
+      )
+      .run(
+        next.revision,
+        JSON.stringify(next.connectorIds),
+        JSON.stringify(next.workspaceScopes),
+        next.allowedTools ? JSON.stringify(next.allowedTools) : null,
+        next.blockedTools ? JSON.stringify(next.blockedTools) : null,
+        next.permissionMode || null,
+        next.shellAccess ? 1 : 0,
+        next.effectiveFromTurn ?? null,
+        next.updatedAt,
+        taskId,
+        expectedRevision,
+      );
+    if (result.changes !== 1) throw new TaskAccessPolicyConflictError();
+    return next;
+  }
+
+  clone(sourceTaskId: string, targetTaskId: string): TaskAccessPolicy | undefined {
+    const source = this.get(sourceTaskId);
+    if (!source) return undefined;
+    return this.createInitial(targetTaskId, {
+      connectorIds: source.connectorIds,
+      workspaceScopes: source.workspaceScopes,
+      allowedTools: source.allowedTools,
+      blockedTools: source.blockedTools,
+      permissionMode: source.permissionMode,
+      shellAccess: source.shellAccess,
+      effectiveFromTurn: 1,
+      updatedAt: Date.now(),
+    });
+  }
+
+  delete(taskId: string): number {
+    return this.db.prepare("DELETE FROM task_access_policies WHERE task_id = ?").run(taskId).changes;
+  }
+
+  private normalize(policy: TaskAccessPolicy): TaskAccessPolicy {
+    return {
+      ...policy,
+      connectorIds: normalizeTaskAccessStringList(policy.connectorIds) || [],
+      workspaceScopes: normalizeTaskAccessWorkspaceScopes(policy.workspaceScopes),
+      allowedTools: normalizeTaskAccessStringList(policy.allowedTools),
+      blockedTools: normalizeTaskAccessStringList(policy.blockedTools),
+      effectiveFromTurn:
+        typeof policy.effectiveFromTurn === "number" && Number.isFinite(policy.effectiveFromTurn)
+          ? Math.max(1, Math.floor(policy.effectiveFromTurn))
+          : undefined,
+      updatedAt: Math.floor(policy.updatedAt || Date.now()),
+    };
+  }
+
+  private toParams(policy: TaskAccessPolicy): unknown[] {
+    return [
+      policy.taskId,
+      policy.revision,
+      JSON.stringify(policy.connectorIds),
+      JSON.stringify(policy.workspaceScopes),
+      policy.allowedTools ? JSON.stringify(policy.allowedTools) : null,
+      policy.blockedTools ? JSON.stringify(policy.blockedTools) : null,
+      policy.permissionMode || null,
+      policy.shellAccess ? 1 : 0,
+      policy.effectiveFromTurn ?? null,
+      policy.updatedAt,
+    ];
+  }
+
+  private mapRow(row: Record<string, unknown>): TaskAccessPolicy {
+    return this.normalize({
+      taskId: String(row.task_id),
+      revision: Number(row.revision),
+      connectorIds: safeJsonParse(String(row.connector_ids_json || "[]"), [], "taskAccess.connectorIds"),
+      workspaceScopes: safeJsonParse(String(row.workspace_scopes_json || "[]"), [], "taskAccess.workspaceScopes"),
+      allowedTools: row.allowed_tools_json
+        ? safeJsonParse(String(row.allowed_tools_json), [], "taskAccess.allowedTools")
+        : undefined,
+      blockedTools: row.blocked_tools_json
+        ? safeJsonParse(String(row.blocked_tools_json), [], "taskAccess.blockedTools")
+        : undefined,
+      permissionMode: (row.permission_mode as TaskAccessPolicy["permissionMode"]) || undefined,
+      shellAccess: Number(row.shell_access || 0) === 1,
+      effectiveFromTurn: row.effective_from_turn == null ? undefined : Number(row.effective_from_turn),
+      updatedAt: Number(row.updated_at),
+    });
   }
 }
 
@@ -5185,7 +6037,7 @@ export interface MemoryStats {
 }
 
 // Imported memories can optionally carry a lightweight control header on the first line.
-const IMPORTED_PROMPT_RECALL_IGNORE_MARKER = "[cowork:prompt_recall=ignore]";
+const IMPORTED_PROMPT_RECALL_IGNORE_MARKER = "[neoworker:prompt_recall=ignore]";
 const buildImportedMemoryFilterSql = (contentExpr: string): string =>
   `(${contentExpr} LIKE '[Imported from %' OR ${contentExpr} LIKE '${IMPORTED_PROMPT_RECALL_IGNORE_MARKER}%[Imported from %')`;
 

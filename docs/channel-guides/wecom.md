@@ -1,6 +1,6 @@
 # WeCom User Guide
 
-WeCom is best for enterprise teams that want CoWork inside a controlled corporate messaging environment.
+WeCom is best for enterprise teams that want NeoWorker inside a controlled corporate messaging environment.
 
 ## Best For
 
@@ -31,7 +31,7 @@ Use direct chats for approvals and sensitive questions.
 
 ## Best Practices
 
-- Keep CoWork access limited to approved departments or groups.
+- Keep NeoWorker access limited to approved departments or groups.
 - Use command-first interaction in shared groups.
 - Prefer scheduled summaries for recurring operational reporting.
 - Use DMs for sensitive task details and approvals.
@@ -40,7 +40,7 @@ Use direct chats for approvals and sensitive questions.
 ## Watch-Outs
 
 - Corporate policy may affect message delivery.
-- Credential rotation must be coordinated with CoWork settings.
+- Credential rotation must be coordinated with NeoWorker settings.
 - WeCom is better for structured internal workflows than casual ad hoc task intake.
 
 ## Related Docs

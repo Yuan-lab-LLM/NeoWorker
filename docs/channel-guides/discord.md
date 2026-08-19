@@ -12,7 +12,7 @@ Discord is best for team, community, and engineering workflows where native slas
 
 ## Key Features
 
-- Native Discord slash commands for core CoWork controls.
+- Native Discord slash commands for core NeoWorker controls.
 - DMs and server channel messages.
 - Guild allowlists.
 - Thread-aware routing where available.

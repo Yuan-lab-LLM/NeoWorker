@@ -12,7 +12,7 @@ export const RICH_FRAME_DESIGN_LANGUAGE_PROMPT = [
   "- Recommended classes: rf-card, rf-header, rf-title, rf-value, rf-subtitle, rf-divider, rf-row, rf-icon, rf-amount, rf-bar, rf-fill, rf-segment, rf-pill, rf-chart.",
 ].join("\n");
 
-export const RICH_FRAME_DESIGN_STYLE_ID = "cowork-rich-frame-design-language";
+export const RICH_FRAME_DESIGN_STYLE_ID = "neoworker-rich-frame-design-language";
 
 export type RichFrameTheme = "light" | "dark";
 export type RichFrameDesignOptions = {
@@ -333,7 +333,7 @@ export function applyRichFrameDesignLanguage(
   const html = String(htmlContent || "");
   if (!html.trim()) return html;
   if (html.includes(`id="${RICH_FRAME_DESIGN_STYLE_ID}"`)) return html;
-  if (/\bdata-cowork-rich-frame-design\s*=\s*["']off["']/i.test(html)) return html;
+  if (/\bdata-neoworker-rich-frame-design\s*=\s*["']off["']/i.test(html)) return html;
 
   const theme = normalizeRichFrameTheme(options.theme);
   const styleTag = `<style id="${RICH_FRAME_DESIGN_STYLE_ID}">\n${buildRichFrameDesignCss(theme, options.hostBackground)}\n</style>`;

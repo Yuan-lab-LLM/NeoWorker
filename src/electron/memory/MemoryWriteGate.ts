@@ -207,7 +207,7 @@ export class MemoryWriteGate {
   }
 
   private static shouldStage(request: MemoryWriteRequest): boolean {
-    const envMode = this.normalizeMode(process.env.COWORK_MEMORY_WRITE_APPROVAL_MODE);
+    const envMode = this.normalizeMode(process.env.NEOWORKER_MEMORY_WRITE_APPROVAL_MODE);
     const mode = envMode || MemoryFeaturesManager.loadSettings().memoryWriteApprovalMode || "off";
     switch (mode) {
       case "all":

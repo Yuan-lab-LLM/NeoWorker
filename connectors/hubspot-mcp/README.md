@@ -1,6 +1,6 @@
 # HubSpot MCP Connector (MVP)
 
-This connector exposes HubSpot CRM APIs to CoWork OS through MCP tools.
+This connector exposes HubSpot CRM APIs to NeoWorker through MCP tools.
 
 ## Requirements
 
@@ -18,7 +18,7 @@ npm run build
 npm start
 ```
 
-## Add to CoWork MCP Settings
+## Add to NeoWorker MCP Settings
 
 - **Command**: `node`
 - **Args**: `/absolute/path/to/connectors/hubspot-mcp/dist/index.js`

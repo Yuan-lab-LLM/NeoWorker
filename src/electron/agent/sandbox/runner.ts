@@ -223,7 +223,7 @@ export class SandboxRunner {
   async executeCode(code: string, language: "python" | "javascript"): Promise<SandboxResult> {
     // Create temp file with code
     const ext = language === "python" ? ".py" : ".js";
-    const tempFile = path.join(os.tmpdir(), `cowork_script_${Date.now()}${ext}`);
+    const tempFile = path.join(os.tmpdir(), `neoworker_script_${Date.now()}${ext}`);
 
     try {
       fs.writeFileSync(tempFile, code, "utf8");
@@ -443,7 +443,7 @@ export class SandboxRunner {
    * Write sandbox profile to temp file
    */
   private writeTempProfile(): { profilePath: string; cleanup: () => void } {
-    const profilePath = path.join(os.tmpdir(), `cowork_sandbox_${Date.now()}.sb`);
+    const profilePath = path.join(os.tmpdir(), `neoworker_sandbox_${Date.now()}.sb`);
     fs.writeFileSync(profilePath, this.sandboxProfile!, "utf8");
 
     let cleaned = false;

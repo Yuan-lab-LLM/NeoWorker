@@ -1,6 +1,6 @@
 # Twitch User Guide
 
-Twitch is best for public or semi-public livestream chat interaction where CoWork should respond with concise text.
+Twitch is best for public or semi-public livestream chat interaction where NeoWorker should respond with concise text.
 
 ## Best For
 
@@ -26,7 +26,7 @@ Use short, explicit prompts:
 Summarize the current stream topic in one paragraph.
 ```
 
-For serious tasks, restrict who can trigger CoWork or route the work to a private channel.
+For serious tasks, restrict who can trigger NeoWorker or route the work to a private channel.
 
 ## Best Practices
 
@@ -34,7 +34,7 @@ For serious tasks, restrict who can trigger CoWork or route the work to a privat
 - Use moderator-only or command-only workflows for task starts.
 - Keep outputs short.
 - Avoid approvals, private data, or sensitive file work in Twitch chat.
-- Move deeper work to a private CoWork session.
+- Move deeper work to a private NeoWorker session.
 
 ## Watch-Outs
 

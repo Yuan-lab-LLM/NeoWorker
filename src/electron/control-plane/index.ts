@@ -1,7 +1,7 @@
 /**
  * WebSocket Control Plane
  *
- * A WebSocket-based control plane for remote management of CoWork.
+ * A WebSocket-based control plane for remote management of NeoWorker.
  * Provides a single entry point for clients, tools, and events.
  */
 

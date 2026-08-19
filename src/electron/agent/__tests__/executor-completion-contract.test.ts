@@ -1,8 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import { TaskExecutor } from "../executor";
 import {
+  buildCompletionContract,
   buildCompletionGuidancePrompt,
   detectReadOnlyConstraint,
+  extractExplicitOutputExtensions,
+  getExplicitArtifactToolNames,
+  getFinalOutcomeGuardError,
+  hasArtifactEvidence,
   responseHasExecutionReportEvidenceSignal,
 } from "../executor-completion-utils";
 
@@ -34,7 +42,13 @@ function createExecuteHarness(options: HarnessOptions) {
     id: "workspace-1",
     path: "/tmp",
     isTemp: false,
-    permissions: { read: true, write: true, delete: true, network: true, shell: true },
+    permissions: {
+      read: true,
+      write: true,
+      delete: true,
+      network: true,
+      shell: true,
+    },
   };
   executor.daemon = {
     logEvent: vi.fn(),
@@ -55,7 +69,10 @@ function createExecuteHarness(options: HarnessOptions) {
   };
   executor.contextManager = {
     getAvailableTokens: vi.fn().mockReturnValue(1000000),
-    compactMessagesWithMeta: vi.fn((messages: Any) => ({ messages, meta: { kind: "none" } })),
+    compactMessagesWithMeta: vi.fn((messages: Any) => ({
+      messages,
+      meta: { kind: "none" },
+    })),
   };
   executor.provider = { createMessage: vi.fn() };
   executor.abortController = new AbortController();
@@ -77,7 +94,10 @@ function createExecuteHarness(options: HarnessOptions) {
   executor.isCompanionPrompt = vi.fn().mockReturnValue(false);
   executor.analyzeTask = vi.fn(async () => ({}));
   executor.dispatchMentionedAgentsAfterPlanning = vi.fn(async () => undefined);
-  executor.verifySuccessCriteria = vi.fn(async () => ({ success: true, message: "ok" }));
+  executor.verifySuccessCriteria = vi.fn(async () => ({
+    success: true,
+    message: "ok",
+  }));
   executor.isTransientProviderError = vi.fn().mockReturnValue(false);
   executor.executePlan = vi.fn(async function executePlanStub(this: Any) {
     const current = this.plan?.steps?.[0];
@@ -115,6 +135,493 @@ describe("TaskExecutor completion contract integration", () => {
     vi.clearAllMocks();
   });
 
+  it("recognizes Chinese Word artifact requests", () => {
+    expect(extractExplicitOutputExtensions("", "生成word文件，对比报告")).toEqual([".docx"]);
+    expect(extractExplicitOutputExtensions("", "生成对比报告，Word")).toEqual([".docx"]);
+
+    const contract = buildCompletionContract({
+      taskTitle: "",
+      taskPrompt: "生成对比报告，Word",
+      requiresDirectAnswer: false,
+      requiresDecisionSignal: false,
+      isWatchSkipRecommendationTask: false,
+    });
+
+    expect(contract.requiresArtifactEvidence).toBe(true);
+    expect(contract.requiredArtifactExtensions).toEqual([".docx"]);
+    expect(contract.artifactKind).toBe("file");
+  });
+
+  it("requires every explicitly requested artifact format", () => {
+    const prompt = "基于内容，分别生成word和PDF文档";
+    expect(extractExplicitOutputExtensions("", prompt)).toEqual([
+      ".docx",
+      ".pdf",
+    ]);
+
+    const contract = buildCompletionContract({
+      taskTitle: "",
+      taskPrompt: prompt,
+      requiresDirectAnswer: false,
+      requiresDecisionSignal: false,
+      isWatchSkipRecommendationTask: false,
+    });
+
+    expect(contract.requiredArtifactExtensions).toEqual([".docx", ".pdf"]);
+    expect(
+      hasArtifactEvidence({ contract, createdFiles: ["report.docx"] }),
+    ).toBe(false);
+    expect(
+      hasArtifactEvidence({
+        contract,
+        createdFiles: ["report.docx", "report.pdf"],
+      }),
+    ).toBe(true);
+  });
+
+  it("recognizes terse Chinese and English HTML artifact requests", () => {
+    expect(extractExplicitOutputExtensions("", "生成一个html")).toEqual([".html"]);
+    expect(extractExplicitOutputExtensions("", "生成一个网页")).toEqual([".html"]);
+    expect(extractExplicitOutputExtensions("", "Create an HTML page")).toEqual([".html"]);
+
+    for (const taskPrompt of ["生成一个html", "生成一个网页", "Create an HTML page"]) {
+      const contract = buildCompletionContract({
+        taskTitle: "",
+        taskPrompt,
+        requiresDirectAnswer: false,
+        requiresDecisionSignal: false,
+        isWatchSkipRecommendationTask: false,
+      });
+
+      expect(contract.requiresArtifactEvidence).toBe(true);
+      expect(contract.requiredArtifactExtensions).toEqual([".html"]);
+      expect(contract.artifactKind).toBe("file");
+    }
+  });
+
+  it("recognizes Chinese HTML presentation-form wording as an artifact request", () => {
+    expect(
+      extractExplicitOutputExtensions(
+        "钱学森弹道动画",
+        "内容以 HTML 形式展现运行，使用 Three.js 制作 3D 模拟。",
+      ),
+    ).toContain(".html");
+  });
+
+  it("uses a deterministic artifact plan for an interactive HTML request", () => {
+    const executor = createExecuteHarness({
+      title: "钱学森弹道动画",
+      prompt:
+        "请以动画形式介绍钱学森弹道，内容以 HTML 形式展现运行，使用 Three.js 制作 3D 模拟。",
+      lastOutput: "",
+    });
+    (executor as Any).task.agentConfig = {
+      executionMode: "execute",
+      conversationMode: "task",
+      taskIntent: "execution",
+    };
+
+    const plan = (executor as Any).buildDirectHtmlArtifactPlan();
+
+    expect(plan.steps).toHaveLength(2);
+    expect(plan.steps[0]).toEqual(
+      expect.objectContaining({
+        kind: "primary",
+        description: expect.stringContaining(".html"),
+      }),
+    );
+    expect(plan.steps[1]).toEqual(
+      expect.objectContaining({
+        kind: "verification",
+        description: expect.stringContaining("in a browser"),
+      }),
+    );
+    expect(plan.steps[0].description).toContain("exactly one usable .html file");
+    expect((executor as Any).resolveVerificationModeForStep(plan.steps[1])).toBe(
+      "browser_session",
+    );
+  });
+
+  it("keys incremental edits by anchor instead of treating the whole HTML file as done", () => {
+    const executor = createExecuteHarness({
+      prompt: "生成一个 HTML 动画页面",
+      lastOutput: "",
+    });
+
+    const physicsKey = (executor as Any).buildMutationGuardKey("edit_file", {
+      file_path: "lesson.html",
+      old_string: "<!-- ##PHYSICS## -->",
+      new_string: "<section>物理小课堂</section>",
+    });
+    const scriptsKey = (executor as Any).buildMutationGuardKey("edit_file", {
+      file_path: "lesson.html",
+      old_string: "<!-- ##SCRIPTS## -->",
+      new_string: "<script>start()</script>",
+    });
+
+    expect(physicsKey).not.toBe(scriptsKey);
+    expect(physicsKey).toContain("anchor:");
+    expect(scriptsKey).toContain("anchor:");
+  });
+
+  it("appends a final HTML delivery step to a research-only plan", () => {
+    const executor = createExecuteHarness({
+      title: "AI Coding 商业模式演变研究",
+      prompt:
+        "做一个深度研究，分析 AI Coding 行业从 2023 年至今的商业模式演变，生成 HTML 格式文档。",
+      lastOutput: "",
+    });
+    (executor as Any).task.agentConfig = {
+      executionMode: "execute",
+      conversationMode: "chat",
+      taskIntent: "chat",
+    };
+    const plan = {
+      description: "Execution plan",
+      steps: [
+        {
+          id: "1",
+          description: "研究 2023 年商业化验证阶段",
+          kind: "primary",
+          status: "pending",
+        },
+        {
+          id: "2",
+          description: "梳理 2024 年关键转折点",
+          kind: "primary",
+          status: "pending",
+        },
+      ],
+    };
+
+    const result = (executor as Any).ensureRequiredPlanSteps(plan);
+
+    expect(result.steps).toHaveLength(4);
+    expect(result.steps[2]).toEqual(
+      expect.objectContaining({
+        kind: "primary",
+        status: "pending",
+        description: expect.stringContaining(".html"),
+      }),
+    );
+    expect(result.steps[2].description).toContain("exactly one usable .html file");
+    expect(result.steps[2].description).toContain("ai_coding_商业模式演变研究.html");
+    expect(result.steps[3]).toEqual(
+      expect.objectContaining({ kind: "verification", status: "pending" }),
+    );
+  });
+
+  it("does not append a duplicate HTML step when the plan already owns delivery", () => {
+    const executor = createExecuteHarness({
+      title: "AI Coding research",
+      prompt: "Research the market and generate an HTML report.",
+      lastOutput: "",
+    });
+    const plan = {
+      description: "Execution plan",
+      steps: [
+        {
+          id: "1",
+          description:
+            "Assemble and write the final HTML report `ai-coding-report.html`, then verify it opens.",
+          kind: "primary",
+          status: "pending",
+        },
+      ],
+    };
+
+    const result = (executor as Any).ensureRequiredPlanSteps(plan);
+
+    expect(result.steps).toHaveLength(2);
+    expect(result.steps[1]).toEqual(
+      expect.objectContaining({ kind: "verification", status: "pending" }),
+    );
+  });
+
+  it("repairs a persisted research-only plan when it is restored", () => {
+    const executor = createExecuteHarness({
+      title: "AI Coding 商业模式演变研究",
+      prompt: "完成深度研究并生成 html 格式文档",
+      lastOutput: "",
+    });
+    (executor as Any).task.agentConfig = {
+      executionMode: "execute",
+      conversationMode: "chat",
+      taskIntent: "chat",
+    };
+
+    (executor as Any).setPlan({
+      description: "Persisted research plan",
+      steps: [
+        {
+          id: "10",
+          description: "完成 2025 年 Agent 商业模式研究",
+          kind: "primary",
+          status: "completed",
+        },
+      ],
+    });
+
+    expect((executor as Any).plan.steps).toHaveLength(3);
+    expect((executor as Any).plan.steps[1]).toEqual(
+      expect.objectContaining({
+        status: "pending",
+        description: expect.stringContaining(".html"),
+      }),
+    );
+    expect((executor as Any).plan.steps[2]).toEqual(
+      expect.objectContaining({ kind: "verification", status: "pending" }),
+    );
+  });
+
+  it("does not report timeout recovery success when a required HTML file is missing", async () => {
+    const executor = createExecuteHarness({
+      title: "生成 HTML 动画",
+      prompt: "生成一个 HTML 文件并使用 Three.js 展示动画。",
+      lastOutput: "# 动画\n\n**",
+      createdFiles: [],
+    });
+    (executor as Any).task.agentConfig = {
+      executionMode: "execute",
+      conversationMode: "task",
+      taskIntent: "execution",
+    };
+
+    const recovered = await (executor as Any).finalizeWithTimeoutRecovery(
+      new Error("Plan creation timed out after 120s"),
+    );
+
+    expect(recovered).toBe(false);
+    expect(executor.daemon.completeTask).not.toHaveBeenCalled();
+  });
+
+  it.each(["chat", "plan", "analyze"] as const)(
+    "promotes an artifact follow-up from %s mode to executable mode",
+    (executionMode) => {
+    const executor = createExecuteHarness({
+      prompt: "先讨论页面结构",
+      lastOutput: "可以继续。",
+    });
+    (executor as Any).task.agentConfig = {
+      executionMode,
+      executionModeSource: executionMode === "chat" ? "user" : "strategy",
+      conversationMode: executionMode === "chat" ? "chat" : "task",
+      taskIntent: executionMode === "plan" ? "planning" : executionMode === "analyze" ? "advice" : "chat",
+    };
+    (executor as Any).systemPrompt = "old chat prompt";
+    (executor as Any).updateTaskAgentConfig = vi.fn(function updateConfig(
+      this: Any,
+      agentConfig: Any,
+    ) {
+      this.task.agentConfig = agentConfig;
+    });
+    (executor as Any).emitEvent = vi.fn();
+    const contract = (executor as Any).buildFollowUpCompletionContract("生成一个html");
+
+    const promoted = (executor as Any).promoteFollowUpExecutionModeForArtifact(
+      "生成一个html",
+      contract,
+    );
+
+    expect(promoted).toBe(true);
+    expect((executor as Any).task.agentConfig).toEqual(
+      expect.objectContaining({
+        executionMode: "execute",
+        executionModeSource: "auto_promote",
+        taskIntent: "execution",
+      }),
+    );
+    expect((executor as Any).systemPrompt).toBe("");
+    expect(executor.daemon.updateTask).toHaveBeenCalledWith(
+      "task-1",
+      expect.objectContaining({
+        agentConfig: expect.objectContaining({ executionMode: "execute" }),
+      }),
+    );
+    expect((executor as Any).emitEvent).toHaveBeenCalledWith(
+      "execution_mode_auto_promoted",
+      expect.objectContaining({ reason: "follow_up_requires_artifact" }),
+    );
+    },
+  );
+
+  it("does not accept an HTML follow-up until a new HTML file exists", () => {
+    const executor = createExecuteHarness({
+      prompt: "先讨论页面结构",
+      lastOutput: "页面已生成。",
+      createdFiles: [],
+    });
+    const contract = (executor as Any).buildFollowUpCompletionContract("生成一个html");
+
+    const error = (executor as Any).getFollowUpArtifactGuardError(
+      contract,
+      Date.now() - 100,
+      new Set<string>(),
+    );
+
+    expect(error).toContain("expected a newly created or updated .html artifact");
+    expect(
+      (executor as Any).buildFollowUpTurnGuidancePrompt("生成一个html"),
+    ).toContain("convert_markdown_to_html");
+    expect(
+      (executor as Any).buildFollowUpArtifactRetryInstruction(contract),
+    ).toContain("convert_markdown_to_html");
+  });
+
+  it("inherits the original HTML contract for an incomplete repair follow-up", () => {
+    const executor = createExecuteHarness({
+      title: "钱学森弹道动画",
+      prompt:
+        "生成 HTML 页面，使用 Three.js 和 JavaScript 动画模拟钱学森弹道轨迹。",
+      lastOutput: "页面已生成。",
+    });
+
+    const contract = (executor as Any).buildFollowUpCompletionContract(
+      "生成得不完整啊！",
+    );
+
+    expect(contract.requiresArtifactEvidence).toBe(true);
+    expect(contract.requiredArtifactExtensions).toContain(".html");
+  });
+
+  it("rejects an updated HTML follow-up artifact while script placeholders remain", () => {
+    const workspacePath = fs.mkdtempSync(
+      path.join(os.tmpdir(), "neoworker-html-guard-"),
+    );
+    const outputPath = path.join(workspacePath, "lesson.html");
+    fs.writeFileSync(
+      outputPath,
+      '<!doctype html><html><body><canvas></canvas><!-- ##SCRIPTS## --></body></html>',
+      "utf8",
+    );
+
+    const executor = createExecuteHarness({
+      title: "钱学森弹道动画",
+      prompt:
+        "生成 HTML 页面，使用 Three.js 和 JavaScript 动画模拟钱学森弹道轨迹。",
+      lastOutput: "页面已生成。",
+      createdFiles: ["lesson.html"],
+    });
+    (executor as Any).workspace.path = workspacePath;
+    executor.daemon.getTaskEvents.mockReturnValue([
+      {
+        timestamp: Date.now(),
+        type: "file_modified",
+        payload: { path: "lesson.html" },
+      },
+    ]);
+    (executor as Any).emitEvent = vi.fn();
+
+    const contract = (executor as Any).buildFollowUpCompletionContract(
+      "生成得不完整啊！",
+    );
+    const error = (executor as Any).getFollowUpArtifactGuardError(
+      contract,
+      Date.now() - 100,
+      new Set<string>(),
+    );
+
+    expect(error).toContain("HTML artifact is incomplete");
+    expect(error).toContain("unresolved staging placeholders");
+  });
+
+  it("routes a PowerPoint follow-up to the built-in presentation tool", () => {
+    const executor = createExecuteHarness({
+      prompt: "先整理北京景点资料",
+      lastOutput: "景点资料已经整理完成。",
+    });
+    const contract = (executor as Any).buildFollowUpCompletionContract("生成PPT");
+
+    const guidance = (executor as Any).buildFollowUpTurnGuidancePrompt("生成PPT");
+    const retryInstruction = (executor as Any).buildFollowUpArtifactRetryInstruction(contract);
+
+    expect(guidance).toContain("built-in create_presentation tool directly");
+    expect(guidance).toContain("create_presentation is not a Skill");
+    expect(guidance).toContain("exactly one final .pptx file");
+    expect(retryInstruction).toContain("built-in create_presentation tool directly");
+    expect(retryInstruction).toContain("do not call the Skill tool");
+    expect(retryInstruction).toContain("Reuse the conversation's existing research");
+    expect(getExplicitArtifactToolNames("", "生成PPT")).toEqual([
+      "create_presentation",
+      "generate_presentation",
+    ]);
+  });
+
+  it("does not append a duplicate PowerPoint step when a Chinese plan already generates PPTX", () => {
+    const executor = createExecuteHarness({
+      prompt: "查询浪潮信息股票情况，生成PPT",
+      lastOutput: "",
+    });
+    const plan = {
+      description: "Execution plan",
+      steps: [
+        {
+          id: "1",
+          description: "用 OfficeCLI 结构化生成 PPTX 文件并做质量校验",
+          kind: "primary",
+          status: "pending",
+        },
+      ],
+    };
+
+    const result = (executor as Any).ensureRequiredPlanSteps(plan);
+
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps[0].description).toContain("生成 PPTX 文件");
+  });
+
+  it("does not treat an input docx reference as an explicit output format", () => {
+    expect(extractExplicitOutputExtensions("", "读取 input.docx，并生成一份差异总结。")).toEqual(
+      [],
+    );
+  });
+
+  it("rejects a follow-up Word request when only HTML was created", () => {
+    const executor = createExecuteHarness({
+      prompt: "Compare the two files.",
+      lastOutput: "Created the Word report.",
+      createdFiles: [".neoworker/tmp/comparison.html"],
+    });
+    const startedAt = Date.now() - 100;
+    executor.daemon.getTaskEvents.mockReturnValue([
+      {
+        timestamp: Date.now(),
+        type: "file_created",
+        payload: { path: ".neoworker/tmp/comparison.html" },
+      },
+    ]);
+    const contract = (executor as Any).buildFollowUpCompletionContract("生成word文件，对比报告");
+
+    const error = (executor as Any).getFollowUpArtifactGuardError(
+      contract,
+      startedAt,
+      new Set<string>(),
+    );
+
+    expect(error).toContain("expected a newly created or updated .docx artifact");
+  });
+
+  it("accepts a follow-up Word request only after a docx artifact is observed", () => {
+    const executor = createExecuteHarness({
+      prompt: "Compare the two files.",
+      lastOutput: "Created the Word report.",
+      createdFiles: ["reports/comparison.docx"],
+    });
+    const startedAt = Date.now() - 100;
+    executor.daemon.getTaskEvents.mockReturnValue([
+      {
+        timestamp: Date.now(),
+        type: "artifact_created",
+        payload: { path: "reports/comparison.docx" },
+      },
+    ]);
+    const contract = (executor as Any).buildFollowUpCompletionContract("生成word文件，对比报告");
+
+    expect(
+      (executor as Any).getFollowUpArtifactGuardError(contract, startedAt, new Set<string>()),
+    ).toBeNull();
+  });
+
   it("treats compile-into-report prompts as requiring artifact evidence", () => {
     const executor = createExecuteHarness({
       title: "Daily AI Agent Trends Research",
@@ -131,8 +638,8 @@ describe("TaskExecutor completion contract integration", () => {
 
   it("does not treat text-only daily briefs as file artifact requests", () => {
     const executor = createExecuteHarness({
-      title: "Daily CoWork OS Project Brief",
-      prompt: `Create my daily CoWork OS development brief.
+      title: "Daily NeoWorker Project Brief",
+      prompt: `Create my daily NeoWorker development brief.
 
 Inspect the local repo and summarize:
 
@@ -158,7 +665,7 @@ Use concise engineering judgment. Include exact evidence: file paths, command re
 
   it("does not treat concise briefs with file paths as file artifact requests", () => {
     const executor = createExecuteHarness({
-      title: "Daily CoWork OS Project Brief",
+      title: "Daily NeoWorker Project Brief",
       prompt:
         "Create my daily development brief. Include file paths, dirty files, and untracked files.",
       lastOutput: "Daily brief prepared.",
@@ -167,6 +674,50 @@ Use concise engineering judgment. Include exact evidence: file paths, command re
     const contract = (executor as Any).buildCompletionContract();
 
     expect(contract.requiresArtifactEvidence).toBe(false);
+    expect(contract.artifactKind).toBe("none");
+  });
+
+  it("does not treat Chinese output-language instructions mentioning file names as artifacts", () => {
+    const contract = buildCompletionContract({
+      taskTitle: "分析和对比三款产品",
+      taskPrompt:
+        "分析和对比一下 NeoWorker、WorkBuddy、DeepSeek Harness。输出要求：全程使用简体中文完成分析、过程说明和最终结果；代码、文件名、产品名和必须保留的专业术语除外。",
+      requiresDirectAnswer: true,
+      requiresDecisionSignal: false,
+      isWatchSkipRecommendationTask: false,
+    });
+
+    expect(contract.requiresArtifactEvidence).toBe(false);
+    expect(contract.requiredArtifactExtensions).toEqual([]);
+    expect(contract.artifactKind).toBe("none");
+  });
+
+  it("still requires artifact evidence for explicit Chinese file generation", () => {
+    const contract = buildCompletionContract({
+      taskTitle: "竞品分析",
+      taskPrompt: "请生成一份 Word 竞品分析报告并保存到工作区。",
+      requiresDirectAnswer: false,
+      requiresDecisionSignal: false,
+      isWatchSkipRecommendationTask: false,
+    });
+
+    expect(contract.requiresArtifactEvidence).toBe(true);
+    expect(contract.requiredArtifactExtensions).toContain(".docx");
+    expect(contract.artifactKind).toBe("file");
+  });
+
+  it("does not require delegated read-only researchers to create the root artifact", () => {
+    const executor = createExecuteHarness({
+      title: "Researcher",
+      prompt: "分析三款产品并生成一份 Word 对比报告。",
+      lastOutput: "已完成独立调研并返回证据和结论。",
+    });
+    (executor as Any).task.workerRole = "researcher";
+
+    const contract = (executor as Any).buildCompletionContract();
+
+    expect(contract.requiresArtifactEvidence).toBe(false);
+    expect(contract.requiredArtifactExtensions).toEqual([]);
     expect(contract.artifactKind).toBe("none");
   });
 
@@ -185,8 +736,8 @@ Use concise engineering judgment. Include exact evidence: file paths, command re
 
   it("treats presentation prompts as requiring a pptx artifact", () => {
     const executor = createExecuteHarness({
-      title: "CoWork OS presentation",
-      prompt: "Create a concise presentation about CoWork OS.",
+      title: "NeoWorker presentation",
+      prompt: "Create a concise presentation about NeoWorker.",
       lastOutput: "Prepared outline",
     });
 
@@ -213,8 +764,8 @@ Checklist items due:
 checklist_contract:
 - Create a session checklist only for non-trivial execution that changes artifacts/state or spans a long workflow.
 [/AGENT_STRATEGY_CONTEXT_V1]`,
-      lastOutput: "Updated `.cowork/PRIORITIES.md` and recorded heartbeat context.",
-      createdFiles: [".cowork/PRIORITIES.md"],
+      lastOutput: "Updated `.neoworker/PRIORITIES.md` and recorded heartbeat context.",
+      createdFiles: [".neoworker/PRIORITIES.md"],
     });
     executor.requiresVisualQARun = true;
 
@@ -228,7 +779,7 @@ checklist_contract:
   });
 
   it("preserves a substantive brief when a later recovery step reports narrow evidence", () => {
-    const brief = `Daily CoWork OS project brief.
+    const brief = `Daily NeoWorker project brief.
 
 Current repo state: branch main has modified executor and cron files.
 Health signals: reviewed logs/dev-latest.log and no build command was run.
@@ -241,7 +792,7 @@ Suggested work for today:
 
 Watchlist: stale local artifacts and generated logs should be reviewed.
 
-Verification evidence: reviewed git state, .cowork/PRIORITIES.md, logs/dev-latest.log, and scratchpad evidence. Overall status: degraded.`;
+Verification evidence: reviewed git state, .neoworker/PRIORITIES.md, logs/dev-latest.log, and scratchpad evidence. Overall status: degraded.`;
     const recovery = `Alternative strategy succeeded.
 
 Used:
@@ -252,8 +803,8 @@ GIT_PAGER=cat git -c core.pager=cat log --no-color --oneline --decorate=short -n
 
 Saved to scratchpad under \`repo-state-recent-commits-alt-log\`.`;
     const executor = createExecuteHarness({
-      title: "Daily CoWork OS Project Brief",
-      prompt: "Create my daily CoWork OS development brief and summarize suggested work.",
+      title: "Daily NeoWorker Project Brief",
+      prompt: "Create my daily NeoWorker development brief and summarize suggested work.",
       lastOutput: brief,
     });
 
@@ -264,7 +815,11 @@ Saved to scratchpad under \`repo-state-recent-commits-alt-log\`.`;
           content: [{ type: "text", text: recovery }],
         },
       ],
-      { id: "recovery-1", description: "Try an alternative toolchain", kind: "recovery" },
+      {
+        id: "recovery-1",
+        description: "Try an alternative toolchain",
+        kind: "recovery",
+      },
     );
 
     expect((executor as Any).lastAssistantOutput).toBe(brief);
@@ -288,8 +843,8 @@ Suggested work:
 
 Verification evidence: reviewed executor completion contract tests and executor output tracking.`;
     const executor = createExecuteHarness({
-      title: "Daily CoWork OS Project Brief",
-      prompt: "Create my daily CoWork OS development brief and summarize suggested work.",
+      title: "Daily NeoWorker Project Brief",
+      prompt: "Create my daily NeoWorker development brief and summarize suggested work.",
       lastOutput: oldBrief,
     });
 
@@ -300,7 +855,11 @@ Verification evidence: reviewed executor completion contract tests and executor 
           content: [{ type: "text", text: recovery }],
         },
       ],
-      { id: "recovery-1", description: "Try an alternative toolchain", kind: "recovery" },
+      {
+        id: "recovery-1",
+        description: "Try an alternative toolchain",
+        kind: "recovery",
+      },
     );
 
     expect((executor as Any).lastAssistantOutput).toBe(recovery);
@@ -309,7 +868,7 @@ Verification evidence: reviewed executor completion contract tests and executor 
   });
 
   it("completes with the substantive brief after a narrow recovery status", async () => {
-    const brief = `Daily CoWork OS project brief.
+    const brief = `Daily NeoWorker project brief.
 
 Current repo state: branch main has modified executor and cron files.
 Health signals: reviewed logs/dev-latest.log and no build command was run.
@@ -322,7 +881,7 @@ Suggested work for today:
 
 Watchlist: stale local artifacts and generated logs should be reviewed.
 
-Verification evidence: reviewed git state, .cowork/PRIORITIES.md, logs/dev-latest.log, and scratchpad evidence. Overall status: degraded.`;
+Verification evidence: reviewed git state, .neoworker/PRIORITIES.md, logs/dev-latest.log, and scratchpad evidence. Overall status: degraded.`;
     const recovery = `Alternative strategy succeeded.
 
 Used:
@@ -333,8 +892,8 @@ GIT_PAGER=cat git -c core.pager=cat log --no-color --oneline --decorate=short -n
 
 Saved to scratchpad under \`repo-state-recent-commits-alt-log\`.`;
     const executor = createExecuteHarness({
-      title: "Daily CoWork OS Project Brief",
-      prompt: "Create my daily CoWork OS development brief and summarize suggested work.",
+      title: "Daily NeoWorker Project Brief",
+      prompt: "Create my daily NeoWorker development brief and summarize suggested work.",
       lastOutput: "",
     });
     executor.executePlan = vi.fn(async function executePlanStub(this: Any) {
@@ -350,7 +909,11 @@ Saved to scratchpad under \`repo-state-recent-commits-alt-log\`.`;
             content: [{ type: "text", text: brief }],
           },
         ],
-        { id: "deliverable-1", description: "Prepare the brief", kind: "execution" },
+        {
+          id: "deliverable-1",
+          description: "Prepare the brief",
+          kind: "execution",
+        },
       );
       this.recordAssistantOutput(
         [
@@ -359,17 +922,17 @@ Saved to scratchpad under \`repo-state-recent-commits-alt-log\`.`;
             content: [{ type: "text", text: recovery }],
           },
         ],
-        { id: "recovery-1", description: "Try an alternative toolchain", kind: "recovery" },
+        {
+          id: "recovery-1",
+          description: "Try an alternative toolchain",
+          kind: "recovery",
+        },
       );
     });
 
     await (executor as Any).execute();
 
-    expect(executor.daemon.completeTask).toHaveBeenCalledWith(
-      "task-1",
-      brief,
-      expect.any(Object),
-    );
+    expect(executor.daemon.completeTask).toHaveBeenCalledWith("task-1", brief, expect.any(Object));
   });
 
   it("counts planCompletedEffectively as execution evidence during finalization", () => {
@@ -413,7 +976,11 @@ Saved to scratchpad under \`repo-state-recent-commits-alt-log\`.`;
       ],
     };
     (executor as Any).toolResultMemory = [
-      { tool: "web_fetch", summary: "Fetched GitHub repository metadata.", timestamp: Date.now() },
+      {
+        tool: "web_fetch",
+        summary: "Fetched GitHub repository metadata.",
+        timestamp: Date.now(),
+      },
     ];
 
     expect((executor as Any).hasExecutionEvidence()).toBe(true);
@@ -430,13 +997,15 @@ Saved to scratchpad under \`repo-state-recent-commits-alt-log\`.`;
     executor.task.agentConfig = {
       executionMode: "plan",
     };
-    (executor as Any).emitAnswerFirstResponse = vi.fn(async function emitAnswerFirstStub(this: Any) {
-      const text =
-        "I don't feel guilt, but this is a serious ethical risk and should be handled responsibly.";
-      this.lastAssistantOutput = text;
-      this.lastNonVerificationOutput = text;
-      this.lastAssistantText = text;
-    });
+    (executor as Any).emitAnswerFirstResponse = vi.fn(
+      async function emitAnswerFirstStub(this: Any) {
+        const text =
+          "I don't feel guilt, but this is a serious ethical risk and should be handled responsibly.";
+        this.lastAssistantOutput = text;
+        this.lastNonVerificationOutput = text;
+        this.lastAssistantText = text;
+      },
+    );
 
     await (executor as Any).execute();
 
@@ -458,12 +1027,14 @@ Saved to scratchpad under \`repo-state-recent-commits-alt-log\`.`;
       executionMode: "execute",
       taskIntent: "advice",
     };
-    (executor as Any).emitAnswerFirstResponse = vi.fn(async function emitAnswerFirstStub(this: Any) {
-      const text = "I don't feel guilt, but job impacts should be handled responsibly.";
-      this.lastAssistantOutput = text;
-      this.lastNonVerificationOutput = text;
-      this.lastAssistantText = text;
-    });
+    (executor as Any).emitAnswerFirstResponse = vi.fn(
+      async function emitAnswerFirstStub(this: Any) {
+        const text = "I don't feel guilt, but job impacts should be handled responsibly.";
+        this.lastAssistantOutput = text;
+        this.lastNonVerificationOutput = text;
+        this.lastAssistantText = text;
+      },
+    );
 
     await (executor as Any).execute();
 
@@ -514,6 +1085,34 @@ Saved to scratchpad under \`repo-state-recent-commits-alt-log\`.`;
         error: expect.stringContaining("missing artifact evidence"),
       }),
     );
+  });
+
+  it("does not accept a long Word-generation claim without a verified document", () => {
+    const contract = buildCompletionContract({
+      taskTitle: "Word report",
+      taskPrompt: "请生成一份 Word 报告并保存到工作区。",
+      requiresDirectAnswer: false,
+      requiresDecisionSignal: false,
+      isWatchSkipRecommendationTask: false,
+    });
+
+    const error = getFinalOutcomeGuardError({
+      contract,
+      preferBestEffortCompletion: true,
+      softDeadlineTriggered: true,
+      cancelReason: "timeout",
+      bestCandidate:
+        "报告已经生成并保存到工作区。文档包含执行摘要、关键发现和后续建议，可以直接在产物列表中打开查看。",
+      hasExecutionEvidence: true,
+      hasArtifactEvidence: false,
+      createdFiles: [],
+      responseDirectlyAddressesPrompt: () => true,
+      fallbackContainsDirectAnswer: () => true,
+      hasVerificationEvidence: () => true,
+    });
+
+    expect(error).toContain("missing artifact evidence");
+    expect(error).toContain(".docx");
   });
 
   it("fails web-app shipping tasks before Playwright QA when artifact evidence is missing", async () => {
@@ -682,8 +1281,8 @@ DOCUMENT CREATION BEST PRACTICES:
 
   it("accepts build-health command reports as verification-backed conclusions", async () => {
     const executor = createExecuteHarness({
-      title: "CoWork OS Build Health Watcher",
-      prompt: `Check CoWork OS build health.
+      title: "NeoWorker Build Health Watcher",
+      prompt: `Check NeoWorker build health.
 
 Run:
 1. npm run build:react
@@ -714,8 +1313,16 @@ Blocks release: no, based on these build surfaces.`,
       planStepDescription: "Run build-health checks",
     });
     (executor as Any).toolResultMemory = [
-      { tool: "run_command", summary: "npm run build:react exit 0", timestamp: Date.now() },
-      { tool: "run_command", summary: "npm run build:electron exit 0", timestamp: Date.now() },
+      {
+        tool: "run_command",
+        summary: "npm run build:react exit 0",
+        timestamp: Date.now(),
+      },
+      {
+        tool: "run_command",
+        summary: "npm run build:electron exit 0",
+        timestamp: Date.now(),
+      },
     ];
 
     await (executor as Any).execute();
@@ -732,7 +1339,7 @@ Blocks release: no, based on these build surfaces.`,
 
   it("accepts scheduled build-health API reports with explicit verification evidence", async () => {
     const executor = createExecuteHarness({
-      title: "CoWork OS Build Health Watcher",
+      title: "NeoWorker Build Health Watcher",
       prompt: `Run a fresh build-health check.
 
 Required checks:
@@ -759,8 +1366,8 @@ Key evidence:
 ## Verification Evidence
 
 - commands completed:
-  - \`GET https://api.github.com/repos/CoWork-OS/CoWork-OS/actions/runs/25733202868\`
-  - \`GET https://api.github.com/repos/CoWork-OS/CoWork-OS/commits/main/check-runs?per_page=100\`
+  - \`GET https://api.github.com/repos/NeoWorker/NeoWorker/actions/runs/25733202868\`
+  - \`GET https://api.github.com/repos/NeoWorker/NeoWorker/commits/main/check-runs?per_page=100\`
 - exit codes:
   - run metadata: HTTP \`200\`
   - main check-runs: HTTP \`200\`
@@ -781,8 +1388,16 @@ Verification complete: this routine produced a review-backed build-health conclu
       source: "cron",
     });
     (executor as Any).toolResultMemory = [
-      { tool: "http_request", summary: "GitHub Actions run metadata HTTP 200", timestamp: Date.now() },
-      { tool: "http_request", summary: "GitHub check-runs HTTP 200", timestamp: Date.now() },
+      {
+        tool: "http_request",
+        summary: "GitHub Actions run metadata HTTP 200",
+        timestamp: Date.now(),
+      },
+      {
+        tool: "http_request",
+        summary: "GitHub check-runs HTTP 200",
+        timestamp: Date.now(),
+      },
     ];
 
     await (executor as Any).execute();
@@ -806,9 +1421,9 @@ Verification complete: this routine produced a review-backed build-health conclu
 
   it("still rejects shallow build-health status without evidence or a verdict", async () => {
     const executor = createExecuteHarness({
-      title: "CoWork OS Build Health Watcher",
+      title: "NeoWorker Build Health Watcher",
       prompt:
-        "Check CoWork OS build health. Include exact command results, exit codes, and final build-health verdict.",
+        "Check NeoWorker build health. Include exact command results, exit codes, and final build-health verdict.",
       lastOutput: "Build health check completed.",
       planStepDescription: "Run build-health checks",
     });
@@ -827,7 +1442,7 @@ Verification complete: this routine produced a review-backed build-health conclu
 
   it("does not accept verification labels without concrete command or API evidence", async () => {
     const executor = createExecuteHarness({
-      title: "CoWork OS Build Health Watcher",
+      title: "NeoWorker Build Health Watcher",
       prompt: `Run a fresh build-health check.
 
 End with a final section titled "Verification Evidence".
@@ -873,7 +1488,7 @@ Verification complete: this routine produced a review-backed build-health conclu
 
   it("requires command or API tool evidence for build-health command execution steps", () => {
     const executor = createExecuteHarness({
-      title: "CoWork OS Build Health Watcher",
+      title: "NeoWorker Build Health Watcher",
       prompt: `Run a fresh build-health check.
 
 Required checks:
@@ -886,20 +1501,34 @@ End with a final section titled "Verification Evidence".`,
       source: "cron",
     });
     (executor as Any).toolResultMemory = [
-      { tool: "read_file", summary: "Read package.json", timestamp: Date.now() },
+      {
+        tool: "read_file",
+        summary: "Read package.json",
+        timestamp: Date.now(),
+      },
       { tool: "glob", summary: "Found config files", timestamp: Date.now() },
-      { tool: "task_history", summary: "Read previous routine history", timestamp: Date.now() },
+      {
+        tool: "task_history",
+        summary: "Read previous routine history",
+        timestamp: Date.now(),
+      },
     ];
 
-    expect((executor as Any).isBuildHealthCommandEvidenceStep({
-      id: "1",
-      description: "Required build/check commands executed.",
-      status: "pending",
-    })).toBe(true);
+    expect(
+      (executor as Any).isBuildHealthCommandEvidenceStep({
+        id: "1",
+        description: "Required build/check commands executed.",
+        status: "pending",
+      }),
+    ).toBe(true);
     expect((executor as Any).hasBuildHealthCommandOrApiEvidence()).toBe(false);
 
     (executor as Any).toolResultMemory = [
-      { tool: "http_request", summary: "GitHub check-runs HTTP 200", timestamp: Date.now() },
+      {
+        tool: "http_request",
+        summary: "GitHub check-runs HTTP 200",
+        timestamp: Date.now(),
+      },
     ];
     expect((executor as Any).hasBuildHealthCommandOrApiEvidence()).toBe(true);
   });
@@ -914,8 +1543,16 @@ End with a final section titled "Verification Evidence".`,
       planStepDescription: "Stalled planner-managed issues are reviewed for next action.",
     });
     (executor as Any).toolResultMemory = [
-      { tool: "web_fetch", summary: "Fetched CI pipeline health", timestamp: Date.now() },
-      { tool: "web_search", summary: "Searched unresolved community questions", timestamp: Date.now() },
+      {
+        tool: "web_fetch",
+        summary: "Fetched CI pipeline health",
+        timestamp: Date.now(),
+      },
+      {
+        tool: "web_search",
+        summary: "Searched unresolved community questions",
+        timestamp: Date.now(),
+      },
     ];
 
     await (executor as Any).execute();
@@ -961,7 +1598,11 @@ End with a final section titled "Verification Evidence".`,
       planStepDescription: "Transcribe the video",
     });
     (executor as Any).toolResultMemory = [
-      { tool: "web_fetch", summary: "https://example.com/transcript", timestamp: Date.now() },
+      {
+        tool: "web_fetch",
+        summary: "https://example.com/transcript",
+        timestamp: Date.now(),
+      },
     ];
 
     await (executor as Any).execute();
@@ -978,9 +1619,9 @@ End with a final section titled "Verification Evidence".`,
 
   it("accepts structured documentation-drift reports when repo evidence tools were used", async () => {
     const executor = createExecuteHarness({
-      title: "CoWork OS documentation drift check",
+      title: "NeoWorker documentation drift check",
       prompt:
-        "Review current repo evidence for documentation drift in CoWork OS. Do not edit files. Report docs that need updates, exact source of truth in code/config, suggested documentation change, and priority.",
+        "Review current repo evidence for documentation drift in NeoWorker. Do not edit files. Report docs that need updates, exact source of truth in code/config, suggested documentation change, and priority.",
       lastOutput: `## Documentation Drift Report
 
 1. Docs that need updates: docs/automation.md
@@ -997,7 +1638,11 @@ End with a final section titled "Verification Evidence".`,
         summary: "Read src/electron/cron/service.ts",
         timestamp: Date.now(),
       },
-      { tool: "grep", summary: "Searched docs for shellAccess", timestamp: Date.now() },
+      {
+        tool: "grep",
+        summary: "Searched docs for shellAccess",
+        timestamp: Date.now(),
+      },
     ];
 
     await (executor as Any).execute();
@@ -1014,9 +1659,9 @@ End with a final section titled "Verification Evidence".`,
 
   it("rejects structured documentation-drift labels without repo evidence tools", async () => {
     const executor = createExecuteHarness({
-      title: "CoWork OS documentation drift check",
+      title: "NeoWorker documentation drift check",
       prompt:
-        "Review current repo evidence for documentation drift in CoWork OS. Do not edit files. Report docs that need updates, exact source of truth in code/config, suggested documentation change, and priority.",
+        "Review current repo evidence for documentation drift in NeoWorker. Do not edit files. Report docs that need updates, exact source of truth in code/config, suggested documentation change, and priority.",
       lastOutput: `## Documentation Drift Report
 
 1. Docs that need updates: docs/automation.md
@@ -1042,9 +1687,9 @@ End with a final section titled "Verification Evidence".`,
 
   it("rejects generic documentation-drift findings without repo evidence tools", async () => {
     const executor = createExecuteHarness({
-      title: "CoWork OS documentation drift check",
+      title: "NeoWorker documentation drift check",
       prompt:
-        "Review current repo evidence for documentation drift in CoWork OS. Do not edit files. Report docs that need updates, exact source of truth in code/config, suggested documentation change, and priority.",
+        "Review current repo evidence for documentation drift in NeoWorker. Do not edit files. Report docs that need updates, exact source of truth in code/config, suggested documentation change, and priority.",
       lastOutput: `## Findings
 
 I reviewed the documentation drift state.
@@ -1079,7 +1724,11 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
       "You should skip it because the video repeats beginner concepts and adds little beyond the transcript.";
     (executor as Any).lastAssistantText = "Created: Dan_Koe_Video_Review.pdf";
     (executor as Any).toolResultMemory = [
-      { tool: "web_fetch", summary: "transcript reviewed", timestamp: Date.now() },
+      {
+        tool: "web_fetch",
+        summary: "transcript reviewed",
+        timestamp: Date.now(),
+      },
     ];
 
     await (executor as Any).execute();
@@ -1107,7 +1756,7 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
     (executor as Any).toolResultMemory = [
       {
         tool: "web_search",
-        summary: "query \"AI agent trends\" returned sources",
+        summary: 'query "AI agent trends" returned sources',
         timestamp: Date.now(),
       },
     ];
@@ -1277,7 +1926,7 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
     (executor as Any).toolResultMemory = [
       {
         tool: "web_search",
-        summary: "query \"AI agent trends\" returned sources",
+        summary: 'query "AI agent trends" returned sources',
         timestamp: Date.now(),
       },
     ];
@@ -1322,7 +1971,7 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
     (executor as Any).toolResultMemory = [
       {
         tool: "web_search",
-        summary: "query \"AI agent trends\" returned sources",
+        summary: 'query "AI agent trends" returned sources',
         timestamp: Date.now(),
       },
     ];
@@ -1416,6 +2065,54 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
     );
   });
 
+  it("resumes an unfinished follow-up before finalizing a stale completed plan", async () => {
+    const executor = createExecuteHarness({
+      title: "Initial HTML task",
+      prompt: "Create the initial HTML report",
+      lastOutput: "Word created",
+    });
+    executor.plan = {
+      description: "Initial plan",
+      steps: [{ id: "1", description: "Create HTML", status: "completed" }],
+    };
+    executor.daemon.getTaskEvents.mockReturnValue([
+      {
+        seq: 10,
+        timestamp: 100,
+        type: "timeline_step_updated",
+        payload: {
+          legacyType: "user_message",
+          message: "分别生成 Word 和 PDF 文件",
+          stepId: "turn:task-1:follow-up:turn-1",
+        },
+      },
+      {
+        seq: 11,
+        timestamp: 200,
+        type: "timeline_artifact_emitted",
+        payload: { legacyType: "artifact_created", path: "report.docx" },
+      },
+      {
+        seq: 12,
+        timestamp: 300,
+        type: "timeline_step_updated",
+        payload: { legacyType: "task_interrupted" },
+      },
+    ]);
+    const resumeFollowUp = vi.fn(async () => undefined);
+    (executor as Any).resumeInterruptedFollowUpUnlocked = resumeFollowUp;
+
+    await (executor as Any).resumeAfterInterruptionUnlocked();
+
+    expect(resumeFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "分别生成 Word 和 PDF 文件",
+        startedAt: 100,
+      }),
+    );
+    expect(executor.daemon.completeTask).not.toHaveBeenCalled();
+  });
+
   it("pauses interruption resume when the final candidate is still a required-input request", async () => {
     const executor = createExecuteHarness({
       title: "You track a fast-moving technical field.",
@@ -1498,7 +2195,9 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
       },
     ];
 
-    await (executor as Any).continueAfterBudgetExhaustedUnlocked({ mode: "manual" });
+    await (executor as Any).continueAfterBudgetExhaustedUnlocked({
+      mode: "manual",
+    });
 
     expect(executor.daemon.completeTask).toHaveBeenCalledTimes(1);
     expect(executor.daemon.completeTask).toHaveBeenCalledWith(
@@ -1544,7 +2243,9 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
           },
         ],
       };
-      throw new Error("Task failed: mutation-required contract unmet - Write the remaining validation artifact");
+      throw new Error(
+        "Task failed: mutation-required contract unmet - Write the remaining validation artifact",
+      );
     });
 
     await (executor as Any).execute();
@@ -1594,7 +2295,11 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
       planStepDescription: "Review transcript and recommend",
     });
     (executor as Any).toolResultMemory = [
-      { tool: "web_fetch", summary: "Fetched transcript evidence", timestamp: Date.now() },
+      {
+        tool: "web_fetch",
+        summary: "Fetched transcript evidence",
+        timestamp: Date.now(),
+      },
     ];
 
     await (executor as Any).execute();
@@ -1640,7 +2345,11 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
     executor.plan = {
       description: "Plan",
       steps: [
-        { id: "1", description: "Implement the app shell", status: "completed" },
+        {
+          id: "1",
+          description: "Implement the app shell",
+          status: "completed",
+        },
         { id: "2", description: "Refine the experience", status: "failed" },
       ],
     };
@@ -1678,7 +2387,11 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
     };
     (executor as Any).softDeadlineTriggered = true;
     (executor as Any).toolResultMemory = [
-      { tool: "web_fetch", summary: "Fetched GitHub repository metadata.", timestamp: Date.now() },
+      {
+        tool: "web_fetch",
+        summary: "Fetched GitHub repository metadata.",
+        timestamp: Date.now(),
+      },
     ];
     (executor as Any).buildResultSummary = vi
       .fn()
@@ -1723,8 +2436,16 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
       };
       this.softDeadlineTriggered = true;
       this.toolResultMemory = [
-        { tool: "web_search", summary: "Found candidate GitHub repositories.", timestamp: Date.now() },
-        { tool: "http_request", summary: "Fetched GitHub repository stats.", timestamp: Date.now() },
+        {
+          tool: "web_search",
+          summary: "Found candidate GitHub repositories.",
+          timestamp: Date.now(),
+        },
+        {
+          tool: "http_request",
+          summary: "Fetched GitHub repository stats.",
+          timestamp: Date.now(),
+        },
       ];
     });
 
@@ -1743,12 +2464,12 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
 
   it("suppresses artifact requirements when prompt has read-only constraint", () => {
     const executor = createExecuteHarness({
-      title: "Daily CoWork OS Project Brief",
+      title: "Daily NeoWorker Project Brief",
       prompt: [
-        "Create my daily CoWork OS development brief.",
+        "Create my daily NeoWorker development brief.",
         "Do not edit files, commit, push, publish, post externally, or change settings.",
         "This routine is for situational awareness and prioritization only.",
-        "read .cowork/PRIORITIES.md if present",
+        "read .neoworker/PRIORITIES.md if present",
         "compare current repo state against the active priorities",
       ].join("\n"),
       lastOutput: "Daily brief prepared.",
@@ -1764,7 +2485,8 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
   it("suppresses artifact requirements with don't edit variant", () => {
     const executor = createExecuteHarness({
       title: "Architecture review",
-      prompt: "Analyze the codebase architecture. Don't edit any files. Report back with a summary.",
+      prompt:
+        "Analyze the codebase architecture. Don't edit any files. Report back with a summary.",
       lastOutput: "Architecture summary.",
     });
 
@@ -1795,9 +2517,7 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
 
   it("does not false-positive on 'database is in read-only mode, fix it'", () => {
     expect(
-      detectReadOnlyConstraint(
-        "The database is in read-only mode, fix it so writes work again.",
-      ),
+      detectReadOnlyConstraint("The database is in read-only mode, fix it so writes work again."),
     ).toBe(false);
   });
 
@@ -1830,6 +2550,21 @@ describe("buildCompletionGuidancePrompt", () => {
       likelyRequiresExecution: false,
     });
     expect(result).toContain(".pdf, .xlsx");
+    expect(result).toContain("built into NeoWorker");
+    expect(result).toContain("never probe guessed ports");
+    expect(result).toContain('create_document with format="pdf"');
+    expect(result).toContain("create_spreadsheet");
+  });
+
+  it("names the built-in PowerPoint tool for PPTX artifact tasks", () => {
+    const result = buildCompletionGuidancePrompt({
+      hasReadOnlyConstraint: false,
+      explicitOutputExtensions: [".pptx"],
+      likelyRequiresExecution: false,
+    });
+    expect(result).toContain("create_presentation");
+    expect(result).toContain("exactly one final .pptx file");
+    expect(result).not.toContain("localhost HTTP services, so probe");
   });
 
   it("includes execution guidance when likelyRequiresExecution is true", () => {

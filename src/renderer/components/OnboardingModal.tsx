@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { ThemeMode, AccentColor, ACCENT_COLORS, LLMSettingsData } from "../../shared/types";
+import { ThemeMode, LLMSettingsData } from "../../shared/types";
+import {
+  normalizeKimiApiKey,
+  type KimiConnectionErrorCode,
+  type KimiConnectionResult,
+} from "../../shared/kimi";
+import { translate, useLanguage } from "../i18n";
 
 interface OnboardingModalProps {
   onComplete: (dontShowAgain: boolean) => void;
   themeMode: ThemeMode;
-  accentColor: AccentColor;
   onThemeChange: (theme: ThemeMode) => void;
-  onAccentChange: (accent: AccentColor) => void;
 }
 
 type OnboardingStep = "welcome" | "llm" | "channels";
@@ -37,7 +41,8 @@ interface ProviderOption {
 }
 
 // Channel types for messaging connectors
-type ChannelType = "telegram" | "whatsapp" | "discord" | "slack" | "imessage" | "signal";
+type ChannelType =
+  "telegram" | "whatsapp" | "discord" | "slack" | "imessage" | "signal";
 
 interface ChannelOption {
   type: ChannelType;
@@ -233,7 +238,7 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
     ),
     requiresApiKey: true,
     apiKeyPlaceholder: "sk-...",
-    apiKeyLink: "https://platform.moonshot.ai/",
+    apiKeyLink: "https://platform.kimi.com/console/api-keys",
   },
   {
     type: "nano-gpt",
@@ -403,21 +408,70 @@ const CHANNEL_OPTIONS: ChannelOption[] = [
   },
 ];
 
+function providerDescription(provider: ProviderOption): string {
+  const key = `legacyOnboarding.provider.${provider.type}.description`;
+  return translate(key, provider.description);
+}
+
+function channelDescription(channel: ChannelOption): string {
+  const key = `legacyOnboarding.channel.${channel.type}.description`;
+  return translate(key, channel.description);
+}
+
+function setupLevelLabel(level: ChannelOption["requiresSetup"]): string {
+  if (level === "easy") return translate("legacyOnboarding.setup.easy", "Easy");
+  if (level === "moderate")
+    return translate("legacyOnboarding.setup.moderate", "Moderate");
+  return translate("legacyOnboarding.setup.advanced", "Advanced");
+}
+
 export function OnboardingModal({
   onComplete,
   themeMode,
-  accentColor,
   onThemeChange,
-  onAccentChange,
 }: OnboardingModalProps) {
+  useLanguage();
+  const t = translate;
   const [step, setStep] = useState<OnboardingStep>("welcome");
-  const [selectedProvider, setSelectedProvider] = useState<LLMProviderType | null>(null);
+  const [selectedProvider, setSelectedProvider] =
+    useState<LLMProviderType | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [ollamaUrl, setOllamaUrl] = useState("http://localhost:11434");
   const [saving, setSaving] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null);
-  const [selectedChannels, setSelectedChannels] = useState<Set<ChannelType>>(new Set());
+  const [testResult, setTestResult] = useState<KimiConnectionResult | null>(
+    null,
+  );
+  const [selectedChannels, setSelectedChannels] = useState<Set<ChannelType>>(
+    new Set(),
+  );
   const [dontShowAgain, setDontShowAgain] = useState(true); // Default to true - most users want to complete onboarding once
+
+  const getKimiErrorMessage = (errorCode?: KimiConnectionErrorCode) => {
+    switch (errorCode) {
+      case "missing_key":
+        return t("aiModels.kimi.error.missingKey", "Paste your API key first.");
+      case "invalid_key":
+        return t(
+          "aiModels.kimi.error.invalidKey",
+          "This key cannot be used. Copy the complete key again, or create a new one in Kimi.",
+        );
+      case "network":
+        return t(
+          "aiModels.kimi.error.network",
+          "Kimi cannot be reached right now. Check your network and try again.",
+        );
+      case "no_models":
+        return t(
+          "aiModels.kimi.error.noModels",
+          "The key works, but Kimi has no available models right now. Try again later.",
+        );
+      default:
+        return t(
+          "aiModels.kimi.error.unknown",
+          "Kimi is temporarily unavailable. Try again later.",
+        );
+    }
+  };
 
   // Check if Ollama is available locally when selected
   useEffect(() => {
@@ -469,7 +523,10 @@ export function OnboardingModal({
       } else if (selectedProvider === "deepseek") {
         testConfig.deepseek = { apiKey, model: "deepseek-chat" };
       } else if (selectedProvider === "kimi") {
-        testConfig.kimi = { apiKey };
+        testConfig.kimi = {
+          apiKey: normalizeKimiApiKey(apiKey),
+          model: "kimi-k3",
+        };
       } else if (selectedProvider === "nano-gpt") {
         testConfig.customProviders = {
           "nano-gpt": {
@@ -481,9 +538,16 @@ export function OnboardingModal({
       }
 
       const result = await window.electronAPI.testLLMProvider(testConfig);
-      setTestResult(result);
+      setTestResult(
+        selectedProvider === "kimi" && !result.success
+          ? { ...result, error: getKimiErrorMessage(result.errorCode) }
+          : result,
+      );
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : t("common.unknownError", "Unknown error");
       setTestResult({ success: false, error: errorMessage });
     }
   };
@@ -493,23 +557,64 @@ export function OnboardingModal({
       try {
         setSaving(true);
 
+        let kimiConnection: KimiConnectionResult | undefined;
+        if (selectedProvider === "kimi") {
+          const normalizedApiKey = normalizeKimiApiKey(apiKey);
+          kimiConnection =
+            testResult?.success && testResult.resolvedBaseUrl
+              ? testResult
+              : await window.electronAPI.testLLMProvider({
+                  providerType: "kimi",
+                  modelKey: "kimi-k3",
+                  kimi: { apiKey: normalizedApiKey, model: "kimi-k3" },
+                });
+
+          if (!kimiConnection.success || !kimiConnection.resolvedBaseUrl) {
+            setTestResult({
+              ...kimiConnection,
+              error: getKimiErrorMessage(kimiConnection.errorCode),
+            });
+            return;
+          }
+        }
+
         const settings: LLMSettingsData = {
           providerType: selectedProvider,
-          modelKey: getDefaultModel(selectedProvider),
+          modelKey:
+            kimiConnection?.resolvedModel || getDefaultModel(selectedProvider),
+          ...(kimiConnection?.models
+            ? {
+                cachedKimiModels: kimiConnection.models.map((model) => ({
+                  key: model.id,
+                  displayName: model.name,
+                  description: "Kimi model",
+                })),
+              }
+            : {}),
         };
 
         if (selectedProvider === "anthropic") {
           settings.anthropic = { apiKey };
         } else if (selectedProvider === "openai") {
-          settings.openai = { apiKey, authMethod: "api_key", model: "gpt-4o-mini" };
+          settings.openai = {
+            apiKey,
+            authMethod: "api_key",
+            model: "gpt-4o-mini",
+          };
         } else if (selectedProvider === "gemini") {
           settings.gemini = { apiKey, model: "gemini-2.0-flash" };
         } else if (selectedProvider === "openrouter") {
-          settings.openrouter = { apiKey, model: "anthropic/claude-3.5-sonnet" };
+          settings.openrouter = {
+            apiKey,
+            model: "anthropic/claude-3.5-sonnet",
+          };
         } else if (selectedProvider === "ollama") {
           settings.ollama = { baseUrl: ollamaUrl, model: "llama3.2" };
         } else if (selectedProvider === "bedrock") {
-          settings.bedrock = { region: "us-east-1", useDefaultCredentials: true };
+          settings.bedrock = {
+            region: "us-east-1",
+            useDefaultCredentials: true,
+          };
         } else if (selectedProvider === "groq") {
           settings.groq = { apiKey, model: "llama-3.1-8b-instant" };
         } else if (selectedProvider === "xai") {
@@ -517,7 +622,11 @@ export function OnboardingModal({
         } else if (selectedProvider === "deepseek") {
           settings.deepseek = { apiKey, model: "deepseek-chat" };
         } else if (selectedProvider === "kimi") {
-          settings.kimi = { apiKey, model: "kimi-k2.5" };
+          settings.kimi = {
+            apiKey: normalizeKimiApiKey(apiKey),
+            baseUrl: kimiConnection?.resolvedBaseUrl,
+            model: kimiConnection?.resolvedModel || "kimi-k3",
+          };
         } else if (selectedProvider === "nano-gpt") {
           settings.customProviders = {
             "nano-gpt": {
@@ -529,13 +638,15 @@ export function OnboardingModal({
         }
 
         await window.electronAPI.saveLLMSettings(settings);
+        setStep("channels");
       } catch (error) {
         console.error("Failed to save LLM settings:", error);
       } finally {
         setSaving(false);
       }
+    } else {
+      setStep("channels");
     }
-    setStep("channels");
   };
 
   const handleChannelToggle = (channel: ChannelType) => {
@@ -577,7 +688,7 @@ export function OnboardingModal({
       case "deepseek":
         return "deepseek-chat";
       case "kimi":
-        return "kimi-k2.5";
+        return "kimi-k3";
       case "nano-gpt":
         return "minimax/minimax-m2.7";
       default:
@@ -587,11 +698,14 @@ export function OnboardingModal({
 
   const canProceedLLM = () => {
     if (!selectedProvider) return true; // Can skip
-    if (selectedProvider === "ollama" || selectedProvider === "bedrock") return true;
+    if (selectedProvider === "ollama" || selectedProvider === "bedrock")
+      return true;
     return apiKey.length > 0;
   };
 
-  const selectedProviderInfo = PROVIDER_OPTIONS.find((p) => p.type === selectedProvider);
+  const selectedProviderInfo = PROVIDER_OPTIONS.find(
+    (p) => p.type === selectedProvider,
+  );
 
   const getSetupBadgeClass = (level: "easy" | "moderate" | "advanced") => {
     switch (level) {
@@ -613,19 +727,27 @@ export function OnboardingModal({
             className={`onboarding-progress-step ${step === "welcome" ? "active" : "completed"}`}
           >
             <span className="onboarding-progress-dot" />
-            <span className="onboarding-progress-label">Welcome</span>
+            <span className="onboarding-progress-label">
+              {t("legacyOnboarding.progress.welcome", "Welcome")}
+            </span>
           </div>
           <div className="onboarding-progress-line" />
           <div
             className={`onboarding-progress-step ${step === "llm" ? "active" : step === "channels" ? "completed" : ""}`}
           >
             <span className="onboarding-progress-dot" />
-            <span className="onboarding-progress-label">AI Setup</span>
+            <span className="onboarding-progress-label">
+              {t("legacyOnboarding.progress.aiSetup", "AI Setup")}
+            </span>
           </div>
           <div className="onboarding-progress-line" />
-          <div className={`onboarding-progress-step ${step === "channels" ? "active" : ""}`}>
+          <div
+            className={`onboarding-progress-step ${step === "channels" ? "active" : ""}`}
+          >
             <span className="onboarding-progress-dot" />
-            <span className="onboarding-progress-label">Channels</span>
+            <span className="onboarding-progress-label">
+              {t("legacyOnboarding.progress.channels", "Channels")}
+            </span>
           </div>
         </div>
 
@@ -633,12 +755,19 @@ export function OnboardingModal({
         {step === "welcome" && (
           <div className="onboarding-step">
             <div className="onboarding-header">
-              <h1>Welcome to CoWork OS</h1>
-              <p>Let's personalize your experience and get you started.</p>
+              <h1>
+                {t("legacyOnboarding.welcome.title", "Welcome to NeoWorker")}
+              </h1>
+              <p>
+                {t(
+                  "legacyOnboarding.welcome.subtitle",
+                  "Let's personalize your experience and get you started.",
+                )}
+              </p>
             </div>
 
             <div className="onboarding-section">
-              <h3>Choose your theme</h3>
+              <h3>{t("legacyOnboarding.theme.choose", "Choose your theme")}</h3>
               <div className="onboarding-theme-options">
                 <button
                   className={`onboarding-theme-option ${themeMode === "light" ? "selected" : ""}`}
@@ -649,7 +778,7 @@ export function OnboardingModal({
                     <div className="preview-line" />
                     <div className="preview-line" />
                   </div>
-                  <span>Light</span>
+                  <span>{t("legacyOnboarding.theme.light", "Light")}</span>
                 </button>
                 <button
                   className={`onboarding-theme-option ${themeMode === "dark" ? "selected" : ""}`}
@@ -660,37 +789,24 @@ export function OnboardingModal({
                     <div className="preview-line" />
                     <div className="preview-line" />
                   </div>
-                  <span>Dark</span>
+                  <span>{t("legacyOnboarding.theme.dark", "Dark")}</span>
                 </button>
                 <button
                   className={`onboarding-theme-option ${themeMode === "system" ? "selected" : ""}`}
                   onClick={() => onThemeChange("system")}
                 >
                   <div className="onboarding-theme-preview system" />
-                  <span>System</span>
+                  <span>{t("legacyOnboarding.theme.system", "System")}</span>
                 </button>
               </div>
             </div>
 
-            <div className="onboarding-section">
-              <h3>Pick an accent color</h3>
-              <div className="onboarding-color-grid">
-                {ACCENT_COLORS.map((color) => (
-                  <button
-                    key={color.id}
-                    className={`onboarding-color-option ${accentColor === color.id ? "selected" : ""}`}
-                    onClick={() => onAccentChange(color.id)}
-                    title={color.label}
-                  >
-                    <div className={`onboarding-color-swatch ${color.id}`} />
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className="onboarding-actions">
-              <button className="onboarding-btn-primary" onClick={() => setStep("llm")}>
-                Continue
+              <button
+                className="onboarding-btn-primary"
+                onClick={() => setStep("llm")}
+              >
+                {t("common.continue", "Continue")}
                 <svg
                   width="16"
                   height="16"
@@ -709,8 +825,15 @@ export function OnboardingModal({
         {step === "llm" && (
           <div className="onboarding-step">
             <div className="onboarding-header">
-              <h1>Connect an AI Provider</h1>
-              <p>Choose which AI service to use for running tasks.</p>
+              <h1>
+                {t("legacyOnboarding.ai.title", "Connect an AI Provider")}
+              </h1>
+              <p>
+                {t(
+                  "legacyOnboarding.ai.subtitle",
+                  "Choose which AI service to use for running tasks.",
+                )}
+              </p>
             </div>
 
             <div className="onboarding-provider-grid">
@@ -720,13 +843,21 @@ export function OnboardingModal({
                   className={`onboarding-provider-card ${selectedProvider === provider.type ? "selected" : ""}`}
                   onClick={() => handleProviderSelect(provider.type)}
                 >
-                  <div className="onboarding-provider-icon">{provider.icon}</div>
+                  <div className="onboarding-provider-icon">
+                    {provider.icon}
+                  </div>
                   <div className="onboarding-provider-info">
                     <span className="onboarding-provider-name">
                       {provider.name}
-                      {provider.freeOption && <span className="onboarding-free-badge">Free</span>}
+                      {provider.freeOption && (
+                        <span className="onboarding-free-badge">
+                          {t("legacyOnboarding.free", "Free")}
+                        </span>
+                      )}
                     </span>
-                    <span className="onboarding-provider-desc">{provider.description}</span>
+                    <span className="onboarding-provider-desc">
+                      {providerDescription(provider)}
+                    </span>
                   </div>
                   {selectedProvider === provider.type && (
                     <svg
@@ -758,7 +889,7 @@ export function OnboardingModal({
                       rel="noopener noreferrer"
                       className="onboarding-link"
                     >
-                      Get one here
+                      {t("legacyOnboarding.getOneHere", "Get one here")}
                     </a>
                   )}
                 </label>
@@ -767,7 +898,10 @@ export function OnboardingModal({
                     type="password"
                     placeholder={selectedProviderInfo.apiKeyPlaceholder}
                     value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
+                    onChange={(e) => {
+                      setApiKey(e.target.value);
+                      setTestResult(null);
+                    }}
                     className="onboarding-input"
                   />
                   <button
@@ -775,7 +909,7 @@ export function OnboardingModal({
                     onClick={handleTestConnection}
                     disabled={!apiKey}
                   >
-                    Test
+                    {t("common.test", "Test")}
                   </button>
                 </div>
                 {testResult && (
@@ -795,7 +929,10 @@ export function OnboardingModal({
                           <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
                           <path d="M22 4L12 14.01l-3-3" />
                         </svg>
-                        Connection successful!
+                        {t(
+                          "legacyOnboarding.connectionSuccessful",
+                          "Connection successful!",
+                        )}
                       </>
                     ) : (
                       <>
@@ -811,7 +948,11 @@ export function OnboardingModal({
                           <line x1="15" y1="9" x2="9" y2="15" />
                           <line x1="9" y1="9" x2="15" y2="15" />
                         </svg>
-                        {testResult.error || "Connection failed"}
+                        {testResult.error ||
+                          t(
+                            "legacyOnboarding.connectionFailed",
+                            "Connection failed",
+                          )}
                       </>
                     )}
                   </div>
@@ -822,7 +963,9 @@ export function OnboardingModal({
             {/* Ollama-specific section */}
             {selectedProvider === "ollama" && (
               <div className="onboarding-apikey-section">
-                <label>Ollama Server URL</label>
+                <label>
+                  {t("legacyOnboarding.ollama.serverUrl", "Ollama Server URL")}
+                </label>
                 <div className="onboarding-apikey-row">
                   <input
                     type="text"
@@ -831,13 +974,23 @@ export function OnboardingModal({
                     onChange={(e) => setOllamaUrl(e.target.value)}
                     className="onboarding-input"
                   />
-                  <button className="onboarding-btn-secondary" onClick={checkOllamaAvailability}>
-                    Test
+                  <button
+                    className="onboarding-btn-secondary"
+                    onClick={checkOllamaAvailability}
+                  >
+                    {t("common.test", "Test")}
                   </button>
                 </div>
                 <p className="onboarding-hint">
-                  Make sure Ollama is running. Download from{" "}
-                  <a href="https://ollama.ai" target="_blank" rel="noopener noreferrer">
+                  {t(
+                    "legacyOnboarding.ollama.hint",
+                    "Make sure Ollama is running. Download from",
+                  )}{" "}
+                  <a
+                    href="https://ollama.ai"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     ollama.ai
                   </a>
                 </p>
@@ -846,8 +999,14 @@ export function OnboardingModal({
                     className={`onboarding-test-result ${testResult.success ? "success" : "error"}`}
                   >
                     {testResult.success
-                      ? "Ollama server detected!"
-                      : "Ollama not detected. You can set it up later."}
+                      ? t(
+                          "legacyOnboarding.ollama.detected",
+                          "Ollama server detected!",
+                        )
+                      : t(
+                          "legacyOnboarding.ollama.notDetected",
+                          "Ollama not detected. You can set it up later.",
+                        )}
                   </div>
                 )}
               </div>
@@ -857,14 +1016,19 @@ export function OnboardingModal({
             {selectedProvider === "bedrock" && (
               <div className="onboarding-apikey-section">
                 <p className="onboarding-hint">
-                  AWS Bedrock uses your AWS credentials from ~/.aws/credentials or environment
-                  variables. You can configure this in detail in Settings after setup.
+                  {t(
+                    "legacyOnboarding.bedrock.hint",
+                    "AWS Bedrock uses your AWS credentials from ~/.aws/credentials or environment variables. You can configure this in detail in Settings after setup.",
+                  )}
                 </p>
               </div>
             )}
 
             <div className="onboarding-actions">
-              <button className="onboarding-btn-secondary" onClick={() => setStep("welcome")}>
+              <button
+                className="onboarding-btn-secondary"
+                onClick={() => setStep("welcome")}
+              >
                 <svg
                   width="16"
                   height="16"
@@ -875,14 +1039,16 @@ export function OnboardingModal({
                 >
                   <path d="M19 12H5M12 19l-7-7 7-7" />
                 </svg>
-                Back
+                {t("common.back", "Back")}
               </button>
               <button
                 className="onboarding-btn-primary"
                 onClick={handleSaveLLMAndContinue}
                 disabled={saving || !canProceedLLM()}
               >
-                {saving ? "Saving..." : "Continue"}
+                {saving
+                  ? t("common.saving", "Saving...")
+                  : t("common.continue", "Continue")}
                 <svg
                   width="16"
                   height="16"
@@ -897,7 +1063,12 @@ export function OnboardingModal({
             </div>
 
             {!selectedProvider && (
-              <p className="onboarding-skip-hint">You can configure this later in Settings</p>
+              <p className="onboarding-skip-hint">
+                {t(
+                  "legacyOnboarding.configureLater",
+                  "You can configure this later in Settings",
+                )}
+              </p>
             )}
           </div>
         )}
@@ -905,8 +1076,18 @@ export function OnboardingModal({
         {step === "channels" && (
           <div className="onboarding-step">
             <div className="onboarding-header">
-              <h1>Connect Messaging Channels</h1>
-              <p>Chat with your AI agent from your favorite messaging apps.</p>
+              <h1>
+                {t(
+                  "legacyOnboarding.channels.title",
+                  "Connect Messaging Channels",
+                )}
+              </h1>
+              <p>
+                {t(
+                  "legacyOnboarding.channels.subtitle",
+                  "Chat with your AI agent from your favorite messaging apps.",
+                )}
+              </p>
             </div>
 
             <div className="onboarding-channel-grid">
@@ -923,14 +1104,12 @@ export function OnboardingModal({
                       <span
                         className={`onboarding-setup-badge ${getSetupBadgeClass(channel.requiresSetup)}`}
                       >
-                        {channel.requiresSetup === "easy"
-                          ? "Easy"
-                          : channel.requiresSetup === "moderate"
-                            ? "Moderate"
-                            : "Advanced"}
+                        {setupLevelLabel(channel.requiresSetup)}
                       </span>
                     </span>
-                    <span className="onboarding-channel-desc">{channel.description}</span>
+                    <span className="onboarding-channel-desc">
+                      {channelDescription(channel)}
+                    </span>
                   </div>
                   {selectedChannels.has(channel.type) && (
                     <svg
@@ -964,9 +1143,14 @@ export function OnboardingModal({
                   <path d="M12 16v-4M12 8h.01" />
                 </svg>
                 <span>
-                  You can configure{" "}
-                  {selectedChannels.size === 1 ? "this channel" : "these channels"} in{" "}
-                  <strong>Settings &gt; Channels</strong> after setup.
+                  {t(
+                    selectedChannels.size === 1
+                      ? "legacyOnboarding.channels.configureOne"
+                      : "legacyOnboarding.channels.configureMany",
+                    selectedChannels.size === 1
+                      ? "You can configure this channel in Settings > Channels after setup."
+                      : "You can configure these channels in Settings > Channels after setup.",
+                  )}
                 </span>
               </div>
             )}
@@ -978,15 +1162,23 @@ export function OnboardingModal({
                   checked={dontShowAgain}
                   onChange={(e) => setDontShowAgain(e.target.checked)}
                 />
-                <span>Don't show this again</span>
+                <span>
+                  {t("legacyOnboarding.dontShowAgain", "Don't show this again")}
+                </span>
               </label>
               <p className="onboarding-checkbox-hint">
-                You can re-open onboarding anytime from Settings &gt; Appearance
+                {t(
+                  "legacyOnboarding.reopenHint",
+                  "You can re-open onboarding anytime from the main screen",
+                )}
               </p>
             </div>
 
             <div className="onboarding-actions">
-              <button className="onboarding-btn-secondary" onClick={() => setStep("llm")}>
+              <button
+                className="onboarding-btn-secondary"
+                onClick={() => setStep("llm")}
+              >
                 <svg
                   width="16"
                   height="16"
@@ -997,10 +1189,12 @@ export function OnboardingModal({
                 >
                   <path d="M19 12H5M12 19l-7-7 7-7" />
                 </svg>
-                Back
+                {t("common.back", "Back")}
               </button>
               <button className="onboarding-btn-primary" onClick={handleFinish}>
-                {selectedChannels.size > 0 ? "Finish Setup" : "Skip & Finish"}
+                {selectedChannels.size > 0
+                  ? t("legacyOnboarding.finishSetup", "Finish Setup")
+                  : t("legacyOnboarding.skipFinish", "Skip & Finish")}
                 <svg
                   width="16"
                   height="16"
@@ -1016,7 +1210,10 @@ export function OnboardingModal({
             </div>
 
             <p className="onboarding-skip-hint">
-              Channels are optional. You can always add them later in Settings.
+              {t(
+                "legacyOnboarding.channels.optional",
+                "Channels are optional. You can always add them later in Settings.",
+              )}
             </p>
           </div>
         )}

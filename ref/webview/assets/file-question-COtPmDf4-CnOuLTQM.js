@@ -1,0 +1,3 @@
+import { n as e, t } from "./file-question-COtPmDf4-WIydks9R.js";
+t();
+export { e as default };

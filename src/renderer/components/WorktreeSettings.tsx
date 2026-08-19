@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { translate, useLanguage } from "../i18n";
 
 interface WorktreeSettingsData {
   enabled: boolean;
@@ -12,12 +13,14 @@ const DEFAULT_SETTINGS: WorktreeSettingsData = {
   enabled: false,
   autoCommitOnComplete: true,
   autoCleanOnMerge: true,
-  branchPrefix: "cowork/",
-  commitMessagePrefix: "[cowork] ",
+  branchPrefix: "neoworker/",
+  commitMessagePrefix: "[neoworker] ",
 };
 
 export function WorktreeSettings() {
-  const [settings, setSettings] = useState<WorktreeSettingsData>(DEFAULT_SETTINGS);
+  useLanguage();
+  const [settings, setSettings] =
+    useState<WorktreeSettingsData>(DEFAULT_SETTINGS);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -34,14 +37,20 @@ export function WorktreeSettings() {
     try {
       const result = await window.electronAPI.saveWorktreeSettings(updated);
       if (!result?.success) {
-        throw new Error(result?.error || "Failed to save settings");
+        throw new Error(
+          result?.error ||
+            translate("worktreeSettings.error.save", "Failed to save settings"),
+        );
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (error) {
       setSettings(previous);
       setSaved(false);
-      const message = error instanceof Error ? error.message : "Failed to save settings";
+      const message =
+        error instanceof Error
+          ? error.message
+          : translate("worktreeSettings.error.save", "Failed to save settings");
       setSaveError(message);
     }
   };
@@ -59,17 +68,27 @@ export function WorktreeSettings() {
   return (
     <div className="settings-panel">
       <div className="settings-section">
-        <h2>Git Worktree Isolation</h2>
+        <h2>{translate("worktreeSettings.title", "Git Worktree Isolation")}</h2>
         <p className="settings-description">
-          When enabled, each task gets its own isolated git branch and working directory (worktree).
-          Multiple agents can work on the same repository simultaneously without conflicts.
+          {translate(
+            "worktreeSettings.description",
+            "When enabled, each task gets its own isolated git branch and working directory (worktree). Multiple agents can work on the same repository simultaneously without conflicts.",
+          )}
         </p>
 
         <div className="settings-field">
           <div className="settings-field-header">
-            <label>Enable Worktree Isolation</label>
+            <label>
+              {translate(
+                "worktreeSettings.enable.label",
+                "Enable Worktree Isolation",
+              )}
+            </label>
             <p className="settings-field-description">
-              Each new task in a git repository will automatically get its own branch and worktree.
+              {translate(
+                "worktreeSettings.enable.description",
+                "Each new task in a git repository will automatically get its own branch and worktree.",
+              )}
             </p>
           </div>
           <label className="toggle-switch">
@@ -84,9 +103,17 @@ export function WorktreeSettings() {
 
         <div className="settings-field">
           <div className="settings-field-header">
-            <label>Auto-Commit on Completion</label>
+            <label>
+              {translate(
+                "worktreeSettings.autoCommit.label",
+                "Auto-Commit on Completion",
+              )}
+            </label>
             <p className="settings-field-description">
-              Automatically commit all changes when a task completes successfully.
+              {translate(
+                "worktreeSettings.autoCommit.description",
+                "Automatically commit all changes when a task completes successfully.",
+              )}
             </p>
           </div>
           <label className="toggle-switch">
@@ -102,9 +129,17 @@ export function WorktreeSettings() {
 
         <div className="settings-field">
           <div className="settings-field-header">
-            <label>Auto-Cleanup After Merge</label>
+            <label>
+              {translate(
+                "worktreeSettings.autoCleanup.label",
+                "Auto-Cleanup After Merge",
+              )}
+            </label>
             <p className="settings-field-description">
-              Remove the worktree directory and branch after a successful merge.
+              {translate(
+                "worktreeSettings.autoCleanup.description",
+                "Remove the worktree directory and branch after a successful merge.",
+              )}
             </p>
           </div>
           <label className="toggle-switch">
@@ -120,10 +155,17 @@ export function WorktreeSettings() {
 
         <div className="settings-field">
           <div className="settings-field-header">
-            <label>Branch Prefix</label>
+            <label>
+              {translate(
+                "worktreeSettings.branchPrefix.label",
+                "Branch Prefix",
+              )}
+            </label>
             <p className="settings-field-description">
-              Prefix for auto-generated branch names (e.g., "cowork/" creates branches like
-              "cowork/fix-login-abc123").
+              {translate(
+                "worktreeSettings.branchPrefix.description",
+                'Prefix for auto-generated branch names. For example, "neoworker/" creates branches like "neoworker/fix-login-abc123".',
+              )}
             </p>
           </div>
           <input
@@ -132,14 +174,24 @@ export function WorktreeSettings() {
             value={settings.branchPrefix}
             onChange={(e) => updateField("branchPrefix", e.target.value)}
             disabled={!settings.enabled}
-            placeholder="cowork/"
+            placeholder="neoworker/"
           />
         </div>
 
         <div className="settings-field">
           <div className="settings-field-header">
-            <label>Commit Message Prefix</label>
-            <p className="settings-field-description">Prefix for auto-generated commit messages.</p>
+            <label>
+              {translate(
+                "worktreeSettings.commitPrefix.label",
+                "Commit Message Prefix",
+              )}
+            </label>
+            <p className="settings-field-description">
+              {translate(
+                "worktreeSettings.commitPrefix.description",
+                "Prefix for auto-generated commit messages.",
+              )}
+            </p>
           </div>
           <input
             type="text"
@@ -147,25 +199,40 @@ export function WorktreeSettings() {
             value={settings.commitMessagePrefix}
             onChange={(e) => updateField("commitMessagePrefix", e.target.value)}
             disabled={!settings.enabled}
-            placeholder="[cowork] "
+            placeholder="[neoworker] "
           />
         </div>
       </div>
 
       <div className="settings-section">
-        <h2>Agent Comparison Mode</h2>
+        <h2>
+          {translate(
+            "worktreeSettings.comparison.title",
+            "Agent Comparison Mode",
+          )}
+        </h2>
         <p className="settings-description">
-          Run the same prompt on multiple agents or LLM providers simultaneously and compare their
-          results side-by-side. Each agent works in its own isolated worktree branch.
+          {translate(
+            "worktreeSettings.comparison.description",
+            "Run the same prompt on multiple agents or LLM providers simultaneously and compare their results side-by-side. Each agent works in its own isolated worktree branch.",
+          )}
         </p>
         <p className="settings-description" style={{ opacity: 0.7 }}>
-          To start a comparison, use the comparison button when creating a new task. Worktree
-          isolation must be enabled for comparison mode to create separate branches.
+          {translate(
+            "worktreeSettings.comparison.hint",
+            "To start a comparison, use the comparison button when creating a new task. Worktree isolation must be enabled for comparison mode to create separate branches.",
+          )}
         </p>
       </div>
 
-      {saved && <div className="settings-save-indicator">Settings saved</div>}
-      {saveError && <div className="settings-save-indicator error">{saveError}</div>}
+      {saved && (
+        <div className="settings-save-indicator">
+          {translate("worktreeSettings.saved", "Settings saved")}
+        </div>
+      )}
+      {saveError && (
+        <div className="settings-save-indicator error">{saveError}</div>
+      )}
     </div>
   );
 }

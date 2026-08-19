@@ -1,5 +1,5 @@
 /**
- * WebAccessServer — serves the CoWork OS renderer as a web app,
+ * WebAccessServer — serves the NeoWorker renderer as a web app,
  * proxying IPC calls over HTTP/WebSocket with token authentication.
  *
  * This extends the existing ControlPlane infrastructure to provide

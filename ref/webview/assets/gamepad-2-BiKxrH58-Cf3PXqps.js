@@ -1,0 +1,3 @@
+import { n as e, t } from "./gamepad-2-BiKxrH58-C_yeJ8xU.js";
+t();
+export { e as default };

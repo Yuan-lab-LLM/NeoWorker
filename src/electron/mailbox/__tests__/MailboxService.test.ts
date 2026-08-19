@@ -34,9 +34,9 @@ describeWithSqlite("MailboxService", () => {
   const now = Date.now();
 
   beforeEach(async () => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-mailbox-"));
-    previousUserDataDir = process.env.COWORK_USER_DATA_DIR;
-    process.env.COWORK_USER_DATA_DIR = tmpDir;
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-mailbox-"));
+    previousUserDataDir = process.env.NEOWORKER_USER_DATA_DIR;
+    process.env.NEOWORKER_USER_DATA_DIR = tmpDir;
 
     const [{ DatabaseManager }, { MailboxService }, { ControlPlaneCoreService }, { AgentRoleRepository }] = await Promise.all([
       import("../../database/schema"),
@@ -150,9 +150,9 @@ describeWithSqlite("MailboxService", () => {
   afterEach(() => {
     manager?.close();
     if (previousUserDataDir === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = previousUserDataDir;
+      process.env.NEOWORKER_USER_DATA_DIR = previousUserDataDir;
     }
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

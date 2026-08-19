@@ -1,10 +1,10 @@
 # Skill Store & External Skills
 
-CoWork OS supports both its own curated skill surfaces and external skill sources.
+NeoWorker supports both its own curated skill surfaces and external skill sources.
 
-This is an important capability because it means users are not limited to bundled skills or CoWork-managed packs. They can install third-party skills directly from ClawHub, import skill bundles from Git repositories, and bring in raw manifests or `SKILL.md` bundles from other ecosystems without leaving the desktop app.
+This is an important capability because it means users are not limited to bundled skills or NeoWorker-managed packs. They can install third-party skills directly from ClawHub, import skill bundles from Git repositories, and bring in raw manifests or `SKILL.md` bundles from other ecosystems without leaving the desktop app.
 
-## What CoWork OS Supports
+## What NeoWorker Supports
 
 There are two different concepts in the product:
 
@@ -20,17 +20,17 @@ Bundled skills such as [`manim-video`](skills/manim-video.md), [`kami`](skills/k
 
 ## Supported Skill Sources
 
-### 1. CoWork Registry
+### 1. NeoWorker Registry
 
-The Skills settings page includes the **CoWork Registry** tab for curated skills distributed through CoWork’s own registry flow.
+The Skills settings page includes the **NeoWorker Registry** tab for curated skills distributed through NeoWorker’s own registry flow.
 
 Use this when:
 - You want the built-in, curated catalog.
-- You want skills presented in CoWork’s native registry format.
+- You want skills presented in NeoWorker’s native registry format.
 
 ### 2. ClawHub
 
-CoWork OS has first-class ClawHub support in the GUI.
+NeoWorker has first-class ClawHub support in the GUI.
 
 Supported ClawHub flows:
 - Search ClawHub skills directly from the **ClawHub** tab.
@@ -45,17 +45,17 @@ Supported ClawHub flows:
 - Import using a `clawhub:slug`-style identifier internally.
 
 How ClawHub installs work:
-- CoWork resolves the ClawHub skill metadata.
+- NeoWorker resolves the ClawHub skill metadata.
 - It resolves a downloadable version.
 - It downloads the skill ZIP bundle from ClawHub.
 - It extracts `SKILL.md` and bundled support files such as `references/` and `scripts/`.
-- It stages the bundle, scans it, and either installs it into CoWork’s managed skills directory or quarantines it with a stored report.
+- It stages the bundle, scans it, and either installs it into NeoWorker’s managed skills directory or quarantines it with a stored report.
 
 ClawHub installs are treated as managed skills after import, not as a separate runtime type.
 
 ### 3. Git Repositories
 
-CoWork OS can install a skill from a Git repository through the external import field.
+NeoWorker can install a skill from a Git repository through the external import field.
 
 Supported Git-style inputs:
 - `https://github.com/org/repo`
@@ -73,13 +73,13 @@ For multi-file bundles such as the upstream [Kami](https://github.com/tw93/Kami)
 
 ### 4. Raw JSON Skill Manifests
 
-CoWork OS can import a raw skill manifest from a direct URL when the URL serves JSON.
+NeoWorker can import a raw skill manifest from a direct URL when the URL serves JSON.
 
 Use this when an external store or repo exposes a single downloadable skill manifest file.
 
 ### 5. Raw `SKILL.md` Bundle Entry Points
 
-CoWork OS can import a raw `SKILL.md` URL directly.
+NeoWorker can import a raw `SKILL.md` URL directly.
 
 This is useful when:
 - a skill is published as documentation-first bundle content
@@ -90,22 +90,22 @@ This path is weaker for multi-file bundles because it stages the markdown entry 
 
 ## “Other External Skill Stores”
 
-CoWork OS does support other external skill stores, but usually through **generic import paths** rather than a first-class browse/search integration.
+NeoWorker does support other external skill stores, but usually through **generic import paths** rather than a first-class browse/search integration.
 
 Today, first-class marketplace search/install exists for:
-- CoWork Registry
+- NeoWorker Registry
 - ClawHub
 
 Other external stores are supported when they expose at least one of these install surfaces:
 - a Git repository
 - a raw JSON skill manifest URL
 - a raw `SKILL.md` URL
-- a stable page URL that CoWork knows how to translate into one of the above
+- a stable page URL that NeoWorker knows how to translate into one of the above
 
 So the practical rule is:
 
 - **If the store behaves like a searchable marketplace, ClawHub is the first-class supported one right now.**
-- **If the store exposes installable skill artifacts, CoWork can often import them through the generic external import box.**
+- **If the store exposes installable skill artifacts, NeoWorker can often import them through the generic external import box.**
 
 ## GUI Entry Points
 
@@ -116,14 +116,14 @@ Go to:
 - **Settings → Skills → Skill Store**
 
 From there, users can:
-- browse the CoWork Registry
+- browse the NeoWorker Registry
 - browse ClawHub
 - paste an external source into the import field
 - install skills without leaving the desktop app
 
 ## Managed Skill Storage
 
-Imported and installed external skills are stored in CoWork’s managed skills directory.
+Imported and installed external skills are stored in NeoWorker’s managed skills directory.
 
 The managed install flow is now:
 - stage the manifest and any bundled support files in a temp location
@@ -131,24 +131,24 @@ The managed install flow is now:
 - install the skill as managed content if the result is clean or warning-only
 - quarantine the import instead of activating it when the scan returns a blocking finding
 
-Each managed import keeps a sidecar security report so CoWork can:
+Each managed import keeps a sidecar security report so NeoWorker can:
 - show warning badges in the Skills UI
 - keep a review trail for imported bundles
 - detect if a managed import changes after install and re-quarantine it on the next load
 
 ## Optional External Skill Directories
 
-CoWork OS can also load additional skill folders without importing them into the managed directory.
+NeoWorker can also load additional skill folders without importing them into the managed directory.
 
 Use this when:
 - your team already keeps shared skills in a Git checkout or synced folder
-- you want CoWork to read those skills without taking ownership of the files
+- you want NeoWorker to read those skills without taking ownership of the files
 
 How it works:
 - add one or more absolute directory paths in **Settings → Skills**
-- CoWork loads matching skill manifests from those folders as **external** skills
+- NeoWorker loads matching skill manifests from those folders as **external** skills
 - external skills are **read-only** in the app
-- managed installs still go into CoWork’s managed skills directory
+- managed installs still go into NeoWorker’s managed skills directory
 
 Precedence order:
 - workspace skills
@@ -159,8 +159,8 @@ Precedence order:
 This means a local workspace override or a managed install can replace a shared external skill with the same ID.
 
 Default locations:
-- macOS: `~/Library/Application Support/cowork-os/skills/`
-- Windows: `%APPDATA%\\cowork-os\\skills\\`
+- macOS: `~/Library/Application Support/neoworker/skills/`
+- Windows: `%APPDATA%\\neoworker\\skills\\`
 
 Each managed skill typically includes:
 - a JSON manifest in the managed skills root
@@ -168,13 +168,13 @@ Each managed skill typically includes:
 
 ## Identity, Matching, and ClawHub Compatibility
 
-CoWork preserves external skill identity carefully so installed skills can be recognized correctly in the UI.
+NeoWorker preserves external skill identity carefully so installed skills can be recognized correctly in the UI.
 
 For ClawHub specifically:
 - the installed skill is tracked using the ClawHub page slug
 - older ClawHub installs can also be recognized via their stored `homepage` or `repository` URL metadata
 
-This matters because many external ecosystems have different internal names, display names, and bundle-level IDs. CoWork normalizes those enough to make the GUI install state reliable.
+This matters because many external ecosystems have different internal names, display names, and bundle-level IDs. NeoWorker normalizes those enough to make the GUI install state reliable.
 
 ## What Users See After Install
 
@@ -189,7 +189,7 @@ They can then be:
 
 ClawHub-originated skills are also labeled as **ClawHub** in the relevant UI surfaces.
 
-If CoWork blocks an imported skill, it now appears in a **Quarantined Imports** section instead of the active installed list. From there, users can:
+If NeoWorker blocks an imported skill, it now appears in a **Quarantined Imports** section instead of the active installed list. From there, users can:
 - view the stored scan findings
 - retry the scan later
 - remove the quarantined import entirely
@@ -211,7 +211,7 @@ See [Skills Runtime Model](skills-runtime-model.md) for the runtime semantics af
 
 External skill support is powerful, but it is also a trust boundary.
 
-CoWork treats external skills as imported content, not as implicitly trusted built-ins.
+NeoWorker treats external skills as imported content, not as implicitly trusted built-ins.
 
 Important safeguards and behaviors:
 - skill IDs are sanitized before installation
@@ -223,7 +223,7 @@ Important safeguards and behaviors:
 - package references discovered in imported content can be checked against live package-malware intelligence
 - temporary intelligence outages fail open with a visible warning rather than silently downgrading trust
 - managed imports are rechecked by digest on load so post-install tampering can be quarantined automatically
-- optional external skill directories remain loadable, but warning-only findings are surfaced in the status UI because CoWork does not take ownership of those files
+- optional external skill directories remain loadable, but warning-only findings are surfaced in the status UI because NeoWorker does not take ownership of those files
 
 This does **not** mean every third-party skill is safe by default.
 Users should still treat external skills as untrusted until reviewed.
@@ -234,13 +234,13 @@ Bundled privacy-sensitive workflows can also carry their own domain guardrails. 
 
 Current scope:
 - first-class GUI browse/search/install for ClawHub
-- first-class GUI browse/search/install for CoWork Registry
+- first-class GUI browse/search/install for NeoWorker Registry
 - generic GUI import for Git, raw JSON, and raw `SKILL.md`
 
 Current limits:
 - only ClawHub has dedicated third-party marketplace browsing inside the GUI today
 - other external skill stores do not yet have dedicated search adapters unless added explicitly
-- compatibility depends on the store exposing installable skill artifacts in a format CoWork can import
+- compatibility depends on the store exposing installable skill artifacts in a format NeoWorker can import
 - raw JSON manifests and raw `SKILL.md` imports are capped at 512 KiB
 - each imported bundle file is capped at 512 KiB
 - imported Git and ClawHub bundles are capped at 5 MiB total extracted content
@@ -249,11 +249,11 @@ Current limits:
 
 ## Why This Capability Matters
 
-This gives CoWork OS an important ecosystem advantage:
+This gives NeoWorker an important ecosystem advantage:
 - users can start with bundled skills
 - bundled examples now include workflows such as `llm-wiki`, `kami`, `react-best-practices`, `unbroker`, and `taste-skill`
-- adopt curated CoWork registry skills
+- adopt curated NeoWorker registry skills
 - pull in popular ClawHub skills directly from the app
 - bring skills from other ecosystems without waiting for a custom marketplace integration
 
-In practice, CoWork is not locked to a single skill source. It can act as a governed desktop runtime for skills that originate from multiple ecosystems.
+In practice, NeoWorker is not locked to a single skill source. It can act as a governed desktop runtime for skills that originate from multiple ecosystems.

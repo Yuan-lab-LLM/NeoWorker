@@ -1,15 +1,32 @@
-import type { TaskEvent, ExecutionMode } from "../../../shared/types";
+import type {
+  AgentConfig,
+  TaskEvent,
+  ExecutionMode,
+  TaskDomain,
+  TaskStatus,
+} from "../../../shared/types";
+import { isTerminalTaskStatus } from "../../../shared/task-status";
 import { getEffectiveTaskEventType } from "../../utils/task-event-compat";
 import { isVerificationStepDescription } from "../../../shared/plan-utils";
 import { hasAssistantMediaDirective } from "../../utils/assistant-media-directives";
 import {
+  type AttachmentDisplayInfo,
+  extractAttachmentDetails,
   extractAttachmentNames,
   stripPptxBubbleContent,
   stripStrategyContextBlock,
 } from "../utils/attachment-content";
 import { deriveSlashCommandTaskTitle } from "../../utils/slash-command-title";
 import { formatTimelineActivityLabel } from "../../../shared/timeline-v2";
-import { TASK_TITLE_MAX_LENGTH, TITLE_ELLIPSIS_REGEX } from "./main-content-constants";
+import {
+  TASK_TITLE_MAX_LENGTH,
+  TITLE_ELLIPSIS_REGEX,
+} from "./main-content-constants";
+import {
+  getManagedAgentPromptForDisplay,
+  getManagedAgentTaskTitleForDisplay,
+} from "../../utils/mission-control-copy";
+import { stripRunOutputLanguageRequirement } from "../../utils/run-output-language";
 
 type Any = Record<string, any>;
 
@@ -17,8 +34,11 @@ type Any = Record<string, any>;
 export const isVerificationNoiseEvent = (event: TaskEvent): boolean => {
   const effectiveType = getEffectiveTaskEventType(event);
   if (effectiveType === "assistant_message") {
-    const message = typeof event.payload?.message === "string" ? event.payload.message : "";
-    return event.payload?.internal === true && !hasAssistantMediaDirective(message);
+    const message =
+      typeof event.payload?.message === "string" ? event.payload.message : "";
+    return (
+      event.payload?.internal === true && !hasAssistantMediaDirective(message)
+    );
   }
 
   if (
@@ -31,7 +51,10 @@ export const isVerificationNoiseEvent = (event: TaskEvent): boolean => {
   }
 
   // Verification events are shown on failure; success is kept quiet.
-  if (effectiveType === "verification_started" || effectiveType === "verification_passed") {
+  if (
+    effectiveType === "verification_started" ||
+    effectiveType === "verification_passed"
+  ) {
     return true;
   }
 
@@ -39,19 +62,32 @@ export const isVerificationNoiseEvent = (event: TaskEvent): boolean => {
 };
 
 export const getAssistantStepDescription = (event: TaskEvent): string => {
-  if (typeof event.payload?.stepDescription === "string") return event.payload.stepDescription;
+  if (typeof event.payload?.stepDescription === "string")
+    return event.payload.stepDescription;
   const step = event.payload?.step;
-  if (step && typeof step === "object" && typeof (step as Record<string, unknown>).description === "string") {
+  if (
+    step &&
+    typeof step === "object" &&
+    typeof (step as Record<string, unknown>).description === "string"
+  ) {
     return (step as Record<string, string>).description;
   }
   return "";
 };
 
-export const shouldRevealInternalAssistantMessageInVerbose = (event: TaskEvent): boolean => {
-  if (getEffectiveTaskEventType(event) !== "assistant_message" || event.payload?.internal !== true) {
+export const shouldRevealInternalAssistantMessageInVerbose = (
+  event: TaskEvent,
+): boolean => {
+  if (
+    getEffectiveTaskEventType(event) !== "assistant_message" ||
+    event.payload?.internal !== true
+  ) {
     return false;
   }
-  const message = typeof event.payload?.message === "string" ? event.payload.message.trim() : "";
+  const message =
+    typeof event.payload?.message === "string"
+      ? event.payload.message.trim()
+      : "";
   const stepDescription = getAssistantStepDescription(event);
   if (!message) return false;
   if (hasAssistantMediaDirective(message)) return true;
@@ -63,9 +99,13 @@ export const shouldRevealInternalAssistantMessageInVerbose = (event: TaskEvent):
 export const getCompletionSummaryText = (event: TaskEvent): string => {
   if (getEffectiveTaskEventType(event) !== "task_completed") return "";
   const resultSummary =
-    typeof event.payload?.resultSummary === "string" ? event.payload.resultSummary.trim() : "";
+    typeof event.payload?.resultSummary === "string"
+      ? event.payload.resultSummary.trim()
+      : "";
   const semanticSummary =
-    typeof event.payload?.semanticSummary === "string" ? event.payload.semanticSummary.trim() : "";
+    typeof event.payload?.semanticSummary === "string"
+      ? event.payload.semanticSummary.trim()
+      : "";
   const verificationVerdict =
     typeof event.payload?.verificationVerdict === "string"
       ? event.payload.verificationVerdict.trim()
@@ -74,7 +114,10 @@ export const getCompletionSummaryText = (event: TaskEvent): string => {
     typeof event.payload?.verificationReport === "string"
       ? event.payload.verificationReport.trim()
       : "";
-  const summary = [resultSummary, semanticSummary].filter((value) => value.length > 0).join("\n\n");
+  // `semanticSummary` is execution metadata (and can be a raw tool-batch label
+  // such as "Let Me Check The Workspace"), not a second assistant reply. Only
+  // use it when the task did not persist a real delivery message.
+  const summary = resultSummary || semanticSummary;
   if (!verificationVerdict && !verificationReport) {
     return summary;
   }
@@ -84,7 +127,9 @@ export const getCompletionSummaryText = (event: TaskEvent): string => {
   ]
     .filter((value) => value.length > 0)
     .join("\n");
-  return [summary, verification].filter((value) => value.length > 0).join("\n\n");
+  return [summary, verification]
+    .filter((value) => value.length > 0)
+    .join("\n\n");
 };
 
 export const isLowSignalPauseMessage = (
@@ -94,9 +139,13 @@ export const isLowSignalPauseMessage = (
   const trimmed = String(message || "").trim();
   if (!trimmed) return true;
   const lower = trimmed.toLowerCase();
-  if (reasonCode && lower === String(reasonCode).trim().toLowerCase()) return true;
+  if (reasonCode && lower === String(reasonCode).trim().toLowerCase())
+    return true;
   if (
-    String(reasonCode || "").trim().toLowerCase().startsWith('required_decision') &&
+    String(reasonCode || "")
+      .trim()
+      .toLowerCase()
+      .startsWith("required_decision") &&
     /\b(best next task|recommend(?:ed|ation)?.{0,80}next task)\b/.test(lower)
   ) {
     return true;
@@ -134,18 +183,32 @@ export const getFailureEventText = (event: TaskEvent): string => {
   ].find((value) => value.length > 0);
   if (direct) return direct;
 
-  const result = payload.result && typeof payload.result === "object" ? payload.result : null;
-  const resultError = result && typeof (result as Any).error === "string" ? (result as Any).error.trim() : "";
+  const result =
+    payload.result && typeof payload.result === "object"
+      ? payload.result
+      : null;
+  const resultError =
+    result && typeof (result as Any).error === "string"
+      ? (result as Any).error.trim()
+      : "";
   if (resultError) return resultError;
 
-  const input = payload.input && typeof payload.input === "object" ? payload.input : null;
-  const url = input && typeof (input as Any).url === "string" ? (input as Any).url.trim() : "";
-  const path = input && typeof (input as Any).path === "string" ? (input as Any).path.trim() : "";
+  const input =
+    payload.input && typeof payload.input === "object" ? payload.input : null;
+  const url =
+    input && typeof (input as Any).url === "string"
+      ? (input as Any).url.trim()
+      : "";
+  const path =
+    input && typeof (input as Any).path === "string"
+      ? (input as Any).path.trim()
+      : "";
   const tool = getPayloadString(payload, "tool");
   if (tool && (url || path)) return `${tool} failed for ${url || path}`;
   if (url || path) return url || path;
 
-  const step = payload.step && typeof payload.step === "object" ? payload.step : null;
+  const step =
+    payload.step && typeof payload.step === "object" ? payload.step : null;
   return step && typeof (step as Any).description === "string"
     ? (step as Any).description.trim()
     : "";
@@ -161,9 +224,15 @@ export const eventLooksFailed = (event: TaskEvent): boolean => {
   ) {
     return true;
   }
-  if (payload.error || payload.isError === true || payload.is_error === true) return true;
-  if (typeof effectiveType === "string" && /(?:failed|error)$/i.test(effectiveType)) return true;
-  if (event.type === "timeline_step_finished" && event.status === "failed") return true;
+  if (payload.error || payload.isError === true || payload.is_error === true)
+    return true;
+  if (
+    typeof effectiveType === "string" &&
+    /(?:failed|error)$/i.test(effectiveType)
+  )
+    return true;
+  if (event.type === "timeline_step_finished" && event.status === "failed")
+    return true;
   return false;
 };
 
@@ -172,7 +241,9 @@ export const cleanFailureTextForPause = (text: string): string => {
     .replace(/^Fetched\s+/i, "")
     .replace(/^Tool\s+["']?([^"']+)["']?\s+failed:\s*/i, "$1 failed: ")
     .trim();
-  return cleaned.length > 180 ? `${cleaned.slice(0, 177).trimEnd()}...` : cleaned;
+  return cleaned.length > 180
+    ? `${cleaned.slice(0, 177).trimEnd()}...`
+    : cleaned;
 };
 
 export const buildPauseDecisionFallbackFromRecentEvents = (
@@ -185,7 +256,11 @@ export const buildPauseDecisionFallbackFromRecentEvents = (
     : events.length;
   const endIndex = pauseIndex >= 0 ? pauseIndex : events.length;
 
-  for (let i = Math.min(endIndex - 1, events.length - 1); i >= Math.max(0, endIndex - 30); i -= 1) {
+  for (
+    let i = Math.min(endIndex - 1, events.length - 1);
+    i >= Math.max(0, endIndex - 30);
+    i -= 1
+  ) {
     const event = events[i];
     if (!eventLooksFailed(event)) continue;
     const failureText = cleanFailureTextForPause(getFailureEventText(event));
@@ -199,10 +274,14 @@ export const buildPauseDecisionFallbackFromRecentEvents = (
   return "";
 };
 
-export const getAssistantOrCompletionText = (event: TaskEvent | null | undefined): string => {
+export const getAssistantOrCompletionText = (
+  event: TaskEvent | null | undefined,
+): string => {
   if (!event) return "";
   if (getEffectiveTaskEventType(event) === "assistant_message") {
-    return typeof event.payload?.message === "string" ? event.payload.message.trim() : "";
+    return typeof event.payload?.message === "string"
+      ? event.payload.message.trim()
+      : "";
   }
   return getCompletionSummaryText(event);
 };
@@ -216,7 +295,11 @@ export const buildTaskTitle = (text: string): string => {
 };
 
 export function normalizeInitialPromptText(text: string): string {
-  return stripStrategyContextBlock(stripPptxBubbleContent(text))
+  return stripRunOutputLanguageRequirement(
+    getManagedAgentPromptForDisplay(
+      stripStrategyContextBlock(stripPptxBubbleContent(text)),
+    ),
+  )
     .replace(/\r\n/g, "\n")
     .replace(/[ \t]+\n/g, "\n")
     .trim();
@@ -244,10 +327,15 @@ export function shouldSuppressInitialPromptUserEvent(params: {
   const eventText = getUserEventDisplayMessage(event);
   if (!eventText) return false;
 
-  const matchesPrompt = eventText === promptText || eventText.startsWith(promptText);
+  const matchesPrompt =
+    eventText === promptText || eventText.startsWith(promptText);
   if (!matchesPrompt) return false;
 
-  if (typeof taskCreatedAt !== "number" || !Number.isFinite(taskCreatedAt) || taskCreatedAt <= 0) {
+  if (
+    typeof taskCreatedAt !== "number" ||
+    !Number.isFinite(taskCreatedAt) ||
+    taskCreatedAt <= 0
+  ) {
     return true;
   }
 
@@ -255,18 +343,24 @@ export function shouldSuppressInitialPromptUserEvent(params: {
     typeof event.timestamp === "number" && Number.isFinite(event.timestamp)
       ? event.timestamp
       : taskCreatedAt;
-  return eventTimestamp >= taskCreatedAt - 5_000 && eventTimestamp <= taskCreatedAt + 60_000;
+  return (
+    eventTimestamp >= taskCreatedAt - 5_000 &&
+    eventTimestamp <= taskCreatedAt + 60_000
+  );
 }
 
-export function deriveTaskHeaderPresentation(task?: {
-  title?: string | null;
-  prompt?: string | null;
-  rawPrompt?: string | null;
-  userPrompt?: string | null;
-} | null): {
+export function deriveTaskHeaderPresentation(
+  task?: {
+    title?: string | null;
+    prompt?: string | null;
+    rawPrompt?: string | null;
+    userPrompt?: string | null;
+  } | null,
+): {
   cleanedDisplayPrompt: string;
   trimmedPrompt: string;
   promptAttachmentNames: string[];
+  promptAttachments: AttachmentDisplayInfo[];
   headerTitle: string;
   headerTooltip: string;
   showHeaderTitle: boolean;
@@ -274,7 +368,8 @@ export function deriveTaskHeaderPresentation(task?: {
   const displayPromptValue =
     typeof task?.rawPrompt === "string" && task.rawPrompt.trim().length > 0
       ? task.rawPrompt
-      : typeof task?.userPrompt === "string" && task.userPrompt.trim().length > 0
+      : typeof task?.userPrompt === "string" &&
+          task.userPrompt.trim().length > 0
         ? task.userPrompt
         : typeof task?.prompt === "string"
           ? task.prompt
@@ -283,24 +378,37 @@ export function deriveTaskHeaderPresentation(task?: {
     ? normalizeInitialPromptText(displayPromptValue)
     : "";
   const trimmedPromptValue = cleanedDisplayPromptValue.trim();
-  const promptAttachmentNamesValue = displayPromptValue ? extractAttachmentNames(displayPromptValue) : [];
-  const baseTitleValue = task?.title || buildTaskTitle(trimmedPromptValue);
-  const normalizedTitle = baseTitleValue.replace(TITLE_ELLIPSIS_REGEX, "").trim();
+  const promptAttachmentNamesValue = displayPromptValue
+    ? extractAttachmentNames(displayPromptValue)
+    : [];
+  const promptAttachmentsValue = displayPromptValue
+    ? extractAttachmentDetails(displayPromptValue)
+    : [];
+  const baseTitleValue = getManagedAgentTaskTitleForDisplay(
+    task?.title || buildTaskTitle(trimmedPromptValue),
+  );
+  const normalizedTitle = baseTitleValue
+    .replace(TITLE_ELLIPSIS_REGEX, "")
+    .trim();
   const titleMatchesPrompt =
     normalizedTitle.length > 0 &&
     trimmedPromptValue.length > 0 &&
-    (trimmedPromptValue === normalizedTitle || trimmedPromptValue.startsWith(normalizedTitle));
-  const isTitleTruncated = titleMatchesPrompt && trimmedPromptValue.length > normalizedTitle.length;
+    (trimmedPromptValue === normalizedTitle ||
+      trimmedPromptValue.startsWith(normalizedTitle));
+  const isTitleTruncated =
+    titleMatchesPrompt && trimmedPromptValue.length > normalizedTitle.length;
   const headerTitleValue =
     isTitleTruncated && !TITLE_ELLIPSIS_REGEX.test(baseTitleValue)
       ? `${baseTitleValue}...`
       : baseTitleValue;
-  const showHeaderTitle = headerTitleValue.trim().length > 0 && !titleMatchesPrompt;
+  const showHeaderTitle =
+    headerTitleValue.trim().length > 0 && !titleMatchesPrompt;
 
   return {
     cleanedDisplayPrompt: cleanedDisplayPromptValue,
     trimmedPrompt: trimmedPromptValue,
     promptAttachmentNames: promptAttachmentNamesValue,
+    promptAttachments: promptAttachmentsValue,
     headerTitle: headerTitleValue,
     headerTooltip: trimmedPromptValue || baseTitleValue,
     showHeaderTitle,
@@ -311,16 +419,66 @@ export function shouldCreateFreshTaskForSend(params: {
   executionMode: ExecutionMode;
   selectedTaskId: string | null;
   selectedTaskExecutionMode?: ExecutionMode | null;
+  selectedTaskCollaborativeMode?: boolean;
+  selectedTaskStatus?: TaskStatus;
   forceFreshTask?: boolean;
 }): boolean {
   if (params.forceFreshTask) return true;
   if (!params.selectedTaskId) return true;
+  if (
+    params.selectedTaskCollaborativeMode === true &&
+    isTerminalTaskStatus(params.selectedTaskStatus)
+  ) {
+    return true;
+  }
   if (params.executionMode === "chat") return false;
   return false;
 }
 
-export function isChatExecutionTask(executionMode?: ExecutionMode | null): boolean {
+export function isChatExecutionTask(
+  executionMode?: ExecutionMode | null,
+): boolean {
   return executionMode === "chat";
+}
+
+export interface ComposerTaskSettings {
+  executionMode: ExecutionMode;
+  taskDomain: TaskDomain;
+  autonomousModeEnabled: boolean;
+  collaborativeModeEnabled: boolean;
+  multiLlmModeEnabled: boolean;
+  clarifyingCheckinsEnabled: boolean;
+  chronicleEnabledForTask: boolean;
+  verificationAgentEnabled: boolean;
+  requestedSkillId: string | null;
+}
+
+/**
+ * Restore the composer controls from the selected task instead of falling back
+ * to the new-task defaults. This keeps the task page consistent with the mode,
+ * domain and skill that were chosen on the home page.
+ */
+export function deriveComposerTaskSettings(
+  agentConfig?: AgentConfig | null,
+): ComposerTaskSettings {
+  const persistedTaskDomain = agentConfig?.taskDomain;
+  const taskDomain =
+    persistedTaskDomain === "general" || persistedTaskDomain === "operations"
+      ? "auto"
+      : (persistedTaskDomain ?? "auto");
+
+  return {
+    executionMode: agentConfig?.executionMode ?? "execute",
+    taskDomain,
+    autonomousModeEnabled: agentConfig?.autonomousMode === true,
+    collaborativeModeEnabled: agentConfig?.collaborativeMode === true,
+    multiLlmModeEnabled: agentConfig?.multiLlmMode === true,
+    clarifyingCheckinsEnabled:
+      agentConfig?.humanInputPolicy === "legacy_interactive",
+    chronicleEnabledForTask: agentConfig?.chronicleMode !== "disabled",
+    verificationAgentEnabled: agentConfig?.verificationAgent === true,
+    requestedSkillId: agentConfig?.requestedSkillId ?? null,
+  };
 }
 
 /**
@@ -351,10 +509,12 @@ export function humanizeTimelineMessage(message: string): string {
   if (!message || typeof message !== "string") return message;
   const m = message.trim();
 
-  if (m === "Analyzing task requirements...") return "Understanding the request";
+  if (m === "Analyzing task requirements...")
+    return "Understanding the request";
   if (/^\[planning\]/i.test(m)) return "Choosing the best planning approach";
   if (/^\[skill-routing\]/i.test(m)) return "Selecting relevant skills";
-  if (/^Creating execution plan \(model:[^)]+\)\.\.\.$/i.test(m)) return "Creating execution plan";
+  if (/^Creating execution plan \(model:[^)]+\)\.\.\.$/i.test(m))
+    return "Creating execution plan";
   if (/^Starting execution of \d+ steps$/i.test(m)) return "Starting the work";
   const executingStepMatch = /^Executing step \d+\/\d+:\s*(.+)$/i.exec(m);
   if (executingStepMatch?.[1]) {
@@ -373,11 +533,13 @@ export function humanizeTimelineMessage(message: string): string {
       const parsed = JSON.parse(m) as Record<string, unknown>;
       if (typeof parsed.query === "string" && parsed.query.trim()) {
         const q = parsed.query.trim();
-        const prov = typeof parsed.provider === "string" ? ` (${parsed.provider})` : "";
+        const prov =
+          typeof parsed.provider === "string" ? ` (${parsed.provider})` : "";
         return `Web search: ${q.length > 90 ? `${q.slice(0, 89)}…` : q}${prov}`;
       }
       if (typeof parsed.url === "string" && parsed.url.trim()) {
-        const title = typeof parsed.title === "string" ? parsed.title.trim() : "";
+        const title =
+          typeof parsed.title === "string" ? parsed.title.trim() : "";
         const head = title || parsed.url;
         return `Fetched page: ${head.length > 90 ? `${head.slice(0, 89)}…` : head}`;
       }
@@ -387,39 +549,59 @@ export function humanizeTimelineMessage(message: string): string {
   }
 
   // Prompt budget / context optimization
-  if (/prompt budget applied$/i.test(m)) return "Optimized context to fit limits";
+  if (/prompt budget applied$/i.test(m))
+    return "Optimized context to fit limits";
 
   // Auto-waive completion gate messages
-  if (m.includes("Auto-waived verification-only failed steps") && m.includes("partial_success")) {
+  if (
+    m.includes("Auto-waived verification-only failed steps") &&
+    m.includes("partial_success")
+  ) {
     return "Completed with some verification steps skipped (results were good enough)";
   }
-  if (m.includes("Auto-waived budget-constrained failed steps") && m.includes("partial_success")) {
+  if (
+    m.includes("Auto-waived budget-constrained failed steps") &&
+    m.includes("partial_success")
+  ) {
     return "Completed with some steps skipped (reached context limit)";
   }
   if (
-    m.includes("Auto-waived failed steps because the task already produced substantive outputs") &&
+    m.includes(
+      "Auto-waived failed steps because the task already produced substantive outputs",
+    ) &&
     m.includes("partial_success")
   ) {
     return "Completed with some steps skipped (task already had useful results)";
   }
 
   // Raw event type names that may appear as messages
-  if (m === "timeline_step_updated" || m === "progress_update") return "Progress update";
+  if (m === "timeline_step_updated" || m === "progress_update")
+    return "Progress update";
   if (m === "executing") return "Working";
 
   // Execution outcome messages
-  if (m === "Execution completed with partial results.") return "Completed with partial results";
+  if (m === "Execution completed with partial results.")
+    return "Completed with partial results";
   if (m.startsWith("Execution failed:") && m.includes("step(s) failed")) {
     const n = m.match(/(\d+)\s+step\(s\)\s+failed/)?.[1];
     return n ? `Failed: ${n} step(s) didn't complete` : "Execution failed";
   }
-  if (m.includes("Completed with warnings:") && m.includes("optional step(s) failed")) {
+  if (
+    m.includes("Completed with warnings:") &&
+    m.includes("optional step(s) failed")
+  ) {
     return "Completed with some steps skipped (main work done)";
   }
-  if (m.includes("Completed with warnings:") && m.includes("final deliverable was produced")) {
+  if (
+    m.includes("Completed with warnings:") &&
+    m.includes("final deliverable was produced")
+  ) {
     return "Completed with some steps skipped (output was produced)";
   }
-  if (m.includes("Completed with warnings:") && m.includes("majority of work succeeded")) {
+  if (
+    m.includes("Completed with warnings:") &&
+    m.includes("majority of work succeeded")
+  ) {
     return "Completed with some steps skipped (most work done)";
   }
   if (m.includes("mutation-required steps failed unrecovered")) {
@@ -430,7 +612,10 @@ export function humanizeTimelineMessage(message: string): string {
   }
 
   // Completion guard / contract messages
-  if (m.includes("Completion guard blocked finalization") && m.includes("artifact contract")) {
+  if (
+    m.includes("Completion guard blocked finalization") &&
+    m.includes("artifact contract")
+  ) {
     return "Paused: output didn't match requirements";
   }
   if (m.includes("Completion blocked:") && m.includes("unresolved")) {
@@ -439,25 +624,41 @@ export function humanizeTimelineMessage(message: string): string {
 
   // Other technical patterns
   if (m.startsWith("execution_run_summary")) return "Execution summary";
-  if (/^\[verified-mode\]/i.test(m)) return m.replace(/^\[verified-mode\]\s*/i, "").trim() || "Verification";
-  if (m.includes("Suppressed raw tool-call markup")) return "Cleaned up model output";
-  if (m.includes("Security:") && m.includes("Suspicious output")) return "Security check applied";
-  if (m.includes("Security:") && m.includes("Potential injection")) return "Security check applied";
-  if (m.includes("Pre-compaction memory flush saved")) return "Freed up context space";
+  if (/^\[verified-mode\]/i.test(m))
+    return m.replace(/^\[verified-mode\]\s*/i, "").trim() || "Verification";
+  if (m.includes("Suppressed raw tool-call markup"))
+    return "Cleaned up model output";
+  if (m.includes("Security:") && m.includes("Suspicious output"))
+    return "Security check applied";
+  if (m.includes("Security:") && m.includes("Potential injection"))
+    return "Security check applied";
+  if (m.includes("Pre-compaction memory flush saved"))
+    return "Freed up context space";
   if (m.includes("LLM route selected:")) return "Selected model";
   if (m.includes("Creating execution plan")) return m; // Already friendly
-  if (m.includes("Step timeout detected")) return "Step took too long; finishing with best effort";
+  if (m.includes("Step timeout detected"))
+    return "Step took too long; finishing with best effort";
   if (m.includes("Wrap-up requested")) return "Finishing up";
-  if (m.includes("Answer-first short-circuit")) return "Answered directly (simple prompt)";
-  if (m.includes("Answer-first non-execute short-circuit")) return "Answered directly (no execution needed)";
-  if (m.includes("Pre-flight framing failed")) return "Continuing with execution";
-  if (m.includes("Answer-first pre-response failed")) return "Continuing with full execution";
-  if (m.includes("Applied /batch external=none policy")) return "Running in batch mode (no external tools)";
-  if (m.includes("User granted explicit external side-effect approval")) return "Approved to use external tools";
-  if (m.includes("External side-effect approval request failed")) return "Could not get approval for external tools";
-  if (m.includes("Normalized /") && m.includes("to deterministic skill")) return "Running skill";
-  if (m.includes("Detected inline /") && m.includes("chain")) return "Running skill chain";
-  if (m.includes("Step soft deadline reached")) return "Step time limit approached";
+  if (m.includes("Answer-first short-circuit"))
+    return "Answered directly (simple prompt)";
+  if (m.includes("Answer-first non-execute short-circuit"))
+    return "Answered directly (no execution needed)";
+  if (m.includes("Pre-flight framing failed"))
+    return "Continuing with execution";
+  if (m.includes("Answer-first pre-response failed"))
+    return "Continuing with full execution";
+  if (m.includes("Applied /batch external=none policy"))
+    return "Running in batch mode (no external tools)";
+  if (m.includes("User granted explicit external side-effect approval"))
+    return "Approved to use external tools";
+  if (m.includes("External side-effect approval request failed"))
+    return "Could not get approval for external tools";
+  if (m.includes("Normalized /") && m.includes("to deterministic skill"))
+    return "Running skill";
+  if (m.includes("Detected inline /") && m.includes("chain"))
+    return "Running skill chain";
+  if (m.includes("Step soft deadline reached"))
+    return "Step time limit approached";
   if (m.includes("Key factual claims are missing evidence links")) {
     return "Some claims need evidence links";
   }

@@ -4,10 +4,10 @@ Use **bash** (with optional background mode) for all coding agent work. Simple a
 
 ## PTY Auto-Allocated
 
-CoWork OS **automatically wraps `claude`, `codex`, and other coding agent commands with PTY allocation** — no special syntax needed. Just use `run_command` with the command directly:
+NeoWorker **automatically wraps `claude`, `codex`, and other coding agent commands with PTY allocation** — no special syntax needed. Just use `run_command` with the command directly:
 
 ```bash
-# PTY is auto-allocated by CoWork OS for claude/codex commands
+# PTY is auto-allocated by NeoWorker for claude/codex commands
 codex exec 'Your prompt'
 claude -p 'Your prompt'
 ```
@@ -98,7 +98,7 @@ cd ~/project && codex --yolo 'Refactor the auth module'
 
 ### Reviewing PRs
 
-**⚠️ CRITICAL: Never review PRs in CoWork-OSS's own project folder!**
+**⚠️ CRITICAL: Never review PRs in NeoWorker's own project folder!**
 Clone to temp folder or use git worktree.
 
 ```bash
@@ -215,7 +215,7 @@ git worktree remove /tmp/issue-99
 
 ## ⚠️ Rules
 
-1. **PTY is auto-allocated** - CoWork OS wraps coding agent commands with PTY automatically
+1. **PTY is auto-allocated** - NeoWorker wraps coding agent commands with PTY automatically
 2. **Respect tool choice** - if user asks for Codex, use Codex.
    - Orchestrator mode: do NOT hand-code patches yourself.
    - If an agent fails/hangs, respawn it or ask the user for direction, but don't silently take over.
@@ -224,8 +224,8 @@ git worktree remove /tmp/issue-99
 5. **--full-auto for building** - auto-approves changes
 6. **vanilla for reviewing** - no special flags needed
 7. **Parallel is OK** - run many Codex processes at once for batch work
-8. **NEVER start Codex in ~/CoWork-OSS/** - it'll read your soul docs and get weird ideas about the org chart!
-9. **NEVER checkout branches in ~/Projects/CoWork-OSS/** - that's the LIVE CoWork-OSS instance!
+8. **NEVER start Codex in ~/NeoWorker/** - it'll read your soul docs and get weird ideas about the org chart!
+9. **NEVER checkout branches in ~/Projects/NeoWorker/** - that's the LIVE NeoWorker instance!
 
 ---
 
@@ -247,13 +247,13 @@ This prevents the user from seeing only "Agent failed before reply" and having n
 
 ## Auto-Notify on Completion
 
-For long-running background tasks, append a wake trigger to your prompt so CoWork-OSS gets notified immediately when the agent finishes (instead of waiting for the next heartbeat):
+For long-running background tasks, append a wake trigger to your prompt so NeoWorker gets notified immediately when the agent finishes (instead of waiting for the next heartbeat):
 
 ```
 ... your task here.
 
 When completely finished, run this command to notify me:
-CoWork-OSS gateway wake --text "Done: [brief summary of what was built]" --mode now
+NeoWorker gateway wake --text "Done: [brief summary of what was built]" --mode now
 ```
 
 **Example:**
@@ -261,7 +261,7 @@ CoWork-OSS gateway wake --text "Done: [brief summary of what was built]" --mode 
 ```bash
 cd ~/project && codex --yolo exec 'Build a REST API for todos.
 
-When completely finished, run: CoWork-OSS gateway wake --text \"Done: Built todos REST API with CRUD endpoints\" --mode now'"
+When completely finished, run: NeoWorker gateway wake --text \"Done: Built todos REST API with CRUD endpoints\" --mode now'"
 ```
 
 This triggers an immediate wake event — Skippy gets pinged in seconds, not 10 minutes.
@@ -270,7 +270,7 @@ This triggers an immediate wake event — Skippy gets pinged in seconds, not 10 
 
 ## Learnings (Jan 2026)
 
-- **PTY is auto-allocated:** CoWork OS handles PTY wrapping for `claude`/`codex` commands automatically.
+- **PTY is auto-allocated:** NeoWorker handles PTY wrapping for `claude`/`codex` commands automatically.
 - **Git repo required:** Codex won't run outside a git directory. Use `mktemp -d && git init` for scratch work.
 - **exec is your friend:** `codex exec "prompt"` runs and exits cleanly - perfect for one-shots.
 - **submit vs write:** Use `submit` to send input + Enter, `write` for raw data without newline.

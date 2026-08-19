@@ -1,7 +1,7 @@
 /**
  * Session Manager
  *
- * Manages channel sessions linking chats to CoWork tasks.
+ * Manages channel sessions linking chats to NeoWorker tasks.
  */
 
 import Database from "better-sqlite3";

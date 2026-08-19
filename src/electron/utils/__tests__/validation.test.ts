@@ -4,6 +4,7 @@ import {
   WorkspaceCreateSchema,
   TaskCreateSchema,
   TaskWorkspaceUpdateSchema,
+  TaskProjectUpdateSchema,
   TaskMessageSchema,
   ApprovalResponseSchema,
   GuardrailSettingsSchema,
@@ -218,6 +219,36 @@ describe("TaskCreateSchema", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("accepts a valid expert assignment and rejects malformed role IDs", () => {
+    const valid = TaskCreateSchema.safeParse({
+      title: "Expert task",
+      prompt: "Review this implementation",
+      workspaceId: "__temp_workspace__",
+      assignedAgentRoleId: "550e8400-e29b-41d4-a716-446655440001",
+    });
+    const invalid = TaskCreateSchema.safeParse({
+      title: "Expert task",
+      prompt: "Review this implementation",
+      workspaceId: "__temp_workspace__",
+      assignedAgentRoleId: "reviewer",
+    });
+
+    expect(valid.success).toBe(true);
+    expect(invalid.success).toBe(false);
+  });
+
+  it("accepts a requested Ideas skill in agentConfig", () => {
+    const result = TaskCreateSchema.safeParse({
+      title: "Compare two files",
+      prompt: "Compare the attached presentations.",
+      workspaceId: "__temp_workspace__",
+      agentConfig: {
+        requestedSkillId: "compare-files",
+      },
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("TaskWorkspaceUpdateSchema", () => {
@@ -249,7 +280,94 @@ describe("TaskWorkspaceUpdateSchema", () => {
   });
 });
 
+describe("TaskProjectUpdateSchema", () => {
+  it("validates assigning an existing task to a project", () => {
+    const result = TaskProjectUpdateSchema.safeParse({
+      taskId: "550e8400-e29b-41d4-a716-446655440000",
+      projectId: "550e8400-e29b-41d4-a716-446655440001",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an invalid project ID", () => {
+    const result = TaskProjectUpdateSchema.safeParse({
+      taskId: "550e8400-e29b-41d4-a716-446655440000",
+      projectId: "not-a-project-id",
+    });
+
+    expect(result.success).toBe(false);
+  });
+});
+
 describe("TaskMessageSchema", () => {
+  it("accepts per-turn execution mode and task domain overrides", () => {
+    const result = TaskMessageSchema.safeParse({
+      taskId: "550e8400-e29b-41d4-a716-446655440000",
+      message: "Switch to execution and look this up",
+      executionMode: "execute",
+      taskDomain: "research",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a skill selected for the next turn", () => {
+    const result = TaskMessageSchema.safeParse({
+      taskId: "550e8400-e29b-41d4-a716-446655440000",
+      message: "Use this skill for the follow-up",
+      requestedSkillId: "web-research",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty selected skill id", () => {
+    const result = TaskMessageSchema.safeParse({
+      taskId: "550e8400-e29b-41d4-a716-446655440000",
+      message: "Use this skill for the follow-up",
+      requestedSkillId: "   ",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unsupported per-turn execution modes", () => {
+    const result = TaskMessageSchema.safeParse({
+      taskId: "550e8400-e29b-41d4-a716-446655440000",
+      message: "Run this",
+      executionMode: "magic",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts active artifact context from a document workbench follow-up", () => {
+    const result = TaskMessageSchema.safeParse({
+      taskId: "550e8400-e29b-41d4-a716-446655440000",
+      message: "Make the headings red",
+      activeArtifactContext: {
+        kind: "document",
+        path: "/tmp/商务部沟通材料_分析报告.pdf",
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an unknown active artifact kind", () => {
+    const result = TaskMessageSchema.safeParse({
+      taskId: "550e8400-e29b-41d4-a716-446655440000",
+      message: "Make the headings red",
+      activeArtifactContext: {
+        kind: "image",
+        path: "/tmp/report.pdf",
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it("accepts a quoted assistant message payload", () => {
     const result = TaskMessageSchema.safeParse({
       taskId: "550e8400-e29b-41d4-a716-446655440000",
@@ -390,9 +508,11 @@ describe("GuardrailSettingsSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.maxTokensPerTask).toBe(100000);
-      expect(result.data.tokenBudgetEnabled).toBe(true);
+      expect(result.data.tokenBudgetEnabled).toBe(false);
       expect(result.data.blockDangerousCommands).toBe(true);
-      expect(result.data.maxIterationsPerTask).toBe(50);
+      expect(result.data.fileSizeLimitEnabled).toBe(false);
+      expect(result.data.maxIterationsPerTask).toBe(100);
+      expect(result.data.iterationLimitEnabled).toBe(false);
       expect(result.data.webSearchMode).toBe("cached");
       expect(result.data.webSearchMaxUsesPerTask).toBe(8);
       expect(result.data.webSearchMaxUsesPerStep).toBe(3);
@@ -408,6 +528,19 @@ describe("GuardrailSettingsSchema", () => {
 
   it("rejects maxTokensPerTask below minimum", () => {
     const result = GuardrailSettingsSchema.safeParse({ maxTokensPerTask: 100 });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts high maxTokensPerTask values used to effectively disable token budget stops", () => {
+    const result = GuardrailSettingsSchema.safeParse({ maxTokensPerTask: 100000000 });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.maxTokensPerTask).toBe(100000000);
+    }
+  });
+
+  it("rejects maxTokensPerTask above the hard maximum", () => {
+    const result = GuardrailSettingsSchema.safeParse({ maxTokensPerTask: 100000001 });
     expect(result.success).toBe(false);
   });
 
@@ -510,6 +643,17 @@ describe("gateway channel schemas", () => {
     expect(result.success).toBe(true);
   });
 
+  it("validates a DingTalk Stream add-channel request", () => {
+    const result = AddChannelSchema.safeParse({
+      type: "dingtalk",
+      name: "DingTalk Bot",
+      dingtalkClientId: "ding123456",
+      dingtalkClientSecret: "secret_123",
+      securityMode: "pairing",
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("validates a WeCom add-channel request", () => {
     const result = AddWeComChannelSchema.safeParse({
       type: "wecom",
@@ -523,6 +667,30 @@ describe("gateway channel schemas", () => {
       webhookPath: "/wecom/webhook",
     });
     expect(result.success).toBe(true);
+  });
+
+  it("validates a personal WeChat iLink add-channel request", () => {
+    const result = AddChannelSchema.safeParse({
+      type: "weixin",
+      name: "微信",
+      weixinAccountId: "bot_123",
+      weixinBotToken: "token_123",
+      weixinBaseUrl: "https://ilinkai.weixin.qq.com",
+      weixinUserId: "user_123",
+      securityMode: "pairing",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a personal WeChat request with an untrusted service URL", () => {
+    const result = AddChannelSchema.safeParse({
+      type: "weixin",
+      name: "微信",
+      weixinAccountId: "bot_123",
+      weixinBotToken: "token_123",
+      weixinBaseUrl: "https://example.com",
+    });
+    expect(result.success).toBe(false);
   });
 
   it("rejects invalid WeCom encoding AES key length", () => {

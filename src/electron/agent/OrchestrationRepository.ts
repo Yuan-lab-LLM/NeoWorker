@@ -16,7 +16,7 @@ export interface OrchestrationTask {
   prompt: string;
   /** IDs of local DAG nodes that must complete before this task starts */
   dependsOn: string[];
-  /** CoWork task ID once the sub-agent has been spawned */
+  /** NeoWorker task ID once the sub-agent has been spawned */
   taskId?: string;
   status: "pending" | "spawned" | "running" | "completed" | "failed";
   output?: string;

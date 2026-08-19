@@ -16,16 +16,15 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { SettingsTab } from "./main-content-types";
-import { WELCOME_TASK_SUGGESTION_LIMIT, WELCOME_SUGGESTION_TEXT_MAX } from "./main-content-constants";
+import {
+  WELCOME_TASK_SUGGESTION_LIMIT,
+  WELCOME_SUGGESTION_TEXT_MAX,
+} from "./main-content-constants";
+import { translate } from "../../i18n";
 
 export type WelcomeTaskSuggestionSource = "heartbeat" | "memory" | "insight";
 export type WelcomeTaskSuggestionModule =
-  | "Memory"
-  | "Heartbeat"
-  | "Reflection"
-  | "Recent work"
-  | "Inbox"
-  | "Project";
+  "Memory" | "Heartbeat" | "Reflection" | "Recent work" | "Inbox" | "Project";
 
 export type WelcomeTaskSuggestionAction =
   | { type: "prompt"; prompt: string }
@@ -62,14 +61,20 @@ export function normalizeSuggestionText(value: unknown): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
 
-export function truncateSuggestionText(value: string, maxLength = WELCOME_SUGGESTION_TEXT_MAX): string {
+export function truncateSuggestionText(
+  value: string,
+  maxLength = WELCOME_SUGGESTION_TEXT_MAX,
+): string {
   const text = normalizeSuggestionText(value);
   if (text.length <= maxLength) return text;
   return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
-export function getWorkspaceStatusFolderLabel(workspace?: Workspace | null): string {
-  if (workspace?.isTemp || isTempWorkspaceId(workspace?.id)) return "Work in a folder";
+export function getWorkspaceStatusFolderLabel(
+  workspace?: Workspace | null,
+): string {
+  if (workspace?.isTemp || isTempWorkspaceId(workspace?.id))
+    return "Work in a folder";
   const workspacePath = workspace?.path?.trim();
   if (workspacePath) {
     const folderName = workspacePath.split(/[/\\]/).filter(Boolean).pop();
@@ -84,7 +89,10 @@ export function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-export function getRecordString(record: Record<string, unknown>, keys: string[]): string {
+export function getRecordString(
+  record: Record<string, unknown>,
+  keys: string[],
+): string {
   for (const key of keys) {
     const value = normalizeSuggestionText(record[key]);
     if (value) return value;
@@ -92,7 +100,10 @@ export function getRecordString(record: Record<string, unknown>, keys: string[])
   return "";
 }
 
-function getRecordNumber(record: Record<string, unknown>, keys: string[]): number | undefined {
+function getRecordNumber(
+  record: Record<string, unknown>,
+  keys: string[],
+): number | undefined {
   for (const key of keys) {
     const value = record[key];
     if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -104,37 +115,54 @@ function isConcreteMemorySignal(value: string): boolean {
   const text = normalizeSuggestionText(value);
   if (text.length < 24) return false;
   if (/^[{[]/.test(text)) return false;
-  if (/^(none|unknown|not set|n\/a|no context|no memory)$/i.test(text)) return false;
+  if (/^(none|unknown|not set|n\/a|no context|no memory)$/i.test(text))
+    return false;
   if (/^(ready to help|i can help|ask me anything)/i.test(text)) return false;
   return true;
 }
 
-function formatProfileFactSignal(fact: UserProfile["facts"][number]): string | null {
+function formatProfileFactSignal(
+  fact: UserProfile["facts"][number],
+): string | null {
   const value = normalizeSuggestionText(fact.value);
   if (!isConcreteMemorySignal(value)) return null;
-  if (typeof fact.confidence === "number" && fact.confidence < 0.45 && !fact.pinned) {
+  if (
+    typeof fact.confidence === "number" &&
+    fact.confidence < 0.45 &&
+    !fact.pinned
+  ) {
     return null;
   }
   const label =
     fact.category === "goal"
-      ? "Goal"
+      ? translate("welcome.suggestion.fact.goal", "Goal")
       : fact.category === "work"
-        ? "Work"
+        ? translate("welcome.suggestion.fact.work", "Work")
         : fact.category === "preference"
-          ? "Preference"
+          ? translate("welcome.suggestion.fact.preference", "Preference")
           : fact.category === "constraint"
-            ? "Constraint"
-            : "Memory";
+            ? translate("welcome.suggestion.fact.constraint", "Constraint")
+            : translate("welcome.module.memory", "Memory");
   return `${label}: ${truncateSuggestionText(value, 360)}`;
 }
 
 function getRecentMemorySignal(item: unknown): string | null {
   const record = asRecord(item);
   if (!record) return null;
-  const text = getRecordString(record, ["summary", "content", "snippet", "text", "value"]);
+  const text = getRecordString(record, [
+    "summary",
+    "content",
+    "snippet",
+    "text",
+    "value",
+  ]);
   if (!isConcreteMemorySignal(text)) return null;
   const type = getRecordString(record, ["type"]);
-  const prefix = type ? `Recent ${type.replace(/_/g, " ")}` : "Recent work";
+  const prefix = type
+    ? translate("welcome.suggestion.recentTyped", "Recent {type}", {
+        type: type.replace(/_/g, " "),
+      })
+    : translate("welcome.module.recentWork", "Recent work");
   return `${prefix}: ${truncateSuggestionText(text, 360)}`;
 }
 
@@ -143,8 +171,10 @@ function buildEvidencePrompt(args: {
   evidence: string[];
   instruction: string;
 }): string {
-  const evidenceLines = args.evidence.map((item, index) => `${index + 1}. ${item}`).join("\n");
-  return `${args.opening}\n\nRemembered context:\n${evidenceLines}\n\n${args.instruction}`;
+  const evidenceLines = args.evidence
+    .map((item, index) => `${index + 1}. ${item}`)
+    .join("\n");
+  return `${args.opening}\n\n${translate("welcome.suggestion.rememberedContext", "Remembered context")}:\n${evidenceLines}\n\n${args.instruction}`;
 }
 
 function extractFirstUrl(value: string): string | null {
@@ -152,25 +182,40 @@ function extractFirstUrl(value: string): string | null {
   return match ? match[0] : null;
 }
 
-export function resolveSettingsActionFromSuggestionText(value: string): SettingsTab | null {
+export function resolveSettingsActionFromSuggestionText(
+  value: string,
+): SettingsTab | null {
   const text = normalizeSuggestionText(value).toLowerCase();
   if (!text) return null;
-  const setupIntent = /\b(enable|turn on|connect|configure|set up|setup|setting|settings|permission|authorize|login|log in|sign in)\b/.test(
-    text,
-  );
+  const setupIntent =
+    /\b(enable|turn on|connect|configure|set up|setup|setting|settings|permission|authorize|login|log in|sign in)\b/.test(
+      text,
+    );
   if (!setupIntent) return null;
-  if (/\b(model|llm|provider|api key|openai|anthropic|ollama|gemini)\b/.test(text)) return "llm";
+  if (
+    /\b(model|llm|provider|api key|openai|anthropic|ollama|gemini)\b/.test(text)
+  )
+    return "llm";
   if (/\b(search|web search|browser search)\b/.test(text)) return "search";
   if (/\b(skill|skills)\b/.test(text)) return "skills";
   if (/\b(queue|queued|concurrency)\b/.test(text)) return "queue";
-  if (/\b(schedule|scheduled|automation|automations|recurring|cron)\b/.test(text)) return "scheduled";
-  if (/\b(mcp|connector|connectors|integration|integrations|gmail|calendar|drive|github)\b/.test(text)) {
+  if (
+    /\b(schedule|scheduled|automation|automations|recurring|cron)\b/.test(text)
+  )
+    return "scheduled";
+  if (
+    /\b(mcp|connector|connectors|integration|integrations|gmail|calendar|drive|github)\b/.test(
+      text,
+    )
+  ) {
     return "integrations";
   }
   if (/\b(slack|telegram|whatsapp|teams)\b/.test(text)) return "morechannels";
   if (/\b(voice|microphone|speech)\b/.test(text)) return "voice";
   if (/\b(update|updates)\b/.test(text)) return "updates";
-  return /\b(setting|settings|permission|enable|turn on|configure)\b/.test(text) ? "system" : null;
+  return /\b(setting|settings|permission|enable|turn on|configure)\b/.test(text)
+    ? "system"
+    : null;
 }
 
 export function buildSuggestionAction(args: {
@@ -178,23 +223,53 @@ export function buildSuggestionAction(args: {
   description?: string;
   prompt: string;
 }): WelcomeTaskSuggestionAction {
-  const actionText = [args.title, args.description, args.prompt].filter(Boolean).join(" ");
+  const actionText = [args.title, args.description, args.prompt]
+    .filter(Boolean)
+    .join(" ");
   const url = extractFirstUrl(actionText);
-  if (url && /\b(click|open|visit|go to|log in|login|sign in|confirm|paste)\b/i.test(actionText)) {
+  if (
+    url &&
+    /\b(click|open|visit|go to|log in|login|sign in|confirm|paste)\b/i.test(
+      actionText,
+    )
+  ) {
     return { type: "url", url };
   }
-  const settingsTab = resolveSettingsActionFromSuggestionText(
-    actionText,
-  );
+  const settingsTab = resolveSettingsActionFromSuggestionText(actionText);
   if (settingsTab) return { type: "settings", tab: settingsTab };
   return { type: "prompt", prompt: args.prompt };
 }
 
-export function labelForWelcomeAction(action: WelcomeTaskSuggestionAction): string {
-  if (action.type === "task") return "Needs response";
-  if (action.type === "settings") return "Setting";
-  if (action.type === "url") return "Link";
-  return "Ask CoWork";
+export function labelForWelcomeAction(
+  action: WelcomeTaskSuggestionAction,
+): string {
+  if (action.type === "task")
+    return translate("welcome.action.needsResponse", "Needs response");
+  if (action.type === "settings")
+    return translate("welcome.action.setting", "Setting");
+  if (action.type === "url") return translate("welcome.action.link", "Link");
+  return translate("welcome.action.askNeoWorker", "Ask NeoWorker");
+}
+
+export function labelForWelcomeModule(
+  module: WelcomeTaskSuggestionModule,
+): string {
+  switch (module) {
+    case "Memory":
+      return translate("welcome.module.memory", "Memory");
+    case "Heartbeat":
+      return translate("welcome.module.heartbeat", "Heartbeat");
+    case "Reflection":
+      return translate("welcome.module.reflection", "Reflection");
+    case "Recent work":
+      return translate("welcome.module.recentWork", "Recent work");
+    case "Inbox":
+      return translate("welcome.module.inbox", "Inbox");
+    case "Project":
+      return translate("welcome.module.project", "Project");
+    default:
+      return module;
+  }
 }
 
 export function iconForWelcomeAction(
@@ -208,13 +283,20 @@ export function iconForWelcomeAction(
   return MessageCircle;
 }
 
-export function formatWelcomeModules(modules: WelcomeTaskSuggestionModule[]): WelcomeTaskSuggestionModule[] {
+export function formatWelcomeModules(
+  modules: WelcomeTaskSuggestionModule[],
+): WelcomeTaskSuggestionModule[] {
   return Array.from(new Set(modules)).slice(0, 3);
 }
 
-export function modulesForProactiveSuggestion(suggestion: ProactiveSuggestion): WelcomeTaskSuggestionModule[] {
+export function modulesForProactiveSuggestion(
+  suggestion: ProactiveSuggestion,
+): WelcomeTaskSuggestionModule[] {
   const modules: WelcomeTaskSuggestionModule[] = ["Heartbeat"];
-  if (suggestion.suggestionClass === "memory" || suggestion.type === "reverse_prompt") {
+  if (
+    suggestion.suggestionClass === "memory" ||
+    suggestion.type === "reverse_prompt"
+  ) {
     modules.push("Memory");
   }
   if (
@@ -224,46 +306,102 @@ export function modulesForProactiveSuggestion(suggestion: ProactiveSuggestion): 
   ) {
     modules.push("Inbox");
   }
-  if (/^workflow intelligence:|^continuity:|^reflection:|^subconscious:/i.test(suggestion.title)) {
+  if (
+    /^workflow intelligence:|^continuity:|^reflection:|^subconscious:/i.test(
+      suggestion.title,
+    )
+  ) {
     modules.push("Reflection");
   }
   if (suggestion.sourceTaskId) modules.push("Recent work");
   return formatWelcomeModules(modules);
 }
 
-export function whyNowForProactiveSuggestion(suggestion: ProactiveSuggestion): string {
-  if (suggestion.urgency === "high") return "A current signal looks urgent enough to review now.";
-  if (suggestion.suggestionClass === "open_loop") return "Memory found an open loop that may need closure.";
-  if (suggestion.suggestionClass === "memory") return "This is based on remembered goals or preferences.";
-  if (suggestion.suggestionClass === "urgent") return "Recent activity suggests this should not wait.";
-  if (suggestion.sourceSignals?.length) {
-    return `Triggered by ${suggestion.sourceSignals.length} recent signal(s).`;
+export function whyNowForProactiveSuggestion(
+  suggestion: ProactiveSuggestion,
+): string {
+  if (suggestion.urgency === "high") {
+    return translate(
+      "welcome.suggestion.why.urgentSignal",
+      "A current signal looks urgent enough to review now.",
+    );
   }
-  return truncateSuggestionText(suggestion.description || "Recent context suggests this may be useful.", 120);
+  if (suggestion.suggestionClass === "open_loop") {
+    return translate(
+      "welcome.suggestion.why.openLoop",
+      "Memory found an open loop that may need closure.",
+    );
+  }
+  if (suggestion.suggestionClass === "memory") {
+    return translate(
+      "welcome.suggestion.why.memory",
+      "This is based on remembered goals or preferences.",
+    );
+  }
+  if (suggestion.suggestionClass === "urgent") {
+    return translate(
+      "welcome.suggestion.why.recentUrgent",
+      "Recent activity suggests this should not wait.",
+    );
+  }
+  if (suggestion.sourceSignals?.length) {
+    return translate(
+      "welcome.suggestion.why.triggeredSignals",
+      "Triggered by {count} recent signal(s).",
+      {
+        count: suggestion.sourceSignals.length,
+      },
+    );
+  }
+  return truncateSuggestionText(
+    suggestion.description ||
+      translate(
+        "welcome.suggestion.why.recentContext",
+        "Recent context suggests this may be useful.",
+      ),
+    120,
+  );
 }
 
 export function buildHeartbeatWelcomeSuggestion(
   suggestion: ProactiveSuggestion,
   index: number,
 ): WelcomeTaskSuggestion | null {
-  const prompt = normalizeSuggestionText(suggestion.actionPrompt || suggestion.description);
+  const prompt = normalizeSuggestionText(
+    suggestion.actionPrompt || suggestion.description,
+  );
   const rawTitle = normalizeSuggestionText(suggestion.title || prompt);
-  const title = rawTitle.replace(/^(workflow intelligence|subconscious|reflection|continuity):\s*/i, "");
+  const title = rawTitle.replace(
+    /^(workflow intelligence|subconscious|reflection|continuity):\s*/i,
+    "",
+  );
   if (!title || !prompt) return null;
 
   const urgencyBoost =
-    suggestion.urgency === "high" ? 30 : suggestion.urgency === "medium" ? 15 : 0;
+    suggestion.urgency === "high"
+      ? 30
+      : suggestion.urgency === "medium"
+        ? 15
+        : 0;
   return {
     id: `heartbeat:${suggestion.id}`,
     title: truncateSuggestionText(title),
     description: truncateSuggestionText(suggestion.description, 120),
     whyNow: whyNowForProactiveSuggestion(suggestion),
-    action: buildSuggestionAction({ title, description: suggestion.description, prompt }),
+    action: buildSuggestionAction({
+      title,
+      description: suggestion.description,
+      prompt,
+    }),
     confidence: suggestion.confidence,
     evidence: suggestion.sourceSignals,
     source: "heartbeat",
     modules: modulesForProactiveSuggestion(suggestion),
-    priority: 300 + urgencyBoost + Math.round((suggestion.confidence || 0) * 100) - index,
+    priority:
+      300 +
+      urgencyBoost +
+      Math.round((suggestion.confidence || 0) * 100) -
+      index,
     createdAt: suggestion.createdAt,
     feedback: suggestion.workspaceId
       ? {
@@ -286,9 +424,24 @@ export function buildCompanionNotificationWelcomeSuggestion(
 
   const prompt =
     normalizeSuggestionText(matchingSuggestion?.actionPrompt) ||
-    `Review this Workflow Intelligence recommendation and decide the next action.\n\nTitle: ${
-      title || "Companion suggestion"
-    }\nContext: ${message || "No additional context provided."}`;
+    translate(
+      "welcome.suggestion.companionPrompt",
+      "Review this Workflow Intelligence recommendation and decide the next action.\n\nTitle: {title}\nContext: {context}",
+      {
+        title:
+          title ||
+          translate(
+            "welcome.suggestion.companionTitle",
+            "Companion suggestion",
+          ),
+        context:
+          message ||
+          translate(
+            "welcome.suggestion.noAdditionalContext",
+            "No additional context provided.",
+          ),
+      },
+    );
   const isNudge = notification.recommendedDelivery === "nudge";
   const modules: WelcomeTaskSuggestionModule[] = ["Heartbeat", "Reflection"];
   if (/mail|inbox|reply/i.test(`${title} ${message}`)) modules.push("Inbox");
@@ -298,8 +451,14 @@ export function buildCompanionNotificationWelcomeSuggestion(
     title: truncateSuggestionText(title || message),
     description: truncateSuggestionText(message, 120),
     whyNow: isNudge
-      ? "Workflow Intelligence sent this as a timely nudge."
-      : "A recent companion signal is waiting in the automation inbox.",
+      ? translate(
+          "welcome.suggestion.why.nudge",
+          "Workflow Intelligence sent this as a timely nudge.",
+        )
+      : translate(
+          "welcome.suggestion.why.automationInbox",
+          "A recent companion signal is waiting in the automation inbox.",
+        ),
     action: buildSuggestionAction({ title, description: message, prompt }),
     confidence: matchingSuggestion?.confidence ?? (isNudge ? 0.82 : 0.68),
     evidence: message ? [message] : undefined,
@@ -324,21 +483,44 @@ export function buildMemoryCommitmentSuggestion(
 ): WelcomeTaskSuggestion | null {
   const record = asRecord(item);
   if (!record) return null;
-  const text = getRecordString(record, ["text", "title", "summary", "description"]);
+  const text = getRecordString(record, [
+    "text",
+    "title",
+    "summary",
+    "description",
+  ]);
   if (!text) return null;
   const dueAt = getRecordNumber(record, ["dueAt", "due_at", "dueDate"]);
   const dueText = dueAt
-    ? ` Due ${new Date(dueAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.`
+    ? translate("welcome.suggestion.dueDateSentence", " Due {date}.", {
+        date: new Date(dueAt).toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+        }),
+      })
     : "";
+  const openCommitment = translate(
+    "welcome.suggestion.openCommitment",
+    "Open commitment",
+  );
   return {
     id: `memory:commitment:${getRecordString(record, ["id"]) || index}`,
     title: truncateSuggestionText(text),
-    description: dueText.trim() || "Open commitment",
-    whyNow: dueText.trim() || "Memory has this as an open commitment.",
+    description: dueText.trim() || openCommitment,
+    whyNow:
+      dueText.trim() ||
+      translate(
+        "welcome.suggestion.why.openCommitment",
+        "Memory has this as an open commitment.",
+      ),
     action: buildSuggestionAction({
       title: text,
-      description: dueText.trim() || "Open commitment",
-      prompt: `Help me make progress on this commitment: ${text}.${dueText} Start by identifying the next concrete action and any message or artifact I should prepare.`,
+      description: dueText.trim() || openCommitment,
+      prompt: translate(
+        "welcome.suggestion.commitmentPrompt",
+        "Help me make progress on this commitment: {text}.{dueText} Start by identifying the next concrete action and any message or artifact I should prepare.",
+        { text, dueText },
+      ),
     }),
     source: "memory",
     modules: ["Memory"],
@@ -353,8 +535,10 @@ export function buildProfileWelcomeSuggestion(
 ): WelcomeTaskSuggestion | null {
   if (!profile) return null;
   const factSignals = (Array.isArray(profile.facts) ? profile.facts : [])
-    .filter((fact) =>
-      ["goal", "work", "preference", "constraint"].includes(fact.category) || fact.pinned,
+    .filter(
+      (fact) =>
+        ["goal", "work", "preference", "constraint"].includes(fact.category) ||
+        fact.pinned,
     )
     .sort(
       (a, b) =>
@@ -372,21 +556,37 @@ export function buildProfileWelcomeSuggestion(
     .map(getRecentMemorySignal)
     .filter((value): value is string => Boolean(value));
   const evidence = Array.from(
-    new Set([summary, ...factSignals, ...recentSignals].filter((value): value is string => Boolean(value))),
+    new Set(
+      [summary, ...factSignals, ...recentSignals].filter(
+        (value): value is string => Boolean(value),
+      ),
+    ),
   ).slice(0, 6);
   if (evidence.length < 2) return null;
   return {
     id: "memory:profile-focus",
-    title: "Use memory to choose the next priority",
+    title: translate(
+      "welcome.suggestion.profileFocus.title",
+      "Use memory to choose the next priority",
+    ),
     description: truncateSuggestionText(evidence[0], 120),
-    whyNow: `${evidence.length} remembered signals can narrow what to do next.`,
+    whyNow: translate(
+      "welcome.suggestion.profileFocus.whyNow",
+      "{count} remembered signals can narrow what to do next.",
+      { count: evidence.length },
+    ),
     action: {
       type: "prompt",
       prompt: buildEvidencePrompt({
-        opening: "Use the remembered context below to recommend the best next task for me.",
+        opening: translate(
+          "welcome.suggestion.profileFocus.promptOpening",
+          "Use the remembered context below to recommend the best next task for me.",
+        ),
         evidence,
-        instruction:
+        instruction: translate(
+          "welcome.suggestion.profileFocus.promptInstruction",
           "Give me 3 concrete options that directly reference this context, explain the tradeoffs, and recommend one. Do not start the task or ask whether to proceed; end with the recommendation so I can choose in a follow-up. If the context is not enough, ask one focused clarifying question instead of giving generic advice.",
+        ),
       }),
     },
     evidence,
@@ -397,24 +597,46 @@ export function buildProfileWelcomeSuggestion(
   };
 }
 
-export function buildRecentMemorySuggestion(item: unknown, index: number): WelcomeTaskSuggestion | null {
+export function buildRecentMemorySuggestion(
+  item: unknown,
+  index: number,
+): WelcomeTaskSuggestion | null {
   const record = asRecord(item);
   if (!record) return null;
-  const text = getRecordString(record, ["summary", "content", "snippet", "text", "value"]);
+  const text = getRecordString(record, [
+    "summary",
+    "content",
+    "snippet",
+    "text",
+    "value",
+  ]);
   if (!text) return null;
-  const evidence = [`Recent work: ${text}`];
+  const evidence = [
+    `${translate("welcome.module.recentWork", "Recent work")}: ${text}`,
+  ];
   return {
     id: `memory:recent:${getRecordString(record, ["id"]) || index}`,
-    title: "Pick up a recent thread",
+    title: translate(
+      "welcome.suggestion.recent.title",
+      "Pick up a recent thread",
+    ),
     description: truncateSuggestionText(text, 120),
-    whyNow: "Recent work left context that may be worth continuing.",
+    whyNow: translate(
+      "welcome.suggestion.recent.whyNow",
+      "Recent work left context that may be worth continuing.",
+    ),
     action: {
       type: "prompt",
       prompt: buildEvidencePrompt({
-        opening: "Pick up from this recent memory and suggest the most useful next step.",
+        opening: translate(
+          "welcome.suggestion.recent.promptOpening",
+          "Pick up from this recent memory and suggest the most useful next step.",
+        ),
         evidence,
-        instruction:
+        instruction: translate(
+          "welcome.suggestion.recent.promptInstruction",
           "Explain why this is the right next step and name any tradeoffs. Do not start the task or ask whether to proceed; end with the recommendation so I can choose in a follow-up.",
+        ),
       }),
     },
     evidence,
@@ -431,15 +653,29 @@ export function buildInputRequestWelcomeSuggestion(
 ): WelcomeTaskSuggestion | null {
   if (request.status !== "pending") return null;
   const firstQuestion = request.questions[0];
-  const questionText = normalizeSuggestionText(firstQuestion?.question || firstQuestion?.header);
+  const questionText = normalizeSuggestionText(
+    firstQuestion?.question || firstQuestion?.header,
+  );
   const title = questionText
     ? truncateSuggestionText(questionText, 96)
-    : "Answer a waiting task";
+    : translate(
+        "welcome.suggestion.inputRequest.title",
+        "Answer a waiting task",
+      );
   return {
     id: `input-request:${request.id}`,
     title,
-    description: `${request.questions.length} question${request.questions.length === 1 ? "" : "s"} waiting`,
-    whyNow: "An automated task is paused until you respond.",
+    description: translate(
+      "welcome.suggestion.inputRequest.description",
+      "{count} question(s) waiting",
+      {
+        count: request.questions.length,
+      },
+    ),
+    whyNow: translate(
+      "welcome.suggestion.inputRequest.whyNow",
+      "An automated task is paused until you respond.",
+    ),
     action: { type: "task", taskId: request.taskId, focus: "input_request" },
     evidence: questionText ? [questionText] : undefined,
     source: "heartbeat",
@@ -458,7 +694,9 @@ export function dedupeWelcomeTaskSuggestions(
     if (b.priority !== a.priority) return b.priority - a.priority;
     return (b.createdAt || 0) - (a.createdAt || 0);
   })) {
-    const key = normalizeSuggestionText(`${suggestion.source}:${suggestion.title}`).toLowerCase();
+    const key = normalizeSuggestionText(
+      `${suggestion.source}:${suggestion.title}`,
+    ).toLowerCase();
     if (!key || seen.has(key)) continue;
     seen.add(key);
     out.push(suggestion);

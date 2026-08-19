@@ -7,7 +7,13 @@
  * fixed `estimatedItemHeight` fallback.
  */
 
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -90,7 +96,9 @@ export function findStartIndex(offsets: number[], scrollTop: number): number {
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useVirtualList<T>(options: UseVirtualListOptions<T>): UseVirtualListResult<T> {
+export function useVirtualList<T>(
+  options: UseVirtualListOptions<T>,
+): UseVirtualListResult<T> {
   const {
     items,
     containerRef,
@@ -135,7 +143,8 @@ export function useVirtualList<T>(options: UseVirtualListOptions<T>): UseVirtual
       rafRef.current = requestAnimationFrame(() => {
         const st = container.scrollTop;
         setScrollTop(st);
-        const atBottom = st + container.clientHeight >= container.scrollHeight - 30;
+        const atBottom =
+          st + container.clientHeight >= container.scrollHeight - 30;
         isAtBottomRef.current = atBottom;
         setIsAtBottom(atBottom);
       });
@@ -172,7 +181,8 @@ export function useVirtualList<T>(options: UseVirtualListOptions<T>): UseVirtual
     const itemCountChanged = previousItemCount !== items.length;
     previousItemCountRef.current = items.length;
     if (!itemCountChanged) return;
-    if (!enabled || suppressAutoScrollOnItemsChange || !isAtBottomRef.current) return;
+    if (!enabled || suppressAutoScrollOnItemsChange || !isAtBottomRef.current)
+      return;
     const container = containerRef.current;
     if (container) {
       container.scrollTop = container.scrollHeight;
@@ -197,7 +207,10 @@ export function useVirtualList<T>(options: UseVirtualListOptions<T>): UseVirtual
       visibleWindowStart,
       scrollTop + viewportHeight - scrollOffsetTop,
     );
-    const startIndex = Math.max(findStartIndex(offsets, visibleWindowStart) - overscan, 0);
+    const startIndex = Math.max(
+      findStartIndex(offsets, visibleWindowStart) - overscan,
+      0,
+    );
 
     let endIndex = startIndex;
     while (endIndex < items.length && offsets[endIndex] < visibleWindowEnd) {
@@ -234,5 +247,11 @@ export function useVirtualList<T>(options: UseVirtualListOptions<T>): UseVirtual
     }
   }, [containerRef]);
 
-  return { virtualItems, totalHeight, scrollToIndex, scrollToBottom, isAtBottom };
+  return {
+    virtualItems,
+    totalHeight,
+    scrollToIndex,
+    scrollToBottom,
+    isAtBottom,
+  };
 }

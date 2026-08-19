@@ -282,6 +282,7 @@ describe("buildSavedLLMSettings", () => {
       providerType: "anthropic-compatible",
       modelKey: "sonnet-4-5",
       openaiCompatible: {
+        displayName: " Intelligence ",
         apiKey: " nano-openai-key\r\n",
         baseUrl: " https://nano-gpt.com/api/v1/ ",
         model: " openai/gpt-5.2 ",
@@ -298,6 +299,7 @@ describe("buildSavedLLMSettings", () => {
     const saved = buildSavedLLMSettings(validated, existingSettings);
 
     expect(saved.openaiCompatible).toMatchObject({
+      displayName: "Intelligence",
       apiKey: "nano-openai-key",
       baseUrl: "https://nano-gpt.com/api/v1/",
       model: "openai/gpt-5.2",
@@ -371,6 +373,60 @@ describe("buildSavedLLMSettings", () => {
       subscriptionToken: "sk-ant-oat01-subscription-token",
       apiKey: "sk-ant-api-key",
     });
+  });
+
+  it("clears provider model registry when an empty registry is explicitly saved", () => {
+    const existingSettings: LLMSettingsData = {
+      providerType: "deepseek",
+      modelKey: "deepseek-chat",
+      providerModelRegistry: {
+        deepseek: {
+          models: ["deepseek-chat"],
+          enabled: { "deepseek-chat": true },
+        },
+      },
+    };
+
+    const validated: LLMSettingsData = {
+      providerType: "anthropic",
+      modelKey: "",
+      providerModelRegistry: {},
+    };
+
+    const saved = buildSavedLLMSettings(validated, existingSettings);
+
+    expect(saved.providerModelRegistry).toBeUndefined();
+  });
+
+  it("clears a provider when its settings are explicitly saved as undefined", () => {
+    const existingSettings: LLMSettingsData = {
+      providerType: "deepseek",
+      modelKey: "deepseek-chat",
+      deepseek: {
+        apiKey: "existing-deepseek-key",
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-chat",
+      },
+      providerModelRegistry: {
+        deepseek: {
+          models: ["deepseek-chat"],
+          enabled: { "deepseek-chat": true },
+        },
+      },
+    };
+
+    const validated = LLMSettingsSchema.parse({
+      providerType: "anthropic",
+      modelKey: "",
+      deepseek: undefined,
+      providerModelRegistry: {},
+    }) as LLMSettingsData;
+
+    const saved = buildSavedLLMSettings(validated, existingSettings);
+
+    expect(Object.prototype.hasOwnProperty.call(validated, "deepseek")).toBe(true);
+    expect(saved.deepseek).toBeUndefined();
+    expect(saved.providerModelRegistry).toBeUndefined();
   });
 });
 

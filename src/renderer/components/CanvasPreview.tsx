@@ -1,6 +1,25 @@
 import { useRef, useEffect, useState, useCallback, useMemo, memo } from "react";
+import {
+  ClipboardCopy,
+  Download,
+  ExternalLink,
+  FileCode2,
+  FolderOpen,
+  Globe2,
+  History,
+  Maximize2,
+  Minimize2,
+  MoreHorizontal,
+  MousePointer2,
+  Pause,
+  Play,
+  RefreshCw,
+  TerminalSquare,
+  X,
+} from "lucide-react";
 import type { CanvasSession } from "../../shared/types";
 import { useAgentContext } from "../hooks/useAgentContext";
+import { translate, useLanguage } from "../i18n";
 import { ResizableDividerHandle } from "./ResizableDividerHandle";
 
 interface CanvasPreviewProps {
@@ -48,7 +67,11 @@ const MAX_PREVIEW_HEIGHT = 2500;
 const DEFAULT_PREVIEW_HEIGHT = 600;
 
 // Helper to create a timeout promise
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage: string,
+): Promise<T> {
   return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
       reject(new Error(errorMessage));
@@ -97,26 +120,42 @@ const CanvasImage = memo(function CanvasImage({
   historyTimestamp,
   onOpenWindow,
 }: CanvasImageProps) {
+  useLanguage();
+  const t = translate;
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
   };
 
   return (
     <div
       className="canvas-preview-image-wrapper"
       onClick={onOpenWindow}
-      title="Click to open in window (O)"
+      title={t("canvas.openInWindowShortcut", "Click to open in window (O)")}
     >
-      <img src={src} alt="Canvas Preview" className="canvas-preview-image" />
+      <img
+        src={src}
+        alt={t("canvas.previewAlt", "Canvas Preview")}
+        className="canvas-preview-image"
+      />
       {dimensions.width > 0 && (
         <div className="canvas-preview-dimensions">
           {dimensions.width} x {dimensions.height}
           {isPaused && historyIndex < 0 && (
-            <span className="canvas-paused-indicator"> • Paused</span>
+            <span className="canvas-paused-indicator">
+              {" "}
+              • {t("canvas.status.paused", "Paused")}
+            </span>
           )}
           {historyIndex >= 0 && historyTimestamp && (
-            <span className="canvas-history-time"> • {formatTime(historyTimestamp)}</span>
+            <span className="canvas-history-time">
+              {" "}
+              • {formatTime(historyTimestamp)}
+            </span>
           )}
         </div>
       )}
@@ -146,6 +185,8 @@ export function CanvasPreview({
   forceSnapshot = false,
   onOpenBrowser,
 }: CanvasPreviewProps) {
+  useLanguage();
+  const t = translate;
   const isBrowserCanvas = session.mode === "browser";
   const agentContext = useAgentContext();
   const [imageData, setImageData] = useState<string | null>(null);
@@ -154,23 +195,32 @@ export function CanvasPreview({
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isPaused, setIsPaused] = useState(isBrowserCanvas ? false : true);
-  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  const [imageDimensions, setImageDimensions] = useState({
+    width: 0,
+    height: 0,
+  });
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [sessionStatus, setSessionStatus] = useState(session.status);
 
   // New feature states
-  const [refreshRate, setRefreshRate] = useState<RefreshRate>(forceSnapshot ? 0 : 2000);
+  const [refreshRate, setRefreshRate] = useState<RefreshRate>(
+    forceSnapshot ? 0 : 2000,
+  );
   const [showRefreshMenu, setShowRefreshMenu] = useState(false);
   const [previewHeight, setPreviewHeight] = useState(DEFAULT_PREVIEW_HEIGHT);
   const [isResizing, setIsResizing] = useState(false);
-  const [snapshotHistory, setSnapshotHistory] = useState<SnapshotHistoryEntry[]>([]);
+  const [snapshotHistory, setSnapshotHistory] = useState<
+    SnapshotHistoryEntry[]
+  >([]);
   const [historyIndex, setHistoryIndex] = useState(-1); // -1 means live view
   const [showHistory, setShowHistory] = useState(false);
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLogEntry[]>([]);
   const [showConsole, setShowConsole] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [isInteractiveMode, setIsInteractiveMode] = useState(!isBrowserCanvas && !forceSnapshot);
+  const [isInteractiveMode, setIsInteractiveMode] = useState(
+    !isBrowserCanvas && !forceSnapshot,
+  );
   const [showBrowserUrlInput, setShowBrowserUrlInput] = useState(false);
   const [browserUrl, setBrowserUrl] = useState("");
 
@@ -234,8 +284,13 @@ export function CanvasPreview({
 
       // Check if session is closed
       if (sessionStatus === "closed") {
-        setError("Canvas session closed");
-        setErrorDetails("The canvas session has been terminated");
+        setError(t("canvas.error.sessionClosed", "Canvas session closed"));
+        setErrorDetails(
+          t(
+            "canvas.error.sessionTerminated",
+            "The canvas session has been terminated",
+          ),
+        );
         setInitialLoadComplete(true);
         return;
       }
@@ -266,7 +321,10 @@ export function CanvasPreview({
         const snapshot = await withTimeout(
           window.electronAPI.canvasSnapshot(session.id),
           SNAPSHOT_TIMEOUT_MS,
-          "Snapshot request timed out",
+          t(
+            "canvas.error.snapshotRequestTimedOut",
+            "Snapshot request timed out",
+          ),
         );
 
         if (!mountedRef.current) return;
@@ -284,7 +342,10 @@ export function CanvasPreview({
             // Directly update image data without clearing first to avoid flicker
             // React will batch these updates efficiently
             setImageData(newImageData);
-            setImageDimensions({ width: snapshot.width, height: snapshot.height });
+            setImageDimensions({
+              width: snapshot.width,
+              height: snapshot.height,
+            });
             setError(null);
             setErrorDetails(null);
             setInitialLoadComplete(true);
@@ -292,7 +353,10 @@ export function CanvasPreview({
 
             // Add to history (only when content changed)
             if (hasChanged) {
-              addToHistory(newImageData, { width: snapshot.width, height: snapshot.height });
+              addToHistory(newImageData, {
+                width: snapshot.width,
+                height: snapshot.height,
+              });
             }
           } else {
             // Content didn't change, just update timestamp
@@ -301,16 +365,24 @@ export function CanvasPreview({
           }
           retryCountRef.current = 0;
         } else {
-          throw new Error("Empty snapshot received");
+          throw new Error(
+            t("canvas.error.emptySnapshot", "Empty snapshot received"),
+          );
         }
       } catch (err) {
         if (!mountedRef.current) return;
 
-        const errorMessage = err instanceof Error ? err.message : "Unknown error";
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : t("canvas.error.unknown", "Unknown error");
         console.error("Failed to take canvas snapshot:", errorMessage);
 
         // If we haven't successfully loaded yet, retry a few times
-        if (!initialLoadComplete && retryCountRef.current < MAX_INITIAL_RETRIES) {
+        if (
+          !initialLoadComplete &&
+          retryCountRef.current < MAX_INITIAL_RETRIES
+        ) {
           retryCountRef.current++;
           if (retryTimeoutRef.current) {
             clearTimeout(retryTimeoutRef.current);
@@ -324,26 +396,56 @@ export function CanvasPreview({
         }
 
         // Parse error for better user feedback
-        let userError = "Failed to capture canvas";
+        let userError = t(
+          "canvas.error.captureFailed",
+          "Failed to capture canvas",
+        );
         let details = errorMessage;
 
-        if (errorMessage.includes("not found") || errorMessage.includes("not open")) {
-          userError = "Canvas window not available";
-          details = "The canvas window may have been closed or not yet created";
-        } else if (errorMessage.includes("timeout") || errorMessage.includes("timed out")) {
-          userError = "Snapshot timed out";
-          details = "The canvas took too long to respond. Try refreshing.";
+        if (
+          errorMessage.includes("not found") ||
+          errorMessage.includes("not open")
+        ) {
+          userError = t(
+            "canvas.error.windowUnavailable",
+            "Canvas window not available",
+          );
+          details = t(
+            "canvas.error.windowUnavailableDetails",
+            "The canvas window may have been closed or not yet created",
+          );
+        } else if (
+          errorMessage.includes("timeout") ||
+          errorMessage.includes("timed out")
+        ) {
+          userError = t("canvas.error.snapshotTimedOut", "Snapshot timed out");
+          details = t(
+            "canvas.error.snapshotTimedOutDetails",
+            "The canvas took too long to respond. Try refreshing.",
+          );
         } else if (errorMessage.includes("destroyed")) {
-          userError = "Canvas window destroyed";
-          details = "The canvas window has been closed";
+          userError = t(
+            "canvas.error.windowDestroyed",
+            "Canvas window destroyed",
+          );
+          details = t(
+            "canvas.error.windowDestroyedDetails",
+            "The canvas window has been closed",
+          );
           setSessionStatus("closed");
         } else if (errorMessage.includes("closed")) {
-          userError = "Canvas session closed";
-          details = "The canvas session is no longer available";
+          userError = t("canvas.error.sessionClosed", "Canvas session closed");
+          details = t(
+            "canvas.error.sessionUnavailable",
+            "The canvas session is no longer available",
+          );
           setSessionStatus("closed");
         }
 
-        if (initialLoadComplete || retryCountRef.current >= MAX_INITIAL_RETRIES) {
+        if (
+          initialLoadComplete ||
+          retryCountRef.current >= MAX_INITIAL_RETRIES
+        ) {
           setError(userError);
           setErrorDetails(details);
           setInitialLoadComplete(true);
@@ -404,8 +506,13 @@ export function CanvasPreview({
       switch (event.type) {
         case "session_closed":
           setSessionStatus("closed");
-          setError("Canvas session closed");
-          setErrorDetails("The canvas session has been terminated");
+          setError(t("canvas.error.sessionClosed", "Canvas session closed"));
+          setErrorDetails(
+            t(
+              "canvas.error.sessionTerminated",
+              "The canvas session has been terminated",
+            ),
+          );
           if (refreshIntervalRef.current) {
             clearInterval(refreshIntervalRef.current);
             refreshIntervalRef.current = null;
@@ -455,7 +562,12 @@ export function CanvasPreview({
     takeSnapshot(false, false);
 
     // Refresh snapshot based on refresh rate when not minimized, not paused, and session is active
-    if (!isMinimized && !isPaused && sessionStatus === "active" && refreshRate > 0) {
+    if (
+      !isMinimized &&
+      !isPaused &&
+      sessionStatus === "active" &&
+      refreshRate > 0
+    ) {
       refreshIntervalRef.current = setInterval(() => {
         if (mountedRef.current && !snapshotInProgressRef.current) {
           takeSnapshot(false, false);
@@ -543,27 +655,31 @@ export function CanvasPreview({
 
   // Copy snapshot to clipboard
   const handleCopyToClipboard = useCallback(async () => {
-    const currentImage = historyIndex >= 0 ? snapshotHistory[historyIndex]?.imageData : imageData;
+    const currentImage =
+      historyIndex >= 0 ? snapshotHistory[historyIndex]?.imageData : imageData;
     if (!currentImage) return;
 
     try {
       const response = await fetch(currentImage);
       const blob = await response.blob();
 
-      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blob }),
+      ]);
 
-      setCopyFeedback("Copied!");
+      setCopyFeedback(t("common.copiedBang", "Copied!"));
       setTimeout(() => setCopyFeedback(null), 2000);
     } catch (err) {
       console.error("Failed to copy to clipboard:", err);
-      setCopyFeedback("Failed to copy");
+      setCopyFeedback(t("common.copyFailed", "Copy failed"));
       setTimeout(() => setCopyFeedback(null), 2000);
     }
   }, [imageData, historyIndex, snapshotHistory]);
 
   // Save snapshot as PNG
   const handleSaveSnapshot = useCallback(() => {
-    const currentImage = historyIndex >= 0 ? snapshotHistory[historyIndex]?.imageData : imageData;
+    const currentImage =
+      historyIndex >= 0 ? snapshotHistory[historyIndex]?.imageData : imageData;
     if (!currentImage) return;
 
     try {
@@ -574,11 +690,11 @@ export function CanvasPreview({
       link.click();
       document.body.removeChild(link);
 
-      setCopyFeedback("Saved!");
+      setCopyFeedback(t("common.savedBang", "Saved!"));
       setTimeout(() => setCopyFeedback(null), 2000);
     } catch (err) {
       console.error("Failed to save snapshot:", err);
-      setCopyFeedback("Failed to save");
+      setCopyFeedback(t("canvas.error.saveFailed", "Failed to save"));
       setTimeout(() => setCopyFeedback(null), 2000);
     }
   }, [imageData, session.id, historyIndex, snapshotHistory]);
@@ -611,11 +727,11 @@ export function CanvasPreview({
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      setCopyFeedback("Exported!");
+      setCopyFeedback(t("canvas.exported", "Exported!"));
       setTimeout(() => setCopyFeedback(null), 2000);
     } catch (err) {
       console.error("Failed to export HTML:", err);
-      setCopyFeedback("Export failed");
+      setCopyFeedback(t("canvas.exportFailed", "Export failed"));
       setTimeout(() => setCopyFeedback(null), 2000);
     }
   }, [session.id]);
@@ -625,11 +741,11 @@ export function CanvasPreview({
     setShowExportMenu(false);
     try {
       await window.electronAPI.canvasOpenInBrowser(session.id);
-      setCopyFeedback("Opened in browser");
+      setCopyFeedback(t("canvas.openedInBrowser", "Opened in browser"));
       setTimeout(() => setCopyFeedback(null), 2000);
     } catch (err) {
       console.error("Failed to open in browser:", err);
-      setCopyFeedback("Failed to open");
+      setCopyFeedback(t("canvas.failedToOpen", "Failed to open"));
       setTimeout(() => setCopyFeedback(null), 2000);
     }
   }, [session.id]);
@@ -638,7 +754,9 @@ export function CanvasPreview({
   const handleOpenBrowserCanvas = useCallback(() => {
     setShowExportMenu(false);
     if (!onOpenBrowser) {
-      setCopyFeedback("Browser view unavailable");
+      setCopyFeedback(
+        t("canvas.browserUnavailable", "Browser view unavailable"),
+      );
       setTimeout(() => setCopyFeedback(null), 2000);
       return;
     }
@@ -661,15 +779,17 @@ export function CanvasPreview({
   const handleOpenFolder = useCallback(async () => {
     setShowExportMenu(false);
     try {
-      const sessionDir = await window.electronAPI.canvasGetSessionDir(session.id);
+      const sessionDir = await window.electronAPI.canvasGetSessionDir(
+        session.id,
+      );
       if (sessionDir) {
         await window.electronAPI.showInFinder(sessionDir);
-        setCopyFeedback("Opened folder");
+        setCopyFeedback(t("canvas.openedFolder", "Opened folder"));
         setTimeout(() => setCopyFeedback(null), 2000);
       }
     } catch (err) {
       console.error("Failed to open folder:", err);
-      setCopyFeedback("Failed to open");
+      setCopyFeedback(t("canvas.failedToOpen", "Failed to open"));
       setTimeout(() => setCopyFeedback(null), 2000);
     }
   }, [session.id]);
@@ -717,7 +837,10 @@ export function CanvasPreview({
         return;
       }
 
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
         return;
       }
 
@@ -824,18 +947,38 @@ export function CanvasPreview({
   // Get status indicator
   const getStatusIndicator = () => {
     if (historyIndex >= 0) {
-      return <span className="canvas-status history">History</span>;
+      return (
+        <span className="canvas-status history">
+          {t("canvas.status.history", "History")}
+        </span>
+      );
     }
     if (isPaused && sessionStatus === "active") {
-      return <span className="canvas-status paused">Paused</span>;
+      return (
+        <span className="canvas-status paused">
+          {t("canvas.status.paused", "Paused")}
+        </span>
+      );
     }
     switch (sessionStatus) {
       case "active":
-        return <span className="canvas-status active">Live</span>;
+        return (
+          <span className="canvas-status active">
+            {t("canvas.status.live", "Live")}
+          </span>
+        );
       case "paused":
-        return <span className="canvas-status paused">Paused</span>;
+        return (
+          <span className="canvas-status paused">
+            {t("canvas.status.paused", "Paused")}
+          </span>
+        );
       case "closed":
-        return <span className="canvas-status closed">Closed</span>;
+        return (
+          <span className="canvas-status closed">
+            {t("canvas.status.closed", "Closed")}
+          </span>
+        );
       default:
         return null;
     }
@@ -859,7 +1002,11 @@ export function CanvasPreview({
   // Format timestamp for history
   const formatHistoryTime = (timestamp: number) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
   };
 
   // Loading skeleton component
@@ -896,7 +1043,9 @@ export function CanvasPreview({
       tabIndex={0}
       style={
         !isMinimized
-          ? ({ "--preview-height": `${previewHeight}px` } as React.CSSProperties)
+          ? ({
+              "--preview-height": `${previewHeight}px`,
+            } as React.CSSProperties)
           : undefined
       }
     >
@@ -914,118 +1063,301 @@ export function CanvasPreview({
             <circle cx="8.5" cy="8.5" r="1.5" />
             <polyline points="21 15 16 10 5 21" />
           </svg>
-          <span className="canvas-title-text">{session.title || "Live Canvas"}</span>
+          <span className="canvas-title-text">
+            {session.title || t("canvas.liveCanvas", "Live Canvas")}
+          </span>
         </div>
         <div className="canvas-preview-actions">
           {getStatusIndicator()}
-          {copyFeedback && <span className="canvas-copy-feedback">{copyFeedback}</span>}
+          {copyFeedback && (
+            <span className="canvas-copy-feedback">{copyFeedback}</span>
+          )}
+          {!isMinimized && sessionStatus === "active" && (
+            <button
+              className={`canvas-action-btn canvas-primary-action ${isPaused ? "paused" : ""}`}
+              onClick={handleTogglePause}
+              title={
+                isPaused
+                  ? t(
+                      "canvas.resumeAutoRefreshShortcut",
+                      "Resume auto-refresh (P)",
+                    )
+                  : t(
+                      "canvas.pauseAutoRefreshShortcut",
+                      "Pause auto-refresh (P)",
+                    )
+              }
+            >
+              {isPaused ? (
+                <Play aria-hidden="true" />
+              ) : (
+                <Pause aria-hidden="true" />
+              )}
+            </button>
+          )}
           {!isMinimized && currentDisplayImage && (
-            <>
-              {/* Copy to clipboard */}
-              <button
-                className="canvas-action-btn"
-                onClick={handleCopyToClipboard}
-                title="Copy to clipboard (C)"
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                </svg>
-              </button>
-              {/* Save as PNG */}
-              <button
-                className="canvas-action-btn"
-                onClick={handleSaveSnapshot}
-                title="Save as PNG (S)"
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-              </button>
-              {/* History toggle */}
-              <button
-                className={`canvas-action-btn ${showHistory ? "active" : ""}`}
-                onClick={() => setShowHistory((prev) => !prev)}
-                title={`${showHistory ? "Hide" : "Show"} history (H)`}
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
-              </button>
-              {/* Console toggle */}
-              <button
-                className={`canvas-action-btn ${showConsole ? "active" : ""}`}
-                onClick={() => setShowConsole((prev) => !prev)}
-                title={`${showConsole ? "Hide" : "Show"} console (L)`}
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <polyline points="4 17 10 11 4 5" />
-                  <line x1="12" y1="19" x2="20" y2="19" />
-                </svg>
-              </button>
-              {/* Interactive mode toggle */}
-              <button
-                className={`canvas-action-btn ${isInteractiveMode ? "active" : ""} ${isBrowserCanvas || forceSnapshot ? "disabled" : ""}`}
-                onClick={handleToggleInteractiveMode}
-                disabled={isBrowserCanvas || forceSnapshot}
-                title={
-                  isBrowserCanvas
-                    ? "Interactive preview unavailable for browser pages. Use Open in window."
-                    : forceSnapshot
-                      ? "Snapshot locked for previous canvases"
-                      : isInteractiveMode
-                        ? "Switch to snapshot mode (I)"
-                        : "Switch to interactive mode (I)"
-                }
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M5 3l14 9-7 2-4 6-3-17z" />
-                </svg>
-              </button>
-              {/* Export menu */}
+            <button
+              className="canvas-action-btn"
+              onClick={handleOpenWindow}
+              title={t(
+                "canvas.openInWindowButtonShortcut",
+                "Open in window (O)",
+              )}
+            >
+              <ExternalLink aria-hidden="true" />
+            </button>
+          )}
+          {!isMinimized &&
+            (currentDisplayImage || sessionStatus === "active") && (
               <div className="canvas-export-menu-container">
                 <button
                   className={`canvas-action-btn ${showExportMenu ? "active" : ""}`}
                   onClick={() => setShowExportMenu((prev) => !prev)}
-                  title="Export options (E)"
+                  title={t("common.more", "More")}
+                  aria-label={t("common.more", "More")}
+                  aria-haspopup="menu"
+                  aria-expanded={showExportMenu}
+                >
+                  <MoreHorizontal aria-hidden="true" />
+                </button>
+                {showExportMenu && (
+                  <div
+                    className="canvas-export-menu canvas-more-menu"
+                    role="menu"
+                  >
+                    {currentDisplayImage && (
+                      <>
+                        <button
+                          className="export-menu-item"
+                          role="menuitem"
+                          onClick={() => {
+                            setShowExportMenu(false);
+                            void handleCopyToClipboard();
+                          }}
+                        >
+                          <ClipboardCopy aria-hidden="true" />
+                          {t(
+                            "canvas.copyToClipboardShortcut",
+                            "Copy to clipboard (C)",
+                          )}
+                        </button>
+                        <button
+                          className="export-menu-item"
+                          role="menuitem"
+                          onClick={() => {
+                            setShowExportMenu(false);
+                            handleSaveSnapshot();
+                          }}
+                        >
+                          <Download aria-hidden="true" />
+                          {t("canvas.saveAsPngShortcut", "Save as PNG (S)")}
+                        </button>
+                        <button
+                          className={`export-menu-item ${showHistory ? "active" : ""}`}
+                          role="menuitem"
+                          onClick={() => {
+                            setShowHistory((prev) => !prev);
+                            setShowExportMenu(false);
+                          }}
+                        >
+                          <History aria-hidden="true" />
+                          {showHistory
+                            ? t(
+                                "canvas.hideHistoryShortcut",
+                                "Hide history (H)",
+                              )
+                            : t(
+                                "canvas.showHistoryShortcut",
+                                "Show history (H)",
+                              )}
+                        </button>
+                        <button
+                          className={`export-menu-item ${showConsole ? "active" : ""}`}
+                          role="menuitem"
+                          onClick={() => {
+                            setShowConsole((prev) => !prev);
+                            setShowExportMenu(false);
+                          }}
+                        >
+                          <TerminalSquare aria-hidden="true" />
+                          {showConsole
+                            ? t(
+                                "canvas.hideConsoleShortcut",
+                                "Hide console (L)",
+                              )
+                            : t(
+                                "canvas.showConsoleShortcut",
+                                "Show console (L)",
+                              )}
+                        </button>
+                        <button
+                          className={`export-menu-item ${isInteractiveMode ? "active" : ""}`}
+                          role="menuitem"
+                          onClick={() => {
+                            handleToggleInteractiveMode();
+                            setShowExportMenu(false);
+                          }}
+                          disabled={isBrowserCanvas || forceSnapshot}
+                        >
+                          <MousePointer2 aria-hidden="true" />
+                          {isInteractiveMode
+                            ? t(
+                                "canvas.switchSnapshotShortcut",
+                                "Switch to snapshot mode (I)",
+                              )
+                            : t(
+                                "canvas.switchInteractiveShortcut",
+                                "Switch to interactive mode (I)",
+                              )}
+                        </button>
+                      </>
+                    )}
+                    {sessionStatus === "active" && (
+                      <div className="canvas-more-menu-section">
+                        <button
+                          className="export-menu-item"
+                          role="menuitem"
+                          onClick={() => {
+                            handleRefresh();
+                            setShowExportMenu(false);
+                          }}
+                        >
+                          <RefreshCw aria-hidden="true" />
+                          {t(
+                            "canvas.refreshSnapshotShortcut",
+                            "Refresh snapshot (R)",
+                          )}
+                        </button>
+                        <div className="canvas-more-refresh-row">
+                          <span>{t("canvas.refreshRate", "Refresh rate")}</span>
+                          <div className="canvas-more-refresh-options">
+                            {REFRESH_RATE_OPTIONS.map((option) => (
+                              <button
+                                key={option.value}
+                                className={
+                                  refreshRate === option.value ? "active" : ""
+                                }
+                                onClick={() =>
+                                  handleRefreshRateChange(option.value)
+                                }
+                              >
+                                {option.value === 0
+                                  ? t("canvas.manual", "Manual")
+                                  : option.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {currentDisplayImage && (
+                      <div className="canvas-more-menu-section">
+                        <button
+                          className="export-menu-item"
+                          role="menuitem"
+                          onClick={handleExportHTML}
+                        >
+                          <FileCode2 aria-hidden="true" />
+                          {t("canvas.exportHtml", "Export HTML")}
+                        </button>
+                        <button
+                          className="export-menu-item"
+                          role="menuitem"
+                          onClick={handleOpenInBrowser}
+                        >
+                          <Globe2 aria-hidden="true" />
+                          {t(
+                            "canvas.openInBrowserShortcut",
+                            "Open in Browser (B)",
+                          )}
+                        </button>
+                        {onOpenBrowser && (
+                          <button
+                            className="export-menu-item"
+                            role="menuitem"
+                            onClick={handleOpenBrowserCanvas}
+                          >
+                            <ExternalLink aria-hidden="true" />
+                            {t(
+                              "canvas.openBrowserView",
+                              "Open in browser view",
+                            )}
+                          </button>
+                        )}
+                        <button
+                          className="export-menu-item"
+                          role="menuitem"
+                          onClick={handleOpenFolder}
+                        >
+                          <FolderOpen aria-hidden="true" />
+                          {t("canvas.showInFinder", "Show in Finder")}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          {historyIndex >= 0 && !isMinimized && (
+            <button
+              className="canvas-action-btn go-live"
+              onClick={handleGoLive}
+              title={t("canvas.returnLive", "Return to live view")}
+            >
+              <RefreshCw aria-hidden="true" />
+            </button>
+          )}
+          <button
+            className="canvas-action-btn"
+            onClick={handleMinimize}
+            title={
+              isMinimized
+                ? t("canvas.expandShortcut", "Expand (M)")
+                : t("canvas.minimizeShortcut", "Minimize (M)")
+            }
+          >
+            {isMinimized ? (
+              <Maximize2 aria-hidden="true" />
+            ) : (
+              <Minimize2 aria-hidden="true" />
+            )}
+          </button>
+          <button
+            className="canvas-close-btn"
+            onClick={handleClose}
+            title={t("canvas.close", "Close canvas")}
+          >
+            <X aria-hidden="true" />
+          </button>
+          <div className="canvas-preview-actions-legacy" aria-hidden="true">
+            {!isMinimized && currentDisplayImage && (
+              <>
+                {/* Copy to clipboard */}
+                <button
+                  className="canvas-action-btn"
+                  onClick={handleCopyToClipboard}
+                  title={t(
+                    "canvas.copyToClipboardShortcut",
+                    "Copy to clipboard (C)",
+                  )}
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                  </svg>
+                </button>
+                {/* Save as PNG */}
+                <button
+                  className="canvas-action-btn"
+                  onClick={handleSaveSnapshot}
+                  title={t("canvas.saveAsPngShortcut", "Save as PNG (S)")}
                 >
                   <svg
                     width="12"
@@ -1036,67 +1368,19 @@ export function CanvasPreview({
                     strokeWidth="2"
                   >
                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                    <polyline points="17 8 12 3 7 8" />
-                    <line x1="12" y1="3" x2="12" y2="15" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
                   </svg>
                 </button>
-                {showExportMenu && (
-                  <div className="canvas-export-menu">
-                    <button className="export-menu-item" onClick={handleExportHTML}>
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                        <polyline points="14 2 14 8 20 8" />
-                      </svg>
-                      Export HTML
-                    </button>
-                    <button className="export-menu-item" onClick={handleOpenInBrowser}>
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="2" y1="12" x2="22" y2="12" />
-                        <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
-                      </svg>
-                      Open in Browser (B)
-                    </button>
-                    <button className="export-menu-item" onClick={handleOpenFolder}>
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
-                      </svg>
-                      Show in Finder
-                    </button>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-          {!isMinimized && sessionStatus === "active" && (
-            <>
-              {/* Refresh rate selector */}
-              <div className="canvas-refresh-rate-container">
+                {/* History toggle */}
                 <button
-                  className="canvas-action-btn"
-                  onClick={() => setShowRefreshMenu((prev) => !prev)}
-                  title="Refresh rate"
+                  className={`canvas-action-btn ${showHistory ? "active" : ""}`}
+                  onClick={() => setShowHistory((prev) => !prev)}
+                  title={
+                    showHistory
+                      ? t("canvas.hideHistoryShortcut", "Hide history (H)")
+                      : t("canvas.showHistoryShortcut", "Show history (H)")
+                  }
                 >
                   <svg
                     width="12"
@@ -1106,56 +1390,258 @@ export function CanvasPreview({
                     stroke="currentColor"
                     strokeWidth="2"
                   >
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
                   </svg>
-                  <span className="refresh-rate-label">
-                    {refreshRate === 0 ? "M" : `${refreshRate / 1000}s`}
-                  </span>
                 </button>
-                {showRefreshMenu && (
-                  <div className="canvas-refresh-menu">
-                    {REFRESH_RATE_OPTIONS.map((option) => (
+                {/* Console toggle */}
+                <button
+                  className={`canvas-action-btn ${showConsole ? "active" : ""}`}
+                  onClick={() => setShowConsole((prev) => !prev)}
+                  title={
+                    showConsole
+                      ? t("canvas.hideConsoleShortcut", "Hide console (L)")
+                      : t("canvas.showConsoleShortcut", "Show console (L)")
+                  }
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="4 17 10 11 4 5" />
+                    <line x1="12" y1="19" x2="20" y2="19" />
+                  </svg>
+                </button>
+                {/* Interactive mode toggle */}
+                <button
+                  className={`canvas-action-btn ${isInteractiveMode ? "active" : ""} ${isBrowserCanvas || forceSnapshot ? "disabled" : ""}`}
+                  onClick={handleToggleInteractiveMode}
+                  disabled={isBrowserCanvas || forceSnapshot}
+                  title={
+                    isBrowserCanvas
+                      ? t(
+                          "canvas.interactiveUnavailableBrowser",
+                          "Interactive preview unavailable for browser pages. Use Open in window.",
+                        )
+                      : forceSnapshot
+                        ? t(
+                            "canvas.snapshotLocked",
+                            "Snapshot locked for previous canvases",
+                          )
+                        : isInteractiveMode
+                          ? t(
+                              "canvas.switchSnapshotShortcut",
+                              "Switch to snapshot mode (I)",
+                            )
+                          : t(
+                              "canvas.switchInteractiveShortcut",
+                              "Switch to interactive mode (I)",
+                            )
+                  }
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M5 3l14 9-7 2-4 6-3-17z" />
+                  </svg>
+                </button>
+                {/* Export menu */}
+                <div className="canvas-export-menu-container">
+                  <button
+                    className={`canvas-action-btn ${showExportMenu ? "active" : ""}`}
+                    onClick={() => setShowExportMenu((prev) => !prev)}
+                    title={t(
+                      "canvas.exportOptionsShortcut",
+                      "Export options (E)",
+                    )}
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                  </button>
+                  {showExportMenu && (
+                    <div className="canvas-export-menu">
                       <button
-                        key={option.value}
-                        className={`refresh-menu-item ${refreshRate === option.value ? "active" : ""}`}
-                        onClick={() => handleRefreshRateChange(option.value)}
+                        className="export-menu-item"
+                        onClick={handleExportHTML}
                       >
-                        {option.label}
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                        </svg>
+                        {t("canvas.exportHtml", "Export HTML")}
                       </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {/* Pause/Resume */}
-              <button
-                className={`canvas-action-btn ${isPaused ? "paused" : ""}`}
-                onClick={handleTogglePause}
-                title={isPaused ? "Resume auto-refresh (P)" : "Pause auto-refresh (P)"}
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  {isPaused ? (
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  ) : (
-                    <>
-                      <rect x="6" y="4" width="4" height="16" />
-                      <rect x="14" y="4" width="4" height="16" />
-                    </>
+                      <button
+                        className="export-menu-item"
+                        onClick={handleOpenInBrowser}
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="2" y1="12" x2="22" y2="12" />
+                          <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+                        </svg>
+                        {t(
+                          "canvas.openInBrowserShortcut",
+                          "Open in Browser (B)",
+                        )}
+                      </button>
+                      <button
+                        className="export-menu-item"
+                        onClick={handleOpenFolder}
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+                        </svg>
+                        {t("canvas.showInFinder", "Show in Finder")}
+                      </button>
+                    </div>
                   )}
-                </svg>
-              </button>
-              {/* Refresh */}
+                </div>
+              </>
+            )}
+            {!isMinimized && sessionStatus === "active" && (
+              <>
+                {/* Refresh rate selector */}
+                <div className="canvas-refresh-rate-container">
+                  <button
+                    className="canvas-action-btn"
+                    onClick={() => setShowRefreshMenu((prev) => !prev)}
+                    title={t("canvas.refreshRate", "Refresh rate")}
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                    </svg>
+                    <span className="refresh-rate-label">
+                      {refreshRate === 0 ? "M" : `${refreshRate / 1000}s`}
+                    </span>
+                  </button>
+                  {showRefreshMenu && (
+                    <div className="canvas-refresh-menu">
+                      {REFRESH_RATE_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          className={`refresh-menu-item ${refreshRate === option.value ? "active" : ""}`}
+                          onClick={() => handleRefreshRateChange(option.value)}
+                        >
+                          {option.value === 0
+                            ? t("canvas.manual", "Manual")
+                            : option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Pause/Resume */}
+                <button
+                  className={`canvas-action-btn ${isPaused ? "paused" : ""}`}
+                  onClick={handleTogglePause}
+                  title={
+                    isPaused
+                      ? t(
+                          "canvas.resumeAutoRefreshShortcut",
+                          "Resume auto-refresh (P)",
+                        )
+                      : t(
+                          "canvas.pauseAutoRefreshShortcut",
+                          "Pause auto-refresh (P)",
+                        )
+                  }
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    {isPaused ? (
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    ) : (
+                      <>
+                        <rect x="6" y="4" width="4" height="16" />
+                        <rect x="14" y="4" width="4" height="16" />
+                      </>
+                    )}
+                  </svg>
+                </button>
+                {/* Refresh */}
+                <button
+                  className="canvas-action-btn"
+                  onClick={handleRefresh}
+                  title={t(
+                    "canvas.refreshSnapshotShortcut",
+                    "Refresh snapshot (R)",
+                  )}
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                  </svg>
+                </button>
+              </>
+            )}
+            {/* Go live button (when viewing history) */}
+            {historyIndex >= 0 && (
               <button
-                className="canvas-action-btn"
-                onClick={handleRefresh}
-                title="Refresh snapshot (R)"
+                className="canvas-action-btn go-live"
+                onClick={handleGoLive}
+                title={t("canvas.returnLive", "Return to live view")}
               >
                 <svg
                   width="12"
@@ -1165,19 +1651,39 @@ export function CanvasPreview({
                   stroke="currentColor"
                   strokeWidth="2"
                 >
-                  <polyline points="23 4 23 10 17 10" />
-                  <polyline points="1 20 1 14 7 14" />
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="3" fill="currentColor" />
                 </svg>
+                <span>{t("canvas.status.live", "Live")}</span>
               </button>
-            </>
-          )}
-          {/* Go live button (when viewing history) */}
-          {historyIndex >= 0 && (
+            )}
+            {/* Open in window */}
             <button
-              className="canvas-action-btn go-live"
-              onClick={handleGoLive}
-              title="Return to live view"
+              className="canvas-action-btn"
+              onClick={handleOpenWindow}
+              title={t(
+                "canvas.openInWindowButtonShortcut",
+                "Open in window (O)",
+              )}
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </button>
+            {/* Open web page in canvas */}
+            <button
+              className="canvas-action-btn"
+              onClick={handleOpenBrowserCanvas}
+              title={t("canvas.openBrowserView", "Open in browser view")}
             >
               <svg
                 width="12"
@@ -1188,84 +1694,54 @@ export function CanvasPreview({
                 strokeWidth="2"
               >
                 <circle cx="12" cy="12" r="10" />
-                <circle cx="12" cy="12" r="3" fill="currentColor" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15.3 15.3 0 0 1 0 20a15.3 15.3 0 0 1 0-20" />
               </svg>
-              <span>Live</span>
             </button>
-          )}
-          {/* Open in window */}
-          <button
-            className="canvas-action-btn"
-            onClick={handleOpenWindow}
-            title="Open in window (O)"
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
+            {/* Minimize */}
+            <button
+              className="canvas-action-btn"
+              onClick={handleMinimize}
+              title={
+                isMinimized
+                  ? t("canvas.expandShortcut", "Expand (M)")
+                  : t("canvas.minimizeShortcut", "Minimize (M)")
+              }
             >
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-              <polyline points="15 3 21 3 21 9" />
-              <line x1="10" y1="14" x2="21" y2="3" />
-            </svg>
-          </button>
-          {/* Open web page in canvas */}
-          <button
-            className="canvas-action-btn"
-            onClick={handleOpenBrowserCanvas}
-            title="Open in browser view"
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                {isMinimized ? (
+                  <polyline points="15 3 21 3 21 9" />
+                ) : (
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                )}
+              </svg>
+            </button>
+            {/* Close */}
+            <button
+              className="canvas-close-btn"
+              onClick={handleClose}
+              title={t("canvas.close", "Close canvas")}
             >
-              <circle cx="12" cy="12" r="10" />
-              <line x1="2" y1="12" x2="22" y2="12" />
-              <path d="M12 2a15.3 15.3 0 0 1 0 20a15.3 15.3 0 0 1 0-20" />
-            </svg>
-          </button>
-          {/* Minimize */}
-          <button
-            className="canvas-action-btn"
-            onClick={handleMinimize}
-            title={isMinimized ? "Expand (M)" : "Minimize (M)"}
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              {isMinimized ? (
-                <polyline points="15 3 21 3 21 9" />
-              ) : (
-                <line x1="5" y1="12" x2="19" y2="12" />
-              )}
-            </svg>
-          </button>
-          {/* Close */}
-          <button className="canvas-close-btn" onClick={handleClose} title="Close canvas">
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
       {showBrowserUrlInput && (
@@ -1287,14 +1763,17 @@ export function CanvasPreview({
             }}
             placeholder="https://example.com"
           />
-          <button className="canvas-browser-btn" onClick={handleSubmitBrowserUrl}>
-            Open
+          <button
+            className="canvas-browser-btn"
+            onClick={handleSubmitBrowserUrl}
+          >
+            {t("common.open", "Open")}
           </button>
           <button
             className="canvas-browser-btn ghost"
             onClick={() => setShowBrowserUrlInput(false)}
           >
-            Cancel
+            {t("common.cancel", "Cancel")}
           </button>
         </div>
       )}
@@ -1334,15 +1813,20 @@ export function CanvasPreview({
                   <line x1="12" y1="16" x2="12.01" y2="16" />
                 </svg>
                 <span className="canvas-error-title">{error}</span>
-                {errorDetails && <span className="canvas-error-details">{errorDetails}</span>}
+                {errorDetails && (
+                  <span className="canvas-error-details">{errorDetails}</span>
+                )}
                 <button className="canvas-retry-btn" onClick={handleRefresh}>
-                  Try Again
+                  {t("common.tryAgain", "Try Again")}
                 </button>
               </div>
             )}
             {/* Interactive mode: show webview for full interactivity */}
             {isInteractiveMode && (
-              <div className="canvas-interactive-wrapper" style={{ height: previewHeight - 48 }}>
+              <div
+                className="canvas-interactive-wrapper"
+                style={{ height: previewHeight - 48 }}
+              >
                 <webview
                   src={`canvas://${session.id}/index.html`}
                   className="canvas-interactive-iframe"
@@ -1363,7 +1847,9 @@ export function CanvasPreview({
                 isLoading={isLoading}
                 historyIndex={historyIndex}
                 historyTimestamp={
-                  historyIndex >= 0 ? snapshotHistory[historyIndex]?.timestamp : undefined
+                  historyIndex >= 0
+                    ? snapshotHistory[historyIndex]?.timestamp
+                    : undefined
                 }
                 onOpenWindow={handleOpenWindow}
               />
@@ -1371,9 +1857,12 @@ export function CanvasPreview({
           </div>
           {isInteractiveMode && (
             <div className="canvas-interactive-indicator">
-              <span>Interactive Mode</span>
+              <span>{t("canvas.interactiveMode", "Interactive Mode")}</span>
               <span className="canvas-interactive-hint">
-                Press I to switch to snapshot mode • Drag bottom edge to resize
+                {t(
+                  "canvas.interactiveHint",
+                  "Press I to switch to snapshot mode • Drag bottom edge to resize",
+                )}
               </span>
             </div>
           )}
@@ -1382,12 +1871,16 @@ export function CanvasPreview({
           {showHistory && snapshotHistory.length > 0 && (
             <div className="canvas-history-panel">
               <div className="canvas-history-header">
-                <span>Snapshot History ({snapshotHistory.length})</span>
+                <span>
+                  {t("canvas.snapshotHistory", "Snapshot History ({count})", {
+                    count: snapshotHistory.length,
+                  })}
+                </span>
                 <button
                   className={`canvas-history-live-btn ${historyIndex < 0 ? "active" : ""}`}
                   onClick={handleGoLive}
                 >
-                  Live
+                  {t("canvas.status.live", "Live")}
                 </button>
               </div>
               <div className="canvas-history-slider">
@@ -1396,7 +1889,9 @@ export function CanvasPreview({
                   min={-1}
                   max={snapshotHistory.length - 1}
                   value={historyIndex}
-                  onChange={(e) => handleHistoryChange(parseInt(e.target.value))}
+                  onChange={(e) =>
+                    handleHistoryChange(parseInt(e.target.value))
+                  }
                   className="history-slider"
                 />
               </div>
@@ -1411,7 +1906,12 @@ export function CanvasPreview({
                       onClick={() => handleHistoryChange(actualIndex)}
                       title={formatHistoryTime(entry.timestamp)}
                     >
-                      <img src={entry.imageData} alt={`Snapshot ${actualIndex + 1}`} />
+                      <img
+                        src={entry.imageData}
+                        alt={t("canvas.snapshotAlt", "Snapshot {index}", {
+                          index: actualIndex + 1,
+                        })}
+                      />
                     </button>
                   );
                 })}
@@ -1423,18 +1923,28 @@ export function CanvasPreview({
           {showConsole && (
             <div className="canvas-console-panel">
               <div className="canvas-console-header">
-                <span>Console</span>
-                <button className="canvas-console-clear" onClick={handleClearConsole}>
-                  Clear
+                <span>{t("canvas.console", "Console")}</span>
+                <button
+                  className="canvas-console-clear"
+                  onClick={handleClearConsole}
+                >
+                  {t("browserWorkbench.annotation.clear", "Clear")}
                 </button>
               </div>
               <div className="canvas-console-logs">
                 {consoleLogs.length === 0 ? (
-                  <div className="canvas-console-empty">No console output</div>
+                  <div className="canvas-console-empty">
+                    {t("canvas.noConsoleOutput", "No console output")}
+                  </div>
                 ) : (
                   consoleLogs.map((log, idx) => (
-                    <div key={idx} className={`console-log console-${log.type}`}>
-                      <span className="console-time">{formatHistoryTime(log.timestamp)}</span>
+                    <div
+                      key={idx}
+                      className={`console-log console-${log.type}`}
+                    >
+                      <span className="console-time">
+                        {formatHistoryTime(log.timestamp)}
+                      </span>
                       <span className="console-message">{log.message}</span>
                     </div>
                   ))
@@ -1448,7 +1958,7 @@ export function CanvasPreview({
             className="canvas-resize-handle"
             orientation="horizontal"
             onMouseDown={handleResizeStart}
-            title="Drag to resize"
+            title={t("canvas.dragToResize", "Drag to resize")}
           />
         </>
       )}

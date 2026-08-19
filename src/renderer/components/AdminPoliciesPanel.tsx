@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { translate, useLanguage } from "../i18n";
 
 interface AdminPolicies {
   version: number;
@@ -36,7 +37,42 @@ interface AdminPolicies {
   };
 }
 
+const DEFAULT_ADMIN_POLICIES: AdminPolicies = {
+  version: 1,
+  updatedAt: new Date(0).toISOString(),
+  packs: {
+    allowed: [],
+    blocked: [],
+    required: [],
+  },
+  connectors: {
+    blocked: [],
+  },
+  agents: {
+    maxHeartbeatFrequencySec: 60,
+    maxConcurrentAgents: 10,
+  },
+  everydayAgent: {
+    blocked: false,
+    blockedBundles: [],
+    forceReviewOnly: false,
+    maxHeartbeatCadenceMinutes: 60,
+    maxConcurrentBackgroundWork: 1,
+    activeHours: {
+      enabled: false,
+      windows: [],
+    },
+  },
+  general: {
+    allowCustomPacks: true,
+    allowGitInstall: true,
+    allowUrlInstall: true,
+  },
+};
+
 export function AdminPoliciesPanel() {
+  useLanguage();
+  const t = translate;
   const [policies, setPolicies] = useState<AdminPolicies | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -64,7 +100,8 @@ export function AdminPoliciesPanel() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await window.electronAPI.getAdminPolicies();
+      const data =
+        (await window.electronAPI.getAdminPolicies()) || DEFAULT_ADMIN_POLICIES;
       setPolicies(data);
       setBlockedPacks(data.packs.blocked.join(", "));
       setRequiredPacks(data.packs.required.join(", "));
@@ -73,9 +110,13 @@ export function AdminPoliciesPanel() {
       setMaxHeartbeat(data.agents.maxHeartbeatFrequencySec);
       setMaxAgents(data.agents.maxConcurrentAgents);
       setEverydayBlocked(data.everydayAgent?.blocked === true);
-      setEverydayBlockedBundles((data.everydayAgent?.blockedBundles || []).join(", "));
+      setEverydayBlockedBundles(
+        (data.everydayAgent?.blockedBundles || []).join(", "),
+      );
       setEverydayReviewOnly(data.everydayAgent?.forceReviewOnly === true);
-      setEverydayMaxCadence(data.everydayAgent?.maxHeartbeatCadenceMinutes || 60);
+      setEverydayMaxCadence(
+        data.everydayAgent?.maxHeartbeatCadenceMinutes || 60,
+      );
       setEverydayMaxWork(data.everydayAgent?.maxConcurrentBackgroundWork || 1);
       setAllowCustom(data.general.allowCustomPacks);
       setAllowGit(data.general.allowGitInstall);
@@ -83,7 +124,11 @@ export function AdminPoliciesPanel() {
       setOrgName(data.general.orgName || "");
       setOrgDir(data.general.orgPluginDir || "");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load policies");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("adminPolicies.error.load", "Failed to load policies"),
+      );
     } finally {
       setLoading(false);
     }
@@ -133,10 +178,16 @@ export function AdminPoliciesPanel() {
         },
       });
       setPolicies(updated);
-      setSuccess("Policies saved successfully");
+      setSuccess(
+        t("adminPolicies.status.saved", "Policies saved successfully"),
+      );
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to save policies");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("adminPolicies.error.save", "Failed to save policies"),
+      );
     } finally {
       setSaving(false);
     }
@@ -145,18 +196,22 @@ export function AdminPoliciesPanel() {
   if (loading) {
     return (
       <div className="settings-panel">
-        <h2>Admin Policies</h2>
-        <p className="settings-description">Loading...</p>
+        <h2>{t("adminPolicies.title", "Admin Policies")}</h2>
+        <p className="settings-description">
+          {t("adminPolicies.loading", "Loading...")}
+        </p>
       </div>
     );
   }
 
   return (
     <div className="settings-panel">
-      <h2>Admin Policies</h2>
+      <h2>{t("adminPolicies.title", "Admin Policies")}</h2>
       <p className="settings-description">
-        Configure organization-level policies for plugin packs, connectors, and agents. These
-        policies apply to all users in the organization.
+        {t(
+          "adminPolicies.description",
+          "Configure organization-level policies for plugin packs, connectors, and agents. These policies apply to all users in the organization.",
+        )}
       </p>
 
       {error && <div className="ap-message ap-error">{error}</div>}
@@ -164,9 +219,11 @@ export function AdminPoliciesPanel() {
 
       {/* Organization Settings */}
       <div className="settings-section">
-        <h3>Organization</h3>
+        <h3>{t("adminPolicies.organization.title", "Organization")}</h3>
         <div className="ap-field">
-          <label className="ap-label">Organization Name</label>
+          <label className="ap-label">
+            {t("adminPolicies.organization.name", "Organization Name")}
+          </label>
           <input
             type="text"
             className="ap-input"
@@ -176,7 +233,12 @@ export function AdminPoliciesPanel() {
           />
         </div>
         <div className="ap-field">
-          <label className="ap-label">Organization Plugin Directory</label>
+          <label className="ap-label">
+            {t(
+              "adminPolicies.organization.pluginDirectory",
+              "Organization Plugin Directory",
+            )}
+          </label>
           <input
             type="text"
             className="ap-input"
@@ -185,17 +247,21 @@ export function AdminPoliciesPanel() {
             placeholder="/path/to/org-plugins"
           />
           <span className="ap-hint">
-            Directory containing org-managed plugin packs. Packs here are loaded with scope
-            "organization".
+            {t(
+              "adminPolicies.organization.pluginDirectoryHint",
+              'Directory containing org-managed plugin packs. Packs here are loaded with scope "organization".',
+            )}
           </span>
         </div>
       </div>
 
       {/* Pack Policies */}
       <div className="settings-section">
-        <h3>Plugin Pack Policies</h3>
+        <h3>{t("adminPolicies.packPolicies.title", "Plugin Pack Policies")}</h3>
         <div className="ap-field">
-          <label className="ap-label">Blocked Packs</label>
+          <label className="ap-label">
+            {t("adminPolicies.packPolicies.blocked", "Blocked Packs")}
+          </label>
           <input
             type="text"
             className="ap-input"
@@ -203,10 +269,17 @@ export function AdminPoliciesPanel() {
             onChange={(e) => setBlockedPacks(e.target.value)}
             placeholder="pack-id-1, pack-id-2"
           />
-          <span className="ap-hint">Comma-separated pack IDs that are blocked from use.</span>
+          <span className="ap-hint">
+            {t(
+              "adminPolicies.packPolicies.blockedHint",
+              "Comma-separated pack IDs that are blocked from use.",
+            )}
+          </span>
         </div>
         <div className="ap-field">
-          <label className="ap-label">Required Packs</label>
+          <label className="ap-label">
+            {t("adminPolicies.packPolicies.required", "Required Packs")}
+          </label>
           <input
             type="text"
             className="ap-input"
@@ -215,29 +288,47 @@ export function AdminPoliciesPanel() {
             placeholder="pack-id-1, pack-id-2"
           />
           <span className="ap-hint">
-            Comma-separated pack IDs that are auto-activated and cannot be disabled.
+            {t(
+              "adminPolicies.packPolicies.requiredHint",
+              "Comma-separated pack IDs that are auto-activated and cannot be disabled.",
+            )}
           </span>
         </div>
         <div className="ap-field">
-          <label className="ap-label">Allowed Packs (whitelist)</label>
+          <label className="ap-label">
+            {t(
+              "adminPolicies.packPolicies.allowed",
+              "Allowed Packs (whitelist)",
+            )}
+          </label>
           <input
             type="text"
             className="ap-input"
             value={allowedPacks}
             onChange={(e) => setAllowedPacks(e.target.value)}
-            placeholder="Leave empty to allow all"
+            placeholder={t(
+              "adminPolicies.packPolicies.allowedPlaceholder",
+              "Leave empty to allow all",
+            )}
           />
           <span className="ap-hint">
-            If set, only these packs are allowed. Leave empty to allow all.
+            {t(
+              "adminPolicies.packPolicies.allowedHint",
+              "If set, only these packs are allowed. Leave empty to allow all.",
+            )}
           </span>
         </div>
       </div>
 
       {/* Connector Policies */}
       <div className="settings-section">
-        <h3>Connector Policies</h3>
+        <h3>
+          {t("adminPolicies.connectorPolicies.title", "Connector Policies")}
+        </h3>
         <div className="ap-field">
-          <label className="ap-label">Blocked Connectors</label>
+          <label className="ap-label">
+            {t("adminPolicies.connectorPolicies.blocked", "Blocked Connectors")}
+          </label>
           <input
             type="text"
             className="ap-input"
@@ -245,16 +336,26 @@ export function AdminPoliciesPanel() {
             onChange={(e) => setBlockedConnectors(e.target.value)}
             placeholder="connector-id-1, connector-id-2"
           />
-          <span className="ap-hint">Comma-separated connector IDs that are blocked.</span>
+          <span className="ap-hint">
+            {t(
+              "adminPolicies.connectorPolicies.blockedHint",
+              "Comma-separated connector IDs that are blocked.",
+            )}
+          </span>
         </div>
       </div>
 
       {/* Agent Policies */}
       <div className="settings-section">
-        <h3>Agent Policies</h3>
+        <h3>{t("adminPolicies.agentPolicies.title", "Agent Policies")}</h3>
         <div className="ap-row">
           <div className="ap-field ap-field-half">
-            <label className="ap-label">Max Heartbeat Frequency (sec)</label>
+            <label className="ap-label">
+              {t(
+                "adminPolicies.agentPolicies.maxHeartbeat",
+                "Max Heartbeat Frequency (sec)",
+              )}
+            </label>
             <input
               type="number"
               className="ap-input"
@@ -262,10 +363,20 @@ export function AdminPoliciesPanel() {
               min={60}
               onChange={(e) => setMaxHeartbeat(parseInt(e.target.value) || 60)}
             />
-            <span className="ap-hint">Minimum 60 seconds between heartbeats.</span>
+            <span className="ap-hint">
+              {t(
+                "adminPolicies.agentPolicies.maxHeartbeatHint",
+                "Minimum 60 seconds between heartbeats.",
+              )}
+            </span>
           </div>
           <div className="ap-field ap-field-half">
-            <label className="ap-label">Max Concurrent Agents</label>
+            <label className="ap-label">
+              {t(
+                "adminPolicies.agentPolicies.maxAgents",
+                "Max Concurrent Agents",
+              )}
+            </label>
             <input
               type="number"
               className="ap-input"
@@ -274,21 +385,31 @@ export function AdminPoliciesPanel() {
               max={50}
               onChange={(e) => setMaxAgents(parseInt(e.target.value) || 10)}
             />
-            <span className="ap-hint">Maximum agents per workspace.</span>
+            <span className="ap-hint">
+              {t(
+                "adminPolicies.agentPolicies.maxAgentsHint",
+                "Maximum agents per workspace.",
+              )}
+            </span>
           </div>
         </div>
       </div>
 
       {/* Everyday Agent Policies */}
       <div className="settings-section">
-        <h3>Everyday Agent</h3>
+        <h3>{t("adminPolicies.everyday.title", "Everyday Agent")}</h3>
         <label className="ap-toggle-row">
           <input
             type="checkbox"
             checked={everydayBlocked}
             onChange={(e) => setEverydayBlocked(e.target.checked)}
           />
-          <span>Block Everyday Agent entirely</span>
+          <span>
+            {t(
+              "adminPolicies.everyday.blockEntirely",
+              "Block Everyday Agent entirely",
+            )}
+          </span>
         </label>
         <label className="ap-toggle-row">
           <input
@@ -296,10 +417,17 @@ export function AdminPoliciesPanel() {
             checked={everydayReviewOnly}
             onChange={(e) => setEverydayReviewOnly(e.target.checked)}
           />
-          <span>Force review-only mode</span>
+          <span>
+            {t("adminPolicies.everyday.reviewOnly", "Force review-only mode")}
+          </span>
         </label>
         <div className="ap-field">
-          <label className="ap-label">Blocked Capability Bundles</label>
+          <label className="ap-label">
+            {t(
+              "adminPolicies.everyday.blockedBundles",
+              "Blocked Capability Bundles",
+            )}
+          </label>
           <input
             type="text"
             className="ap-input"
@@ -308,30 +436,46 @@ export function AdminPoliciesPanel() {
             placeholder="inbox, browser, memory"
           />
           <span className="ap-hint">
-            Valid IDs: inbox, calendar, browser, files, docs, messages, github_work, memory,
-            screen_context, remote_devices, automations.
+            {t(
+              "adminPolicies.everyday.blockedBundlesHint",
+              "Valid IDs: inbox, calendar, browser, files, docs, messages, github_work, memory, screen_context, remote_devices, automations.",
+            )}
           </span>
         </div>
         <div className="ap-row">
           <div className="ap-field ap-field-half">
-            <label className="ap-label">Max Heartbeat Cadence (min)</label>
+            <label className="ap-label">
+              {t(
+                "adminPolicies.everyday.maxCadence",
+                "Max Heartbeat Cadence (min)",
+              )}
+            </label>
             <input
               type="number"
               className="ap-input"
               value={everydayMaxCadence}
               min={5}
-              onChange={(e) => setEverydayMaxCadence(parseInt(e.target.value) || 60)}
+              onChange={(e) =>
+                setEverydayMaxCadence(parseInt(e.target.value) || 60)
+              }
             />
           </div>
           <div className="ap-field ap-field-half">
-            <label className="ap-label">Max Background Work</label>
+            <label className="ap-label">
+              {t(
+                "adminPolicies.everyday.maxBackgroundWork",
+                "Max Background Work",
+              )}
+            </label>
             <input
               type="number"
               className="ap-input"
               value={everydayMaxWork}
               min={1}
               max={20}
-              onChange={(e) => setEverydayMaxWork(parseInt(e.target.value) || 1)}
+              onChange={(e) =>
+                setEverydayMaxWork(parseInt(e.target.value) || 1)
+              }
             />
           </div>
         </div>
@@ -339,14 +483,21 @@ export function AdminPoliciesPanel() {
 
       {/* Installation Policies */}
       <div className="settings-section">
-        <h3>Installation Permissions</h3>
+        <h3>
+          {t("adminPolicies.installation.title", "Installation Permissions")}
+        </h3>
         <label className="ap-toggle-row">
           <input
             type="checkbox"
             checked={allowCustom}
             onChange={(e) => setAllowCustom(e.target.checked)}
           />
-          <span>Allow users to install custom plugin packs</span>
+          <span>
+            {t(
+              "adminPolicies.installation.allowCustom",
+              "Allow users to install custom plugin packs",
+            )}
+          </span>
         </label>
         <label className="ap-toggle-row">
           <input
@@ -354,7 +505,12 @@ export function AdminPoliciesPanel() {
             checked={allowGit}
             onChange={(e) => setAllowGit(e.target.checked)}
           />
-          <span>Allow installation from Git repositories</span>
+          <span>
+            {t(
+              "adminPolicies.installation.allowGit",
+              "Allow installation from Git repositories",
+            )}
+          </span>
         </label>
         <label className="ap-toggle-row">
           <input
@@ -362,21 +518,35 @@ export function AdminPoliciesPanel() {
             checked={allowUrl}
             onChange={(e) => setAllowUrl(e.target.checked)}
           />
-          <span>Allow installation from URLs</span>
+          <span>
+            {t(
+              "adminPolicies.installation.allowUrl",
+              "Allow installation from URLs",
+            )}
+          </span>
         </label>
       </div>
 
       {/* Save */}
       <div className="ap-actions">
-        <button type="button" className="button-primary" onClick={handleSave} disabled={saving}>
-          {saving ? "Saving..." : "Save Policies"}
+        <button
+          type="button"
+          className="button-primary"
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving
+            ? t("adminPolicies.action.saving", "Saving...")
+            : t("adminPolicies.action.save", "Save Policies")}
         </button>
         <button type="button" className="button-secondary" onClick={load}>
-          Reset
+          {t("adminPolicies.action.reset", "Reset")}
         </button>
         {policies && (
           <span className="ap-updated">
-            Last updated: {new Date(policies.updatedAt).toLocaleString()}
+            {t("adminPolicies.lastUpdated", "Last updated: {date}", {
+              date: new Date(policies.updatedAt).toLocaleString(),
+            })}
           </span>
         )}
       </div>

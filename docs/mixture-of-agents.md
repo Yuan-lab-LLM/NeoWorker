@@ -2,7 +2,7 @@
 
 Mixture of Agents is a virtual LLM provider that lets one task consult several configured models before a final aggregator model answers. It is useful when you want model diversity, stronger review, or a cheaper set of advisor models feeding one high-quality final route.
 
-MoA does not replace provider credentials. It orchestrates the providers you already configured in CoWork OS.
+MoA does not replace provider credentials. It orchestrates the providers you already configured in NeoWorker.
 
 ## Where to Configure It
 
@@ -33,7 +33,7 @@ The aggregator is the only model that executes the real task. Advisors are there
 
 ## Runtime Flow
 
-For each MoA request, CoWork OS runs this sequence:
+For each MoA request, NeoWorker runs this sequence:
 
 1. Resolve the selected MoA preset.
 2. Run the reference advisor slots with tools disabled.
@@ -53,7 +53,7 @@ The advisory context is appended as a separate user message instead of rewriting
 | Name | The preset label shown in the model picker |
 | Description | Optional operator note for what the preset is for |
 | Enabled | Whether the preset can be selected for tasks |
-| Default preset | The preset CoWork should choose by default for MoA |
+| Default preset | The preset NeoWorker should choose by default for MoA |
 | Aggregator | The final provider/model that answers and can use tools |
 | Reference advisors | Provider/model slots consulted before the aggregator |
 | Max reference tokens | Per-advisor output budget |
@@ -91,7 +91,7 @@ Second, the MoA provider itself can have its own provider failover chain. This i
 
 MoA does not automatically inherit global fallback providers. Configure MoA provider failover explicitly only when you want the entire preset to fall back after MoA cannot complete.
 
-Advisor failures are tolerated. CoWork records a compact "reference call failed" note and continues with the remaining advisors and aggregator. Aggregator failure is fatal unless the aggregator slot has a working fallback candidate.
+Advisor failures are tolerated. NeoWorker records a compact "reference call failed" note and continues with the remaining advisors and aggregator. Aggregator failure is fatal unless the aggregator slot has a working fallback candidate.
 
 ## Caching
 
@@ -151,7 +151,7 @@ NODE_OPTIONS=--use-system-ca
 You can disable that behavior for comparison:
 
 ```bash
-COWORK_DEV_USE_SYSTEM_CA=0 npm run dev
+NEOWORKER_DEV_USE_SYSTEM_CA=0 npm run dev
 ```
 
 If OpenAI still fails with `fetch failed`, export your company's Zscaler/root CA certificate to a PEM file and run:

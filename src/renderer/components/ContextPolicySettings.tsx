@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { ContextType, SecurityMode, ContextPolicy } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 interface ContextPolicySettingsProps {
   /** Channel ID for the policies */
@@ -32,44 +33,64 @@ interface ContextPolicySettingsProps {
 const TOOL_GROUPS = [
   {
     id: "group:memory",
+    nameKey: "contextPolicy.tool.memory",
     name: "Memory Tools",
+    descriptionKey: "contextPolicy.tool.memoryDescription",
     description: "Clipboard read/write access",
     defaultDeniedInGroup: true,
   },
   {
     id: "group:system",
+    nameKey: "contextPolicy.tool.system",
     name: "System Tools",
+    descriptionKey: "contextPolicy.tool.systemDescription",
     description: "Screenshot, app launch, system info",
     defaultDeniedInGroup: false,
   },
   {
     id: "group:network",
+    nameKey: "contextPolicy.tool.network",
     name: "Network Tools",
+    descriptionKey: "contextPolicy.tool.networkDescription",
     description: "Browser and web access",
     defaultDeniedInGroup: false,
   },
   {
     id: "group:destructive",
+    nameKey: "contextPolicy.tool.destructive",
     name: "Destructive Tools",
+    descriptionKey: "contextPolicy.tool.destructiveDescription",
     description: "File deletion and shell commands",
     defaultDeniedInGroup: false,
   },
 ];
 
-const SECURITY_MODES: { value: SecurityMode; label: string; description: string }[] = [
+const SECURITY_MODES: {
+  value: SecurityMode;
+  labelKey: string;
+  label: string;
+  descriptionKey: string;
+  description: string;
+}[] = [
   {
     value: "pairing",
+    labelKey: "contextPolicy.security.pairing",
     label: "Pairing (Recommended)",
+    descriptionKey: "contextPolicy.security.pairingDescription",
     description: "Users must enter a pairing code to connect",
   },
   {
     value: "allowlist",
+    labelKey: "contextPolicy.security.allowlist",
     label: "Allowlist",
+    descriptionKey: "contextPolicy.security.allowlistDescription",
     description: "Only pre-approved users can interact",
   },
   {
     value: "open",
+    labelKey: "contextPolicy.security.open",
     label: "Open",
+    descriptionKey: "contextPolicy.security.openDescription",
     description: "Anyone can interact (use with caution)",
   },
 ];
@@ -81,6 +102,8 @@ export function ContextPolicySettings({
   onPolicyChange,
   isSaving = false,
 }: ContextPolicySettingsProps) {
+  useLanguage();
+  const t = translate;
   const [activeTab, setActiveTab] = useState<ContextType>("dm");
 
   // Get policy for current tab
@@ -110,8 +133,17 @@ export function ContextPolicySettings({
     "teams",
     "googlechat",
     "feishu",
+    "dingtalk",
     "wecom",
   ].includes(channelType);
+
+  const formatSecurityMode = (mode?: SecurityMode) =>
+    t(`contextPolicy.securityValue.${mode || "pairing"}`, mode || "pairing");
+
+  const formatPermission = (denied?: boolean) =>
+    denied
+      ? t("contextPolicy.denied", "Denied")
+      : t("contextPolicy.allowed", "Allowed");
 
   return (
     <div className="context-policy-settings">
@@ -123,24 +155,32 @@ export function ContextPolicySettings({
             onClick={() => setActiveTab("dm")}
           >
             <DMIcon />
-            Direct Messages
+            {t("contextPolicy.tabs.dm", "Direct Messages")}
           </button>
           <button
             className={`tab ${activeTab === "group" ? "active" : ""}`}
             onClick={() => setActiveTab("group")}
           >
             <GroupIcon />
-            Group Chats
+            {t("contextPolicy.tabs.group", "Group Chats")}
           </button>
         </div>
       )}
 
       {/* Security Mode */}
       <div className="settings-section">
-        <h4>Security Mode</h4>
+        <h4>{t("contextPolicy.securityMode", "Security Mode")}</h4>
         <p className="section-description">
-          How users are authorized to interact in{" "}
-          {activeTab === "dm" ? "direct messages" : "group chats"}
+          {t(
+            "contextPolicy.securityDescription",
+            "How users are authorized to interact in {context}",
+            {
+              context:
+                activeTab === "dm"
+                  ? t("contextPolicy.context.dm", "direct messages")
+                  : t("contextPolicy.context.group", "group chats"),
+            },
+          )}
         </p>
         <div className="security-mode-options">
           {SECURITY_MODES.map((mode) => (
@@ -157,8 +197,12 @@ export function ContextPolicySettings({
                 disabled={isSaving}
               />
               <div className="mode-content">
-                <span className="mode-label">{mode.label}</span>
-                <span className="mode-description">{mode.description}</span>
+                <span className="mode-label">
+                  {t(mode.labelKey, mode.label)}
+                </span>
+                <span className="mode-description">
+                  {t(mode.descriptionKey, mode.description)}
+                </span>
               </div>
               {securityMode === mode.value && <CheckIcon />}
             </label>
@@ -169,7 +213,10 @@ export function ContextPolicySettings({
           <div className="warning-banner">
             <WarningIcon />
             <span>
-              Open mode allows anyone to interact with the bot. Use only in trusted environments.
+              {t(
+                "contextPolicy.openWarning",
+                "Open mode allows anyone to interact with the bot. Use only in trusted environments.",
+              )}
             </span>
           </div>
         )}
@@ -177,17 +224,24 @@ export function ContextPolicySettings({
 
       {/* Tool Restrictions */}
       <div className="settings-section">
-        <h4>Tool Restrictions</h4>
+        <h4>{t("contextPolicy.toolRestrictions", "Tool Restrictions")}</h4>
         <p className="section-description">
-          Restrict which tool groups are available in this context
+          {t(
+            "contextPolicy.toolRestrictionsDescription",
+            "Restrict which tool groups are available in this context",
+          )}
         </p>
         <div className="tool-restrictions">
           {TOOL_GROUPS.map((group) => {
             const isDenied = toolRestrictions.includes(group.id);
-            const isDefaultDenied = activeTab === "group" && group.defaultDeniedInGroup;
+            const isDefaultDenied =
+              activeTab === "group" && group.defaultDeniedInGroup;
 
             return (
-              <label key={group.id} className={`tool-option ${isDenied ? "denied" : "allowed"}`}>
+              <label
+                key={group.id}
+                className={`tool-option ${isDenied ? "denied" : "allowed"}`}
+              >
                 <div className="tool-toggle">
                   <input
                     type="checkbox"
@@ -198,10 +252,19 @@ export function ContextPolicySettings({
                   <span className="toggle-slider" />
                 </div>
                 <div className="tool-content">
-                  <span className="tool-name">{group.name}</span>
-                  <span className="tool-description">{group.description}</span>
+                  <span className="tool-name">
+                    {t(group.nameKey, group.name)}
+                  </span>
+                  <span className="tool-description">
+                    {t(group.descriptionKey, group.description)}
+                  </span>
                   {isDefaultDenied && !isDenied && (
-                    <span className="tool-warning">Not recommended for groups</span>
+                    <span className="tool-warning">
+                      {t(
+                        "contextPolicy.notRecommendedForGroups",
+                        "Not recommended for groups",
+                      )}
+                    </span>
                   )}
                 </div>
               </label>
@@ -213,30 +276,32 @@ export function ContextPolicySettings({
       {/* Context Comparison */}
       {supportsGroups && (
         <div className="context-comparison">
-          <h4>Policy Comparison</h4>
+          <h4>{t("contextPolicy.comparison", "Policy Comparison")}</h4>
           <table>
             <thead>
               <tr>
-                <th>Setting</th>
-                <th>DMs</th>
-                <th>Groups</th>
+                <th>{t("contextPolicy.setting", "Setting")}</th>
+                <th>{t("contextPolicy.dms", "DMs")}</th>
+                <th>{t("contextPolicy.groups", "Groups")}</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td>Security Mode</td>
-                <td>{policies.dm?.securityMode || "pairing"}</td>
-                <td>{policies.group?.securityMode || "pairing"}</td>
+                <td>{t("contextPolicy.securityMode", "Security Mode")}</td>
+                <td>{formatSecurityMode(policies.dm?.securityMode)}</td>
+                <td>{formatSecurityMode(policies.group?.securityMode)}</td>
               </tr>
               <tr>
-                <td>Memory Tools</td>
+                <td>{t("contextPolicy.tool.memory", "Memory Tools")}</td>
                 <td>
-                  {policies.dm?.toolRestrictions?.includes("group:memory") ? "Denied" : "Allowed"}
+                  {formatPermission(
+                    policies.dm?.toolRestrictions?.includes("group:memory"),
+                  )}
                 </td>
                 <td>
-                  {policies.group?.toolRestrictions?.includes("group:memory")
-                    ? "Denied"
-                    : "Allowed"}
+                  {formatPermission(
+                    policies.group?.toolRestrictions?.includes("group:memory"),
+                  )}
                 </td>
               </tr>
             </tbody>

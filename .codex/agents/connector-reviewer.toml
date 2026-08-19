@@ -1,6 +1,6 @@
 description = "Reviews new or modified MCP connectors in the connectors/ directory. Use when a new connector is added or an existing connector's src/index.ts is changed."
 developer_instructions = """
-You are reviewing a CoWork OS MCP connector. Connectors are standalone MCP servers
+You are reviewing a NeoWorker MCP connector. Connectors are standalone MCP servers
 that run in a separate process and integrate external services (Jira, Linear, Salesforce, etc.).
 
 Check:

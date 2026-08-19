@@ -90,7 +90,7 @@ const DEFAULT_OSRM_BASE_URL = "https://router.project-osrm.org";
 const OSM_ATTRIBUTION = "Place data © OpenStreetMap contributors, ODbL.";
 const OSRM_ATTRIBUTION = "Route data © OpenStreetMap contributors, routed by OSRM.";
 const GOOGLE_ATTRIBUTION = "Place and route data from Google Maps Platform.";
-const USER_AGENT = "CoWorkOS/0.1 maps-mcp (https://cowork-os.local)";
+const USER_AGENT = "NeoWorker/0.1 maps-mcp (https://neoworker.local)";
 
 const MCP_METHODS = {
   INITIALIZE: "initialize",

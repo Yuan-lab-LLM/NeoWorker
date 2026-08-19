@@ -1,4 +1,9 @@
-import type { Task, TaskEvent, TaskStatus, TaskTerminalStatus } from "../../shared/types";
+import type {
+  Task,
+  TaskEvent,
+  TaskStatus,
+  TaskTerminalStatus,
+} from "../../shared/types";
 import { TASK_EVENT_STATUS_MAP } from "../../shared/task-event-status-map";
 import { getEffectiveTaskEventType } from "./task-event-compat";
 
@@ -48,14 +53,22 @@ function getReplayTerminalStatus(
   return undefined;
 }
 
-function getReplayError(task: Task, terminalEvent: TaskEvent | null): string | null | undefined {
+function getReplayError(
+  task: Task,
+  terminalEvent: TaskEvent | null,
+): string | null | undefined {
   const payload = asRecord(terminalEvent?.payload);
   const rawError = payload.error ?? payload.message ?? payload.reason;
-  if (typeof rawError === "string" && rawError.trim().length > 0) return rawError;
+  if (typeof rawError === "string" && rawError.trim().length > 0)
+    return rawError;
   return task.error;
 }
 
-function stripFinalTaskFields(task: Task, status: TaskStatus, updatedAt: number): Task {
+function stripFinalTaskFields(
+  task: Task,
+  status: TaskStatus,
+  updatedAt: number,
+): Task {
   const {
     completedAt: _completedAt,
     terminalStatus: _terminalStatus,
@@ -80,7 +93,10 @@ function stripFinalTaskFields(task: Task, status: TaskStatus, updatedAt: number)
   } as Task;
 }
 
-export function deriveReplayTaskSnapshot(task: Task | undefined, replayEvents: TaskEvent[]): Task | undefined {
+export function deriveReplayTaskSnapshot(
+  task: Task | undefined,
+  replayEvents: TaskEvent[],
+): Task | undefined {
   if (!task) return undefined;
 
   let status: TaskStatus = "pending";
@@ -104,7 +120,8 @@ export function deriveReplayTaskSnapshot(task: Task | undefined, replayEvents: T
   }
 
   const completedAt =
-    typeof terminalEvent?.timestamp === "number" && Number.isFinite(terminalEvent.timestamp)
+    typeof terminalEvent?.timestamp === "number" &&
+    Number.isFinite(terminalEvent.timestamp)
       ? terminalEvent.timestamp
       : task.completedAt;
 
@@ -114,6 +131,7 @@ export function deriveReplayTaskSnapshot(task: Task | undefined, replayEvents: T
     updatedAt,
     completedAt,
     terminalStatus: getReplayTerminalStatus(task, status, terminalEvent),
-    error: status === "failed" ? getReplayError(task, terminalEvent) : task.error,
+    error:
+      status === "failed" ? getReplayError(task, terminalEvent) : task.error,
   };
 }

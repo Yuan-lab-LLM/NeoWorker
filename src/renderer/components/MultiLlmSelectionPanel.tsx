@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import type { MultiLlmConfig, MultiLlmParticipant, CachedModelInfo } from "../../shared/types";
+import type {
+  MultiLlmConfig,
+  MultiLlmParticipant,
+  CachedModelInfo,
+} from "../../shared/types";
 import { MULTI_LLM_PROVIDER_DISPLAY } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 interface LLMProviderInfo {
   type: string;
@@ -17,13 +22,21 @@ export function MultiLlmSelectionPanel({
   availableProviders,
   onConfigChange,
 }: MultiLlmSelectionPanelProps) {
+  useLanguage();
+  const t = translate;
   const configuredProviders = useMemo(
     () => availableProviders.filter((p) => p.configured),
     [availableProviders],
   );
-  const [selectedProviders, setSelectedProviders] = useState<Set<string>>(new Set());
-  const [providerModels, setProviderModels] = useState<Map<string, CachedModelInfo[]>>(new Map());
-  const [selectedModels, setSelectedModels] = useState<Map<string, string>>(new Map());
+  const [selectedProviders, setSelectedProviders] = useState<Set<string>>(
+    new Set(),
+  );
+  const [providerModels, setProviderModels] = useState<
+    Map<string, CachedModelInfo[]>
+  >(new Map());
+  const [selectedModels, setSelectedModels] = useState<Map<string, string>>(
+    new Map(),
+  );
   const [judgeKey, setJudgeKey] = useState<string>("");
 
   // Stable ref for onConfigChange to avoid re-triggering the effect
@@ -38,7 +51,8 @@ export function MultiLlmSelectionPanel({
         next.add(providerType);
         if (!providerModels.has(providerType)) {
           try {
-            const models = await window.electronAPI.getProviderModels(providerType);
+            const models =
+              await window.electronAPI.getProviderModels(providerType);
             setProviderModels((prev) => {
               const m = new Map(prev);
               m.set(providerType, models);
@@ -68,13 +82,16 @@ export function MultiLlmSelectionPanel({
     [selectedProviders, providerModels],
   );
 
-  const handleModelChange = useCallback((providerType: string, modelKey: string) => {
-    setSelectedModels((prev) => {
-      const m = new Map(prev);
-      m.set(providerType, modelKey);
-      return m;
-    });
-  }, []);
+  const handleModelChange = useCallback(
+    (providerType: string, modelKey: string) => {
+      setSelectedModels((prev) => {
+        const m = new Map(prev);
+        m.set(providerType, modelKey);
+        return m;
+      });
+    },
+    [],
+  );
 
   // Build and emit config whenever selection changes
   useEffect(() => {
@@ -84,7 +101,8 @@ export function MultiLlmSelectionPanel({
       if (!modelKey) continue;
       const providerInfo = MULTI_LLM_PROVIDER_DISPLAY[providerType];
       const providerName =
-        configuredProviders.find((p) => p.type === providerType)?.name || providerType;
+        configuredProviders.find((p) => p.type === providerType)?.name ||
+        providerType;
       participants.push({
         providerType: providerType as Any,
         modelKey,
@@ -131,9 +149,14 @@ export function MultiLlmSelectionPanel({
   if (configuredProviders.length < 2) {
     return (
       <div className="multi-llm-selection-panel">
-        <div className="multi-llm-header">Multi-LLM Mode</div>
+        <div className="multi-llm-header">
+          {t("multiLlm.mode", "Multi-LLM Mode")}
+        </div>
         <div className="multi-llm-hint">
-          Configure at least 2 LLM providers in Settings to use this mode.
+          {t(
+            "multiLlm.configureHint",
+            "Configure at least 2 LLM providers in Settings to use this mode.",
+          )}
         </div>
       </div>
     );
@@ -154,7 +177,9 @@ export function MultiLlmSelectionPanel({
 
   return (
     <div className="multi-llm-selection-panel">
-      <div className="multi-llm-header">Select LLMs to compare</div>
+      <div className="multi-llm-header">
+        {t("multiLlm.selectTitle", "Select LLMs to compare")}
+      </div>
       <div className="multi-llm-providers">
         {configuredProviders.map((provider) => {
           const isSelected = selectedProviders.has(provider.type);
@@ -166,7 +191,9 @@ export function MultiLlmSelectionPanel({
                 <input
                   type="checkbox"
                   checked={isSelected}
-                  onChange={(e) => handleProviderToggle(provider.type, e.target.checked)}
+                  onChange={(e) =>
+                    handleProviderToggle(provider.type, e.target.checked)
+                  }
                 />
                 <span>
                   {providerDisplay?.icon || ""} {provider.name}
@@ -176,7 +203,9 @@ export function MultiLlmSelectionPanel({
                 <select
                   className="multi-llm-model-select"
                   value={selectedModels.get(provider.type) || ""}
-                  onChange={(e) => handleModelChange(provider.type, e.target.value)}
+                  onChange={(e) =>
+                    handleModelChange(provider.type, e.target.value)
+                  }
                 >
                   {models.map((m) => (
                     <option key={m.key} value={m.key}>
@@ -191,7 +220,7 @@ export function MultiLlmSelectionPanel({
       </div>
       {judgeOptions.length >= 2 && (
         <div className="multi-llm-judge">
-          <label>Judge / Leader:</label>
+          <label>{t("multiLlm.judgeLeader", "Judge / Leader:")}</label>
           <select
             className="multi-llm-judge-select"
             value={judgeKey || judgeOptions[0]?.key || ""}
@@ -206,7 +235,12 @@ export function MultiLlmSelectionPanel({
         </div>
       )}
       {selectedProviders.size > 0 && selectedProviders.size < 2 && (
-        <div className="multi-llm-hint">Select at least 2 providers to start</div>
+        <div className="multi-llm-hint">
+          {t(
+            "multiLlm.selectAtLeastTwo",
+            "Select at least 2 providers to start",
+          )}
+        </div>
       )}
     </div>
   );

@@ -1,0 +1,3 @@
+import { n as e, t } from "./html-derivative-D-lfd1ER.js";
+e();
+export { t as default };

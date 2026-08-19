@@ -4,6 +4,7 @@
  * When the CUA wants to interact with a desktop app, this dialog asks the
  * user to approve access at a specific level (full_control or view_only).
  */
+import { translate, useLanguage } from "../i18n";
 
 interface AppPermissionItem {
   appName: string;
@@ -24,6 +25,8 @@ export function ComputerUsePermissionDialog({
   onAllow,
   onDeny,
 }: ComputerUsePermissionDialogProps) {
+  useLanguage();
+  const t = translate;
   return (
     <div
       style={{
@@ -43,7 +46,7 @@ export function ComputerUsePermissionDialog({
           color: "var(--text-primary, #1a1a1a)",
         }}
       >
-        Turn on computer use?
+        {t("computerUsePermission.title", "Turn on computer use?")}
       </div>
 
       <p
@@ -54,8 +57,10 @@ export function ComputerUsePermissionDialog({
           marginBottom: 16,
         }}
       >
-        Claude will take screenshots of your screen and control your mouse and keyboard.
-        You&apos;ll approve each app, but not confirm each step Claude performs.
+        {t(
+          "computerUsePermission.description",
+          "Claude will take screenshots of your screen and control your mouse and keyboard. You'll approve each app, but not confirm each step Claude performs.",
+        )}
       </p>
 
       <div
@@ -65,11 +70,28 @@ export function ComputerUsePermissionDialog({
           marginBottom: 12,
         }}
       >
-        <strong>Keep in mind:</strong>
+        <strong>
+          {t("computerUsePermission.keepInMind", "Keep in mind:")}
+        </strong>
         <ul style={{ margin: "4px 0", paddingLeft: 18 }}>
-          <li>Some actions can&apos;t be undone.</li>
-          <li>Apps you approve could open other apps you haven&apos;t approved.</li>
-          <li>Close anything sensitive you don&apos;t want Claude to see.</li>
+          <li>
+            {t(
+              "computerUsePermission.warning.undo",
+              "Some actions can't be undone.",
+            )}
+          </li>
+          <li>
+            {t(
+              "computerUsePermission.warning.otherApps",
+              "Apps you approve could open other apps you haven't approved.",
+            )}
+          </li>
+          <li>
+            {t(
+              "computerUsePermission.warning.sensitive",
+              "Close anything sensitive you don't want Claude to see.",
+            )}
+          </li>
         </ul>
       </div>
 
@@ -82,7 +104,7 @@ export function ComputerUsePermissionDialog({
             marginBottom: 8,
           }}
         >
-          Claude wants to use:
+          {t("computerUsePermission.wantsToUse", "Claude wants to use:")}
         </div>
         {apps.map((app) => (
           <div
@@ -109,14 +131,22 @@ export function ComputerUsePermissionDialog({
                   app.requestedLevel === "full_control" ? "#c05a20" : "#3a7bbf",
               }}
             >
-              {app.requestedLevel === "full_control" ? "Full control" : "View only"}
+              {app.requestedLevel === "full_control"
+                ? t("computerUsePermission.fullControl", "Full control")
+                : t("computerUsePermission.viewOnly", "View only")}
             </span>
           </div>
         ))}
       </div>
 
       {reason && (
-        <p style={{ fontSize: 12, color: "var(--text-tertiary, #999)", marginBottom: 16 }}>
+        <p
+          style={{
+            fontSize: 12,
+            color: "var(--text-tertiary, #999)",
+            marginBottom: 16,
+          }}
+        >
           {reason}
         </p>
       )}
@@ -134,7 +164,7 @@ export function ComputerUsePermissionDialog({
             color: "var(--text-primary, #333)",
           }}
         >
-          Deny
+          {t("common.deny", "Deny")}
         </button>
         <button
           onClick={() => onAllow(apps[0]?.requestedLevel ?? "view_only")}
@@ -148,7 +178,7 @@ export function ComputerUsePermissionDialog({
             cursor: "pointer",
           }}
         >
-          Allow for this session
+          {t("computerUseApproval.allowSession", "Allow for this session")}
         </button>
       </div>
     </div>

@@ -40,7 +40,7 @@ describe("Autobrowse bundled skill", () => {
   it("expands with usable defaults instead of blank loop controls", () => {
     const loader = new CustomSkillLoader({
       bundledSkillsDir: path.join(__dirname, "../../../../resources/skills"),
-      managedSkillsDir: "/tmp/cowork-test-skills",
+      managedSkillsDir: "/tmp/neoworker-test-skills",
     });
     const skill = {
       ...loadAutobrowseSkill(),
@@ -53,7 +53,7 @@ describe("Autobrowse bundled skill", () => {
         objective: "Find available reservations",
       },
       {
-        artifactDir: "/tmp/cowork-artifacts",
+        artifactDir: "/tmp/neoworker-artifacts",
       },
     );
 
@@ -62,7 +62,7 @@ describe("Autobrowse bundled skill", () => {
     expect(expanded).toContain("Target URL or site: infer from request");
     expect(expanded).toContain("up to `3` times");
     expect(expanded).toContain("according to `proposal`");
-    expect(expanded).toContain("/tmp/cowork-artifacts/autobrowse/");
+    expect(expanded).toContain("/tmp/neoworker-artifacts/autobrowse/");
     expect(expanded).not.toContain("up to `` times");
     expect(expanded).not.toContain("according to ``");
   });

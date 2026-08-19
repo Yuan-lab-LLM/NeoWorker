@@ -1,5 +1,5 @@
 /**
- * Cron Module - Scheduled Task Execution for CoWork OS
+ * Cron Module - Scheduled Task Execution for NeoWorker
  */
 
 export * from "./types";

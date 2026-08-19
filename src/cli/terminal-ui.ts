@@ -41,7 +41,7 @@ export function renderWelcomeScreen(options: WelcomeScreenOptions = {}): string 
     styled("/doctor", ACCENT, color) + " checks runtime and providers",
     styled("/providers list", ACCENT, color) + " shows model setup",
     styled("/workspace list", ACCENT, color) + " shows local workspaces",
-    styled("/exit", ACCENT, color) + " leaves CoWork OS",
+    styled("/exit", ACCENT, color) + " leaves NeoWorker",
   ];
   const leftLines = [
     center(styled("Welcome back", ANSI.bold + ANSI.white, color), leftWidth),
@@ -58,7 +58,7 @@ export function renderWelcomeScreen(options: WelcomeScreenOptions = {}): string 
   ];
 
   const bodyHeight = Math.max(leftLines.length, rightLines.length, 10);
-  const title = ` CoWork OS ${version} `;
+  const title = ` NeoWorker ${version} `;
   const top =
     styled("╭", BRAND, color) +
     styled("─".repeat(2), BRAND, color) +

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ProactiveSuggestion, Workspace } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 interface SuggestionsPanelProps {
   workspaceId?: string;
@@ -42,12 +43,15 @@ export function SuggestionsPanel({
   workspaceId: _initialWorkspaceId,
   onCreateTask,
 }: SuggestionsPanelProps) {
+  useLanguage();
+  const t = translate;
   const [suggestions, setSuggestions] = useState<ProactiveSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>(ALL_WORKSPACES_ID);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] =
+    useState<string>(ALL_WORKSPACES_ID);
   const [workspacesLoading, setWorkspacesLoading] = useState(true);
 
   // Load workspaces on mount
@@ -55,7 +59,9 @@ export function SuggestionsPanel({
     try {
       setWorkspacesLoading(true);
       const loaded = await window.electronAPI.listWorkspaces();
-      const nonTemp = loaded.filter((w) => !w.id.startsWith("__temp_workspace__"));
+      const nonTemp = loaded.filter(
+        (w) => !w.id.startsWith("__temp_workspace__"),
+      );
       setWorkspaces(nonTemp);
       setSelectedWorkspaceId((prev) => {
         if (prev === ALL_WORKSPACES_ID) return ALL_WORKSPACES_ID;
@@ -83,61 +89,69 @@ export function SuggestionsPanel({
     return names;
   }, [workspaces]);
 
-  const load = useCallback(async (refresh = false) => {
-    if (!isAllWorkspacesSelected && !isValidWorkspaceId(workspaceId)) {
-      setSuggestions([]);
-      return;
-    }
-    if (refresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    setError(null);
-    try {
-      if (isAllWorkspacesSelected) {
-        if (workspaces.length === 0) {
-          setSuggestions([]);
-          return;
-        }
-        if (refresh) {
-          await window.electronAPI.refreshSuggestionsForWorkspaces(
-            workspaces.map((workspace) => workspace.id),
-          );
-        }
-        const result = await window.electronAPI.listSuggestionsForWorkspaces(
-          workspaces.map((workspace) => workspace.id),
-        );
-        const flattened = (result || [])
-          .flatMap((entry) =>
-            entry.suggestions.map((suggestion) => ({
-              ...suggestion,
-              workspaceId: suggestion.workspaceId || entry.workspaceId,
-            })),
-          )
-          .sort((a, b) => {
-            if (b.confidence !== a.confidence) return b.confidence - a.confidence;
-            return b.createdAt - a.createdAt;
-          });
-        setSuggestions(flattened);
+  const load = useCallback(
+    async (refresh = false) => {
+      if (!isAllWorkspacesSelected && !isValidWorkspaceId(workspaceId)) {
+        setSuggestions([]);
         return;
       }
-
       if (refresh) {
-        await window.electronAPI.refreshSuggestions(workspaceId);
-      }
-      const result = await window.electronAPI.listSuggestions(workspaceId);
-      setSuggestions(result || []);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load suggestions");
-    } finally {
-      if (refresh) {
-        setRefreshing(false);
+        setRefreshing(true);
       } else {
-        setLoading(false);
+        setLoading(true);
       }
-    }
-  }, [isAllWorkspacesSelected, workspaceId, workspaces]);
+      setError(null);
+      try {
+        if (isAllWorkspacesSelected) {
+          if (workspaces.length === 0) {
+            setSuggestions([]);
+            return;
+          }
+          if (refresh) {
+            await window.electronAPI.refreshSuggestionsForWorkspaces(
+              workspaces.map((workspace) => workspace.id),
+            );
+          }
+          const result = await window.electronAPI.listSuggestionsForWorkspaces(
+            workspaces.map((workspace) => workspace.id),
+          );
+          const flattened = (result || [])
+            .flatMap((entry) =>
+              entry.suggestions.map((suggestion) => ({
+                ...suggestion,
+                workspaceId: suggestion.workspaceId || entry.workspaceId,
+              })),
+            )
+            .sort((a, b) => {
+              if (b.confidence !== a.confidence)
+                return b.confidence - a.confidence;
+              return b.createdAt - a.createdAt;
+            });
+          setSuggestions(flattened);
+          return;
+        }
+
+        if (refresh) {
+          await window.electronAPI.refreshSuggestions(workspaceId);
+        }
+        const result = await window.electronAPI.listSuggestions(workspaceId);
+        setSuggestions(result || []);
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : t("suggestions.error.load", "Failed to load suggestions"),
+        );
+      } finally {
+        if (refresh) {
+          setRefreshing(false);
+        } else {
+          setLoading(false);
+        }
+      }
+    },
+    [isAllWorkspacesSelected, workspaceId, workspaces],
+  );
 
   useEffect(() => {
     void load();
@@ -145,7 +159,8 @@ export function SuggestionsPanel({
 
   const handleDismiss = async (id: string) => {
     const targetWorkspaceId =
-      suggestions.find((suggestion) => suggestion.id === id)?.workspaceId || workspaceId;
+      suggestions.find((suggestion) => suggestion.id === id)?.workspaceId ||
+      workspaceId;
     if (!isValidWorkspaceId(targetWorkspaceId)) return;
     try {
       await window.electronAPI.dismissSuggestion(targetWorkspaceId, id);
@@ -157,7 +172,8 @@ export function SuggestionsPanel({
 
   const handleSnooze = async (id: string) => {
     const targetWorkspaceId =
-      suggestions.find((suggestion) => suggestion.id === id)?.workspaceId || workspaceId;
+      suggestions.find((suggestion) => suggestion.id === id)?.workspaceId ||
+      workspaceId;
     if (!isValidWorkspaceId(targetWorkspaceId)) return;
     try {
       await window.electronAPI.snoozeSuggestion(
@@ -173,9 +189,13 @@ export function SuggestionsPanel({
 
   const handleAct = async (suggestion: ProactiveSuggestion) => {
     const targetWorkspaceId = suggestion.workspaceId || workspaceId;
-    if (!isValidWorkspaceId(targetWorkspaceId) || !suggestion.actionPrompt) return;
+    if (!isValidWorkspaceId(targetWorkspaceId) || !suggestion.actionPrompt)
+      return;
     try {
-      const result = await window.electronAPI.actOnSuggestion(targetWorkspaceId, suggestion.id);
+      const result = await window.electronAPI.actOnSuggestion(
+        targetWorkspaceId,
+        suggestion.id,
+      );
       if (result.actionPrompt && onCreateTask) {
         onCreateTask(suggestion.title, result.actionPrompt);
       }
@@ -186,31 +206,33 @@ export function SuggestionsPanel({
   };
 
   return (
-    <div style={{ padding: 24, maxWidth: 720 }}>
-      <div style={{ marginBottom: 16 }}>
-        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
-          Workflow Intelligence Suggestions
-        </h3>
-        <p
-          style={{
-            margin: "4px 0 0",
-            fontSize: 13,
-            color: "var(--text-secondary)",
-            lineHeight: 1.4,
-          }}
-        >
-          Reviewable next actions based on memory, heartbeat signals, and recent workflow patterns.
-          Acting, editing, snoozing, or dismissing them tunes what appears next.
+    <div className="automation-page suggestions-page">
+      <div className="automation-page-intro">
+        <h3>{t("suggestions.title", "Workflow Intelligence Suggestions")}</h3>
+        <p className="settings-description">
+          {t(
+            "suggestions.description",
+            "Reviewable next actions based on memory, heartbeat signals, and recent workflow patterns. Acting, editing, snoozing, or dismissing them tunes what appears next.",
+          )}
         </p>
       </div>
 
       {workspacesLoading ? (
-        <div style={{ padding: 24, textAlign: "center", color: "var(--text-secondary)" }}>
-          Loading workspaces...
+        <div
+          style={{
+            padding: 24,
+            textAlign: "center",
+            color: "var(--text-secondary)",
+          }}
+        >
+          {t("suggestions.loadingWorkspaces", "Loading workspaces...")}
         </div>
       ) : workspaces.length === 0 ? (
         <div style={{ padding: 24, color: "var(--text-secondary)" }}>
-          No workspaces found. Create a workspace first.
+          {t(
+            "suggestions.noWorkspaces",
+            "No workspaces found. Create a workspace first.",
+          )}
         </div>
       ) : (
         <>
@@ -223,14 +245,21 @@ export function SuggestionsPanel({
               flexWrap: "wrap",
             }}
           >
-            <div className="settings-form-group" style={{ marginBottom: 0, maxWidth: 260 }}>
-              <label className="settings-label">Workspace</label>
+            <div
+              className="settings-form-group"
+              style={{ marginBottom: 0, maxWidth: 260 }}
+            >
+              <label className="settings-label">
+                {t("suggestions.workspace", "Workspace")}
+              </label>
               <select
                 value={selectedWorkspaceId}
                 onChange={(e) => setSelectedWorkspaceId(e.target.value)}
                 className="settings-select"
               >
-                <option value={ALL_WORKSPACES_ID}>All Workspaces</option>
+                <option value={ALL_WORKSPACES_ID}>
+                  {t("suggestions.allWorkspaces", "All Workspaces")}
+                </option>
                 {workspaces.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name}
@@ -255,13 +284,21 @@ export function SuggestionsPanel({
                 opacity: loading || refreshing ? 0.65 : 1,
               }}
             >
-              {refreshing ? "Refreshing..." : "Refresh"}
+              {refreshing
+                ? t("suggestions.refreshing", "Refreshing...")
+                : t("suggestions.refresh", "Refresh")}
             </button>
           </div>
 
           {loading && (
-            <div style={{ padding: 24, textAlign: "center", color: "var(--text-secondary)" }}>
-              Loading suggestions...
+            <div
+              style={{
+                padding: 24,
+                textAlign: "center",
+                color: "var(--text-secondary)",
+              }}
+            >
+              {t("suggestions.loading", "Loading suggestions...")}
             </div>
           )}
 
@@ -290,11 +327,20 @@ export function SuggestionsPanel({
                 borderRadius: 8,
               }}
             >
-              <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}>
-                No active suggestions
+              <div
+                style={{
+                  fontWeight: 600,
+                  color: "var(--text-primary)",
+                  marginBottom: 8,
+                }}
+              >
+                {t("suggestions.empty.title", "No active suggestions")}
               </div>
               <div style={{ lineHeight: 1.6 }}>
-                Nothing is queued for this workspace scope right now.
+                {t(
+                  "suggestions.empty.description",
+                  "Nothing is queued for this workspace scope right now.",
+                )}
               </div>
             </div>
           )}
@@ -302,7 +348,10 @@ export function SuggestionsPanel({
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {suggestions.map((s) => {
               const color = TYPE_COLORS[s.type] || "#6b7280";
-              const label = TYPE_LABELS[s.type] || s.type;
+              const label = t(
+                `suggestions.type.${s.type}`,
+                TYPE_LABELS[s.type] || s.type,
+              );
 
               return (
                 <div
@@ -322,7 +371,9 @@ export function SuggestionsPanel({
                       marginBottom: 6,
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
                       <span
                         style={{
                           display: "inline-block",
@@ -343,7 +394,8 @@ export function SuggestionsPanel({
                             color: "var(--text-tertiary, #9ca3af)",
                           }}
                         >
-                          {workspaceNameById.get(s.workspaceId) || "Workspace"}
+                          {workspaceNameById.get(s.workspaceId) ||
+                            t("suggestions.workspace", "Workspace")}
                         </span>
                       )}
                       <span
@@ -361,7 +413,9 @@ export function SuggestionsPanel({
                         color: "var(--text-tertiary, #9ca3af)",
                       }}
                     >
-                      {Math.round(s.confidence * 100)}% confidence
+                      {t("suggestions.confidence", "{value}% confidence", {
+                        value: Math.round(s.confidence * 100),
+                      })}
                     </span>
                   </div>
 
@@ -402,7 +456,7 @@ export function SuggestionsPanel({
                           cursor: "pointer",
                         }}
                       >
-                        Do it
+                        {t("suggestions.doIt", "Do it")}
                       </button>
                     )}
                     <button
@@ -417,7 +471,7 @@ export function SuggestionsPanel({
                         cursor: "pointer",
                       }}
                     >
-                      Snooze
+                      {t("suggestions.snooze", "Snooze")}
                     </button>
                     <button
                       onClick={() => handleDismiss(s.id)}
@@ -431,7 +485,7 @@ export function SuggestionsPanel({
                         cursor: "pointer",
                       }}
                     >
-                      Dismiss
+                      {t("suggestions.dismiss", "Dismiss")}
                     </button>
                   </div>
                 </div>
@@ -448,7 +502,10 @@ export function SuggestionsPanel({
                 textAlign: "center",
               }}
             >
-              Suggestions expire after 7 days. Snooze or dismiss suggestions you do not need now.
+              {t(
+                "suggestions.expireHint",
+                "Suggestions expire after 7 days. Snooze or dismiss suggestions you do not need now.",
+              )}
             </div>
           )}
         </>

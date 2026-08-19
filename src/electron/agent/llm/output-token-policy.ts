@@ -5,6 +5,7 @@ import type { LLMContent, LLMMessage } from "./types";
 
 export type OutputTokenPolicyMode = "legacy" | "adaptive";
 export type OutputBudgetRequestKind = "agentic_main" | "tool_followup" | "continuation";
+export type OutputWorkloadProfile = "chat" | "large_artifact";
 export type OutputBudgetProviderFamily =
   | "anthropic"
   | "bedrock-claude"
@@ -26,6 +27,7 @@ export interface OutputTokenPolicyInput {
   contextManager?: ContextManager | null;
   taskMaxTokens?: number | null;
   requestKind: OutputBudgetRequestKind;
+  workloadProfile?: OutputWorkloadProfile;
   phase: "initial" | "escalated";
 }
 
@@ -34,6 +36,7 @@ export interface ResolvedOutputTokenBudget {
   providerFamily: OutputBudgetProviderFamily;
   routedFamily: Exclude<OutputBudgetProviderFamily, "openrouter"> | null;
   requestKind: OutputBudgetRequestKind;
+  workloadProfile: OutputWorkloadProfile;
   transport: {
     paramName: OutputTokenParamName;
     value: number;
@@ -51,7 +54,10 @@ export interface ResolvedOutputTokenBudget {
 const DEFAULT_AGENTIC_INITIAL_MAX_TOKENS = 8_000;
 const DEFAULT_AGENTIC_ESCALATED_MAX_TOKENS = 48_000;
 const DEFAULT_TOOL_FOLLOW_UP_INITIAL_MAX_TOKENS = 16_000;
-const DEFAULT_GENERIC_ESCALATED_MAX_TOKENS = 16_000;
+const DEFAULT_CONTINUATION_MAX_TOKENS = 32_000;
+const DEFAULT_LARGE_ARTIFACT_INITIAL_MAX_TOKENS = 32_000;
+const DEFAULT_LARGE_ARTIFACT_ESCALATED_MAX_TOKENS = 64_000;
+const DEFAULT_GENERIC_ESCALATED_MAX_TOKENS = 32_000;
 const DEFAULT_ANTHROPIC_ESCALATED_MAX_TOKENS = 64_000;
 const MAX_ENV_OUTPUT_TOKEN_OVERRIDE = 128_000;
 
@@ -192,22 +198,38 @@ function getKnownHardCap(
 
 function getPolicyDefault(
   requestKind: OutputBudgetRequestKind,
+  workloadProfile: OutputWorkloadProfile,
   providerFamily: OutputBudgetProviderFamily,
   routedFamily: Exclude<OutputBudgetProviderFamily, "openrouter"> | null,
   phase: "initial" | "escalated",
 ): number {
-  const initialOverride = readEnvLimit("COWORK_LLM_AGENTIC_INITIAL_MAX_TOKENS");
-  const escalatedOverride = readEnvLimit("COWORK_LLM_AGENTIC_ESCALATED_MAX_TOKENS");
+  const initialOverride = readEnvLimit("NEOWORKER_LLM_AGENTIC_INITIAL_MAX_TOKENS");
+  const escalatedOverride = readEnvLimit("NEOWORKER_LLM_AGENTIC_ESCALATED_MAX_TOKENS");
   const effectiveFamily = routedFamily ?? providerFamily;
 
   if (phase === "escalated") {
     if (escalatedOverride !== null) return escalatedOverride;
+    if (workloadProfile === "large_artifact") {
+      return DEFAULT_LARGE_ARTIFACT_ESCALATED_MAX_TOKENS;
+    }
     if (effectiveFamily === "anthropic") return DEFAULT_ANTHROPIC_ESCALATED_MAX_TOKENS;
     if (effectiveFamily === "generic") return DEFAULT_GENERIC_ESCALATED_MAX_TOKENS;
     return DEFAULT_AGENTIC_ESCALATED_MAX_TOKENS;
   }
 
-  if (requestKind === "tool_followup" || requestKind === "continuation") {
+  if (workloadProfile === "large_artifact") {
+    if (initialOverride !== null) return initialOverride;
+    return requestKind === "continuation"
+      ? DEFAULT_LARGE_ARTIFACT_ESCALATED_MAX_TOKENS
+      : DEFAULT_LARGE_ARTIFACT_INITIAL_MAX_TOKENS;
+  }
+
+  if (requestKind === "continuation") {
+    if (initialOverride !== null) return initialOverride;
+    return DEFAULT_CONTINUATION_MAX_TOKENS;
+  }
+
+  if (requestKind === "tool_followup") {
     if (initialOverride !== null) return initialOverride;
     return DEFAULT_TOOL_FOLLOW_UP_INITIAL_MAX_TOKENS;
   }
@@ -224,10 +246,10 @@ function stripThinkingBlocks(text: string): string {
 }
 
 export function getOutputTokenPolicyMode(): OutputTokenPolicyMode {
-  const normalized = String(process.env.COWORK_LLM_OUTPUT_POLICY || "legacy")
+  const normalized = String(process.env.NEOWORKER_LLM_OUTPUT_POLICY || "adaptive")
     .trim()
     .toLowerCase();
-  return normalized === "adaptive" ? "adaptive" : "legacy";
+  return normalized === "legacy" ? "legacy" : "adaptive";
 }
 
 export function isAdaptiveOutputTokenPolicyEnabled(): boolean {
@@ -237,12 +259,64 @@ export function isAdaptiveOutputTokenPolicyEnabled(): boolean {
 export function inferOutputBudgetRequestKind(messages: LLMMessage[]): OutputBudgetRequestKind {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const content = messages[index]?.content;
+    if (
+      typeof content === "string" &&
+      /continue exactly from (?:the cutoff|where)|continue from where you left off|from the last completed section|从截断处继续|从上次中断处继续/i.test(
+        content,
+      )
+    ) {
+      return "continuation";
+    }
     if (!Array.isArray(content)) continue;
     if (content.some((item: Any) => item?.type === "tool_result")) {
       return "tool_followup";
     }
+    if (
+      content.some(
+        (item: Any) =>
+          item?.type === "text" &&
+          /continue exactly from (?:the cutoff|where)|continue from where you left off|from the last completed section|从截断处继续|从上次中断处继续/i.test(
+            String(item?.text || ""),
+          ),
+      )
+    ) {
+      return "continuation";
+    }
   }
   return "agentic_main";
+}
+
+function extractMessageText(messages: LLMMessage[]): string {
+  return messages
+    .map((message) => {
+      if (typeof message.content === "string") return message.content;
+      if (!Array.isArray(message.content)) return "";
+      return message.content
+        .filter((item: Any) => item?.type === "text" && typeof item?.text === "string")
+        .map((item: Any) => String(item.text))
+        .join("\n");
+    })
+    .join("\n");
+}
+
+/**
+ * Large deliverables need enough room to plan tool calls and to write/verify
+ * artifacts. This intentionally keys off the user's conversation rather than
+ * the generic system prompt, which mentions files for every agentic request.
+ */
+export function inferOutputWorkloadProfile(
+  messages: LLMMessage[],
+): OutputWorkloadProfile {
+  const text = extractMessageText(messages);
+  const explicitArtifact =
+    /\.(?:html?|pptx?|docx?|xlsx?|pdf|csv|md|tsx?|jsx?|py|java|go|rs)\b/i.test(text) ||
+    /(?:生成|创建|制作|编写|输出|导出|转换|修改).{0,18}(?:PPT|幻灯片|演示文稿|Word|Excel|表格|HTML|网页|网站|页面|文档|报告|文件|代码|动画|3D)/i.test(
+      text,
+    ) ||
+    /(?:create|generate|build|write|export|convert|edit).{0,32}(?:pptx?|slide deck|presentation|docx?|word document|xlsx?|spreadsheet|html|web ?page|website|document|report|file|source code|animation|3d)/i.test(
+      text,
+    );
+  return explicitArtifact ? "large_artifact" : "chat";
 }
 
 export function resolveOutputTokenParamName(opts: {
@@ -272,9 +346,12 @@ export function resolveOutputTokenBudget(
   });
   const contextLimit = estimateContextLimit(input.contextManager, input.messages, input.system);
   const taskLimit = normalizePositiveInteger(input.taskMaxTokens);
-  const envLimit = readEnvLimit("COWORK_LLM_MAX_OUTPUT_TOKENS");
+  const envLimit = readEnvLimit("NEOWORKER_LLM_MAX_OUTPUT_TOKENS");
+  const workloadProfile =
+    input.workloadProfile ?? inferOutputWorkloadProfile(input.messages);
   const policyDefault = getPolicyDefault(
     input.requestKind,
+    workloadProfile,
     providerFamily,
     routedFamily,
     input.phase,
@@ -306,6 +383,7 @@ export function resolveOutputTokenBudget(
     providerFamily,
     routedFamily,
     requestKind: input.requestKind,
+    workloadProfile,
     transport: {
       paramName: resolveOutputTokenParamName({
         providerType: input.providerType,
@@ -346,7 +424,7 @@ export function responseHasToolUse(content: LLMContent[] | undefined): boolean {
 
 export function buildReasoningExhaustedGuidance(): string {
   return (
-    "The model spent its output budget on internal reasoning and produced no usable answer. " +
-    "Retry with a higher output budget or lower reasoning intensity."
+    "已达到 NeoWorker 本轮输出预算，但模型尚未产出可用内容。" +
+    "NeoWorker 已尝试提高本轮预算；请缩小单次任务范围或降低推理强度后重试。"
   );
 }

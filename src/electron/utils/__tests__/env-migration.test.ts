@@ -145,8 +145,8 @@ describe("importProcessEnvToSettings", () => {
     expect(saved.exa.apiKey).toBe("exa-test");
   });
 
-  it("applies provider override when COWORK_LLM_PROVIDER is valid", async () => {
-    process.env.COWORK_LLM_PROVIDER = "gemini";
+  it("applies provider override when NEOWORKER_LLM_PROVIDER is valid", async () => {
+    process.env.NEOWORKER_LLM_PROVIDER = "gemini";
     process.env.GEMINI_API_KEY = "g-test";
 
     mocks.llmLoad.mockReturnValue({ providerType: "anthropic", modelKey: "opus-4-5" });

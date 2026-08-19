@@ -1,6 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
+import { X } from "lucide-react";
 import type { InstallSecurityOutcome } from "../../shared/types";
-import { isGitPluginUrl } from "../utils/plugin-store-install";
+import { classifyPluginStoreInstallSource } from "../utils/plugin-store-install";
+import { translate, useLanguage } from "../i18n";
 
 interface PackRegistryEntry {
   id: string;
@@ -35,7 +37,30 @@ function installMessage(
   return outcome.summary || fallback;
 }
 
+function urlInstallErrorMessage(
+  errorCode: string | undefined,
+  fallback: string,
+  t: typeof translate,
+): string {
+  if (errorCode === "plugin_manifest_expected_json") {
+    return t(
+      "pluginStore.error.expectedManifestJson",
+      "This address is a web page, not a plugin manifest. Use a Git repository, a direct neoworker.plugin.json link, or paste a ClawHub skill page here for automatic skill installation.",
+    );
+  }
+  if (errorCode === "plugin_manifest_invalid_json") {
+    return t(
+      "pluginStore.error.invalidManifestJson",
+      "This address did not return a valid neoworker.plugin.json manifest.",
+    );
+  }
+  return fallback;
+}
+
 export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
+  useLanguage();
+  const t = translate;
+  const titleId = useId();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
@@ -93,7 +118,11 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
         setTotal(data.total);
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to search registry");
+        setError(
+          err instanceof Error
+            ? err.message
+            : t("pluginStore.error.search", "Failed to search registry"),
+        );
         setResults([]);
       } finally {
         if (!cancelled) setLoading(false);
@@ -107,27 +136,58 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
     };
   }, [query, category, page]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   const handleInstall = async (entry: PackRegistryEntry) => {
     setInstalling(entry.id);
     setInstallResult(null);
 
     try {
-      let result: { success: boolean; packName?: string; error?: string; security?: InstallSecurityOutcome };
+      let result: {
+        success: boolean;
+        packName?: string;
+        error?: string;
+        security?: InstallSecurityOutcome;
+      };
 
       if (entry.gitUrl) {
-        result = await window.electronAPI.installPluginPackFromGit(entry.gitUrl);
+        result = await window.electronAPI.installPluginPackFromGit(
+          entry.gitUrl,
+        );
       } else if (entry.downloadUrl) {
-        result = await window.electronAPI.installPluginPackFromUrl(entry.downloadUrl);
+        result = await window.electronAPI.installPluginPackFromUrl(
+          entry.downloadUrl,
+        );
       } else {
-        result = { success: false, error: "No download URL available for this pack" };
+        result = {
+          success: false,
+          error: t(
+            "pluginStore.error.noDownload",
+            "No download URL available for this pack",
+          ),
+        };
       }
 
       setInstallResult({
         id: entry.id,
         success: result.success,
         message: result.success
-          ? installMessage(result.security, `Installed ${result.packName || entry.displayName}`)
-          : installMessage(result.security, result.error || "Install failed"),
+          ? installMessage(
+              result.security,
+              t("pluginStore.installed", "Installed {name}", {
+                name: result.packName || entry.displayName,
+              }),
+            )
+          : installMessage(
+              result.security,
+              result.error || t("pluginStore.error.install", "Install failed"),
+            ),
       });
 
       if (result.success) {
@@ -137,7 +197,10 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
       setInstallResult({
         id: entry.id,
         success: false,
-        message: err instanceof Error ? err.message : "Install failed",
+        message:
+          err instanceof Error
+            ? err.message
+            : t("pluginStore.error.install", "Install failed"),
       });
     } finally {
       setInstalling(null);
@@ -145,26 +208,49 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
   };
 
   const handleUrlInstall = async () => {
-    if (!installUrl.trim()) return;
+    const source = installUrl.trim();
+    if (!source) return;
     setInstalling("url");
     setInstallResult(null);
 
     try {
-      const isGit = isGitPluginUrl(installUrl);
-      let result: { success: boolean; packName?: string; error?: string; security?: InstallSecurityOutcome };
+      const sourceKind = classifyPluginStoreInstallSource(source);
+      let result: {
+        success: boolean;
+        packName?: string;
+        skill?: { id: string; name: string };
+        error?: string;
+        errorCode?: string;
+        security?: InstallSecurityOutcome;
+      };
 
-      if (isGit) {
-        result = await window.electronAPI.installPluginPackFromGit(installUrl);
+      if (sourceKind === "clawhub-skill") {
+        result = await window.electronAPI.installSkillFromClawHub(source);
+      } else if (sourceKind === "git-plugin") {
+        result = await window.electronAPI.installPluginPackFromGit(source);
       } else {
-        result = await window.electronAPI.installPluginPackFromUrl(installUrl);
+        result = await window.electronAPI.installPluginPackFromUrl(source);
       }
 
       setInstallResult({
         id: "url",
         success: result.success,
         message: result.success
-          ? installMessage(result.security, `Installed ${result.packName || "pack"}`)
-          : installMessage(result.security, result.error || "Install failed"),
+          ? installMessage(
+              result.security,
+              t("pluginStore.installed", "Installed {name}", {
+                name: result.packName || result.skill?.name || "pack",
+              }),
+            )
+          : installMessage(
+              result.security,
+              urlInstallErrorMessage(
+                result.errorCode,
+                result.error ||
+                  t("pluginStore.error.install", "Install failed"),
+                t,
+              ),
+            ),
       });
 
       if (result.success) {
@@ -176,7 +262,10 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
       setInstallResult({
         id: "url",
         success: false,
-        message: err instanceof Error ? err.message : "Install failed",
+        message:
+          err instanceof Error
+            ? err.message
+            : t("pluginStore.error.install", "Install failed"),
       });
     } finally {
       setInstalling(null);
@@ -200,8 +289,10 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
         id: "scaffold",
         success: result.success,
         message: result.success
-          ? `Created pack at ${result.path}`
-          : result.error || "Scaffold failed",
+          ? t("pluginStore.createdAt", "Created pack at {path}", {
+              path: result.path,
+            })
+          : result.error || t("pluginStore.error.scaffold", "Scaffold failed"),
       });
 
       if (result.success) {
@@ -214,7 +305,10 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
       setInstallResult({
         id: "scaffold",
         success: false,
-        message: err instanceof Error ? err.message : "Scaffold failed",
+        message:
+          err instanceof Error
+            ? err.message
+            : t("pluginStore.error.scaffold", "Scaffold failed"),
       });
     } finally {
       setInstalling(null);
@@ -224,16 +318,26 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
   const pageCount = Math.ceil(total / 12);
   const normalizeAuthor = (author?: string): string => {
     const trimmed = typeof author === "string" ? author.trim() : "";
-    if (!trimmed) return "Unknown";
-    return /^cowork-oss$/i.test(trimmed) ? "CoWork OS" : trimmed;
+    if (!trimmed) return t("common.unknown", "Unknown");
+    return /^neoworker$/i.test(trimmed) ? "NeoWorker" : trimmed;
   };
 
   return (
-    <div className="ps-overlay">
-      <div className="ps-container">
+    <div
+      className="ps-overlay"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="ps-container"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
         {/* Header */}
         <div className="ps-header">
-          <h2>Plugin Store</h2>
+          <h2 id={titleId}>{t("pluginStore.title", "Plugin Store")}</h2>
           <div className="ps-header-actions">
             <button
               className="ps-btn ps-btn--secondary"
@@ -242,7 +346,7 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
                 setShowInstallUrl(false);
               }}
             >
-              + Create Pack
+              {t("pluginStore.createPack", "+ Create Pack")}
             </button>
             <button
               className="ps-btn ps-btn--secondary"
@@ -251,10 +355,16 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
                 setShowScaffold(false);
               }}
             >
-              Install from URL
+              {t("pluginStore.installFromUrl", "Install from URL")}
             </button>
-            <button className="ps-close" onClick={onClose}>
-              &times;
+            <button
+              type="button"
+              className="ps-close"
+              onClick={onClose}
+              aria-label={t("common.close", "Close")}
+              title={t("common.close", "Close")}
+            >
+              <X size={18} aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -262,9 +372,17 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
         {/* Install from URL panel */}
         {showInstallUrl && (
           <div className="ps-action-panel">
-            <h4>Install from URL or Git Repository</h4>
+            <h4>
+              {t(
+                "pluginStore.installUrl.title",
+                "Install from URL or Git Repository",
+              )}
+            </h4>
             <p className="ps-hint">
-              Paste a GitHub URL (e.g., github:owner/repo) or a direct link to a cowork.plugin.json
+              {t(
+                "pluginStore.installUrl.hint",
+                "Paste a GitHub repository, a direct neoworker.plugin.json link, or a ClawHub skill page URL. ClawHub links are installed as skills automatically.",
+              )}
             </p>
             <div className="ps-input-row">
               <input
@@ -280,10 +398,15 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
                 onClick={handleUrlInstall}
                 disabled={!installUrl.trim() || installing === "url"}
               >
-                {installing === "url" ? "Installing..." : "Install"}
+                {installing === "url"
+                  ? t("pluginStore.installing", "Installing...")
+                  : t("pluginStore.install", "Install")}
               </button>
-              <button className="ps-btn ps-btn--ghost" onClick={() => setShowInstallUrl(false)}>
-                Cancel
+              <button
+                className="ps-btn ps-btn--ghost"
+                onClick={() => setShowInstallUrl(false)}
+              >
+                {t("common.cancel", "Cancel")}
               </button>
             </div>
             {installResult?.id === "url" && (
@@ -299,9 +422,12 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
         {/* Create new pack panel */}
         {showScaffold && (
           <div className="ps-action-panel">
-            <h4>Create New Plugin Pack</h4>
+            <h4>{t("pluginStore.scaffold.title", "Create New Plugin Pack")}</h4>
             <p className="ps-hint">
-              Creates a new pack skeleton in your extensions directory (~/.cowork/extensions/)
+              {t(
+                "pluginStore.scaffold.hint",
+                "Creates a new pack skeleton in your extensions directory (~/.neoworker/extensions/)",
+              )}
             </p>
             <div className="ps-scaffold-form">
               <div className="ps-input-row">
@@ -342,7 +468,7 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
                     "Product",
                   ].map((c) => (
                     <option key={c} value={c}>
-                      {c}
+                      {t(`pluginStore.category.${c}`, c)}
                     </option>
                   ))}
                 </select>
@@ -358,13 +484,20 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
                   className="ps-btn ps-btn--primary"
                   onClick={handleScaffold}
                   disabled={
-                    !scaffoldName.trim() || !scaffoldDisplayName.trim() || installing === "scaffold"
+                    !scaffoldName.trim() ||
+                    !scaffoldDisplayName.trim() ||
+                    installing === "scaffold"
                   }
                 >
-                  {installing === "scaffold" ? "Creating..." : "Create"}
+                  {installing === "scaffold"
+                    ? t("common.creating", "Creating...")
+                    : t("common.create", "Create")}
                 </button>
-                <button className="ps-btn ps-btn--ghost" onClick={() => setShowScaffold(false)}>
-                  Cancel
+                <button
+                  className="ps-btn ps-btn--ghost"
+                  onClick={() => setShowScaffold(false)}
+                >
+                  {t("common.cancel", "Cancel")}
                 </button>
               </div>
             </div>
@@ -383,7 +516,10 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
           <input
             type="text"
             className="ps-input ps-search-input"
-            placeholder="Search plugin packs..."
+            placeholder={t(
+              "pluginStore.searchPlaceholder",
+              "Search plugin packs...",
+            )}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -399,7 +535,7 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
                   setPage(1);
                 }}
               >
-                All
+                {t("common.all", "All")}
               </button>
               {categories.map((c) => (
                 <button
@@ -419,11 +555,23 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
 
         {/* Results */}
         <div className="ps-results">
-          {loading && <div className="ps-empty">Searching...</div>}
+          {loading && (
+            <div className="ps-empty">
+              {t("common.searching", "Searching...")}
+            </div>
+          )}
           {error && <div className="ps-empty ps-error">{error}</div>}
           {!loading && !error && results.length === 0 && (
             <div className="ps-empty">
-              {query ? "No packs found matching your search" : "No packs available in the registry"}
+              {query
+                ? t(
+                    "pluginStore.empty.search",
+                    "No packs found matching your search",
+                  )
+                : t(
+                    "pluginStore.empty.registry",
+                    "No packs available in the registry",
+                  )}
             </div>
           )}
 
@@ -434,22 +582,42 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
                   <span className="ps-card-icon">{entry.icon || "📦"}</span>
                   <div className="ps-card-meta">
                     <span className="ps-card-name">{entry.displayName}</span>
-                    <span className="ps-card-author">by {normalizeAuthor(entry.author)}</span>
+                    <span className="ps-card-author">
+                      {t("pluginStore.byAuthor", "by {author}", {
+                        author: normalizeAuthor(entry.author),
+                      })}
+                    </span>
                   </div>
                 </div>
                 <p className="ps-card-desc">{entry.description}</p>
                 <div className="ps-card-footer">
                   <div className="ps-card-stats">
-                    {entry.skillCount != null && <span>{entry.skillCount} skills</span>}
-                    {entry.agentCount != null && <span>{entry.agentCount} agents</span>}
-                    {entry.category && <span className="ps-card-category">{entry.category}</span>}
+                    {entry.skillCount != null && (
+                      <span>
+                        {t("pluginStore.skillCount", "{count} skills", {
+                          count: entry.skillCount,
+                        })}
+                      </span>
+                    )}
+                    {entry.agentCount != null && (
+                      <span>
+                        {t("pluginStore.agentCount", "{count} agents", {
+                          count: entry.agentCount,
+                        })}
+                      </span>
+                    )}
+                    {entry.category && (
+                      <span className="ps-card-category">{entry.category}</span>
+                    )}
                   </div>
                   <button
                     className="ps-btn ps-btn--primary ps-btn--sm"
                     onClick={() => handleInstall(entry)}
                     disabled={installing === entry.id}
                   >
-                    {installing === entry.id ? "Installing..." : "Install"}
+                    {installing === entry.id
+                      ? t("pluginStore.installing", "Installing...")
+                      : t("pluginStore.install", "Install")}
                   </button>
                 </div>
                 {installResult?.id === entry.id && (
@@ -471,17 +639,20 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
                 onClick={() => setPage(Math.max(1, page - 1))}
                 disabled={page <= 1}
               >
-                Previous
+                {t("common.previous", "Previous")}
               </button>
               <span className="ps-page-info">
-                Page {page} of {pageCount}
+                {t("pluginStore.pageInfo", "Page {page} of {pageCount}", {
+                  page,
+                  pageCount,
+                })}
               </span>
               <button
                 className="ps-btn ps-btn--ghost"
                 onClick={() => setPage(Math.min(pageCount, page + 1))}
                 disabled={page >= pageCount}
               >
-                Next
+                {t("common.next", "Next")}
               </button>
             </div>
           )}
@@ -533,6 +704,8 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
         }
 
         .ps-close {
+          width: 32px;
+          height: 32px;
           background: none;
           border: none;
           font-size: 20px;
@@ -625,7 +798,7 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
         }
 
         .ps-btn--primary {
-          background: var(--color-accent, #22d3ee);
+          background: var(--color-accent, #1e8df6);
           color: #000;
         }
 
@@ -709,9 +882,9 @@ export function PluginStore({ onClose, onInstalled }: PluginStoreProps) {
         }
 
         .ps-chip--active {
-          background: var(--color-accent, #22d3ee);
+          background: var(--color-accent, #1e8df6);
           color: #000;
-          border-color: var(--color-accent, #22d3ee);
+          border-color: var(--color-accent, #1e8df6);
         }
 
         /* Results grid */

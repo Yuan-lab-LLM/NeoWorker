@@ -2,9 +2,13 @@ import { useMemo } from "react";
 import { Bug } from "lucide-react";
 import type { TaskEvent } from "../../shared/types";
 import { DEBUG_PHASE_ORDER, type DebugPhase } from "../../shared/debug-mode";
+import { translate, useLanguage } from "../i18n";
 
 function isDebugPhase(value: unknown): value is DebugPhase {
-  return typeof value === "string" && (DEBUG_PHASE_ORDER as readonly string[]).includes(value);
+  return (
+    typeof value === "string" &&
+    (DEBUG_PHASE_ORDER as readonly string[]).includes(value)
+  );
 }
 
 export interface DebugSessionPanelProps {
@@ -15,25 +19,55 @@ export interface DebugSessionPanelProps {
  * Summary strip for tasks created in Debug execution mode: phase, ingest URL, loop stages.
  */
 export function DebugSessionPanel({ events }: DebugSessionPanelProps) {
-  const { ingestUrl, activePhase, lastRuntimeTrace, lastPromptStack, lastConsolidation, lastSessionFork } =
-    useMemo(() => {
+  useLanguage();
+  const t = translate;
+  const {
+    ingestUrl,
+    activePhase,
+    lastRuntimeTrace,
+    lastPromptStack,
+    lastConsolidation,
+    lastSessionFork,
+  } = useMemo(() => {
     let ingest: string | null = null;
     let phase: DebugPhase = "hypothesize";
     let phaseFound = false;
-    let runtimeTrace: { tool: string; decision: string; status: string } | null = null;
-    let promptStack: { memoryIndexInjected: boolean; topicCount: number } | null = null;
+    let runtimeTrace: {
+      tool: string;
+      decision: string;
+      status: string;
+    } | null = null;
+    let promptStack: {
+      memoryIndexInjected: boolean;
+      topicCount: number;
+    } | null = null;
     let consolidation: { topicCount?: number; skipped?: boolean } | null = null;
-    let sessionFork: { sourceTaskId?: string; branchLabel?: string } | null = null;
+    let sessionFork: { sourceTaskId?: string; branchLabel?: string } | null =
+      null;
     for (let i = events.length - 1; i >= 0; i--) {
       const e = events[i];
       const payload = e.payload as Record<string, unknown> | undefined;
-      if (!ingest && e.type === "timeline_evidence_attached" && payload?.debugIngestUrl) {
+      if (
+        !ingest &&
+        e.type === "timeline_evidence_attached" &&
+        payload?.debugIngestUrl
+      ) {
         const refs = payload.evidenceRefs;
-        if (Array.isArray(refs) && refs[0] && typeof (refs[0] as { sourceUrlOrPath?: string }).sourceUrlOrPath === "string") {
+        if (
+          Array.isArray(refs) &&
+          refs[0] &&
+          typeof (refs[0] as { sourceUrlOrPath?: string }).sourceUrlOrPath ===
+            "string"
+        ) {
           ingest = (refs[0] as { sourceUrlOrPath: string }).sourceUrlOrPath;
         }
       }
-      if (!phaseFound && e.type === "timeline_step_started" && payload?.debugPhase && isDebugPhase(payload.debugPhase)) {
+      if (
+        !phaseFound &&
+        e.type === "timeline_step_started" &&
+        payload?.debugPhase &&
+        isDebugPhase(payload.debugPhase)
+      ) {
         phase = payload.debugPhase;
         phaseFound = true;
       }
@@ -53,8 +87,12 @@ export function DebugSessionPanel({ events }: DebugSessionPanelProps) {
             : null;
         runtimeTrace = {
           tool: payload.tool,
-          decision: typeof trace?.finalDecision === "string" ? trace.finalDecision : "allow",
-          status: typeof envelope?.status === "string" ? envelope.status : "unknown",
+          decision:
+            typeof trace?.finalDecision === "string"
+              ? trace.finalDecision
+              : "allow",
+          status:
+            typeof envelope?.status === "string" ? envelope.status : "unknown",
         };
       }
       if (
@@ -64,7 +102,8 @@ export function DebugSessionPanel({ events }: DebugSessionPanelProps) {
       ) {
         promptStack = {
           memoryIndexInjected: payload?.memoryIndexInjected === true,
-          topicCount: typeof payload?.topicCount === "number" ? payload.topicCount : 0,
+          topicCount:
+            typeof payload?.topicCount === "number" ? payload.topicCount : 0,
         };
       }
       if (
@@ -76,7 +115,10 @@ export function DebugSessionPanel({ events }: DebugSessionPanelProps) {
       ) {
         const result = payload.consolidation as Record<string, unknown>;
         consolidation = {
-          topicCount: typeof result.topicCount === "number" ? result.topicCount : undefined,
+          topicCount:
+            typeof result.topicCount === "number"
+              ? result.topicCount
+              : undefined,
           skipped: result.skipped === true,
         };
       }
@@ -87,11 +129,23 @@ export function DebugSessionPanel({ events }: DebugSessionPanelProps) {
       ) {
         sessionFork = {
           sourceTaskId:
-            typeof payload?.sourceTaskId === "string" ? payload.sourceTaskId : undefined,
-          branchLabel: typeof payload?.branchLabel === "string" ? payload.branchLabel : undefined,
+            typeof payload?.sourceTaskId === "string"
+              ? payload.sourceTaskId
+              : undefined,
+          branchLabel:
+            typeof payload?.branchLabel === "string"
+              ? payload.branchLabel
+              : undefined,
         };
       }
-      if (ingest && phaseFound && runtimeTrace && promptStack && consolidation && sessionFork) {
+      if (
+        ingest &&
+        phaseFound &&
+        runtimeTrace &&
+        promptStack &&
+        consolidation &&
+        sessionFork
+      ) {
         break;
       }
     }
@@ -119,9 +173,17 @@ export function DebugSessionPanel({ events }: DebugSessionPanelProps) {
         background: "var(--color-bg-elevated, rgba(99, 102, 241, 0.06))",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, fontSize: "0.8rem" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontWeight: 600,
+          fontSize: "0.8rem",
+        }}
+      >
         <Bug size={16} strokeWidth={2} aria-hidden />
-        <span>Debug mode</span>
+        <span>{t("debugSession.mode", "Debug mode")}</span>
         <span
           style={{
             marginLeft: "auto",
@@ -130,17 +192,26 @@ export function DebugSessionPanel({ events }: DebugSessionPanelProps) {
             color: "var(--color-text-muted, #6b7280)",
           }}
         >
-          Phase: {activePhase}
+          {t("debugSession.phase", "Phase: {phase}", { phase: activePhase })}
         </span>
       </div>
-      <div style={{ fontSize: "0.75rem", color: "var(--color-text-muted, #6b7280)", lineHeight: 1.45 }}>
-        Hypothesize → instrument → reproduce → analyze logs → targeted fix → verify → remove{" "}
-        <code style={{ fontSize: "0.7rem" }}>cowork-debug</code> markers. Use structured prompts when the agent asks
-        you to reproduce or confirm.
+      <div
+        style={{
+          fontSize: "0.75rem",
+          color: "var(--color-text-muted, #6b7280)",
+          lineHeight: 1.45,
+        }}
+      >
+        {t(
+          "debugSession.loopDescription",
+          "Hypothesize → instrument → reproduce → analyze logs → targeted fix → verify → remove neoworker-debug markers. Use structured prompts when the agent asks you to reproduce or confirm.",
+        )}
       </div>
       {ingestUrl ? (
         <div style={{ fontSize: "0.72rem" }}>
-          <span style={{ fontWeight: 600 }}>Runtime ingest: </span>
+          <span style={{ fontWeight: 600 }}>
+            {t("debugSession.runtimeIngest", "Runtime ingest: ")}{" "}
+          </span>
           <code
             style={{
               wordBreak: "break-all",
@@ -154,33 +225,74 @@ export function DebugSessionPanel({ events }: DebugSessionPanelProps) {
           </code>
         </div>
       ) : (
-        <div style={{ fontSize: "0.72rem", color: "var(--color-text-muted, #6b7280)" }}>
-          Starting debug runtime collector…
+        <div
+          style={{
+            fontSize: "0.72rem",
+            color: "var(--color-text-muted, #6b7280)",
+          }}
+        >
+          {t(
+            "debugSession.startingRuntimeCollector",
+            "Starting debug runtime collector…",
+          )}
         </div>
       )}
-      <div style={{ fontSize: "0.68rem", color: "var(--color-text-muted, #8b8fa3)" }}>
-        Stages: {DEBUG_PHASE_ORDER.join(" → ")}
+      <div
+        style={{
+          fontSize: "0.68rem",
+          color: "var(--color-text-muted, #8b8fa3)",
+        }}
+      >
+        {t("debugSession.stages", "Stages: {stages}", {
+          stages: DEBUG_PHASE_ORDER.join(" → "),
+        })}
       </div>
       {lastRuntimeTrace ? (
-        <div style={{ fontSize: "0.68rem", color: "var(--color-text-muted, #8b8fa3)" }}>
-          Runtime: <code>{lastRuntimeTrace.tool}</code> · decision {lastRuntimeTrace.decision} · status{" "}
-          {lastRuntimeTrace.status}
+        <div
+          style={{
+            fontSize: "0.68rem",
+            color: "var(--color-text-muted, #8b8fa3)",
+          }}
+        >
+          {t("debugSession.runtime", "Runtime:")}{" "}
+          <code>{lastRuntimeTrace.tool}</code> ·{" "}
+          {t("debugSession.decision", "decision")} {lastRuntimeTrace.decision} ·{" "}
+          {t("debugSession.status", "status")} {lastRuntimeTrace.status}
         </div>
       ) : null}
       {lastPromptStack ? (
-        <div style={{ fontSize: "0.68rem", color: "var(--color-text-muted, #8b8fa3)" }}>
-          Prompt stack: memory index {lastPromptStack.memoryIndexInjected ? "on" : "off"} · topics{" "}
-          {lastPromptStack.topicCount}
+        <div
+          style={{
+            fontSize: "0.68rem",
+            color: "var(--color-text-muted, #8b8fa3)",
+          }}
+        >
+          {t("debugSession.promptStack", "Prompt stack:")}{" "}
+          {t("debugSession.memoryIndex", "memory index")}{" "}
+          {lastPromptStack.memoryIndexInjected
+            ? t("common.on", "on")
+            : t("common.off", "off")}{" "}
+          · {t("debugSession.topics", "topics")} {lastPromptStack.topicCount}
         </div>
       ) : null}
       {lastConsolidation ? (
-        <div style={{ fontSize: "0.68rem", color: "var(--color-text-muted, #8b8fa3)" }}>
-          Consolidation: {lastConsolidation.skipped ? "skipped" : "completed"} · topics{" "}
-          {lastConsolidation.topicCount ?? 0}
+        <div
+          style={{
+            fontSize: "0.68rem",
+            color: "var(--color-text-muted, #8b8fa3)",
+          }}
+        >
+          Consolidation: {lastConsolidation.skipped ? "skipped" : "completed"} ·
+          topics {lastConsolidation.topicCount ?? 0}
         </div>
       ) : null}
       {lastSessionFork ? (
-        <div style={{ fontSize: "0.68rem", color: "var(--color-text-muted, #8b8fa3)" }}>
+        <div
+          style={{
+            fontSize: "0.68rem",
+            color: "var(--color-text-muted, #8b8fa3)",
+          }}
+        >
           Session fork: {lastSessionFork.branchLabel || "unnamed"} from{" "}
           <code>{lastSessionFork.sourceTaskId || "unknown"}</code>
         </div>

@@ -1,6 +1,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import { Workspace } from "../../../shared/types";
 
 export interface SheetData {
@@ -19,6 +20,57 @@ export interface SpreadsheetOptions {
   addFilters?: boolean;
   /** Freeze the header row */
   freezeHeader?: boolean;
+}
+
+const XLSX_FONT_CHILD_ORDER = [
+  "b",
+  "i",
+  "strike",
+  "outline",
+  "shadow",
+  "condense",
+  "extend",
+  "sz",
+  "color",
+  "u",
+  "vertAlign",
+  "name",
+  "charset",
+  "family",
+  "scheme",
+];
+
+function normalizeFontChildOrder(stylesXml: string): string {
+  const childPattern =
+    /<(?:name|charset|family|b|i|strike|outline|shadow|condense|extend|color|sz|u|vertAlign|scheme)\b[^>]*\/>/g;
+  return stylesXml.replace(/<font>([\s\S]*?)<\/font>/g, (fontXml, children: string) => {
+    const tags = children.match(childPattern);
+    if (!tags || tags.length < 2) return fontXml;
+    const unparsed = children.replace(childPattern, "").trim();
+    if (unparsed) return fontXml;
+    const rank = (tag: string) => {
+      const name = tag.match(/^<([A-Za-z]+)/)?.[1] || "";
+      const index = XLSX_FONT_CHILD_ORDER.indexOf(name);
+      return index < 0 ? XLSX_FONT_CHILD_ORDER.length : index;
+    };
+    return `<font>${tags.sort((a, b) => rank(a) - rank(b)).join("")}</font>`;
+  });
+}
+
+async function normalizeWorkbookOpenXml(outputPath: string): Promise<void> {
+  const workbookBuffer = await fs.readFile(outputPath);
+  const archive = await JSZip.loadAsync(workbookBuffer);
+  const stylesPart = archive.file("xl/styles.xml");
+  if (!stylesPart) return;
+  const originalStyles = await stylesPart.async("string");
+  const normalizedStyles = normalizeFontChildOrder(originalStyles);
+  if (normalizedStyles === originalStyles) return;
+  archive.file("xl/styles.xml", normalizedStyles);
+  const normalizedWorkbook = await archive.generateAsync({
+    type: "nodebuffer",
+    compression: "DEFLATE",
+  });
+  await fs.writeFile(outputPath, normalizedWorkbook);
 }
 
 /**
@@ -46,11 +98,31 @@ export class SpreadsheetBuilder {
 
     // Create Excel workbook
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = "CoWork OS";
+    workbook.creator = "NeoWorker";
     workbook.created = new Date();
 
     for (const sheetData of sheets) {
-      const worksheet = workbook.addWorksheet(sheetData.name);
+      const worksheet = workbook.addWorksheet(sheetData.name, {
+        properties: {
+          defaultRowHeight: 21,
+          tabColor: { argb: "FF2F6FEB" },
+        },
+        views: [{ showGridLines: false }],
+        pageSetup: {
+          fitToPage: true,
+          fitToWidth: 1,
+          fitToHeight: 0,
+          orientation: "landscape",
+          margins: {
+            left: 0.35,
+            right: 0.35,
+            top: 0.5,
+            bottom: 0.5,
+            header: 0.2,
+            footer: 0.2,
+          },
+        },
+      });
 
       // Add all rows
       for (let rowIndex = 0; rowIndex < sheetData.data.length; rowIndex++) {
@@ -72,11 +144,47 @@ export class SpreadsheetBuilder {
 
         // Style header row if specified
         if (rowIndex === 0 && sheetData.hasHeader !== false) {
-          row.font = { bold: true };
+          row.height = 28;
+          row.font = {
+            bold: true,
+            color: { argb: "FFFFFFFF" },
+          };
           row.fill = {
             type: "pattern",
             pattern: "solid",
-            fgColor: { argb: "FFE0E0E0" },
+            fgColor: { argb: "FF24466F" },
+          };
+          row.alignment = { vertical: "middle" };
+        } else {
+          row.height = 22;
+          row.font = { color: { argb: "FF26374A" } };
+          row.alignment = { vertical: "middle", wrapText: true };
+          if (rowIndex % 2 === 0) {
+            row.fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: "FFF6F9FD" },
+            };
+          }
+        }
+
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          cell.border = {
+            bottom: { style: "hair", color: { argb: "FFD7E1EC" } },
+          };
+          cell.alignment = {
+            ...cell.alignment,
+            vertical: "middle",
+            wrapText: rowIndex !== 0,
+          };
+        });
+
+        if (rowIndex > 0) {
+          const firstCell = row.getCell(1);
+          firstCell.font = {
+            ...firstCell.font,
+            bold: true,
+            color: { argb: "FF173B67" },
           };
         }
       }
@@ -103,7 +211,7 @@ export class SpreadsheetBuilder {
       }
 
       // Add filters to header row
-      if (options.addFilters && sheetData.data.length > 0) {
+      if (options.addFilters !== false && sheetData.data.length > 0) {
         const lastColumn = sheetData.data[0].length;
         const lastRow = sheetData.data.length;
         worksheet.autoFilter = {
@@ -114,12 +222,18 @@ export class SpreadsheetBuilder {
 
       // Freeze header row
       if (options.freezeHeader !== false && sheetData.data.length > 0) {
-        worksheet.views = [{ state: "frozen", ySplit: 1 }];
+        worksheet.views = [{ state: "frozen", ySplit: 1, showGridLines: false }];
       }
+
+      worksheet.pageSetup.printTitlesRow = "1:1";
     }
 
     // Write the file
     await workbook.xlsx.writeFile(outputPath);
+    // ExcelJS writes the default font children in an order tolerated by Excel but
+    // rejected by strict OpenXML validators. Normalize the styles part so generated
+    // workbooks pass OfficeCLI/OpenXML validation as well as opening in Excel/WPS.
+    await normalizeWorkbookOpenXml(outputPath);
   }
 
   /**

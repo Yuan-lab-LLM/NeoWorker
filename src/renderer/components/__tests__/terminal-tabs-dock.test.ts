@@ -2,8 +2,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const componentPath = fileURLToPath(new URL("../TerminalTabsDock.tsx", import.meta.url));
-const stylesPath = fileURLToPath(new URL("../terminal-tabs-dock.css", import.meta.url));
+const componentPath = fileURLToPath(
+  new URL("../TerminalTabsDock.tsx", import.meta.url),
+);
+const stylesPath = fileURLToPath(
+  new URL("../terminal-tabs-dock.css", import.meta.url),
+);
 
 describe("TerminalTabsDock", () => {
   it("captures command entry inside xterm instead of rendering a bottom command bar", () => {
@@ -27,7 +31,9 @@ describe("TerminalTabsDock", () => {
     expect(source).not.toContain("BROWSER_OPEN_PROMPT_PATTERN");
     expect(source).not.toContain("runTerminalTabCommand");
     expect(source).not.toContain("commandDraft");
-    expect(source).toContain('window.addEventListener("focus", focusActiveTerminal)');
+    expect(source).toContain(
+      'window.addEventListener("focus", focusActiveTerminal)',
+    );
     expect(source).toContain("onMouseDown={focusActiveTerminal}");
     expect(source).toContain("setError(null)");
     expect(source).toContain("Failed to send input.");

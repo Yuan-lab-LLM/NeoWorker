@@ -115,7 +115,7 @@ describe("BedrockProvider", () => {
             },
           ],
         },
-        { role: "user", content: "<cowork_memory_recall>\ncontext\n</cowork_memory_recall>" },
+        { role: "user", content: "<neoworker_memory_recall>\ncontext\n</neoworker_memory_recall>" },
         {
           role: "user",
           content: [
@@ -148,7 +148,7 @@ describe("BedrockProvider", () => {
     expect(capturedConverseInput.messages[2].content).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          text: "<cowork_memory_recall>\ncontext\n</cowork_memory_recall>",
+          text: "<neoworker_memory_recall>\ncontext\n</neoworker_memory_recall>",
         }),
       ]),
     );

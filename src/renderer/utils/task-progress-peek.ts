@@ -1,5 +1,6 @@
 import type { PlanStep, Task, TaskEvent } from "../../shared/types";
 import { getEffectiveTaskEventType } from "./task-event-compat";
+import { localizeProgressText } from "./localized-progress-text";
 
 export type TaskProgressPeekStatus =
   | "working"
@@ -77,26 +78,34 @@ export function humanizeProgressStepDescription(description: string): string {
     const skillName = useSkillMatch[1]
       .replace(/[-_]/g, " ")
       .replace(/\b\w/g, (c) => c.toUpperCase());
-    return `Run the ${skillName} skill`;
+    return localizeProgressText(`Run the ${skillName} skill`);
   }
 
   if (/use\s+request_user_input\b/i.test(cleaned)) {
-    const rest = cleaned.replace(/use\s+request_user_input\s+(to\s+)?/i, "").trim();
-    return rest.length > 4 ? capitalize(rest) : "Collect details from you";
+    const rest = cleaned
+      .replace(/use\s+request_user_input\s+(to\s+)?/i, "")
+      .trim();
+    return localizeProgressText(
+      rest.length > 4 ? capitalize(rest) : "Collect details from you",
+    );
   }
 
-  const rawToolCallMatch = cleaned.match(/^\s*(?:assistant\s+)?to=([a-z_][\w-]*)\b/i);
+  const rawToolCallMatch = cleaned.match(
+    /^\s*(?:assistant\s+)?to=([a-z_][\w-]*)\b/i,
+  );
   if (rawToolCallMatch) {
-    return capitalize(rawToolCallMatch[1].replace(/_/g, " "));
+    return localizeProgressText(
+      capitalize(rawToolCallMatch[1].replace(/_/g, " ")),
+    );
   }
 
-  return cleaned;
+  return localizeProgressText(cleaned);
 }
 
 function formatRelativeTime(timestamp: number, now: number): string {
   if (!Number.isFinite(timestamp) || timestamp <= 0) return "";
   const diffMs = Math.max(0, now - timestamp);
-  if (diffMs < 45_000) return "just now";
+  if (diffMs < 45_000) return localizeProgressText("just now");
   const minutes = Math.floor(diffMs / 60_000);
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
@@ -119,11 +128,14 @@ function formatStepDuration(step: PlanStep): string | null {
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
-  return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+  return remainingSeconds > 0
+    ? `${minutes}m ${remainingSeconds}s`
+    : `${minutes}m`;
 }
 
 function getStepFromPayload(event: TaskEvent): Record<string, unknown> {
-  const payload = event.payload && typeof event.payload === "object" ? event.payload : {};
+  const payload =
+    event.payload && typeof event.payload === "object" ? event.payload : {};
   const step = payload.step;
   return step && typeof step === "object" && !Array.isArray(step)
     ? (step as Record<string, unknown>)
@@ -131,7 +143,8 @@ function getStepFromPayload(event: TaskEvent): Record<string, unknown> {
 }
 
 function getPayloadString(event: TaskEvent, key: string): string {
-  const payload = event.payload && typeof event.payload === "object" ? event.payload : {};
+  const payload =
+    event.payload && typeof event.payload === "object" ? event.payload : {};
   const value = payload[key];
   return typeof value === "string" ? value.trim() : "";
 }
@@ -161,48 +174,67 @@ function getActivityForEvent(
       ? humanizeProgressStepDescription(stepPayload.description)
       : "";
   const message = cleanInlineText(getPayloadString(event, "message"));
-  const reason = cleanInlineText(getPayloadString(event, "reason") || getPayloadString(event, "error"));
+  const reason = cleanInlineText(
+    getPayloadString(event, "reason") || getPayloadString(event, "error"),
+  );
 
-  if (effectiveType === "step_started" || event.type === "timeline_step_started") {
+  if (
+    effectiveType === "step_started" ||
+    event.type === "timeline_step_started"
+  ) {
     return {
-      label: stepDescription || message || "Started a step",
+      label:
+        stepDescription ||
+        localizeProgressText(message) ||
+        localizeProgressText("Started a step"),
       tone: "active",
       timeLabel: formatRelativeTime(event.timestamp, now),
     };
   }
-  if (effectiveType === "step_completed" || event.type === "timeline_step_finished") {
+  if (
+    effectiveType === "step_completed" ||
+    event.type === "timeline_step_finished"
+  ) {
     return {
-      label: stepDescription ? `Completed ${stepDescription}` : message || "Completed a step",
+      label: stepDescription
+        ? localizeProgressText(`Completed ${stepDescription}`)
+        : localizeProgressText(message || "Completed a step"),
       tone: "success",
       timeLabel: formatRelativeTime(event.timestamp, now),
     };
   }
   if (effectiveType === "step_failed") {
     return {
-      label: reason || (stepDescription ? `Failed ${stepDescription}` : "Step failed"),
+      label: localizeProgressText(
+        reason ||
+          (stepDescription ? `Failed ${stepDescription}` : "Step failed"),
+      ),
       tone: "danger",
       timeLabel: formatRelativeTime(event.timestamp, now),
     };
   }
   if (effectiveType === "approval_requested") {
     return {
-      label: message || "Waiting for approval",
+      label: localizeProgressText(message || "Waiting for approval"),
       tone: "warning",
       timeLabel: formatRelativeTime(event.timestamp, now),
     };
   }
   if (effectiveType === "error" || event.type === "timeline_error") {
     return {
-      label: reason || message || "Error reported",
+      label: localizeProgressText(reason || message || "Error reported"),
       tone: "danger",
       timeLabel: formatRelativeTime(event.timestamp, now),
     };
   }
-  if (effectiveType === "progress_update" || event.type === "timeline_step_updated") {
+  if (
+    effectiveType === "progress_update" ||
+    event.type === "timeline_step_updated"
+  ) {
     const label = message || stepDescription;
     if (!isUserFacingProgressMessage(label)) return null;
     return {
-      label,
+      label: localizeProgressText(label),
       tone: "neutral",
       timeLabel: formatRelativeTime(event.timestamp, now),
     };
@@ -210,14 +242,24 @@ function getActivityForEvent(
   return null;
 }
 
-function deriveStatus(task: Task | null | undefined, isTaskWorking: boolean): TaskProgressPeekStatus {
+function deriveStatus(
+  task: Task | null | undefined,
+  isTaskWorking: boolean,
+): TaskProgressPeekStatus {
   if (!task) return "idle";
-  if (task.terminalStatus === "awaiting_approval" || task.status === "blocked") return "waiting";
-  if (isTaskWorking || task.status === "executing" || task.status === "planning") return "working";
+  if (task.terminalStatus === "awaiting_approval" || task.status === "blocked")
+    return "waiting";
+  if (
+    isTaskWorking ||
+    task.status === "executing" ||
+    task.status === "planning"
+  )
+    return "working";
   if (task.status === "completed") return "completed";
   if (task.status === "failed") return "failed";
   if (task.status === "cancelled") return "cancelled";
-  if (task.status === "paused" || task.status === "interrupted") return "paused";
+  if (task.status === "paused" || task.status === "interrupted")
+    return "paused";
   if (task.status === "blocked") return "blocked";
   return "idle";
 }
@@ -225,20 +267,20 @@ function deriveStatus(task: Task | null | undefined, isTaskWorking: boolean): Ta
 function getStatusLabel(status: TaskProgressPeekStatus): string {
   switch (status) {
     case "working":
-      return "In progress";
+      return localizeProgressText("In progress");
     case "completed":
-      return "Completed";
+      return localizeProgressText("Completed");
     case "failed":
-      return "Failed";
+      return localizeProgressText("Failed");
     case "cancelled":
-      return "Cancelled";
+      return localizeProgressText("Cancelled");
     case "paused":
-      return "Paused";
+      return localizeProgressText("Paused");
     case "blocked":
     case "waiting":
-      return "Waiting";
+      return localizeProgressText("Waiting");
     default:
-      return "Activity";
+      return localizeProgressText("Activity");
   }
 }
 
@@ -268,8 +310,10 @@ export function deriveTaskProgressPeekModel({
     totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : null;
   const progressText =
     totalCount > 0
-      ? `${completedCount} of ${totalCount} steps complete${failedCount > 0 ? `, ${failedCount} failed` : ""}`
-      : "No plan steps yet";
+      ? localizeProgressText(
+          `${completedCount} of ${totalCount} steps complete${failedCount > 0 ? `, ${failedCount} failed` : ""}`,
+        )
+      : localizeProgressText("No plan steps yet");
 
   const activeStep =
     steps.find((step) => step.status === "in_progress") ||
@@ -279,7 +323,11 @@ export function deriveTaskProgressPeekModel({
 
   const recentActivity: TaskProgressPeekActivity[] = [];
   const seenLabels = new Set<string>();
-  for (let index = events.length - 1; index >= 0 && recentActivity.length < maxRecentActivity; index -= 1) {
+  for (
+    let index = events.length - 1;
+    index >= 0 && recentActivity.length < maxRecentActivity;
+    index -= 1
+  ) {
     const event = events[index];
     if (task?.id && event.taskId !== task.id) continue;
     const activity = getActivityForEvent(event, now);
@@ -289,7 +337,10 @@ export function deriveTaskProgressPeekModel({
     if (seenLabels.has(signature)) continue;
     seenLabels.add(signature);
     recentActivity.unshift({
-      id: event.id || event.eventId || `${event.type}:${event.timestamp}:${index}`,
+      id:
+        event.id ||
+        event.eventId ||
+        `${event.type}:${event.timestamp}:${index}`,
       ...activity,
       label,
     });

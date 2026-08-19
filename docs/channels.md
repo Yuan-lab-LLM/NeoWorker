@@ -1,24 +1,20 @@
 # Channel Integrations
 
-CoWork OS supports 17 messaging channels. All channels share these common features:
+NeoWorker supports 17 messaging channels. All channels share these common features:
 
 - Security modes (pairing, allowlist, open)
 - Brute-force protection
 - Session management
 - Rate limiting
-- Inbound attachment persistence (files saved to `.cowork/inbox/attachments/`)
+- Inbound attachment persistence (files saved to `.neoworker/inbox/attachments/`)
 - Shared message lifecycle for commands, active tasks, follow-ups, progress delivery, cancellations, and scheduled outputs
 - **Ambient mode**: Passively ingest all messages without responding; enable per-channel in settings
 - **Self-message capture**: Capture your own outgoing messages as context (`captureSelfMessages` on WhatsApp, iMessage, BlueBubbles)
 - **Per-channel routing policy**: Channels can restrict who can talk to the agent, which workspaces/roles they route into, how group/server traffic is filtered, and how much mid-task progress is relayed back into the channel
 - **Channel specialization**: Route a whole channel, one chat/group, or one topic/thread to a specific workspace, agent role, prompt guidance, tool restrictions, and optional shared-memory policy
 
-See [Gateway Message Lifecycle](gateway-message-lifecycle.md) for the shared routing, command, active-task, skill-slash, delivery, and scheduled-output behavior. For day-to-day usage examples, see [Using CoWork from WhatsApp and Other Channels](gateway-user-guide.md). For per-channel feature and best-practice guides, see [Channel User Guides](channel-user-guides.md) and the [dedicated channel guide index](channel-guides/).
+See [Gateway Message Lifecycle](gateway-message-lifecycle.md) for the shared routing, command, active-task, skill-slash, delivery, and scheduled-output behavior. For day-to-day usage examples, see [Using NeoWorker from WhatsApp and Other Channels](gateway-user-guide.md). For per-channel feature and best-practice guides, see [Channel User Guides](channel-user-guides.md) and the [dedicated channel guide index](channel-guides/).
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-12.webp" alt="Messaging channel setup" width="700">
-  <br><em>Channel settings support provider setup plus per-channel routing, prompts, and security behavior.</em>
-</p>
 
 ### Common Remote Commands
 
@@ -90,7 +86,7 @@ QR code pairing via Baileys library for Web WhatsApp connections.
 
 WhatsApp uses the shared gateway lifecycle after connection. `/new` and `/newtask` unlink the chat from the current task; `/new temp` starts a scratch temporary workspace session; `/stop` and `/cancel` cancel the active task. Temporary workspaces are hidden from `/workspaces` and from the `/new temp` acknowledgement.
 
-WhatsApp supports typing indicators and editable task-progress messages. CoWork edits the current progress message when possible and falls back to a new message if the provider rejects the edit.
+WhatsApp supports typing indicators and editable task-progress messages. NeoWorker edits the current progress message when possible and falls back to a new message if the provider rejects the edit.
 
 ### Setup
 
@@ -190,7 +186,7 @@ The agent can fetch messages and download attachments directly from Discord, not
 
 | Tool | Description |
 |------|-------------|
-| `channel_fetch_discord_messages` | Fetch up to 100 recent messages from a channel via the live Discord API. Use when you need messages that have not passed through CoWork yet. Messages with attachments are marked `+Natt`. |
+| `channel_fetch_discord_messages` | Fetch up to 100 recent messages from a channel via the live Discord API. Use when you need messages that have not passed through NeoWorker yet. Messages with attachments are marked `+Natt`. |
 | `channel_download_discord_attachment` | Download all attachments from a specific message to the local inbox. Returns file paths for `read_file`. Use when `channel_fetch_discord_messages` shows a message has attachments. |
 
 **Typical flow:** Use `channel_list_chats` with `channel: "discord"` to discover chat IDs, then `channel_fetch_discord_messages` for live history, and `channel_download_discord_attachment` for any message with attachments.
@@ -207,7 +203,7 @@ See [Supervisor Mode on Discord](supervisor-mode-discord.md).
 
 Socket Mode integration with channel mentions, file uploads, and optional curated progress relays.
 
-Slack uses the shared gateway lifecycle for DMs, mentions, and registered Slack slash commands. Slack only sends slash command payloads for commands registered in the Slack app, so add the core commands listed in [Using CoWork from WhatsApp and Other Channels](gateway-user-guide.md#slack-tips) when configuring the app.
+Slack uses the shared gateway lifecycle for DMs, mentions, and registered Slack slash commands. Slack only sends slash command payloads for commands registered in the Slack app, so add the core commands listed in [Using NeoWorker from WhatsApp and Other Channels](gateway-user-guide.md#slack-tips) when configuring the app.
 
 ### Setup
 
@@ -220,7 +216,7 @@ Slack uses the shared gateway lifecycle for DMs, mentions, and registered Slack 
 
 ### Multiple Workspaces
 
-CoWork can now keep more than one Slack installation active in the same profile:
+NeoWorker can now keep more than one Slack installation active in the same profile:
 
 - add each Slack workspace as its own Slack channel entry
 - select the workspace inside Slack settings to test, toggle, revoke, or remove it
@@ -228,7 +224,7 @@ CoWork can now keep more than one Slack installation active in the same profile:
 
 ### Slack Channel Specialization
 
-Slack channels can be specialized per Slack installation. This lets a `#support`, `#launch`, or `#engineering-reviews` channel route into its expected CoWork workspace, agent role, guidance, and tool policy without relying on every user to pick the right workspace first.
+Slack channels can be specialized per Slack installation. This lets a `#support`, `#launch`, or `#engineering-reviews` channel route into its expected NeoWorker workspace, agent role, guidance, and tool policy without relying on every user to pick the right workspace first.
 
 ### Progress Relay Modes
 
@@ -237,7 +233,7 @@ Slack exposes a per-workspace **Progress Updates** setting:
 - **Minimal** - suppress most executor chatter and only relay compact status updates
 - **Curated middle steps** - convert selected planning and execution events into short human-readable updates while the task is running
 
-Curated mode keeps streaming assistant output separate from the transient relay. When Slack supports message editing, CoWork reuses a single progress message for non-streaming status updates and clears it when the task pauses for approval/input or reaches a terminal state.
+Curated mode keeps streaming assistant output separate from the transient relay. When Slack supports message editing, NeoWorker reuses a single progress message for non-streaming status updates and clears it when the task pauses for approval/input or reaches a terminal state.
 
 ---
 
@@ -250,7 +246,7 @@ Webhook-based enterprise messaging integration for Feishu and Lark.
 1. Create a Feishu/Lark app and enable bot + event subscriptions
 2. Copy the App ID, App Secret, verification token, and encryption key
 3. Configure the channel in **Settings** > **Channels** > **Feishu / Lark**
-4. Set the callback URL shown by CoWork in the Feishu/Lark developer console
+4. Set the callback URL shown by NeoWorker in the Feishu/Lark developer console
 5. Enable and test
 
 ### Notes
@@ -269,7 +265,7 @@ Enterprise WeCom gateway integration with signed/encrypted event handling.
 1. Create a WeCom app in your WeCom admin console
 2. Copy the Corp ID, Agent ID, Secret, token, and EncodingAESKey
 3. Configure the channel in **Settings** > **Channels** > **WeCom**
-4. Set the callback URL shown by CoWork in WeCom
+4. Set the callback URL shown by NeoWorker in WeCom
 5. Enable and test
 
 ### Notes
@@ -295,7 +291,7 @@ Bot Framework SDK with DM/channel mentions and adaptive cards.
 2. **Get Bot Credentials** — copy the Microsoft App ID, then create and copy a client secret under Certificates & secrets
 3. **Add Teams Channel** — in the Bot resource, go to Channels and enable Microsoft Teams
 4. **Set Up Webhook** (for local dev): `ngrok http 3978` — set messaging endpoint to `https://your-ngrok-url/api/messages`
-5. **Configure in CoWork OS** — Settings > Teams tab, enter App ID, App Password, optional Tenant ID, webhook port (default: 3978)
+5. **Configure in NeoWorker** — Settings > Teams tab, enter App ID, App Password, optional Tenant ID, webhook port (default: 3978)
 
 ### Message Features
 
@@ -515,14 +511,14 @@ IMAP/SMTP integration — works with any email provider.
 
 ### Outlook.com OAuth Setup
 
-For personal Microsoft mailboxes, the Client ID field is not enough by itself. CoWork expects you to bring your own Microsoft Entra app registration.
+For personal Microsoft mailboxes, the Client ID field is not enough by itself. NeoWorker expects you to bring your own Microsoft Entra app registration.
 
 1. In Azure / Microsoft Entra, create a new app registration.
 2. Under **Supported account types**, choose a setting that includes personal Microsoft accounts.
 3. Under **Authentication**, add the **Mobile and desktop applications** platform and add the redirect URI `http://localhost`.
 4. If Azure shows **Allow public client flows**, enable it for a native/public client registration that uses PKCE.
 5. Under **API permissions**, grant delegated `IMAP.AccessAsUser.All` and `SMTP.Send`.
-6. In CoWork, choose the **Outlook.com** preset, paste the **Application (client) ID**, leave **Client Secret** empty unless you intentionally created a confidential client, and keep **Tenant** as `consumers` for Outlook.com-family accounts.
+6. In NeoWorker, choose the **Outlook.com** preset, paste the **Application (client) ID**, leave **Client Secret** empty unless you intentionally created a confidential client, and keep **Tenant** as `consumers` for Outlook.com-family accounts.
 7. Click **Connect Microsoft Account** and finish the browser sign-in flow.
 
 ### Provider Settings
@@ -537,7 +533,7 @@ For personal Microsoft mailboxes, the Client ID field is not enough by itself. C
 ### Filtering Options
 
 - **Allowed Senders**: Comma-separated exact email addresses or domains (for example `alice@example.com` or `example.com`)
-- **Subject Filter**: Only process emails containing specific text (e.g., `[CoWork]`)
+- **Subject Filter**: Only process emails containing specific text (e.g., `[NeoWorker]`)
 
 ### Features
 
@@ -560,14 +556,14 @@ Configure in **Settings** > **Menu Bar**.
 
 ## Mobile Companions (iOS/Android)
 
-Access CoWork OS from mobile devices via local network.
+Access NeoWorker from mobile devices via local network.
 
 ### Setup
 
 1. Enable Control Plane in **Settings** > **Control Plane**
 2. Prefer Tailscale or an SSH tunnel for remote access. Use **Allow LAN Connections (Mobile Companions)** only on a trusted private network.
 3. Enter server URL on mobile: `ws://<your-mac-ip>:18789` for private LAN, or the Tailscale `wss://...ts.net` URL.
-4. Enter authentication token. CoWork generates separate operator and node tokens; mobile companion/node clients use read-scoped node access.
+4. Enter authentication token. NeoWorker generates separate operator and node tokens; mobile companion/node clients use read-scoped node access.
 
 ### Security
 
@@ -581,4 +577,4 @@ Access CoWork OS from mobile devices via local network.
 
 ## Comparison with Alternative Implementations
 
-See [Channel Comparison](channel-comparison.md) for how CoWork OS channel integrations compare to alternative plugin-based implementations.
+See [Channel Comparison](channel-comparison.md) for how NeoWorker channel integrations compare to alternative plugin-based implementations.

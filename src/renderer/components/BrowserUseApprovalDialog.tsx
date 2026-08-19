@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ApprovalRequest, ApprovalResponseAction } from "../../shared/types";
+import type {
+  ApprovalRequest,
+  ApprovalResponseAction,
+} from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 interface BrowserUseApprovalDetails {
   kind?: unknown;
@@ -21,7 +25,9 @@ interface KeyboardTargetInfo {
 }
 
 function readDetails(approval: ApprovalRequest): BrowserUseApprovalDetails {
-  return approval.details && typeof approval.details === "object" && !Array.isArray(approval.details)
+  return approval.details &&
+    typeof approval.details === "object" &&
+    !Array.isArray(approval.details)
     ? (approval.details as BrowserUseApprovalDetails)
     : {};
 }
@@ -47,7 +53,9 @@ export function isBrowserUseDomainApproval(approval: ApprovalRequest): boolean {
   return readDetails(approval).kind === "browser_use_domain_access";
 }
 
-export function getBrowserUseApprovalAction(alwaysAllow: boolean): ApprovalResponseAction {
+export function getBrowserUseApprovalAction(
+  alwaysAllow: boolean,
+): ApprovalResponseAction {
   return alwaysAllow ? "allow_workspace" : "allow_session";
 }
 
@@ -56,11 +64,17 @@ export function shouldIgnoreBrowserUseApprovalKeyboardShortcut(
   target?: KeyboardTargetInfo | null,
 ): boolean {
   if (key !== "Enter") return false;
-  if (target?.hasInteractiveAncestor === true || target?.isContentEditable === true) return true;
-  const tagName = typeof target?.tagName === "string" ? target.tagName.toLowerCase() : "";
+  if (
+    target?.hasInteractiveAncestor === true ||
+    target?.isContentEditable === true
+  )
+    return true;
+  const tagName =
+    typeof target?.tagName === "string" ? target.tagName.toLowerCase() : "";
   if (["button", "input", "select", "textarea"].includes(tagName)) return true;
   if (tagName === "a") return true;
-  const role = typeof target?.role === "string" ? target.role.toLowerCase() : "";
+  const role =
+    typeof target?.role === "string" ? target.role.toLowerCase() : "";
   return role === "button" || role === "checkbox";
 }
 
@@ -74,11 +88,18 @@ function getKeyboardTargetInfo(target: EventTarget | null): KeyboardTargetInfo {
   };
   return {
     tagName: candidate.tagName,
-    role: typeof candidate.getAttribute === "function" ? candidate.getAttribute("role") : undefined,
+    role:
+      typeof candidate.getAttribute === "function"
+        ? candidate.getAttribute("role")
+        : undefined,
     isContentEditable: candidate.isContentEditable,
     hasInteractiveAncestor:
       typeof candidate.closest === "function"
-        ? Boolean(candidate.closest("button, input, select, textarea, a[href], [role='button'], [role='checkbox'], [contenteditable='true']"))
+        ? Boolean(
+            candidate.closest(
+              "button, input, select, textarea, a[href], [role='button'], [role='checkbox'], [contenteditable='true']",
+            ),
+          )
         : false,
   };
 }
@@ -98,10 +119,16 @@ export function BrowserUseApprovalDialog({
   approval,
   onRespond,
 }: BrowserUseApprovalDialogProps) {
+  useLanguage();
+  const t = translate;
   const [alwaysAllow, setAlwaysAllow] = useState(false);
   const isBrowserUseApproval = isBrowserUseDomainApproval(approval);
   const details = useMemo(() => readDetails(approval), [approval]);
   const targetLabel = useMemo(() => normalizeTargetLabel(details), [details]);
+  const targetDisplay =
+    targetLabel === "this domain"
+      ? t("browserUse.thisDomain", "this domain")
+      : targetLabel;
 
   const cancel = useCallback(() => {
     onRespond("deny_once");
@@ -138,7 +165,11 @@ export function BrowserUseApprovalDialog({
   }
 
   return (
-    <div className="session-approval-overlay browser-use-approval-overlay" role="dialog" aria-modal="true">
+    <div
+      className="session-approval-overlay browser-use-approval-overlay"
+      role="dialog"
+      aria-modal="true"
+    >
       <div className="browser-use-approval-card">
         <div className="browser-use-approval-header">
           <span className="browser-use-approval-glyph" aria-hidden="true">
@@ -147,11 +178,17 @@ export function BrowserUseApprovalDialog({
             <span />
             <span />
           </span>
-          <span className="browser-use-approval-name">Browser Use</span>
+          <span className="browser-use-approval-name">
+            {t("browserUse.name", "Browser Use")}
+          </span>
         </div>
 
         <h3 className="browser-use-approval-title">
-          Allow Browser Use to access {targetLabel}?
+          {t(
+            "browserUse.allowAccessTitle",
+            "Allow Browser Use to access {target}?",
+            { target: targetDisplay },
+          )}
         </h3>
 
         <div className="browser-use-approval-footer">
@@ -161,16 +198,25 @@ export function BrowserUseApprovalDialog({
               checked={alwaysAllow}
               onChange={(event) => setAlwaysAllow(event.currentTarget.checked)}
             />
-            <span>Always allow</span>
+            <span>{t("browserUse.alwaysAllow", "Always allow")}</span>
           </label>
 
           <div className="browser-use-approval-actions">
-            <button type="button" className="browser-use-approval-cancel" onClick={cancel}>
-              <span>Cancel</span>
+            <button
+              type="button"
+              className="browser-use-approval-cancel"
+              onClick={cancel}
+            >
+              <span>{t("common.cancel", "Cancel")}</span>
               <kbd>Esc</kbd>
             </button>
-            <button type="button" className="browser-use-approval-allow" onClick={allow} autoFocus>
-              <span>Allow</span>
+            <button
+              type="button"
+              className="browser-use-approval-allow"
+              onClick={allow}
+              autoFocus
+            >
+              <span>{t("browserUse.allow", "Allow")}</span>
               <kbd>Enter</kbd>
             </button>
           </div>

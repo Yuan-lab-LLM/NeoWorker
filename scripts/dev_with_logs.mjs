@@ -15,7 +15,7 @@ import {
   upsertDevRunManifest,
 } from "./dev-log-utils.mjs";
 
-const DEV_LOG_SETTINGS_PATH = path.join(".cowork", "dev-log-settings.json");
+const DEV_LOG_SETTINGS_PATH = path.join(".neoworker", "dev-log-settings.json");
 
 function parseBoolean(value) {
   if (typeof value !== "string") return undefined;
@@ -30,7 +30,7 @@ function prefixedLogLine(message) {
 }
 
 function resolveCaptureEnabled() {
-  const envOverride = parseBoolean(process.env.COWORK_DEV_LOG_CAPTURE);
+  const envOverride = parseBoolean(process.env.NEOWORKER_DEV_LOG_CAPTURE);
   if (typeof envOverride === "boolean") {
     return envOverride;
   }

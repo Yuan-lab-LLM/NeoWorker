@@ -2,7 +2,10 @@ function finiteLayoutNumber(value: number | undefined): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-export function computeEmailFitScale(availableWidth: number, contentWidth: number): number {
+export function computeEmailFitScale(
+  availableWidth: number,
+  contentWidth: number,
+): number {
   if (!Number.isFinite(availableWidth) || availableWidth <= 0) return 1;
 
   const layoutWidth = Math.max(
@@ -21,7 +24,10 @@ export function getEmailFitInset(availableWidth: number): number {
   return Math.min(96, Math.max(40, availableWidth * 0.07));
 }
 
-export function measureEmailContentWidth(doc: Document, root: HTMLElement): number {
+export function measureEmailContentWidth(
+  doc: Document,
+  root: HTMLElement,
+): number {
   const docEl = doc.documentElement;
   const body = doc.body;
   const rootRect = root.getBoundingClientRect();
@@ -34,7 +40,10 @@ export function measureEmailContentWidth(doc: Document, root: HTMLElement): numb
     finiteLayoutNumber(docEl?.scrollWidth),
   );
 
-  const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))];
+  const elements = [
+    root,
+    ...Array.from(root.querySelectorAll<HTMLElement>("*")),
+  ];
   for (const element of elements) {
     const rect = element.getBoundingClientRect();
     if (!Number.isFinite(rect.left) || !Number.isFinite(rect.right)) continue;

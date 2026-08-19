@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Scrapling Bridge for CoWork OS
+Scrapling Bridge for NeoWorker
 Thin stdin/stdout JSON bridge between Node.js and the Scrapling Python library.
 Receives JSON commands on stdin, executes Scrapling operations, returns JSON on stdout.
 """

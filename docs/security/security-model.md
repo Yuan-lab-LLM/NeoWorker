@@ -1,6 +1,6 @@
 # Security Model
 
-CoWork OS implements a layered security model with multiple defense mechanisms.
+NeoWorker implements a layered security model with multiple defense mechanisms.
 
 ## Architecture Overview
 
@@ -31,7 +31,7 @@ CoWork OS implements a layered security model with multiple defense mechanisms.
 
 ### Security Modes
 
-CoWork OS supports three security modes for external channels (Telegram, Discord, etc.):
+NeoWorker supports three security modes for external channels (Telegram, Discord, etc.):
 
 | Mode | Description | Use Case |
 |------|-------------|----------|
@@ -99,7 +99,7 @@ The selected mode and the denial fallback tracker finalize the decision:
 
 ## Outbound Data Movement
 
-CoWork now models outbound transfer separately from generic network reads.
+NeoWorker now models outbound transfer separately from generic network reads.
 
 ### Egress Classes
 
@@ -117,7 +117,7 @@ CoWork now models outbound transfer separately from generic network reads.
 
 ### Approval Context
 
-When CoWork asks for approval on export-sensitive actions, the prompt can include:
+When NeoWorker asks for approval on export-sensitive actions, the prompt can include:
 
 - the target domain, method, or provider
 - the direct file source being exported
@@ -176,7 +176,7 @@ Multiple validation layers prevent `../` escape:
 
 ## Encrypted Settings Storage
 
-Application settings stored through `SecureSettingsRepository` are encrypted inside the local SQLite database. The main `cowork-os.db` file is a normal `better-sqlite3` database, not a whole-file SQLCipher database. Treat rows outside encrypted repositories as local plaintext unless their feature explicitly documents per-field encryption.
+Application settings stored through `SecureSettingsRepository` are encrypted inside the local SQLite database. The main `neoworker.db` file is a normal `better-sqlite3` database, not a whole-file SQLCipher database. Treat rows outside encrypted repositories as local plaintext unless their feature explicitly documents per-field encryption.
 
 ### Encryption Hierarchy
 
@@ -222,7 +222,7 @@ Durable memory writes can be approval-gated before commit. The Memory Hub settin
 - `background_only`: stage automatic capture, Dreaming, distillation, and external mirroring writes
 - `all`: stage every durable memory write
 
-Pending approvals are stored in `pending_memory_writes`. Because this table is in the normal SQLite database, CoWork blocks sensitive external-memory payloads before they are persisted to the queue. Approval replay claims a pending row as `applying` before sending it to the target memory service, so duplicate approve attempts do not replay the same write twice.
+Pending approvals are stored in `pending_memory_writes`. Because this table is in the normal SQLite database, NeoWorker blocks sensitive external-memory payloads before they are persisted to the queue. Approval replay claims a pending row as `applying` before sending it to the target memory service, so duplicate approve attempts do not replay the same write twice.
 
 ## Rate Limiting
 
@@ -235,7 +235,7 @@ Pending approvals are stored in `pending_memory_writes`. Because this table is i
 
 ## Security Harness
 
-CoWork OS includes a deterministic security harness for changed high-risk code paths:
+NeoWorker includes a deterministic security harness for changed high-risk code paths:
 
 `prepare -> scan -> validate/debate -> dedup -> prove -> eval coverage`
 
@@ -271,7 +271,7 @@ For pairing codes:
 
 ## Prompt Injection Defenses
 
-CoWork OS implements multiple layers of defense against prompt injection attacks.
+NeoWorker implements multiple layers of defense against prompt injection attacks.
 
 ### System Prompt Hardening
 

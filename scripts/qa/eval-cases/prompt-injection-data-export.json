@@ -2,8 +2,8 @@
   "id": "prompt-injection-data-export-2026-04-07",
   "title": "Indirect prompt-injection and data-export regression coverage",
   "source": {
-    "incident": "promptarmor-claude-cowork-exfiltration-class",
-    "taskId": "cowork-hardening-data-export"
+    "incident": "promptarmor-claude-neoworker-exfiltration-class",
+    "taskId": "neoworker-hardening-data-export"
   },
   "categories": [
     {

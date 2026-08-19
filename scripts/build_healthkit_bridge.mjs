@@ -12,8 +12,8 @@ if (!isMac) {
 const packagePath = join(process.cwd(), "native", "healthkit-bridge");
 const buildOutput = join(packagePath, ".build", "release", "HealthKitBridge");
 const swiftCacheRoot =
-  process.env.COWORK_HEALTHKIT_SWIFTPM_CACHE_DIR || join(packagePath, ".build", "swiftpm-cache");
-const swiftHome = process.env.COWORK_HEALTHKIT_SWIFTPM_HOME || join(swiftCacheRoot, "home");
+  process.env.NEOWORKER_HEALTHKIT_SWIFTPM_CACHE_DIR || join(packagePath, ".build", "swiftpm-cache");
+const swiftHome = process.env.NEOWORKER_HEALTHKIT_SWIFTPM_HOME || join(swiftCacheRoot, "home");
 const swiftSharedCache = join(swiftCacheRoot, "shared-cache");
 const swiftConfigPath = join(swiftCacheRoot, "configuration");
 const swiftSecurityPath = join(swiftCacheRoot, "security");
@@ -25,19 +25,19 @@ const appContents = join(appBundle, "Contents");
 const appMacOS = join(appContents, "MacOS");
 const appExecutable = join(appMacOS, "HealthKitBridge");
 const pkgInfo = "APPL????\n";
-const localConfigPath = join(process.cwd(), ".cowork", "healthkit-bridge.json");
+const localConfigPath = join(process.cwd(), ".neoworker", "healthkit-bridge.json");
 const localConfig = readLocalConfig(localConfigPath);
-const appName = process.env.COWORK_HEALTHKIT_APP_NAME || localConfig.appName || "CoWork Health Sync";
+const appName = process.env.NEOWORKER_HEALTHKIT_APP_NAME || localConfig.appName || "NeoWorker Health Sync";
 const useXcodeBuild =
-  process.env.COWORK_HEALTHKIT_USE_XCODE_BUILD === "1" || localConfig.useXcodeBuild === true;
+  process.env.NEOWORKER_HEALTHKIT_USE_XCODE_BUILD === "1" || localConfig.useXcodeBuild === true;
 const developmentTeam =
-  process.env.COWORK_HEALTHKIT_DEVELOPMENT_TEAM || process.env.DEVELOPMENT_TEAM || localConfig.developmentTeam || "";
+  process.env.NEOWORKER_HEALTHKIT_DEVELOPMENT_TEAM || process.env.DEVELOPMENT_TEAM || localConfig.developmentTeam || "";
 const bundleIdentifier =
-  process.env.COWORK_HEALTHKIT_BUNDLE_IDENTIFIER ||
+  process.env.NEOWORKER_HEALTHKIT_BUNDLE_IDENTIFIER ||
   process.env.HEALTHKIT_BRIDGE_BUNDLE_IDENTIFIER ||
   localConfig.bundleIdentifier ||
   process.env.PRODUCT_BUNDLE_IDENTIFIER ||
-  "com.cowork.healthkitbridge";
+  "com.neoworker.healthkitbridge";
 const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -67,11 +67,11 @@ const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
   <key>CFBundleVersion</key>
   <string>1</string>
   <key>NSHealthShareUsageDescription</key>
-  <string>CoWork needs access to your Health data to connect Apple Health, read metrics, and generate insights.</string>
+  <string>NeoWorker needs access to your Health data to connect Apple Health, read metrics, and generate insights.</string>
   <key>NSHealthUpdateUsageDescription</key>
-  <string>CoWork needs access to your Health data to write approved health updates back to Apple Health.</string>
+  <string>NeoWorker needs access to your Health data to write approved health updates back to Apple Health.</string>
   <key>NSHealthClinicalHealthRecordsShareUsageDescription</key>
-  <string>CoWork needs access to clinical health records you choose to share with the app.</string>
+  <string>NeoWorker needs access to clinical health records you choose to share with the app.</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>NSPrincipalClass</key>
@@ -198,7 +198,7 @@ const quotedIdentityMatches = [...identitiesOutput.matchAll(/"([^"]+)"/g)].map((
 const matchingTeamIdentity = findAppleDevelopmentIdentityForTeam(developmentTeam, quotedIdentityMatches);
 const firstAppleDevelopmentIdentity = quotedIdentityMatches.find((identity) => identity.startsWith("Apple Development: "));
 const signingIdentity =
-  process.env.COWORK_HEALTHKIT_SIGNING_IDENTITY ||
+  process.env.NEOWORKER_HEALTHKIT_SIGNING_IDENTITY ||
   localConfig.signingIdentity ||
   matchingTeamIdentity ||
   firstAppleDevelopmentIdentity ||
@@ -245,7 +245,7 @@ if (existsSync(xcodeProjectPath) && developmentTeam && useXcodeBuild) {
 } else if (!developmentTeam) {
   console.log("[healthkit-bridge] Skipping Xcode app build because no development team is configured.");
 } else if (!useXcodeBuild) {
-  console.log("[healthkit-bridge] Skipping Xcode app build; set COWORK_HEALTHKIT_USE_XCODE_BUILD=1 to enable it.");
+  console.log("[healthkit-bridge] Skipping Xcode app build; set NEOWORKER_HEALTHKIT_USE_XCODE_BUILD=1 to enable it.");
 }
 
 const build = spawnSync("swift", [
@@ -292,7 +292,7 @@ writeFileSync(join(appContents, "Info.plist"), infoPlist);
 writeFileSync(join(appContents, "PkgInfo"), pkgInfo);
 copyFileSync(buildOutput, appExecutable);
 chmodSync(appExecutable, 0o755);
-const provisioningProfile = process.env.COWORK_HEALTHKIT_PROVISIONING_PROFILE || process.env.HEALTHKIT_BRIDGE_PROVISIONING_PROFILE;
+const provisioningProfile = process.env.NEOWORKER_HEALTHKIT_PROVISIONING_PROFILE || process.env.HEALTHKIT_BRIDGE_PROVISIONING_PROFILE;
 const resolvedProvisioningProfile =
   provisioningProfile ||
   localConfig.provisioningProfile ||

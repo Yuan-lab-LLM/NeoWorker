@@ -1,7 +1,7 @@
 {
-  "name": "@cowork-os/maps-mcp",
+  "name": "@neoworker/maps-mcp",
   "version": "0.1.0",
-  "description": "Maps and nearby places MCP connector for CoWork OS.",
+  "description": "Maps and nearby places MCP connector for NeoWorker.",
   "private": true,
   "main": "dist/index.js",
   "scripts": {

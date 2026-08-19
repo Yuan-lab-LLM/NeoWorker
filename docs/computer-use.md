@@ -21,13 +21,13 @@ Use computer use when the task clearly requires **a desktop GUI** that is not ex
 
 The planner and tool policy treat the computer-use lane as a **controlled, last-resort path**: tools stay deferred unless the task signals **native desktop GUI intent** (for example Calculator, System Settings, or “click the OK button in the native dialog”). That keeps routine coding and web work from accidentally taking the desktop-control path.
 
-> If the task is not asking CoWork to click or type, but instead to understand a vague on-screen reference like `what is this`, `what's on the right side`, or `why is this failing`, see [Chronicle](chronicle.md). Chronicle shares the same Screen Recording prerequisite but resolves local screen context rather than driving the mouse and keyboard.
+> If the task is not asking NeoWorker to click or type, but instead to understand a vague on-screen reference like `what is this`, `what's on the right side`, or `why is this failing`, see [Chronicle](chronicle.md). Chronicle shares the same Screen Recording prerequisite but resolves local screen context rather than driving the mouse and keyboard.
 
 ## Platform requirements
 
 - **macOS and Windows desktop builds** are supported. Linux/headless builds do not expose this tool family.
 - **macOS** uses a bundled Swift helper with Accessibility and Screen Recording permissions.
-- **Windows v1** uses a bundled PowerShell/Win32 helper for visible, non-minimized windows. Some protected or elevated apps may block capture or input unless CoWork is running with comparable privileges.
+- **Windows v1** uses a bundled PowerShell/Win32 helper for visible, non-minimized windows. Some protected or elevated apps may block capture or input unless NeoWorker is running with comparable privileges.
 
 ## macOS permissions
 
@@ -42,7 +42,7 @@ Two system permissions gate computer use:
 
 1. Open **Settings → Tools → Computer use**.
 2. Use the shortcuts into **System Settings** to enable **Accessibility** and **Screen Recording** for the computer-use helper binary shown in settings.
-3. After changing **Screen Recording**, **quit and restart CoWork OS** if capture still fails—macOS sometimes caches the old state until restart.
+3. After changing **Screen Recording**, **quit and restart NeoWorker** if capture still fails—macOS sometimes caches the old state until restart.
 
 If a tool returns an error mentioning screen capture timeout or permission, re-check Screen Recording for this app and restart.
 
@@ -53,7 +53,7 @@ Windows computer use targets one visible, non-minimized top-level window at a ti
 Known v1 limits:
 
 - Minimized windows are not controlled; restore the target window first.
-- Apps running as administrator may require CoWork to run as administrator.
+- Apps running as administrator may require NeoWorker to run as administrator.
 - Some games, protected apps, or anti-cheat surfaces may block capture or input.
 - If background capture/control is unavailable, actions may briefly use the foreground mouse and keyboard.
 
@@ -127,11 +127,11 @@ For how this fits the wider tool-risk model, see [Security guide → Computer us
 
 | Symptom | Things to check |
 |---------|------------------|
-| Screenshot or capture errors / timeouts | macOS: Screen Recording for the helper path shown in settings; restart app after granting. Windows: target window visible, non-minimized, and not protected/elevated above CoWork. |
+| Screenshot or capture errors / timeouts | macOS: Screen Recording for the helper path shown in settings; restart app after granting. Windows: target window visible, non-minimized, and not protected/elevated above NeoWorker. |
 | Clicks or keys do nothing | macOS: Accessibility trust for the helper path shown in settings. Windows: target app is not elevated/protected and no other app is stealing focus. |
 | Agent uses shell or browser instead of desktop | Task may not read as native GUI; rephrase with explicit app/window/dialog language, or ensure built-in `computer_use` is enabled. |
 | Agent asks for a screenshot when the task is really “what is this on screen?” | This may be a Chronicle case rather than a computer-use case; enable Chronicle and test `screen_context_resolve` with a clear on-screen prompt first. |
-| Permission bootstrap repeats | macOS: re-check that both Accessibility and Screen Recording are granted to the helper binary, not just to CoWork OS or Terminal. |
+| Permission bootstrap repeats | macOS: re-check that both Accessibility and Screen Recording are granted to the helper binary, not just to NeoWorker or Terminal. |
 | Session feels “stuck” | Use **Esc** to abort the computer-use session, then cancel or adjust the task. |
 
 ## Implementation map (for contributors)

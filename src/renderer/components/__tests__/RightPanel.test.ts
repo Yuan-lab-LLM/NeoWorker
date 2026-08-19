@@ -2,17 +2,38 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  RightPanel,
-  openPreviewableFileInSidebar,
-} from "../RightPanel";
+import { RightPanel, openPreviewableFileInSidebar } from "../RightPanel";
 import {
   getProgressSectionMaterialSignature,
   getQueueSectionMaterialSignature,
   getVisibleProgressSteps,
+  shouldShowComposerProgress,
 } from "../../utils/right-panel-progress";
 
 describe("RightPanel checklist rendering", () => {
+  it("exposes only Overview, Process, and Resources as top-level sections", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(RightPanel, {
+        task: {
+          id: "task-top-level",
+          status: "completed",
+          title: "Task",
+          prompt: "Prompt",
+          updatedAt: 10,
+        } as Any,
+        workspace: null,
+        events: [],
+      }),
+    );
+
+    expect(markup.match(/data-right-panel-section=/g)).toHaveLength(3);
+    expect(markup).toContain('data-right-panel-section="overview"');
+    expect(markup).toContain('data-right-panel-section="process"');
+    expect(markup).toContain('data-right-panel-section="resources"');
+    expect(markup).toContain('aria-controls="right-panel-overview-content"');
+    expect(markup).toContain('aria-controls="right-panel-process-content"');
+    expect(markup).toContain('aria-controls="right-panel-resources-content"');
+  });
   it("routes previewable files from the Files section to sidebar artifact viewers", () => {
     const fallback = vi.fn();
     const openers = {
@@ -22,10 +43,15 @@ describe("RightPanel checklist rendering", () => {
       presentation: vi.fn(),
     };
 
-    openPreviewableFileInSidebar("city-blueprint-preview.html", openers, fallback);
+    openPreviewableFileInSidebar(
+      "city-blueprint-preview.html",
+      openers,
+      fallback,
+    );
     openPreviewableFileInSidebar("budget.xlsx", openers, fallback);
     openPreviewableFileInSidebar("brief.docx", openers, fallback);
     openPreviewableFileInSidebar("notes.md", openers, fallback);
+    openPreviewableFileInSidebar("report.pdf", openers, fallback);
     openPreviewableFileInSidebar("deck.ppt", openers, fallback);
     openPreviewableFileInSidebar("macro-deck.pptm", openers, fallback);
 
@@ -33,6 +59,7 @@ describe("RightPanel checklist rendering", () => {
     expect(openers.spreadsheet).toHaveBeenCalledWith("budget.xlsx");
     expect(openers.document).toHaveBeenCalledWith("brief.docx");
     expect(openers.document).toHaveBeenCalledWith("notes.md");
+    expect(openers.document).toHaveBeenCalledWith("report.pdf");
     expect(openers.presentation).toHaveBeenCalledWith("deck.ppt");
     expect(openers.presentation).toHaveBeenCalledWith("macro-deck.pptm");
     expect(fallback).not.toHaveBeenCalled();
@@ -73,9 +100,9 @@ describe("RightPanel checklist rendering", () => {
       }),
     );
 
-    expect(markup).toContain("Rate this result");
-    expect(markup).toContain("Helps improve this agent and persona.");
-    expect(markup).toContain("Dismiss");
+    expect(markup).toContain("评价此结果");
+    expect(markup).toContain("帮助改进这个智能体和画像。");
+    expect(markup).toContain("忽略");
   });
 
   it("renders collaborative sub-agent totals in the right panel", () => {
@@ -130,7 +157,9 @@ describe("RightPanel checklist rendering", () => {
             timestamp: 2500,
             schemaVersion: 2,
             type: "llm_usage",
-            payload: { totals: { inputTokens: 1000, outputTokens: 250, cost: 0.012 } },
+            payload: {
+              totals: { inputTokens: 1000, outputTokens: 250, cost: 0.012 },
+            },
           },
           {
             id: "evt-3",
@@ -138,22 +167,24 @@ describe("RightPanel checklist rendering", () => {
             timestamp: 4500,
             schemaVersion: 2,
             type: "llm_usage",
-            payload: { totals: { inputTokens: 500, outputTokens: 100, cost: 0.003 } },
+            payload: {
+              totals: { inputTokens: 500, outputTokens: 100, cost: 0.003 },
+            },
           },
         ] as Any,
       }),
     );
 
-    expect(markup).toContain("Sub Agents");
-    expect(markup).toContain("2 background agents");
-    expect(markup).toContain("1 done");
-    expect(markup).toContain("1 warning");
-    expect(markup).toContain("Tools");
-    expect(markup).toContain("Tokens");
+    expect(markup).toContain("子智能体");
+    expect(markup).toContain("已生成 2 位专家");
+    expect(markup).toContain("1 个完成");
+    expect(markup).toContain("1 个警告");
+    expect(markup).toContain("工具");
+    expect(markup).toContain("Token");
     expect(markup).toContain("1.9K");
     expect(markup).toContain("$0.015");
     expect(markup).toContain("Bug and Regression Risk Review");
-    expect(markup).toContain("Needs review");
+    expect(markup).toContain("需要检查");
   });
 
   it("renders the latest session checklist state and verification nudge", () => {
@@ -195,7 +226,8 @@ describe("RightPanel checklist rendering", () => {
                 ],
                 updatedAt: 20,
                 verificationNudgeNeeded: true,
-                nudgeReason: "Add and run a verification checklist item before finishing.",
+                nudgeReason:
+                  "Add and run a verification checklist item before finishing.",
               },
             },
           },
@@ -203,11 +235,13 @@ describe("RightPanel checklist rendering", () => {
       }),
     );
 
-    expect(markup).toContain("Checklist");
+    expect(markup).toContain("检查清单");
     expect(markup).toContain("Implement checklist primitive");
     expect(markup).toContain("Run focused verification");
     expect(markup).toContain("Verification");
-    expect(markup).toContain("Add and run a verification checklist item before finishing.");
+    expect(markup).toContain(
+      "Add and run a verification checklist item before finishing.",
+    );
   });
 
   it("keeps the checklist visible during live execution even when items are still pending", () => {
@@ -248,9 +282,9 @@ describe("RightPanel checklist rendering", () => {
       }),
     );
 
-    expect(markup).toContain("Checklist");
+    expect(markup).toContain("检查清单");
     expect(markup).toContain("Draft chapter outline");
-    expect(markup).toContain("Pending");
+    expect(markup).toContain("待处理");
   });
 
   it("uses the live checklist item as fallback progress text when no plan exists", () => {
@@ -291,7 +325,7 @@ describe("RightPanel checklist rendering", () => {
       }),
     );
 
-    expect(markup).toContain("Working...");
+    expect(markup).toContain("工作中...");
     expect(markup).toContain("Update canonical target settings");
   });
 
@@ -324,11 +358,11 @@ describe("RightPanel checklist rendering", () => {
       }),
     );
 
-    expect(markup).toContain("Files");
-    expect(markup).toContain('aria-label="1 file"');
+    expect(markup).toContain("文件");
+    expect(markup).toContain('aria-label="1 个文件"');
     expect(markup).toContain('class="cli-file-count-number">1</span>');
     expect(markup).not.toContain(">file</span>");
-    expect(markup).toContain('aria-label="Text file"');
+    expect(markup).toContain('aria-label="文本文件"');
     expect(markup).toContain("ch_01.md");
   });
 
@@ -413,19 +447,47 @@ describe("RightPanel checklist rendering", () => {
     const visible = getVisibleProgressSteps(planSteps);
 
     expect(visible.map((step) => step.description)).toEqual([
-      "1 completed step",
+      "1 个已完成步骤",
       "Completed step 2",
       "Completed step 3",
       "Current step",
       "Pending step 5",
       "Pending step 6",
-      "4 planned steps",
+      "4 个计划步骤",
     ]);
   });
 
+  it("keeps composer progress visible only while the task can still advance", () => {
+    expect(
+      shouldShowComposerProgress({
+        taskStatus: "executing",
+        isTaskWorking: true,
+        planStepCount: 10,
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowComposerProgress({
+        taskStatus: "completed",
+        isTaskWorking: false,
+        planStepCount: 10,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowComposerProgress({
+        taskStatus: "completed",
+        isTaskWorking: true,
+        planStepCount: 10,
+      }),
+    ).toBe(true);
+  });
+
   it("changes the queue material signature only when queue content changes", () => {
-    const runningTasks = [{ id: "task-1", status: "executing", title: "Build" }] as Any;
-    const queuedTasks = [{ id: "task-2", status: "queued", title: "Verify" }] as Any;
+    const runningTasks = [
+      { id: "task-1", status: "executing", title: "Build" },
+    ] as Any;
+    const queuedTasks = [
+      { id: "task-2", status: "queued", title: "Verify" },
+    ] as Any;
 
     const signatureA = getQueueSectionMaterialSignature({
       expanded: true,
@@ -489,10 +551,10 @@ describe("RightPanel checklist rendering", () => {
       }),
     );
 
-    expect(markup).toContain("Context");
-    expect(markup).toContain("Skills used");
-    expect(markup).toContain("Novelist");
-    expect(markup).toContain("Tools used");
+    expect(markup).toContain("上下文");
+    expect(markup).toContain("使用的技能");
+    expect(markup).toContain("小说创作");
+    expect(markup).toContain("使用的工具");
     expect(markup).toContain("read_file");
   });
 });

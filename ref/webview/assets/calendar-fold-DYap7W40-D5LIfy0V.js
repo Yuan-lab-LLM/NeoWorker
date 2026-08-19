@@ -1,0 +1,3 @@
+import { n as e, t } from "./calendar-fold-DYap7W40-Cl7l5sK9.js";
+e();
+export { t as default };

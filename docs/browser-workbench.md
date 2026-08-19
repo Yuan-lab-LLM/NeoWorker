@@ -1,8 +1,8 @@
 # Browser Workbench
 
-CoWork OS uses the Browser Workbench for live website testing and browser-use tasks. Browser Workbench is the visible user-facing surface for [Browser V2](browser-v2-architecture.md), CoWork's unified browser engine for agent-controlled web work.
+NeoWorker uses the Browser Workbench for live website testing and browser-use tasks. Browser Workbench is the visible user-facing surface for [Browser V2](browser-v2-architecture.md), NeoWorker's unified browser engine for agent-controlled web work.
 
-When a task asks the agent to go to a website, test an app as a normal user, click through a flow, fill a form, inspect a JavaScript-heavy page, or take browser screenshots, CoWork opens a visible browser session inside the app instead of silently launching an external browser. The user and the agent share the same page in a resizable right-sidebar workbench.
+When a task asks the agent to go to a website, test an app as a normal user, click through a flow, fill a form, inspect a JavaScript-heavy page, or take browser screenshots, NeoWorker opens a visible browser session inside the app instead of silently launching an external browser. The user and the agent share the same page in a resizable right-sidebar workbench.
 
 This is part of the broader [Everything Workbench](everything-workbench.md): generated files, live sites, and follow-up requests stay attached to the task instead of being scattered across separate apps.
 
@@ -33,7 +33,7 @@ Use `web_fetch` for static page reading or summarizing a known URL. Use the Brow
 
 ## Browser V2 Concept
 
-Browser V2 gives CoWork one browser contract across visible workbench sessions, Playwright fallback runs, and explicit external Chrome/Edge attach.
+Browser V2 gives NeoWorker one browser contract across visible workbench sessions, Playwright fallback runs, and explicit external Chrome/Edge attach.
 
 Core rules:
 
@@ -81,7 +81,7 @@ Browser tools first route to the active Browser Workbench session for the select
 - `browser_trace_start`
 - `browser_trace_stop`
 
-During visible automation, CoWork renders a cursor overlay on top of the webview so users can see where the agent is acting. Clicks and navigation controls pulse briefly; form and read actions show short labels such as `Click`, `Fill`, `Type`, `Found`, or `Read`.
+During visible automation, NeoWorker renders a cursor overlay on top of the webview so users can see where the agent is acting. Clicks and navigation controls pulse briefly; form and read actions show short labels such as `Click`, `Fill`, `Type`, `Found`, or `Read`.
 
 This cursor is a Browser Workbench overlay. It appears for actions routed through the visible in-app browser, not for external Chrome windows or fully headless/background browser runs.
 
@@ -93,7 +93,7 @@ This cursor is a Browser Workbench overlay. It appears for actions routed throug
 - tablet: `768x1024`
 - mobile: `390x844`
 
-When the tool runs against the visible workbench, CoWork applies Chrome DevTools device metrics to the page and emits a workbench viewport event. The renderer then resizes the shared webview to that controlled size, shows the active size in the toolbar, and keeps screenshots aligned with the tested breakpoint. This makes long browser QA runs reviewable: the user can see the page at each breakpoint, and `browser_screenshot` captures the same controlled viewport.
+When the tool runs against the visible workbench, NeoWorker applies Chrome DevTools device metrics to the page and emits a workbench viewport event. The renderer then resizes the shared webview to that controlled size, shows the active size in the toolbar, and keeps screenshots aligned with the tested breakpoint. This makes long browser QA runs reviewable: the user can see the page at each breakpoint, and `browser_screenshot` captures the same controlled viewport.
 
 The workbench toolbar also has manual desktop/tablet/mobile preset buttons. These are user controls for the same visual surface; agent-driven testing should still use `browser_emulate` so the task timeline and tool output record the tested dimensions.
 
@@ -178,7 +178,7 @@ Generated web pages and live websites use different surfaces:
 
 ## Fallbacks
 
-The visible Browser Workbench is the default for interactive website testing, but CoWork keeps fallback paths for situations where an embedded renderer is not available or the user explicitly asks for a different mode.
+The visible Browser Workbench is the default for interactive website testing, but NeoWorker keeps fallback paths for situations where an embedded renderer is not available or the user explicitly asks for a different mode.
 
 Browser tools fall back to Playwright-local or external-CDP adapters when:
 
@@ -224,7 +224,7 @@ Optional cloud settings and tool inputs include:
 Important behavior:
 
 - Cloud mode creates a Browser Use browser session, connects to its `cdpUrl`, and runs browser tools through the existing Playwright/CDP fallback path.
-- `browser_close` stops the Browser Use remote session. If the stop API fails, CoWork returns a retryable pending-stop result with the session id so the stop can be retried.
+- `browser_close` stops the Browser Use remote session. If the stop API fails, NeoWorker returns a retryable pending-stop result with the session id so the stop can be retried.
 - Stale or expired remote CDP sessions are cleaned up and retried once with a fresh Browser Use session.
 - Browser Use Cloud blocks local-only targets: `localhost`, private IP ranges, IPv6 private/link-local ranges, `.local`, `.internal`, single-label intranet hosts, `file:` URLs, and other non-HTTP(S) URLs.
 - Use the visible Browser Workbench for local dev servers, private networks, generated HTML files, and cases where the user should watch the page and cursor.

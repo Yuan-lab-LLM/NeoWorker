@@ -1,0 +1,3 @@
+import { n as e, t } from "./ship-wheel-kTF-BqyG-BGu6cxv6.js";
+e();
+export { t as default };

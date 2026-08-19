@@ -4,24 +4,38 @@ interface EvidenceListProps {
   evidence: TimelineEvidence[];
 }
 
-function FileEvidenceRow({ item }: { item: Extract<TimelineEvidence, { type: "file" }> }) {
+function FileEvidenceRow({
+  item,
+}: {
+  item: Extract<TimelineEvidence, { type: "file" }>;
+}) {
   const opLabel: Record<string, string> = {
     read: "read",
     write: "created",
     edit: "edited",
     delete: "deleted",
   };
-  const label = item.operation ? opLabel[item.operation] ?? item.operation : "accessed";
+  const label = item.operation
+    ? (opLabel[item.operation] ?? item.operation)
+    : "accessed";
   return (
     <div className="evidence-row evidence-file">
-      <span className="evidence-op-badge" data-op={item.operation ?? "read"}>{label}</span>
-      <span className="evidence-path" title={item.path}>{item.path}</span>
+      <span className="evidence-op-badge" data-op={item.operation ?? "read"}>
+        {label}
+      </span>
+      <span className="evidence-path" title={item.path}>
+        {item.path}
+      </span>
       {item.lines && <span className="evidence-lines">{item.lines}</span>}
     </div>
   );
 }
 
-function CommandEvidenceRow({ item }: { item: Extract<TimelineEvidence, { type: "command" }> }) {
+function CommandEvidenceRow({
+  item,
+}: {
+  item: Extract<TimelineEvidence, { type: "command" }>;
+}) {
   return (
     <div className="evidence-row evidence-command">
       <span className="evidence-label">{item.label}</span>
@@ -33,7 +47,11 @@ function CommandEvidenceRow({ item }: { item: Extract<TimelineEvidence, { type: 
   );
 }
 
-function QueryEvidenceRow({ item }: { item: Extract<TimelineEvidence, { type: "query" }> }) {
+function QueryEvidenceRow({
+  item,
+}: {
+  item: Extract<TimelineEvidence, { type: "query" }>;
+}) {
   return (
     <div className="evidence-row evidence-query">
       <span className="evidence-label">{item.label}</span>
@@ -42,38 +60,62 @@ function QueryEvidenceRow({ item }: { item: Extract<TimelineEvidence, { type: "q
   );
 }
 
-function ArtifactEvidenceRow({ item }: { item: Extract<TimelineEvidence, { type: "artifact" }> }) {
+function ArtifactEvidenceRow({
+  item,
+}: {
+  item: Extract<TimelineEvidence, { type: "artifact" }>;
+}) {
   return (
     <div className="evidence-row evidence-artifact">
       <span className="evidence-label">{item.label}</span>
-      <span className="evidence-path" title={item.path}>{item.path}</span>
+      <span className="evidence-path" title={item.path}>
+        {item.path}
+      </span>
     </div>
   );
 }
 
-function ApprovalEvidenceRow({ item }: { item: Extract<TimelineEvidence, { type: "approval" }> }) {
+function ApprovalEvidenceRow({
+  item,
+}: {
+  item: Extract<TimelineEvidence, { type: "approval" }>;
+}) {
   return (
     <div className="evidence-row evidence-approval">
-      <span className={`evidence-risk-badge risk-${item.risk ?? "low"}`}>{item.risk ?? "low"} risk</span>
+      <span className={`evidence-risk-badge risk-${item.risk ?? "low"}`}>
+        {item.risk ?? "low"} risk
+      </span>
       <span className="evidence-label">{item.label}</span>
     </div>
   );
 }
 
-function UrlEvidenceRow({ item }: { item: Extract<TimelineEvidence, { type: "url" }> }) {
+function UrlEvidenceRow({
+  item,
+}: {
+  item: Extract<TimelineEvidence, { type: "url" }>;
+}) {
   return (
     <div className="evidence-row evidence-url">
       <span className="evidence-label">{item.label}</span>
-      <span className="evidence-url-value" title={item.url}>{item.url}</span>
+      <span className="evidence-url-value" title={item.url}>
+        {item.url}
+      </span>
     </div>
   );
 }
 
-function RuntimeLogEvidenceRow({ item }: { item: Extract<TimelineEvidence, { type: "runtime_log" }> }) {
+function RuntimeLogEvidenceRow({
+  item,
+}: {
+  item: Extract<TimelineEvidence, { type: "runtime_log" }>;
+}) {
   return (
     <div className="evidence-row evidence-command">
       <span className="evidence-label">{item.label}</span>
-      {item.source ? <span className="evidence-lines">{item.source}</span> : null}
+      {item.source ? (
+        <span className="evidence-lines">{item.source}</span>
+      ) : null}
       <pre className="evidence-output">{item.message.slice(0, 1200)}</pre>
     </div>
   );

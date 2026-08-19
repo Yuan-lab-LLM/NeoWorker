@@ -1,0 +1,3 @@
+import { n as e, t } from "./thermometer-snowflake-Dfi2CeV2-CBt7Ul6p.js";
+t();
+export { e as default };

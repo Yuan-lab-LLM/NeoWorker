@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { OneDriveSettingsData } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 export function OneDriveSettings() {
+  useLanguage();
   const [settings, setSettings] = useState<OneDriveSettingsData | null>(null);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -75,21 +77,33 @@ export function OneDriveSettings() {
       setTestResult(result);
       await refreshStatus();
     } catch (error: Any) {
-      setTestResult({ success: false, error: error.message || "Failed to test connection" });
+      setTestResult({
+        success: false,
+        error:
+          error.message ||
+          translate(
+            "oneDrive.error.testConnection",
+            "Failed to test connection",
+          ),
+      });
     } finally {
       setTesting(false);
     }
   };
 
   if (!settings) {
-    return <div className="settings-loading">Loading OneDrive settings...</div>;
+    return (
+      <div className="settings-loading">
+        {translate("oneDrive.loading", "Loading OneDrive settings...")}
+      </div>
+    );
   }
 
   const statusLabel = !status?.configured
-    ? "Missing Token"
+    ? translate("common.status.missingToken", "Missing Token")
     : status.connected
-      ? "Connected"
-      : "Configured";
+      ? translate("common.status.connected", "Connected")
+      : translate("common.status.configured", "Configured");
 
   const statusClass = !status?.configured
     ? "missing"
@@ -102,47 +116,71 @@ export function OneDriveSettings() {
       <div className="settings-section">
         <div className="settings-section-header">
           <div className="settings-title-with-badge">
-            <h3>Connect OneDrive</h3>
+            <h3>{translate("oneDrive.title", "Connect OneDrive")}</h3>
             {status && (
               <span
                 className={`onedrive-status-badge ${statusClass}`}
                 title={
                   !status.configured
-                    ? "Access token not configured"
+                    ? translate(
+                        "common.statusTitle.accessTokenMissing",
+                        "Access token not configured",
+                      )
                     : status.connected
-                      ? "Connected to OneDrive"
-                      : "Configured"
+                      ? translate(
+                          "oneDrive.statusTitle.connected",
+                          "Connected to OneDrive",
+                        )
+                      : translate("common.status.configured", "Configured")
                 }
               >
                 {statusLabel}
               </span>
             )}
             {statusLoading && !status && (
-              <span className="onedrive-status-badge configured">Checking…</span>
+              <span className="onedrive-status-badge configured">
+                {translate("common.status.checkingEllipsis", "Checking...")}
+              </span>
             )}
           </div>
-          <button className="btn-secondary btn-sm" onClick={refreshStatus} disabled={statusLoading}>
-            {statusLoading ? "Checking..." : "Refresh Status"}
+          <button
+            className="btn-secondary btn-sm"
+            onClick={refreshStatus}
+            disabled={statusLoading}
+          >
+            {statusLoading
+              ? translate("common.status.checking", "Checking...")
+              : translate("common.action.refreshStatus", "Refresh Status")}
           </button>
         </div>
         <p className="settings-description">
-          Connect the agent to OneDrive using a Microsoft Graph access token, then use the built-in
-          `onedrive_action` tool to search and manage files.
+          {translate(
+            "oneDrive.description",
+            "Connect the agent to OneDrive using a Microsoft Graph access token, then use the built-in `onedrive_action` tool to search and manage files.",
+          )}
         </p>
-        {status?.error && <p className="settings-hint">Status check: {status.error}</p>}
+        {status?.error && (
+          <p className="settings-hint">
+            {translate("common.statusCheck", "Status check:")} {status.error}
+          </p>
+        )}
         <div className="settings-actions">
           <button
             className="btn-secondary btn-sm"
-            onClick={() => window.electronAPI.openExternal("https://portal.azure.com")}
+            onClick={() =>
+              window.electronAPI.openExternal("https://portal.azure.com")
+            }
           >
-            Open Azure Portal
+            {translate("common.openAzurePortal", "Open Azure Portal")}
           </button>
         </div>
       </div>
 
       <div className="settings-section">
         <div className="settings-field">
-          <label>Enable Integration</label>
+          <label>
+            {translate("common.enableIntegration", "Enable Integration")}
+          </label>
           <label className="settings-toggle">
             <input
               type="checkbox"
@@ -154,40 +192,56 @@ export function OneDriveSettings() {
         </div>
 
         <div className="settings-field">
-          <label>Access Token</label>
+          <label>{translate("common.accessToken", "Access Token")}</label>
           <input
             type="password"
             className="settings-input"
             placeholder="Microsoft Graph access token"
             value={settings.accessToken || ""}
-            onChange={(e) => updateSettings({ accessToken: e.target.value || undefined })}
+            onChange={(e) =>
+              updateSettings({ accessToken: e.target.value || undefined })
+            }
           />
           <p className="settings-hint">
-            Use an access token with Files.ReadWrite or Files.Read scope.
+            {translate(
+              "oneDrive.accessTokenHint",
+              "Use an access token with Files.ReadWrite or Files.Read scope.",
+            )}
           </p>
         </div>
 
         <div className="settings-field">
-          <label>Drive ID (optional)</label>
+          <label>
+            {translate("common.driveIdOptional", "Drive ID (optional)")}
+          </label>
           <input
             type="text"
             className="settings-input"
             placeholder="Default: /me/drive"
             value={settings.driveId || ""}
-            onChange={(e) => updateSettings({ driveId: e.target.value || undefined })}
+            onChange={(e) =>
+              updateSettings({ driveId: e.target.value || undefined })
+            }
           />
-          <p className="settings-hint">Leave blank to use your default drive.</p>
+          <p className="settings-hint">
+            {translate(
+              "oneDrive.driveHint",
+              "Leave blank to use your default drive.",
+            )}
+          </p>
         </div>
 
         <div className="settings-field">
-          <label>Timeout (ms)</label>
+          <label>{translate("common.timeoutMs", "Timeout (ms)")}</label>
           <input
             type="number"
             className="settings-input"
             min={1000}
             max={120000}
             value={settings.timeoutMs ?? 20000}
-            onChange={(e) => updateSettings({ timeoutMs: Number(e.target.value) })}
+            onChange={(e) =>
+              updateSettings({ timeoutMs: Number(e.target.value) })
+            }
           />
         </div>
 
@@ -197,32 +251,51 @@ export function OneDriveSettings() {
             onClick={handleTestConnection}
             disabled={testing}
           >
-            {testing ? "Testing..." : "Test Connection"}
+            {testing
+              ? translate("common.action.testing", "Testing...")
+              : translate("common.action.testConnection", "Test Connection")}
           </button>
-          <button className="btn-primary btn-sm" onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Save Settings"}
+          <button
+            className="btn-primary btn-sm"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving
+              ? translate("common.action.saving", "Saving...")
+              : translate("common.action.saveSettings", "Save Settings")}
           </button>
         </div>
 
         {testResult && (
-          <div className={`test-result ${testResult.success ? "success" : "error"}`}>
+          <div
+            className={`test-result ${testResult.success ? "success" : "error"}`}
+          >
             {testResult.success ? (
-              <span>Connected{testResult.name ? ` as ${testResult.name}` : ""}</span>
+              <span>
+                {testResult.name
+                  ? translate("common.connectedAs", "Connected as {name}", {
+                      name: testResult.name,
+                    })
+                  : translate("common.status.connected", "Connected")}
+              </span>
             ) : (
-              <span>Connection failed: {testResult.error}</span>
+              <span>
+                {translate("common.connectionFailed", "Connection failed:")}{" "}
+                {testResult.error}
+              </span>
             )}
           </div>
         )}
       </div>
 
       <div className="settings-section">
-        <h4>Quick Usage</h4>
-        <pre className="settings-info-box">{`// List root items
+        <h4>{translate("common.quickUsage", "Quick Usage")}</h4>
+        <pre className="settings-info-box">{`// ${translate("oneDrive.quick.listRoot", "List root items")}
 onedrive_action({
   action: "list_children"
 });
 
-// Upload a file to root
+// ${translate("oneDrive.quick.uploadRoot", "Upload a file to root")}
 onedrive_action({
   action: "upload_file",
   file_path: "reports/summary.pdf"

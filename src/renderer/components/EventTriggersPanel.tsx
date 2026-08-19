@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Zap, Plus, Trash2, ToggleLeft, ToggleRight, History, ChevronDown } from "lucide-react";
+import {
+  ArrowRight,
+  Zap,
+  Plus,
+  Trash2,
+  ToggleLeft,
+  ToggleRight,
+  History,
+  ChevronDown,
+} from "lucide-react";
+import { translate, useLanguage } from "../i18n";
 
 interface TriggerCondition {
   field: string;
@@ -117,7 +127,13 @@ const FIELDS_BY_SOURCE: Record<string, string[]> = {
     "ownerEmail",
   ],
   webhook: ["path", "method", "body"],
-  connector_event: ["changeType", "serverId", "connectorId", "resourceUri", "data"],
+  connector_event: [
+    "changeType",
+    "serverId",
+    "connectorId",
+    "resourceUri",
+    "data",
+  ],
 };
 
 /** Example triggers shown when empty; clicking one populates the form */
@@ -164,7 +180,11 @@ const EXAMPLE_TRIGGERS: ExampleTrigger[] = [
     name: "Commitment follow-up",
     source: "mailbox_event" as const,
     conditions: [
-      { field: "eventType", operator: "equals", value: "commitments_extracted" },
+      {
+        field: "eventType",
+        operator: "equals",
+        value: "commitments_extracted",
+      },
       { field: "commitmentCount", operator: "gt", value: "0" },
     ],
     actionTitle: "Review commitment",
@@ -188,7 +208,8 @@ const EXAMPLE_TRIGGERS: ExampleTrigger[] = [
     source: "webhook" as const,
     conditions: [{ field: "path", operator: "equals", value: "/deploy" }],
     actionTitle: "Deploy triggered",
-    actionPrompt: "A deploy was triggered via webhook. Verify and document the deployment.",
+    actionPrompt:
+      "A deploy was triggered via webhook. Verify and document the deployment.",
   },
   {
     name: "Jira issue changed",
@@ -215,7 +236,22 @@ const EXAMPLE_TRIGGERS: ExampleTrigger[] = [
   },
 ];
 
-export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspaceId }) => {
+const EXAMPLE_TRIGGER_KEYS: Record<string, string> = {
+  "Urgent deploy alert": "urgentDeploy",
+  "Bug report triage": "bugTriage",
+  "Urgent reply needed": "urgentReply",
+  "Commitment follow-up": "commitmentFollowup",
+  "Stale follow-up wake": "staleFollowup",
+  "Webhook deploy": "webhookDeploy",
+  "Jira issue changed": "jiraChanged",
+  "Google doc changed": "googleDocChanged",
+};
+
+export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({
+  workspaceId,
+}) => {
+  useLanguage();
+  const t = translate;
   const [triggers, setTriggers] = useState<EventTrigger[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
@@ -228,14 +264,18 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
   const [conditions, setConditions] = useState<TriggerCondition[]>([
     { field: "eventType", operator: "equals", value: "thread_classified" },
   ]);
-  const [actionType, setActionType] = useState<"create_task" | "wake_agent">("create_task");
+  const [actionType, setActionType] = useState<"create_task" | "wake_agent">(
+    "create_task",
+  );
   const [actionPrompt, setActionPrompt] = useState("");
   const [actionTitle, setActionTitle] = useState("");
   const [actionAgentRoleId, setActionAgentRoleId] = useState("");
 
   const loadTriggers = useCallback(async () => {
     try {
-      const result = await (window as Any).electronAPI.listTriggers(workspaceId || "");
+      const result = await (window as Any).electronAPI.listTriggers(
+        workspaceId || "",
+      );
       setTriggers(result || []);
     } catch {
       // API not available yet
@@ -267,28 +307,39 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
   }, []);
 
   const getConditionValue = useCallback(
-    (field: string) => conditions.find((condition) => condition.field === field)?.value || "",
+    (field: string) =>
+      conditions.find((condition) => condition.field === field)?.value || "",
     [conditions],
   );
 
-  const upsertCondition = useCallback((field: string, value: string, operator = "equals") => {
-    setConditions((prev) => {
-      const existing = prev.findIndex((condition) => condition.field === field);
-      if (!value.trim()) {
-        return existing >= 0 ? prev.filter((condition) => condition.field !== field) : prev;
-      }
-      if (existing >= 0) {
-        return prev.map((condition, idx) =>
-          idx === existing ? { ...condition, operator, value } : condition,
+  const upsertCondition = useCallback(
+    (field: string, value: string, operator = "equals") => {
+      setConditions((prev) => {
+        const existing = prev.findIndex(
+          (condition) => condition.field === field,
         );
-      }
-      return [...prev, { field, operator, value }];
-    });
-  }, []);
+        if (!value.trim()) {
+          return existing >= 0
+            ? prev.filter((condition) => condition.field !== field)
+            : prev;
+        }
+        if (existing >= 0) {
+          return prev.map((condition, idx) =>
+            idx === existing ? { ...condition, operator, value } : condition,
+          );
+        }
+        return [...prev, { field, operator, value }];
+      });
+    },
+    [],
+  );
 
   const addCondition = () => {
     const fields = FIELDS_BY_SOURCE[source] || ["text"];
-    setConditions([...conditions, { field: fields[0], operator: "contains", value: "" }]);
+    setConditions([
+      ...conditions,
+      { field: fields[0], operator: "contains", value: "" },
+    ]);
   };
 
   const removeCondition = (idx: number) => {
@@ -296,7 +347,9 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
   };
 
   const updateCondition = (idx: number, updates: Partial<TriggerCondition>) => {
-    setConditions(conditions.map((c, i) => (i === idx ? { ...c, ...updates } : c)));
+    setConditions(
+      conditions.map((c, i) => (i === idx ? { ...c, ...updates } : c)),
+    );
   };
 
   const handleAdd = async () => {
@@ -318,7 +371,11 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                 }
               : {
                   prompt: actionPrompt,
-                  title: actionTitle || `Trigger: ${name.trim()}`,
+                  title:
+                    actionTitle ||
+                    t("eventTriggers.defaultTaskTitle", "Trigger: {name}", {
+                      name: name.trim(),
+                    }),
                   workspaceId,
                 },
         },
@@ -355,13 +412,41 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
     }
   };
 
+  const getExampleKey = (ex: ExampleTrigger) =>
+    EXAMPLE_TRIGGER_KEYS[ex.name] || "custom";
+  const getExampleName = (ex: ExampleTrigger) =>
+    t(`eventTriggers.example.${getExampleKey(ex)}.name`, ex.name);
+  const getExampleActionTitle = (ex: ExampleTrigger) =>
+    ex.actionTitle
+      ? t(
+          `eventTriggers.example.${getExampleKey(ex)}.actionTitle`,
+          ex.actionTitle,
+        )
+      : "";
+  const getExamplePrompt = (ex: ExampleTrigger) =>
+    t(`eventTriggers.example.${getExampleKey(ex)}.prompt`, ex.actionPrompt);
+  const getSourceLabel = (value: string, fallback?: string) =>
+    t(`eventTriggers.source.${value}`, fallback || value.replace(/_/g, " "));
+  const getOperatorLabel = (value: string, fallback?: string) =>
+    t(`eventTriggers.operator.${value}`, fallback || value.replace(/_/g, " "));
+  const formatTriggerMeta = (trigger: EventTrigger) =>
+    t(
+      "eventTriggers.card.meta",
+      "{source} · {conditions} conditions · fired {count}x",
+      {
+        source: getSourceLabel(trigger.source),
+        conditions: trigger.conditions.length,
+        count: trigger.fireCount,
+      },
+    );
+
   const applyExample = (ex: (typeof EXAMPLE_TRIGGERS)[0]) => {
-    setName(ex.name);
+    setName(getExampleName(ex));
     setSource(ex.source);
     setConditions(ex.conditions.map((c) => ({ ...c })));
     setActionType(ex.actionType || "create_task");
-    setActionTitle(ex.actionTitle || "");
-    setActionPrompt(ex.actionPrompt);
+    setActionTitle(getExampleActionTitle(ex));
+    setActionPrompt(getExamplePrompt(ex));
     setActionAgentRoleId(ex.agentRoleId || "");
     setShowForm(true);
   };
@@ -372,7 +457,9 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
       return;
     }
     try {
-      const result = await (window as Any).electronAPI.getTriggerHistory(triggerId);
+      const result = await (window as Any).electronAPI.getTriggerHistory(
+        triggerId,
+      );
       setHistory(result || []);
       setExpandedHistory(triggerId);
     } catch {
@@ -383,46 +470,30 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
   const fields = FIELDS_BY_SOURCE[source] || ["text"];
 
   return (
-    <div style={{ padding: 16 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 16,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Zap size={18} style={{ color: "var(--color-accent)" }} />
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--color-text)" }}>
-            Event Triggers
-          </h3>
-          <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-            {triggers.length} trigger{triggers.length !== 1 ? "s" : ""}
+    <div className="automation-page event-triggers-page">
+      <div className="automation-page-toolbar automation-page-header">
+        <div className="automation-page-heading">
+          <span className="automation-page-heading-icon" aria-hidden="true">
+            <Zap size={18} />
           </span>
+          <h3>{t("eventTriggers.title", "Event Triggers")}</h3>
+          <p className="settings-description">
+            {t("eventTriggers.triggerCount", "{count} triggers", {
+              count: triggers.length,
+            })}
+          </p>
         </div>
         <button
+          className="button-secondary automation-create-button"
           onClick={() => setShowForm(!showForm)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "6px 12px",
-            border: "1px solid var(--color-border)",
-            borderRadius: 6,
-            background: "var(--color-bg-elevated)",
-            color: "var(--color-text)",
-            cursor: "pointer",
-            fontSize: 12,
-          }}
         >
-          <Plus size={14} /> Add Trigger
+          <Plus size={14} /> {t("eventTriggers.addTrigger", "Add Trigger")}
         </button>
       </div>
 
       {showForm && (
         <div
-          className="event-triggers-form"
+          className="event-triggers-form automation-editor-card"
           style={{
             border: "1px solid var(--color-border)",
             borderRadius: 8,
@@ -440,14 +511,17 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                 marginBottom: 4,
               }}
             >
-              Name
+              {t("common.name", "Name")}
             </label>
             <input
               type="text"
               className="settings-input"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Urgent deploy alert"
+              placeholder={t(
+                "eventTriggers.placeholder.name",
+                "e.g. Urgent deploy alert",
+              )}
               style={{ marginBottom: 0 }}
             />
           </div>
@@ -461,7 +535,7 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                 marginBottom: 4,
               }}
             >
-              When (source)
+              {t("eventTriggers.whenSource", "When (source)")}
             </label>
             <select
               value={source}
@@ -488,7 +562,7 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
             >
               {SOURCES.map((s) => (
                 <option key={s.value} value={s.value}>
-                  {s.label}
+                  {getSourceLabel(s.value, s.label)}
                 </option>
               ))}
             </select>
@@ -512,7 +586,7 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                     marginBottom: 4,
                   }}
                 >
-                  MCP server
+                  {t("eventTriggers.mcpServer", "MCP server")}
                 </label>
                 <select
                   value={getConditionValue("serverId")}
@@ -528,7 +602,12 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                     fontSize: 12,
                   }}
                 >
-                  <option value="">Any connected server</option>
+                  <option value="">
+                    {t(
+                      "eventTriggers.anyConnectedServer",
+                      "Any connected server",
+                    )}
+                  </option>
                   {mcpServers.map((server) => (
                     <option key={server.id} value={server.id}>
                       {server.name} ({server.status})
@@ -545,14 +624,19 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                     marginBottom: 4,
                   }}
                 >
-                  Resource URI filter
+                  {t("eventTriggers.resourceUriFilter", "Resource URI filter")}
                 </label>
                 <input
                   type="text"
                   className="settings-input"
                   value={getConditionValue("resourceUri")}
-                  onChange={(e) => upsertCondition("resourceUri", e.target.value, "contains")}
-                  placeholder="e.g. jira://issue/PROJ-123"
+                  onChange={(e) =>
+                    upsertCondition("resourceUri", e.target.value, "contains")
+                  }
+                  placeholder={t(
+                    "eventTriggers.placeholder.resourceUri",
+                    "e.g. jira://issue/PROJ-123",
+                  )}
                   style={{ marginBottom: 0 }}
                 />
               </div>
@@ -568,16 +652,23 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                 marginBottom: 4,
               }}
             >
-              Conditions (all must match)
+              {t("eventTriggers.conditionsAll", "Conditions (all must match)")}
             </label>
             {conditions.map((c, i) => (
               <div
                 key={i}
-                style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}
+                style={{
+                  display: "flex",
+                  gap: 6,
+                  marginBottom: 6,
+                  alignItems: "center",
+                }}
               >
                 <select
                   value={c.field}
-                  onChange={(e) => updateCondition(i, { field: e.target.value })}
+                  onChange={(e) =>
+                    updateCondition(i, { field: e.target.value })
+                  }
                   className="event-triggers-select"
                   style={{
                     flex: 1,
@@ -597,7 +688,9 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                 </select>
                 <select
                   value={c.operator}
-                  onChange={(e) => updateCondition(i, { operator: e.target.value })}
+                  onChange={(e) =>
+                    updateCondition(i, { operator: e.target.value })
+                  }
                   className="event-triggers-select"
                   style={{
                     flex: 1,
@@ -611,7 +704,7 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                 >
                   {OPERATORS.map((o) => (
                     <option key={o.value} value={o.value}>
-                      {o.label}
+                      {getOperatorLabel(o.value, o.label)}
                     </option>
                   ))}
                 </select>
@@ -619,8 +712,10 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                   type="text"
                   className="settings-input"
                   value={c.value}
-                  onChange={(e) => updateCondition(i, { value: e.target.value })}
-                  placeholder="value"
+                  onChange={(e) =>
+                    updateCondition(i, { value: e.target.value })
+                  }
+                  placeholder={t("eventTriggers.placeholder.value", "value")}
                   style={{ flex: 2, marginBottom: 0 }}
                 />
                 {conditions.length > 1 && (
@@ -650,7 +745,7 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                 padding: "2px 0",
               }}
             >
-              + Add condition
+              {t("eventTriggers.addCondition", "+ Add condition")}
             </button>
           </div>
 
@@ -663,11 +758,17 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                 marginBottom: 4,
               }}
             >
-              Then (action)
+              {t("eventTriggers.thenAction", "Then (action)")}
             </label>
             <select
               value={actionType}
-              onChange={(e) => setActionType(e.target.value === "wake_agent" ? "wake_agent" : "create_task")}
+              onChange={(e) =>
+                setActionType(
+                  e.target.value === "wake_agent"
+                    ? "wake_agent"
+                    : "create_task",
+                )
+              }
               className="event-triggers-select"
               style={{
                 width: "100%",
@@ -680,15 +781,22 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                 marginBottom: 6,
               }}
             >
-              <option value="create_task">Create task</option>
-              <option value="wake_agent">Wake agent</option>
+              <option value="create_task">
+                {t("eventTriggers.action.createTask", "Create task")}
+              </option>
+              <option value="wake_agent">
+                {t("eventTriggers.action.wakeAgent", "Wake agent")}
+              </option>
             </select>
             <input
               type="text"
               className="settings-input"
               value={actionTitle}
               onChange={(e) => setActionTitle(e.target.value)}
-              placeholder="Task title"
+              placeholder={t(
+                "eventTriggers.placeholder.taskTitle",
+                "Task title",
+              )}
               style={{ marginBottom: 6 }}
               disabled={actionType === "wake_agent"}
             />
@@ -698,7 +806,10 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                 className="settings-input"
                 value={actionAgentRoleId}
                 onChange={(e) => setActionAgentRoleId(e.target.value)}
-                placeholder="Agent role ID"
+                placeholder={t(
+                  "eventTriggers.placeholder.agentRoleId",
+                  "Agent role ID",
+                )}
                 style={{ marginBottom: 6 }}
               />
             )}
@@ -706,7 +817,10 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
               className="settings-input"
               value={actionPrompt}
               onChange={(e) => setActionPrompt(e.target.value)}
-              placeholder="Task prompt (use {{event.subject}}, {{event.threadId}}, {{event.primaryContactEmail}} for variables)"
+              placeholder={t(
+                "eventTriggers.placeholder.taskPrompt",
+                "Task prompt (use {{event.subject}}, {{event.threadId}}, {{event.primaryContactEmail}} for variables)",
+              )}
               rows={3}
               style={{
                 resize: "vertical",
@@ -728,11 +842,14 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                 fontSize: 12,
               }}
             >
-              Cancel
+              {t("common.cancel", "Cancel")}
             </button>
             <button
               onClick={handleAdd}
-              disabled={!name.trim() || (actionType === "wake_agent" && !actionAgentRoleId.trim())}
+              disabled={
+                !name.trim() ||
+                (actionType === "wake_agent" && !actionAgentRoleId.trim())
+              }
               style={{
                 padding: "6px 12px",
                 borderRadius: 6,
@@ -741,76 +858,46 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                 color: "#fff",
                 cursor: "pointer",
                 fontSize: 12,
-                opacity: name.trim() && (actionType !== "wake_agent" || actionAgentRoleId.trim()) ? 1 : 0.5,
+                opacity:
+                  name.trim() &&
+                  (actionType !== "wake_agent" || actionAgentRoleId.trim())
+                    ? 1
+                    : 0.5,
               }}
             >
-              Create Trigger
+              {t("eventTriggers.createTrigger", "Create Trigger")}
             </button>
           </div>
         </div>
       )}
 
       {triggers.length === 0 && !showForm && (
-        <div style={{ marginBottom: 24 }}>
-          <p
-            style={{
-              fontSize: 13,
-              color: "var(--color-text-secondary)",
-              marginBottom: 16,
-            }}
-          >
-            No triggers configured yet. Try an example below or create your own.
+        <div className="event-trigger-empty">
+          <p className="event-trigger-empty-copy">
+            {t(
+              "eventTriggers.empty",
+              "No triggers configured yet. Try an example below or create your own.",
+            )}
           </p>
-          <div
-            style={{
-              display: "grid",
-              gap: 10,
-              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-            }}
-          >
+          <div className="event-trigger-template-grid">
             {EXAMPLE_TRIGGERS.map((ex, i) => (
               <button
                 key={i}
                 type="button"
+                className="event-trigger-template"
                 onClick={() => applyExample(ex)}
-                style={{
-                  textAlign: "left",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: "1px solid var(--color-border)",
-                  background: "var(--color-bg-elevated)",
-                  color: "var(--color-text)",
-                  cursor: "pointer",
-                  fontSize: 13,
-                  transition: "border-color 0.2s, background 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "var(--color-accent)";
-                  e.currentTarget.style.background = "var(--color-bg-hover)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--color-border)";
-                  e.currentTarget.style.background = "var(--color-bg-elevated)";
-                }}
               >
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>{ex.name}</div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "var(--color-text-muted)",
-                  }}
-                >
-                  {ex.source.replace("_", " ")} · {ex.conditions[0].field}{" "}
-                  {ex.conditions[0].operator} "{ex.conditions[0].value}"
+                <div className="event-trigger-template-title">
+                  {getExampleName(ex)}
                 </div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "var(--color-accent)",
-                    marginTop: 6,
-                  }}
-                >
-                  Use as template →
+                <div className="event-trigger-template-meta">
+                  {getSourceLabel(ex.source)} · {ex.conditions[0].field}{" "}
+                  {getOperatorLabel(ex.conditions[0].operator)} "
+                  {ex.conditions[0].value}"
+                </div>
+                <div className="event-trigger-template-action">
+                  {t("eventTriggers.useAsTemplate", "Use as template")}
+                  <ArrowRight size={13} aria-hidden="true" />
                 </div>
               </button>
             ))}
@@ -818,79 +905,73 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
         </div>
       )}
 
-      {triggers.map((t) => (
+      {triggers.map((trigger) => (
         <div
-          key={t.id}
-          style={{
-            border: "1px solid var(--color-border)",
-            borderRadius: 8,
-            marginBottom: 8,
-            overflow: "hidden",
-          }}
+          key={trigger.id}
+          className={`event-trigger-row${trigger.enabled ? " is-enabled" : ""}`}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px" }}>
+          <div className="event-trigger-row-main">
             <button
-              onClick={() => toggleTrigger(t.id, !t.enabled)}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
+              className="event-trigger-icon-button"
+              onClick={() => toggleTrigger(trigger.id, !trigger.enabled)}
             >
-              {t.enabled ? (
-                <ToggleRight size={20} style={{ color: "var(--color-success)" }} />
+              {trigger.enabled ? (
+                <ToggleRight
+                  size={20}
+                  style={{ color: "var(--color-success)" }}
+                />
               ) : (
-                <ToggleLeft size={20} style={{ color: "var(--color-text-muted)" }} />
+                <ToggleLeft
+                  size={20}
+                  style={{ color: "var(--color-text-muted)" }}
+                />
               )}
             </button>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="event-trigger-row-copy">
               <div
                 style={{
                   fontSize: 13,
                   fontWeight: 500,
-                  color: t.enabled ? "var(--color-text)" : "var(--color-text-muted)",
+                  color: trigger.enabled
+                    ? "var(--color-text)"
+                    : "var(--color-text-muted)",
                 }}
               >
-                {t.name}
+                {trigger.name}
               </div>
-              <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 2 }}>
-                {t.source.replace("_", " ")} · {t.conditions.length} condition
-                {t.conditions.length !== 1 ? "s" : ""} · fired {t.fireCount}x
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--color-text-muted)",
+                  marginTop: 2,
+                }}
+              >
+                {formatTriggerMeta(trigger)}
               </div>
             </div>
             <button
-              onClick={() => loadHistory(t.id)}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "var(--color-text-muted)",
-                padding: 4,
-              }}
+              className="event-trigger-icon-button"
+              onClick={() => loadHistory(trigger.id)}
             >
-              {expandedHistory === t.id ? <ChevronDown size={14} /> : <History size={14} />}
+              {expandedHistory === trigger.id ? (
+                <ChevronDown size={14} />
+              ) : (
+                <History size={14} />
+              )}
             </button>
             <button
-              onClick={() => deleteTrigger(t.id)}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "var(--color-text-muted)",
-                padding: 4,
-              }}
+              className="event-trigger-icon-button event-trigger-delete"
+              onClick={() => deleteTrigger(trigger.id)}
             >
               <Trash2 size={14} />
             </button>
           </div>
 
-          {expandedHistory === t.id && (
-            <div
-              style={{
-                borderTop: "1px solid var(--color-border)",
-                padding: "8px 12px",
-                background: "var(--color-bg-darker)",
-              }}
-            >
+          {expandedHistory === trigger.id && (
+            <div className="event-trigger-history">
               {history.length === 0 ? (
                 <div style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
-                  No history yet
+                  {t("eventTriggers.noHistory", "No history yet")}
                 </div>
               ) : (
                 history.slice(0, 10).map((h) => (
@@ -907,9 +988,13 @@ export const EventTriggersPanel: React.FC<{ workspaceId?: string }> = ({ workspa
                     <span style={{ color: "var(--color-text-muted)" }}>
                       {new Date(h.firedAt).toLocaleString()}
                     </span>
-                    <span>{h.actionResult || "fired"}</span>
+                    <span>
+                      {h.actionResult || t("eventTriggers.fired", "fired")}
+                    </span>
                     {h.taskId && (
-                      <span style={{ color: "var(--color-accent)" }}>→ task</span>
+                      <span style={{ color: "var(--color-accent)" }}>
+                        {t("eventTriggers.toTask", "-> task")}
+                      </span>
                     )}
                   </div>
                 ))

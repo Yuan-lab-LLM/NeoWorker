@@ -112,7 +112,7 @@ describe("MemoryWriteGate", () => {
     serviceMocks.curate.mockReset().mockResolvedValue({ success: true });
     serviceMocks.upsertDistilledEntry.mockReset().mockResolvedValue({ id: "curated-1" });
     serviceMocks.remember.mockReset().mockResolvedValue({
-      containerTag: "cowork:ws-1",
+      containerTag: "neoworker:ws-1",
       memoryIds: ["external-1"],
     });
     serviceMocks.mirrorMemory.mockReset().mockResolvedValue(undefined);
@@ -121,7 +121,7 @@ describe("MemoryWriteGate", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-    delete process.env.COWORK_MEMORY_WRITE_APPROVAL_MODE;
+    delete process.env.NEOWORKER_MEMORY_WRITE_APPROVAL_MODE;
   });
 
   it("allows writes when approval mode is off", () => {
@@ -160,7 +160,7 @@ describe("MemoryWriteGate", () => {
   });
 
   it("stages external writes when overridden by environment", () => {
-    process.env.COWORK_MEMORY_WRITE_APPROVAL_MODE = "external_only";
+    process.env.NEOWORKER_MEMORY_WRITE_APPROVAL_MODE = "external_only";
     vi.spyOn(MemoryFeaturesManager, "loadSettings").mockReturnValue({
       contextPackInjectionEnabled: true,
       heartbeatMaintenanceEnabled: true,
@@ -263,7 +263,7 @@ describe("MemoryWriteGate", () => {
   });
 
   it("applies external remember writes after approval", async () => {
-    process.env.COWORK_MEMORY_WRITE_APPROVAL_MODE = "external_only";
+    process.env.NEOWORKER_MEMORY_WRITE_APPROVAL_MODE = "external_only";
     vi.spyOn(MemoryFeaturesManager, "loadSettings").mockReturnValue({
       contextPackInjectionEnabled: true,
       heartbeatMaintenanceEnabled: true,
@@ -276,7 +276,7 @@ describe("MemoryWriteGate", () => {
       action: "remember",
       payload: {
         content: "External approved memory",
-        containerTag: "cowork:ws-1",
+        containerTag: "neoworker:ws-1",
         metadata: { source: "test" },
       },
     });
@@ -288,7 +288,7 @@ describe("MemoryWriteGate", () => {
     expect(serviceMocks.remember).toHaveBeenCalledWith(
       expect.objectContaining({
         content: "External approved memory",
-        containerTag: "cowork:ws-1",
+        containerTag: "neoworker:ws-1",
         taskId: "task-1",
         skipMemoryWriteGate: true,
       }),

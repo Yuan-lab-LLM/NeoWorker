@@ -1,17 +1,13 @@
-# Getting Started with CoWork OS
+# Getting Started with NeoWorker
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-1.webp" alt="CoWork OS home screen" width="700">
-  <br><em>The home screen is the fastest way to start tasks, reopen recent work, and launch common workflows.</em>
-</p>
 
 ## Quick Start
 
 ### Step 1: Install Dependencies
 
 ```bash
-git clone https://github.com/CoWork-OS/CoWork-OS.git
-cd CoWork-OS
+git clone https://github.com/NeoWorker/NeoWorker.git
+cd NeoWorker
 npm run setup
 ```
 
@@ -32,35 +28,35 @@ Build the CLI once, then launch the terminal UI:
 
 ```bash
 npm run build:cli
-cowork
+neoworker
 ```
 
 For a one-shot local task:
 
 ```bash
-cowork run "who are you?"
+neoworker run "who are you?"
 ```
 
-`cowork` uses the same local profile, database, provider settings, workspaces, skills, and MCP connector configuration as the desktop app. It does not need a Control Plane token for normal local use. If the desktop app is installed and already configured, one-shot local CLI runs prefer a hidden app-entry runtime so encrypted desktop settings keep using the same app identity.
+`neoworker` uses the same local profile, database, provider settings, workspaces, skills, and MCP connector configuration as the desktop app. It does not need a Control Plane token for normal local use. If the desktop app is installed and already configured, one-shot local CLI runs prefer a hidden app-entry runtime so encrypted desktop settings keep using the same app identity.
 
 Use remote mode only when intentionally calling a remote Control Plane endpoint:
 
 ```bash
-cowork run "check the remote workspace status" --remote
+neoworker run "check the remote workspace status" --remote
 ```
 
-See [CoWork OS CLI](cli.md) for command syntax, local-vs-remote behavior, JSON output, and troubleshooting.
+See [NeoWorker CLI](cli.md) for command syntax, local-vs-remote behavior, JSON output, and troubleshooting.
 
-### Step 3: Choose How CoWork Runs AI
+### Step 3: Choose How NeoWorker Runs AI
 
 On first launch, choose the easiest working model route for your machine:
 
 1. **Sign in with ChatGPT** if you already use a ChatGPT subscription. This is the simplest non-technical path because it uses browser sign-in instead of an API key.
-2. **Use local Ollama** if CoWork detects a model already running on your computer. This keeps model calls local and private.
+2. **Use local Ollama** if NeoWorker detects a model already running on your computer. This keeps model calls local and private.
 3. **Use an API key** for Claude, OpenAI API, Gemini, OpenRouter, Groq, xAI, DeepSeek, Kimi, NanoGPT, Bedrock, or other compatible providers. The provider picker marks OpenRouter, Gemini, and Groq with **Free** when a free usage path is available.
 4. **Explore without AI** if you only want to look around. AI tasks stay gated until one route is connected and tested.
 
-The onboarding flow keeps your answers in the renderer while you are moving through setup. CoWork writes the profile, provider choice, memory preference, and related settings only when you confirm the final recap. The recap is a fixed review frame with a scrollable body, so long work-context notes do not push the final action off screen.
+The onboarding flow keeps your answers in the renderer while you are moving through setup. NeoWorker writes the profile, provider choice, memory preference, and related settings only when you confirm the final recap. The recap is a fixed review frame with a scrollable body, so long work-context notes do not push the final action off screen.
 
 If you use the API-key path, open **Settings > AI & Models** and choose a provider:
 
@@ -86,10 +82,6 @@ If you use the API-key path, open **Settings > AI & Models** and choose a provid
 
 After you have at least two working model routes, you can optionally create a [Mixture of Agents](mixture-of-agents.md) preset in **Settings > AI & Models > AI Model > Mixture of Agents**. Choose one aggregator model and one or more advisor models, save the preset, then select **Mixture of Agents** as the active provider and the preset as the model for tasks that benefit from model diversity.
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-10.webp" alt="AI model provider settings" width="700">
-  <br><em>Settings centralizes provider credentials, fallback routing, and model selection.</em>
-</p>
 
 ### Optional: Configure Fallback Chains
 
@@ -98,11 +90,11 @@ After your primary provider works, open:
 - **Settings > AI & Models** to set ordered fallback providers/models
 - **Settings > Web Search** to set primary and fallback search providers such as Tavily, Exa, Brave, SerpAPI, or Google
 
-CoWork OS uses those ordered chains when a provider is unavailable, rate-limited, or lacks the needed capability for a task.
+NeoWorker uses those ordered chains when a provider is unavailable, rate-limited, or lacks the needed capability for a task.
 
 Mixture of Agents uses the same underlying provider routes for its slots. Slot providers keep their own fallback chains, while MoA provider failover is configured separately when you want the whole preset to fall back after MoA fails.
 
-For LLM providers, retryable failures such as `429` rate limits immediately advance to the next configured fallback provider/model. In **Settings > AI & Models > Provider Failover**, `Retry primary after (seconds)` controls when CoWork OS should probe the primary route again after failover:
+For LLM providers, retryable failures such as `429` rate limits immediately advance to the next configured fallback provider/model. In **Settings > AI & Models > Provider Failover**, `Retry primary after (seconds)` controls when NeoWorker should probe the primary route again after failover:
 
 - blank uses the default 60-second cooldown
 - `0` retries the primary on the next route refresh
@@ -112,14 +104,14 @@ For LLM providers, retryable failures such as `429` rate limits immediately adva
 
 Before you start relying on long-term context, open **Settings > Memory Hub** and confirm how memory should behave for this profile.
 
-- **Workspace Kit** initializes the local `.cowork/` context files used for durable prompt injection and project guidance.
+- **Workspace Kit** initializes the local `.neoworker/` context files used for durable prompt injection and project guidance.
 - **Memory settings** control local capture, privacy mode, retention, preview of the `L0/L1` memory payload, and the Memory Inspector for structured archive observations.
 - **Memory Write Approval** controls whether durable memory writes commit immediately or wait in a review queue. Use `curated_only` for hot-memory edits, `external_only` for Supermemory writes/mirrors, `background_only` for Dreaming/distillation/mirroring, or `all` for every durable memory write. Sensitive external-memory payloads are blocked before they are stored in the queue.
 - **Memory Inspector** lets you search observation metadata, inspect details and timelines, edit titles/narratives, promote useful entries to curated memory, mark entries private, suppress prompt recall, redact content, soft-delete entries, and rebuild deterministic metadata when needed.
 - **Durable Runtime Context** is optional. Enable it if you want long active tasks to retain sanitized task messages and source-linked compaction summaries that the agent can recover with `context_grep` and `context_describe`. It stays task-scoped by default and is erased by **Clear memory** for the workspace.
-- **Supermemory** is optional. If you want an external memory provider, enable it here, paste your API key, keep the default `cowork:{workspaceId}` container template unless you need something else, save, and click **Test Connection**.
+- **Supermemory** is optional. If you want an external memory provider, enable it here, paste your API key, keep the default `neoworker:{workspaceId}` container template unless you need something else, save, and click **Test Connection**.
 
-Supermemory does not replace CoWork's local memory system. It adds an external profile/search layer, explicit `supermemory_*` tools, optional prompt-time profile injection, and optional mirroring of non-private local memory captures. Local structured observations remain authoritative for privacy controls; private, redacted, and suppressed entries stay local. Dreaming also stays local and review-first by proposing memory curation candidates instead of sending memory maintenance to an external provider. If Memory Write Approval is enabled for external or background writes, `supermemory_remember` and mirror writes are staged for review instead of committed immediately. See [Structured Memory Observations](memory-observations.md), [Durable Runtime Context](durable-runtime-context.md), [Dreaming](dreaming.md), [Workspace Memory Flow](workspace-memory-flow.md#memory-write-governance), and [Supermemory Integration](supermemory.md).
+Supermemory does not replace NeoWorker's local memory system. It adds an external profile/search layer, explicit `supermemory_*` tools, optional prompt-time profile injection, and optional mirroring of non-private local memory captures. Local structured observations remain authoritative for privacy controls; private, redacted, and suppressed entries stay local. Dreaming also stays local and review-first by proposing memory curation candidates instead of sending memory maintenance to an external provider. If Memory Write Approval is enabled for external or background writes, `supermemory_remember` and mirror writes are staged for review instead of committed immediately. See [Structured Memory Observations](memory-observations.md), [Durable Runtime Context](durable-runtime-context.md), [Dreaming](dreaming.md), [Workspace Memory Flow](workspace-memory-flow.md#memory-write-governance), and [Supermemory Integration](supermemory.md).
 
 ## Troubleshooting
 
@@ -127,26 +119,26 @@ Supermemory does not replace CoWork's local memory system. It adds an external p
 - If the Claude model list is empty, click **Refresh Models** after entering your API key or Claude subscription token.
 - If a provider endpoint changes, override the **Base URL** in Settings (custom providers or Groq/xAI/Kimi/OpenRouter).
 - If Ollama fails to connect, confirm the service is running and the base URL is correct (default `http://localhost:11434`).
-- If `cowork run` asks for a missing token, confirm you did not pass `--remote`. Local CLI tasks should run without `COWORK_CONTROL_PLANE_TOKEN`.
-- If `cowork` reports missing build artifacts in a source checkout, run `npm run build:cli`.
+- If `neoworker run` asks for a missing token, confirm you did not pass `--remote`. Local CLI tasks should run without `NEOWORKER_CONTROL_PLANE_TOKEN`.
+- If `neoworker` reports missing build artifacts in a source checkout, run `npm run build:cli`.
 - If `npm run setup` fails on macOS with `Killed: 9`, macOS terminated the native build due to memory pressure. The setup script retries automatically (with exponential backoff); if it still fails, close other apps and run `npm run setup` again.
 - Note: as of April 4, 2026, third-party harnesses connected to your Claude account draw from extra usage instead of from your subscription. If you do not use them, nothing changes. If you do, the credit and bundles above have you covered.
 
 ### Step 4: Create Your First Task
 
 1. **Start in the private starter workspace**
-   - CoWork creates a private starter workspace automatically, so you can run a safe first task without choosing a real folder.
-   - Click **Choose folder** when you want CoWork OS to work with your own files.
+   - NeoWorker creates a private starter workspace automatically, so you can run a safe first task without choosing a real folder.
+   - Click **Choose folder** when you want NeoWorker to work with your own files.
    - That folder becomes your workspace (e.g., `~/Documents/test-workspace`).
 
 2. **Initialize the Workspace Kit (Optional, Recommended)**
    - Open **Settings** > **Memory Hub**
    - Under **Workspace Kit**, click **Initialize**
-   - This creates a `.cowork/` directory in your workspace for durable context, prompt injection, and project scaffolding
+   - This creates a `.neoworker/` directory in your workspace for durable context, prompt injection, and project scaffolding
    - The root kit can include shared workspace files such as `AGENTS.md`, `USER.md`, `MEMORY.md`, `TOOLS.md`, `IDENTITY.md`, `RULES.md`, `SOUL.md`, `VIBES.md`, and `LORE.md`
-   - `BOOTSTRAP.md` is a one-time onboarding checklist; once you complete onboarding, removing it marks onboarding complete and CoWork OS tracks that state in `.cowork/workspace-state.json`
+   - `BOOTSTRAP.md` is a one-time onboarding checklist; once you complete onboarding, removing it marks onboarding complete and NeoWorker tracks that state in `.neoworker/workspace-state.json`
    - `HEARTBEAT.md` is reserved for recurring heartbeat-only checks rather than general task context
-   - Project-specific context lives under `.cowork/projects/<projectId>/`, where `CONTEXT.md` captures project notes and `ACCESS.md` captures project access boundaries
+   - Project-specific context lives under `.neoworker/projects/<projectId>/`, where `CONTEXT.md` captures project notes and `ACCESS.md` captures project access boundaries
 
 ### Try The Everything Workbench
 
@@ -160,7 +152,7 @@ After the app is configured, try tasks that produce or use visible work surfaces
 - `open my local app and test the main flow at desktop, tablet, and mobile sizes`
 
 Generated documents, spreadsheets, presentations, and web pages appear as artifact cards and open in the right sidebar or fullscreen workbench. Live website testing opens the [Browser Workbench](browser-workbench.md), where the agent and user share the same Browser V2 in-app browser, with visible cursor movement, responsive viewport testing, accessibility snapshot refs, diagnostics, screenshots, annotation, and follow-up controls.
-   - Changes to tracked kit files keep revision snapshots under `.cowork/**/.history/`
+   - Changes to tracked kit files keep revision snapshots under `.neoworker/**/.history/`
    - You can validate kit health, freshness, and secret/missing-file warnings locally with `npm run kit:lint`
 
 2. **Create a Task**
@@ -172,7 +164,7 @@ Generated documents, spreadsheets, presentations, and web pages appear as artifa
    Or run the same kind of local task from the terminal:
 
    ```bash
-   cowork run "Please organize all files in this folder by file type, but ask before moving anything destructive."
+   neoworker run "Please organize all files in this folder by file type, but ask before moving anything destructive."
    ```
 
 3. **Watch it Work**
@@ -181,10 +173,6 @@ Generated documents, spreadsheets, presentations, and web pages appear as artifa
    - Show real-time progress in the timeline
    - Request approval before destructive changes
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-4.webp" alt="Task execution timeline" width="700">
-  <br><em>Task runs show live progress, intermediate work, approvals, and outputs in one view.</em>
-</p>
 
 ## Orientation: Where The New Product Surfaces Live
 
@@ -192,11 +180,11 @@ Once the app opens, the most important places to know are:
 
 - **Home**: quick launch plus recent sessions and recent automation activity
 - **Everything Workbench**: generated documents, spreadsheets, decks, web pages, PDFs, and previews open from task output cards into resizable sidebar or fullscreen artifact workspaces. Use this as the default place for everyday generated knowledge work: review or edit the file, then ask the agent for changes without switching to a separate Word, Excel, PowerPoint, browser, or chat app. See [Everything Workbench](everything-workbench.md).
-- **Uploaded PDFs**: attach a PDF to a task or chat turn when you want CoWork to summarize it, answer questions from it, extract clauses, or transform it. The first prompt includes only a compact PDF excerpt plus page/extraction metadata and the workspace-relative path; CoWork reads the full PDF on demand with the document parser. PDF excerpts are treated as untrusted document data, and visual layout questions use the visual PDF reader instead.
-- **Message box shortcuts**: type `/` in the main message box to search app commands and skill-backed workflow shortcuts in one menu. Use `/side` to ask read-only questions about the selected running session from the right panel, `/schedule` for standalone scheduled tasks, `/schedule here` for scheduled follow-ups in the selected thread, `/clear` to clear the current task view without deleting history, `/plan <task>` for Plan mode, `/cost <task>` for estimates, `/multitask [N] <task>` for bounded parallel lane work, or shortcuts such as `/strategy`, `/batch-rename`, and `/gmail-summary-drive` from the bundled CoWork Shortcuts pack. Skill-backed selections insert the slash token first so you can add context before sending; Claude-for-Legal workflows can then show structured matter-context cards in the task view. See [Message Box Shortcuts](message-box-shortcuts.md), [Side Chat](side-chat.md), [Multitask Command](multitask.md), and [Claude-for-Legal Workflows](claude-for-legal.md).
+- **Uploaded PDFs**: attach a PDF to a task or chat turn when you want NeoWorker to summarize it, answer questions from it, extract clauses, or transform it. The first prompt includes only a compact PDF excerpt plus page/extraction metadata and the workspace-relative path; NeoWorker reads the full PDF on demand with the document parser. PDF excerpts are treated as untrusted document data, and visual layout questions use the visual PDF reader instead.
+- **Message box shortcuts**: type `/` in the main message box to search app commands and skill-backed workflow shortcuts in one menu. Use `/side` to ask read-only questions about the selected running session from the right panel, `/schedule` for standalone scheduled tasks, `/schedule here` for scheduled follow-ups in the selected thread, `/clear` to clear the current task view without deleting history, `/plan <task>` for Plan mode, `/cost <task>` for estimates, `/multitask [N] <task>` for bounded parallel lane work, or shortcuts such as `/strategy`, `/batch-rename`, and `/gmail-summary-drive` from the bundled NeoWorker Shortcuts pack. Skill-backed selections insert the slash token first so you can add context before sending; Claude-for-Legal workflows can then show structured matter-context cards in the task view. See [Message Box Shortcuts](message-box-shortcuts.md), [Side Chat](side-chat.md), [Multitask Command](multitask.md), and [Claude-for-Legal Workflows](claude-for-legal.md).
 - **Task menu**: open a task and use the three-dot menu beside the title for pin/rename/archive, copy working directory/task ID/deeplink/Markdown, fork session, view outputs, or turn the current task into a same-thread or new-task automation. See [Task Automations](task-automations.md).
 - **Agents Hub**: create and inspect reusable managed agents from **Agents**. The clicked-agent detail page is for configuration and actions, not a separate chat. **Test this agent**, **Preview**, and starter prompts start a normal managed-session task and open it in the main task window, where follow-ups, approvals, responses, and outputs work like any other task. See [Managed Agents](managed-agents.md).
-- **Devices**: manage the local machine and saved remote CoWork nodes, run remote tasks, and inspect remote task history
+- **Devices**: manage the local machine and saved remote NeoWorker nodes, run remote tasks, and inspect remote task history
 - **Settings > Automations**: Routines, Task Queue, Workflow Intelligence, Scheduled Tasks, Webhooks, Event Triggers, and Daily Briefing
 - **Settings > Profiles**: create, switch, export, and import isolated app profiles
 - **Settings > Companies**: company shell setup, goals, projects, issues, planner state, and linked operators
@@ -214,11 +202,11 @@ If you are just getting started, do not configure everything at once. Set up an 
 
 ## Optional: Try Chronicle
 
-Use this if you want CoWork OS to understand vague on-screen references from the desktop app.
+Use this if you want NeoWorker to understand vague on-screen references from the desktop app.
 
 1. Open **Settings > Memory Hub > Chronicle**.
 2. Turn on **Chronicle (Research Preview)** and accept the consent prompt.
-3. Grant **Screen Recording** for CoWork OS if macOS prompts for it.
+3. Grant **Screen Recording** for NeoWorker if macOS prompts for it.
 4. Optional but useful: grant **Accessibility** so Chronicle can attach better frontmost app/window metadata.
 5. Confirm **Settings > Tools > Built-in tools** still has **Chronicle** enabled.
 6. Restart the app if you changed Screen Recording.
@@ -235,14 +223,14 @@ See [Chronicle](chronicle.md) for the full guide and [Troubleshooting](troublesh
 
 ## Optional: Add A Remote Device
 
-Use this when you want CoWork OS to run tasks on another machine, such as a Mac mini or remote workstation.
+Use this when you want NeoWorker to run tasks on another machine, such as a Mac mini or remote workstation.
 
-1. Start CoWork on the remote machine and enable the Control Plane.
+1. Start NeoWorker on the remote machine and enable the Control Plane.
 2. Decide how you will reach it:
    - same LAN
    - SSH tunnel
    - Tailscale
-   - reverse proxy only when the Control Plane stays loopback/private and `COWORK_CONTROL_PLANE_ALLOWED_ORIGINS` is set
+   - reverse proxy only when the Control Plane stays loopback/private and `NEOWORKER_CONTROL_PLANE_ALLOWED_ORIGINS` is set
 3. On your main machine, open the **Devices** tab.
 4. Click **Add new device**.
 5. Enter the gateway URL, token, display name, and purpose.
@@ -255,7 +243,7 @@ For VPS/headless deployments, prefer SSH tunnels or Tailscale. Direct `0.0.0.0`/
 
 ## Optional: Set Up Profiles
 
-Use profiles when you want separate CoWork environments for personal work, clients, staging, or isolated channel credentials.
+Use profiles when you want separate NeoWorker environments for personal work, clients, staging, or isolated channel credentials.
 
 Typical profile workflow:
 
@@ -269,7 +257,7 @@ Each profile keeps its own local database, encrypted settings, managed skills, c
 
 ## Optional: Turn On Automations
 
-Open **Settings > Automations** when you want CoWork OS to do background work without manually starting every task.
+Open **Settings > Automations** when you want NeoWorker to do background work without manually starting every task.
 
 Recommended order:
 
@@ -287,12 +275,12 @@ Rule of thumb:
 
 ## Zero-Human Company Quick Start
 
-If you want to use CoWork OS as a founder-operated autonomous company shell:
+If you want to use NeoWorker as a founder-operated autonomous company shell:
 
 1. Choose a real git-backed workspace.
 2. Open **Settings** > **Memory Hub**.
 3. Initialize **Venture operator kit**.
-4. Fill in the generated `.cowork/` company files (`COMPANY.md`, `OPERATIONS.md`, `KPIS.md`, `PRIORITIES.md`, `HEARTBEAT.md`).
+4. Fill in the generated `.neoworker/` company files (`COMPANY.md`, `OPERATIONS.md`, `KPIS.md`, `PRIORITIES.md`, `HEARTBEAT.md`).
 5. Open **Settings** > **Companies**.
 6. Create or select the company shell you want to operate.
 7. Click **Open Digital Twins** from that company.
@@ -337,7 +325,7 @@ Title: Create quarterly report
 Description: Create a PowerPoint presentation with 5 slides covering Q1 2024 highlights. Include: Title slide, Overview, Key Metrics, Challenges, and Next Steps.
 ```
 
-When the task completes, the `.pptx` appears as a presentation artifact card. Click **Open** to inspect it in the right-sidebar viewer with thumbnails, slide navigation, zoom, extracted speaker notes, and a white slide canvas. CoWork shows slide text immediately, then loads cached or freshly rendered slide images in the background. Use fullscreen mode when you want to request follow-up deck edits from the same viewer.
+When the task completes, the `.pptx` appears as a presentation artifact card. Click **Open** to inspect it in the right-sidebar viewer with thumbnails, slide navigation, zoom, extracted speaker notes, and a white slide canvas. NeoWorker shows slide text immediately, then loads cached or freshly rendered slide images in the background. Use fullscreen mode when you want to request follow-up deck edits from the same viewer.
 
 ### 5. Web Research (works out of the box; optional paid providers for richer results)
 
@@ -366,7 +354,7 @@ Title: Inspect the demo recording
 Description: Review the attached video. Summarize the visible UI states, any failures, and the final outcome.
 ```
 
-CoWork samples the video into representative still frames for image-capable models. The task timeline shows the extracted contact sheet and representative full frame as inline image artifacts, so you can inspect the same screenshots the agent used. See [Video Attachments](video-attachments.md).
+NeoWorker samples the video into representative still frames for image-capable models. The task timeline shows the extracted contact sheet and representative full frame as inline image artifacts, so you can inspect the same screenshots the agent used. See [Video Attachments](video-attachments.md).
 
 ## Understanding the UI
 
@@ -426,7 +414,7 @@ Open **Settings** > **LLM**:
 | xAI Grok OAuth | Sign in with Grok to use an active SuperGrok subscription; defaults to `grok-4.3` |
 | Kimi (Moonshot) | Enter API key in Settings |
 
-Prompt caching is enabled by default on supported Anthropic and GPT-style routes. CoWork automatically keeps stable session prompt sections cacheable and dynamic turn context uncached, so follow-ups can reuse the provider-side prefix without caching the clock, recall, or one-off guidance.
+Prompt caching is enabled by default on supported Anthropic and GPT-style routes. NeoWorker automatically keeps stable session prompt sections cacheable and dynamic turn context uncached, so follow-ups can reuse the provider-side prefix without caching the clock, recall, or one-off guidance.
 
 ### Compatible / Gateway Providers
 
@@ -455,7 +443,7 @@ Configure these in **Settings** > **LLM Provider** by entering API keys/tokens, 
 | OpenAI-Compatible (Custom) | API key + base URL in Settings |
 | Anthropic-Compatible (Custom) | API key + base URL in Settings |
 
-Advanced override: prompt caching can be disabled manually with `promptCaching.mode: "off"` in the saved LLM settings payload or by launching the app with `COWORK_PROMPT_CACHE_MODE=off`.
+Advanced override: prompt caching can be disabled manually with `promptCaching.mode: "off"` in the saved LLM settings payload or by launching the app with `NEOWORKER_PROMPT_CACHE_MODE=off`.
 
 ### Search Providers (Optional — DuckDuckGo works out of the box)
 
@@ -481,7 +469,7 @@ Web search works immediately via the built-in DuckDuckGo provider (free, no API 
 6. Once connected, enable **Self-Chat Mode** if using your personal number
 7. Set a **Response Prefix** (e.g., "🤖") to distinguish bot messages
 
-After connection, WhatsApp uses the shared gateway message lifecycle: send normal text to start or follow up on a task, `/new` for a fresh next task, `/new temp` for a scratch temporary session, `/stop` to cancel, and `/commands` for the current remote command catalog. See [Using CoWork from WhatsApp and Other Channels](gateway-user-guide.md) for examples and best practices.
+After connection, WhatsApp uses the shared gateway message lifecycle: send normal text to start or follow up on a task, `/new` for a fresh next task, `/new temp` for a scratch temporary session, `/stop` to cancel, and `/commands` for the current remote command catalog. See [Using NeoWorker from WhatsApp and Other Channels](gateway-user-guide.md) for examples and best practices.
 
 For shared groups or dedicated operational channels, use **Channel Specialization** in the channel settings to default a channel, group, or topic/thread to a workspace, agent role, prompt guidance, tool restrictions, and optional shared-memory policy.
 
@@ -509,20 +497,20 @@ For shared groups or dedicated operational channels, use **Channel Specializatio
 5. Install to workspace and copy Bot Token (xoxb-...)
 6. Open **Settings** > **Channels** > **Slack**
 7. Enter Bot Token and App-Level Token
-8. Repeat **Add Slack Workspace** if you want more than one Slack installation in the same CoWork profile
+8. Repeat **Add Slack Workspace** if you want more than one Slack installation in the same NeoWorker profile
 9. Enable and test
 
 #### Feishu / Lark
 1. Create a bot/app in the Feishu or Lark developer console
 2. Copy the App ID, App Secret, verification token, and event encryption key
 3. Open **Settings** > **Channels** > **Feishu / Lark**
-4. Enter credentials, set the webhook/event callback URL shown by CoWork, then enable and test
+4. Enter credentials, set the webhook/event callback URL shown by NeoWorker, then enable and test
 
 #### WeCom
 1. Create a WeCom app in the WeCom admin console
 2. Copy the Corp ID, Agent ID, Secret, token, and EncodingAESKey
 3. Open **Settings** > **Channels** > **WeCom**
-4. Enter credentials, configure the callback URL shown by CoWork in WeCom, then enable and test
+4. Enter credentials, configure the callback URL shown by NeoWorker in WeCom, then enable and test
 
 ### App Integrations (Optional)
 
@@ -557,11 +545,11 @@ Install enterprise connectors from **Settings** > **Integrations** > **Browse Re
 | **Okta** | Identity | API token + domain |
 | **Discord** | Community | Bot token + application ID |
 | **Google Workspace** | Productivity | Shared OAuth in-app flow; reconnect when newer required scopes are missing |
-| **Rhino** | Architecture/CAD | Localhost Rhino bridge + `COWORK_ARCH_PROJECT_ROOT` |
-| **Blender** | 3D/Rendering | Localhost Blender bridge + `COWORK_ARCH_PROJECT_ROOT` |
-| **ComfyUI** | Image Generation | Local ComfyUI API + `COWORK_ARCH_PROJECT_ROOT` |
+| **Rhino** | Architecture/CAD | Localhost Rhino bridge + `NEOWORKER_ARCH_PROJECT_ROOT` |
+| **Blender** | 3D/Rendering | Localhost Blender bridge + `NEOWORKER_ARCH_PROJECT_ROOT` |
+| **ComfyUI** | Image Generation | Local ComfyUI API + `NEOWORKER_ARCH_PROJECT_ROOT` |
 
-Most service connectors provide tools like `search`, `get`, `create`, and `update` for their respective APIs. Local creative connectors provide app-specific tools for Rhino, Blender, and ComfyUI; their file arguments must stay inside `COWORK_ARCH_PROJECT_ROOT` or `COWORK_WORKSPACE_ROOT`. **47 connectors** are available in total, including Stripe, Tavily, Grafana, Metabase, Socket, Rhino, Blender, ComfyUI, and more. See [Enterprise Connectors](enterprise-connectors.md) for the full catalog.
+Most service connectors provide tools like `search`, `get`, `create`, and `update` for their respective APIs. Local creative connectors provide app-specific tools for Rhino, Blender, and ComfyUI; their file arguments must stay inside `NEOWORKER_ARCH_PROJECT_ROOT` or `NEOWORKER_WORKSPACE_ROOT`. **47 connectors** are available in total, including Stripe, Tavily, Grafana, Metabase, Socket, Rhino, Blender, ComfyUI, and more. See [Enterprise Connectors](enterprise-connectors.md) for the full catalog.
 
 ### Social Integrations (Optional)
 
@@ -615,26 +603,26 @@ src/
 **Main Process (Backend)**:
 - Use `console.log()` - shows in terminal
 - Check logs:
-  - macOS: `~/Library/Application Support/cowork-os/`
-  - Windows: `%APPDATA%\\cowork-os\\`
+  - macOS: `~/Library/Application Support/neoworker/`
+  - Windows: `%APPDATA%\\neoworker\\`
 
 ### Database
 
 SQLite database location:
-- macOS: `~/Library/Application Support/cowork-os/cowork-os.db`
-- Windows: `%APPDATA%\\cowork-os\\cowork-os.db`
+- macOS: `~/Library/Application Support/neoworker/neoworker.db`
+- Windows: `%APPDATA%\\neoworker\\neoworker.db`
 
 View it with any SQLite browser or:
 ```bash
 # macOS
-sqlite3 ~/Library/Application\ Support/cowork-os/cowork-os.db
+sqlite3 ~/Library/Application\ Support/neoworker/neoworker.db
 .tables
 SELECT * FROM tasks;
 ```
 
 ```powershell
 # Windows (PowerShell)
-sqlite3 "$env:APPDATA\cowork-os\cowork-os.db"
+sqlite3 "$env:APPDATA\neoworker\neoworker.db"
 .tables
 SELECT * FROM tasks;
 ```
@@ -669,7 +657,7 @@ npm run dev
 ### Issue: "Permission denied" for workspace
 
 **Solution**: Choose a folder you have write access to, like:
-- `~/Documents/cowork-test`
+- `~/Documents/neoworker-test`
 - `~/Downloads/test`
 
 Don't use system folders like `/System` or `/Applications`.
@@ -726,4 +714,4 @@ Don't use system folders like `/System` or `/Applications`.
 - Check console output for errors
 - Review the task timeline for clues
 - Read error messages in the UI
-- Report issues at [GitHub Issues](https://github.com/CoWork-OS/CoWork-OS/issues)
+- Report issues at [GitHub Issues](https://github.com/NeoWorker/NeoWorker/issues)

@@ -1,6 +1,6 @@
 # Maps MCP Connector
 
-Bundled CoWork OS connector for nearby place search, place details, walking routes, and ranked local errand options.
+Bundled NeoWorker connector for nearby place search, place details, walking routes, and ranked local errand options.
 
 Defaults to OpenStreetMap-backed public endpoints for light development use. Configure `GOOGLE_MAPS_API_KEY` and `MAPS_PROVIDER=google` or `auto` for Google Maps Platform Places/Routes quality.
 

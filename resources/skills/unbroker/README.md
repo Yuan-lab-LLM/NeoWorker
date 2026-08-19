@@ -26,14 +26,14 @@ self-hosted skill that the user's own agent runs. It is **multi-tenant** (manage
 clients, each isolated), **consent-gated**, and built for **maximum automation with a human
 fallback**. Scope is **US-first**, with EU/UK (GDPR) and global coverage on the roadmap.
 
-The CoWork OS port keeps the upstream deterministic Python CLI (`scripts/pdd.py`) for state
+The NeoWorker port keeps the upstream deterministic Python CLI (`scripts/pdd.py`) for state
 (config, dossiers, broker DB, tier planning, ledger, drafts, reports), while the agent does the
 scanning, browser work, email workflow, scheduling, and optional multi-agent work with matching
-CoWork capabilities. [`SKILL.md`](SKILL.md) is the authoritative reference.
+NeoWorker capabilities. [`SKILL.md`](SKILL.md) is the authoritative reference.
 
 ## Install
 
-This repository bundles `unbroker` as a global CoWork OS skill through `resources/skills/unbroker.json`.
+This repository bundles `unbroker` as a global NeoWorker skill through `resources/skills/unbroker.json`.
 The skill works zero-config; a few optional env vars unlock more automation (all documented in
 `SKILL.md` under Prerequisites):
 
@@ -45,11 +45,11 @@ The skill works zero-config; a few optional env vars unlock more automation (all
   or **`EMAIL_ADDRESS` + `EMAIL_PASSWORD`** for SMTP send + IMAP verification. Without either, it
   falls back to writing drafts for you to send.
 - the `age` binary: at-rest encryption of dossiers and ledgers.
-- CoWork's Google Workspace/Sheets capability: a shared Google Sheets status tracker.
+- NeoWorker's Google Workspace/Sheets capability: a shared Google Sheets status tracker.
 
 ## Usage
 
-Drive it from a CoWork session:
+Drive it from a NeoWorker session:
 
 > "Use the unbroker skill to remove my data from data brokers. Here is my consent. Run it hands-off
 > and show me the human-task digest at the end."
@@ -59,7 +59,7 @@ cloud browser if available, and encryption if `age` is installed), records your 
 the autonomous queue: scan, opt out (parents first), send and verify emails, schedule re-checks. You
 hear from it twice: at intake, and with one digest of anything only a human can do.
 
-The underlying CLI (run via CoWork shell/run_command, as `python3 scripts/pdd.py <cmd>`):
+The underlying CLI (run via NeoWorker shell/run_command, as `python3 scripts/pdd.py <cmd>`):
 
 | Command | Purpose |
 |---|---|
@@ -70,7 +70,7 @@ The underlying CLI (run via CoWork shell/run_command, as `python3 scripts/pdd.py
 | `pdd.py registry` | State data-broker registry coverage (CA ~545 ingested; VT/OR/TX portals); `--search` to find one |
 | `pdd.py drop` | The CA DROP one-shot: delete from all registered brokers in a single request |
 | `pdd.py plan` | Per-broker tier, method, search vectors, and the exact fields to disclose |
-| `pdd.py fanout` | Batch brokers into parallel CoWork subagents when available |
+| `pdd.py fanout` | Batch brokers into parallel NeoWorker subagents when available |
 | `pdd.py record` | Update the ledger (validated state machine); auto-stamps recheck dates |
 | `pdd.py send-email` | Render and send an opt-out / CCPA / GDPR request (recipient locked to the broker's own address) |
 | `pdd.py poll-verification` / `verify-link` | Resolve email-verification links (IMAP poll, or browser-mode from pasted text) |
@@ -137,7 +137,7 @@ python3 tests/skills/test_unbroker_skill.py                        # dependency-
 - **Least-disclosure and honest reporting.** The skill submits only what a broker requires. "Hidden
   from free search" is never reported as "deleted", and residual exposure (public records, paid-tier
   retention) is disclosed.
-- **PII handling.** Dossiers live under `$PDD_DATA_DIR` when set, otherwise under the CoWork runtime
+- **PII handling.** Dossiers live under `$PDD_DATA_DIR` when set, otherwise under the NeoWorker runtime
   home (`0600`, optionally `age`-encrypted), with opaque ids.
 
 ## Status

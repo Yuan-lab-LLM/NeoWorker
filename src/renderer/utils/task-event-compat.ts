@@ -1,6 +1,9 @@
 import type { TaskEvent } from "../../shared/types";
 
-type TaskEventLike = Pick<TaskEvent, "type" | "legacyType" | "status" | "payload">;
+type TaskEventLike = Pick<
+  TaskEvent,
+  "type" | "legacyType" | "status" | "payload"
+>;
 
 function asObject(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -19,20 +22,44 @@ function coerceNonEmptyText(value: unknown): string {
   return "";
 }
 
-function isLikelyTaskCompletionPayload(payload: Record<string, unknown> | null): boolean {
+function isLikelyTaskCompletionPayload(
+  payload: Record<string, unknown> | null,
+): boolean {
   if (!payload) return false;
 
   if (typeof payload.terminalStatus === "string") return true;
-  if (typeof payload.resultSummary === "string" && payload.resultSummary.trim().length > 0) return true;
-  if (typeof payload.semanticSummary === "string" && payload.semanticSummary.trim().length > 0) return true;
-  if (typeof payload.verificationVerdict === "string" && payload.verificationVerdict.trim().length > 0)
+  if (
+    typeof payload.resultSummary === "string" &&
+    payload.resultSummary.trim().length > 0
+  )
     return true;
-  if (typeof payload.verificationReport === "string" && payload.verificationReport.trim().length > 0)
+  if (
+    typeof payload.semanticSummary === "string" &&
+    payload.semanticSummary.trim().length > 0
+  )
     return true;
-  if (payload.outputSummary && typeof payload.outputSummary === "object") return true;
-  if (Array.isArray(payload.pendingChecklist) && payload.pendingChecklist.length > 0) return true;
+  if (
+    typeof payload.verificationVerdict === "string" &&
+    payload.verificationVerdict.trim().length > 0
+  )
+    return true;
+  if (
+    typeof payload.verificationReport === "string" &&
+    payload.verificationReport.trim().length > 0
+  )
+    return true;
+  if (payload.outputSummary && typeof payload.outputSummary === "object")
+    return true;
+  if (
+    Array.isArray(payload.pendingChecklist) &&
+    payload.pendingChecklist.length > 0
+  )
+    return true;
 
-  if (typeof payload.message === "string" && /^\s*task completed\b/i.test(payload.message)) {
+  if (
+    typeof payload.message === "string" &&
+    /^\s*task completed\b/i.test(payload.message)
+  ) {
     return true;
   }
 
@@ -44,7 +71,9 @@ export function getEffectiveTaskEventType(event: TaskEventLike): string {
   if (event.type === "timeline_error") return "timeline_error";
 
   const payload =
-    event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
+    event.payload &&
+    typeof event.payload === "object" &&
+    !Array.isArray(event.payload)
       ? (event.payload as Record<string, unknown>)
       : null;
   const legacyType =
@@ -80,7 +109,9 @@ export function getEffectiveTaskEventType(event: TaskEventLike): string {
   }
 }
 
-export function getTimelineErrorText(event: Pick<TaskEvent, "type" | "payload">): string {
+export function getTimelineErrorText(
+  event: Pick<TaskEvent, "type" | "payload">,
+): string {
   if (event.type !== "timeline_error") return "";
   const payload = asObject(event.payload);
   if (!payload) return "";

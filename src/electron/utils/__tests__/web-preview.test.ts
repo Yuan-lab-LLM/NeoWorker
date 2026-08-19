@@ -8,7 +8,7 @@ import { buildWebPagePreviewFromPath } from "../web-preview";
 let tempRoot = "";
 
 beforeEach(async () => {
-  tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-web-preview-test-"));
+  tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-web-preview-test-"));
 });
 
 afterEach(async () => {
@@ -18,7 +18,7 @@ afterEach(async () => {
 });
 
 describe("web page preview extraction", () => {
-  it("returns sandbox-ready HTML content with local assets inlined", async () => {
+  it("returns a tokenized local preview URL that keeps page assets available", async () => {
     const workspace = path.join(tempRoot, "workspace");
     await fs.mkdir(workspace, { recursive: true });
     await fs.writeFile(path.join(workspace, "styles.css"), "body { color: teal; }");
@@ -33,8 +33,28 @@ describe("web page preview extraction", () => {
     expect(preview.canPreview).toBe(true);
     expect(preview.format).toBe("html");
     expect(preview.previewMode).toBe("sandboxed_iframe");
-    expect(preview.htmlContent).toContain('data-cowork-inline-asset="styles.css"');
-    expect(preview.htmlContent).toContain("body { color: teal; }");
+    expect(preview.previewUrl).toMatch(/^web-preview:\/\//);
+    expect(preview.htmlContent).toContain('href="styles.css"');
+  });
+
+  it("accepts a canonical file path inside a symlinked workspace path", async () => {
+    const realWorkspace = path.join(tempRoot, "real-workspace");
+    const linkedWorkspace = path.join(tempRoot, "linked-workspace");
+    await fs.mkdir(realWorkspace, { recursive: true });
+    await fs.symlink(
+      realWorkspace,
+      linkedWorkspace,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    const linkedHtmlPath = path.join(linkedWorkspace, "report.html");
+    await fs.writeFile(linkedHtmlPath, "<main>Canonical path preview</main>");
+    const canonicalHtmlPath = await fs.realpath(linkedHtmlPath);
+
+    const preview = await buildWebPagePreviewFromPath(canonicalHtmlPath, linkedWorkspace);
+
+    expect(preview.canPreview).toBe(true);
+    expect(preview.previewUrl).toMatch(/^web-preview:\/\//);
+    expect(preview.htmlContent).toContain("Canonical path preview");
   });
 
   it("resolves built React output from common build directories", async () => {

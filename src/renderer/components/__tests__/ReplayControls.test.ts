@@ -30,8 +30,8 @@ describe("ReplayControlsBar", () => {
       React.createElement(ReplayControlsBar, { controls: makeControls() }),
     );
 
-    expect(markup).toContain("Step 4 / 12");
-    expect(markup).toContain("Hide replay controls");
+    expect(markup).toContain("4 / 12");
+    expect(markup).toMatch(/Hide replay controls|隐藏回放控制/);
     expect(markup).toContain("replay-btn-hide");
   });
 });

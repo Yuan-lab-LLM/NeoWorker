@@ -4,7 +4,7 @@ Slack is best for workplace teams that coordinate in channels, DMs, and mentions
 
 ## Best For
 
-- Team channels where CoWork should help with shared work.
+- Team channels where NeoWorker should help with shared work.
 - DMs for personal tasks and approvals.
 - Recurring summaries and operational updates.
 - Multi-workspace Slack installations.
@@ -15,7 +15,7 @@ Slack is best for workplace teams that coordinate in channels, DMs, and mentions
 - Socket Mode integration.
 - DM and `@mention` routing.
 - Registered Slack slash command payload routing.
-- Multiple Slack workspace installations in one CoWork profile.
+- Multiple Slack workspace installations in one NeoWorker profile.
 - File uploads.
 - Editable progress messages for curated progress mode.
 - Minimal or curated progress relay settings.
@@ -23,7 +23,7 @@ Slack is best for workplace teams that coordinate in channels, DMs, and mentions
 
 ## Daily Workflow
 
-In DMs, send normal text to start work. In channels, mention CoWork or use registered slash commands:
+In DMs, send normal text to start work. In channels, mention NeoWorker or use registered slash commands:
 
 ```text
 /new
@@ -33,7 +33,7 @@ In DMs, send normal text to start work. In channels, mention CoWork or use regis
 /background Summarize open launch blockers.
 ```
 
-Slack only sends slash commands that are registered in the Slack app. If `/new` or `/stop` does not reach CoWork, register that command in Slack first.
+Slack only sends slash commands that are registered in the Slack app. If `/new` or `/stop` does not reach NeoWorker, register that command in Slack first.
 
 ## Best Practices
 
@@ -49,8 +49,8 @@ Slack only sends slash commands that are registered in the Slack app. If `/new` 
 
 - Slack slash commands are not automatic; each command must be registered in Slack.
 - Socket Mode needs the right app-level token and bot token.
-- Broad channel access can make CoWork visible in places where it should not operate.
-- Long generated content is usually easier to review in CoWork than in Slack.
+- Broad channel access can make NeoWorker visible in places where it should not operate.
+- Long generated content is usually easier to review in NeoWorker than in Slack.
 
 ## Related Docs
 

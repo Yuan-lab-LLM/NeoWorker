@@ -6,6 +6,7 @@ import {
   PDF_ATTACHMENT_EXCERPT_MAX_CHARS,
   PDF_UNTRUSTED_CONTENT_NOTICE,
   buildPdfAttachmentContent,
+  extractAttachmentDetails,
   extractAttachmentNames,
   stripPptxBubbleContent,
   stripStrategyContextBlock,
@@ -42,7 +43,7 @@ Attached files (relative to workspace):
   it("formats text-layer PDF attachments with stable parse_document cues", () => {
     const content = buildPdfAttachmentContent({
       fileName: "report.pdf",
-      relativePath: ".cowork/uploads/123/report.pdf",
+      relativePath: ".neoworker/uploads/123/report.pdf",
       summary: {
         pageCount: 2,
         nativeTextPages: 2,
@@ -62,7 +63,7 @@ Attached files (relative to workspace):
     });
 
     expect(content).toContain("PDF attachment: report.pdf");
-    expect(content).toContain("Path: .cowork/uploads/123/report.pdf");
+    expect(content).toContain("Path: .neoworker/uploads/123/report.pdf");
     expect(content).toContain("Pages: 2");
     expect(content).toContain("Extraction status: native text; mode=native");
     expect(content).toContain("call parse_document with the Path above");
@@ -75,7 +76,7 @@ Attached files (relative to workspace):
   it("formats scanned or OCR PDF attachments with OCR status", () => {
     const content = buildPdfAttachmentContent({
       fileName: "scan.pdf",
-      relativePath: ".cowork/uploads/123/scan.pdf",
+      relativePath: ".neoworker/uploads/123/scan.pdf",
       summary: {
         pageCount: 3,
         nativeTextPages: 0,
@@ -103,7 +104,7 @@ Attached files (relative to workspace):
   it("does not label zero-native-page image-heavy PDFs as native text", () => {
     const content = buildPdfAttachmentContent({
       fileName: "image-heavy.pdf",
-      relativePath: ".cowork/uploads/123/image-heavy.pdf",
+      relativePath: ".neoworker/uploads/123/image-heavy.pdf",
       summary: {
         pageCount: 2,
         nativeTextPages: 0,
@@ -130,7 +131,7 @@ Attached files (relative to workspace):
   it("truncates long PDF excerpts without losing the path", () => {
     const content = buildPdfAttachmentContent({
       fileName: "long.pdf",
-      relativePath: ".cowork/uploads/123/long.pdf",
+      relativePath: ".neoworker/uploads/123/long.pdf",
       summary: {
         pageCount: 20,
         nativeTextPages: 20,
@@ -149,28 +150,48 @@ Attached files (relative to workspace):
       },
     });
 
-    expect(content).toContain("Path: .cowork/uploads/123/long.pdf");
+    expect(content).toContain("Path: .neoworker/uploads/123/long.pdf");
     expect(content).toContain("PDF excerpt truncated");
-    expect(content.length).toBeLessThan(PDF_ATTACHMENT_EXCERPT_MAX_CHARS + 1000);
+    expect(content.length).toBeLessThan(
+      PDF_ATTACHMENT_EXCERPT_MAX_CHARS + 1000,
+    );
   });
 
   it("extracts multiple attachment names when content blocks are present", () => {
     const input = `Read these files
 
 Attached files (relative to workspace):
-- report.pdf (.cowork/uploads/123/report.pdf)
+- report.pdf (.neoworker/uploads/123/report.pdf)
   Extracted content:
   ${ATTACHMENT_CONTENT_START_MARKER}
     PDF attachment: report.pdf
-    Path: .cowork/uploads/123/report.pdf
+    Path: .neoworker/uploads/123/report.pdf
   ${ATTACHMENT_CONTENT_END_MARKER}
 
-- data.csv (.cowork/uploads/123/data.csv)
+- data.csv (.neoworker/uploads/123/data.csv)
   Extracted content:
   ${ATTACHMENT_CONTENT_START_MARKER}
     a,b
   ${ATTACHMENT_CONTENT_END_MARKER}`;
 
     expect(extractAttachmentNames(input)).toEqual(["report.pdf", "data.csv"]);
+  });
+
+  it("extracts attachment paths, sizes, and MIME types for rich file cards", () => {
+    const input = `分析一下
+
+Attached files (relative to workspace):
+- 项目说明.docx (.neoworker/inbox/attachments/weixin/项目说明.docx)
+  Attachment metadata: size=27864; mime=application/vnd.openxmlformats-officedocument.wordprocessingml.document`;
+
+    expect(extractAttachmentDetails(input)).toEqual([
+      {
+        name: "项目说明.docx",
+        relativePath: ".neoworker/inbox/attachments/weixin/项目说明.docx",
+        size: 27864,
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      },
+    ]);
   });
 });

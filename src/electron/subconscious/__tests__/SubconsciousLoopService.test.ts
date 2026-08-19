@@ -63,9 +63,9 @@ describeWithSqlite("SubconsciousLoopService", () => {
   };
 
   beforeEach(async () => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-subconscious-"));
-    previousUserDataDir = process.env.COWORK_USER_DATA_DIR;
-    process.env.COWORK_USER_DATA_DIR = tmpDir;
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-subconscious-"));
+    previousUserDataDir = process.env.NEOWORKER_USER_DATA_DIR;
+    process.env.NEOWORKER_USER_DATA_DIR = tmpDir;
 
     const [{ DatabaseManager }, { SecureSettingsRepository }] = await Promise.all([
       import("../../database/schema"),
@@ -107,20 +107,36 @@ describeWithSqlite("SubconsciousLoopService", () => {
     `);
   });
 
+  it("can start without eagerly refreshing workspace targets", async () => {
+    const { SubconsciousLoopService } = await import("../SubconsciousLoopService");
+    const service = new SubconsciousLoopService(db, {
+      getGlobalRoot: () => tmpDir,
+    });
+    const refreshTargets = vi.spyOn(service, "refreshTargets");
+
+    await service.start(
+      {} as unknown as import("../../agent/daemon").AgentDaemon,
+      { refreshTargets: false },
+    );
+
+    expect(refreshTargets).not.toHaveBeenCalled();
+    service.stop();
+  });
+
   afterEach(() => {
     manager?.close();
     vi.restoreAllMocks();
     if (previousUserDataDir === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = previousUserDataDir;
+      process.env.NEOWORKER_USER_DATA_DIR = previousUserDataDir;
     }
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it("normalizes tasks, mailbox, heartbeat, scheduled jobs, triggers, briefing, and playbook signals into stable target refs", async () => {
     const workspace = insertWorkspace("alpha");
-    initGitRepo(workspace.path, "https://github.com/CoWork-OS/CoWork-OS.git");
+    initGitRepo(workspace.path, "https://github.com/NeoWorker/NeoWorker.git");
     const now = Date.now();
 
     db.prepare(
@@ -131,7 +147,7 @@ describeWithSqlite("SubconsciousLoopService", () => {
     db.prepare(
       `INSERT INTO memory_markdown_files (workspace_id, path, content_hash, mtime, size, updated_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
-    ).run(workspace.id, ".cowork/playbook.md", "hash", now, 100, now);
+    ).run(workspace.id, ".neoworker/playbook.md", "hash", now, 100, now);
 
     db.prepare(
       `INSERT INTO mailbox_events (
@@ -197,7 +213,7 @@ describeWithSqlite("SubconsciousLoopService", () => {
       expect.arrayContaining([
         "global:brain",
         `workspace:${workspace.id}`,
-        "code_workspace:github:CoWork-OS/CoWork-OS",
+        "code_workspace:github:NeoWorker/NeoWorker",
         "mailbox_thread:thread-1",
         "agent_role:role-1",
         "scheduled_task:job-1",
@@ -207,9 +223,9 @@ describeWithSqlite("SubconsciousLoopService", () => {
     );
   });
 
-  it("deduplicates code targets by repo and prefers the canonical CoWork OS workspace root", async () => {
-    const repoRootWorkspace = insertWorkspace("cowork-root");
-    initGitRepo(repoRootWorkspace.path, "git@github.com:CoWork-OS/CoWork-OS.git");
+  it("deduplicates code targets by repo and prefers the canonical NeoWorker workspace root", async () => {
+    const repoRootWorkspace = insertWorkspace("neoworker-root");
+    initGitRepo(repoRootWorkspace.path, "git@github.com:NeoWorker/NeoWorker.git");
     const nestedPath = path.join(repoRootWorkspace.path, "apps", "desktop");
     fs.mkdirSync(nestedPath, { recursive: true });
     const nestedWorkspaceId = randomUUID();
@@ -220,7 +236,7 @@ describeWithSqlite("SubconsciousLoopService", () => {
       `,
     ).run(
       nestedWorkspaceId,
-      "cowork-nested",
+      "neoworker-nested",
       nestedPath,
       Date.now(),
       Date.now() + 5000,
@@ -250,11 +266,11 @@ describeWithSqlite("SubconsciousLoopService", () => {
     const codeTargets = service.listTargets().filter((target) => target.target.kind === "code_workspace");
 
     expect(codeTargets).toHaveLength(1);
-    expect(codeTargets[0]?.key).toBe("code_workspace:github:CoWork-OS/CoWork-OS");
+    expect(codeTargets[0]?.key).toBe("code_workspace:github:NeoWorker/NeoWorker");
     expect(codeTargets[0]?.target.workspaceId).toBe(repoRootWorkspace.id);
     expect(codeTargets[0]?.target.codeWorkspacePath).toBe(repoRootWorkspace.path);
 
-    const detail = await service.getTargetDetail("code_workspace:github:CoWork-OS/CoWork-OS");
+    const detail = await service.getTargetDetail("code_workspace:github:NeoWorker/NeoWorker");
     expect(detail?.latestEvidence).toHaveLength(2);
   });
 
@@ -266,7 +282,7 @@ describeWithSqlite("SubconsciousLoopService", () => {
 
     expect(result.targetCount).toBeGreaterThanOrEqual(1);
     expect(
-      fs.existsSync(path.join(tmpDir, ".cowork", "subconscious", "brain", "state.json")),
+      fs.existsSync(path.join(tmpDir, ".neoworker", "subconscious", "brain", "state.json")),
     ).toBe(true);
   });
 
@@ -317,7 +333,7 @@ describeWithSqlite("SubconsciousLoopService", () => {
 
     expect(fs.existsSync(workspace.path)).toBe(false);
     expect(
-      fs.existsSync(path.join(tmpDir, ".cowork", "subconscious", "brain", "state.json")),
+      fs.existsSync(path.join(tmpDir, ".neoworker", "subconscious", "brain", "state.json")),
     ).toBe(true);
   });
 
@@ -403,7 +419,7 @@ describeWithSqlite("SubconsciousLoopService", () => {
 
   it("writes durable artifacts and sqlite index rows for a code workspace run", async () => {
     const workspace = insertWorkspace("beta");
-    initGitRepo(workspace.path, "https://github.com/CoWork-OS/CoWork-OS.git");
+    initGitRepo(workspace.path, "https://github.com/NeoWorker/NeoWorker.git");
     const now = Date.now();
     db.prepare(
       `INSERT INTO tasks (id, title, prompt, status, workspace_id, created_at, updated_at, failure_class)
@@ -420,23 +436,23 @@ describeWithSqlite("SubconsciousLoopService", () => {
       ...DEFAULT_SUBCONSCIOUS_SETTINGS,
       enabled: true,
       autoRun: false,
-      trustedTargetKeys: ["code_workspace:github:CoWork-OS/CoWork-OS"],
+      trustedTargetKeys: ["code_workspace:github:NeoWorker/NeoWorker"],
     });
     await service.start({
       createTask,
       getWorktreeManager,
     } as unknown as import("../../agent/daemon").AgentDaemon);
 
-    const run = await service.runNow("code_workspace:github:CoWork-OS/CoWork-OS");
+    const run = await service.runNow("code_workspace:github:NeoWorker/NeoWorker");
     expect(run).not.toBeNull();
     expect(createTask).toHaveBeenCalledTimes(1);
 
     const runRoot = path.join(
       workspace.path,
-      ".cowork",
+      ".neoworker",
       "subconscious",
       "targets",
-      "code_workspace_github_CoWork-OS_CoWork-OS",
+      "code_workspace_github_NeoWorker_NeoWorker",
       "runs",
       run!.id,
     );
@@ -540,14 +556,14 @@ describeWithSqlite("SubconsciousLoopService", () => {
 
   it("does not start a duplicate catch-up run on restart without newer evidence", async () => {
     const workspace = insertWorkspace("restart-catchup");
-    initGitRepo(workspace.path, "https://github.com/CoWork-OS/CoWork-OS.git");
+    initGitRepo(workspace.path, "https://github.com/NeoWorker/NeoWorker.git");
     const now = Date.now();
     db.prepare(
       `INSERT INTO tasks (id, title, prompt, status, workspace_id, created_at, updated_at, failure_class)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run("task-restart", "Fix restart noise", "Investigate", "failed", workspace.id, now, now, "verification_failed");
 
-    const targetKey = "code_workspace:github:CoWork-OS/CoWork-OS";
+    const targetKey = "code_workspace:github:NeoWorker/NeoWorker";
     const { SubconsciousLoopService } = await import("../SubconsciousLoopService");
     const firstCreateTask = vi.fn().mockResolvedValue({ id: "dispatch-task-restart-1" });
     const getWorktreeManager = vi.fn(() => ({
@@ -724,7 +740,7 @@ describeWithSqlite("SubconsciousLoopService", () => {
 
   it("distills journal entries into dream artifacts and memory index", async () => {
     const workspace = insertWorkspace("epsilon");
-    initGitRepo(workspace.path, "https://github.com/CoWork-OS/CoWork-OS.git");
+    initGitRepo(workspace.path, "https://github.com/NeoWorker/NeoWorker.git");
     const now = Date.now();
     db.prepare(
       `INSERT INTO tasks (id, title, prompt, status, workspace_id, created_at, updated_at, failure_class)
@@ -739,7 +755,7 @@ describeWithSqlite("SubconsciousLoopService", () => {
       autoRun: false,
       dreamsEnabled: true,
       dreamCadenceHours: 1,
-      trustedTargetKeys: ["code_workspace:github:CoWork-OS/CoWork-OS"],
+      trustedTargetKeys: ["code_workspace:github:NeoWorker/NeoWorker"],
     });
     await service.start({
       createTask: vi.fn().mockResolvedValue({ id: "dispatch-task-2" }),
@@ -748,8 +764,8 @@ describeWithSqlite("SubconsciousLoopService", () => {
       })),
     } as unknown as import("../../agent/daemon").AgentDaemon);
 
-    await service.runNow("code_workspace:github:CoWork-OS/CoWork-OS");
-    const detail = await service.getTargetDetail("code_workspace:github:CoWork-OS/CoWork-OS");
+    await service.runNow("code_workspace:github:NeoWorker/NeoWorker");
+    const detail = await service.getTargetDetail("code_workspace:github:NeoWorker/NeoWorker");
 
     expect(detail?.journal.length).toBeGreaterThan(0);
     expect(detail?.dreams.length).toBeGreaterThan(0);

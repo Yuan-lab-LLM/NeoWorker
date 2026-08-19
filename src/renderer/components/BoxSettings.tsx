@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { BoxSettingsData } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 export function BoxSettings() {
+  useLanguage();
+  const t = translate;
   const [settings, setSettings] = useState<BoxSettingsData | null>(null);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -74,21 +77,30 @@ export function BoxSettings() {
       setTestResult(result);
       await refreshStatus();
     } catch (error: Any) {
-      setTestResult({ success: false, error: error.message || "Failed to test connection" });
+      setTestResult({
+        success: false,
+        error:
+          error.message ||
+          t("cloudStorage.error.testConnection", "Failed to test connection"),
+      });
     } finally {
       setTesting(false);
     }
   };
 
   if (!settings) {
-    return <div className="settings-loading">Loading Box settings...</div>;
+    return (
+      <div className="settings-loading">
+        {t("cloudStorage.box.loading", "Loading Box settings...")}
+      </div>
+    );
   }
 
   const statusLabel = !status?.configured
-    ? "Missing Token"
+    ? t("cloudStorage.status.missingToken", "Missing Token")
     : status.connected
-      ? "Connected"
-      : "Configured";
+      ? t("cloudStorage.status.connected", "Connected")
+      : t("cloudStorage.status.configured", "Configured");
 
   const statusClass = !status?.configured
     ? "missing"
@@ -101,49 +113,72 @@ export function BoxSettings() {
       <div className="settings-section">
         <div className="settings-section-header">
           <div className="settings-title-with-badge">
-            <h3>Connect Box</h3>
+            <h3>{t("cloudStorage.box.title", "Connect Box")}</h3>
             {status && (
               <span
                 className={`box-status-badge ${statusClass}`}
                 title={
                   !status.configured
-                    ? "Access token not configured"
+                    ? t(
+                        "cloudStorage.status.tokenNotConfigured",
+                        "Access token not configured",
+                      )
                     : status.connected
-                      ? "Connected to Box"
-                      : "Configured"
+                      ? t("cloudStorage.box.connectedTitle", "Connected to Box")
+                      : t("cloudStorage.status.configured", "Configured")
                 }
               >
                 {statusLabel}
               </span>
             )}
             {statusLoading && !status && (
-              <span className="box-status-badge configured">Checking…</span>
+              <span className="box-status-badge configured">
+                {t("cloudStorage.status.checkingEllipsis", "Checking…")}
+              </span>
             )}
           </div>
-          <button className="btn-secondary btn-sm" onClick={refreshStatus} disabled={statusLoading}>
-            {statusLoading ? "Checking..." : "Refresh Status"}
+          <button
+            className="btn-secondary btn-sm"
+            onClick={refreshStatus}
+            disabled={statusLoading}
+          >
+            {statusLoading
+              ? t("cloudStorage.status.checking", "Checking...")
+              : t("cloudStorage.status.refresh", "Refresh Status")}
           </button>
         </div>
         <p className="settings-description">
-          Connect the agent to Box using a developer token or OAuth access token, then use the
-          built-in `box_action` tool to search and manage files.
+          {t(
+            "cloudStorage.box.description",
+            "Connect the agent to Box using a developer token or OAuth access token, then use the built-in `box_action` tool to search and manage files.",
+          )}
         </p>
-        {status?.error && <p className="settings-hint">Status check: {status.error}</p>}
+        {status?.error && (
+          <p className="settings-hint">
+            {t("cloudStorage.status.checkResult", "Status check: {error}", {
+              error: status.error,
+            })}
+          </p>
+        )}
         <div className="settings-actions">
           <button
             className="btn-secondary btn-sm"
             onClick={() =>
-              window.electronAPI.openExternal("https://app.box.com/developers/console")
+              window.electronAPI.openExternal(
+                "https://app.box.com/developers/console",
+              )
             }
           >
-            Open Box Console
+            {t("cloudStorage.box.openConsole", "Open Box Console")}
           </button>
         </div>
       </div>
 
       <div className="settings-section">
         <div className="settings-field">
-          <label>Enable Integration</label>
+          <label>
+            {t("cloudStorage.enableIntegration", "Enable Integration")}
+          </label>
           <label className="settings-toggle">
             <input
               type="checkbox"
@@ -155,28 +190,38 @@ export function BoxSettings() {
         </div>
 
         <div className="settings-field">
-          <label>Access Token</label>
+          <label>{t("cloudStorage.accessToken", "Access Token")}</label>
           <input
             type="password"
             className="settings-input"
-            placeholder="Box access token"
+            placeholder={t(
+              "cloudStorage.box.tokenPlaceholder",
+              "Box access token",
+            )}
             value={settings.accessToken || ""}
-            onChange={(e) => updateSettings({ accessToken: e.target.value || undefined })}
+            onChange={(e) =>
+              updateSettings({ accessToken: e.target.value || undefined })
+            }
           />
           <p className="settings-hint">
-            Use a developer token or OAuth access token with required scopes.
+            {t(
+              "cloudStorage.box.tokenHint",
+              "Use a developer token or OAuth access token with required scopes.",
+            )}
           </p>
         </div>
 
         <div className="settings-field">
-          <label>Timeout (ms)</label>
+          <label>{t("cloudStorage.timeoutMs", "Timeout (ms)")}</label>
           <input
             type="number"
             className="settings-input"
             min={1000}
             max={120000}
             value={settings.timeoutMs ?? 20000}
-            onChange={(e) => updateSettings({ timeoutMs: Number(e.target.value) })}
+            onChange={(e) =>
+              updateSettings({ timeoutMs: Number(e.target.value) })
+            }
           />
         </div>
 
@@ -186,26 +231,46 @@ export function BoxSettings() {
             onClick={handleTestConnection}
             disabled={testing}
           >
-            {testing ? "Testing..." : "Test Connection"}
+            {testing
+              ? t("common.testing", "Testing...")
+              : t("cloudStorage.testConnection", "Test Connection")}
           </button>
-          <button className="btn-primary btn-sm" onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Save Settings"}
+          <button
+            className="btn-primary btn-sm"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving
+              ? t("common.saving", "Saving...")
+              : t("cloudStorage.saveSettings", "Save Settings")}
           </button>
         </div>
 
         {testResult && (
-          <div className={`test-result ${testResult.success ? "success" : "error"}`}>
+          <div
+            className={`test-result ${testResult.success ? "success" : "error"}`}
+          >
             {testResult.success ? (
-              <span>Connected{testResult.name ? ` as ${testResult.name}` : ""}</span>
+              <span>
+                {testResult.name
+                  ? t("cloudStorage.test.connectedAs", "Connected as {name}", {
+                      name: testResult.name,
+                    })
+                  : t("cloudStorage.status.connected", "Connected")}
+              </span>
             ) : (
-              <span>Connection failed: {testResult.error}</span>
+              <span>
+                {t("cloudStorage.test.failed", "Connection failed: {error}", {
+                  error: testResult.error || "",
+                })}
+              </span>
             )}
           </div>
         )}
       </div>
 
       <div className="settings-section">
-        <h4>Quick Usage</h4>
+        <h4>{t("cloudStorage.quickUsage", "Quick Usage")}</h4>
         <pre className="settings-info-box">{`// List root folder items
 box_action({
   action: "list_folder_items",

@@ -186,7 +186,7 @@ class ResendClient {
 
     const headers: Record<string, string> = {
       Authorization: this.getAuthHeader(),
-      'User-Agent': 'CoWork-Resend-Connector/0.1.0',
+      'User-Agent': 'NeoWorker-Resend-Connector/0.1.0',
       ...(extraHeaders || {}),
     };
 

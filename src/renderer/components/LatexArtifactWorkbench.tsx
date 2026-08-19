@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FileViewerResult } from "../../electron/preload";
+import { translate, useLanguage } from "../i18n";
 import { PDFDocumentSurface } from "./PDFDocumentSurface";
 
 type LatexArtifactWorkbenchProps = {
@@ -29,8 +30,12 @@ export function LatexArtifactWorkbench({
   workspacePath,
   onOpenViewer,
 }: LatexArtifactWorkbenchProps) {
+  useLanguage();
+  const t = translate;
   const [activeTab, setActiveTab] = useState<ActiveTab>("summary");
-  const [sourceData, setSourceData] = useState<FileViewerResult["data"] | null>(null);
+  const [sourceData, setSourceData] = useState<FileViewerResult["data"] | null>(
+    null,
+  );
   const [pdfData, setPdfData] = useState<FileViewerResult["data"] | null>(null);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
@@ -46,16 +51,32 @@ export function LatexArtifactWorkbench({
       setSourceError(null);
       setSourceData(null);
       try {
-        const response = await window.electronAPI.readFileForViewer(sourcePath, workspacePath);
+        const response = await window.electronAPI.readFileForViewer(
+          sourcePath,
+          workspacePath,
+        );
         if (cancelled) return;
         if (!response.success || !response.data) {
-          setSourceError(response.error || "Failed to load LaTeX source");
+          setSourceError(
+            response.error ||
+              t(
+                "latexArtifact.error.loadSource",
+                "Failed to load LaTeX source",
+              ),
+          );
           return;
         }
         setSourceData(response.data);
       } catch (error: unknown) {
         if (!cancelled) {
-          setSourceError(error instanceof Error ? error.message : "Failed to load LaTeX source");
+          setSourceError(
+            error instanceof Error
+              ? error.message
+              : t(
+                  "latexArtifact.error.loadSource",
+                  "Failed to load LaTeX source",
+                ),
+          );
         }
       } finally {
         if (!cancelled) setLoadingSource(false);
@@ -74,23 +95,39 @@ export function LatexArtifactWorkbench({
       setLoadingPdf(true);
       setPdfError(null);
       try {
-        const response = await window.electronAPI.readFileForViewer(pdfPath, workspacePath, {
-          includePdfBase64: true,
-        });
+        const response = await window.electronAPI.readFileForViewer(
+          pdfPath,
+          workspacePath,
+          {
+            includePdfBase64: true,
+          },
+        );
         if (cancelled) return;
         if (!response.success || !response.data) {
-          setPdfError(response.error || "Failed to load compiled PDF");
+          setPdfError(
+            response.error ||
+              t("latexArtifact.error.loadPdf", "Failed to load compiled PDF"),
+          );
           return;
         }
         if (response.data.fileType !== "pdf") {
-          setPdfError("Compiled output is not a previewable PDF.");
+          setPdfError(
+            t(
+              "latexArtifact.error.notPdf",
+              "Compiled output is not a previewable PDF.",
+            ),
+          );
           return;
         }
         setPdfData(response.data);
         setPdfPageIndex(0);
       } catch (error: unknown) {
         if (!cancelled) {
-          setPdfError(error instanceof Error ? error.message : "Failed to load compiled PDF");
+          setPdfError(
+            error instanceof Error
+              ? error.message
+              : t("latexArtifact.error.loadPdf", "Failed to load compiled PDF"),
+          );
         }
       } finally {
         if (!cancelled) setLoadingPdf(false);
@@ -125,20 +162,34 @@ export function LatexArtifactWorkbench({
         <div className="latex-artifact-title-block">
           <div className="latex-artifact-title">{fileName(pdfPath)}</div>
           <div className="latex-artifact-subtitle">
-            {fileName(sourcePath)} {"->"} compiled PDF
+            {t("latexArtifact.subtitle", "{source} -> compiled PDF", {
+              source: fileName(sourcePath),
+            })}
           </div>
         </div>
         <div className="latex-artifact-actions">
-          <button type="button" onClick={() => openPath(pdfPath)} className="latex-artifact-action">
-            Open PDF
+          <button
+            type="button"
+            onClick={() => openPath(pdfPath)}
+            className="latex-artifact-action"
+          >
+            {t("latexArtifact.openPdf", "Open PDF")}
           </button>
-          <button type="button" onClick={() => showPath(pdfPath)} className="latex-artifact-action secondary">
-            Show
+          <button
+            type="button"
+            onClick={() => showPath(pdfPath)}
+            className="latex-artifact-action secondary"
+          >
+            {t("common.show", "Show")}
           </button>
         </div>
       </div>
 
-      <div className="latex-artifact-tabs" role="tablist" aria-label="LaTeX artifact tabs">
+      <div
+        className="latex-artifact-tabs"
+        role="tablist"
+        aria-label={t("latexArtifact.tabs.aria", "LaTeX artifact tabs")}
+      >
         {(["summary", "source", "pdf"] as ActiveTab[]).map((tab) => (
           <button
             key={tab}
@@ -148,7 +199,11 @@ export function LatexArtifactWorkbench({
             className={`latex-artifact-tab ${activeTab === tab ? "active" : ""}`}
             onClick={() => setActiveTab(tab)}
           >
-            {tab === "summary" ? "Summary" : tab === "source" ? ".tex source" : "PDF"}
+            {tab === "summary"
+              ? t("latexArtifact.tab.summary", "Summary")
+              : tab === "source"
+                ? t("latexArtifact.tab.source", ".tex source")
+                : "PDF"}
           </button>
         ))}
       </div>
@@ -156,7 +211,7 @@ export function LatexArtifactWorkbench({
       {activeTab === "summary" && (
         <div className="latex-artifact-summary">
           <div className="latex-artifact-summary-row">
-            <span>Source</span>
+            <span>{t("common.source", "Source")}</span>
             <button type="button" onClick={() => openPath(sourcePath)}>
               {fileName(sourcePath)}
             </button>
@@ -168,57 +223,88 @@ export function LatexArtifactWorkbench({
             </button>
           </div>
           <div className="latex-artifact-summary-row">
-            <span>Size</span>
-            <strong>{formatFileSize(pdfData?.size) || "Unknown"}</strong>
+            <span>{t("latexArtifact.size", "Size")}</span>
+            <strong>
+              {formatFileSize(pdfData?.size) || t("common.unknown", "Unknown")}
+            </strong>
           </div>
           <div className="latex-artifact-summary-row">
-            <span>Source lines</span>
-            <strong>{sourceLineCount || "Unknown"}</strong>
+            <span>{t("latexArtifact.sourceLines", "Source lines")}</span>
+            <strong>{sourceLineCount || t("common.unknown", "Unknown")}</strong>
           </div>
-          {loadingPdf && <div className="latex-artifact-loading">Loading PDF metadata...</div>}
+          {loadingPdf && (
+            <div className="latex-artifact-loading">
+              {t("latexArtifact.loadingMetadata", "Loading PDF metadata...")}
+            </div>
+          )}
           {pdfError && <div className="latex-artifact-error">{pdfError}</div>}
         </div>
       )}
 
       {activeTab === "source" && (
         <div className="latex-artifact-source">
-          {loadingSource && <div className="latex-artifact-loading">Loading LaTeX source...</div>}
-          {sourceError && <div className="latex-artifact-error">{sourceError}</div>}
+          {loadingSource && (
+            <div className="latex-artifact-loading">
+              {t("latexArtifact.loadingSource", "Loading LaTeX source...")}
+            </div>
+          )}
+          {sourceError && (
+            <div className="latex-artifact-error">{sourceError}</div>
+          )}
           {!loadingSource && !sourceError && (
-            <pre className="latex-artifact-source-code">{sourceData?.content || ""}</pre>
+            <pre className="latex-artifact-source-code">
+              {sourceData?.content || ""}
+            </pre>
           )}
         </div>
       )}
 
       {activeTab === "pdf" && (
         <div className="latex-artifact-pdf">
-          {loadingPdf && <div className="latex-artifact-loading">Rendering PDF...</div>}
+          {loadingPdf && (
+            <div className="latex-artifact-loading">
+              {t("latexArtifact.renderingPdf", "Rendering PDF...")}
+            </div>
+          )}
           {pdfError && <div className="latex-artifact-error">{pdfError}</div>}
           {!loadingPdf && !pdfError && pdfData?.pdfDataBase64 && (
             <>
               <div className="latex-artifact-pdf-toolbar">
                 <button
                   type="button"
-                  onClick={() => setPdfPageIndex((current) => Math.max(0, current - 1))}
+                  onClick={() =>
+                    setPdfPageIndex((current) => Math.max(0, current - 1))
+                  }
                   disabled={pdfPageIndex <= 0}
                 >
-                  Previous
+                  {t("common.previous", "Previous")}
                 </button>
                 <span>
-                  Page {pdfPageCount > 0 ? pdfPageIndex + 1 : "-"} / {pdfPageCount || "-"}
+                  {t(
+                    "latexArtifact.pageIndicator",
+                    "Page {current} / {total}",
+                    {
+                      current: pdfPageCount > 0 ? pdfPageIndex + 1 : "-",
+                      total: pdfPageCount || "-",
+                    },
+                  )}
                 </span>
                 <button
                   type="button"
                   onClick={() =>
                     setPdfPageIndex((current) =>
-                      pdfPageCount > 0 ? Math.min(pdfPageCount - 1, current + 1) : current,
+                      pdfPageCount > 0
+                        ? Math.min(pdfPageCount - 1, current + 1)
+                        : current,
                     )
                   }
-                  disabled={pdfPageCount <= 0 || pdfPageIndex >= pdfPageCount - 1}
+                  disabled={
+                    pdfPageCount <= 0 || pdfPageIndex >= pdfPageCount - 1
+                  }
                 >
-                  Next
+                  {t("common.next", "Next")}
                 </button>
-                <strong>Zoom to fit</strong>
+                <strong>{t("latexArtifact.zoomToFit", "Zoom to fit")}</strong>
               </div>
               <PDFDocumentSurface
                 fileName={pdfData.fileName}
@@ -233,7 +319,10 @@ export function LatexArtifactWorkbench({
           )}
           {!loadingPdf && !pdfError && pdfData && !pdfData.pdfDataBase64 && (
             <div className="latex-artifact-error">
-              PDF is too large for inline rendering. Open it externally to inspect the full document.
+              {t(
+                "latexArtifact.error.tooLarge",
+                "PDF is too large for inline rendering. Open it externally to inspect the full document.",
+              )}
             </div>
           )}
         </div>

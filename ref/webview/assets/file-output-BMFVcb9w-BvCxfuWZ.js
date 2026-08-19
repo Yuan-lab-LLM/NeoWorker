@@ -1,0 +1,3 @@
+import { n as e, t } from "./file-output-BMFVcb9w-C1qPDVUZ.js";
+e();
+export { t as default };

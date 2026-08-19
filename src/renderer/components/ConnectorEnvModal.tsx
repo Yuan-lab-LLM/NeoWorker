@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { translate, useLanguage } from "../i18n";
 
 export interface ConnectorEnvField {
   key: string;
@@ -24,6 +25,8 @@ export function ConnectorEnvModal({
   onClose,
   onSaved,
 }: ConnectorEnvModalProps) {
+  useLanguage();
+  const t = translate;
   const [values, setValues] = useState<Record<string, string>>(() => {
     const seeded: Record<string, string> = {};
     fields.forEach((field) => {
@@ -64,7 +67,10 @@ export function ConnectorEnvModal({
       onSaved();
       onClose();
     } catch (err: Any) {
-      setError(err.message || "Failed to save credentials");
+      setError(
+        err.message ||
+          t("connectors.env.error.save", "Unable to save credentials"),
+      );
     } finally {
       setSaving(false);
     }
@@ -72,12 +78,23 @@ export function ConnectorEnvModal({
 
   return (
     <div className="mcp-modal-overlay" onClick={onClose}>
-      <div className="mcp-modal connector-setup-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="mcp-modal connector-setup-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mcp-modal-header">
           <div className="registry-details-title">
-            <h3>{serverName} Configuration</h3>
+            <h3>
+              {t("connectors.env.configurationTitle", "{name} configuration", {
+                name: serverName,
+              })}
+            </h3>
           </div>
-          <button className="mcp-modal-close" onClick={onClose}>
+          <button
+            className="mcp-modal-close"
+            aria-label={t("common.close", "Close")}
+            onClick={onClose}
+          >
             <svg
               width="20"
               height="20"
@@ -93,20 +110,32 @@ export function ConnectorEnvModal({
         <div className="mcp-modal-content">
           {fields.map((field) => (
             <div key={field.key} className="settings-field">
-              <label>{field.label}</label>
+              <label>{translateEnvLabel(field.label)}</label>
               <input
                 className="settings-input"
                 type={field.type || "text"}
-                placeholder={field.placeholder}
+                placeholder={
+                  field.placeholder
+                    ? translateEnvPlaceholder(field.placeholder)
+                    : undefined
+                }
                 value={values[field.key] || ""}
-                onChange={(e) => setValues({ ...values, [field.key]: e.target.value })}
+                onChange={(e) =>
+                  setValues({ ...values, [field.key]: e.target.value })
+                }
               />
             </div>
           ))}
 
           <div className="connector-setup-actions">
-            <button className="button-primary" onClick={handleSave} disabled={saving}>
-              {saving ? "Saving..." : "Save Credentials"}
+            <button
+              className="button-primary"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving
+                ? t("common.saving", "Saving...")
+                : t("connectors.env.saveCredentials", "Save credentials")}
             </button>
           </div>
 
@@ -119,5 +148,24 @@ export function ConnectorEnvModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function envTextKey(prefix: string, value: string): string {
+  return `${prefix}.${value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")}`;
+}
+
+function translateEnvLabel(label: string): string {
+  return translate(envTextKey("connectors.env.label", label), label);
+}
+
+function translateEnvPlaceholder(placeholder: string): string {
+  return translate(
+    envTextKey("connectors.env.placeholder", placeholder),
+    placeholder,
   );
 }

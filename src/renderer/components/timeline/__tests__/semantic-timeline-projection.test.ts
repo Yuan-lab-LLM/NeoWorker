@@ -20,7 +20,9 @@ import type { NormalizerInputEvent } from "../../../../shared/timeline-events";
 // ---------------------------------------------------------------------------
 
 let seq = 0;
-function resetSeq() { seq = 0; }
+function resetSeq() {
+  seq = 0;
+}
 
 function makeEvent(
   type: string,
@@ -225,7 +227,14 @@ describe("backward compatibility", () => {
     resetSeq();
     expect(() =>
       normalizeTaskEvents([
-        { id: "e1", taskId: "t1", timestamp: 1000, type: "tool_call", payload: undefined as unknown as null, schemaVersion: 2 },
+        {
+          id: "e1",
+          taskId: "t1",
+          timestamp: 1000,
+          type: "tool_call",
+          payload: undefined as unknown as null,
+          schemaVersion: 2,
+        },
       ]),
     ).not.toThrow();
   });
@@ -234,7 +243,14 @@ describe("backward compatibility", () => {
     resetSeq();
     expect(() =>
       normalizeTaskEvents([
-        { id: "e1", taskId: "t1", timestamp: 1000, type: "tool_call", payload: "raw string" as unknown as null, schemaVersion: 2 },
+        {
+          id: "e1",
+          taskId: "t1",
+          timestamp: 1000,
+          type: "tool_call",
+          payload: "raw string" as unknown as null,
+          schemaVersion: 2,
+        },
       ]),
     ).not.toThrow();
   });
@@ -243,7 +259,14 @@ describe("backward compatibility", () => {
     resetSeq();
     expect(() =>
       normalizeTaskEvents([
-        { id: "e1", taskId: "t1", timestamp: 0, type: "tool_call", payload: {}, schemaVersion: 2 },
+        {
+          id: "e1",
+          taskId: "t1",
+          timestamp: 0,
+          type: "tool_call",
+          payload: {},
+          schemaVersion: 2,
+        },
       ]),
     ).not.toThrow();
   });
@@ -259,9 +282,7 @@ describe("backward compatibility", () => {
 
   it("always emits approval card even for approval events with no fields", () => {
     resetSeq();
-    const result = normalizeTaskEvents([
-      makeEvent("approval_requested", {}),
-    ]);
+    const result = normalizeTaskEvents([makeEvent("approval_requested", {})]);
     expect(result[0].kind).toBe("approval");
     expect(result[0].expandable).toBe(true);
   });

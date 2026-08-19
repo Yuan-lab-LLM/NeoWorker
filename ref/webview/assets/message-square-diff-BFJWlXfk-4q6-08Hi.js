@@ -1,0 +1,3 @@
+import { n as e, t } from "./message-square-diff-BFJWlXfk-D8gWstOh.js";
+t();
+export { e as default };

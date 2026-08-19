@@ -4,6 +4,7 @@ import {
   buildEverydayAgentPriorityItems,
   classifyEverydayAgentRecovery,
   getEverydayAgentStatus,
+  getApprovalTypeLabel,
   isEverydayAgentConsentRequired,
   isEverydayAgentUuid,
   updateEverydayAgentTemporaryMode,
@@ -20,7 +21,10 @@ import {
 
 const now = 1_700_000_000_000;
 
-function capabilitySettings(): Record<EverydayCapabilityBundle, EverydayCapabilitySetting> {
+function capabilitySettings(): Record<
+  EverydayCapabilityBundle,
+  EverydayCapabilitySetting
+> {
   return Object.fromEntries(
     EVERYDAY_AGENT_CAPABILITY_BUNDLES.map((bundle) => [
       bundle.id,
@@ -82,7 +86,14 @@ function profileResult({
     compiledPolicy: {
       enabled: compiledEnabled,
       profileId: "11111111-1111-4111-8111-111111111111",
-      allowedCapabilities: ["inbox", "calendar", "browser", "docs", "memory", "automations"],
+      allowedCapabilities: [
+        "inbox",
+        "calendar",
+        "browser",
+        "docs",
+        "memory",
+        "automations",
+      ],
       blockedCapabilities: [],
       pausedScopes: pauseScopes,
       approvalPosture: "review_first",
@@ -110,7 +121,9 @@ function profileResult({
   };
 }
 
-function receipt(status: EverydayActionReceipt["status"]): EverydayActionReceipt {
+function receipt(
+  status: EverydayActionReceipt["status"],
+): EverydayActionReceipt {
   return {
     id: `receipt-${status}`,
     profileId: "11111111-1111-4111-8111-111111111111",
@@ -147,6 +160,12 @@ function suggestion(): ProactiveSuggestion {
 }
 
 describe("EverydayAgentPanel console state", () => {
+  it("uses clear Chinese labels for real approval types", () => {
+    expect(getApprovalTypeLabel("run_command")).toBe("运行命令");
+    expect(getApprovalTypeLabel("delete_multiple")).toBe("批量删除");
+    expect(getApprovalTypeLabel("external_service")).toBe("调用外部服务");
+  });
+
   it("classifies enabled, paused, disabled, and admin-blocked states", () => {
     expect(getEverydayAgentStatus(profileResult())).toBe("enabled");
     expect(
@@ -157,12 +176,16 @@ describe("EverydayAgentPanel console state", () => {
         }),
       ),
     ).toBe("paused");
-    expect(getEverydayAgentStatus(profileResult({ enabled: false, compiledEnabled: false }))).toBe(
-      "disabled",
-    );
-    expect(getEverydayAgentStatus(profileResult({ blocked: true, compiledEnabled: false }))).toBe(
-      "blocked",
-    );
+    expect(
+      getEverydayAgentStatus(
+        profileResult({ enabled: false, compiledEnabled: false }),
+      ),
+    ).toBe("disabled");
+    expect(
+      getEverydayAgentStatus(
+        profileResult({ blocked: true, compiledEnabled: false }),
+      ),
+    ).toBe("blocked");
   });
 
   it("prioritizes approvals and receipts ahead of suggestions", () => {
@@ -175,9 +198,9 @@ describe("EverydayAgentPanel console state", () => {
 
     expect(items[0]?.actionKind).toBe("receipt");
     expect(items[0]?.title).toBe("Draft reply");
-    expect(items.findIndex((item) => item.actionKind === "suggestion")).toBeGreaterThan(
-      items.findIndex((item) => item.actionKind === "receipt"),
-    );
+    expect(
+      items.findIndex((item) => item.actionKind === "suggestion"),
+    ).toBeGreaterThan(items.findIndex((item) => item.actionKind === "receipt"));
   });
 
   it("surfaces paused and admin-blocked intervention before ordinary work", () => {
@@ -202,7 +225,9 @@ describe("EverydayAgentPanel console state", () => {
   });
 
   it("keeps the memory IPC guard strict about UUID inputs", () => {
-    expect(isEverydayAgentUuid("11111111-1111-4111-8111-111111111111")).toBe(true);
+    expect(isEverydayAgentUuid("11111111-1111-4111-8111-111111111111")).toBe(
+      true,
+    );
     expect(isEverydayAgentUuid("profile-local")).toBe(false);
     expect(isEverydayAgentUuid(undefined)).toBe(false);
   });
@@ -212,7 +237,10 @@ describe("EverydayAgentPanel console state", () => {
     declined.profile.acceptedConsentVersion = 0;
     declined.profile.declinedConsentVersion = 1;
     declined.profile.consentDeclinedAt = now;
-    const missingDecision = profileResult({ enabled: false, compiledEnabled: false });
+    const missingDecision = profileResult({
+      enabled: false,
+      compiledEnabled: false,
+    });
     missingDecision.profile.acceptedConsentVersion = 0;
 
     expect(isEverydayAgentConsentRequired(declined)).toBe(false);
@@ -244,7 +272,7 @@ describe("EverydayAgentPanel console state", () => {
       retryState: { attempt: 1, lastError: "missing Gmail scope" },
     });
 
-    expect(item?.actionLabel).toBe("Reconnect app");
+    expect(["Reconnect app", "重新连接应用"]).toContain(item?.actionLabel);
     expect(item?.tone).toBe("warn");
   });
 

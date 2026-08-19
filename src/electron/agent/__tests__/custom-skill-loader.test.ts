@@ -1044,13 +1044,13 @@ describe("getSkillDescriptionsForModel", () => {
     await loader.reloadSkills();
 
     const genericMentionRanked = loader.rankModelInvocableSkillsForQuery(
-      "We need to review PR #55 on cowork os repo. Spin up Codex to review it.",
+      "We need to review PR #55 on neoworker os repo. Spin up Codex to review it.",
       { limit: 2 },
     );
     expect(genericMentionRanked.map((entry) => entry.skill.id)).not.toContain("codex-cli");
 
     const explicitRanked = loader.rankModelInvocableSkillsForQuery(
-      "Use the Codex CLI Agent skill to review PR #55 on cowork os repo.",
+      "Use the Codex CLI Agent skill to review PR #55 on neoworker os repo.",
       { limit: 2 },
     );
     expect(explicitRanked[0]?.skill.id).toBe("codex-cli");
@@ -1058,13 +1058,13 @@ describe("getSkillDescriptionsForModel", () => {
 
     const genericDescriptions = loader.getSkillDescriptionsForModel({
       routingQuery:
-        "We need to review PR #55 on cowork os repo. Spin up Codex to review it.",
+        "We need to review PR #55 on neoworker os repo. Spin up Codex to review it.",
       shortlistSize: 1,
     });
     expect(genericDescriptions).not.toContain("- codex-cli:");
 
     const explicitDescriptions = loader.getSkillDescriptionsForModel({
-      routingQuery: "Use the Codex CLI Agent skill to review PR #55 on cowork os repo.",
+      routingQuery: "Use the Codex CLI Agent skill to review PR #55 on neoworker os repo.",
       shortlistSize: 1,
     });
 

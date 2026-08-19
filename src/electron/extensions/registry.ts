@@ -35,9 +35,10 @@ import { getSafeStorage } from "../utils/safe-storage";
 import { createLogger } from "../utils/logger";
 import { isPackAllowed, isPackRequired, loadPoliciesStrict } from "../admin/policies";
 import type { CustomSkill } from "../../shared/types";
+import { PRODUCT_SEMVER } from "../../shared/product-brand";
 
 // Package version (will be replaced at build time or read from package.json)
-const COWORK_VERSION = process.env.npm_package_version || "0.3.0";
+const NEOWORKER_VERSION = process.env.npm_package_version || PRODUCT_SEMVER;
 const logger = createLogger("PluginRegistry");
 
 interface PersistedPackStates {
@@ -403,8 +404,8 @@ export class PluginRegistry extends EventEmitter {
     const pluginName = manifest.name;
 
     // Check compatibility
-    if (!isPluginCompatible(manifest, COWORK_VERSION)) {
-      logger.warn(`Plugin ${pluginName} requires CoWork ${manifest.coworkVersion}, skipping`);
+    if (!isPluginCompatible(manifest, NEOWORKER_VERSION)) {
+      logger.warn(`Plugin ${pluginName} requires NeoWorker ${manifest.neoworkerVersion}, skipping`);
       return;
     }
 
@@ -503,7 +504,7 @@ export class PluginRegistry extends EventEmitter {
    */
   private createPluginAPI(pluginName: string, _loadedPlugin: LoadedPlugin): PluginAPI {
     const runtime: PluginRuntime = {
-      version: COWORK_VERSION,
+      version: NEOWORKER_VERSION,
       platform: process.platform,
       appDataPath: getUserDataDir(),
       pluginDataPath: getPluginDataPath(pluginName),
@@ -629,7 +630,7 @@ export class PluginRegistry extends EventEmitter {
       frontmatter.description ||
       `Directory-backed skill from ${path.relative(pluginRoot, skillPath)}`;
     const prompt = [
-      `Use the directory-backed CoWork plugin skill \`${definition.id}\`.`,
+      `Use the directory-backed NeoWorker plugin skill \`${definition.id}\`.`,
       "",
       `Plugin root: ${pluginRoot}`,
       `Skill directory: ${skillDir}`,

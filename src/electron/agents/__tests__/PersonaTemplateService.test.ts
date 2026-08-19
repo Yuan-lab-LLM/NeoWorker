@@ -26,9 +26,9 @@ describeWithSqlite("PersonaTemplateService company assignment", () => {
   let controlPlaneService: import("../../control-plane/ControlPlaneCoreService").ControlPlaneCoreService;
 
   beforeEach(async () => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-persona-template-"));
-    previousUserDataDir = process.env.COWORK_USER_DATA_DIR;
-    process.env.COWORK_USER_DATA_DIR = tmpDir;
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-persona-template-"));
+    previousUserDataDir = process.env.NEOWORKER_USER_DATA_DIR;
+    process.env.NEOWORKER_USER_DATA_DIR = tmpDir;
 
     const [{ DatabaseManager }, { AgentRoleRepository }, { ControlPlaneCoreService }] = await Promise.all([
       import("../../database/schema"),
@@ -45,9 +45,9 @@ describeWithSqlite("PersonaTemplateService company assignment", () => {
   afterEach(() => {
     manager?.close();
     if (previousUserDataDir === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = previousUserDataDir;
+      process.env.NEOWORKER_USER_DATA_DIR = previousUserDataDir;
     }
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

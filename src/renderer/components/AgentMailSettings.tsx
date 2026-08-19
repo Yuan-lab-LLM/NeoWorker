@@ -10,11 +10,12 @@ import type {
   AgentMailWorkspaceBinding,
   Workspace,
 } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 const DEFAULT_TIMEOUT_MS = 20000;
 
 function formatTimestamp(value?: number): string {
-  if (!value) return "Never";
+  if (!value) return translate("common.never", "Never");
   return new Date(value).toLocaleString();
 }
 
@@ -23,12 +24,16 @@ function errorMessage(error: unknown): string {
 }
 
 export function AgentMailSettings() {
+  useLanguage();
+  const t = translate;
   const [settings, setSettings] = useState<AgentMailSettingsData | null>(null);
   const [status, setStatus] = useState<AgentMailStatus | null>(null);
   const [pods, setPods] = useState<AgentMailPod[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>("");
-  const [binding, setBinding] = useState<AgentMailWorkspaceBinding | null>(null);
+  const [binding, setBinding] = useState<AgentMailWorkspaceBinding | null>(
+    null,
+  );
   const [inboxes, setInboxes] = useState<AgentMailInbox[]>([]);
   const [domains, setDomains] = useState<AgentMailDomain[]>([]);
   const [selectedInboxId, setSelectedInboxId] = useState<string>("");
@@ -60,7 +65,12 @@ export function AgentMailSettings() {
     reason: "",
   });
   const [apiKeyName, setApiKeyName] = useState("");
-  const [testResult, setTestResult] = useState<{ success: boolean; error?: string; podCount?: number; inboxCount?: number } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    error?: string;
+    podCount?: number;
+    inboxCount?: number;
+  } | null>(null);
 
   useEffect(() => {
     void loadBootstrap();
@@ -84,16 +94,19 @@ export function AgentMailSettings() {
   const loadBootstrap = async () => {
     setError(null);
     try {
-      const [loadedSettings, loadedStatus, loadedPods, loadedWorkspaces] = await Promise.all([
-        window.electronAPI.getAgentMailSettings(),
-        window.electronAPI.getAgentMailStatus(),
-        window.electronAPI.listAgentMailPods().catch(() => []),
-        window.electronAPI.listWorkspaces(),
-      ]);
+      const [loadedSettings, loadedStatus, loadedPods, loadedWorkspaces] =
+        await Promise.all([
+          window.electronAPI.getAgentMailSettings(),
+          window.electronAPI.getAgentMailStatus(),
+          window.electronAPI.listAgentMailPods().catch(() => []),
+          window.electronAPI.listWorkspaces(),
+        ]);
       setSettings(loadedSettings);
       setStatus(loadedStatus);
       setPods(loadedPods);
-      const stableWorkspaces = loadedWorkspaces.filter((workspace) => !workspace.isTemp);
+      const stableWorkspaces = loadedWorkspaces.filter(
+        (workspace) => !workspace.isTemp,
+      );
       setWorkspaces(stableWorkspaces);
       const preferredWorkspaceId = stableWorkspaces[0]?.id || "";
       setSelectedWorkspaceId((current) => current || preferredWorkspaceId);
@@ -126,7 +139,10 @@ export function AgentMailSettings() {
 
   const loadLists = async (workspaceId: string, inboxId?: string) => {
     try {
-      const entries = await window.electronAPI.listAgentMailListEntries({ workspaceId, inboxId });
+      const entries = await window.electronAPI.listAgentMailListEntries({
+        workspaceId,
+        inboxId,
+      });
       setListEntries(entries);
     } catch (err) {
       setError(errorMessage(err));
@@ -135,7 +151,10 @@ export function AgentMailSettings() {
 
   const loadApiKeys = async (workspaceId: string, inboxId: string) => {
     try {
-      const keys = await window.electronAPI.listAgentMailInboxApiKeys({ workspaceId, inboxId });
+      const keys = await window.electronAPI.listAgentMailInboxApiKeys({
+        workspaceId,
+        inboxId,
+      });
       setApiKeys(keys);
     } catch (err) {
       setError(errorMessage(err));
@@ -219,7 +238,10 @@ export function AgentMailSettings() {
   };
 
   const renameInbox = async (inbox: AgentMailInbox) => {
-    const nextDisplayName = window.prompt("Display name", inbox.displayName || inbox.email || inbox.inboxId);
+    const nextDisplayName = window.prompt(
+      "Display name",
+      inbox.displayName || inbox.email || inbox.inboxId,
+    );
     if (!nextDisplayName || !selectedWorkspaceId) return;
     await withBusy(`rename-${inbox.inboxId}`, async () => {
       await window.electronAPI.updateAgentMailInbox({
@@ -233,7 +255,8 @@ export function AgentMailSettings() {
 
   const deleteInbox = async (inbox: AgentMailInbox) => {
     if (!selectedWorkspaceId) return;
-    if (!window.confirm(`Delete inbox ${inbox.email || inbox.inboxId}?`)) return;
+    if (!window.confirm(`Delete inbox ${inbox.email || inbox.inboxId}?`))
+      return;
     await withBusy(`delete-${inbox.inboxId}`, async () => {
       await window.electronAPI.deleteAgentMailInbox({
         workspaceId: selectedWorkspaceId,
@@ -269,7 +292,8 @@ export function AgentMailSettings() {
 
   const deleteDomain = async (domain: AgentMailDomain) => {
     if (!selectedWorkspaceId) return;
-    if (!window.confirm(`Delete domain ${domain.domain || domain.domainId}?`)) return;
+    if (!window.confirm(`Delete domain ${domain.domain || domain.domainId}?`))
+      return;
     await withBusy(`delete-domain-${domain.domainId}`, async () => {
       await window.electronAPI.deleteAgentMailDomain({
         workspaceId: selectedWorkspaceId,
@@ -336,88 +360,136 @@ export function AgentMailSettings() {
   };
 
   if (!settings) {
-    return <div className="settings-loading">Loading AgentMail settings...</div>;
+    return (
+      <div className="settings-loading">
+        {t("agentMail.loading", "Loading AgentMail settings...")}
+      </div>
+    );
   }
 
   return (
     <div className="agentmail-settings">
       <div className="settings-section">
         <div className="settings-section-header">
-          <h3>AgentMail</h3>
+          <h3>{t("agentMail.title", "AgentMail")}</h3>
           <div className="settings-actions">
-            <button className="btn-secondary btn-sm" onClick={testConnection} disabled={busy !== null}>
-              {busy === "test-connection" ? "Testing..." : "Test Connection"}
+            <button
+              className="btn-secondary btn-sm"
+              onClick={testConnection}
+              disabled={busy !== null}
+            >
+              {busy === "test-connection"
+                ? t("common.testing", "Testing...")
+                : t("cloudStorage.testConnection", "Test Connection")}
             </button>
-            <button className="btn-primary btn-sm" onClick={saveSettings} disabled={busy !== null}>
-              {busy === "save-settings" ? "Saving..." : "Save"}
+            <button
+              className="btn-primary btn-sm"
+              onClick={saveSettings}
+              disabled={busy !== null}
+            >
+              {busy === "save-settings"
+                ? t("common.saving", "Saving...")
+                : t("common.save", "Save")}
             </button>
           </div>
         </div>
         <p className="settings-description">
-          Native AgentMail support for workspace pods, inbox provisioning, domains, lists, inbox-scoped
-          API keys, REST sync, and realtime event streaming.
+          {t(
+            "agentMail.description",
+            "Native AgentMail support for workspace pods, inbox provisioning, domains, lists, inbox-scoped API keys, REST sync, and realtime event streaming.",
+          )}
         </p>
-        {error && <p className="settings-hint">Error: {error}</p>}
+        {error && (
+          <p className="settings-hint">
+            {t("common.error", "Error")}: {error}
+          </p>
+        )}
         {testResult && (
           <p className="settings-hint">
             {testResult.success
-              ? `Connected. ${testResult.podCount || 0} pod(s), ${testResult.inboxCount || 0} inbox(es).`
-              : `Connection failed: ${testResult.error || "Unknown error"}`}
+              ? t(
+                  "agentMail.test.connected",
+                  "Connected. {pods} pod(s), {inboxes} inbox(es).",
+                  {
+                    pods: testResult.podCount || 0,
+                    inboxes: testResult.inboxCount || 0,
+                  },
+                )
+              : t("cloudStorage.test.failed", "Connection failed: {error}", {
+                  error:
+                    testResult.error ||
+                    t("common.unknownError", "Unknown error"),
+                })}
           </p>
         )}
         {createdApiKey && (
           <p className="settings-hint">
-            New inbox key: <code>{createdApiKey}</code> (shown once only)
+            {t("agentMail.apiKey.created", "New inbox key:")}{" "}
+            <code>{createdApiKey}</code>{" "}
+            {t("agentMail.apiKey.shownOnce", "(shown once only)")}
           </p>
         )}
         <div className="settings-grid">
           <div className="setting-item">
-            <label>Enable AgentMail</label>
+            <label>{t("agentMail.enable", "Enable AgentMail")}</label>
             <input
               type="checkbox"
               checked={settings.enabled}
-              onChange={(event) => setSettings({ ...settings, enabled: event.target.checked })}
-            />
-          </div>
-          <div className="setting-item">
-            <label>Enable realtime WebSocket sync</label>
-            <input
-              type="checkbox"
-              checked={Boolean(settings.realtimeEnabled)}
               onChange={(event) =>
-                setSettings({ ...settings, realtimeEnabled: event.target.checked })
+                setSettings({ ...settings, enabled: event.target.checked })
               }
             />
           </div>
           <div className="setting-item">
-            <label>Org API Key</label>
+            <label>
+              {t("agentMail.realtime.enable", "Enable realtime WebSocket sync")}
+            </label>
+            <input
+              type="checkbox"
+              checked={Boolean(settings.realtimeEnabled)}
+              onChange={(event) =>
+                setSettings({
+                  ...settings,
+                  realtimeEnabled: event.target.checked,
+                })
+              }
+            />
+          </div>
+          <div className="setting-item">
+            <label>{t("agentMail.orgApiKey", "Org API Key")}</label>
             <input
               type="password"
               value={settings.apiKey || ""}
-              onChange={(event) => setSettings({ ...settings, apiKey: event.target.value })}
+              onChange={(event) =>
+                setSettings({ ...settings, apiKey: event.target.value })
+              }
               placeholder="am_..."
             />
           </div>
           <div className="setting-item">
-            <label>Base URL</label>
+            <label>{t("agentMail.baseUrl", "Base URL")}</label>
             <input
               type="text"
               value={settings.baseUrl || ""}
-              onChange={(event) => setSettings({ ...settings, baseUrl: event.target.value })}
+              onChange={(event) =>
+                setSettings({ ...settings, baseUrl: event.target.value })
+              }
               placeholder="https://api.agentmail.to/v0"
             />
           </div>
           <div className="setting-item">
-            <label>WebSocket URL</label>
+            <label>{t("agentMail.websocketUrl", "WebSocket URL")}</label>
             <input
               type="text"
               value={settings.websocketUrl || ""}
-              onChange={(event) => setSettings({ ...settings, websocketUrl: event.target.value })}
+              onChange={(event) =>
+                setSettings({ ...settings, websocketUrl: event.target.value })
+              }
               placeholder="wss://api.agentmail.to/v0/websocket"
             />
           </div>
           <div className="setting-item">
-            <label>Timeout (ms)</label>
+            <label>{t("cloudStorage.timeoutMs", "Timeout (ms)")}</label>
             <input
               type="number"
               value={settings.timeoutMs || DEFAULT_TIMEOUT_MS}
@@ -431,22 +503,40 @@ export function AgentMailSettings() {
           </div>
         </div>
         <div className="settings-hint">
-          Status: {status?.connected ? "Connected" : "Not connected"} · Realtime:{" "}
-          {status?.connectionState || "disconnected"} · Last event: {formatTimestamp(status?.lastEventAt)}
+          {t("common.status", "Status")}:{" "}
+          {status?.connected
+            ? t("cloudStorage.status.connected", "Connected")
+            : t("agentMail.status.notConnected", "Not connected")}{" "}
+          · {t("agentMail.realtime.label", "Realtime")}:{" "}
+          {status?.connectionState ||
+            t("agentMail.status.disconnected", "disconnected")}{" "}
+          · {t("agentMail.lastEvent", "Last event")}:{" "}
+          {formatTimestamp(status?.lastEventAt)}
         </div>
       </div>
 
       <div className="settings-section">
         <div className="settings-section-header">
-          <h3>Workspace Pod Binding</h3>
-          <button className="btn-secondary btn-sm" onClick={refreshWorkspace} disabled={!selectedWorkspaceId || busy !== null}>
-            {busy === "refresh-workspace" ? "Refreshing..." : "Refresh Workspace"}
+          <h3>
+            {t("agentMail.workspaceBinding.title", "Workspace Pod Binding")}
+          </h3>
+          <button
+            className="btn-secondary btn-sm"
+            onClick={refreshWorkspace}
+            disabled={!selectedWorkspaceId || busy !== null}
+          >
+            {busy === "refresh-workspace"
+              ? t("common.refreshing", "Refreshing...")
+              : t("agentMail.workspace.refresh", "Refresh Workspace")}
           </button>
         </div>
         <div className="settings-grid">
           <div className="setting-item">
-            <label>Workspace</label>
-            <select value={selectedWorkspaceId} onChange={(event) => setSelectedWorkspaceId(event.target.value)}>
+            <label>{t("agentMail.workspace", "Workspace")}</label>
+            <select
+              value={selectedWorkspaceId}
+              onChange={(event) => setSelectedWorkspaceId(event.target.value)}
+            >
               {workspaces.map((workspace) => (
                 <option key={workspace.id} value={workspace.id}>
                   {workspace.name}
@@ -455,13 +545,22 @@ export function AgentMailSettings() {
             </select>
           </div>
           <div className="setting-item">
-            <label>Bound pod</label>
-            <div>{binding ? `${binding.podName || binding.podId} (${binding.podId})` : "Not bound"}</div>
+            <label>{t("agentMail.boundPod", "Bound pod")}</label>
+            <div>
+              {binding
+                ? `${binding.podName || binding.podId} (${binding.podId})`
+                : t("agentMail.notBound", "Not bound")}
+            </div>
           </div>
           <div className="setting-item">
-            <label>Bind existing pod</label>
-            <select value={workspacePodChoice} onChange={(event) => setWorkspacePodChoice(event.target.value)}>
-              <option value="">Select pod...</option>
+            <label>{t("agentMail.bindExistingPod", "Bind existing pod")}</label>
+            <select
+              value={workspacePodChoice}
+              onChange={(event) => setWorkspacePodChoice(event.target.value)}
+            >
+              <option value="">
+                {t("agentMail.selectPod", "Select pod...")}
+              </option>
               {pods.map((pod) => (
                 <option key={pod.podId} value={pod.podId}>
                   {pod.name || pod.podId}
@@ -470,150 +569,257 @@ export function AgentMailSettings() {
             </select>
           </div>
           <div className="setting-item">
-            <label>New pod name</label>
+            <label>{t("agentMail.newPodName", "New pod name")}</label>
             <input
               type="text"
               value={workspacePodName}
               onChange={(event) => setWorkspacePodName(event.target.value)}
-              placeholder="Acme workspace"
+              placeholder={t(
+                "agentMail.placeholder.workspaceName",
+                "Acme workspace",
+              )}
             />
           </div>
         </div>
         <div className="settings-actions">
-          <button className="btn-secondary btn-sm" onClick={bindWorkspacePod} disabled={!workspacePodChoice || busy !== null}>
-            {busy === "bind-pod" ? "Binding..." : "Bind Pod"}
+          <button
+            className="btn-secondary btn-sm"
+            onClick={bindWorkspacePod}
+            disabled={!workspacePodChoice || busy !== null}
+          >
+            {busy === "bind-pod"
+              ? t("agentMail.binding", "Binding...")
+              : t("agentMail.bindPod", "Bind Pod")}
           </button>
-          <button className="btn-primary btn-sm" onClick={createWorkspacePod} disabled={!selectedWorkspaceId || busy !== null}>
-            {busy === "create-pod" ? "Creating..." : "Create Pod"}
+          <button
+            className="btn-primary btn-sm"
+            onClick={createWorkspacePod}
+            disabled={!selectedWorkspaceId || busy !== null}
+          >
+            {busy === "create-pod"
+              ? t("common.creating", "Creating...")
+              : t("agentMail.createPod", "Create Pod")}
           </button>
         </div>
       </div>
 
       <div className="settings-section">
         <div className="settings-section-header">
-          <h3>Inboxes</h3>
-          <div className="settings-hint">Provider badge in Inbox Agent will show `agentmail` for these threads.</div>
+          <h3>{t("agentMail.inboxes.title", "Inboxes")}</h3>
+          <div className="settings-hint">
+            {t(
+              "agentMail.inboxes.providerBadgeHint",
+              "Provider badge in Inbox Agent will show `agentmail` for these threads.",
+            )}
+          </div>
         </div>
         <div className="settings-grid">
           <div className="setting-item">
-            <label>Username</label>
+            <label>{t("agentMail.username", "Username")}</label>
             <input
               type="text"
               value={inboxForm.username}
-              onChange={(event) => setInboxForm({ ...inboxForm, username: event.target.value })}
+              onChange={(event) =>
+                setInboxForm({ ...inboxForm, username: event.target.value })
+              }
               placeholder="support"
             />
           </div>
           <div className="setting-item">
-            <label>Domain</label>
+            <label>{t("agentMail.domain", "Domain")}</label>
             <input
               type="text"
               value={inboxForm.domain}
-              onChange={(event) => setInboxForm({ ...inboxForm, domain: event.target.value })}
+              onChange={(event) =>
+                setInboxForm({ ...inboxForm, domain: event.target.value })
+              }
               placeholder="example.com"
             />
           </div>
           <div className="setting-item">
-            <label>Display name</label>
+            <label>{t("agentMail.displayName", "Display name")}</label>
             <input
               type="text"
               value={inboxForm.displayName}
-              onChange={(event) => setInboxForm({ ...inboxForm, displayName: event.target.value })}
-              placeholder="Support"
+              onChange={(event) =>
+                setInboxForm({ ...inboxForm, displayName: event.target.value })
+              }
+              placeholder={t("agentMail.placeholder.displayName", "Support")}
             />
           </div>
         </div>
         <div className="settings-actions">
-          <button className="btn-primary btn-sm" onClick={createInbox} disabled={!binding || busy !== null}>
-            {busy === "create-inbox" ? "Creating..." : "Create Inbox"}
+          <button
+            className="btn-primary btn-sm"
+            onClick={createInbox}
+            disabled={!binding || busy !== null}
+          >
+            {busy === "create-inbox"
+              ? t("common.creating", "Creating...")
+              : t("agentMail.createInbox", "Create Inbox")}
           </button>
         </div>
         <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
           {inboxes.map((inbox) => (
-            <div key={inbox.inboxId} className="setting-item" style={{ border: "1px solid var(--color-border-subtle)", padding: 12, borderRadius: 10 }}>
-              <div style={{ fontWeight: 600 }}>{inbox.displayName || inbox.email || inbox.inboxId}</div>
+            <div
+              key={inbox.inboxId}
+              className="setting-item"
+              style={{
+                border: "1px solid var(--color-border-subtle)",
+                padding: 12,
+                borderRadius: 10,
+              }}
+            >
+              <div style={{ fontWeight: 600 }}>
+                {inbox.displayName || inbox.email || inbox.inboxId}
+              </div>
               <div className="settings-hint">{inbox.inboxId}</div>
               <div className="settings-actions">
-                <button className="btn-secondary btn-sm" onClick={() => renameInbox(inbox)} disabled={busy !== null}>
-                  Rename
+                <button
+                  className="btn-secondary btn-sm"
+                  onClick={() => renameInbox(inbox)}
+                  disabled={busy !== null}
+                >
+                  {t("common.rename", "Rename")}
                 </button>
-                <button className="btn-secondary btn-sm" onClick={() => setSelectedInboxId(inbox.inboxId)}>
-                  {selectedInboxId === inbox.inboxId ? "Selected" : "Manage"}
+                <button
+                  className="btn-secondary btn-sm"
+                  onClick={() => setSelectedInboxId(inbox.inboxId)}
+                >
+                  {selectedInboxId === inbox.inboxId
+                    ? t("common.selected", "Selected")
+                    : t("common.manage", "Manage")}
                 </button>
-                <button className="btn-secondary btn-sm" onClick={() => deleteInbox(inbox)} disabled={busy !== null}>
-                  Delete
+                <button
+                  className="btn-secondary btn-sm"
+                  onClick={() => deleteInbox(inbox)}
+                  disabled={busy !== null}
+                >
+                  {t("common.delete", "Delete")}
                 </button>
               </div>
             </div>
           ))}
-          {inboxes.length === 0 && <div className="settings-hint">No inboxes yet for this workspace pod.</div>}
+          {inboxes.length === 0 && (
+            <div className="settings-hint">
+              {t(
+                "agentMail.inboxes.empty",
+                "No inboxes yet for this workspace pod.",
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       <div className="settings-section">
         <div className="settings-section-header">
-          <h3>Domains</h3>
+          <h3>{t("agentMail.domains.title", "Domains")}</h3>
         </div>
         <div className="settings-grid">
           <div className="setting-item">
-            <label>Domain</label>
+            <label>{t("agentMail.domain", "Domain")}</label>
             <input
               type="text"
               value={domainForm.domain}
-              onChange={(event) => setDomainForm({ ...domainForm, domain: event.target.value })}
+              onChange={(event) =>
+                setDomainForm({ ...domainForm, domain: event.target.value })
+              }
               placeholder="example.com"
             />
           </div>
           <div className="setting-item">
-            <label>Feedback enabled</label>
+            <label>{t("agentMail.feedbackEnabled", "Feedback enabled")}</label>
             <input
               type="checkbox"
               checked={domainForm.feedbackEnabled}
-              onChange={(event) => setDomainForm({ ...domainForm, feedbackEnabled: event.target.checked })}
+              onChange={(event) =>
+                setDomainForm({
+                  ...domainForm,
+                  feedbackEnabled: event.target.checked,
+                })
+              }
             />
           </div>
         </div>
         <div className="settings-actions">
-          <button className="btn-primary btn-sm" onClick={createDomain} disabled={!binding || busy !== null}>
-            {busy === "create-domain" ? "Creating..." : "Create Domain"}
+          <button
+            className="btn-primary btn-sm"
+            onClick={createDomain}
+            disabled={!binding || busy !== null}
+          >
+            {busy === "create-domain"
+              ? t("common.creating", "Creating...")
+              : t("agentMail.createDomain", "Create Domain")}
           </button>
         </div>
         <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
           {domains.map((domain) => (
-            <div key={domain.domainId} className="setting-item" style={{ border: "1px solid var(--color-border-subtle)", padding: 12, borderRadius: 10 }}>
+            <div
+              key={domain.domainId}
+              className="setting-item"
+              style={{
+                border: "1px solid var(--color-border-subtle)",
+                padding: 12,
+                borderRadius: 10,
+              }}
+            >
               <div style={{ fontWeight: 600 }}>
-                {domain.domain} <span className="settings-hint">({domain.status || "unknown"})</span>
+                {domain.domain}{" "}
+                <span className="settings-hint">
+                  ({domain.status || "unknown"})
+                </span>
               </div>
               <div style={{ display: "grid", gap: 4, marginTop: 8 }}>
                 {domain.records.map((record, index) => (
-                  <div key={`${domain.domainId}-${index}`} className="settings-hint">
-                    {record.type} {record.name} → {record.value} {record.status ? `(${record.status})` : ""}
+                  <div
+                    key={`${domain.domainId}-${index}`}
+                    className="settings-hint"
+                  >
+                    {record.type} {record.name} → {record.value}{" "}
+                    {record.status ? `(${record.status})` : ""}
                   </div>
                 ))}
               </div>
               <div className="settings-actions">
-                <button className="btn-secondary btn-sm" onClick={() => verifyDomain(domain)} disabled={busy !== null}>
-                  Verify
+                <button
+                  className="btn-secondary btn-sm"
+                  onClick={() => verifyDomain(domain)}
+                  disabled={busy !== null}
+                >
+                  {t("agentMail.verify", "Verify")}
                 </button>
-                <button className="btn-secondary btn-sm" onClick={() => deleteDomain(domain)} disabled={busy !== null}>
-                  Delete
+                <button
+                  className="btn-secondary btn-sm"
+                  onClick={() => deleteDomain(domain)}
+                  disabled={busy !== null}
+                >
+                  {t("common.delete", "Delete")}
                 </button>
               </div>
             </div>
           ))}
-          {domains.length === 0 && <div className="settings-hint">No custom domains yet.</div>}
+          {domains.length === 0 && (
+            <div className="settings-hint">
+              {t("agentMail.domains.empty", "No custom domains yet.")}
+            </div>
+          )}
         </div>
       </div>
 
       <div className="settings-section">
         <div className="settings-section-header">
-          <h3>Lists And Inbox Keys</h3>
+          <h3>{t("agentMail.lists.title", "Lists And Inbox Keys")}</h3>
         </div>
         <div className="settings-grid">
           <div className="setting-item">
-            <label>Inbox scope</label>
-            <select value={selectedInboxId} onChange={(event) => setSelectedInboxId(event.target.value)}>
-              <option value="">Organization scope</option>
+            <label>{t("agentMail.inboxScope", "Inbox scope")}</label>
+            <select
+              value={selectedInboxId}
+              onChange={(event) => setSelectedInboxId(event.target.value)}
+            >
+              <option value="">
+                {t("agentMail.organizationScope", "Organization scope")}
+              </option>
               {inboxes.map((inbox) => (
                 <option key={inbox.inboxId} value={inbox.inboxId}>
                   {inbox.email || inbox.inboxId}
@@ -622,13 +828,14 @@ export function AgentMailSettings() {
             </select>
           </div>
           <div className="setting-item">
-            <label>Direction</label>
+            <label>{t("agentMail.direction", "Direction")}</label>
             <select
               value={listForm.direction}
               onChange={(event) =>
                 setListForm({
                   ...listForm,
-                  direction: event.target.value as AgentMailListEntry["direction"],
+                  direction: event.target
+                    .value as AgentMailListEntry["direction"],
                 })
               }
             >
@@ -638,13 +845,14 @@ export function AgentMailSettings() {
             </select>
           </div>
           <div className="setting-item">
-            <label>Type</label>
+            <label>{t("agentMail.type", "Type")}</label>
             <select
               value={listForm.listType}
               onChange={(event) =>
                 setListForm({
                   ...listForm,
-                  listType: event.target.value as AgentMailListEntry["listType"],
+                  listType: event.target
+                    .value as AgentMailListEntry["listType"],
                 })
               }
             >
@@ -653,50 +861,83 @@ export function AgentMailSettings() {
             </select>
           </div>
           <div className="setting-item">
-            <label>Entry</label>
+            <label>{t("agentMail.entry", "Entry")}</label>
             <input
               type="text"
               value={listForm.entry}
-              onChange={(event) => setListForm({ ...listForm, entry: event.target.value })}
+              onChange={(event) =>
+                setListForm({ ...listForm, entry: event.target.value })
+              }
               placeholder="vip@example.com or example.com"
             />
           </div>
           <div className="setting-item">
-            <label>Reason</label>
+            <label>{t("agentMail.reason", "Reason")}</label>
             <input
               type="text"
               value={listForm.reason}
-              onChange={(event) => setListForm({ ...listForm, reason: event.target.value })}
-              placeholder="Optional"
+              onChange={(event) =>
+                setListForm({ ...listForm, reason: event.target.value })
+              }
+              placeholder={t("common.optional", "Optional")}
             />
           </div>
         </div>
         <div className="settings-actions">
-          <button className="btn-primary btn-sm" onClick={createListEntry} disabled={busy !== null}>
-            {busy === "create-list-entry" ? "Saving..." : "Add List Entry"}
+          <button
+            className="btn-primary btn-sm"
+            onClick={createListEntry}
+            disabled={busy !== null}
+          >
+            {busy === "create-list-entry"
+              ? t("common.saving", "Saving...")
+              : t("agentMail.addListEntry", "Add List Entry")}
           </button>
         </div>
         <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
           {listEntries.map((entry) => (
-            <div key={`${entry.inboxId || "org"}:${entry.direction}:${entry.listType}:${entry.entry}`} className="setting-item" style={{ border: "1px solid var(--color-border-subtle)", padding: 10, borderRadius: 10 }}>
+            <div
+              key={`${entry.inboxId || "org"}:${entry.direction}:${entry.listType}:${entry.entry}`}
+              className="setting-item"
+              style={{
+                border: "1px solid var(--color-border-subtle)",
+                padding: 10,
+                borderRadius: 10,
+              }}
+            >
               <div style={{ fontWeight: 600 }}>
-                {entry.entry} <span className="settings-hint">({entry.direction}/{entry.listType})</span>
+                {entry.entry}{" "}
+                <span className="settings-hint">
+                  ({entry.direction}/{entry.listType})
+                </span>
               </div>
-              {entry.reason && <div className="settings-hint">{entry.reason}</div>}
+              {entry.reason && (
+                <div className="settings-hint">{entry.reason}</div>
+              )}
               <div className="settings-actions">
-                <button className="btn-secondary btn-sm" onClick={() => deleteListEntry(entry)} disabled={busy !== null}>
-                  Delete
+                <button
+                  className="btn-secondary btn-sm"
+                  onClick={() => deleteListEntry(entry)}
+                  disabled={busy !== null}
+                >
+                  {t("common.delete", "Delete")}
                 </button>
               </div>
             </div>
           ))}
-          {listEntries.length === 0 && <div className="settings-hint">No list entries for this scope.</div>}
+          {listEntries.length === 0 && (
+            <div className="settings-hint">
+              {t("agentMail.lists.empty", "No list entries for this scope.")}
+            </div>
+          )}
         </div>
 
         <div style={{ marginTop: 18 }}>
           <div className="settings-grid">
             <div className="setting-item">
-              <label>New inbox API key name</label>
+              <label>
+                {t("agentMail.apiKey.newName", "New inbox API key name")}
+              </label>
               <input
                 type="text"
                 value={apiKeyName}
@@ -706,26 +947,51 @@ export function AgentMailSettings() {
             </div>
           </div>
           <div className="settings-actions">
-            <button className="btn-primary btn-sm" onClick={createApiKey} disabled={!selectedInboxId || busy !== null}>
-              {busy === "create-api-key" ? "Creating..." : "Create Inbox API Key"}
+            <button
+              className="btn-primary btn-sm"
+              onClick={createApiKey}
+              disabled={!selectedInboxId || busy !== null}
+            >
+              {busy === "create-api-key"
+                ? t("common.creating", "Creating...")
+                : t("agentMail.apiKey.create", "Create Inbox API Key")}
             </button>
           </div>
           <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
             {apiKeys.map((apiKey) => (
-              <div key={apiKey.apiKeyId} className="setting-item" style={{ border: "1px solid var(--color-border-subtle)", padding: 10, borderRadius: 10 }}>
-                <div style={{ fontWeight: 600 }}>{apiKey.name || apiKey.prefix}</div>
+              <div
+                key={apiKey.apiKeyId}
+                className="setting-item"
+                style={{
+                  border: "1px solid var(--color-border-subtle)",
+                  padding: 10,
+                  borderRadius: 10,
+                }}
+              >
+                <div style={{ fontWeight: 600 }}>
+                  {apiKey.name || apiKey.prefix}
+                </div>
                 <div className="settings-hint">
                   {apiKey.prefix} · {formatTimestamp(apiKey.createdAt)}
                 </div>
                 <div className="settings-actions">
-                  <button className="btn-secondary btn-sm" onClick={() => deleteApiKey(apiKey)} disabled={busy !== null}>
-                    Delete
+                  <button
+                    className="btn-secondary btn-sm"
+                    onClick={() => deleteApiKey(apiKey)}
+                    disabled={busy !== null}
+                  >
+                    {t("common.delete", "Delete")}
                   </button>
                 </div>
               </div>
             ))}
             {selectedInboxId && apiKeys.length === 0 && (
-              <div className="settings-hint">No inbox-scoped API keys for the selected inbox.</div>
+              <div className="settings-hint">
+                {t(
+                  "agentMail.apiKey.empty",
+                  "No inbox-scoped API keys for the selected inbox.",
+                )}
+              </div>
             )}
           </div>
         </div>

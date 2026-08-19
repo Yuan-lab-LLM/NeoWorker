@@ -1,6 +1,6 @@
 # Codex Security Scans
 
-CoWork OS ships a bundled **Codex Security** plugin pack for defensive repository security review. It adapts the Codex Security workflows into normal CoWork plugin-pack skills, slash commands, task timelines, approvals, workspace path rules, and packaged resources.
+NeoWorker ships a bundled **Codex Security** plugin pack for defensive repository security review. It adapts the Codex Security workflows into normal NeoWorker plugin-pack skills, slash commands, task timelines, approvals, workspace path rules, and packaged resources.
 
 Access it from **Settings > Customize > Codex Security**, or invoke one of its slash commands in the composer:
 
@@ -41,7 +41,7 @@ Deep scans repeat the variance-sensitive discovery phase before centralized vali
 
 ## Bundled Skills
 
-The pack uses directory-backed skills via `skillDirectories` in `cowork.plugin.json`.
+The pack uses directory-backed skills via `skillDirectories` in `neoworker.plugin.json`.
 
 | Skill ID | Purpose |
 |----------|---------|
@@ -54,7 +54,7 @@ The pack uses directory-backed skills via `skillDirectories` in `cowork.plugin.j
 | `codex-security:attack-path-analysis` | Attack-path and severity analysis |
 | `codex-security:fix-finding` | Fix and verify a validated or plausible finding |
 
-Directory-backed skills read `SKILL.md` and relative `references/`, `scripts/`, `assets/`, and `agents/` files from their pack directory. CoWork uses the manifest definition first, then `SKILL.md` frontmatter, then a title generated from the skill ID for display metadata.
+Directory-backed skills read `SKILL.md` and relative `references/`, `scripts/`, `assets/`, and `agents/` files from their pack directory. NeoWorker uses the manifest definition first, then `SKILL.md` frontmatter, then a title generated from the skill ID for display metadata.
 
 ## Skill Orchestration
 
@@ -67,7 +67,7 @@ The skill runtime uses normal workspace-scoped tools for reading, searching, com
 Scan skills should write artifacts under the active workspace by default:
 
 ```text
-<repo>/.cowork/security-scans/<repo-name>/<scan-id>/
+<repo>/.neoworker/security-scans/<repo-name>/<scan-id>/
 ├── artifacts/
 │   ├── 01_context/
 │   ├── 02_discovery/
@@ -131,7 +131,7 @@ Exact candidate keys are a bookkeeping aid only. The Codex Security skill still 
 Security scan workflows remain workspace-scoped:
 
 - `repo_root`, `artifact_root`, `scan_dir`, and `worker_dir` should resolve inside the active workspace.
-- `artifact_root` defaults to `.cowork/security-scans/<repo-name>` inside the target repository.
+- `artifact_root` defaults to `.neoworker/security-scans/<repo-name>` inside the target repository.
 - `scan_id` may contain only letters, numbers, dot, underscore, or dash.
 - `scope` for scoped-path scans must be a relative path inside the repository.
 - Deep scans are repository-wide only. Use repository or scoped-path mode for narrower scans.

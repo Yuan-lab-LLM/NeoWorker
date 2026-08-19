@@ -89,4 +89,25 @@ describe("ChannelRegistry", () => {
     expect(registry.getMetadata("slack")?.capabilities.supportsEditMessage).toBe(true);
     expect(registry.getMetadata("slack")?.capabilities.supportsTyping).toBe(false);
   });
+
+  it("registers DingTalk as a bidirectional Stream-mode channel", () => {
+    const metadata = registry.getMetadata("dingtalk");
+    expect(metadata?.builtin).toBe(true);
+    expect(metadata?.capabilities.sendMessage).toBe(true);
+    expect(metadata?.capabilities.receiveMessage).toBe(true);
+    expect(metadata?.capabilities.webhooks).toBe(false);
+    expect(
+      registry.validateConfig("dingtalk", {
+        clientId: "ding-client",
+        clientSecret: "ding-secret",
+      }),
+    ).toEqual({ valid: true, errors: [] });
+  });
+
+  it("advertises outbound attachment support for personal WeChat", () => {
+    const metadata = registry.getMetadata("weixin");
+    expect(metadata?.capabilities.sendMessage).toBe(true);
+    expect(metadata?.capabilities.receiveMessage).toBe(true);
+    expect(metadata?.capabilities.attachments).toBe(true);
+  });
 });

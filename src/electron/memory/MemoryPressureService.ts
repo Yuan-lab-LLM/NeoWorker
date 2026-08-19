@@ -64,8 +64,8 @@ export class MemoryPressureService {
     workspacePath: string,
     file: MemoryPressureFileStatus["file"],
   ): Promise<MemoryPressureFileStatus> {
-    const relPath = path.join(".cowork", file).replace(/\\/g, "/");
-    const absPath = path.join(workspacePath, ".cowork", file);
+    const relPath = path.join(".neoworker", file).replace(/\\/g, "/");
+    const absPath = path.join(workspacePath, ".neoworker", file);
     const contract = WORKSPACE_KIT_CONTRACTS[file];
     const maxChars = Math.max(1, contract?.maxChars ?? 3000);
     let content = "";

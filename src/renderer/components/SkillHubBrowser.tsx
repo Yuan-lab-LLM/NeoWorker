@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { CheckCircle2, FolderOpen, Search, Trash2 } from "lucide-react";
 import {
   CapabilitySecurityReport,
   CustomSkill,
@@ -8,6 +9,15 @@ import {
   SkillStatusReport,
   SkillStatusEntry,
 } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
+import {
+  getLocalizedSkillSource,
+  getLocalizedSkillTag,
+  getLocalizedSkillText,
+} from "../utils/localized-skills";
+import { getSemanticIconVisual } from "../utils/semantic-icon-map";
+import { notifySkillInventoryUpdated } from "../utils/skill-inventory-events";
+import { isSkillVisibleForCurrentProductSupport } from "../utils/product-availability";
 
 const compactNumberFormatter = new Intl.NumberFormat("en", {
   notation: "compact",
@@ -31,9 +41,16 @@ function isLikelyGitSkillSource(rawValue: string): boolean {
   try {
     const parsed = new URL(value);
     const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
-    const pathParts = parsed.pathname.replace(/\/+$/g, "").split("/").filter(Boolean);
+    const pathParts = parsed.pathname
+      .replace(/\/+$/g, "")
+      .split("/")
+      .filter(Boolean);
     const lastSegment = pathParts[pathParts.length - 1]?.toLowerCase() || "";
-    return lastSegment.endsWith(".git") || host === "github.com" || host.endsWith(".github.com");
+    return (
+      lastSegment.endsWith(".git") ||
+      host === "github.com" ||
+      host.endsWith(".github.com")
+    );
   } catch {
     return false;
   }
@@ -63,8 +80,15 @@ function isClawHubSkillSource(rawValue: string): boolean {
   try {
     const parsed = new URL(value);
     const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
-    const pathParts = parsed.pathname.replace(/\/+$/g, "").split("/").filter(Boolean);
-    return host === "clawhub.ai" && pathParts.length >= 2 && pathParts[0] !== "skills";
+    const pathParts = parsed.pathname
+      .replace(/\/+$/g, "")
+      .split("/")
+      .filter(Boolean);
+    return (
+      host === "clawhub.ai" &&
+      pathParts.length >= 2 &&
+      pathParts[0] !== "skills"
+    );
   } catch {
     return false;
   }
@@ -91,7 +115,10 @@ function getClawHubSlug(rawValue: string): string | null {
     if (host !== "clawhub.ai") {
       return null;
     }
-    const pathParts = parsed.pathname.replace(/\/+$/g, "").split("/").filter(Boolean);
+    const pathParts = parsed.pathname
+      .replace(/\/+$/g, "")
+      .split("/")
+      .filter(Boolean);
     if (pathParts.length === 0 || pathParts[0] === "skills") {
       return null;
     }
@@ -106,24 +133,41 @@ interface SkillHubBrowserProps {
   onClose?: () => void;
 }
 
-export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserProps) {
+export function SkillHubBrowser({
+  onSkillInstalled,
+  onClose,
+}: SkillHubBrowserProps) {
+  useLanguage();
+  const t = translate;
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SkillRegistryEntry[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [clawHubQuery, setClawHubQuery] = useState("");
-  const [clawHubResults, setClawHubResults] = useState<SkillRegistryEntry[]>([]);
+  const [clawHubResults, setClawHubResults] = useState<SkillRegistryEntry[]>(
+    [],
+  );
   const [isSearchingClawHub, setIsSearchingClawHub] = useState(false);
-  const [selectedSkill, setSelectedSkill] = useState<SkillRegistryEntry | null>(null);
-  const [installedSkills, setInstalledSkills] = useState<Set<string>>(new Set());
-  const [skillStatus, setSkillStatus] = useState<SkillStatusReport | null>(null);
+  const [selectedSkill, setSelectedSkill] = useState<SkillRegistryEntry | null>(
+    null,
+  );
+  const [installedSkills, setInstalledSkills] = useState<Set<string>>(
+    new Set(),
+  );
+  const [skillStatus, setSkillStatus] = useState<SkillStatusReport | null>(
+    null,
+  );
   const [installing, setInstalling] = useState<string | null>(null);
   const [externalSource, setExternalSource] = useState("");
+  const [installedQuery, setInstalledQuery] = useState("");
+  const [installedFilter, setInstalledFilter] = useState<
+    "all" | "ready" | "attention"
+  >("all");
   const [error, setError] = useState<string | null>(null);
-  const [quarantinedSkills, setQuarantinedSkills] = useState<QuarantinedImportRecord[]>([]);
+  const [quarantinedSkills, setQuarantinedSkills] = useState<
+    QuarantinedImportRecord[]
+  >([]);
   const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"browse" | "clawhub" | "installed" | "status">(
-    "installed",
-  );
+  const [activeTab, setActiveTab] = useState<"browse" | "clawhub">("browse");
   const [isLoadingStatus, setIsLoadingStatus] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -138,11 +182,29 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
     try {
       const status = await window.electronAPI.getSkillStatus();
       const quarantine = await window.electronAPI.listQuarantinedImports();
-      setSkillStatus(status);
-      setQuarantinedSkills(quarantine.filter((entry) => entry.bundleKind === "skill"));
+      const visibleSkills = status.skills.filter(
+        isSkillVisibleForCurrentProductSupport,
+      );
+      setSkillStatus({
+        ...status,
+        skills: visibleSkills,
+        summary: {
+          total: visibleSkills.length,
+          eligible: visibleSkills.filter(
+            (skill) => skill.eligible && !skill.disabled,
+          ).length,
+          disabled: visibleSkills.filter((skill) => skill.disabled).length,
+          missingRequirements: visibleSkills.filter(
+            (skill) => !skill.eligible && !skill.disabled,
+          ).length,
+        },
+      });
+      setQuarantinedSkills(
+        quarantine.filter((entry) => entry.bundleKind === "skill"),
+      );
 
       const installed = new Set<string>();
-      status.skills.forEach((skill) => {
+      visibleSkills.forEach((skill) => {
         if (skill.source === "managed") {
           installed.add(skill.id);
           const clawHubSlug =
@@ -163,8 +225,18 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
     }
   };
 
-  const handleRefresh = () => {
-    loadSkillStatus(true);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await window.electronAPI.reloadCustomSkills();
+      await loadSkillStatus();
+      notifySkillInventoryUpdated();
+    } catch (err) {
+      console.error("Failed to refresh skills:", err);
+      setError("Failed to refresh skills");
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const installMessageForOutcome = (
@@ -192,10 +264,18 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
       return null;
     }
     if (report.verdict === "quarantined") {
-      return <span className="settings-badge settings-badge--error">Quarantined</span>;
+      return (
+        <span className="settings-badge settings-badge--error">
+          {t("skillhub.quarantine.badge", "Quarantined")}
+        </span>
+      );
     }
     if (report.verdict === "warning") {
-      return <span className="settings-badge settings-badge--warning">Security Warning</span>;
+      return (
+        <span className="settings-badge settings-badge--warning">
+          {t("skillhub.securityWarning", "Security Warning")}
+        </span>
+      );
     }
     return null;
   };
@@ -211,7 +291,9 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
 
     try {
       const result = await window.electronAPI.searchSkillRegistry(searchQuery);
-      setSearchResults(result.results);
+      setSearchResults(
+        result.results.filter(isSkillVisibleForCurrentProductSupport),
+      );
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Search failed";
       setError(message);
@@ -231,9 +313,12 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
         trimmed,
         trimmed ? undefined : { pageSize: 10 },
       );
-      setClawHubResults(result.results);
+      setClawHubResults(
+        result.results.filter(isSkillVisibleForCurrentProductSupport),
+      );
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "ClawHub search failed";
+      const message =
+        err instanceof Error ? err.message : "ClawHub search failed";
       setError(message);
       setClawHubResults([]);
     } finally {
@@ -256,9 +341,23 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
     const installsAllTime = formatCompactCount(skill.installsAllTime);
     const parts = [
       stars ? `⭐ ${stars}` : null,
-      downloads ? `${downloads} downloads` : null,
-      installsCurrent ? `${installsCurrent} current installs` : null,
-      installsAllTime ? `${installsAllTime} all-time installs` : null,
+      downloads
+        ? t("skillhub.stats.downloads", "{count} downloads", {
+            count: downloads,
+          })
+        : null,
+      installsCurrent
+        ? t("skillhub.stats.currentInstalls", "Current {count} installations", {
+            count: installsCurrent,
+          })
+        : null,
+      installsAllTime
+        ? t(
+            "skillhub.stats.allTimeInstalls",
+            "Cumulative {count} installations",
+            { count: installsAllTime },
+          )
+        : null,
     ].filter((value): value is string => Boolean(value));
 
     if (parts.length === 0) {
@@ -272,6 +371,7 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
     setInstalledSkills((prev) => new Set([...prev, skill.id]));
     onSkillInstalled?.(skill);
     await loadSkillStatus();
+    notifySkillInventoryUpdated();
   };
 
   const handleInstall = async (skillId: string) => {
@@ -284,11 +384,17 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
       if (result.success && result.skill) {
         await installSucceeded(result.skill);
       } else {
-        setError(installMessageForOutcome(result.security, result.error || "Installation failed"));
+        setError(
+          installMessageForOutcome(
+            result.security,
+            result.error || "Installation failed",
+          ),
+        );
         await loadSkillStatus();
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Installation failed";
+      const message =
+        err instanceof Error ? err.message : "Installation failed";
       setError(message);
     } finally {
       setInstalling(null);
@@ -305,11 +411,17 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
       if (result.success && result.skill) {
         await installSucceeded(result.skill);
       } else {
-        setError(installMessageForOutcome(result.security, result.error || "Installation failed"));
+        setError(
+          installMessageForOutcome(
+            result.security,
+            result.error || "Installation failed",
+          ),
+        );
         await loadSkillStatus();
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Installation failed";
+      const message =
+        err instanceof Error ? err.message : "Installation failed";
       setError(message);
     } finally {
       setInstalling(null);
@@ -336,9 +448,13 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
       if (result.success && result.skill) {
         setExternalSource("");
         await installSucceeded(result.skill);
-        setActiveTab("installed");
       } else {
-        setError(installMessageForOutcome(result.security, result.error || "Import failed"));
+        setError(
+          installMessageForOutcome(
+            result.security,
+            result.error || "Import failed",
+          ),
+        );
         await loadSkillStatus();
       }
     } catch (err: unknown) {
@@ -367,6 +483,7 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
           return next;
         });
         await loadSkillStatus();
+        notifySkillInventoryUpdated();
       } else {
         setError(result.error || "Uninstall failed");
       }
@@ -389,6 +506,8 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
       const result = await window.electronAPI.retryQuarantinedImport(recordId);
       if (!result.success) {
         setError(result.outcome.summary || result.error || "Retry scan failed");
+      } else {
+        notifySkillInventoryUpdated();
       }
       await loadSkillStatus();
     } catch (err: unknown) {
@@ -408,23 +527,64 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
       }
       await loadSkillStatus();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to remove quarantined import");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to remove quarantined import",
+      );
     } finally {
       setInstalling(null);
     }
   };
 
   const getStatusBadge = (entry: SkillStatusEntry) => {
-    if (entry.eligible) {
-      return <span className="settings-badge settings-badge--success">Ready</span>;
-    }
     if (entry.disabled) {
-      return <span className="settings-badge settings-badge--warning">Disabled</span>;
+      return (
+        <span className="settings-badge settings-badge--warning">
+          {t("common.disabled", "Disabled")}
+        </span>
+      );
+    }
+    if (entry.eligible) {
+      return (
+        <span className="settings-badge settings-badge--success">
+          {t("skillhub.status.ready", "Ready")}
+        </span>
+      );
     }
     if (entry.blockedByAllowlist) {
-      return <span className="settings-badge settings-badge--error">Blocked</span>;
+      return (
+        <span className="settings-badge settings-badge--error">
+          {t("skillhub.status.blocked", "Blocked")}
+        </span>
+      );
     }
-    return <span className="settings-badge settings-badge--neutral">Missing Requirements</span>;
+    return (
+      <span className="settings-badge settings-badge--neutral">
+        {t("skillhub.status.missingRequirements", "Missing Requirements")}
+      </span>
+    );
+  };
+
+  const renderSkillIcon = (
+    name: string,
+    description?: string,
+    category?: string,
+  ) => {
+    const { Icon, tone } = getSemanticIconVisual({
+      name,
+      description,
+      category,
+    });
+    return (
+      <span
+        className="skillhub-icon semantic-icon"
+        data-icon-tone={tone}
+        aria-hidden="true"
+      >
+        <Icon size={18} strokeWidth={1.8} />
+      </span>
+    );
   };
 
   const renderSearchResults = (
@@ -432,60 +592,80 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
     onInstall: (skillId: string) => void,
   ) => (
     <div className="skillhub-list">
-      {results.map((skill) => (
-        <div
-          key={`${skill.source || "cowork"}:${skill.id}`}
-          className={`settings-card skillhub-card ${selectedSkill?.id === skill.id ? "is-selected" : ""}`}
-          onClick={() => setSelectedSkill(skill)}
-        >
-          <div className="skillhub-card-header">
-            <div className="skillhub-card-info">
-              <span className="skillhub-icon">{skill.icon || "📦"}</span>
-              <div>
-                <div className="skillhub-title-row">
-                  <h4 className="skillhub-title">{skill.name}</h4>
-                  {skill.source === "clawhub" && (
-                    <span className="settings-badge settings-badge--outline">ClawHub</span>
+      {results.map((skill) =>
+        (() => {
+          const localizedSkill = getLocalizedSkillText(skill);
+          return (
+            <div
+              key={`${skill.source || "neoworker"}:${skill.id}`}
+              className={`settings-card skillhub-card ${selectedSkill?.id === skill.id ? "is-selected" : ""}`}
+              onClick={() => setSelectedSkill(skill)}
+            >
+              <div className="skillhub-card-header">
+                <div className="skillhub-card-info">
+                  {renderSkillIcon(
+                    localizedSkill.name,
+                    localizedSkill.description,
+                    skill.category,
+                  )}
+                  <div>
+                    <div className="skillhub-title-row">
+                      <h4 className="skillhub-title">{localizedSkill.name}</h4>
+                      {skill.source === "clawhub" && (
+                        <span className="settings-badge settings-badge--outline">
+                          ClawHub
+                        </span>
+                      )}
+                    </div>
+                    <p className="settings-description skillhub-description">
+                      {localizedSkill.description}
+                    </p>
+                    {(skill.author || skill.version) && (
+                      <p className="skillhub-meta">
+                        {skill.author ? `${skill.author} · ` : ""}v
+                        {skill.version}
+                      </p>
+                    )}
+                    {renderStatsLine(skill)}
+                  </div>
+                </div>
+                <div className="skillhub-card-actions">
+                  {installedSkills.has(skill.id) ? (
+                    <span className="settings-badge settings-badge--success">
+                      {t("skillhub.installed", "Installed")}
+                    </span>
+                  ) : (
+                    <button
+                      className="button-primary button-small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onInstall(skill.id);
+                      }}
+                      disabled={installing === skill.id}
+                    >
+                      {installing === skill.id
+                        ? t("skillhub.installing", "Installing...")
+                        : t("skillhub.install", "Install")}
+                    </button>
                   )}
                 </div>
-                <p className="settings-description skillhub-description">{skill.description}</p>
-                {(skill.author || skill.version) && (
-                  <p className="skillhub-meta">
-                    {skill.author ? `${skill.author} · ` : ""}
-                    v{skill.version}
-                  </p>
-                )}
-                {renderStatsLine(skill)}
               </div>
-            </div>
-            <div className="skillhub-card-actions">
-              {installedSkills.has(skill.id) ? (
-                <span className="settings-badge settings-badge--success">Installed</span>
-              ) : (
-                <button
-                  className="button-primary button-small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onInstall(skill.id);
-                  }}
-                  disabled={installing === skill.id}
-                >
-                  {installing === skill.id ? "Installing..." : "Install"}
-                </button>
+              {skill.tags && skill.tags.length > 0 && (
+                <div className="skillhub-tags">
+                  {skill.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="settings-badge settings-badge--outline"
+                    >
+                      {getLocalizedSkillTag(tag)}
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
-          </div>
-          {skill.tags && skill.tags.length > 0 && (
-            <div className="skillhub-tags">
-              {skill.tags.map((tag) => (
-                <span key={tag} className="settings-badge settings-badge--outline">
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
+          );
+        })(),
+      )}
     </div>
   );
 
@@ -493,10 +673,12 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
     <div className="settings-card">
       <div className="settings-section-header">
         <div>
-          <h4>Import External Skill</h4>
+          <h4>{t("skillhub.importExternal.title", "Import External Skill")}</h4>
           <p className="settings-description">
-            Paste a Git repository, ClawHub skill page URL, raw skill JSON URL, or raw{" "}
-            <code>SKILL.md</code> URL to bring third-party skills into CoWork OS.
+            {t(
+              "skillhub.importExternal.description",
+              "Paste a Git repository, ClawHub skill page URL, raw skill JSON URL, or raw SKILL.md URL to bring third-party skills into NeoWorker.",
+            )}
           </p>
         </div>
       </div>
@@ -514,7 +696,9 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
           onClick={handleExternalInstall}
           disabled={installing === "__external__"}
         >
-          {installing === "__external__" ? "Installing..." : "Import"}
+          {installing === "__external__"
+            ? t("skillhub.installing", "Installing...")
+            : t("skillhub.import", "Import")}
         </button>
       </div>
     </div>
@@ -527,7 +711,10 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
       <div className="input-with-button">
         <input
           type="text"
-          placeholder="Search CoWork registry..."
+          placeholder={t(
+            "skillhub.searchRegistry.placeholder",
+            "Search NeoWorker registry...",
+          )}
           className="settings-input"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -538,7 +725,9 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
           onClick={handleSearch}
           disabled={isSearching}
         >
-          {isSearching ? "Searching..." : "Search"}
+          {isSearching
+            ? t("common.searching", "Searching...")
+            : t("common.search", "Search")}
         </button>
       </div>
 
@@ -546,13 +735,23 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
         searchResults.length > 0 ? (
           renderSearchResults(searchResults, handleInstall)
         ) : (
-          <div className="settings-empty">No skills found. Try a different search term.</div>
+          <div className="settings-empty">
+            {t(
+              "skillhub.registry.empty",
+              "No skills found. Try a different search term.",
+            )}
+          </div>
         )
       ) : searchQuery && isSearching ? (
-        <div className="settings-empty">Searching registry...</div>
+        <div className="settings-empty">
+          {t("skillhub.registry.searching", "Searching registry...")}
+        </div>
       ) : (
         <div className="settings-empty">
-          Search the CoWork registry to discover and install curated skills.
+          {t(
+            "skillhub.registry.prompt",
+            "Search the NeoWorker registry to discover and install curated skills.",
+          )}
         </div>
       )}
     </div>
@@ -565,9 +764,12 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
       <div className="settings-card">
         <div className="settings-section-header">
           <div>
-            <h4>Browse ClawHub</h4>
+            <h4>{t("skillhub.clawhub.title", "Browse ClawHub")}</h4>
             <p className="settings-description">
-              Search live ClawHub skills and install them directly.
+              {t(
+                "skillhub.clawhub.description",
+                "Search live ClawHub skills and install them directly.",
+              )}
             </p>
           </div>
         </div>
@@ -576,7 +778,10 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
       <div className="input-with-button">
         <input
           type="text"
-          placeholder="Search ClawHub skills..."
+          placeholder={t(
+            "skillhub.clawhub.placeholder",
+            "Search ClawHub skills...",
+          )}
           className="settings-input"
           value={clawHubQuery}
           onChange={(e) => setClawHubQuery(e.target.value)}
@@ -587,60 +792,191 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
           onClick={handleClawHubSearch}
           disabled={isSearchingClawHub}
         >
-          {isSearchingClawHub ? "Searching..." : "Search"}
+          {isSearchingClawHub
+            ? t("common.searching", "Searching...")
+            : t("common.search", "Search")}
         </button>
       </div>
 
-      {!clawHubQuery.trim() && clawHubResults.length > 0 && !isSearchingClawHub && (
-        <div className="settings-section-header">
-          <div>
-            <h4>Top Downloads</h4>
-            <p className="settings-description">
-              The 10 most-downloaded public ClawHub skills right now.
-            </p>
+      {!clawHubQuery.trim() &&
+        clawHubResults.length > 0 &&
+        !isSearchingClawHub && (
+          <div className="settings-section-header">
+            <div>
+              <h4>{t("skillhub.clawhub.topDownloads", "Top Downloads")}</h4>
+              <p className="settings-description">
+                {t(
+                  "skillhub.clawhub.topDownloadsDescription",
+                  "The 10 most-downloaded public ClawHub skills right now.",
+                )}
+              </p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {clawHubResults.length > 0 && !isSearchingClawHub ? (
         renderSearchResults(clawHubResults, handleClawHubInstall)
       ) : clawHubQuery && !isSearchingClawHub ? (
         <div className="settings-empty">
-          No ClawHub skills found. Try the exact slug, or paste the ClawHub page URL above.
+          {t(
+            "skillhub.clawhub.empty",
+            "No ClawHub skills found. Try the exact slug, or paste the ClawHub page URL above.",
+          )}
         </div>
       ) : isSearchingClawHub ? (
         <div className="settings-empty">
-          {clawHubQuery.trim() ? "Searching ClawHub..." : "Loading popular ClawHub skills..."}
+          {clawHubQuery.trim()
+            ? t("skillhub.clawhub.searching", "Searching ClawHub...")
+            : t(
+                "skillhub.clawhub.loadingPopular",
+                "Loading popular ClawHub skills...",
+              )}
         </div>
       ) : (
         <div className="settings-empty">
-          Search ClawHub by name or slug, or paste a ClawHub page URL above.
+          {t(
+            "skillhub.clawhub.prompt",
+            "Search ClawHub by name or slug, or paste a ClawHub page URL above.",
+          )}
         </div>
       )}
     </div>
   );
 
-  const renderInstalledTab = () => {
-    const managedSkills = skillStatus?.skills.filter((s) => s.source === "managed") || [];
+  const _renderInstalledTab = () => {
+    const managedSkills =
+      skillStatus?.skills.filter((s) => s.source === "managed") || [];
+    const readyCount = managedSkills.filter(
+      (skill) => skill.eligible && !skill.disabled,
+    ).length;
+    const attentionCount = managedSkills.length - readyCount;
+    const normalizedQuery = installedQuery.trim().toLocaleLowerCase();
+    const visibleSkills = managedSkills.filter((skill) => {
+      const matchesFilter =
+        installedFilter === "all" ||
+        (installedFilter === "ready" && skill.eligible && !skill.disabled) ||
+        (installedFilter === "attention" &&
+          (!skill.eligible || skill.disabled));
+      if (!matchesFilter) {
+        return false;
+      }
+
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      const localizedSkill = getLocalizedSkillText(skill);
+      return [
+        localizedSkill.name,
+        localizedSkill.description,
+        skill.category,
+        skill.metadata?.author,
+      ]
+        .filter(Boolean)
+        .some((value) =>
+          String(value).toLocaleLowerCase().includes(normalizedQuery),
+        );
+    });
 
     return (
       <div className="skillhub-tab">
-        <div className="settings-section-header">
-          <h3>Installed Skills</h3>
-          <div className="settings-section-actions">
-            <button className="button-secondary button-small" onClick={handleOpenFolder}>
-              Open Folder
+        <div className="settings-section-header skillhub-installed-toolbar">
+          <div className="skillhub-installed-intro">
+            <div className="skillhub-installed-heading">
+              <h3>{t("skillhub.installed.title", "Installed Skills")}</h3>
+              {managedSkills.length > 0 && (
+                <span className="skillhub-installed-count">
+                  {t("skillhub.installed.count", "{count} installed", {
+                    count: managedSkills.length,
+                  })}
+                </span>
+              )}
+            </div>
+            <p className="settings-description">
+              {t(
+                "skillhub.installed.description",
+                "Search, review, and remove skills available to NeoWorker.",
+              )}
+            </p>
+          </div>
+          <div className="settings-section-actions skillhub-installed-actions">
+            <label className="skillhub-installed-search">
+              <Search size={15} strokeWidth={1.8} aria-hidden="true" />
+              <input
+                type="search"
+                value={installedQuery}
+                onChange={(event) => setInstalledQuery(event.target.value)}
+                placeholder={t(
+                  "skillhub.installed.searchPlaceholder",
+                  "Search installed skills",
+                )}
+                aria-label={t(
+                  "skillhub.installed.searchLabel",
+                  "Search installed skills",
+                )}
+              />
+            </label>
+            <button
+              className="button-secondary button-small button-with-icon"
+              onClick={handleOpenFolder}
+            >
+              <FolderOpen size={15} strokeWidth={1.7} aria-hidden="true" />
+              {t("skillhub.installed.openFolder", "Open Folder")}
             </button>
           </div>
         </div>
+
+        {managedSkills.length > 0 && (
+          <div
+            className="skillhub-installed-filters"
+            role="group"
+            aria-label={t(
+              "skillhub.installed.filterLabel",
+              "Filter installed skills",
+            )}
+          >
+            <button
+              type="button"
+              aria-pressed={installedFilter === "all"}
+              className={installedFilter === "all" ? "active" : ""}
+              onClick={() => setInstalledFilter("all")}
+            >
+              {t("skillhub.installed.filterAll", "All")}
+              <span>{managedSkills.length}</span>
+            </button>
+            <button
+              type="button"
+              aria-pressed={installedFilter === "ready"}
+              className={installedFilter === "ready" ? "active" : ""}
+              onClick={() => setInstalledFilter("ready")}
+            >
+              {t("skillhub.installed.filterReady", "Ready")}
+              <span>{readyCount}</span>
+            </button>
+            {attentionCount > 0 && (
+              <button
+                type="button"
+                aria-pressed={installedFilter === "attention"}
+                className={installedFilter === "attention" ? "active" : ""}
+                onClick={() => setInstalledFilter("attention")}
+              >
+                {t("skillhub.installed.filterAttention", "Needs attention")}
+                <span>{attentionCount}</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {quarantinedSkills.length > 0 && (
           <div className="settings-card skillhub-quarantine-card">
             <div className="settings-section-header">
               <div>
-                <h4>Quarantined Imports</h4>
+                <h4>{t("skillhub.quarantine.title", "Quarantined Imports")}</h4>
                 <p className="settings-description">
-                  These skill imports were stored safely and blocked from activation.
+                  {t(
+                    "skillhub.quarantine.description",
+                    "These skill imports were stored safely and blocked from activation.",
+                  )}
                 </p>
               </div>
             </div>
@@ -650,32 +986,42 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
                   <div>
                     <div className="skillhub-title-row">
                       <strong>{record.displayName || record.bundleId}</strong>
-                      <span className="settings-badge settings-badge--error">Quarantined</span>
+                      <span className="settings-badge settings-badge--error">
+                        {t("skillhub.quarantine.badge", "Quarantined")}
+                      </span>
                     </div>
-                    <p className="settings-description skillhub-description">{record.summary}</p>
+                    <p className="settings-description skillhub-description">
+                      {record.summary}
+                    </p>
                   </div>
                   <div className="skillhub-quarantine-actions">
                     <button
                       className="button-secondary button-small"
                       onClick={() =>
-                        setExpandedReportId((current) => (current === record.id ? null : record.id))
+                        setExpandedReportId((current) =>
+                          current === record.id ? null : record.id,
+                        )
                       }
                     >
-                      {expandedReportId === record.id ? "Hide Report" : "View Report"}
+                      {expandedReportId === record.id
+                        ? t("skillhub.quarantine.hideReport", "Hide Report")
+                        : t("skillhub.quarantine.viewReport", "View Report")}
                     </button>
                     <button
                       className="button-secondary button-small"
                       onClick={() => handleRetryQuarantined(record.id)}
                       disabled={installing === record.id}
                     >
-                      {installing === record.id ? "Scanning..." : "Retry Scan"}
+                      {installing === record.id
+                        ? t("skillhub.quarantine.scanning", "Scanning...")
+                        : t("skillhub.quarantine.retryScan", "Retry Scan")}
                     </button>
                     <button
                       className="button-danger button-small"
                       onClick={() => handleRemoveQuarantined(record.id)}
                       disabled={installing === record.id}
                     >
-                      Remove
+                      {t("common.remove", "Remove")}
                     </button>
                   </div>
                   {expandedReportId === record.id && (
@@ -686,7 +1032,14 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
                           {finding.path ? ` (${finding.path})` : ""}
                         </p>
                       ))}
-                      {record.report.findings.length === 0 && <p>No detailed findings available.</p>}
+                      {record.report.findings.length === 0 && (
+                        <p>
+                          {t(
+                            "skillhub.quarantine.noFindings",
+                            "No detailed findings available.",
+                          )}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -695,90 +1048,169 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
           </div>
         )}
 
-        {managedSkills.length > 0 ? (
-          <div className="skillhub-list">
-            {managedSkills.map((skill) => (
-              <div key={skill.id} className="settings-card skillhub-card">
-                <div className="skillhub-card-header">
-                  <div className="skillhub-card-info">
-                    <span className="skillhub-icon">{skill.icon || "📦"}</span>
-                    <div>
-                      <div className="skillhub-title-row">
-                        <h4 className="skillhub-title">{skill.name}</h4>
-                        {getStatusBadge(skill)}
-                        {getSecurityBadge(skill.securityReport)}
-                        {skill.category === "ClawHub" && (
-                          <span className="settings-badge settings-badge--outline">ClawHub</span>
-                        )}
-                      </div>
-                      <p className="settings-description skillhub-description">
-                        {skill.description}
-                      </p>
-                      {skill.metadata?.version && (
-                        <p className="skillhub-meta">v{skill.metadata.version}</p>
+        {managedSkills.length > 0 && visibleSkills.length > 0 ? (
+          <div className="skillhub-list skillhub-directory-list">
+            {visibleSkills.map((skill) => {
+              const localizedSkill = getLocalizedSkillText(skill);
+              return (
+                <article
+                  key={skill.id}
+                  className="settings-card skillhub-card skillhub-directory-item"
+                >
+                  {renderSkillIcon(
+                    localizedSkill.name,
+                    localizedSkill.description,
+                    skill.category,
+                  )}
+                  <div className="skillhub-directory-copy">
+                    <div className="skillhub-title-row">
+                      <h4 className="skillhub-title">{localizedSkill.name}</h4>
+                      {skill.category === "ClawHub" && (
+                        <span className="settings-badge settings-badge--outline">
+                          ClawHub
+                        </span>
                       )}
                     </div>
+                    <p className="settings-description skillhub-description">
+                      {localizedSkill.description}
+                    </p>
+                    {(skill.category || skill.metadata?.version) && (
+                      <p className="skillhub-meta">
+                        {[
+                          skill.category,
+                          skill.metadata?.version
+                            ? `v${skill.metadata.version}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" / ")}
+                      </p>
+                    )}
                   </div>
-                  <button
-                    className="button-danger button-small"
-                    onClick={() => handleUninstall(skill.id)}
-                    disabled={installing === skill.id}
-                  >
-                    {installing === skill.id ? "Uninstalling..." : "Uninstall"}
-                  </button>
-                </div>
+                  <div className="skillhub-directory-actions">
+                    <div className="skillhub-directory-badges">
+                      {skill.eligible && !skill.disabled ? (
+                        <span className="skillhub-ready-label">
+                          <CheckCircle2
+                            size={14}
+                            strokeWidth={1.9}
+                            aria-hidden="true"
+                          />
+                          {t("skillhub.status.ready", "Ready")}
+                        </span>
+                      ) : (
+                        getStatusBadge(skill)
+                      )}
+                      {getSecurityBadge(skill.securityReport)}
+                    </div>
+                    <button
+                      className="skillhub-uninstall-button"
+                      onClick={() => handleUninstall(skill.id)}
+                      disabled={installing === skill.id}
+                      title={t("skillhub.installed.uninstall", "Uninstall")}
+                    >
+                      <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" />
+                      {installing === skill.id
+                        ? t(
+                            "skillhub.installed.uninstalling",
+                            "Uninstalling...",
+                          )
+                        : t("skillhub.installed.uninstall", "Uninstall")}
+                    </button>
+                  </div>
 
-                {!skill.eligible && (
-                  <div className="skillhub-warnings">
-                    {skill.missing.bins.length > 0 && (
-                      <p>Missing binaries: {skill.missing.bins.join(", ")}</p>
-                    )}
-                    {skill.missing.env.length > 0 && (
-                      <p>Missing env vars: {skill.missing.env.join(", ")}</p>
-                    )}
-                  </div>
-                )}
-                {skill.securityReport?.verdict === "warning" && (
-                  <div className="skillhub-warnings">
-                    <p>{skill.securityReport.summary}</p>
-                  </div>
-                )}
-              </div>
-            ))}
+                  {!skill.eligible && (
+                    <div className="skillhub-warnings">
+                      {skill.missing.bins.length > 0 && (
+                        <p>
+                          {t(
+                            "skillhub.installed.missingBinaries",
+                            "Missing binaries: {items}",
+                            {
+                              items: skill.missing.bins.join(", "),
+                            },
+                          )}
+                        </p>
+                      )}
+                      {skill.missing.env.length > 0 && (
+                        <p>
+                          {t(
+                            "skillhub.installed.missingEnvVars",
+                            "Missing env vars: {items}",
+                            {
+                              items: skill.missing.env.join(", "),
+                            },
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {skill.securityReport?.verdict === "warning" && (
+                    <div className="skillhub-warnings">
+                      <p>{skill.securityReport.summary}</p>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        ) : managedSkills.length === 0 ? (
+          <div className="settings-empty">
+            {t("skillhub.installed.empty", "No managed skills installed yet.")}
+            <br />
+            {t(
+              "skillhub.installed.emptyHint",
+              "Browse the registry, ClawHub, or import a bundle to add one.",
+            )}
           </div>
         ) : (
-          <div className="settings-empty">
-            No managed skills installed yet.
-            <br />
-            Browse the registry, ClawHub, or import a bundle to add one.
+          <div className="settings-empty skillhub-installed-empty-search">
+            {t(
+              "skillhub.installed.noResults",
+              "No installed skills match your search.",
+            )}
           </div>
         )}
       </div>
     );
   };
 
-  const renderStatusTab = () => {
+  const _renderStatusTab = () => {
     if (!skillStatus) {
-      return <div className="settings-empty">Loading skill status...</div>;
+      return (
+        <div className="settings-empty">
+          {t("skillhub.loadingStatus", "Loading skill status...")}
+        </div>
+      );
     }
 
     return (
       <div className="skillhub-tab">
         <div className="stats-grid">
           <div className="stat-card">
-            <div className="stat-label">Total Skills</div>
+            <div className="stat-label">
+              {t("skillhub.stats.totalSkills", "Total Skills")}
+            </div>
             <div className="stat-value">{skillStatus.summary.total}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Ready</div>
-            <div className="stat-value stat-value--success">{skillStatus.summary.eligible}</div>
+            <div className="stat-label">
+              {t("skillhub.status.ready", "Ready")}
+            </div>
+            <div className="stat-value stat-value--success">
+              {skillStatus.summary.eligible}
+            </div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Disabled</div>
-            <div className="stat-value stat-value--warning">{skillStatus.summary.disabled}</div>
+            <div className="stat-label">{t("common.disabled", "Disabled")}</div>
+            <div className="stat-value stat-value--warning">
+              {skillStatus.summary.disabled}
+            </div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Missing Deps</div>
+            <div className="stat-label">
+              {t("skillhub.stats.missingDeps", "Missing Deps")}
+            </div>
             <div className="stat-value stat-value--error">
               {skillStatus.summary.missingRequirements}
             </div>
@@ -790,24 +1222,41 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
           if (skills.length === 0) return null;
 
           return (
-            <details key={source} className="skillhub-group" open={source !== "bundled"}>
+            <details
+              key={source}
+              className="skillhub-group"
+              open={source !== "bundled"}
+            >
               <summary>
-                <span className="skillhub-group-title">{source} Skills</span>
-                <span className="settings-badge settings-badge--neutral">{skills.length}</span>
+                <span className="skillhub-group-title">
+                  {t("skillhub.group.skills", "{source} Skills", {
+                    source: getLocalizedSkillSource(source) || source,
+                  })}
+                </span>
+                <span className="settings-badge settings-badge--neutral">
+                  {skills.length}
+                </span>
               </summary>
               <div className="skillhub-group-content">
-                {skills.map((skill) => (
-                  <div key={skill.id} className="skillhub-group-item">
-                    <div className="skillhub-group-info">
-                      <span>{skill.icon || "📦"}</span>
-                      <span>{skill.name}</span>
+                {skills.map((skill) => {
+                  const localizedSkill = getLocalizedSkillText(skill);
+                  return (
+                    <div key={skill.id} className="skillhub-group-item">
+                      <div className="skillhub-group-info">
+                        {renderSkillIcon(
+                          localizedSkill.name,
+                          localizedSkill.description,
+                          skill.category,
+                        )}
+                        <span>{localizedSkill.name}</span>
+                      </div>
+                      <div className="skillhub-group-badges">
+                        {getStatusBadge(skill)}
+                        {getSecurityBadge(skill.securityReport)}
+                      </div>
                     </div>
-                    <div className="skillhub-group-badges">
-                      {getStatusBadge(skill)}
-                      {getSecurityBadge(skill.securityReport)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </details>
           );
@@ -817,7 +1266,11 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
   };
 
   if (isLoadingStatus) {
-    return <div className="settings-loading">Loading skills...</div>;
+    return (
+      <div className="settings-loading">
+        {t("skillhub.loading", "Loading skills...")}
+      </div>
+    );
   }
 
   return (
@@ -825,9 +1278,12 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
       <div className="settings-section">
         <div className="settings-section-header">
           <div>
-            <h3>SkillHub</h3>
+            <h3>{t("skillhub.title", "SkillHub")}</h3>
             <p className="settings-description">
-              Manage curated skills, browse ClawHub, and import third-party skill bundles.
+              {t(
+                "skillhub.description",
+                "Manage curated skills, browse ClawHub, and import third-party skill bundles.",
+              )}
             </p>
           </div>
           <div className="settings-section-actions">
@@ -836,11 +1292,16 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
               onClick={handleRefresh}
               disabled={isRefreshing}
             >
-              {isRefreshing ? "Refreshing..." : "Refresh"}
+              {isRefreshing
+                ? t("common.refreshing", "Refreshing...")
+                : t("common.refresh", "Refresh")}
             </button>
             {onClose && (
-              <button className="button-secondary button-small" onClick={onClose}>
-                Close
+              <button
+                className="button-secondary button-small"
+                onClick={onClose}
+              >
+                {t("common.close", "Close")}
               </button>
             )}
           </div>
@@ -850,24 +1311,21 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
       {error && (
         <div className="settings-alert settings-alert-error">
           <span>{error}</span>
-          <button className="button-secondary button-small" onClick={() => setError(null)}>
-            Dismiss
+          <button
+            className="button-secondary button-small"
+            onClick={() => setError(null)}
+          >
+            {t("common.dismiss", "Dismiss")}
           </button>
         </div>
       )}
 
       <div className="settings-tabs">
         <button
-          className={`settings-tab ${activeTab === "installed" ? "active" : ""}`}
-          onClick={() => setActiveTab("installed")}
-        >
-          Installed
-        </button>
-        <button
           className={`settings-tab ${activeTab === "browse" ? "active" : ""}`}
           onClick={() => setActiveTab("browse")}
         >
-          CoWork Registry
+          {t("skillhub.tab.registry", "NeoWorker Registry")}
         </button>
         <button
           className={`settings-tab ${activeTab === "clawhub" ? "active" : ""}`}
@@ -875,19 +1333,11 @@ export function SkillHubBrowser({ onSkillInstalled, onClose }: SkillHubBrowserPr
         >
           ClawHub
         </button>
-        <button
-          className={`settings-tab ${activeTab === "status" ? "active" : ""}`}
-          onClick={() => setActiveTab("status")}
-        >
-          Status
-        </button>
       </div>
 
       <div className="skillhub-tab-content">
         {activeTab === "browse" && renderBrowseTab()}
         {activeTab === "clawhub" && renderClawHubTab()}
-        {activeTab === "installed" && renderInstalledTab()}
-        {activeTab === "status" && renderStatusTab()}
       </div>
     </div>
   );

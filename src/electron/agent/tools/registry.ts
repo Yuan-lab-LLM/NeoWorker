@@ -1,8 +1,9 @@
 import * as fs from "fs";
 import * as fsPromises from "fs/promises";
 import * as path from "path";
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import mermaid from "mermaid";
+import { resolveVersionedOutputPath } from "../../utils/versioned-output-path";
 import {
   ApprovalType,
   EvidenceRef,
@@ -114,11 +115,14 @@ import { isHeadlessMode } from "../../utils/runtime-mode";
 import { sanitizeStoredPreferredName } from "../../utils/preferred-name";
 import { getBrowserWorkbenchService } from "../../browser/browser-workbench-service";
 import { HooksSettingsManager } from "../../hooks/settings";
-import { InfraTools } from "../../infra/infra-tools";
-import { InfraSettingsManager } from "../../infra/infra-settings";
 import { KnowledgeGraphTools } from "./knowledge-graph-tools";
 import { ScrapingTools } from "./scraping-tools";
 import { DocumentTools } from "./document-tools";
+import {
+  normalizeDocumentArtifactInput,
+  normalizePresentationArtifactInput,
+  normalizeSpreadsheetArtifactInput,
+} from "./office-artifact-input-normalizer";
 import { ComputerUseTools } from "./computer-use-tools";
 import { BatchImageTools } from "./batch-image-tools";
 import { ScratchpadTools } from "./scratchpad-tools";
@@ -156,6 +160,10 @@ import {
 import { evaluateToolPolicyPipeline } from "../runtime/ToolPolicyPipeline";
 import { ToolSearchService } from "../runtime/ToolSearchService";
 import {
+  buildOfficeArtifactRequestIdentity,
+  OfficeArtifactRequestCoordinator,
+} from "../runtime/office-artifact-request-coordinator";
+import {
   getWorkerRoleSpec,
   resolveDelegationWorkerRole,
 } from "../runtime/worker-role-registry";
@@ -166,6 +174,135 @@ import {
   withToolPromptMetadataList,
 } from "./tool-prompting";
 import { buildBrowserUseDomainApprovalDetails } from "./browser-use-approval-context";
+
+function officeFactValuesInputSchema(): Any {
+  return {
+    type: "object",
+    description:
+      "Exact fact values rendered in this element, keyed by contentSnapshot fact id. Used for cross-format value/unit/date consistency checks.",
+    additionalProperties: {
+      type: "object",
+      properties: {
+        value: { type: ["string", "number", "boolean", "null"] },
+        unit: { type: "string" },
+        asOf: { type: "string" },
+      },
+      required: ["value"],
+    },
+  };
+}
+
+function officeContentReferenceInputProperties(): Record<string, Any> {
+  return {
+    sectionIds: {
+      type: "array",
+      items: { type: "string" },
+      description: "contentSnapshot section ids represented by this element",
+    },
+    factIds: {
+      type: "array",
+      items: { type: "string" },
+      description: "contentSnapshot fact ids represented by this element",
+    },
+    datasetIds: {
+      type: "array",
+      items: { type: "string" },
+      description: "contentSnapshot dataset ids represented by this element",
+    },
+    factValues: officeFactValuesInputSchema(),
+  };
+}
+
+function officeContentSnapshotInputSchema(): Any {
+  return {
+    type: "object",
+    description:
+      "Immutable canonical content snapshot shared by every Office format in the same request. Reuse the same snapshotId and facts for DOCX, PPTX, and XLSX.",
+    properties: {
+      schemaVersion: { type: "string", enum: ["1.0"] },
+      snapshotId: { type: "string" },
+      frozenAt: { type: "string", description: "ISO-8601 freeze time" },
+      title: { type: "string" },
+      executiveSummary: { type: "array", items: { type: "string" } },
+      facts: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            statement: { type: "string" },
+            value: { type: ["string", "number", "boolean", "null"] },
+            unit: { type: "string" },
+            asOf: { type: "string" },
+            sourceIds: { type: "array", items: { type: "string" } },
+            confidence: { type: "string", enum: ["high", "medium", "low"] },
+            critical: { type: "boolean" },
+          },
+          required: ["id", "statement", "sourceIds", "confidence", "critical"],
+        },
+      },
+      sections: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            title: { type: "string" },
+            summary: { type: "string" },
+            factIds: { type: "array", items: { type: "string" } },
+            datasetIds: { type: "array", items: { type: "string" } },
+            required: { type: "boolean" },
+          },
+          required: ["id", "title", "summary", "factIds", "datasetIds", "required"],
+        },
+      },
+      datasets: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            title: { type: "string" },
+            headers: { type: "array", items: { type: "string" } },
+            rows: { type: "array", items: { type: "array" } },
+            sourceIds: { type: "array", items: { type: "string" } },
+            asOf: { type: "string" },
+            unit: { type: "string" },
+            required: { type: "boolean" },
+          },
+          required: ["id", "title", "headers", "rows", "sourceIds", "required"],
+        },
+      },
+      sources: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            title: { type: "string" },
+            url: { type: "string" },
+            publisher: { type: "string" },
+            accessedAt: { type: "string" },
+          },
+          required: ["id", "title", "accessedAt"],
+        },
+      },
+      caveats: { type: "array", items: { type: "string" } },
+    },
+    required: [
+      "schemaVersion",
+      "snapshotId",
+      "frozenAt",
+      "title",
+      "executiveSummary",
+      "facts",
+      "sections",
+      "datasets",
+      "sources",
+      "caveats",
+    ],
+  };
+}
 
 function sanitizeFilename(raw: string, maxLen = 120): string {
   const base = path.basename(String(raw || "").trim() || "artifact");
@@ -483,7 +620,7 @@ export function getMcpPaymentLimitError(input: unknown, toolSchema?: MCPTool): s
     return `MCP payment amount is above safety cap (${MCP_PAYMENT_MAX_AMOUNT_USD} USDC): ${amount}`;
   }
 
-  const envCap = Number(process.env.COWORK_PAYMENT_LIMIT_USD);
+  const envCap = Number(process.env.NEOWORKER_PAYMENT_LIMIT_USD);
   if (Number.isFinite(envCap) && envCap > 0 && amount > envCap) {
     return `MCP payment amount exceeds configured cap of ${envCap} USDC: ${amount}`;
   }
@@ -495,6 +632,47 @@ export function getMcpPaymentLimitError(input: unknown, toolSchema?: MCPTool): s
  * ToolRegistry manages all available tools and their execution
  * Integrates with SecurityPolicyManager for context-aware tool filtering
  */
+export function parseSkillArgumentObjectPrefix(
+  input: string,
+): Record<string, Any> | null {
+  const value = String(input || "").trim();
+  if (!value.startsWith("{")) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+    if (character === "{") depth += 1;
+    if (character === "}") depth -= 1;
+    if (depth !== 0) continue;
+
+    try {
+      const parsed = JSON.parse(value.slice(0, index + 1)) as unknown;
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, Any>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export class ToolRegistry {
   private static mermaidValidationInitialized = false;
   private fileTools: FileTools;
@@ -536,12 +714,14 @@ export class ToolRegistry {
   private channelTools?: ChannelTools;
   private emailImapTools?: EmailImapTools;
   private gitTools: GitTools;
-  private infraTools: InfraTools;
   private knowledgeGraphTools: KnowledgeGraphTools;
   private scrapingTools: ScrapingTools;
   private memoryTools: MemoryTools;
   private supermemoryTools: SupermemoryTools;
   private documentTools: DocumentTools;
+  private readonly officeArtifactCoordinator =
+    new OfficeArtifactRequestCoordinator();
+  private readonly officeArtifactRequestId: string;
   private scratchpadTools: ScratchpadTools;
   private qaTools: QATools;
   private citationTracker?: CitationTracker;
@@ -573,8 +753,14 @@ export class ToolRegistry {
     gatewayContext?: GatewayContextType,
     toolRestrictions?: string[],
   ) {
+    this.officeArtifactRequestId = `${taskId}:${randomUUID()}`;
     this.fileTools = new FileTools(workspace, daemon, taskId);
-    this.skillTools = new SkillTools(workspace, daemon, taskId);
+    this.skillTools = new SkillTools(
+      workspace,
+      daemon,
+      taskId,
+      this.officeArtifactRequestId,
+    );
     this.searchTools = new SearchTools(workspace, daemon, taskId);
     this.webFetchTools = new WebFetchTools(workspace, daemon, taskId);
     this.globTools = new GlobTools(workspace, daemon, taskId);
@@ -609,13 +795,24 @@ export class ToolRegistry {
     this.sharePointTools = new SharePointTools(workspace, daemon, taskId);
     this.voiceCallTools = new VoiceCallTools(workspace, daemon, taskId);
     this.gitTools = new GitTools(workspace, daemon, taskId);
-    this.infraTools = new InfraTools(workspace, daemon, taskId);
     this.knowledgeGraphTools = new KnowledgeGraphTools(workspace, daemon, taskId);
     this.scrapingTools = new ScrapingTools(workspace, daemon, taskId);
     this.memoryTools = new MemoryTools(workspace, daemon, taskId);
     this.supermemoryTools = new SupermemoryTools(workspace, daemon, taskId);
-    this.documentTools = new DocumentTools(workspace.path, taskId, (tid, fp, mime, metadata = {}) =>
-      daemon.logEvent(tid, "artifact_created", { path: fp, mimeType: mime, ...metadata }),
+    this.documentTools = new DocumentTools(
+      workspace.path,
+      taskId,
+      (tid, fp, mime, metadata = {}) => {
+        // Persist the artifact as well as emitting the timeline event. Logging
+        // alone makes the file exist on disk but leaves the renderer's
+        // "Artifacts" panel empty, which looks exactly like generation failed.
+        daemon.registerArtifact(tid, fp, mime);
+        daemon.logEvent(tid, "artifact_created", { path: fp, mimeType: mime, ...metadata });
+      },
+      (message, metadata = {}) =>
+        daemon.logEvent(taskId, "progress_update", { message, ...metadata }),
+      undefined,
+      this.officeArtifactRequestId,
     );
     this.scratchpadTools = new ScratchpadTools(taskId, workspace.path);
     this.qaTools = new QATools(workspace, daemon, taskId);
@@ -631,6 +828,42 @@ export class ToolRegistry {
     this.applyToolRestrictions(toolRestrictions);
     this.executionMiddlewares = this.buildExecutionMiddlewares();
     this.registerRuntimeHandlers();
+  }
+
+  private runCanonicalPresentation(input: Any, signal?: AbortSignal): Promise<Any> {
+    const normalized = normalizePresentationArtifactInput(input);
+    return this.officeArtifactCoordinator.run(
+      "pptx",
+      () => this.skillTools.createPresentation(normalized, { signal }),
+      normalized.contentSnapshot,
+      // The executor may inject an explicit presentation workflow after the
+      // model authored the tool call. Build the identity from that normalized
+      // payload so ppt-master cannot reuse a standard deck from this task.
+      buildOfficeArtifactRequestIdentity("pptx", normalized),
+    ) as Promise<Any>;
+  }
+
+  private runCanonicalDocument(input: Any, signal?: AbortSignal): Promise<Any> {
+    if (input?.format !== "docx") {
+      return this.skillTools.createDocument(input, { signal });
+    }
+    const normalized = normalizeDocumentArtifactInput(input);
+    return this.officeArtifactCoordinator.run(
+      "docx",
+      () => this.skillTools.createDocument(normalized, { signal }),
+      normalized.contentSnapshot,
+      buildOfficeArtifactRequestIdentity("docx", input),
+    ) as Promise<Any>;
+  }
+
+  private runCanonicalSpreadsheet(input: Any, signal?: AbortSignal): Promise<Any> {
+    const normalized = normalizeSpreadsheetArtifactInput(input);
+    return this.officeArtifactCoordinator.run(
+      "xlsx",
+      () => this.skillTools.createSpreadsheet(normalized, { signal }),
+      normalized.contentSnapshot,
+      buildOfficeArtifactRequestIdentity("xlsx", input),
+    ) as Promise<Any>;
   }
 
   private applyToolRestrictions(restrictions?: string[]): void {
@@ -692,16 +925,6 @@ export class ToolRegistry {
       emailImap: Boolean(this.emailImapTools?.isAvailable?.()),
       channelHistory: Boolean(this.channelTools),
     };
-    let infraState: { enabled: boolean; enabledCategories?: Any } = { enabled: false };
-    try {
-      const infraSettings = InfraSettingsManager.loadSettings();
-      infraState = {
-        enabled: Boolean(infraSettings.enabled),
-        enabledCategories: infraSettings.enabledCategories || null,
-      };
-    } catch {
-      infraState = { enabled: false };
-    }
     let mcpManagerVersion = 0;
     let mcpToolNames: string[] = [];
     try {
@@ -733,7 +956,6 @@ export class ToolRegistry {
         builtinSettings,
         chronicleSettings: ChronicleSettingsManager.loadSettings(),
         integrationState,
-        infraState,
         toolPrompting: TOOL_PROMPT_METADATA_VERSION,
         mcp: {
           toolNamePrefix: mcpSettings.toolNamePrefix || "mcp_",
@@ -863,7 +1085,7 @@ export class ToolRegistry {
       const resolvedSkillShortlistSize =
         typeof options?.skillShortlistSize === "number" && Number.isFinite(options.skillShortlistSize)
           ? Math.min(Math.max(Math.round(options.skillShortlistSize), 1), 200)
-          : parseBoundedIntEnv("COWORK_SKILL_SHORTLIST_SIZE", 20, 1, 200);
+          : parseBoundedIntEnv("NEOWORKER_SKILL_SHORTLIST_SIZE", 20, 1, 200);
       const resolvedSkillLowConfidenceThreshold =
         typeof options?.skillLowConfidenceThreshold === "number" &&
         Number.isFinite(options.skillLowConfidenceThreshold)
@@ -873,7 +1095,7 @@ export class ToolRegistry {
         typeof options?.skillTextBudgetChars === "number" &&
         Number.isFinite(options.skillTextBudgetChars)
           ? Math.max(Math.round(options.skillTextBudgetChars), 1500)
-          : parseBoundedIntEnv("COWORK_SKILL_TEXT_BUDGET_CHARS", 12000, 1500, 50000);
+          : parseBoundedIntEnv("NEOWORKER_SKILL_TEXT_BUDGET_CHARS", 12000, 1500, 50000);
       const skillDescriptions = skillLoader.getSkillDescriptionsForModel({
         availableToolNames,
         routingQuery: options?.skillRoutingQuery,
@@ -932,7 +1154,7 @@ export class ToolRegistry {
 
     if (invariantViolations.length > 0) {
       const message = `[ToolRegistry] Tool semantics invariant failed: ${invariantViolations.join("; ")}`;
-      if (process.env.NODE_ENV === "test" || process.env.COWORK_STRICT_TOOL_INVARIANTS === "1") {
+      if (process.env.NODE_ENV === "test" || process.env.NEOWORKER_STRICT_TOOL_INVARIANTS === "1") {
         throw new Error(message);
       }
       console.warn(message);
@@ -993,11 +1215,22 @@ export class ToolRegistry {
   }
 
   /**
+   * Start a fresh Office coordination boundary for an explicit user follow-up.
+   * Files and conversation context remain available, but formats created in a
+   * previous turn must not force the new request into that turn's snapshot
+   * contract or return an old in-memory writer result.
+   */
+  resetOfficeArtifactRequest(): void {
+    this.officeArtifactCoordinator.clear();
+  }
+
+  /**
    * Update the workspace for all tools
    * Used when switching workspaces mid-task
    */
   setWorkspace(workspace: Workspace): void {
     this.workspace = workspace;
+    this.officeArtifactCoordinator.clear();
     this.fileTools.setWorkspace(workspace);
     this.skillTools.setWorkspace(workspace);
     this.searchTools.setWorkspace(workspace);
@@ -1285,17 +1518,6 @@ export class ToolRegistry {
 
     // Always add cron/scheduling tools (enables task scheduling)
     allTools.push(...CronTools.getToolDefinitions());
-
-    // Infrastructure tools (cloud sandboxes, domains, wallet, x402 payments)
-    // Only add when infrastructure is enabled in settings
-    try {
-      const infraSettings = InfraSettingsManager.loadSettings();
-      if (infraSettings.enabled) {
-        allTools.push(...InfraTools.getToolDefinitions(infraSettings));
-      }
-    } catch {
-      // InfraSettingsManager may not be initialized yet
-    }
 
     // Canvas/visual tools require a desktop UI; skip in headless mode (VPS/server).
     if (!headless) {
@@ -1673,7 +1895,7 @@ export class ToolRegistry {
           browserUseApproval
             ? `Allow Browser Use to access ${browserUseApproval.origin}?`
             : effectiveApprovalType === "location_access"
-              ? "Allow CoWork OS to access your current location once?"
+              ? "Allow NeoWorker to access your current location once?"
             : `Approve tool call: ${context.request.name}`,
           {
             ...approvalDetails,
@@ -1803,11 +2025,32 @@ export class ToolRegistry {
         this.fileTools.searchFiles(request.input.query, request.input.path),
       readParallelSchedulerSpec,
     );
-    register("create_spreadsheet", async ({ request }) => this.skillTools.createSpreadsheet(request.input));
-    register("create_document", async ({ request }) => this.skillTools.createDocument(request.input));
+    register(
+      "create_spreadsheet",
+      async ({ request }) => this.runCanonicalSpreadsheet(
+        request.input,
+        request.runtime?.signal instanceof AbortSignal ? request.runtime.signal : undefined,
+      ),
+      exclusiveSchedulerSpec,
+    );
+    register(
+      "create_document",
+      async ({ request }) => this.runCanonicalDocument(
+        request.input,
+        request.runtime?.signal instanceof AbortSignal ? request.runtime.signal : undefined,
+      ),
+      exclusiveSchedulerSpec,
+    );
     register("edit_document", async ({ request }) => this.skillTools.editDocument(request.input));
     register("edit_pdf_region", async ({ request }) => this.skillTools.editPdfRegion(request.input));
-    register("create_presentation", async ({ request }) => this.skillTools.createPresentation(request.input));
+    register(
+      "create_presentation",
+      async ({ request }) => this.runCanonicalPresentation(
+        request.input,
+        request.runtime?.signal instanceof AbortSignal ? request.runtime.signal : undefined,
+      ),
+      exclusiveSchedulerSpec,
+    );
     register("organize_folder", async ({ request }) => this.skillTools.organizeFolder(request.input));
     register("skill_create", async ({ request }) => this.executeSkillCreate(request.input));
     register("skill_duplicate", async ({ request }) => this.executeSkillDuplicate(request.input));
@@ -2143,16 +2386,6 @@ export class ToolRegistry {
     );
     register("batch_image_process", async ({ request }) => this.batchImageTools.batchProcess(request.input));
     register("schedule_task", async ({ request }) => this.cronTools.executeAction(request.input));
-    registerPredicate(
-      (name) =>
-        name.startsWith("cloud_sandbox_") ||
-        name.startsWith("domain_") ||
-        name.startsWith("wallet_") ||
-        name.startsWith("x402_") ||
-        name === "infra_status",
-      async ({ request }) => this.infraTools.executeTool(request.name, request.input),
-      serialSchedulerSpec,
-    );
     register("canvas_create", async ({ request }) => this.canvasTools.createCanvas(request.input.title), serialSchedulerSpec);
     register("canvas_push", async ({ request }) => {
       const canvasInput = request.input || {};
@@ -2276,15 +2509,28 @@ export class ToolRegistry {
     );
     register("generate_document", async ({ request }) => this.documentTools.generateDocument(request.input));
     register("compile_latex", async ({ request }) => this.documentTools.compileLatex(request.input));
-    register("generate_presentation", async ({ request }) =>
-      this.documentTools.generatePresentation(request.input),
+    register(
+      "generate_presentation",
+      async ({ request }) => this.runCanonicalPresentation(
+        request.input,
+        request.runtime?.signal instanceof AbortSignal ? request.runtime.signal : undefined,
+      ),
+      exclusiveSchedulerSpec,
     );
-    register("generate_spreadsheet", async ({ request }) =>
-      this.documentTools.generateSpreadsheet(request.input),
+    register(
+      "generate_spreadsheet",
+      async ({ request }) => this.runCanonicalSpreadsheet(
+        request.input,
+        request.runtime?.signal instanceof AbortSignal ? request.runtime.signal : undefined,
+      ),
+      exclusiveSchedulerSpec,
     );
     register("generate_epub", async ({ request }) => this.documentTools.generateEPUB(request.input));
     register("generate_landing_page", async ({ request }) =>
       this.documentTools.generateLandingPage(request.input),
+    );
+    register("convert_markdown_to_html", async ({ request }) =>
+      this.documentTools.convertMarkdownToHtml(request.input),
     );
     register("generate_narration_audio", async ({ request }) =>
       this.documentTools.generateNarrationAudio(request.input),
@@ -3078,9 +3324,17 @@ Skills:
 - generate_presentation: Generate PPTX presentations from structured slides
 - generate_epub: Generate EPUB ebooks from chapter content
 - generate_landing_page: Generate polished standalone HTML landing pages
+- convert_markdown_to_html: Convert existing Markdown or text reports into a polished standalone HTML file without passing the full document through model-generated tool arguments
 - generate_narration_audio: Generate MP3 narration from text using the configured voice service
 - organize_folder: Organize and structure files in folders
 - Skill: Invoke a skill by ID when one clearly matches the task. If a matching skill exists, call Skill before continuing with other tools or drafting the final answer. Pass "skill" as the canonical skill ID and "args" as the raw argument string.
+
+Office document quality gate:
+- NeoWorker bundles OfficeCLI and uses it as the default Office quality/runtime engine for DOCX, XLSX, and PPTX workflows.
+- Word, Excel, and PowerPoint creation tools return a qualityCheck object after generation.
+- If qualityCheck.status is "failed", do not claim the artifact is final. Use the validation message and issue list to repair or regenerate it.
+- If qualityCheck.status is "issues" but the tool returned success and the manifest quality score passed all hard gates, the file was published with advisory recommendations. Deliver it without an unchanged retry unless the user explicitly requested a zero-issue formatting pass.
+- If qualityCheck.status is "skipped", the built-in generator succeeded but OfficeCLI was unavailable; state that limitation plainly instead of claiming visual validation.
 
 Skill Management (create, modify, duplicate skills):
 - skill_create: Create a new custom skill
@@ -3088,7 +3342,7 @@ Skill Management (create, modify, duplicate skills):
 - skill_update: Update an existing skill (managed/workspace only, not bundled)
 - skill_delete: Delete a skill (managed/workspace only, not bundled)
 - skill_proposal: Create/list/evaluate/approve/reject approval-gated skill proposals (no auto-mutation)
-Skills are stored in ~/Library/Application Support/cowork-os/skills/ (managed) or workspace/skills/ (workspace).
+Skills are stored in ~/Library/Application Support/neoworker/skills/ (managed) or workspace/skills/ (workspace).
 
 Code Tools (PREFERRED for code navigation and editing):
 - glob: Fast pattern-based file search (e.g., "**/*.ts", "src/**/*.test.ts")
@@ -3103,7 +3357,7 @@ Code Tools (PREFERRED for code navigation and editing):
   Use this for document validation workflows instead of custom scripts.
 - monty_run: Deterministic, sandboxed Python-subset compute for post-processing tool results.
   Use monty_run only when count_text/text_metrics cannot express the computation.
-- monty_list_transforms / monty_run_transform: Run workspace-local transforms from .cowork/transforms/.
+- monty_list_transforms / monty_run_transform: Run workspace-local transforms from .neoworker/transforms/.
 - monty_transform_file: Apply a transform to a file and write output without returning full file contents to the LLM.
 - extract_json: Extract and parse JSON from messy text (prose + code fences).
 
@@ -3195,10 +3449,10 @@ System Tools:
 - list_macos_launch_agents: Inspect LaunchAgents/LaunchDaemons that may relaunch an app
 - disable_macos_launch_agents: Unload and move matching user LaunchAgent plists aside after approval
 - run_applescript: Execute exact AppleScript on macOS (explicit AppleScript requests or low-level fallback only)
-- search_memories: Search workspace memories, .cowork/ knowledge files, and imported conversations for past context
+- search_memories: Search workspace memories, .neoworker/ knowledge files, and imported conversations for past context
 - search_quotes: Search exact quoted wording across transcripts, task messages, imported memories, and workspace notes
 - search_sessions: Search recent task/session transcripts and checkpoints for prior run context
-- memory_topics_load: Load topical memory packs from \`.cowork/memory/topics\`
+- memory_topics_load: Load topical memory packs from \`.neoworker/memory/topics\`
 - memory_save: Save an observation, decision, insight, or error to workspace memory for future recall
 - memory_curate: Add, replace, or remove curated hot-memory facts that should stay prompt-visible
 - memory_curated_read: Inspect the current curated hot-memory entries
@@ -3335,7 +3589,7 @@ Channel Message Log (Local Gateway):
     const resolvedSkillShortlistSize =
       typeof options?.skillShortlistSize === "number" && Number.isFinite(options.skillShortlistSize)
         ? Math.min(Math.max(Math.round(options.skillShortlistSize), 1), 200)
-        : parseBoundedIntEnv("COWORK_SKILL_SHORTLIST_SIZE", 20, 1, 200);
+        : parseBoundedIntEnv("NEOWORKER_SKILL_SHORTLIST_SIZE", 20, 1, 200);
     const resolvedSkillLowConfidenceThreshold =
       typeof options?.skillLowConfidenceThreshold === "number" &&
       Number.isFinite(options.skillLowConfidenceThreshold)
@@ -3345,7 +3599,7 @@ Channel Message Log (Local Gateway):
       typeof options?.skillTextBudgetChars === "number" &&
       Number.isFinite(options.skillTextBudgetChars)
         ? Math.max(Math.round(options.skillTextBudgetChars), 1500)
-        : parseBoundedIntEnv("COWORK_SKILL_TEXT_BUDGET_CHARS", 12000, 1500, 50000);
+        : parseBoundedIntEnv("NEOWORKER_SKILL_TEXT_BUDGET_CHARS", 12000, 1500, 50000);
     const skillDescriptions = skillLoader.getSkillDescriptionsForModel({
       availableToolNames,
       routingQuery: options?.skillRoutingQuery,
@@ -3386,7 +3640,7 @@ ${skillDescriptions}`;
       const execution = await this.executeWithRegisteredHandler(name, input, _runtime);
       return execution?.result ?? execution;
     }
-    // Optional workspace-local policy hook (.cowork/policy/tools.monty).
+    // Optional workspace-local policy hook (.neoworker/policy/tools.monty).
     // Fail-open on policy script errors to avoid bricking tool execution.
     try {
       const policy = await evaluateMontyToolPolicy({
@@ -3464,11 +3718,23 @@ ${skillDescriptions}`;
     if (name === "search_files") return await this.fileTools.searchFiles(input.query, input.path);
 
     // Skill tools
-    if (name === "create_spreadsheet") return await this.skillTools.createSpreadsheet(input);
-    if (name === "create_document") return await this.skillTools.createDocument(input);
+    if (name === "create_spreadsheet")
+      return await this.runCanonicalSpreadsheet(
+        input,
+        _runtime?.signal instanceof AbortSignal ? _runtime.signal : undefined,
+      );
+    if (name === "create_document")
+      return await this.runCanonicalDocument(
+        input,
+        _runtime?.signal instanceof AbortSignal ? _runtime.signal : undefined,
+      );
     if (name === "edit_document") return await this.skillTools.editDocument(input);
     if (name === "edit_pdf_region") return await this.skillTools.editPdfRegion(input);
-    if (name === "create_presentation") return await this.skillTools.createPresentation(input);
+    if (name === "create_presentation")
+      return await this.runCanonicalPresentation(
+        input,
+        _runtime?.signal instanceof AbortSignal ? _runtime.signal : undefined,
+      );
     if (name === "organize_folder") return await this.skillTools.organizeFolder(input);
     if (name === "Skill") return await this.executeSkillCommand(input);
 
@@ -3722,17 +3988,6 @@ ${skillDescriptions}`;
     // Cron/scheduling tools
     if (name === "schedule_task") return await this.cronTools.executeAction(input);
 
-    // Infrastructure tools (cloud sandboxes, domains, wallet, x402 payments)
-    if (
-      name.startsWith("cloud_sandbox_") ||
-      name.startsWith("domain_") ||
-      name.startsWith("wallet_") ||
-      name.startsWith("x402_") ||
-      name === "infra_status"
-    ) {
-      return await this.infraTools.executeTool(name, input);
-    }
-
     // Canvas tools
     if (name === "canvas_create") return await this.canvasTools.createCanvas(input.title);
     if (name === "canvas_push") {
@@ -3835,10 +4090,19 @@ ${skillDescriptions}`;
     if (name === "generate_document") return await this.documentTools.generateDocument(input);
     if (name === "compile_latex") return await this.documentTools.compileLatex(input);
     if (name === "generate_presentation")
-      return await this.documentTools.generatePresentation(input);
-    if (name === "generate_spreadsheet") return await this.documentTools.generateSpreadsheet(input);
+      return await this.runCanonicalPresentation(
+        input,
+        _runtime?.signal instanceof AbortSignal ? _runtime.signal : undefined,
+      );
+    if (name === "generate_spreadsheet")
+      return await this.runCanonicalSpreadsheet(
+        input,
+        _runtime?.signal instanceof AbortSignal ? _runtime.signal : undefined,
+      );
     if (name === "generate_epub") return await this.documentTools.generateEPUB(input);
     if (name === "generate_landing_page") return await this.documentTools.generateLandingPage(input);
+    if (name === "convert_markdown_to_html")
+      return await this.documentTools.convertMarkdownToHtml(input);
     if (name === "generate_narration_audio")
       return await this.documentTools.generateNarrationAudio(input);
 
@@ -4266,13 +4530,10 @@ ${skillDescriptions}`;
             filename += ext;
           }
 
-          let outputPath = path.join(this.workspace.path, filename);
-          if (fs.existsSync(outputPath)) {
-            const stem = path.basename(filename, path.extname(filename));
-            const unique = `${stem}-${Date.now()}${path.extname(filename) || ext}`;
-            filename = unique;
-            outputPath = path.join(this.workspace.path, filename);
-          }
+          const outputPath = resolveVersionedOutputPath(
+            path.join(this.workspace.path, filename),
+          );
+          filename = path.basename(outputPath);
 
           try {
             const mediaBuffer = Buffer.from(content.data, "base64");
@@ -4348,23 +4609,27 @@ ${skillDescriptions}`;
       for (const sourcePath of possiblePaths) {
         try {
           if (fs.existsSync(sourcePath)) {
+            let artifactFilename = filename;
+            let artifactPath = workspacePath;
             // File found - copy to workspace if not already there
             if (sourcePath !== workspacePath && !sourcePath.startsWith(this.workspace.path)) {
-              await fsPromises.copyFile(sourcePath, workspacePath);
+              artifactPath = resolveVersionedOutputPath(workspacePath);
+              artifactFilename = path.basename(artifactPath);
+              await fsPromises.copyFile(sourcePath, artifactPath);
               console.log(
-                `[ToolRegistry] Copied MCP file to workspace: ${sourcePath} -> ${workspacePath}`,
+                `[ToolRegistry] Copied MCP file to workspace: ${sourcePath} -> ${artifactPath}`,
               );
             }
 
             // Emit file_created event with workspace-relative path
             this.daemon.logEvent(this.taskId, "file_created", {
-              path: filename,
+              path: artifactFilename,
               type: "screenshot",
               source: "mcp",
             });
 
             // Register as artifact if it's an image
-            const ext = path.extname(filename).toLowerCase();
+            const ext = path.extname(artifactFilename).toLowerCase();
             const imageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"];
             if (imageExtensions.includes(ext)) {
               const mimeTypes: Record<string, string> = {
@@ -4377,7 +4642,7 @@ ${skillDescriptions}`;
               };
               this.daemon.registerArtifact(
                 this.taskId,
-                workspacePath,
+                artifactPath,
                 mimeTypes[ext] || "image/png",
               );
             }
@@ -4493,6 +4758,19 @@ ${skillDescriptions}`;
       }
     } catch {
       // Fall through to heuristic raw-argument mapping.
+    }
+
+    const prefixedParameters = parseSkillArgumentObjectPrefix(trimmedArgs);
+    if (prefixedParameters) {
+      return { success: true, parameters: prefixedParameters };
+    }
+
+    // PPT Master accepts a natural-language task after the slash command. Its
+    // optional workflow controls must never consume that task as the `route`
+    // parameter, otherwise the advanced workflow silently falls back to a
+    // generic presentation path.
+    if (skill.id === "ppt-master") {
+      return { success: true, parameters: {} };
     }
 
     if (!Array.isArray(skill.parameters) || skill.parameters.length === 0) {
@@ -5786,7 +6064,7 @@ ${skillDescriptions}`;
       {
         name: "write_file",
         description:
-          "Write content to a file in the workspace (creates or overwrites). For temporary scratch files, repro scripts, diagnostics, or intermediate outputs, write under .cowork/tmp/ so they remain local to the checkout.",
+          "Write content to a file in the workspace (creates or overwrites). For temporary scratch files, repro scripts, diagnostics, or intermediate outputs, write under .neoworker/tmp/ so they remain local to the checkout.",
         input_schema: {
           type: "object",
           properties: {
@@ -5937,11 +6215,34 @@ ${skillDescriptions}`;
     return [
       {
         name: "create_spreadsheet",
-        description: "Create an Excel spreadsheet with data, formulas, and formatting",
+        description:
+          "Create one editable Excel workbook with the complete official OfficeCLI AI workflow: choose excel, data-dashboard, or financial-model rules; plan inputs/calculations/outputs; build typed cells, formulas and charts; then validate and repair the native XLSX. NeoWorker auto-selects the official profile when officeProfile is omitted. For multi-format requests, freeze one contentSnapshot and map every required fact/section/dataset to sheet references. Review qualityCheck before final delivery.",
         input_schema: {
           type: "object",
           properties: {
             filename: { type: "string", description: "Name of the Excel file (without extension)" },
+            officeProfile: {
+              type: "string",
+              enum: ["excel", "data-dashboard", "financial-model"],
+              description: "Optional official OfficeCLI generation profile. Omit for automatic selection from the workbook purpose.",
+            },
+            templateId: {
+              type: "string",
+              description: "Optional built-in Office template ID. Omit to select by use case.",
+            },
+            useCase: {
+              type: "string",
+              enum: [
+                "research-report",
+                "financing-analysis",
+                "operating-review",
+                "product-launch",
+                "teaching-deck",
+                "general",
+              ],
+              description: "Business use case used to select a stable workbook template.",
+            },
+            contentSnapshot: officeContentSnapshotInputSchema(),
             sheets: {
               type: "array",
               description: "Array of sheets to create",
@@ -5955,10 +6256,19 @@ ${skillDescriptions}`;
                     items: {
                       type: "array",
                       description: "Row of cell values",
-                      items: { type: "string", description: "Cell value" },
+                      items: {
+                        type: ["string", "number", "boolean", "null"],
+                        description: "Cell value",
+                      },
                     },
                   },
+                  headers: { type: "array", items: { type: "string" } },
+                  rows: { type: "array", items: { type: "array" } },
+                  columnWidths: { type: "array", items: { type: "number" } },
+                  hasHeader: { type: "boolean" },
+                  ...officeContentReferenceInputProperties(),
                 },
+                required: ["name"],
               },
             },
           },
@@ -5968,22 +6278,60 @@ ${skillDescriptions}`;
       {
         name: "create_document",
         description:
-          "Create a Word document (.docx) or PDF. Only use when the user EXPLICITLY requests Word/DOCX/PDF format. For all other documents, prefer writing Markdown (.md) files with write_file.",
+          "Create one polished native Word document with the complete official OfficeCLI AI workflow: choose word, academic-paper, or word-form rules; plan hierarchy and page rhythm; build editable DOCX content; then validate and repair it. NeoWorker auto-selects the official profile when officeProfile is omitted. PDF remains available through the compatibility generator. For multi-format requests, reuse the same frozen contentSnapshot used by PPTX/XLSX.",
         input_schema: {
           type: "object",
           properties: {
             filename: { type: "string", description: "Name of the document" },
             format: { type: "string", enum: ["docx", "pdf"], description: "Output format" },
+            officeProfile: {
+              type: "string",
+              enum: ["word", "academic-paper", "word-form"],
+              description: "Optional official OfficeCLI DOCX profile. Omit for automatic selection from the document purpose.",
+            },
+            templateId: {
+              type: "string",
+              description: "Optional built-in Office template ID. Omit to select by use case.",
+            },
+            useCase: {
+              type: "string",
+              enum: [
+                "research-report",
+                "financing-analysis",
+                "operating-review",
+                "product-launch",
+                "teaching-deck",
+                "general",
+              ],
+              description: "Business use case used to select a stable document template.",
+            },
+            contentSnapshot: officeContentSnapshotInputSchema(),
             content: {
               type: "array",
               description: "Document content blocks",
               items: {
                 type: "object",
                 properties: {
-                  type: { type: "string", enum: ["heading", "paragraph", "list"] },
+                  type: {
+                    type: "string",
+                    enum: ["heading", "paragraph", "list", "table", "code"],
+                  },
                   text: { type: "string" },
                   level: { type: "number", description: "For headings: 1-6" },
+                  items: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "For lists: individual list items",
+                  },
+                  rows: {
+                    type: "array",
+                    items: { type: "array", items: { type: "string" } },
+                    description: "For tables: rows and cells",
+                  },
+                  language: { type: "string", description: "For code blocks: language label" },
+                  ...officeContentReferenceInputProperties(),
                 },
+                required: ["type"],
               },
             },
           },
@@ -6112,23 +6460,47 @@ ${skillDescriptions}`;
       },
       {
         name: "create_presentation",
-        description: "Create a PowerPoint presentation",
+        description:
+          "Create exactly one editable widescreen PowerPoint with the complete official OfficeCLI AI workflow. Select pptx, pitch-deck, morph-ppt, or morph-ppt-3d rules; plan the audience, narrative and visual hierarchy; build varied editable slide layouts; then validate and repair the native PPTX. NeoWorker auto-selects the profile when officeProfile is omitted. Reuse one frozen contentSnapshot and provide structured data for metric/chart/table/timeline/comparison slides instead of generic repeated bullets.",
         input_schema: {
           type: "object",
           properties: {
             filename: { type: "string", description: "Name of the presentation" },
+            officeProfile: {
+              type: "string",
+              enum: ["pptx", "pitch-deck", "morph-ppt", "morph-ppt-3d"],
+              description: "Optional official OfficeCLI presentation profile. Omit for automatic selection from the deck purpose.",
+            },
+            templateId: {
+              type: "string",
+              description: "Optional built-in Office template ID. Omit to select by use case.",
+            },
+            useCase: {
+              type: "string",
+              enum: [
+                "research-report",
+                "financing-analysis",
+                "operating-review",
+                "product-launch",
+                "teaching-deck",
+                "general",
+              ],
+              description: "Business use case used to select a stable presentation template.",
+            },
             title: { type: "string", description: "Presentation title" },
             author: { type: "string", description: "Author name" },
             audience: { type: "string", description: "Audience or viewing context" },
             tone: { type: "string", description: "Tone or style direction" },
             visualMode: {
               type: "string",
-              enum: ["work", "editorial", "playful", "premium", "technical"],
+              enum: ["work", "editorial", "playful", "premium", "technical", "research"],
               description: "Visual direction for varied editable layouts",
             },
             styleBrief: { type: "string", description: "Short design brief" },
             themeColor: { type: "string", description: "Primary theme color" },
             accentColor: { type: "string", description: "Accent theme color" },
+            titleColor: { type: "string", description: "Hex color applied to every slide title" },
+            contentSnapshot: officeContentSnapshotInputSchema(),
             slides: {
               type: "array",
               items: {
@@ -6136,10 +6508,93 @@ ${skillDescriptions}`;
                 properties: {
                   title: { type: "string" },
                   content: { type: "array", items: { type: "string" } },
+                  bullets: { type: "array", items: { type: "string" } },
                   subtitle: { type: "string" },
+                  quote: { type: "string" },
+                  attribution: { type: "string" },
                   imagePath: { type: "string" },
                   visualBrief: { type: "string" },
                   notes: { type: "string" },
+                  metrics: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        label: { type: "string" },
+                        value: { type: ["string", "number"] },
+                        detail: { type: "string" },
+                      },
+                      required: ["label", "value"],
+                    },
+                  },
+                  timeline: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        label: { type: "string" },
+                        value: { type: ["string", "number"] },
+                        detail: { type: "string" },
+                      },
+                      required: ["label"],
+                    },
+                  },
+                  chart: {
+                    type: "object",
+                    properties: {
+                      categories: { type: "array", items: { type: "string" } },
+                      series: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            name: { type: "string" },
+                            values: { type: "array", items: { type: "number" } },
+                          },
+                          required: ["name", "values"],
+                        },
+                      },
+                    },
+                  },
+                  table: {
+                    type: "object",
+                    properties: {
+                      headers: { type: "array", items: { type: "string" } },
+                      rows: { type: "array", items: { type: "array" } },
+                    },
+                  },
+                  data: {
+                    type: "object",
+                    properties: {
+                      categories: { type: "array", items: { type: "string" } },
+                      series: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            name: { type: "string" },
+                            values: { type: "array", items: { type: "number" } },
+                          },
+                          required: ["name", "values"],
+                        },
+                      },
+                      headers: { type: "array", items: { type: "string" } },
+                      rows: { type: "array", items: { type: "array" } },
+                      items: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            label: { type: "string" },
+                            value: { type: ["string", "number"] },
+                            detail: { type: "string" },
+                          },
+                          required: ["label"],
+                        },
+                      },
+                    },
+                    additionalProperties: false,
+                  },
                   slideType: {
                     type: "string",
                     enum: [
@@ -6179,7 +6634,9 @@ ${skillDescriptions}`;
                       "closing",
                     ],
                   },
+                  ...officeContentReferenceInputProperties(),
                 },
+                required: ["title"],
               },
             },
           },
@@ -6246,7 +6703,7 @@ ${skillDescriptions}`;
         name: "skill_create",
         description:
           "Create a new custom skill. The skill will be saved to the managed skills directory " +
-          "(~/Library/Application Support/cowork-os/skills/). Provide the full skill definition.",
+          "(~/Library/Application Support/neoworker/skills/). Provide the full skill definition.",
         input_schema: {
           type: "object",
           properties: {
@@ -9040,14 +9497,14 @@ ${skillDescriptions}`;
       throw new Error("No workspace path available");
     }
 
-    const kitDir = path.join(workspacePath, ".cowork");
+    const kitDir = path.join(workspacePath, ".neoworker");
     if (!fs.existsSync(kitDir) || !fs.statSync(kitDir).isDirectory()) {
-      throw new Error("No .cowork/ directory found in workspace. Run the Memory Kit skill first.");
+      throw new Error("No .neoworker/ directory found in workspace. Run the Memory Kit skill first.");
     }
 
     const vibesPath = path.join(kitDir, "VIBES.md");
-    const AUTO_VIBES_START = "<!-- cowork:auto:vibes:start -->";
-    const AUTO_VIBES_END = "<!-- cowork:auto:vibes:end -->";
+    const AUTO_VIBES_START = "<!-- neoworker:auto:vibes:start -->";
+    const AUTO_VIBES_END = "<!-- neoworker:auto:vibes:end -->";
 
     let current = "";
     if (fs.existsSync(vibesPath)) {
@@ -9142,14 +9599,14 @@ ${skillDescriptions}`;
       throw new Error("No workspace path available");
     }
 
-    const kitDir = path.join(workspacePath, ".cowork");
+    const kitDir = path.join(workspacePath, ".neoworker");
     if (!fs.existsSync(kitDir) || !fs.statSync(kitDir).isDirectory()) {
-      throw new Error("No .cowork/ directory found in workspace. Run the Memory Kit skill first.");
+      throw new Error("No .neoworker/ directory found in workspace. Run the Memory Kit skill first.");
     }
 
     const lorePath = path.join(kitDir, "LORE.md");
-    const AUTO_LORE_START = "<!-- cowork:auto:lore:start -->";
-    const AUTO_LORE_END = "<!-- cowork:auto:lore:end -->";
+    const AUTO_LORE_START = "<!-- neoworker:auto:lore:start -->";
+    const AUTO_LORE_END = "<!-- neoworker:auto:lore:end -->";
 
     let current = "";
     if (fs.existsSync(lorePath)) {
@@ -9354,6 +9811,8 @@ ${skillDescriptions}`;
         timed_out: false,
         output_truncated: false,
         language: input.language,
+        signal: null,
+        error: message,
       };
     }
   }
@@ -9732,7 +10191,7 @@ ${skillDescriptions}`;
     const normalizedMaxTurns =
       typeof max_turns === "number" && Number.isFinite(max_turns) ? Math.round(max_turns) : 20;
 
-    const phaseCEnabled = parseBooleanEnv("COWORK_GUARDRAIL_PHASE_C", true);
+    const phaseCEnabled = parseBooleanEnv("NEOWORKER_GUARDRAIL_PHASE_C", true);
     const modelPref =
       typeof model_preference === "string" ? model_preference.trim().toLowerCase() : "";
     const personalityPref = typeof personality === "string" ? personality.trim().toLowerCase() : "";
@@ -9877,10 +10336,10 @@ ${skillDescriptions}`;
       throw new Error(`max_turns must be between 1 and ${maxTurnsCap}`);
     }
 
-    const phaseCEnabled = parseBooleanEnv("COWORK_GUARDRAIL_PHASE_C", true);
+    const phaseCEnabled = parseBooleanEnv("NEOWORKER_GUARDRAIL_PHASE_C", true);
 
     const activeSubAgentLimit = parseBoundedIntEnv(
-      "COWORK_SUBAGENT_MAX_ACTIVE_PER_PARENT",
+      "NEOWORKER_SUBAGENT_MAX_ACTIVE_PER_PARENT",
       DEFAULT_ACTIVE_SUB_AGENT_LIMIT,
       1,
       20,
@@ -10217,9 +10676,9 @@ ${skillDescriptions}`;
       throw new Error("orchestrate_agents supports at most 8 tasks");
     }
 
-    const phaseCEnabled = parseBooleanEnv("COWORK_GUARDRAIL_PHASE_C", true);
+    const phaseCEnabled = parseBooleanEnv("NEOWORKER_GUARDRAIL_PHASE_C", true);
     const activeSubAgentLimit = parseBoundedIntEnv(
-      "COWORK_SUBAGENT_MAX_ACTIVE_PER_PARENT",
+      "NEOWORKER_SUBAGENT_MAX_ACTIVE_PER_PARENT",
       DEFAULT_ACTIVE_SUB_AGENT_LIMIT,
       1,
       20,
@@ -11053,7 +11512,7 @@ ${skillDescriptions}`;
       {
         name: "list_projects",
         description:
-          "List all projects in the CoWork OS control plane. " +
+          "List all projects in the NeoWorker control plane. " +
           "Returns each project's id, name, status, and description. " +
           "Use this to discover the correct project_id before calling link_project_workspace.",
         input_schema: {
@@ -11070,7 +11529,7 @@ ${skillDescriptions}`;
       {
         name: "list_workspaces",
         description:
-          "List all workspaces registered in CoWork OS. " +
+          "List all workspaces registered in NeoWorker. " +
           "Returns each workspace's id, name, and path. " +
           "Use this to discover the correct workspace_id before calling link_project_workspace.",
         input_schema: {
@@ -11082,7 +11541,7 @@ ${skillDescriptions}`;
       {
         name: "link_project_workspace",
         description:
-          "Link a workspace to a project in the CoWork OS control plane database. " +
+          "Link a workspace to a project in the NeoWorker control plane database. " +
           "This is the definitive way to associate a workspace with a project so that " +
           "autonomous agents can operate with durable context. " +
           "Call list_projects and list_workspaces first if you need to discover the correct IDs. " +
@@ -11111,7 +11570,7 @@ ${skillDescriptions}`;
       {
         name: "list_goals",
         description:
-          "List all goals in the CoWork OS control plane. " +
+          "List all goals in the NeoWorker control plane. " +
           "Returns each goal's id, title, status, and description. " +
           "Use this to audit the goal-to-work graph (e.g. during a heartbeat Goal-to-Work Audit).",
         input_schema: {
@@ -11128,7 +11587,7 @@ ${skillDescriptions}`;
       {
         name: "list_issues",
         description:
-          "List issues in the CoWork OS control plane with optional filters. " +
+          "List issues in the NeoWorker control plane with optional filters. " +
           "Returns each issue's id, title, status, priority, projectId, and goalId. " +
           "Use this during backlog reviews or goal-to-work audits.",
         input_schema: {
@@ -11159,7 +11618,7 @@ ${skillDescriptions}`;
       {
         name: "create_issue",
         description:
-          "Create a new issue in the CoWork OS control plane. " +
+          "Create a new issue in the NeoWorker control plane. " +
           "Use this during a Goal-to-Work Audit when a goal or project has no actionable issues yet.",
         input_schema: {
           type: "object",
@@ -11654,7 +12113,7 @@ ${skillDescriptions}`;
         description:
           "Set or change the assistant's name. Use this when the user wants to give you a name, rename you, or asks " +
           '"what should I call you?" The name will be remembered and used in all future interactions. ' +
-          'Default name is "CoWork" if not customized.',
+          'Default name is "NeoWorker" if not customized.',
         input_schema: {
           type: "object",
           properties: {
@@ -11762,7 +12221,7 @@ ${skillDescriptions}`;
         description:
           "Update the current workspace vibes/energy mode. Call this when you detect a shift in the user's working " +
           "energy, pace, or intent. For example, if the user says 'let's ship this' switch to crunch mode, or if they " +
-          "say 'just exploring' switch to explore mode. Only operates when a .cowork/ directory exists.",
+          "say 'just exploring' switch to explore mode. Only operates when a .neoworker/ directory exists.",
         input_schema: {
           type: "object",
           properties: {
@@ -11800,7 +12259,7 @@ ${skillDescriptions}`;
         description:
           "Record a notable shared moment or reference in the workspace lore. Use after significant accomplishments, " +
           "breakthroughs, hard-won debugging sessions, or when the user shares something memorable about the project. " +
-          "Only operates when a .cowork/ directory exists.",
+          "Only operates when a .neoworker/ directory exists.",
         input_schema: {
           type: "object",
           properties: {
@@ -11825,7 +12284,7 @@ ${skillDescriptions}`;
       {
         name: "acp_discover",
         description:
-          "Discover ACP/A2A agents that CoWork can delegate work to. Use this before selecting acp_agent_id for spawn_agent or orchestrate_agents.",
+          "Discover ACP/A2A agents that NeoWorker can delegate work to. Use this before selecting acp_agent_id for spawn_agent or orchestrate_agents.",
         input_schema: {
           type: "object",
           properties: {
@@ -11886,7 +12345,7 @@ ${skillDescriptions}`;
             acp_agent_id: {
               type: "string",
               description:
-                "Optional ACP agent ID returned by acp_discover. When provided, CoWork routes the task to that ACP/A2A agent instead of picking a generic sub-agent.",
+                "Optional ACP agent ID returned by acp_discover. When provided, NeoWorker routes the task to that ACP/A2A agent instead of picking a generic sub-agent.",
             },
             personality: {
               type: "string",
@@ -11904,7 +12363,7 @@ ${skillDescriptions}`;
               type: "string",
               enum: ["native", "acpx"],
               description:
-                'Execution runtime for the spawned agent. "native" uses CoWork\'s built-in executor, "acpx" routes the task through the external acpx runtime.',
+                'Execution runtime for the spawned agent. "native" uses NeoWorker\'s built-in executor, "acpx" routes the task through the external acpx runtime.',
             },
             runtime_agent: {
               type: "string",

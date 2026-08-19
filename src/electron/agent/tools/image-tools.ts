@@ -2,6 +2,7 @@ import { Workspace } from "../../../shared/types";
 import { AgentDaemon } from "../daemon";
 import {
   ImageGenerator,
+  ImageAspectRatio,
   ImageModel,
   ImageSize,
   ImageGenerationResult,
@@ -53,6 +54,7 @@ export class ImageTools {
       model?: ImageModel;
       filename?: string;
       imageSize?: ImageSize;
+      aspectRatio?: ImageAspectRatio;
       numberOfImages?: number;
     },
     options?: { signal?: AbortSignal },
@@ -64,7 +66,7 @@ export class ImageTools {
     const requestSignature = this.getImageGenerationRequestSignature(input);
     if (this.imageGenerationRequestSignatures.has(requestSignature)) {
       const error =
-        "generate_image has already been attempted with the same request in this task. CoWork OS blocks repeated identical image generation calls to prevent duplicate outputs.";
+        "generate_image has already been attempted with the same request in this task. NeoWorker blocks repeated identical image generation calls to prevent duplicate outputs.";
       if (!this.duplicateImageGenerationBlockLogged) {
         this.duplicateImageGenerationBlockLogged = true;
         this.daemon.logEvent(this.taskId, "error", {
@@ -89,6 +91,7 @@ export class ImageTools {
       model: input.model,
       filename: input.filename,
       imageSize: input.imageSize || "1K",
+      aspectRatio: input.aspectRatio,
       numberOfImages: input.numberOfImages || 1,
       signal: options?.signal,
       onProgress: (event) => {
@@ -138,6 +141,7 @@ export class ImageTools {
     provider?: ImageProvider | "auto";
     model?: ImageModel;
     imageSize?: ImageSize;
+    aspectRatio?: ImageAspectRatio;
     numberOfImages?: number;
   }): string {
     return JSON.stringify({
@@ -145,6 +149,7 @@ export class ImageTools {
       provider: input.provider || "auto",
       model: input.model || "",
       imageSize: input.imageSize || "1K",
+      aspectRatio: input.aspectRatio || "",
       numberOfImages: input.numberOfImages || 1,
     });
   }
@@ -163,7 +168,7 @@ export class ImageTools {
     return [
       {
         name: "generate_image",
-        description: `Generate an image from a text description using AI. CoWork OS will pick the best configured provider by default (Gemini/OpenAI/ChatGPT Subscription/Azure/OpenRouter), unless you specify a provider/model.
+        description: `Generate an image from a text description using AI. NeoWorker will pick the best configured provider by default (Gemini/OpenAI/ChatGPT Subscription/Azure/OpenRouter), unless you specify a provider/model.
 
 Providers/models:
 - OpenAI: gpt-image-2, gpt-image-1, gpt-image-1.5, dall-e-3, dall-e-2 (also accepts "gpt-2" and "gpt-1.5" aliases)
@@ -202,6 +207,12 @@ The generated images are saved to the workspace folder.`,
               enum: ["1K", "2K"],
               description:
                 'Size of the generated image. "1K" for 1024px, "2K" for 2048px (default: 1K)',
+            },
+            aspectRatio: {
+              type: "string",
+              enum: ["1:1", "16:9", "4:3", "9:16"],
+              description:
+                'Optional composition ratio. Use "16:9" for widescreen presentation artwork and "9:16" for vertical assets.',
             },
             numberOfImages: {
               type: "number",

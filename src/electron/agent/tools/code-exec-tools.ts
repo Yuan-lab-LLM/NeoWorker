@@ -30,6 +30,8 @@ export interface CodeExecResult {
   timed_out: boolean;
   output_truncated: boolean;
   language: string;
+  signal?: string | null;
+  error?: string;
 }
 
 const MAX_OUTPUT_BYTES = 100 * 1024; // 100 KB
@@ -82,6 +84,8 @@ export class CodeExecTools {
         result.stdout.includes("[Output truncated]") ||
         result.stderr.includes("[Output truncated]"),
       language: input.language,
+      signal: result.signal,
+      error: result.error,
     };
   }
 

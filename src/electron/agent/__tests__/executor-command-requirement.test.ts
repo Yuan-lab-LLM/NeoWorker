@@ -51,7 +51,7 @@ describe("TaskExecutor command execution requirement detection", () => {
     fakeThis.getEffectiveExecutionMode = () => "execute";
 
     const prompt = [
-      "Check for documentation drift in CoWork OS.",
+      "Check for documentation drift in NeoWorker.",
       "Do not edit files.",
       "Review current repo evidence and report docs that need updates, exact source of truth in code/config, suggested documentation change, and priority.",
       "Look for stale commands, missing settings, and outdated behavior descriptions.",
@@ -70,7 +70,7 @@ describe("TaskExecutor command execution requirement detection", () => {
     fakeThis.getEffectiveExecutionMode = () => "execute";
 
     const prompt = [
-      "Check CoWork OS build health.",
+      "Check NeoWorker build health.",
       "Run npm run lint and npm run build, then report exact command results.",
     ].join("\n");
 
@@ -105,13 +105,13 @@ describe("TaskExecutor command execution requirement detection", () => {
     fakeThis.getEffectiveExecutionMode = () => "execute";
 
     const prompt = [
-      "Create my daily CoWork OS development brief.",
+      "Create my daily NeoWorker development brief.",
       "Do not edit files, commit, push, publish, post externally, or change settings.",
       "This routine is for situational awareness and prioritization only.",
       "Inspect the local repo and summarize:",
       "1. Current repo state - current branch, dirty files, untracked files",
       "2. Health signals - whether there are obvious build/type/test blockers",
-      "3. Product/development priorities - read .cowork/PRIORITIES.md if present",
+      "3. Product/development priorities - read .neoworker/PRIORITIES.md if present",
       "4. Suggested work for today - top 3 tasks ordered by leverage",
     ].join("\n");
 

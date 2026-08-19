@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentRoleData } from "../../electron/preload";
 import type { ChannelSpecialization, Workspace } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 const DEFAULT_TOOL_RESTRICTIONS = [
   "group:memory",
@@ -17,7 +18,9 @@ type ChatOption = { chatId: string; lastTimestamp: number };
 type AgentRole = AgentRoleData;
 
 function formatChatLabel(chat: ChatOption): string {
-  const date = chat.lastTimestamp ? new Date(chat.lastTimestamp).toLocaleString() : "";
+  const date = chat.lastTimestamp
+    ? new Date(chat.lastTimestamp).toLocaleString()
+    : "";
   return date ? `${chat.chatId} - ${date}` : chat.chatId;
 }
 
@@ -25,8 +28,14 @@ function scopeKey(chatId?: string, threadId?: string): string {
   return `${chatId || ""}::${threadId || ""}`;
 }
 
-export function ChannelSpecializationSettings({ channelId }: ChannelSpecializationSettingsProps) {
-  const [specializations, setSpecializations] = useState<ChannelSpecialization[]>([]);
+export function ChannelSpecializationSettings({
+  channelId,
+}: ChannelSpecializationSettingsProps) {
+  useLanguage();
+  const t = translate;
+  const [specializations, setSpecializations] = useState<
+    ChannelSpecialization[]
+  >([]);
   const [chats, setChats] = useState<ChatOption[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [agentRoles, setAgentRoles] = useState<AgentRole[]>([]);
@@ -38,7 +47,8 @@ export function ChannelSpecializationSettings({ channelId }: ChannelSpecializati
   const [agentRoleId, setAgentRoleId] = useState("");
   const [systemGuidance, setSystemGuidance] = useState("");
   const [toolRestrictions, setToolRestrictions] = useState<string[]>([]);
-  const [allowSharedContextMemory, setAllowSharedContextMemory] = useState(false);
+  const [allowSharedContextMemory, setAllowSharedContextMemory] =
+    useState(false);
   const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,22 +59,32 @@ export function ChannelSpecializationSettings({ channelId }: ChannelSpecializati
   );
 
   const load = useCallback(async () => {
-    const [nextSpecializations, nextChats, nextWorkspaces, nextRoles] = await Promise.all([
-      window.electronAPI.listChannelSpecializations(channelId),
-      window.electronAPI.getGatewayChats(channelId),
-      window.electronAPI.listWorkspaces(),
-      window.electronAPI.getAgentRoles(true),
-    ]);
+    const [nextSpecializations, nextChats, nextWorkspaces, nextRoles] =
+      await Promise.all([
+        window.electronAPI.listChannelSpecializations(channelId),
+        window.electronAPI.getGatewayChats(channelId),
+        window.electronAPI.listWorkspaces(),
+        window.electronAPI.getAgentRoles(true),
+      ]);
     setSpecializations(nextSpecializations);
     setChats(nextChats);
     setWorkspaces(nextWorkspaces);
-    setAgentRoles(nextRoles.filter((role: AgentRole) => role.isActive !== false));
+    setAgentRoles(
+      nextRoles.filter((role: AgentRole) => role.isActive !== false),
+    );
   }, [channelId]);
 
   useEffect(() => {
     void load().catch((err) => {
       console.error("Failed to load channel specializations:", err);
-      setError(err instanceof Error ? err.message : "Failed to load specializations");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t(
+              "channelSpecialization.error.load",
+              "Failed to load specializations",
+            ),
+      );
     });
   }, [load]);
 
@@ -139,7 +159,14 @@ export function ChannelSpecializationSettings({ channelId }: ChannelSpecializati
       resetForm();
     } catch (err) {
       console.error("Failed to save channel specialization:", err);
-      setError(err instanceof Error ? err.message : "Failed to save specialization");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t(
+              "channelSpecialization.error.save",
+              "Failed to save specialization",
+            ),
+      );
     } finally {
       setSaving(false);
     }
@@ -155,7 +182,14 @@ export function ChannelSpecializationSettings({ channelId }: ChannelSpecializati
       resetForm();
     } catch (err) {
       console.error("Failed to delete channel specialization:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete specialization");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t(
+              "channelSpecialization.error.delete",
+              "Failed to delete specialization",
+            ),
+      );
     } finally {
       setSaving(false);
     }
@@ -163,29 +197,43 @@ export function ChannelSpecializationSettings({ channelId }: ChannelSpecializati
 
   const targetScope = scopeKey(chatId.trim(), threadId.trim());
   const duplicateScope = specializations.some(
-    (item) => item.id !== selectedId && scopeKey(item.chatId, item.threadId) === targetScope,
+    (item) =>
+      item.id !== selectedId &&
+      scopeKey(item.chatId, item.threadId) === targetScope,
   );
 
   return (
     <div className="settings-section">
-      <h4>Channel Specialization</h4>
+      <h4>{t("channelSpecialization.title", "Channel Specialization")}</h4>
       <p className="settings-description">
-        Route a channel, group, or topic to a workspace and agent role with optional guidance.
+        {t(
+          "channelSpecialization.description",
+          "Route a channel, group, or topic to a workspace and agent role with optional guidance.",
+        )}
       </p>
 
       {specializations.length > 0 && (
         <div className="settings-field">
-          <label>Existing specialization</label>
+          <label>
+            {t("channelSpecialization.existing", "Existing specialization")}
+          </label>
           <select
             className="settings-select"
             value={selectedId}
             onChange={(event) => setSelectedId(event.target.value)}
           >
-            <option value="">New specialization</option>
+            <option value="">
+              {t("channelSpecialization.new", "New specialization")}
+            </option>
             {specializations.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.name || item.threadId || item.chatId || "Channel default"}
-                {!item.enabled ? " (disabled)" : ""}
+                {item.name ||
+                  item.threadId ||
+                  item.chatId ||
+                  t("channelSpecialization.channelDefault", "Channel default")}
+                {!item.enabled
+                  ? ` ${t("channelSpecialization.disabledSuffix", "(disabled)")}`
+                  : ""}
               </option>
             ))}
           </select>
@@ -193,13 +241,18 @@ export function ChannelSpecializationSettings({ channelId }: ChannelSpecializati
       )}
 
       <div className="settings-field">
-        <label>Chat or group</label>
+        <label>{t("channelSpecialization.chatOrGroup", "Chat or group")}</label>
         <select
           className="settings-select"
           value={chatId}
           onChange={(event) => setChatId(event.target.value)}
         >
-          <option value="">Whole channel default</option>
+          <option value="">
+            {t(
+              "channelSpecialization.wholeChannelDefault",
+              "Whole channel default",
+            )}
+          </option>
           {chats.map((chat) => (
             <option key={chat.chatId} value={chat.chatId}>
               {formatChatLabel(chat)}
@@ -210,38 +263,49 @@ export function ChannelSpecializationSettings({ channelId }: ChannelSpecializati
           className="settings-input"
           value={chatId}
           onChange={(event) => setChatId(event.target.value)}
-          placeholder="Or paste chat/group ID"
+          placeholder={t(
+            "channelSpecialization.placeholder.chatId",
+            "Or paste chat/group ID",
+          )}
         />
       </div>
 
       <div className="settings-field">
-        <label>Topic/thread ID</label>
+        <label>{t("channelSpecialization.threadId", "Topic/thread ID")}</label>
         <input
           className="settings-input"
           value={threadId}
           onChange={(event) => setThreadId(event.target.value)}
-          placeholder="Optional topic/thread ID"
+          placeholder={t(
+            "channelSpecialization.placeholder.threadId",
+            "Optional topic/thread ID",
+          )}
         />
       </div>
 
       <div className="settings-field">
-        <label>Display name</label>
+        <label>{t("channelSpecialization.displayName", "Display name")}</label>
         <input
           className="settings-input"
           value={name}
           onChange={(event) => setName(event.target.value)}
-          placeholder="Support group, research topic, etc."
+          placeholder={t(
+            "channelSpecialization.placeholder.displayName",
+            "Support group, research topic, etc.",
+          )}
         />
       </div>
 
       <div className="settings-field">
-        <label>Workspace</label>
+        <label>{t("common.workspace", "Workspace")}</label>
         <select
           className="settings-select"
           value={workspaceId}
           onChange={(event) => setWorkspaceId(event.target.value)}
         >
-          <option value="">Channel default</option>
+          <option value="">
+            {t("channelSpecialization.channelDefault", "Channel default")}
+          </option>
           {workspaces.map((workspace) => (
             <option key={workspace.id} value={workspace.id}>
               {workspace.name}
@@ -251,13 +315,15 @@ export function ChannelSpecializationSettings({ channelId }: ChannelSpecializati
       </div>
 
       <div className="settings-field">
-        <label>Agent role</label>
+        <label>{t("channelSpecialization.agentRole", "Agent role")}</label>
         <select
           className="settings-select"
           value={agentRoleId}
           onChange={(event) => setAgentRoleId(event.target.value)}
         >
-          <option value="">Channel default</option>
+          <option value="">
+            {t("channelSpecialization.channelDefault", "Channel default")}
+          </option>
           {agentRoles.map((role) => (
             <option key={role.id} value={role.id}>
               {role.displayName || role.name}
@@ -267,18 +333,23 @@ export function ChannelSpecializationSettings({ channelId }: ChannelSpecializati
       </div>
 
       <div className="settings-field">
-        <label>Guidance</label>
+        <label>{t("channelSpecialization.guidance", "Guidance")}</label>
         <textarea
           className="settings-textarea"
           value={systemGuidance}
           onChange={(event) => setSystemGuidance(event.target.value)}
-          placeholder="Instructions added to new tasks from this scope"
+          placeholder={t(
+            "channelSpecialization.placeholder.guidance",
+            "Instructions added to new tasks from this scope",
+          )}
           rows={4}
         />
       </div>
 
       <div className="settings-field">
-        <label>Tool restrictions</label>
+        <label>
+          {t("channelSpecialization.toolRestrictions", "Tool restrictions")}
+        </label>
         <div className="checkbox-group">
           {DEFAULT_TOOL_RESTRICTIONS.map((restriction) => (
             <label key={restriction} className="settings-checkbox">
@@ -297,9 +368,14 @@ export function ChannelSpecializationSettings({ channelId }: ChannelSpecializati
         <input
           type="checkbox"
           checked={allowSharedContextMemory}
-          onChange={(event) => setAllowSharedContextMemory(event.target.checked)}
+          onChange={(event) =>
+            setAllowSharedContextMemory(event.target.checked)
+          }
         />
-        Allow shared memory context for this group/topic
+        {t(
+          "channelSpecialization.allowSharedMemory",
+          "Allow shared memory context for this group/topic",
+        )}
       </label>
 
       <label className="settings-checkbox">
@@ -308,27 +384,46 @@ export function ChannelSpecializationSettings({ channelId }: ChannelSpecializati
           checked={enabled}
           onChange={(event) => setEnabled(event.target.checked)}
         />
-        Enabled
+        {t("common.enabled", "Enabled")}
       </label>
 
       {duplicateScope && (
         <p className="settings-hint warning">
-          Saving will replace the existing specialization for this scope.
+          {t(
+            "channelSpecialization.duplicateWarning",
+            "Saving will replace the existing specialization for this scope.",
+          )}
         </p>
       )}
       {error && <p className="settings-hint warning">{error}</p>}
 
       <div className="settings-actions">
-        <button className="button-primary" onClick={handleSave} disabled={saving}>
-          {saving ? "Saving..." : selectedId ? "Update Specialization" : "Save Specialization"}
+        <button
+          className="button-primary"
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving
+            ? t("common.saving", "Saving...")
+            : selectedId
+              ? t("channelSpecialization.update", "Update Specialization")
+              : t("channelSpecialization.save", "Save Specialization")}
         </button>
         {selectedId && (
-          <button className="button-danger" onClick={handleDelete} disabled={saving}>
-            Delete
+          <button
+            className="button-danger"
+            onClick={handleDelete}
+            disabled={saving}
+          >
+            {t("common.delete", "Delete")}
           </button>
         )}
-        <button className="button-secondary" onClick={resetForm} disabled={saving}>
-          Reset
+        <button
+          className="button-secondary"
+          onClick={resetForm}
+          disabled={saving}
+        >
+          {t("common.reset", "Reset")}
         </button>
       </div>
     </div>

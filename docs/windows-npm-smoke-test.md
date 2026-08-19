@@ -1,6 +1,6 @@
 # Windows npm Smoke-Test Checklist
 
-Use this checklist to validate the npm installation path (`npm install -g cowork-os`) on a clean Windows machine before release.
+Use this checklist to validate the npm installation path (`npm install -g neoworker`) on a clean Windows machine before release.
 
 ## Scope
 
@@ -14,30 +14,30 @@ Run in **Command Prompt** from `%USERPROFILE%`:
 
 ```bat
 cd /d %USERPROFILE%
-taskkill /F /IM "CoWork OS.exe" /T 2>NUL
+taskkill /F /IM "NeoWorker.exe" /T 2>NUL
 taskkill /F /IM electron.exe /T 2>NUL
 taskkill /F /IM node.exe /T 2>NUL
 set npm_config_runtime=
 set npm_config_target=
 set npm_config_disturl=
 set npm_config_arch=
-rmdir /S /Q "%APPDATA%\npm\node_modules\cowork-os" 2>NUL
-del /Q "%APPDATA%\npm\cowork-os.cmd" 2>NUL
-del /Q "%APPDATA%\npm\coworkctl.cmd" 2>NUL
-del /Q "%APPDATA%\npm\coworkd.cmd" 2>NUL
-del /Q "%APPDATA%\npm\coworkd-node.cmd" 2>NUL
+rmdir /S /Q "%APPDATA%\npm\node_modules\neoworker" 2>NUL
+del /Q "%APPDATA%\npm\neoworker.cmd" 2>NUL
+del /Q "%APPDATA%\npm\neoworkerctl.cmd" 2>NUL
+del /Q "%APPDATA%\npm\neoworkerd.cmd" 2>NUL
+del /Q "%APPDATA%\npm\neoworkerd-node.cmd" 2>NUL
 ```
 
 Pass criteria:
-- No running CoWork/Electron/Node processes remain.
+- No running NeoWorker/Electron/Node processes remain.
 - No stale global install directory remains.
 
 ## 2. Install From npm
 
 ```bat
 cd /d %USERPROFILE%
-npm install -g cowork-os@latest --no-audit --no-fund
-npm ls -g cowork-os --depth=0
+npm install -g neoworker@latest --no-audit --no-fund
+npm ls -g neoworker --depth=0
 ```
 
 Pass criteria:
@@ -48,7 +48,7 @@ Pass criteria:
 
 ```bat
 cd /d %USERPROFILE%
-cowork-os
+neoworker
 ```
 
 Pass criteria:
@@ -81,9 +81,9 @@ Pass criteria:
 Close app, then relaunch:
 
 ```bat
-taskkill /F /IM "CoWork OS.exe" /T 2>NUL
+taskkill /F /IM "NeoWorker.exe" /T 2>NUL
 cd /d %USERPROFILE%
-cowork-os
+neoworker
 ```
 
 Pass criteria:
@@ -94,9 +94,9 @@ Pass criteria:
 
 ```bat
 cd /d %USERPROFILE%
-npm uninstall -g cowork-os
-npm install -g cowork-os@latest --no-audit --no-fund
-cowork-os
+npm uninstall -g neoworker
+npm install -g neoworker@latest --no-audit --no-fund
+neoworker
 ```
 
 Pass criteria:
@@ -108,6 +108,6 @@ Pass criteria:
 Capture in release notes/PR comment:
 - Windows version + CPU architecture (x64/ARM64)
 - Node and npm versions (`node -v`, `npm -v`)
-- Installed `cowork-os` version
+- Installed `neoworker` version
 - Pass/fail per checklist section
 - Any startup log snippets for failures

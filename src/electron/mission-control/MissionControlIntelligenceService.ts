@@ -64,7 +64,7 @@ function hasRawToolShape(activity: ActivityRow): boolean {
 
 function activityCategory(activity: ActivityRow): MissionControlCategory {
   const text = `${activity.title} ${activity.description || ""}`.toLowerCase();
-  if (text.includes("what cowork learned") || text.includes(".cowork/") || text.includes("memory")) {
+  if (text.includes("what neoworker learned") || text.includes(".neoworker/") || text.includes("memory")) {
     return "learnings";
   }
   if (text.includes("heartbeat") || text.includes("background review")) {
@@ -388,7 +388,7 @@ export class MissionControlIntelligenceService {
         severity: "action_needed",
         title: "Mention needs a response",
         summary: truncate(mention.context || `Pending ${humanize(mention.mention_type)} mention`, 180),
-        decision: "Cowork is waiting on a response or acknowledgement.",
+        decision: "NeoWorker is waiting on a response or acknowledgement.",
         nextStep: "Open the related task or mention thread.",
         agentRoleId: mention.to_agent_role_id || undefined,
         agentName: mention.agent_name || undefined,
@@ -448,7 +448,7 @@ export class MissionControlIntelligenceService {
         fingerprint: `activity:${activity.id}`,
         category,
         severity,
-        title: category === "learnings" ? "Cowork recorded a learning" : activity.title,
+        title: category === "learnings" ? "NeoWorker recorded a learning" : activity.title,
         summary: truncate(text, 220),
         decision: category === "reviews" && severity === "monitor_only" ? "No action needed." : undefined,
         nextStep: severity === "action_needed" ? "Review this item." : undefined,
@@ -595,7 +595,7 @@ export class MissionControlIntelligenceService {
         fingerprint: `memory-candidate:${candidate.id}`,
         category: "learnings",
         severity: accepted ? "successful" : "monitor_only",
-        title: accepted ? "Cowork saved a learning" : "Cowork proposed a learning",
+        title: accepted ? "NeoWorker saved a learning" : "NeoWorker proposed a learning",
         summary: truncate(candidate.summary, 220),
         decision: accepted ? "Learning is available for future work." : "Learning is waiting for review or more evidence.",
         nextStep: accepted ? undefined : "Review the learning candidate if it matters.",
@@ -626,7 +626,7 @@ export class MissionControlIntelligenceService {
         fingerprint: `memory-distill:${run.id}`,
         category: failed ? "attention" : "learnings",
         severity: failed ? "failed" : run.status === "completed" ? "successful" : "monitor_only",
-        title: failed ? "Learning distill failed" : "Cowork distilled learnings",
+        title: failed ? "Learning distill failed" : "NeoWorker distilled learnings",
         summary: `${run.candidate_count || 0} candidates, ${run.accepted_count || 0} accepted, ${run.pruned_count || 0} pruned.`,
         decision: failed ? run.error || "Learning update did not complete." : "Learning state was consolidated.",
         nextStep: failed ? "Inspect the distill run evidence." : undefined,

@@ -2,6 +2,98 @@ import { Workspace } from "../../../shared/types";
 import { AgentDaemon } from "../daemon";
 import { LLMTool } from "../llm/types";
 import { evaluateNetworkPolicy } from "../../security/network-policy";
+import { isRecoverableWebSourceFailure } from "../../../shared/web-source-failure";
+
+const DEFAULT_TEXT_ENCODING = "utf-8";
+const CHINESE_LEGACY_TEXT_ENCODING = "gb18030";
+
+function normalizeTextEncoding(
+  rawEncoding?: string | null,
+): string | undefined {
+  const encoding = String(rawEncoding || "")
+    .trim()
+    .replace(/^['"]|['"]$/g, "")
+    .toLowerCase();
+
+  if (!encoding) return undefined;
+  if (["utf8", "utf-8"].includes(encoding)) return DEFAULT_TEXT_ENCODING;
+  if (
+    ["gbk", "gb2312", "gb_2312", "x-gbk", "cp936", "ms936"].includes(encoding)
+  ) {
+    return CHINESE_LEGACY_TEXT_ENCODING;
+  }
+  if (["big5", "big-5", "big5-hkscs"].includes(encoding)) return "big5";
+  if (["utf16", "utf-16", "utf16le", "utf-16le"].includes(encoding))
+    return "utf-16le";
+  if (["latin1", "iso-8859-1"].includes(encoding)) return "windows-1252";
+  return encoding;
+}
+
+function charsetFromContentType(contentType: string): string | undefined {
+  const match = contentType.match(/charset\s*=\s*["']?\s*([^;\s"']+)/i);
+  return normalizeTextEncoding(match?.[1]);
+}
+
+function charsetFromHtml(bytes: Uint8Array): string | undefined {
+  // HTML declarations are ASCII-compatible even when the document body uses GBK/Big5.
+  const prefix = Array.from(bytes.subarray(0, Math.min(bytes.length, 8192)))
+    .map((byte) => String.fromCharCode(byte))
+    .join("");
+  const direct = prefix.match(
+    /<meta\b[^>]*\bcharset\s*=\s*["']?\s*([^\s"'/>;]+)/i,
+  );
+  if (direct?.[1]) return normalizeTextEncoding(direct[1]);
+  const httpEquiv = prefix.match(
+    /<meta\b[^>]*\bcontent\s*=\s*["'][^"']*charset\s*=\s*([^\s"';>]+)[^"']*["']/i,
+  );
+  return normalizeTextEncoding(httpEquiv?.[1]);
+}
+
+function decodeWithEncoding(
+  bytes: Uint8Array,
+  encoding: string,
+  fatal = false,
+): string {
+  return new TextDecoder(encoding, { fatal }).decode(bytes);
+}
+
+/**
+ * Decode an HTTP response without assuming UTF-8. Chinese finance/news sites still
+ * commonly return GBK/GB2312, sometimes without a charset response header.
+ */
+export function decodeHttpResponseBody(
+  bytes: Uint8Array,
+  contentType = "",
+): string {
+  if (bytes.length === 0) return "";
+
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return decodeWithEncoding(bytes.subarray(3), DEFAULT_TEXT_ENCODING);
+  }
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return decodeWithEncoding(bytes.subarray(2), "utf-16le");
+  }
+
+  const declaredEncoding =
+    charsetFromContentType(contentType) || charsetFromHtml(bytes);
+  if (declaredEncoding) {
+    try {
+      return decodeWithEncoding(
+        bytes,
+        declaredEncoding,
+        declaredEncoding === DEFAULT_TEXT_ENCODING,
+      );
+    } catch {
+      // A surprising number of endpoints advertise UTF-8 while returning GBK.
+    }
+  }
+
+  try {
+    return decodeWithEncoding(bytes, DEFAULT_TEXT_ENCODING, true);
+  } catch {
+    return decodeWithEncoding(bytes, CHINESE_LEGACY_TEXT_ENCODING);
+  }
+}
 
 /**
  * WebFetchTools provides lightweight URL fetching without browser automation.
@@ -53,10 +145,42 @@ export class WebFetchTools {
       }
       this.ensureNetworkAllowed(parsedUrl.toString(), toolName);
 
-      const response = await fetch(currentUrl, {
-        ...currentInit,
-        redirect: "manual",
-      });
+      const method = String(currentInit.method || "GET").toUpperCase();
+      const maxAttempts = method === "GET" || method === "HEAD" ? 3 : 1;
+      let response: Response | undefined;
+      let lastError: unknown;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          response = await fetch(currentUrl, {
+            ...currentInit,
+            redirect: "manual",
+          });
+          break;
+        } catch (error) {
+          lastError = error;
+          if (
+            attempt >= maxAttempts ||
+            !this.isRetryableFetchError(error) ||
+            currentInit.signal?.aborted
+          ) {
+            throw error;
+          }
+
+          this.daemon.logEvent(this.taskId, "log", {
+            message: `${toolName} temporary network failure; retrying (${attempt}/${maxAttempts - 1}).`,
+            url: currentUrl,
+            error: this.formatFetchError(error),
+          });
+          await new Promise((resolve) => setTimeout(resolve, attempt * 200));
+        }
+      }
+
+      if (!response) {
+        throw lastError instanceof Error
+          ? lastError
+          : new Error("Network request failed");
+      }
 
       if (!followRedirects || !this.isRedirectResponse(response.status)) {
         return response;
@@ -80,13 +204,55 @@ export class WebFetchTools {
     throw new Error("Too many redirects");
   }
 
+  private isRetryableFetchError(error: unknown): boolean {
+    const candidate = error as Any;
+    if (candidate?.name === "AbortError") return false;
+    const cause = candidate?.cause as Any;
+    const code = String(cause?.code || candidate?.code || "").toUpperCase();
+    const message = `${String(candidate?.message || "")} ${String(cause?.message || "")}`.toLowerCase();
+    return (
+      [
+        "ECONNRESET",
+        "ECONNREFUSED",
+        "EHOSTUNREACH",
+        "ENETUNREACH",
+        "ENOTFOUND",
+        "EAI_AGAIN",
+        "ETIMEDOUT",
+        "UND_ERR_CONNECT_TIMEOUT",
+        "UND_ERR_HEADERS_TIMEOUT",
+        "UND_ERR_SOCKET",
+      ].includes(code) ||
+      /fetch failed|network error|socket|connection reset|temporary failure|unexpected eof/.test(
+        message,
+      )
+    );
+  }
+
+  private formatFetchError(error: unknown): string {
+    const candidate = error as Any;
+    if (candidate?.name === "AbortError") return "Request timed out";
+    const cause = candidate?.cause as Any;
+    const message = String(candidate?.message || "Network request failed").trim();
+    const causeCode = String(cause?.code || candidate?.code || "").trim();
+    const causeMessage = String(cause?.message || "").trim();
+    const detail = [causeCode, causeMessage]
+      .filter(Boolean)
+      .filter((part, index, all) => all.indexOf(part) === index)
+      .join(": ");
+    return detail && !message.includes(detail) ? `${message}: ${detail}` : message;
+  }
+
   private isRedirectResponse(status: number): boolean {
     return [301, 302, 303, 307, 308].includes(status);
   }
 
   private buildRedirectInit(init: RequestInit, status: number): RequestInit {
     const method = String(init.method || "GET").toUpperCase();
-    if (status === 303 || ((status === 301 || status === 302) && method === "POST")) {
+    if (
+      status === 303 ||
+      ((status === 301 || status === 302) && method === "POST")
+    ) {
       const { body: _body, ...rest } = init;
       return {
         ...rest,
@@ -94,6 +260,19 @@ export class WebFetchTools {
       };
     }
     return { ...init };
+  }
+
+  private async readResponseText(
+    response: Response,
+    contentType: string,
+  ): Promise<string> {
+    // Unit-test doubles and a few fetch polyfills expose only text(). Real Electron
+    // responses use arrayBuffer() so we retain the original bytes for charset detection.
+    if (typeof response.arrayBuffer !== "function") {
+      return response.text();
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return decodeHttpResponseBody(bytes, contentType);
   }
 
   /**
@@ -122,11 +301,13 @@ export class WebFetchTools {
             },
             includeLinks: {
               type: "boolean",
-              description: "Whether to include links in the output (default: true)",
+              description:
+                "Whether to include links in the output (default: true)",
             },
             maxLength: {
               type: "number",
-              description: "Maximum content length to return (default: 50000 characters)",
+              description:
+                "Maximum content length to return (default: 50000 characters)",
             },
           },
           required: ["url"],
@@ -148,7 +329,15 @@ export class WebFetchTools {
             },
             method: {
               type: "string",
-              enum: ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
+              enum: [
+                "GET",
+                "POST",
+                "PUT",
+                "DELETE",
+                "PATCH",
+                "HEAD",
+                "OPTIONS",
+              ],
               description: "HTTP method (default: GET)",
             },
             headers: {
@@ -172,7 +361,8 @@ export class WebFetchTools {
             },
             maxLength: {
               type: "number",
-              description: "Maximum response length to return (default: 100000 characters)",
+              description:
+                "Maximum response length to return (default: 100000 characters)",
             },
           },
           required: ["url"],
@@ -196,8 +386,12 @@ export class WebFetchTools {
     content: string;
     contentLength: number;
     error?: string;
+    nonBlocking?: boolean;
+    recoverableFallback?: boolean;
+    failureKind?: "source_unavailable";
   }> {
     const { url, selector, includeLinks = true, maxLength = 50000 } = input;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     this.daemon.logEvent(this.taskId, "log", {
       message: `Fetching: ${url}`,
@@ -212,7 +406,7 @@ export class WebFetchTools {
 
       // Fetch with timeout
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
+      timeoutId = setTimeout(() => controller.abort(), 30000);
 
       const response = await this.fetchWithPolicyCheckedRedirects(
         url,
@@ -221,14 +415,13 @@ export class WebFetchTools {
           headers: {
             "User-Agent":
               "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            Accept:
+              "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
           },
         },
         "web_fetch",
       );
-
-      clearTimeout(timeout);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -240,7 +433,7 @@ export class WebFetchTools {
 
       if (contentType.includes("application/json")) {
         // JSON response - format nicely, with fallback to raw text
-        const rawText = await response.text();
+        const rawText = await this.readResponseText(response, contentType);
         try {
           const json = JSON.parse(rawText);
           content = JSON.stringify(json, null, 2);
@@ -251,11 +444,11 @@ export class WebFetchTools {
         title = "JSON Response";
       } else if (contentType.includes("text/plain")) {
         // Plain text
-        content = await response.text();
+        content = await this.readResponseText(response, contentType);
         title = "Plain Text";
       } else {
         // HTML - convert to markdown
-        const html = await response.text();
+        const html = await this.readResponseText(response, contentType);
         const result = this.htmlToMarkdown(html, selector, includeLinks);
         content = result.content;
         title = result.title;
@@ -263,7 +456,8 @@ export class WebFetchTools {
 
       // Truncate if needed
       if (content.length > maxLength) {
-        content = content.substring(0, maxLength) + "\n\n... [Content truncated]";
+        content =
+          content.substring(0, maxLength) + "\n\n... [Content truncated]";
       }
 
       this.daemon.logEvent(this.taskId, "tool_result", {
@@ -284,11 +478,23 @@ export class WebFetchTools {
         contentLength: content.length,
       };
     } catch (error: Any) {
-      const errorMessage = error.name === "AbortError" ? "Request timed out" : error.message;
+      const errorMessage = this.formatFetchError(error);
+      const recoverableFallback = isRecoverableWebSourceFailure(errorMessage);
 
       this.daemon.logEvent(this.taskId, "tool_result", {
         tool: "web_fetch",
-        error: errorMessage,
+        result: {
+          success: false,
+          url,
+          error: errorMessage,
+          ...(recoverableFallback
+            ? {
+                nonBlocking: true,
+                recoverableFallback: true,
+                failureKind: "source_unavailable",
+              }
+            : {}),
+        },
       });
 
       return {
@@ -297,7 +503,16 @@ export class WebFetchTools {
         content: "",
         contentLength: 0,
         error: errorMessage,
+        ...(recoverableFallback
+          ? {
+              nonBlocking: true,
+              recoverableFallback: true,
+              failureKind: "source_unavailable" as const,
+            }
+          : {}),
       };
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
@@ -321,6 +536,9 @@ export class WebFetchTools {
     body: string;
     contentLength: number;
     error?: string;
+    nonBlocking?: boolean;
+    recoverableFallback?: boolean;
+    failureKind?: "source_unavailable";
   }> {
     const {
       url,
@@ -336,6 +554,7 @@ export class WebFetchTools {
       message: `HTTP ${method}: ${url}`,
     });
 
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       const normalizedUrl = this.normalizeHttpRequestUrl(url);
 
@@ -347,13 +566,14 @@ export class WebFetchTools {
 
       // Setup abort controller for timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      timeoutId = setTimeout(() => controller.abort(), timeout);
 
       // Default headers
       const requestHeaders: Record<string, string> = {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
         ...headers,
       };
@@ -371,8 +591,6 @@ export class WebFetchTools {
         followRedirects,
       );
 
-      clearTimeout(timeoutId);
-
       // Extract response headers
       const responseHeaders: Record<string, string> = {};
       response.headers.forEach((value, key) => {
@@ -387,7 +605,7 @@ export class WebFetchTools {
         responseBody = ""; // HEAD requests don't have a body
       } else if (contentType.includes("application/json")) {
         // Try to parse as JSON, fallback to raw text if parsing fails
-        const rawText = await response.text();
+        const rawText = await this.readResponseText(response, contentType);
         try {
           const json = JSON.parse(rawText);
           responseBody = JSON.stringify(json, null, 2);
@@ -396,14 +614,21 @@ export class WebFetchTools {
           responseBody = rawText;
         }
       } else {
-        responseBody = await response.text();
+        responseBody = await this.readResponseText(response, contentType);
       }
 
       // Truncate if needed
       const truncated = responseBody.length > maxLength;
       if (truncated) {
-        responseBody = responseBody.substring(0, maxLength) + "\n\n... [Response truncated]";
+        responseBody =
+          responseBody.substring(0, maxLength) + "\n\n... [Response truncated]";
       }
+
+      const recoverableFallback =
+        !response.ok &&
+        isRecoverableWebSourceFailure(
+          `HTTP ${response.status}: ${response.statusText}`,
+        );
 
       this.daemon.logEvent(this.taskId, "tool_result", {
         tool: "http_request",
@@ -414,6 +639,13 @@ export class WebFetchTools {
           status: response.status,
           contentLength: responseBody.length,
           truncated,
+          ...(recoverableFallback
+            ? {
+                nonBlocking: true,
+                recoverableFallback: true,
+                failureKind: "source_unavailable",
+              }
+            : {}),
         },
       });
 
@@ -425,13 +657,32 @@ export class WebFetchTools {
         headers: responseHeaders,
         body: responseBody,
         contentLength: responseBody.length,
+        ...(recoverableFallback
+          ? {
+              nonBlocking: true,
+              recoverableFallback: true,
+              failureKind: "source_unavailable" as const,
+            }
+          : {}),
       };
     } catch (error: Any) {
-      const errorMessage = error.name === "AbortError" ? "Request timed out" : error.message;
+      const errorMessage = this.formatFetchError(error);
+      const recoverableFallback = isRecoverableWebSourceFailure(errorMessage);
 
       this.daemon.logEvent(this.taskId, "tool_result", {
         tool: "http_request",
-        error: errorMessage,
+        ...(recoverableFallback
+          ? {
+              result: {
+                success: false,
+                url,
+                error: errorMessage,
+                nonBlocking: true,
+                recoverableFallback: true,
+                failureKind: "source_unavailable",
+              },
+            }
+          : { error: errorMessage }),
       });
 
       return {
@@ -443,7 +694,16 @@ export class WebFetchTools {
         body: "",
         contentLength: 0,
         error: errorMessage,
+        ...(recoverableFallback
+          ? {
+              nonBlocking: true,
+              recoverableFallback: true,
+              failureKind: "source_unavailable" as const,
+            }
+          : {}),
       };
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
@@ -459,7 +719,10 @@ export class WebFetchTools {
       }
     }
 
-    for (const prefix of ["https://r.jina.ai/http://", "http://r.jina.ai/http://"]) {
+    for (const prefix of [
+      "https://r.jina.ai/http://",
+      "http://r.jina.ai/http://",
+    ]) {
       if (!url.startsWith(prefix)) continue;
       const proxiedTarget = url.slice(prefix.length);
       if (/^https?:\/\//i.test(proxiedTarget)) {
@@ -482,7 +745,9 @@ export class WebFetchTools {
   ): { content: string; title?: string } {
     // Extract title
     const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const title = titleMatch ? this.decodeHtmlEntities(titleMatch[1].trim()) : undefined;
+    const title = titleMatch
+      ? this.decodeHtmlEntities(titleMatch[1].trim())
+      : undefined;
 
     // If selector provided, try to extract that section
     let targetHtml = html;
@@ -546,7 +811,10 @@ export class WebFetchTools {
       // Italic
       .replace(/<(em|i)[^>]*>([\s\S]*?)<\/\1>/gi, "*$2*")
       // Code blocks
-      .replace(/<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, "\n```\n$1\n```\n")
+      .replace(
+        /<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi,
+        "\n```\n$1\n```\n",
+      )
       .replace(/<pre[^>]*>([\s\S]*?)<\/pre>/gi, "\n```\n$1\n```\n")
       // Inline code
       .replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, "`$1`")
@@ -568,14 +836,23 @@ export class WebFetchTools {
 
     // Handle links
     if (includeLinks) {
-      content = content.replace(/<a[^>]+href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)");
+      content = content.replace(
+        /<a[^>]+href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi,
+        "[$2]($1)",
+      );
     } else {
       content = content.replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, "$1");
     }
 
     // Handle images (as markdown)
-    content = content.replace(/<img[^>]+alt="([^"]*)"[^>]+src="([^"]*)"[^>]*>/gi, "![$1]($2)");
-    content = content.replace(/<img[^>]+src="([^"]*)"[^>]+alt="([^"]*)"[^>]*>/gi, "![$2]($1)");
+    content = content.replace(
+      /<img[^>]+alt="([^"]*)"[^>]+src="([^"]*)"[^>]*>/gi,
+      "![$1]($2)",
+    );
+    content = content.replace(
+      /<img[^>]+src="([^"]*)"[^>]+alt="([^"]*)"[^>]*>/gi,
+      "![$2]($1)",
+    );
     content = content.replace(/<img[^>]+src="([^"]*)"[^>]*>/gi, "![image]($1)");
 
     // Remove remaining HTML tags
@@ -631,7 +908,9 @@ export class WebFetchTools {
     }
 
     // Handle numeric entities
-    result = result.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
+    result = result.replace(/&#(\d+);/g, (_, code) =>
+      String.fromCharCode(parseInt(code, 10)),
+    );
     result = result.replace(/&#x([a-fA-F0-9]+);/g, (_, code) =>
       String.fromCharCode(parseInt(code, 16)),
     );

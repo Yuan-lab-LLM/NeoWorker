@@ -7,18 +7,26 @@ export {
   getVisibleEndOfTaskArtifactCards,
   getInlinePreviewKindForGeneratedFile,
   extractGeneratedArtifactPathsFromText,
+  resolveArtifactPathsAgainstTaskEvents,
   getInlinePreviewKindForTaskEvent,
   shouldRenderOpenArtifactCardAtEvent,
   collectLatestEndOfTaskArtifactCards,
   collectEndOfTaskArtifactCardStacks,
+  getEndOfTaskArtifactStackAnchorEventId,
+  getEarliestTaskEventStreamIndex,
 } from "./artifact-logic";
-export type { EndOfTaskArtifactCard, EndOfTaskArtifactStack } from "./artifact-logic";
+export type {
+  EndOfTaskArtifactCard,
+  EndOfTaskArtifactStack,
+} from "./artifact-logic";
 export {
   shouldSuppressInitialPromptUserEvent,
   deriveTaskHeaderPresentation,
   shouldCreateFreshTaskForSend,
   isChatExecutionTask,
+  deriveComposerTaskSettings,
 } from "./task-event-presentation";
+export type { ComposerTaskSettings } from "./task-event-presentation";
 export { composeMessageWithAttachments } from "./attachments";
 export type { ImportedAttachment } from "./attachments";
 export {
@@ -35,7 +43,11 @@ export {
 } from "./markdown-normalization";
 export {
   getDefaultTranscriptMode,
+  shouldBypassLiveTaskEventProjection,
+  shouldIncludeExecutionRecordEvents,
+  shouldShowChatTaskExecutionRows,
   shouldShowBootstrapProgressRow,
+  shouldMarkActionBlockActiveForCurrentTurn,
   getBootstrapProgressTitle,
   deriveAgentReasoningPanelState,
   selectVisibleTaskFeedRows,
@@ -44,9 +56,13 @@ export {
   collectInlineRunCommandSessionIds,
   estimateTaskFeedRowHeight,
   getAutoScrollTargetTop,
+  pinScrollElementToBottom,
   shouldScheduleAutoScrollWrite,
 } from "./task-feed-logic";
-export type { TranscriptMode, AgentReasoningPanelState } from "./task-feed-logic";
+export type {
+  TranscriptMode,
+  AgentReasoningPanelState,
+} from "./task-feed-logic";
 export {
   formatTimelineErrorTitleForDisplay,
   formatStepFailedTitleForDisplay,

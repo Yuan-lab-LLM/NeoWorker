@@ -28,7 +28,7 @@ export function getWorkspaceRelativePosixPath(
 }
 
 export function getProjectIdFromWorkspaceRelPath(relPosixPath: string): string | null {
-  const prefix = ".cowork/projects/";
+  const prefix = ".neoworker/projects/";
   if (!relPosixPath.startsWith(prefix)) return null;
   const rest = relPosixPath.slice(prefix.length);
   const projectId = rest.split("/")[0];
@@ -104,7 +104,7 @@ export async function checkProjectAccess(params: {
 }): Promise<ProjectAccessCheckResult> {
   const { workspacePath, projectId, agentRoleId } = params;
 
-  const accessPath = path.join(workspacePath, ".cowork", "projects", projectId, "ACCESS.md");
+  const accessPath = path.join(workspacePath, ".neoworker", "projects", projectId, "ACCESS.md");
   let markdown = "";
   try {
     markdown = await fs.readFile(accessPath, "utf8");
@@ -117,6 +117,6 @@ export async function checkProjectAccess(params: {
   if (res.allowed) return res;
   return {
     allowed: false,
-    reason: `${res.reason || "Access denied"} (.cowork/projects/${projectId}/ACCESS.md)`,
+    reason: `${res.reason || "Access denied"} (.neoworker/projects/${projectId}/ACCESS.md)`,
   };
 }

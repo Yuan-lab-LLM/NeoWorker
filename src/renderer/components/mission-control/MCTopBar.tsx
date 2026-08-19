@@ -1,141 +1,117 @@
+import { Activity, Building2, Layers3, RefreshCw, Search } from "lucide-react";
+import { MCSelectMenu } from "./MCSelectMenu";
+import { NeoWorkerPageHeader } from "../NeoWorkerPageHeader";
 import { ALL_WORKSPACES_ID } from "./useMissionControlData";
-import { isTempWorkspaceId } from "../../../shared/types";
-import type { MissionControlData, MCTab } from "./useMissionControlData";
+import { translate, useLanguage } from "../../i18n";
+import { getMissionControlScopeName } from "../../utils/mission-control-copy";
+import { FEATURE_VISIBILITY } from "../../feature-visibility";
+import type { MissionControlData } from "./useMissionControlData";
 
 interface MCTopBarProps {
   data: MissionControlData;
-  onOpenAgents?: () => void;
+  searchQuery?: string;
+  onSearchQueryChange?: (value: string) => void;
 }
 
-const TABS: { id: MCTab; label: string; requiresCompany?: boolean }[] = [
-  { id: "overview", label: "Brief" },
-  { id: "board", label: "Work" },
-  { id: "intelligence", label: "Intelligence" },
-  { id: "feed", label: "Evidence Feed" },
-  { id: "ops", label: "Operations", requiresCompany: true },
-];
-
-export function MCTopBar({ data, onOpenAgents }: MCTopBarProps) {
+export function MCTopBar({
+  data,
+  searchQuery = "",
+  onSearchQueryChange,
+}: MCTopBarProps) {
+  useLanguage();
+  const t = translate;
   const {
-    workspaces, selectedWorkspaceId, setSelectedWorkspaceId,
-    companies, selectedCompanyId, setSelectedCompanyId,
-    activeAgentsCount, totalTasksInQueue, pendingMentionsCount,
-    queueStatusState,
-    runtimeRunningCount, runtimeQueuedCount, runtimeMaxConcurrent,
-    isRefreshing, handleManualRefresh, selectedWorkspace,
-    setStandupOpen, setTeamsOpen, setReviewsOpen,
-    activeTab, setActiveTab, selectedCompany,
-    currentTime, agentContext,
+    workspaces,
+    selectedWorkspaceId,
+    setSelectedWorkspaceId,
+    companies,
+    selectedCompanyId,
+    setSelectedCompanyId,
+    isRefreshing,
+    handleManualRefresh,
   } = data;
-  const supportsWorkspaceReports =
-    !!selectedWorkspace && !isTempWorkspaceId(selectedWorkspace.id);
-  const runtimeStatusValue =
-    queueStatusState === "ready"
-      ? runtimeMaxConcurrent
-        ? `${runtimeRunningCount}/${runtimeMaxConcurrent}`
-        : String(runtimeRunningCount)
-      : "—";
-  const runtimeStatusLabel =
-    queueStatusState === "loading"
-      ? "global runtime loading"
-      : queueStatusState === "unavailable" || queueStatusState === "error"
-        ? "global runtime unavailable"
-        : `global runtime${runtimeQueuedCount > 0 ? ` +${runtimeQueuedCount} waiting` : ""}`;
 
   return (
-    <>
-      {/* Top Bar */}
-      <header className="mc-v2-topbar">
-        <div className="mc-v2-topbar-left">
-          <h1>{agentContext.getUiCopy("mcTitle")}</h1>
-          <div className="mc-v2-selector">
-            <span className="mc-v2-selector-label">{agentContext.getUiCopy("mcWorkspaceLabel")}</span>
-            <select value={selectedWorkspaceId || ""} onChange={(e) => setSelectedWorkspaceId(e.target.value)}>
-              <option value={ALL_WORKSPACES_ID}>All Workspaces</option>
-              {workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-            </select>
-          </div>
-          {companies.length > 0 && (
-            <div className="mc-v2-selector">
-              <span className="mc-v2-selector-label">Company</span>
-              <select value={selectedCompanyId || ""} onChange={(e) => setSelectedCompanyId(e.target.value)}>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+    <div className="mc-command-masthead">
+      <NeoWorkerPageHeader
+        className="mc-v2-topbar mc-command-topbar"
+        title={t("missionControl.title", "Operation center")}
+        description={translate(
+          "generated.components.mission.control.mctopbar.39.0",
+          "Focus on long tasks, automations, and work that requires your intervention; normal conversations won't show up here.",
+        )}
+        icon={<Activity size={18} strokeWidth={2} />}
+        actions={
+          <div className="mc-command-header-actions">
+            <div className="mc-command-context">
+              <MCSelectMenu
+                ariaLabel={t("missionControl.topbar.workspace", "workspace")}
+                className="mc-v2-selector mc-command-context-menu"
+                icon={<Layers3 size={14} />}
+                minMenuWidth={220}
+                prefix={t("missionControl.topbar.workspace", "workspace")}
+                value={selectedWorkspaceId || ALL_WORKSPACES_ID}
+                onValueChange={setSelectedWorkspaceId}
+                options={[
+                  {
+                    value: ALL_WORKSPACES_ID,
+                    label: t(
+                      "missionControl.topbar.allWorkspaces",
+                      "All workspaces",
+                    ),
+                  },
+                  ...workspaces.map((workspace) => ({
+                    value: workspace.id,
+                    label: getMissionControlScopeName(workspace.name),
+                  })),
+                ]}
+              />
+              {FEATURE_VISIBILITY.companies && companies.length > 0 ? (
+                <MCSelectMenu
+                  ariaLabel={t("missionControl.topbar.company", "company")}
+                  className="mc-v2-selector mc-command-context-menu"
+                  icon={<Building2 size={14} />}
+                  minMenuWidth={220}
+                  prefix={t("missionControl.topbar.company", "company")}
+                  value={selectedCompanyId || companies[0]?.id || ""}
+                  onValueChange={setSelectedCompanyId}
+                  options={companies.map((company) => ({
+                    value: company.id,
+                    label: getMissionControlScopeName(company.name),
+                  }))}
+                />
+              ) : null}
             </div>
-          )}
-        </div>
-        <div className="mc-v2-stats">
-          <span
-            className="mc-v2-stat-pill"
-            title="Agents enabled for Heartbeat monitoring or automation. They may be idle and are not necessarily running a task."
-          >
-            <strong>{activeAgentsCount}</strong> heartbeat agents
-          </span>
-          <span
-            className="mc-v2-stat-pill"
-            title="Global tasks currently running or waiting for an execution slot. This matches the runtime queue shown in chat."
-          >
-            <strong>{runtimeStatusValue}</strong>
-            {runtimeStatusLabel}
-          </span>
-          <span
-            className="mc-v2-stat-pill"
-            title="Open work items tracked on the Mission Control board. This can differ from the live runtime queue."
-          >
-            <strong>{totalTasksInQueue}</strong> board work
-          </span>
-          <span className="mc-v2-stat-pill" title="Mentions waiting for acknowledgement, follow-up, or completion.">
-            <strong>{pendingMentionsCount}</strong> mentions
-          </span>
-        </div>
-        <div className="mc-v2-topbar-right">
-          <button
-            className="mc-v2-icon-btn"
-            onClick={handleManualRefresh}
-            disabled={(!selectedWorkspaceId && !selectedCompanyId) || isRefreshing}
-          >
-            {isRefreshing ? "Refreshing..." : "Refresh"}
-          </button>
-          <button className="mc-v2-icon-btn" onClick={() => setTeamsOpen(true)} disabled={!selectedWorkspace}>Teams</button>
-          <button
-            className="mc-v2-icon-btn"
-            onClick={() => setReviewsOpen(true)}
-            disabled={!supportsWorkspaceReports}
-          >
-            Reviews
-          </button>
-          <button
-            className="mc-v2-icon-btn"
-            onClick={() => setStandupOpen(true)}
-            disabled={!supportsWorkspaceReports}
-          >
-            {agentContext.getUiCopy("mcStandupButton")}
-          </button>
-          <button className="mc-v2-icon-btn" onClick={onOpenAgents}>
-            Agents Hub
-          </button>
-          <span style={{ fontSize: 13, fontWeight: 500, fontFamily: "var(--font-mono)", color: "var(--color-text-primary)" }}>
-            {currentTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-          </span>
-          <span className="mc-v2-online-dot" title={agentContext.getUiCopy("mcStatusOnline")}></span>
-        </div>
-      </header>
 
-      {/* Tab Bar */}
-      <nav className="mc-v2-tabbar">
-        {TABS.map((tab) => {
-          if (tab.requiresCompany && !selectedCompany) return null;
-          return (
+            <label className="mc-command-search">
+              <Search size={16} aria-hidden="true" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => onSearchQueryChange?.(event.target.value)}
+                placeholder={translate(
+                  "generated.components.mission.control.mctopbar.89.1",
+                  "Search for a run, owner or workspace",
+                )}
+              />
+            </label>
+
             <button
-              key={tab.id}
-              className={`mc-v2-tab ${activeTab === tab.id ? "active" : ""}`}
-              onClick={() => setActiveTab(tab.id)}
+              className="mc-command-icon-button"
+              onClick={handleManualRefresh}
+              disabled={
+                (!selectedWorkspaceId && !selectedCompanyId) || isRefreshing
+              }
+              title={t("common.refresh", "Refresh")}
             >
-              {tab.label}
+              <RefreshCw
+                size={16}
+                className={isRefreshing ? "is-spinning" : ""}
+              />
             </button>
-          );
-        })}
-      </nav>
-    </>
+          </div>
+        }
+      />
+    </div>
   );
 }

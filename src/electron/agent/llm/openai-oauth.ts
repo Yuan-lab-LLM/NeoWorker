@@ -29,7 +29,7 @@ const MANUAL_CALLBACK_HELPER_HTML = `data:text/html;charset=utf-8,${encodeURICom
   <main>
     <h1>Finish ChatGPT Sign-In</h1>
     <p>Continue signing in with passkey in your normal browser. After OpenAI redirects to a page starting with <code>http://localhost:1455/auth/callback</code>, copy the full URL from the browser address bar and paste it here.</p>
-    <div class="hint">This fallback is needed because another app is already using localhost port 1455, so CoWork cannot receive the callback directly.</div>
+    <div class="hint">This fallback is needed because another app is already using localhost port 1455, so NeoWorker cannot receive the callback directly.</div>
     <textarea id="callbackUrl" autofocus placeholder="http://localhost:1455/auth/callback?code=...&state=..."></textarea>
     <div class="error" id="error"></div>
     <div class="actions">
@@ -38,7 +38,7 @@ const MANUAL_CALLBACK_HELPER_HTML = `data:text/html;charset=utf-8,${encodeURICom
     </div>
   </main>
   <script>
-    window.__coworkOAuthResult = null;
+    window.__neoworkerOAuthResult = null;
     const input = document.getElementById("callbackUrl");
     const error = document.getElementById("error");
     document.getElementById("continue").addEventListener("click", () => {
@@ -47,36 +47,18 @@ const MANUAL_CALLBACK_HELPER_HTML = `data:text/html;charset=utf-8,${encodeURICom
         error.textContent = "Paste the full callback URL that contains code=...";
         return;
       }
-      window.__coworkOAuthResult = { type: "submit", value };
+      window.__neoworkerOAuthResult = { type: "submit", value };
     });
     document.getElementById("cancel").addEventListener("click", () => {
-      window.__coworkOAuthResult = { type: "cancel" };
+      window.__neoworkerOAuthResult = { type: "cancel" };
     });
   </script>
 </body>
 </html>`)}`;
 
-let proxyBootstrapPromise: Promise<void> | null = null;
 let electronOAuthFetchFallbackInstalled = false;
 
 const OPENAI_OAUTH_TOKEN_URL = "https://auth.openai.com/oauth/token";
-
-function ensureNodeFetchProxySupport(): void {
-  if (proxyBootstrapPromise || typeof process === "undefined" || !process.versions?.node) {
-    return;
-  }
-
-  // pi-ai <= 0.55.x set up Undici's env-based proxy agent as an OAuth import side effect.
-  proxyBootstrapPromise = import("undici")
-    .then(({ EnvHttpProxyAgent, setGlobalDispatcher }) => {
-      setGlobalDispatcher(new EnvHttpProxyAgent());
-    })
-    .catch((error) => {
-      logger.warn("Failed to initialize HTTP proxy support:", error);
-    });
-}
-
-ensureNodeFetchProxySupport();
 
 function getFetchUrl(input: Parameters<typeof fetch>[0]): string | undefined {
   if (typeof input === "string") return input;
@@ -215,7 +197,7 @@ function promptForOpenAICodexRedirectUrl(): Promise<string> {
         return;
       }
       void promptWindow.webContents
-        .executeJavaScript("window.__coworkOAuthResult", true)
+        .executeJavaScript("window.__neoworkerOAuthResult", true)
         .then((result: Any) => {
           if (!result) return;
           if (result.type === "cancel") {
@@ -347,7 +329,7 @@ export class OpenAIOAuth {
         onProgress: (message: string) => {
           logger.info("Progress:", message);
         },
-        originator: "cowork-os",
+        originator: "neoworker",
       });
     } finally {
       // The manual helper closes itself when submitted or cancelled.

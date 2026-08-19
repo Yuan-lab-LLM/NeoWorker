@@ -17,8 +17,8 @@ describe("BatchImageTools", () => {
   });
 
   it("rejects reading input files outside the workspace when no allowed path is configured", async () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-batch-image-"));
-    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-batch-image-outside-"));
+    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-batch-image-"));
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-batch-image-outside-"));
     tempDirs.push(rootDir, outsideDir);
 
     const outsideImage = path.join(outsideDir, "outside.png");
@@ -44,8 +44,8 @@ describe("BatchImageTools", () => {
   });
 
   it("rejects output directories outside the workspace when no allowed path is configured", async () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-batch-image-"));
-    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-batch-image-outside-"));
+    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-batch-image-"));
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-batch-image-outside-"));
     tempDirs.push(rootDir, outsideDir);
 
     const insideImage = path.join(rootDir, "inside.png");

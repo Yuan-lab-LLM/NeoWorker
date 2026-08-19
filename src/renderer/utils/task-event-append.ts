@@ -10,7 +10,11 @@ const RENDERER_NOISE_EVENT_TYPES = new Set([
   "executing",
 ]);
 
-const RENDERER_REPLACEABLE_EVENT_TYPES = new Set(["progress_update", "executing", "llm_streaming"]);
+const RENDERER_REPLACEABLE_EVENT_TYPES = new Set([
+  "progress_update",
+  "executing",
+  "llm_streaming",
+]);
 
 const DEFAULT_MAX_EVENTS = 600;
 const DEFAULT_MAX_EVENT_PAYLOAD_BYTES = 750 * 1024;
@@ -29,11 +33,99 @@ const LARGE_LEGACY_TYPES = new Set([
 const MAX_LARGE_EVENT_STRING_CHARS = 32 * 1024;
 const MAX_COMMAND_OUTPUT_CHARS = 16 * 1024;
 
+function asObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function getPlanLifecycleStepId(event: TaskEvent): string {
+  const payload = asObject(event.payload);
+  const step = asObject(payload.step);
+  const value = step.id ?? payload.stepId ?? event.stepId;
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function getPlanProgressStateEventIndexes(events: TaskEvent[]): {
+  planIndexes: number[];
+  lifecycleIndexes: number[];
+} {
+  const latestPlanIndexByTaskId = new Map<string, number>();
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (
+      !latestPlanIndexByTaskId.has(event.taskId) &&
+      getEffectiveTaskEventType(event) === "plan_created"
+    ) {
+      latestPlanIndexByTaskId.set(event.taskId, index);
+    }
+  }
+
+  const planIndexes = [...latestPlanIndexByTaskId.values()].sort(
+    (left, right) => left - right,
+  );
+  const lifecycleIndexes: number[] = [];
+
+  for (const planIndex of planIndexes) {
+    const planEvent = events[planIndex];
+    const plan = asObject(asObject(planEvent.payload).plan);
+    const rawSteps = Array.isArray(plan.steps) ? plan.steps : [];
+    const planStepIds = new Set(
+      rawSteps
+        .map((step) => asObject(step).id)
+        .filter(
+          (id): id is string => typeof id === "string" && id.trim().length > 0,
+        )
+        .map((id) => id.trim()),
+    );
+    if (planStepIds.size === 0) continue;
+
+    const latestLifecycleIndexByStepId = new Map<string, number>();
+    for (let index = planIndex + 1; index < events.length; index += 1) {
+      const event = events[index];
+      if (event.taskId !== planEvent.taskId) continue;
+      const effectiveType = getEffectiveTaskEventType(event);
+      if (
+        effectiveType !== "step_started" &&
+        effectiveType !== "step_completed" &&
+        effectiveType !== "step_failed" &&
+        effectiveType !== "step_skipped"
+      ) {
+        continue;
+      }
+      const stepId = getPlanLifecycleStepId(event);
+      if (planStepIds.has(stepId))
+        latestLifecycleIndexByStepId.set(stepId, index);
+    }
+    lifecycleIndexes.push(...latestLifecycleIndexByStepId.values());
+  }
+
+  lifecycleIndexes.sort((left, right) => left - right);
+  return { planIndexes, lifecycleIndexes };
+}
+
+function addIndexesWithinCap(
+  keepIndexes: Set<number>,
+  indexes: Iterable<number>,
+  maxEvents: number,
+): void {
+  for (const index of indexes) {
+    if (keepIndexes.size >= maxEvents) return;
+    keepIndexes.add(index);
+  }
+}
+
+function descendingIndexes(indexes: Iterable<number>): number[] {
+  return [...indexes].sort((left, right) => right - left);
+}
+
 function estimateEventPayloadBytes(event: TaskEvent): number {
   return estimatePayloadBytes(event.payload);
 }
 
-function estimatePayloadBytes(value: unknown, seen = new Set<object>()): number {
+function estimatePayloadBytes(
+  value: unknown,
+  seen = new Set<object>(),
+): number {
   if (value == null) return 0;
   if (typeof value === "string") return value.length;
   if (typeof value === "number" || typeof value === "boolean") return 8;
@@ -69,7 +161,10 @@ function truncatePayloadStrings(value: unknown, maxChars: number): unknown {
   const next: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
     const fieldLimit =
-      key === "output" || key === "stdout" || key === "stderr" || key === "command"
+      key === "output" ||
+      key === "stdout" ||
+      key === "stderr" ||
+      key === "command"
         ? MAX_COMMAND_OUTPUT_CHARS
         : maxChars;
     next[key] = truncatePayloadStrings(entry, fieldLimit);
@@ -80,9 +175,11 @@ function truncatePayloadStrings(value: unknown, maxChars: number): unknown {
 function shouldTrimPayload(event: TaskEvent): boolean {
   const effectiveType = getEffectiveTaskEventType(event);
   const legacyType =
-    typeof (event as TaskEvent & { legacyType?: unknown }).legacyType === "string"
+    typeof (event as TaskEvent & { legacyType?: unknown }).legacyType ===
+    "string"
       ? String((event as TaskEvent & { legacyType?: unknown }).legacyType)
-      : typeof (event as TaskEvent & { legacy_type?: unknown }).legacy_type === "string"
+      : typeof (event as TaskEvent & { legacy_type?: unknown }).legacy_type ===
+          "string"
         ? String((event as TaskEvent & { legacy_type?: unknown }).legacy_type)
         : "";
   return (
@@ -98,7 +195,10 @@ function trimRendererEventPayload(event: TaskEvent): TaskEvent {
   if (payloadBytes <= MAX_LARGE_EVENT_STRING_CHARS) return event;
   return {
     ...event,
-    payload: truncatePayloadStrings(event.payload, MAX_LARGE_EVENT_STRING_CHARS) as TaskEvent["payload"],
+    payload: truncatePayloadStrings(
+      event.payload,
+      MAX_LARGE_EVENT_STRING_CHARS,
+    ) as TaskEvent["payload"],
   };
 }
 
@@ -135,16 +235,40 @@ export function capTaskEvents(
   for (let index = eventsForByteCap.length - 1; index >= 0; index -= 1) {
     payloadBytes += estimateEventPayloadBytes(eventsForByteCap[index]);
     if (payloadBytes > maxPayloadBytes) {
-      const structural = eventsForByteCap.filter(
-        (event) => !isRendererNoiseEvent(event) && !shouldTrimPayload(event),
+      const { planIndexes, lifecycleIndexes } =
+        getPlanProgressStateEventIndexes(eventsForByteCap);
+      const keepIndexes = new Set<number>();
+      // Plan state is tiny but indispensable: dropping it makes composer progress
+      // disappear or fall back to stale cached statuses during tool-heavy runs.
+      addIndexesWithinCap(keepIndexes, planIndexes, maxEvents);
+      addIndexesWithinCap(
+        keepIndexes,
+        descendingIndexes(lifecycleIndexes),
+        maxEvents,
       );
-      const recent = eventsForByteCap.slice(index + 1);
-      const keepIds = new Set(recent.map((event) => event.id));
-      for (let structuralIndex = structural.length - 1; structuralIndex >= 0; structuralIndex -= 1) {
-        if (keepIds.size >= maxEvents) break;
-        keepIds.add(structural[structuralIndex].id);
-      }
-      return eventsForByteCap.filter((event) => keepIds.has(event.id)).slice(-maxEvents);
+      addIndexesWithinCap(
+        keepIndexes,
+        Array.from(
+          { length: eventsForByteCap.length - index - 1 },
+          (_, offset) => eventsForByteCap.length - 1 - offset,
+        ),
+        maxEvents,
+      );
+      addIndexesWithinCap(
+        keepIndexes,
+        eventsForByteCap
+          .map((event, eventIndex) => ({ event, eventIndex }))
+          .filter(
+            ({ event }) =>
+              !isRendererNoiseEvent(event) && !shouldTrimPayload(event),
+          )
+          .map(({ eventIndex }) => eventIndex)
+          .reverse(),
+        maxEvents,
+      );
+      return eventsForByteCap.filter((_, eventIndex) =>
+        keepIndexes.has(eventIndex),
+      );
     }
   }
 
@@ -152,32 +276,49 @@ export function capTaskEvents(
   if (trimmed.length <= maxEvents) return trimmed;
 
   const indexed = trimmed.map((event, index) => ({ event, index }));
-  const structural = indexed.filter(({ event }) => !isRendererNoiseEvent(event));
+  const structural = indexed.filter(
+    ({ event }) => !isRendererNoiseEvent(event),
+  );
+  const noise = indexed.filter(({ event }) => isRendererNoiseEvent(event));
+  const { planIndexes, lifecycleIndexes } =
+    getPlanProgressStateEventIndexes(trimmed);
+  const keepIndexes = new Set<number>();
+  addIndexesWithinCap(keepIndexes, planIndexes, maxEvents);
+  addIndexesWithinCap(
+    keepIndexes,
+    descendingIndexes(lifecycleIndexes),
+    maxEvents,
+  );
+  addIndexesWithinCap(
+    keepIndexes,
+    structural.map(({ index }) => index).reverse(),
+    maxEvents,
+  );
+  addIndexesWithinCap(
+    keepIndexes,
+    noise.map(({ index }) => index).reverse(),
+    maxEvents,
+  );
 
-  if (structural.length >= maxEvents) {
-    return structural.slice(-maxEvents).map(({ event }) => event);
-  }
-
-  const noiseBudget = maxEvents - structural.length;
-  const recentNoise = indexed
-    .filter(({ event }) => isRendererNoiseEvent(event))
-    .slice(-noiseBudget);
-  const keepIndexes = new Set<number>([
-    ...structural.map(({ index }) => index),
-    ...recentNoise.map(({ index }) => index),
-  ]);
-
-  return indexed.filter(({ index }) => keepIndexes.has(index)).map(({ event }) => event);
+  return indexed
+    .filter(({ index }) => keepIndexes.has(index))
+    .map(({ event }) => event);
 }
 
-export function getTransientEventReplacementKey(event: TaskEvent): string | null {
+export function getTransientEventReplacementKey(
+  event: TaskEvent,
+): string | null {
   if (!RENDERER_REPLACEABLE_EVENT_TYPES.has(event.type)) return null;
   const payload =
-    event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
+    event.payload &&
+    typeof event.payload === "object" &&
+    !Array.isArray(event.payload)
       ? (event.payload as Record<string, unknown>)
       : {};
   const payloadStep =
-    payload.step && typeof payload.step === "object" && !Array.isArray(payload.step)
+    payload.step &&
+    typeof payload.step === "object" &&
+    !Array.isArray(payload.step)
       ? (payload.step as Record<string, unknown>)
       : null;
   const stepId =

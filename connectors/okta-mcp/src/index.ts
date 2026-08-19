@@ -182,7 +182,7 @@ class OktaClient {
       headers: {
         Authorization: this.getAuthHeader(),
         'Content-Type': 'application/json',
-        'User-Agent': 'CoWork-Okta-Connector/0.1.0',
+        'User-Agent': 'NeoWorker-Okta-Connector/0.1.0',
       },
       body: body ? JSON.stringify(body) : undefined,
     });

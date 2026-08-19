@@ -1,6 +1,6 @@
 # X Mention Triggers
 
-Use X mentions to create CoWork OS tasks from allowlisted accounts with a configurable command prefix (default: `do:`).
+Use X mentions to create NeoWorker tasks from allowlisted accounts with a configurable command prefix (default: `do:`).
 
 ## What Ships
 
@@ -30,7 +30,7 @@ Use X mentions to create CoWork OS tasks from allowlisted accounts with a config
 
 - Configure X settings in secure settings storage (same schema as desktop).
 - Ensure Bird CLI is installed and authenticated in the daemon environment.
-- Start `coworkd` or headless app mode.
+- Start `neoworkerd` or headless app mode.
 - Mention trigger lifecycle starts after gateway/daemon initialization and stops on shutdown.
 
 ## Trigger Format

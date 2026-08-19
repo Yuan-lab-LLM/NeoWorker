@@ -3,17 +3,17 @@
  * Optionally signs the local node_modules Electron.app for development.
  *
  * By default this script does not sign. It can be invoked manually:
- *   COWORK_CODESIGN_ENABLE=1 node scripts/codesign_electron_dev.mjs
+ *   NEOWORKER_CODESIGN_ENABLE=1 node scripts/codesign_electron_dev.mjs
  *
  * Configure the signing identity explicitly with:
- *   COWORK_CODESIGN_IDENTITY  env var  (full name or SHA-1 hash)
+ *   NEOWORKER_CODESIGN_IDENTITY  env var  (full name or SHA-1 hash)
  *
  * If signing is explicitly enabled and no identity is configured, the script
  * applies an ad-hoc signature. It intentionally does not auto-select Apple
  * Development identities from the user's keychain, because that can sign local
  * dev binaries with the wrong developer account.
  *
- * Set  COWORK_CODESIGN_SKIP=1  to skip signing entirely (CI, Linux, etc.).
+ * Set  NEOWORKER_CODESIGN_SKIP=1  to skip signing entirely (CI, Linux, etc.).
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -42,11 +42,11 @@ function log(msg) {
 }
 
 export function detectIdentity(env = process.env) {
-  return env.COWORK_CODESIGN_IDENTITY?.trim() || null;
+  return env.NEOWORKER_CODESIGN_IDENTITY?.trim() || null;
 }
 
 export function isSigningEnabled(env = process.env) {
-  const raw = String(env.COWORK_CODESIGN_ENABLE || "").trim().toLowerCase();
+  const raw = String(env.NEOWORKER_CODESIGN_ENABLE || "").trim().toLowerCase();
   return ["1", "true", "yes", "on"].includes(raw) || Boolean(detectIdentity(env));
 }
 
@@ -103,7 +103,7 @@ export function selectSigningPlan(currentSig, identity, signingEnabled = false) 
     return {
       action: "skip",
       message:
-        "Skipping Electron.app development signing. Set COWORK_CODESIGN_ENABLE=1 or COWORK_CODESIGN_IDENTITY to enable.",
+        "Skipping Electron.app development signing. Set NEOWORKER_CODESIGN_ENABLE=1 or NEOWORKER_CODESIGN_IDENTITY to enable.",
     };
   }
 
@@ -128,8 +128,8 @@ export function selectSigningPlan(currentSig, identity, signingEnabled = false) 
 }
 
 export function main(env = process.env) {
-  if (env.COWORK_CODESIGN_SKIP === "1") {
-    log("Skipping (COWORK_CODESIGN_SKIP=1).");
+  if (env.NEOWORKER_CODESIGN_SKIP === "1") {
+    log("Skipping (NEOWORKER_CODESIGN_SKIP=1).");
     return 0;
   }
 

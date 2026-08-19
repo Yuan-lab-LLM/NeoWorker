@@ -9,7 +9,7 @@ describe("SkillEvalService", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-skill-eval-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-skill-eval-"));
   });
 
   afterEach(async () => {
@@ -48,7 +48,7 @@ describe("SkillEvalService", () => {
     expect(report.passed).toBe(true);
     expect(report.score).toBe(1);
     await expect(
-      fs.readFile(path.join(tmpDir, ".cowork", "skills", "evals", "proposal-1.json"), "utf8"),
+      fs.readFile(path.join(tmpDir, ".neoworker", "skills", "evals", "proposal-1.json"), "utf8"),
     ).resolves.toContain("release_smoke");
   });
 });

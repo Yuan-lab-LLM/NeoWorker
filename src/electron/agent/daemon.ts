@@ -3,6 +3,11 @@ import * as fs from "fs";
 import * as crypto from "crypto";
 import * as path from "path";
 import { createLogger } from "../utils/logger";
+import { getUserDataDir } from "../utils/user-data-dir";
+import {
+  persistTempWorkspaceArtifactSync,
+  resolveDurableTempArtifactPath,
+} from "../utils/durable-temp-artifact";
 import { DatabaseManager } from "../database/schema";
 import { ControlPlaneCoreService } from "../control-plane/ControlPlaneCoreService";
 import type Database from "better-sqlite3";
@@ -17,6 +22,10 @@ import {
   ArtifactRepository,
   AnnotationRepository,
   MemoryType,
+  TaskProvenanceRepository,
+  TaskAccessPolicyRepository,
+  TaskAccessPolicyConflictError,
+  type CreateTaskProvenanceInput,
 } from "../database/repositories";
 import { SessionRetentionService } from "../sessions/SessionRetentionService";
 import {
@@ -35,7 +44,9 @@ import { buildSubagentDisplayName } from "../agents/subagent-display-names";
 import { recordLlmCallError, recordLlmCallSuccess } from "./llm/usage-telemetry";
 import {
   Task,
+  ApprovalRequest,
   ApprovalResponseAction,
+  ApprovalResponseStatus,
   ApprovalType,
   DEFAULT_TRUSTED_COMMAND_PATTERNS,
   SensitiveSourceRef,
@@ -71,6 +82,7 @@ import {
   Annotation,
   QuotedAssistantMessage,
   TaskFollowUpInput,
+  TaskQueuedFollowUp,
   MULTI_LLM_PROVIDER_DISPLAY,
   AgentTeamRun,
   AgentTeamItem,
@@ -94,6 +106,7 @@ import {
   OrchestrationNodeNotification,
   WorkerRoleKind,
   VerificationVerdict,
+  TaskAccessPolicy,
 } from "../../shared/types";
 import { parseSpawnAgentCount } from "../../shared/spawn-intent-detection";
 import { isAutomatedTaskLike } from "../../shared/automated-task-detection";
@@ -115,6 +128,7 @@ import { BuiltinToolsSettingsManager } from "./tools/builtin-settings";
 import { loadPolicies } from "../admin/policies";
 import { ComputerUseSessionManager } from "../computer-use/session-manager";
 import { decideTaskOutcome, getTaskBestKnownOutcome, hasSubstantiveOutcomeEvidence } from "./outcome-policy";
+import { inferRequiredArtifactExtensions } from "./executor-completion-utils";
 import { approvalIdempotency, taskIdempotency as _taskIdempotency, IdempotencyManager } from "../security/concurrency";
 import { MemoryService } from "../memory/MemoryService";
 import { GuardrailManager } from "../guardrails/guardrail-manager";
@@ -362,6 +376,15 @@ interface PendingApprovalEntry {
   timeoutHandle: ReturnType<typeof setTimeout>;
 }
 
+interface RecoveredApprovalGrant {
+  approval: ApprovalRequest;
+  action: ApprovalResponseAction;
+}
+
+function buildRecoveredApprovalOnceGrantKey(scope: PermissionRule["scope"]): string {
+  return `approval-once:${permissionScopeFingerprint(scope)}`;
+}
+
 function getAllElectronWindows(): Any[] {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -401,6 +424,14 @@ function parseSessionRetentionDurationMs(raw: unknown): number | undefined {
  * AgentDaemon is the core orchestrator that manages task execution
  * It coordinates between the database, task executors, and UI
  */
+type DeferredUserFollowUp = TaskFollowUpInput & {
+  queueId: string;
+  displayMessage: string;
+  queuedAt: number;
+  /** Legacy executor-owned messages already emitted their user timeline event. */
+  userMessageAlreadyEmitted?: boolean;
+};
+
 export class AgentDaemon extends EventEmitter {
   private static readonly RENDERER_SUPPRESSED_EVENT_TYPES = new Set([
     "log",
@@ -419,10 +450,30 @@ export class AgentDaemon extends EventEmitter {
   private activityRepo: ActivityRepository;
   private agentRoleRepo: AgentRoleRepository;
   private mentionRepo: MentionRepository;
+  private provenanceRepo: TaskProvenanceRepository;
+  private taskAccessPolicyRepo: TaskAccessPolicyRepository;
+  private taskAccessSnapshotByTaskId: Map<string, TaskAccessPolicy> = new Map();
   private teamOrchestrator: AgentTeamOrchestrator | null = null;
   private orchestrationGraphEngine: OrchestrationGraphEngine;
   private activeTasks: Map<string, CachedExecutor> = new Map();
+  /**
+   * User messages sent while a task is still running. These must wait for the
+   * current turn to finish and then run as their own turn; injecting them into
+   * an arbitrary in-flight plan step can make the message appear in the UI
+   * without ever producing a reply.
+   */
+  private deferredUserFollowUps: Map<string, DeferredUserFollowUp[]> = new Map();
+  /** Exactly one FIFO drain may own a task's queued follow-ups at a time. */
+  private deferredUserFollowUpDrains: Map<string, Promise<void>> = new Map();
+  /** Lets the drain dispatch its head item without re-queuing behind the tail. */
+  private deferredUserFollowUpDispatches: Set<string> = new Set();
+  /** Rechecks the lifecycle boundary when status/event settlement lags mutex release. */
+  private deferredUserFollowUpRetryTimers: Map<
+    string,
+    ReturnType<typeof setTimeout>
+  > = new Map();
   private pendingApprovals: Map<string, PendingApprovalEntry> = new Map();
+  private recoveredApprovalGrants: Map<string, RecoveredApprovalGrant[]> = new Map();
   private pendingInputRequests: Map<
     string,
     {
@@ -499,6 +550,8 @@ export class AgentDaemon extends EventEmitter {
     this.activityRepo = new ActivityRepository(db);
     this.agentRoleRepo = new AgentRoleRepository(db);
     this.mentionRepo = new MentionRepository(db);
+    this.provenanceRepo = new TaskProvenanceRepository(db);
+    this.taskAccessPolicyRepo = new TaskAccessPolicyRepository(db);
 
     // Initialize queue manager with callbacks
     this.queueManager = new TaskQueueManager({
@@ -510,7 +563,7 @@ export class AgentDaemon extends EventEmitter {
       onTaskTimeout: (taskId: string) => this.handleTaskTimeout(taskId),
     });
     this.verificationOutcomeV2Enabled =
-      parseBooleanEnv("COWORK_VERIFICATION_OUTCOME_V2", false) ||
+      parseBooleanEnv("NEOWORKER_VERIFICATION_OUTCOME_V2", false) ||
       parseBooleanEnv("verification_outcome_v2", false);
 
     // Initialize worktree manager
@@ -600,7 +653,7 @@ export class AgentDaemon extends EventEmitter {
 
   private getCliTaskOwnership(task: Task): CliTaskOwnership | undefined {
     const cli = task.agentConfig?.cli;
-    if (!cli || cli.owner !== "cowork-run" || typeof cli.runId !== "string") return undefined;
+    if (!cli || cli.owner !== "neoworker-run" || typeof cli.runId !== "string") return undefined;
     return cli;
   }
 
@@ -729,9 +782,24 @@ export class AgentDaemon extends EventEmitter {
   }
 
   private applyTaskWorkspaceOverrides(task: Task, workspace: Workspace): Workspace {
-    if (task.agentConfig?.shellAccess !== true || workspace.permissions.shell === true) {
-      return workspace;
+    const accessSnapshot = this.taskAccessSnapshotByTaskId.get(task.id);
+    if (accessSnapshot) {
+      const scope = accessSnapshot.workspaceScopes.find((item) => item.workspaceId === workspace.id);
+      return {
+        ...workspace,
+        permissions: {
+          ...workspace.permissions,
+          read: Boolean(scope && workspace.permissions.read),
+          write: Boolean(scope?.access === "write" && workspace.permissions.write),
+          delete: Boolean(scope?.access === "write" && workspace.permissions.delete),
+          // The composer shell switch is an explicit, task-scoped grant. It is
+          // intentionally allowed to override the workspace's persisted
+          // default without mutating that workspace for other tasks.
+          shell: Boolean(accessSnapshot.shellAccess),
+        },
+      };
     }
+    if (task.agentConfig?.shellAccess !== true || workspace.permissions.shell === true) return workspace;
     return {
       ...workspace,
       permissions: {
@@ -745,19 +813,72 @@ export class AgentDaemon extends EventEmitter {
     task: Task,
     options?: Pick<
       TaskFollowUpInput,
-      "permissionMode" | "shellAccess" | "integrationMentions" | "agentConfigOverride"
+      | "executionMode"
+      | "taskDomain"
+      | "requestedSkillId"
+      | "permissionMode"
+      | "shellAccess"
+      | "integrationMentions"
+      | "agentConfigOverride"
     >,
   ): { task: Task; changed: boolean } {
+    const hasExecutionMode = typeof options?.executionMode === "string";
+    const hasTaskDomain = typeof options?.taskDomain === "string";
+    const hasRequestedSkillId = typeof options?.requestedSkillId === "string";
     const hasPermissionMode = typeof options?.permissionMode === "string";
     const hasShellAccess = typeof options?.shellAccess === "boolean";
     const hasIntegrationMentions =
       Boolean(options) && Object.prototype.hasOwnProperty.call(options, "integrationMentions");
-    if (!hasPermissionMode && !hasShellAccess && !hasIntegrationMentions) {
+    if (
+      !hasExecutionMode &&
+      !hasTaskDomain &&
+      !hasRequestedSkillId &&
+      !hasPermissionMode &&
+      !hasShellAccess &&
+      !hasIntegrationMentions
+    ) {
       return { task, changed: false };
     }
 
     const nextAgentConfig: AgentConfig = { ...task.agentConfig };
     let changed = false;
+
+    if (hasExecutionMode) {
+      const nextExecutionMode = options?.executionMode;
+      const nextConversationMode = nextExecutionMode === "chat" ? "chat" : "task";
+      const nextTaskIntent =
+        nextExecutionMode === "chat"
+          ? "chat"
+          : nextExecutionMode === "plan"
+            ? "planning"
+            : nextExecutionMode === "analyze"
+              ? "advice"
+              : "execution";
+      const modeMetadataChanged =
+        nextAgentConfig.executionMode !== nextExecutionMode ||
+        nextAgentConfig.executionModeSource !== "user" ||
+        nextAgentConfig.conversationMode !== nextConversationMode ||
+        nextAgentConfig.taskIntent !== nextTaskIntent;
+
+      if (modeMetadataChanged) {
+        nextAgentConfig.executionMode = nextExecutionMode;
+        nextAgentConfig.executionModeSource = "user";
+        nextAgentConfig.conversationMode = nextConversationMode;
+        nextAgentConfig.taskIntent = nextTaskIntent;
+        changed = true;
+      }
+    }
+    if (hasTaskDomain && nextAgentConfig.taskDomain !== options?.taskDomain) {
+      nextAgentConfig.taskDomain = options?.taskDomain;
+      changed = true;
+    }
+    if (
+      hasRequestedSkillId &&
+      nextAgentConfig.requestedSkillId !== options?.requestedSkillId
+    ) {
+      nextAgentConfig.requestedSkillId = options?.requestedSkillId;
+      changed = true;
+    }
 
     if (hasPermissionMode && nextAgentConfig.permissionMode !== options.permissionMode) {
       nextAgentConfig.permissionMode = options.permissionMode;
@@ -792,6 +913,80 @@ export class AgentDaemon extends EventEmitter {
       },
       changed: true,
     };
+  }
+
+  /**
+   * Keep the persisted access-policy snapshot in sync with permission controls
+   * submitted from the composer. Task agentConfig is not the authority used by
+   * the executor once a task_access_policies row exists; updating only that
+   * config made the UI switch look enabled while the next turn still received
+   * the previous (usually shell-disabled) immutable snapshot.
+   */
+  private syncTaskAccessPolicyForFollowUp(
+    task: Task,
+    options?: Pick<
+      TaskFollowUpInput,
+      | "permissionMode"
+      | "shellAccess"
+      | "integrationMentions"
+    >,
+  ): boolean {
+    const hasPermissionMode = typeof options?.permissionMode === "string";
+    const hasShellAccess = typeof options?.shellAccess === "boolean";
+    const hasIntegrationMentions =
+      Boolean(options) && Object.prototype.hasOwnProperty.call(options, "integrationMentions");
+    if (!hasPermissionMode && !hasShellAccess && !hasIntegrationMentions) {
+      return false;
+    }
+
+    const nextTurn = Math.max(
+      1,
+      (task.lifetimeTurnsUsed || task.budgetUsage?.lifetimeTurns || task.budgetUsage?.turns || 0) + 1,
+    );
+    const requestedConnectorIds = hasIntegrationMentions
+      ? Array.from(
+          new Set(
+            (options?.integrationMentions || [])
+              .map((mention) => mention.id || mention.providerKey)
+              .filter((id): id is string => Boolean(id)),
+          ),
+        )
+      : undefined;
+
+    let updatedPolicy: TaskAccessPolicy | undefined;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const current = this.ensureTaskAccessPolicy(task);
+      const patch: Parameters<TaskAccessPolicyRepository["update"]>[2] = {
+        effectiveFromTurn: nextTurn,
+        ...(hasPermissionMode ? { permissionMode: options!.permissionMode } : {}),
+        ...(hasShellAccess
+          ? {
+              // Preserve the explicit composer selection. Runtime command
+              // guards still apply; this only exposes the shell tool to this
+              // task and does not change the workspace default.
+              shellAccess: Boolean(options?.shellAccess),
+            }
+          : {}),
+        ...(requestedConnectorIds ? { connectorIds: requestedConnectorIds } : {}),
+      };
+      try {
+        updatedPolicy = this.taskAccessPolicyRepo.update(task.id, current.revision, patch);
+        break;
+      } catch (error) {
+        if (!(error instanceof TaskAccessPolicyConflictError) || attempt > 0) throw error;
+      }
+    }
+
+    if (updatedPolicy) {
+      this.taskAccessSnapshotByTaskId.set(task.id, {
+        ...updatedPolicy,
+        connectorIds: [...updatedPolicy.connectorIds],
+        workspaceScopes: updatedPolicy.workspaceScopes.map((scope) => ({ ...scope })),
+        allowedTools: updatedPolicy.allowedTools ? [...updatedPolicy.allowedTools] : undefined,
+        blockedTools: updatedPolicy.blockedTools ? [...updatedPolicy.blockedTools] : undefined,
+      });
+    }
+    return true;
   }
 
   /**
@@ -954,8 +1149,10 @@ export class AgentDaemon extends EventEmitter {
     } else {
       agentConfig.llmProfileHint = strategy.llmProfileHint;
     }
-    // Store detected intent for intent-based tool filtering
-    agentConfig.taskIntent = route.intent;
+    // Store the canonical strategy intent for intent-based tool filtering.
+    // Explicit artifact requests may be promoted from a conversational router
+    // classification to execution by TaskStrategyService.
+    agentConfig.taskIntent = strategy.snapshot.taskIntent;
     if (!agentConfig.taskDomain || agentConfig.taskDomain === "auto") {
       agentConfig.taskDomain = route.domain;
     }
@@ -1046,10 +1243,10 @@ export class AgentDaemon extends EventEmitter {
 
     // Reliability default: optionally auto-enable balanced review policy for code/operations tasks.
     // This stays opt-in to preserve backward compatibility.
-    const autoReviewPolicyEnabled = parseBooleanEnv("COWORK_REVIEW_POLICY_ENABLE_AUTO", false);
+    const autoReviewPolicyEnabled = parseBooleanEnv("NEOWORKER_REVIEW_POLICY_ENABLE_AUTO", false);
     if (autoReviewPolicyEnabled && !nextAgentConfig.reviewPolicy) {
       if (derived.strategy.taskDomain === "code" || derived.strategy.taskDomain === "operations") {
-        const configured = (process.env.COWORK_REVIEW_POLICY_AUTO_DEFAULT || "balanced")
+        const configured = (process.env.NEOWORKER_REVIEW_POLICY_AUTO_DEFAULT || "balanced")
           .trim()
           .toLowerCase();
         nextAgentConfig = {
@@ -1287,6 +1484,7 @@ export class AgentDaemon extends EventEmitter {
         // Ignore — MCPClientManager may not be initialized
       }
       this.activeTasks.delete(taskId);
+      this.taskAccessSnapshotByTaskId.delete(taskId);
     }
 
     if (toDelete.length > 0) {
@@ -1338,8 +1536,9 @@ export class AgentDaemon extends EventEmitter {
       return;
     }
 
+    const accessSnapshotTask = this.applyTaskAccessSnapshot(task);
     const { task: effectiveTask, changed: roleOverridesChanged } =
-      this.applyAgentRoleOverrides(task);
+      this.applyAgentRoleOverrides(accessSnapshotTask);
     if (roleOverridesChanged) {
       try {
         this.taskRepo.update(effectiveTask.id, { agentConfig: effectiveTask.agentConfig });
@@ -1487,6 +1686,7 @@ export class AgentDaemon extends EventEmitter {
         executor.setInitialImages(initialImages);
         this.pendingTaskImages.delete(executionTask.id);
       }
+      this.applyPendingRecoveredApprovalGrant(executionTask.id, executor);
       console.log(`[AgentDaemon] TaskExecutor created successfully`);
     } catch (error: Any) {
       console.error(`[AgentDaemon] Task ${effectiveTask.id} failed to initialize:`, error);
@@ -1698,6 +1898,8 @@ export class AgentDaemon extends EventEmitter {
       return;
     }
 
+    this.applyPendingRecoveredApprovalGrant(effectiveTask.id, executor);
+
     // Update status and log resumption
     this.taskRepo.update(effectiveTask.id, {
       status: "executing",
@@ -1823,9 +2025,15 @@ export class AgentDaemon extends EventEmitter {
 
     const { task: effectiveTask } = this.applyAgentRoleOverrides(task);
 
-    let effectiveWorkspace = workspace;
+    let effectiveWorkspace = this.applyTaskWorkspaceOverrides(
+      effectiveTask,
+      workspace,
+    );
     if (task.worktreePath && task.worktreeStatus === "active" && fs.existsSync(task.worktreePath)) {
-      effectiveWorkspace = { ...workspace, path: task.worktreePath };
+      effectiveWorkspace = {
+        ...this.applyTaskWorkspaceOverrides(effectiveTask, workspace),
+        path: task.worktreePath,
+      };
     }
 
     const executor = new TaskExecutor(effectiveTask, effectiveWorkspace, this);
@@ -2067,8 +2275,16 @@ export class AgentDaemon extends EventEmitter {
         branchFromTaskId: sourceTask.id,
         branchFromEventId: params.fromEventId,
         branchLabel,
+        companyId: sourceTask.companyId,
+        goalId: sourceTask.goalId,
+        projectId: sourceTask.projectId,
       },
     });
+
+    this.attachInitialTaskProvenance(forkedTask);
+    if (!params.sideChat) {
+      this.inheritTaskAccessPolicy(sourceTask.id, forkedTask, "fork");
+    }
 
     this.cloneForkHistoryEvents({
       sourceTaskId: sourceTask.id,
@@ -2402,6 +2618,7 @@ export class AgentDaemon extends EventEmitter {
     autoStart?: boolean;
   }): Promise<Task> {
     const { task, derived } = this.createTaskRecord(params);
+    this.attachInitialTaskProvenance(task);
     this.logTaskIntentRouted(task.id, derived);
 
     if (params.autoStart !== false) {
@@ -2409,6 +2626,302 @@ export class AgentDaemon extends EventEmitter {
     }
 
     return task;
+  }
+
+  /**
+   * Persist a display-safe source record without making task execution depend on it.
+   * The external identity guard keeps retries and duplicate deliveries idempotent.
+   */
+  recordTaskProvenance(input: CreateTaskProvenanceInput): void {
+    try {
+      if (!this.taskRepo.findById(input.taskId)) {
+        throw new Error(`Task ${input.taskId} not found`);
+      }
+      const existing = input.externalId
+        ? this.provenanceRepo.findByExternalIdentity({
+            taskId: input.taskId,
+            sourceKind: input.sourceKind,
+            providerKey: input.providerKey,
+            externalId: input.externalId,
+          })
+        : undefined;
+      if (existing) return;
+
+      const record = this.provenanceRepo.createOrGetByExternalId(input);
+      this.logEvent(input.taskId, "timeline_evidence_attached", {
+        stepId: "task:source",
+        groupId: "task:source",
+        actor: "system",
+        status: "completed",
+        message: `Source attached from ${record.providerLabel || "an external input"}.`,
+        evidenceRefs: [
+          {
+            evidenceId: record.id,
+            sourceType: "user_input",
+            sourceUrlOrPath: `provenance:${record.id}`,
+            snippet: record.excerpt?.slice(0, 280),
+            capturedAt: record.occurredAt,
+          },
+        ],
+      });
+    } catch (error) {
+      console.warn(
+        `[AgentDaemon] Failed to persist source provenance for task ${input.taskId}:`,
+        error,
+      );
+    }
+  }
+
+  private attachInitialTaskProvenance(task: Task, inheritFromTaskId?: string): void {
+    const sourceTaskId = inheritFromTaskId || task.branchFromTaskId;
+    if (sourceTaskId) {
+      try {
+        const inherited = this.provenanceRepo.cloneReferences(
+          sourceTaskId,
+          task.id,
+          "inherited",
+        );
+        if (inherited.length > 0) {
+          this.logEvent(task.id, "timeline_evidence_attached", {
+            stepId: "task:source",
+            groupId: "task:source",
+            actor: "system",
+            status: "completed",
+            message: `Inherited ${inherited.length} source reference${inherited.length === 1 ? "" : "s"}.`,
+            evidenceRefs: inherited.map((record) => ({
+              evidenceId: record.id,
+              sourceType: "user_input",
+              sourceUrlOrPath: `provenance:${record.id}`,
+              snippet: record.excerpt?.slice(0, 280),
+              capturedAt: record.occurredAt,
+            })),
+          });
+        }
+      } catch (error) {
+        console.warn(
+          `[AgentDaemon] Failed to inherit source provenance for task ${task.id}:`,
+          error,
+        );
+      }
+    }
+
+    const source = task.source;
+    if (!source || source === "manual" || source === "side_chat") return;
+
+    const scheduledJobId = task.agentConfig?.scheduledJobId?.trim();
+    const common = {
+      taskId: task.id,
+      relation: "direct" as const,
+      excerpt: task.rawPrompt || task.userPrompt || task.prompt,
+      attachments: [],
+      openTarget: { kind: "none" as const },
+      occurredAt: task.createdAt,
+    };
+
+    if (source === "cron") {
+      this.recordTaskProvenance({
+        ...common,
+        sourceKind: "automation_run",
+        providerKey: "cron",
+        providerLabel: "Scheduled task",
+        sourceRef: scheduledJobId ? `cron:${scheduledJobId}` : `cron:${task.id}`,
+        externalId: scheduledJobId || task.id,
+        actor: { kind: "automation", displayName: "Scheduler" },
+        metadata: scheduledJobId ? { jobId: scheduledJobId } : undefined,
+      });
+      return;
+    }
+
+    if (source === "hook") {
+      this.recordTaskProvenance({
+        ...common,
+        sourceKind: "hook_event",
+        providerKey: "hook",
+        providerLabel: "Hook",
+        sourceRef: `hook:${task.id}`,
+        externalId: task.id,
+        actor: { kind: "automation", displayName: "Hook" },
+      });
+      return;
+    }
+
+    if (source === "api") {
+      this.recordTaskProvenance({
+        ...common,
+        sourceKind: "api_request",
+        providerKey: "web_access",
+        providerLabel: "Web access",
+        sourceRef: `api:${task.id}`,
+        externalId: task.id,
+        actor: { kind: "unknown", displayName: "API client" },
+      });
+      return;
+    }
+
+    this.recordTaskProvenance({
+      ...common,
+      sourceKind: "system_generated",
+      providerKey: source,
+      providerLabel: "NeoWorker",
+      sourceRef: `${source}:${task.id}`,
+      externalId: task.id,
+      actor: { kind: "system", displayName: "NeoWorker" },
+    });
+  }
+
+  private ensureTaskAccessPolicy(task: Task): TaskAccessPolicy {
+    const existing = this.taskAccessPolicyRepo.get(task.id);
+    if (existing) return existing;
+    const workspace = this.workspaceRepo.findById(task.workspaceId);
+    const canRead = workspace?.permissions.read === true;
+    const canWrite = workspace?.permissions.write === true;
+    return this.taskAccessPolicyRepo.createInitial(task.id, {
+      connectorIds: (task.agentConfig?.integrationMentions || []).map(
+        (mention) => mention.id || mention.providerKey,
+      ),
+      workspaceScopes:
+        workspace && (canRead || canWrite)
+          ? [{
+              workspaceId: workspace.id,
+              rootPath: workspace.path,
+              access: canWrite ? "write" : "read",
+              primary: true,
+            }]
+          : [],
+      allowedTools: task.agentConfig?.allowedTools,
+      blockedTools: task.agentConfig?.toolRestrictions,
+      permissionMode: task.agentConfig?.permissionMode,
+      // An explicit task value is an in-memory override. When no task value is
+      // present, inherit the workspace default as before.
+      shellAccess: task.agentConfig?.shellAccess ?? workspace?.permissions.shell ?? false,
+      updatedAt: Date.now(),
+    });
+  }
+
+  /** Capture an immutable policy projection for the executor's next turn. */
+  private applyTaskAccessSnapshot(task: Task): Task {
+    const policy = this.ensureTaskAccessPolicy(task);
+    const nextTurn = Math.max(
+      1,
+      (task.lifetimeTurnsUsed || task.budgetUsage?.lifetimeTurns || task.budgetUsage?.turns || 0) + 1,
+    );
+    if (policy.effectiveFromTurn && policy.effectiveFromTurn > nextTurn) return task;
+
+    this.taskAccessSnapshotByTaskId.set(task.id, {
+      ...policy,
+      connectorIds: [...policy.connectorIds],
+      workspaceScopes: policy.workspaceScopes.map((scope) => ({ ...scope })),
+      allowedTools: policy.allowedTools ? [...policy.allowedTools] : undefined,
+      blockedTools: policy.blockedTools ? [...policy.blockedTools] : undefined,
+    });
+    const allowedConnectorIds = new Set(policy.connectorIds);
+    const integrationMentions = task.agentConfig?.integrationMentions?.filter(
+      (mention) =>
+        allowedConnectorIds.has(mention.id) || allowedConnectorIds.has(mention.providerKey),
+    );
+    return {
+      ...task,
+      agentConfig: {
+        ...task.agentConfig,
+        permissionMode: policy.permissionMode,
+        shellAccess: policy.shellAccess,
+        allowedTools: policy.allowedTools,
+        toolRestrictions: policy.blockedTools,
+        integrationMentions:
+          integrationMentions && integrationMentions.length > 0 ? integrationMentions : undefined,
+      },
+    };
+  }
+
+  private inheritTaskAccessPolicy(
+    sourceTaskId: string,
+    targetTask: Task,
+    mode: "fork" | "child",
+  ): void {
+    const sourceTask = this.taskRepo.findById(sourceTaskId);
+    if (!sourceTask) return;
+    const source = this.ensureTaskAccessPolicy(sourceTask);
+    if (mode === "fork") {
+      const activeSnapshot = this.taskAccessSnapshotByTaskId.get(sourceTaskId);
+      if (activeSnapshot) {
+        this.taskAccessPolicyRepo.createInitial(targetTask.id, {
+          connectorIds: [...activeSnapshot.connectorIds],
+          workspaceScopes: activeSnapshot.workspaceScopes.map((scope) => ({ ...scope })),
+          allowedTools: activeSnapshot.allowedTools
+            ? [...activeSnapshot.allowedTools]
+            : undefined,
+          blockedTools: activeSnapshot.blockedTools
+            ? [...activeSnapshot.blockedTools]
+            : undefined,
+          permissionMode: activeSnapshot.permissionMode,
+          shellAccess: activeSnapshot.shellAccess,
+          effectiveFromTurn: 1,
+          updatedAt: Date.now(),
+        });
+      } else {
+        this.taskAccessPolicyRepo.clone(sourceTaskId, targetTask.id);
+      }
+      return;
+    }
+
+    const childAllowed = targetTask.agentConfig?.allowedTools;
+    const allowedTools = childAllowed
+      ? source.allowedTools
+        ? childAllowed.filter((tool) => source.allowedTools?.includes(tool))
+        : childAllowed
+      : source.allowedTools;
+    const blockedTools = Array.from(
+      new Set([...(source.blockedTools || []), ...(targetTask.agentConfig?.toolRestrictions || [])]),
+    );
+    const childConnectorIds = new Set(
+      (targetTask.agentConfig?.integrationMentions || []).flatMap((mention) => [mention.id, mention.providerKey]),
+    );
+    const connectorIds = childConnectorIds.size > 0
+      ? source.connectorIds.filter((id) => childConnectorIds.has(id))
+      : source.connectorIds;
+    const workspace = this.workspaceRepo.findById(targetTask.workspaceId);
+    const inheritedScope = source.workspaceScopes.find(
+      (scope) => scope.workspaceId === targetTask.workspaceId,
+    );
+    const workspaceScopes = workspace && inheritedScope && workspace.permissions.read
+      ? [{
+          ...inheritedScope,
+          rootPath: workspace.path,
+          access:
+            inheritedScope.access === "write" && workspace.permissions.write
+              ? ("write" as const)
+              : ("read" as const),
+          primary: true,
+        }]
+      : [];
+    const permissionModeRank: Record<PermissionMode, number> = {
+      plan: 0,
+      accept_edits: 1,
+      default: 2,
+      dangerous_only: 3,
+      dont_ask: 4,
+      bypass_permissions: 5,
+    };
+    const sourcePermissionMode = source.permissionMode;
+    const childPermissionMode = targetTask.agentConfig?.permissionMode;
+    const permissionMode =
+      sourcePermissionMode && childPermissionMode
+        ? permissionModeRank[childPermissionMode] < permissionModeRank[sourcePermissionMode]
+          ? childPermissionMode
+          : sourcePermissionMode
+        : sourcePermissionMode || childPermissionMode;
+    this.taskAccessPolicyRepo.createInitial(targetTask.id, {
+      connectorIds,
+      workspaceScopes,
+      allowedTools,
+      blockedTools,
+      permissionMode,
+      shellAccess: Boolean(
+        source.shellAccess && targetTask.agentConfig?.shellAccess && workspace?.permissions.shell,
+      ),
+      effectiveFromTurn: 1,
+      updatedAt: Date.now(),
+    });
   }
 
   private createTaskRecord(params: {
@@ -2757,6 +3270,9 @@ export class AgentDaemon extends EventEmitter {
       userPrompt: params.userPrompt,
       status: "pending",
       workspaceId: params.workspaceId,
+      companyId: parent?.companyId,
+      goalId: parent?.goalId,
+      projectId: parent?.projectId,
       parentTaskId: params.parentTaskId,
       agentType: params.agentType,
       agentConfig: mergedAgentConfig,
@@ -2790,6 +3306,9 @@ export class AgentDaemon extends EventEmitter {
       this.taskRepo.update(task.id, initialUpdates);
       Object.assign(task, initialUpdates);
     }
+
+    this.attachInitialTaskProvenance(task, params.parentTaskId);
+    this.inheritTaskAccessPolicy(params.parentTaskId, task, "child");
 
     if (!params.teamRunId && !params.teamItemId) {
       this.ensureCollaborativeRunForParentTask(params.parentTaskId);
@@ -3427,7 +3946,7 @@ export class AgentDaemon extends EventEmitter {
       ...(bestKnownOutcome ? { bestKnownOutcome } : {}),
     });
     this.clearRetryState(taskId);
-    this.clearTimelineTaskState(taskId);
+    this.finishTimelineDeliveryStage(taskId);
 
     this.logEvent(taskId, "task_completed", {
       message,
@@ -3437,6 +3956,7 @@ export class AgentDaemon extends EventEmitter {
       ...(bestKnownOutcome ? { bestKnownOutcome } : {}),
       terminalStatusReason: "user_accepted_current_progress",
     });
+    this.clearTimelineTaskState(taskId);
 
     if (this.teamOrchestrator && existing.status !== "completed") {
       void this.teamOrchestrator.onTaskTerminal(taskId).catch(() => {});
@@ -3677,6 +4197,33 @@ export class AgentDaemon extends EventEmitter {
       this.logEvent(taskId, "network_policy_decision", decision);
       return decision.action === "allow"
         ? { approved: true, reason: "allowed_network_read" }
+        : { approved: false };
+    }
+    if (type === "data_export") {
+      const task = this.taskRepo.findById(taskId);
+      const toolName = typeof details.tool === "string" ? details.tool.trim() : "";
+      const prompt = details.permissionPrompt as PermissionPromptDetails | undefined;
+      const securityContext = prompt?.securityContext;
+      const directSource = securityContext?.directSource;
+      const recentSources = securityContext?.recentSensitiveSources || [];
+      const exportTarget = securityContext?.exportTarget;
+      const isTrustedWorkspaceSource = (source: SensitiveSourceRef): boolean =>
+        source.trustLevel === "trusted" && source.sourceKind === "workspace_native";
+      const hasExplicitExternalTarget = Boolean(
+        exportTarget?.url || exportTarget?.domain || exportTarget?.method,
+      );
+
+      const isTrustedPrivateWeixinVisualRead =
+        task?.agentConfig?.originChannel === "weixin" &&
+        task.agentConfig.gatewayContext === "private" &&
+        (toolName === "analyze_image" || toolName === "read_pdf_visual") &&
+        Boolean(directSource && isTrustedWorkspaceSource(directSource)) &&
+        !securityContext?.recentUntrustedContentRead &&
+        recentSources.every(isTrustedWorkspaceSource) &&
+        !hasExplicitExternalTarget;
+
+      return isTrustedPrivateWeixinVisualRead
+        ? { approved: true, reason: "trusted_private_weixin_workspace_visual" }
         : { approved: false };
     }
     return { approved: false };
@@ -4063,6 +4610,70 @@ export class AgentDaemon extends EventEmitter {
     return { effect, destination };
   }
 
+  private applyRecoveredApprovalGrant(
+    executor: TaskExecutor,
+    recovered: RecoveredApprovalGrant,
+  ): void {
+    if (!recovered.action.startsWith("allow_")) return;
+
+    const details =
+      recovered.approval.details &&
+      typeof recovered.approval.details === "object" &&
+      !Array.isArray(recovered.approval.details)
+        ? (recovered.approval.details as Record<string, unknown>)
+        : {};
+    const prompt = details.permissionPrompt as PermissionPromptDetails | undefined;
+    const runtime = executor.runtime;
+
+    if (
+      recovered.approval.type === "run_command" &&
+      details.approvalMode === "single_bundle"
+    ) {
+      runtime.addTemporaryPermissionGrant("run_command:single_bundle");
+      return;
+    }
+
+    if (!prompt?.scope) return;
+
+    if (recovered.action === "allow_once") {
+      runtime.addTemporaryPermissionGrant(
+        buildRecoveredApprovalOnceGrantKey(prompt.scope),
+        { ttlMs: 5 * 60 * 1000 },
+      );
+      return;
+    }
+
+    if (recovered.action === "allow_session") {
+      runtime.addSessionPermissionRule({
+        source: "session",
+        effect: "allow",
+        scope: prompt.scope,
+        metadata: {
+          createdByApprovalId: recovered.approval.id,
+          recoveredAfterRestart: true,
+        },
+      });
+    }
+  }
+
+  private applyPendingRecoveredApprovalGrant(taskId: string, executor: TaskExecutor): void {
+    const recovered = this.recoveredApprovalGrants.get(taskId);
+    if (!recovered?.length) return;
+    for (const grant of recovered) {
+      this.applyRecoveredApprovalGrant(executor, grant);
+    }
+    this.recoveredApprovalGrants.delete(taskId);
+  }
+
+  private rememberRecoveredApprovalGrant(
+    taskId: string,
+    grant: RecoveredApprovalGrant,
+  ): void {
+    const existing = this.recoveredApprovalGrants.get(taskId) || [];
+    if (existing.some((entry) => entry.approval.id === grant.approval.id)) return;
+    this.recoveredApprovalGrants.set(taskId, [...existing, grant]);
+  }
+
   evaluateToolPermission(taskId: string, opts: {
     approvalType?: ApprovalType;
     toolName: string;
@@ -4156,6 +4767,20 @@ export class AgentDaemon extends EventEmitter {
       ...enrichedDetails,
       permissionPrompt: permission.promptDetails,
     };
+    const recoveredOnceGrantKey = buildRecoveredApprovalOnceGrantKey(permission.scope);
+    if (
+      permission.evaluation.decision === "ask" &&
+      permission.runtime?.hasActiveTemporaryPermissionGrant(recoveredOnceGrantKey)
+    ) {
+      permission.runtime.clearTemporaryPermissionGrant(recoveredOnceGrantKey);
+      permission.runtime.recordPermissionSuccess(permission.trackingKey);
+      this.logEvent(taskId, "log", {
+        message: "Applied the approval granted before task recovery.",
+        approvalRecovered: true,
+        permissionScope: permission.promptDetails.scopePreview,
+      });
+      return true;
+    }
     if (permission.evaluation.decision === "allow") {
       permission.runtime?.recordPermissionSuccess(permission.trackingKey);
       if (type === "run_command" && enrichedDetails.approvalMode === "single_bundle") {
@@ -4332,11 +4957,125 @@ export class AgentDaemon extends EventEmitter {
    * Uses idempotency to prevent double-approval race conditions
    * Implements C6: Approval Gate Enforcement
    */
+  private async recoverPersistedApproval(
+    approvalId: string,
+    approved: boolean,
+    action?: ApprovalResponseAction,
+  ): Promise<ApprovalResponseStatus> {
+    const approval = this.approvalRepo.findById(approvalId);
+    if (!approval) return "not_found";
+
+    if (approval.status !== "pending") {
+      const matchesStoredDecision =
+        (approved && approval.status === "approved") ||
+        (!approved && approval.status === "denied");
+      return matchesStoredDecision ? "handled" : "not_found";
+    }
+
+    const task = this.taskRepo.findById(approval.taskId);
+    if (
+      !task ||
+      task.status !== "blocked" ||
+      task.terminalStatus !== "awaiting_approval" ||
+      this.activeTasks.has(task.id)
+    ) {
+      return "not_found";
+    }
+
+    const normalizedAction: ApprovalResponseAction =
+      action || (approved ? "allow_once" : "deny_once");
+    const didApprove = normalizedAction.startsWith("allow_");
+    const persistenceResult = this.persistApprovalActionRule(normalizedAction, approval);
+
+    this.approvalRepo.update(approvalId, didApprove ? "approved" : "denied");
+
+    if (!didApprove) {
+      this.recoveredApprovalGrants.delete(task.id);
+      this.updateTask(task.id, {
+        status: "paused",
+        terminalStatus: "needs_user_action",
+        failureClass: undefined,
+        error: "User denied approval",
+      });
+      this.logEvent(task.id, "approval_denied", {
+        approvalId,
+        action: normalizedAction,
+        persistence: persistenceResult,
+        recoveredAfterRestart: true,
+      });
+      return "handled";
+    }
+
+    this.rememberRecoveredApprovalGrant(task.id, {
+      approval,
+      action: normalizedAction,
+    });
+    this.logEvent(task.id, "approval_granted", {
+      approvalId,
+      action: normalizedAction,
+      persistence: persistenceResult,
+      recoveredAfterRestart: true,
+    });
+
+    const remainingApprovals = this.approvalRepo.findPendingByTaskId(task.id);
+    if (remainingApprovals.length > 0) {
+      this.updateTask(task.id, {
+        status: "blocked",
+        terminalStatus: "awaiting_approval",
+        failureClass: undefined,
+        error: null,
+      });
+      this.logEvent(task.id, "task_status", {
+        status: "blocked",
+        terminalStatus: "awaiting_approval",
+        reason: "additional_approvals_pending",
+        pendingApprovalCount: remainingApprovals.length,
+      });
+      return "handled";
+    }
+
+    this.updateTask(task.id, {
+      status: "interrupted",
+      terminalStatus: undefined,
+      failureClass: undefined,
+      error: null,
+    });
+
+    try {
+      await this.resumeInterruptedTask({
+        ...task,
+        status: "interrupted",
+        terminalStatus: undefined,
+        failureClass: undefined,
+        error: undefined,
+      });
+      return "handled";
+    } catch (error) {
+      this.recoveredApprovalGrants.delete(task.id);
+      const message = error instanceof Error ? error.message : String(error);
+      this.updateTask(task.id, {
+        status: "paused",
+        terminalStatus: "needs_user_action",
+        failureClass: "unknown",
+        error: `Approval was saved, but the task could not resume: ${message}`,
+      });
+      throw error;
+    }
+  }
+
+  listPendingApprovals(limit = 100): ApprovalRequest[] {
+    const safeLimit =
+      typeof limit === "number" && Number.isFinite(limit)
+        ? Math.min(200, Math.max(1, Math.floor(limit)))
+        : 100;
+    return this.approvalRepo.findPending(safeLimit);
+  }
+
   async respondToApproval(
     approvalId: string,
     approved: boolean,
     action?: ApprovalResponseAction,
-  ): Promise<"handled" | "duplicate" | "not_found" | "in_progress"> {
+  ): Promise<ApprovalResponseStatus> {
     // Generate idempotency key for this approval response
     const idempotencyKey = IdempotencyManager.generateKey(
       "approval:respond",
@@ -4347,8 +5086,27 @@ export class AgentDaemon extends EventEmitter {
     // Check if this exact response was already processed
     const existing = approvalIdempotency.check(idempotencyKey);
     if (existing.exists) {
-      console.log(`[AgentDaemon] Duplicate approval response ignored: ${approvalId}`);
-      return "duplicate";
+      if (existing.status === "pending") {
+        console.log(`[AgentDaemon] Concurrent approval response in progress: ${approvalId}`);
+        return "in_progress";
+      }
+      if (existing.status === "completed") {
+        const cachedStatus = existing.result?.status as ApprovalResponseStatus | undefined;
+        if (
+          cachedStatus === "handled" ||
+          cachedStatus === "duplicate" ||
+          cachedStatus === "not_found" ||
+          cachedStatus === "in_progress"
+        ) {
+          console.log(
+            `[AgentDaemon] Returning cached approval response (${cachedStatus}): ${approvalId}`,
+          );
+          return cachedStatus;
+        }
+        console.log(`[AgentDaemon] Duplicate approval response ignored: ${approvalId}`);
+        return "duplicate";
+      }
+      approvalIdempotency.remove(idempotencyKey);
     }
 
     // Start tracking this operation
@@ -4401,9 +5159,21 @@ export class AgentDaemon extends EventEmitter {
 
         this.pendingApprovals.delete(approvalId);
         this.approvalRepo.update(approvalId, didApprove ? "approved" : "denied");
+        const remainingApprovals = didApprove
+          ? (this.approvalRepo.findPendingByTaskId?.(pending.taskId) || [])
+          : [];
+        const hasAdditionalApprovals = remainingApprovals.length > 0;
         this.updateTask(pending.taskId, {
-          status: didApprove ? "executing" : "paused",
-          terminalStatus: didApprove ? undefined : "needs_user_action",
+          status: didApprove
+            ? hasAdditionalApprovals
+              ? "blocked"
+              : "executing"
+            : "paused",
+          terminalStatus: didApprove
+            ? hasAdditionalApprovals
+              ? "awaiting_approval"
+              : undefined
+            : "needs_user_action",
           failureClass: undefined,
           error: didApprove ? null : "User denied approval",
         });
@@ -4415,6 +5185,14 @@ export class AgentDaemon extends EventEmitter {
           action: normalizedAction,
           persistence: persistenceResult,
         });
+        if (didApprove && hasAdditionalApprovals) {
+          this.logEvent(pending.taskId, "task_status", {
+            status: "blocked",
+            terminalStatus: "awaiting_approval",
+            reason: "additional_approvals_pending",
+            pendingApprovalCount: remainingApprovals.length,
+          });
+        }
 
         if (didApprove) {
           pending.resolve(true);
@@ -4426,8 +5204,16 @@ export class AgentDaemon extends EventEmitter {
         return "handled";
       }
 
-      approvalIdempotency.complete(idempotencyKey, { success: true, status: "not_found" });
-      return "not_found";
+      const recoveredStatus = await this.recoverPersistedApproval(
+        approvalId,
+        approved,
+        action,
+      );
+      approvalIdempotency.complete(idempotencyKey, {
+        success: recoveredStatus === "handled",
+        status: recoveredStatus,
+      });
+      return recoveredStatus;
     } catch (error) {
       approvalIdempotency.fail(idempotencyKey, error);
       throw error;
@@ -4695,7 +5481,24 @@ export class AgentDaemon extends EventEmitter {
           ? (timelineEvent.legacyType as EventType)
           : undefined
       : undefined;
-    if (stageSourceType) {
+    // Terminal events describe a lifecycle boundary; they must never open a new
+    // timeline group. In particular, inferring DELIVER from task_completed here
+    // leaves a dangling in-progress group when the task state is cleared by a
+    // terminal listener. Completed tasks then look permanently busy in the UI.
+    const isTerminalStageEvent =
+      stageSourceType === "task_completed" ||
+      stageSourceType === "task_cancelled" ||
+      (stageSourceType === "task_status" &&
+        (payloadObj.status === "completed" ||
+          payloadObj.status === "failed" ||
+          payloadObj.status === "cancelled" ||
+          payloadObj.status === "interrupted"));
+    const taskStatusAtEvent = stageSourceType ? this.taskRepo.findById(taskId)?.status : undefined;
+    const taskAlreadyTerminal =
+      taskStatusAtEvent === "completed" ||
+      taskStatusAtEvent === "failed" ||
+      taskStatusAtEvent === "cancelled";
+    if (stageSourceType && !isTerminalStageEvent && !taskAlreadyTerminal) {
       const inferredStage = inferTimelineStageForLegacyType(stageSourceType);
       if (inferredStage) {
         const currentStage = this.activeTimelineStageByTask.get(taskId);
@@ -4754,6 +5557,19 @@ export class AgentDaemon extends EventEmitter {
     payload: Record<string, unknown>,
   ): void {
     if (type !== "file_created" && type !== "artifact_created" && type !== "timeline_artifact_emitted") {
+      return;
+    }
+
+    // The executor can pre-create a tiny placeholder so a required mutation
+    // has a concrete target. That provisional file is not a user-facing
+    // artifact yet: rendering it as a 640px frame produces a large blank band
+    // containing only "Bootstrap artifact stub." and also consumes the
+    // per-path preview dedupe before the real document is written.
+    const source =
+      typeof payload.source === "string"
+        ? payload.source.trim().toLowerCase()
+        : "";
+    if (source === "artifact_bootstrap" || payload.provisional === true) {
       return;
     }
 
@@ -4851,7 +5667,11 @@ export class AgentDaemon extends EventEmitter {
     const fullPageIntent =
       /\b(landing page|homepage|website|web site|webpage|web page|site design|marketing page|portfolio site|single page app|web app|webapp|frontend app|react app|vite app|next\.?js app|static site|full page|page design|html file|standalone html)\b/.test(
         haystack,
-      ) || /(^|[-_/])(index|landing|homepage|website|webpage|site|app|page)\.html?$/.test(filename);
+      ) ||
+      /(?:网页|网站|落地页|首页|主页|单页应用|网页应用|前端页面|完整页面|独立页面|html\s*(?:文件|页面|网页))/i.test(
+        haystack,
+      ) ||
+      /(^|[-_/])(index|landing|homepage|website|webpage|site|app|page)\.html?$/.test(filename);
     if (fullPageIntent) return false;
 
     return /\b(frame|card|widget|panel|summary|scorecard|kpi|metric|dashboard|chart|graph|sparkline|visuali[sz]ation|distribution|breakdown|status|sync|syncing|progress|timeline|monitor|health|debug|trace|log viewer|heatmap|calendar|calculator|simulator|comparison|matrix|table|spending|budget|portfolio|investment|payment|cash[-\s]?flow|forecast|invoice preview|receipt preview)\b/.test(
@@ -5399,6 +6219,27 @@ export class AgentDaemon extends EventEmitter {
       }
     }
 
+    if (!isUrl) {
+      const task = this.taskRepo.findById(taskId);
+      const workspace =
+        task && typeof task.workspaceId === "string"
+          ? this.workspaceRepo.findById(task.workspaceId)
+          : undefined;
+      if (
+        workspace &&
+        (workspace.isTemp === true || isTempWorkspaceId(workspace.id))
+      ) {
+        const durablePath = resolveDurableTempArtifactPath({
+          userDataPath: getUserDataDir(),
+          workspacePath: workspace.path,
+          artifactPath: normalizedPath,
+        });
+        if (durablePath && fs.existsSync(durablePath)) {
+          normalizedPath = durablePath;
+        }
+      }
+    }
+
     payload.path = normalizedPath;
 
     const label =
@@ -5459,6 +6300,24 @@ export class AgentDaemon extends EventEmitter {
           : 1,
     });
     this.activeTimelineStageByTask.set(taskId, nextStage);
+  }
+
+  /**
+   * Close the successful run's final stage before publishing task_completed.
+   * Keeping the terminal event last gives both live IPC consumers and replayed
+   * timelines one unambiguous boundary: no in-progress group may follow it.
+   */
+  private finishTimelineDeliveryStage(taskId: string): void {
+    this.transitionTimelineStage(taskId, "DELIVER");
+    const timeline = createTimelineEmitter(taskId, (eventType, payload) => {
+      this.logEvent(taskId, eventType, payload);
+    });
+    timeline.finishGroup("DELIVER", {
+      label: "DELIVER",
+      actor: "system",
+      legacyType: "step_completed",
+    });
+    this.activeTimelineStageByTask.delete(taskId);
   }
 
   private normalizeStepIdForPlanTracking(rawStepId: string): string {
@@ -6380,7 +7239,7 @@ export class AgentDaemon extends EventEmitter {
           agentRoleId,
           actorType,
           activityType: "info",
-          title: "What Cowork learned",
+          title: "What NeoWorker learned",
           description: payload?.summary || task.title,
           metadata: {
             ...payload,
@@ -6569,28 +7428,72 @@ export class AgentDaemon extends EventEmitter {
    * This allows files like screenshots to be sent back to the user
    */
   registerArtifact(taskId: string, filePath: string, mimeType: string): void {
+    let durabilityRequired = false;
     try {
-      if (!fs.existsSync(filePath)) {
-        console.error(`[AgentDaemon] Artifact file not found: ${filePath}`);
-        return;
+      const task = this.taskRepo.findById(taskId);
+      const workspace =
+        task && typeof task.workspaceId === "string"
+          ? this.workspaceRepo.findById(task.workspaceId)
+          : undefined;
+      const sourcePath =
+        !path.isAbsolute(filePath) && workspace?.path
+          ? path.resolve(workspace.path, filePath)
+          : path.resolve(filePath);
+      durabilityRequired = Boolean(
+        workspace &&
+          (workspace.isTemp === true || isTempWorkspaceId(workspace.id)),
+      );
+      if (!fs.existsSync(sourcePath)) {
+        throw new Error(`Artifact file not found: ${sourcePath}`);
       }
 
-      const stats = fs.statSync(filePath);
-      const fileBuffer = fs.readFileSync(filePath);
+      let registeredPath = sourcePath;
+      if (workspace && durabilityRequired) {
+        const durablePath = persistTempWorkspaceArtifactSync({
+          userDataPath: getUserDataDir(),
+          workspacePath: workspace.path,
+          artifactPath: sourcePath,
+        });
+        if (!durablePath) {
+          throw new Error(
+            `Temporary-workspace artifact could not be persisted: ${sourcePath}`,
+          );
+        }
+        registeredPath = durablePath;
+      }
+
+      const stats = fs.statSync(registeredPath);
+      const fileBuffer = fs.readFileSync(registeredPath);
       const sha256 = crypto.createHash("sha256").update(fileBuffer).digest("hex");
 
-      this.artifactRepo.create({
+      this.artifactRepo.upsertForTaskPath({
         taskId,
-        path: filePath,
+        path: registeredPath,
         mimeType,
         sha256,
         size: stats.size,
         createdAt: Date.now(),
       });
 
-      console.log(`[AgentDaemon] Registered artifact: ${filePath}`);
+      console.log(`[AgentDaemon] Registered artifact: ${registeredPath}`);
     } catch (error) {
       console.error(`[AgentDaemon] Failed to register artifact:`, error);
+      // A temp-workspace file without a durable copy is not a delivered
+      // artifact. Propagate the failure so the tool cannot report success and
+      // leave behind a card that will break after the temp directory vanishes.
+      if (durabilityRequired) throw error;
+    }
+  }
+
+  /** Keep persisted artifact records attached to the file after a rename. */
+  relocateArtifact(taskId: string, oldPath: string, newPath: string): void {
+    try {
+      const relocated = this.artifactRepo.relocateForTask(taskId, oldPath, newPath);
+      if (relocated > 0) {
+        console.log(`[AgentDaemon] Relocated artifact: ${oldPath} -> ${newPath}`);
+      }
+    } catch (error) {
+      console.error(`[AgentDaemon] Failed to relocate artifact:`, error);
     }
   }
 
@@ -7472,6 +8375,34 @@ export class AgentDaemon extends EventEmitter {
     return updatedTask;
   }
 
+  /** Assign an existing conversation to a project without moving its files. */
+  updateTaskProject(taskId: string, projectId: string): Task {
+    const task = this.taskRepo.findById(taskId);
+    if (!task) {
+      throw new Error(`Task ${taskId} not found`);
+    }
+
+    this.taskRepo.update(taskId, { projectId });
+    const updatedTask = this.taskRepo.findById(taskId);
+    if (!updatedTask) {
+      throw new Error(`Task ${taskId} not found after project update`);
+    }
+
+    const cached = this.activeTasks.get(taskId);
+    if (cached) {
+      cached.executor.updateTaskProject(updatedTask);
+      cached.lastAccessed = Date.now();
+      cached.status = "active";
+    }
+
+    this.logEvent(taskId, "log", {
+      message: "Conversation added to a project.",
+      projectId,
+    });
+
+    return updatedTask;
+  }
+
   /**
    * Get workspace by ID
    */
@@ -7519,7 +8450,11 @@ export class AgentDaemon extends EventEmitter {
       if (cached.status !== "active" || !cached.executor) return;
       if (cached.executor.getWorkspaceId?.() !== workspaceId) return;
       try {
-        cached.executor.updateWorkspace(workspace);
+        const task = this.taskRepo.findById(taskId);
+        const effectiveWorkspace = task
+          ? this.applyTaskWorkspaceOverrides(task, workspace)
+          : workspace;
+        cached.executor.updateWorkspace(effectiveWorkspace);
         refreshed++;
       } catch (err) {
         console.warn(`[AgentDaemon] Failed to refresh executor for task ${taskId}:`, err);
@@ -8504,6 +9439,64 @@ export class AgentDaemon extends EventEmitter {
         ? resultSummary.trim()
         : undefined;
     const bestKnownOutcome = metadata?.bestKnownOutcome || getTaskBestKnownOutcome(existingTask);
+    const requiredArtifactExtensions = inferRequiredArtifactExtensions(
+      existingTask.title,
+      existingTask.rawPrompt || existingTask.userPrompt || existingTask.prompt,
+    ).map((extension) => extension.toLowerCase());
+    const deliveredArtifactPaths = new Set<string>();
+    const collectOutputSummaryPaths = (summary?: TaskOutputSummary | null): void => {
+      if (!summary) return;
+      for (const candidate of [
+        ...(summary.created || []),
+        ...(summary.modifiedFallback || []),
+        summary.primaryOutputPath,
+      ]) {
+        if (typeof candidate === "string" && candidate.trim()) {
+          deliveredArtifactPaths.add(candidate.trim());
+        }
+      }
+    };
+    collectOutputSummaryPaths(metadata?.outputSummary);
+    collectOutputSummaryPaths(bestKnownOutcome?.outputSummary);
+    for (const artifact of this.artifactRepo?.findByTaskId?.(taskId) || []) {
+      if (typeof artifact.path === "string" && artifact.path.trim()) {
+        deliveredArtifactPaths.add(artifact.path.trim());
+      }
+    }
+    const deliveredArtifactExtensions = new Set(
+      Array.from(deliveredArtifactPaths.values())
+        .map((artifactPath) => path.extname(artifactPath).toLowerCase())
+        .filter(Boolean),
+    );
+    const missingRequiredArtifactExtensions = requiredArtifactExtensions.filter(
+      (extension) => !deliveredArtifactExtensions.has(extension),
+    );
+
+    // A supporting file or a long research summary is not the requested deliverable.
+    // In particular, presentation workflows commonly create design-system.md before
+    // the first PPTX build. Never let that intermediate file turn a missing deck into
+    // a misleading partial-success completion.
+    if (missingRequiredArtifactExtensions.length > 0) {
+      const message =
+        `Completion blocked: requested output was not generated ` +
+        `(${missingRequiredArtifactExtensions.join(", ")}).`;
+      this.logEvent(taskId, "timeline_error", {
+        message,
+        requiredArtifactExtensions,
+        deliveredArtifactPaths: Array.from(deliveredArtifactPaths.values()),
+        missingRequiredArtifactExtensions,
+        gate: "completion_required_artifact_gate",
+        legacyType: "error",
+      });
+      this.failTask(taskId, message, {
+        terminalStatus: "failed",
+        failureClass: "contract_unmet_write_required",
+        ...(trimmedSummary ? { resultSummary: trimmedSummary } : {}),
+        ...(bestKnownOutcome ? { bestKnownOutcome } : {}),
+        ...(metadata?.budgetUsage ? { budgetUsage: metadata.budgetUsage } : {}),
+      });
+      return;
+    }
     const unresolvedFailedSteps = this.getUnresolvedFailedSteps(taskId);
     const timelineErrorStepIds = Array.from(this.timelineErrorsByTask.get(taskId) || new Set<string>())
       .map((id) => String(id || "").trim())
@@ -9122,6 +10115,10 @@ export class AgentDaemon extends EventEmitter {
           : resolvedOutcome.status === "interrupted"
             ? "Task interrupted - resume available"
             : "Task is waiting for approval or further input";
+    if (isCompletedOutcome) {
+      this.finishTimelineDeliveryStage(taskId);
+    }
+
     this.logEvent(taskId, isCompletedOutcome ? "task_completed" : "task_status", {
       message: terminalStatusMessage,
       lastRunDurationMs,
@@ -9175,18 +10172,6 @@ export class AgentDaemon extends EventEmitter {
       reviewGate: reviewDecision,
       telemetry: completionTelemetry,
     });
-
-    if (isCompletedOutcome && this.activeTimelineStageByTask.get(taskId) === "DELIVER") {
-      const timeline = createTimelineEmitter(taskId, (eventType, payload) => {
-        this.logEvent(taskId, eventType, payload);
-      });
-      timeline.finishGroup("DELIVER", {
-        label: "DELIVER",
-        actor: "system",
-        legacyType: "step_completed",
-      });
-      this.activeTimelineStageByTask.delete(taskId);
-    }
 
     if (quality) {
       this.logEvent(taskId, quality.passed ? "review_quality_passed" : "review_quality_failed", {
@@ -9369,12 +10354,134 @@ export class AgentDaemon extends EventEmitter {
     return { message: lines.join("\n"), annotations };
   }
 
+  private buildActiveArtifactFollowUpContext(
+    message: string,
+    activeArtifactContext?: TaskFollowUpInput["activeArtifactContext"],
+  ): string {
+    if (!activeArtifactContext) return message;
+
+    const kindLabels: Record<NonNullable<TaskFollowUpInput["activeArtifactContext"]>["kind"], string> =
+      {
+        spreadsheet: "spreadsheet",
+        document: "document",
+        presentation: "presentation",
+        webpage: "web page",
+      };
+    return [
+      "## Active Artifact Context",
+      "",
+      "The user submitted this follow-up from the artifact preview/editor. Treat the exact active file below as the target unless the user explicitly names a different file.",
+      `- Active file: ${JSON.stringify(activeArtifactContext.path)}`,
+      `- Artifact type: ${kindLabels[activeArtifactContext.kind]}`,
+      "",
+      "Do not silently edit or regenerate a same-named sibling with a different extension. Preserve the active file's format and path when the requested operation supports it. Before claiming success, reopen, inspect, or render the resulting target and verify that the requested visible change is present. If the active format cannot support the change, state that limitation clearly and label any alternate output instead of presenting it as the modified active file.",
+      "",
+      "## User Follow-up",
+      message,
+    ].join("\n");
+  }
+
+  private toQueuedFollowUp(
+    taskId: string,
+    followUp: DeferredUserFollowUp,
+  ): TaskQueuedFollowUp {
+    return {
+      id: followUp.queueId,
+      taskId,
+      message: followUp.displayMessage,
+      createdAt: followUp.queuedAt,
+      attachmentCount: followUp.images?.length ?? 0,
+    };
+  }
+
+  listQueuedFollowUps(taskId: string): TaskQueuedFollowUp[] {
+    return (this.deferredUserFollowUps.get(taskId) || []).map((followUp) =>
+      this.toQueuedFollowUp(taskId, followUp),
+    );
+  }
+
+  updateQueuedFollowUp(
+    taskId: string,
+    queueId: string,
+    message: string,
+  ): TaskQueuedFollowUp | undefined {
+    const queued = this.deferredUserFollowUps.get(taskId);
+    if (!queued) return undefined;
+    const index = queued.findIndex((followUp) => followUp.queueId === queueId);
+    if (index < 0) return undefined;
+
+    const current = queued[index];
+    const nextDisplayMessage = message.trim();
+    const currentSuffixIndex = current.message.lastIndexOf(current.displayMessage);
+    const nextExecutionMessage =
+      currentSuffixIndex >= 0 &&
+      currentSuffixIndex + current.displayMessage.length === current.message.length
+        ? `${current.message.slice(0, currentSuffixIndex)}${nextDisplayMessage}`
+        : nextDisplayMessage;
+    const next: DeferredUserFollowUp = {
+      ...current,
+      message: nextExecutionMessage,
+      displayMessage: nextDisplayMessage,
+    };
+    queued[index] = next;
+    return this.toQueuedFollowUp(taskId, next);
+  }
+
+  reorderQueuedFollowUps(
+    taskId: string,
+    queueIds: string[],
+  ): TaskQueuedFollowUp[] {
+    const queued = this.deferredUserFollowUps.get(taskId);
+    if (!queued || queued.length < 2) return this.listQueuedFollowUps(taskId);
+
+    const byId = new Map(queued.map((followUp) => [followUp.queueId, followUp]));
+    const reordered: DeferredUserFollowUp[] = [];
+    const included = new Set<string>();
+
+    for (const queueId of queueIds) {
+      const followUp = byId.get(queueId);
+      if (!followUp || included.has(queueId)) continue;
+      reordered.push(followUp);
+      included.add(queueId);
+    }
+
+    // A turn may have entered the queue after the renderer read it. Preserve
+    // those newer entries at the end instead of dropping them during reorder.
+    for (const followUp of queued) {
+      if (included.has(followUp.queueId)) continue;
+      reordered.push(followUp);
+    }
+
+    this.deferredUserFollowUps.set(taskId, reordered);
+    return reordered.map((followUp) => this.toQueuedFollowUp(taskId, followUp));
+  }
+
+  removeQueuedFollowUp(
+    taskId: string,
+    queueId: string,
+  ): { removed: boolean; images?: ImageAttachment[] } {
+    const queued = this.deferredUserFollowUps.get(taskId);
+    if (!queued) return { removed: false };
+    const index = queued.findIndex((followUp) => followUp.queueId === queueId);
+    if (index < 0) return { removed: false };
+
+    const [removed] = queued.splice(index, 1);
+    if (queued.length === 0) {
+      this.deferredUserFollowUps.delete(taskId);
+    }
+    return {
+      removed: true,
+      ...(removed.images?.length ? { images: removed.images } : {}),
+    };
+  }
+
   /**
    * Send a follow-up message to a task.
    *
-   * If the executor is currently running (mutex held), the message is queued
-   * for injection into the active execution loop and a user_message event is
-   * emitted immediately so the UI shows the message right away.
+   * If the executor is currently running (mutex held), the message is kept as
+   * a separate follow-up turn. It is deliberately not written into the
+   * timeline until that turn actually starts; otherwise the active turn can
+   * continue emitting reasoning and tool events below a future user message.
    */
   async sendMessage(
     taskId: string,
@@ -9383,9 +10490,16 @@ export class AgentDaemon extends EventEmitter {
     quotedAssistantMessage?: QuotedAssistantMessage,
     options?: Pick<
       TaskFollowUpInput,
-      "permissionMode" | "shellAccess" | "integrationMentions" | "agentConfigOverride"
+      | "activeArtifactContext"
+      | "executionMode"
+      | "taskDomain"
+      | "requestedSkillId"
+      | "permissionMode"
+      | "shellAccess"
+      | "integrationMentions"
+      | "agentConfigOverride"
     >,
-  ): Promise<{ queued: boolean }> {
+  ): Promise<{ queued: boolean; queueItem?: TaskQueuedFollowUp }> {
     let executor: TaskExecutor;
 
     // Always get fresh task and workspace from DB to pick up permission changes
@@ -9413,7 +10527,14 @@ export class AgentDaemon extends EventEmitter {
     if (overrideResult.changed) {
       this.taskRepo.update(taskId, { agentConfig: overrideResult.task.agentConfig });
     }
-    const { task: roleAdjustedTask } = this.applyAgentRoleOverrides(overrideResult.task);
+    const accessPolicyChanged = this.syncTaskAccessPolicyForFollowUp(
+      overrideResult.task,
+      effectiveOptions,
+    );
+    const accessAdjustedTask = cached?.executor.isRunning && !accessPolicyChanged
+      ? overrideResult.task
+      : this.applyTaskAccessSnapshot(overrideResult.task);
+    const { task: roleAdjustedTask } = this.applyAgentRoleOverrides(accessAdjustedTask);
     const effectiveTask = effectiveOptions?.agentConfigOverride
       ? {
           ...roleAdjustedTask,
@@ -9431,7 +10552,11 @@ export class AgentDaemon extends EventEmitter {
     const effectiveWorkspace = this.applyTaskWorkspaceOverrides(effectiveTask, workspace);
 
     this.taskRepo.touch(taskId);
-    const annotationContext = this.buildAnnotationFollowUpContext(taskId, message);
+    const artifactScopedMessage = this.buildActiveArtifactFollowUpContext(
+      message,
+      effectiveOptions?.activeArtifactContext,
+    );
+    const annotationContext = this.buildAnnotationFollowUpContext(taskId, artifactScopedMessage);
     const effectiveMessage = annotationContext.message;
     if (annotationContext.annotations.length > 0) {
       const changedCount = this.annotationRepo.markAddressing(
@@ -9469,27 +10594,49 @@ export class AgentDaemon extends EventEmitter {
       cached.status = "active";
     }
 
-    // If the executor is busy (mutex locked), queue the message for the running
-    // loop to pick up and return immediately so the IPC doesn't block.
-    if (executor.isRunning) {
+    // If the executor is busy (mutex locked), preserve the message as its own
+    // turn. A message must also join an existing queue even if the mutex happens
+    // to be briefly idle; otherwise a later IPC request can jump ahead of an
+    // older queued turn. Only the queue drain itself may dispatch the head item.
+    const queuedBeforeSend = this.deferredUserFollowUps.get(taskId) || [];
+    const isQueuedDispatch = this.deferredUserFollowUpDispatches?.has(taskId) === true;
+    const currentStatus = deriveCanonicalTaskStatus(effectiveTask);
+    const previousRunIsUnsettled =
+      currentStatus === "pending" ||
+      currentStatus === "queued" ||
+      currentStatus === "planning" ||
+      currentStatus === "executing";
+    const mustQueueBehindExisting =
+      !isQueuedDispatch &&
+      (previousRunIsUnsettled ||
+        queuedBeforeSend.length > 0 ||
+        this.deferredUserFollowUpDrains?.has(taskId) === true);
+    if (executor.isRunning || mustQueueBehindExisting) {
       const integrationMentions = effectiveTask.agentConfig?.integrationMentions;
-      executor.queueFollowUp(
-        effectiveMessage,
+      const queuedFollowUp: DeferredUserFollowUp = {
+        queueId: crypto.randomUUID(),
+        displayMessage: message,
+        queuedAt: Date.now(),
+        message: effectiveMessage,
         images,
         quotedAssistantMessage,
-        integrationMentions,
-        effectiveOptions?.agentConfigOverride,
-      );
-      // Emit user_message event immediately so the UI shows the message right away.
-      // The executor's sendMessageLegacy won't re-emit because the message is
-      // injected directly into the conversation loop, not through sendMessage.
-      this.logEvent(taskId, "user_message", {
-        message,
-        ...(effectiveMessage !== message ? { annotationContextInjected: true } : {}),
-        ...(integrationMentions && integrationMentions.length > 0 ? { integrationMentions } : {}),
-        ...(quotedAssistantMessage ? { quotedAssistantMessage } : {}),
-      });
-      return { queued: true };
+        ...(integrationMentions && integrationMentions.length > 0
+          ? { integrationMentions }
+          : {}),
+        ...(effectiveOptions?.agentConfigOverride
+          ? { agentConfigOverride: effectiveOptions.agentConfigOverride }
+          : {}),
+      };
+      queuedBeforeSend.push(queuedFollowUp);
+      this.deferredUserFollowUps.set(taskId, queuedBeforeSend);
+      // Usually the active executor will trigger the drain when it settles.
+      // This call also covers the narrow case where a queue exists while the
+      // executor is already idle.
+      this.processOrphanedFollowUps(taskId, executor);
+      return {
+        queued: true,
+        queueItem: this.toQueuedFollowUp(taskId, queuedFollowUp),
+      };
     }
 
     // Send the message (executor is idle, acquire mutex normally)
@@ -9497,13 +10644,19 @@ export class AgentDaemon extends EventEmitter {
       executor.suppressNextUserMessageEvent();
       this.logEvent(taskId, "user_message", {
         message,
-        annotationContextInjected: true,
+        ...(annotationContext.annotations.length > 0 ? { annotationContextInjected: true } : {}),
+        ...(effectiveOptions?.activeArtifactContext
+          ? { activeArtifactContextInjected: true }
+          : {}),
         ...(quotedAssistantMessage ? { quotedAssistantMessage } : {}),
       });
     }
     await executor.sendMessage(effectiveMessage, images, quotedAssistantMessage, {
       agentConfigOverride: effectiveOptions?.agentConfigOverride,
     });
+    // A new message can arrive while this follow-up itself is executing.
+    // Continue draining daemon-owned follow-ups until the conversation catches up.
+    this.processOrphanedFollowUps(taskId, executor);
     return { queued: false };
   }
 
@@ -9560,45 +10713,147 @@ export class AgentDaemon extends EventEmitter {
   }
 
   /**
-   * After execution completes, process any follow-up messages that were queued
-   * but never picked up by the execution loop (e.g. arrived on the last iteration).
+   * After execution completes, process follow-up messages that are waiting for
+   * their own conversation turn. Executor-owned entries remain supported for
+   * step feedback and older in-memory sessions; user messages now live in the
+   * daemon queue so they cannot be consumed as hidden step context.
    */
   private processOrphanedFollowUps(taskId: string, executor: TaskExecutor): void {
-    const orphaned = executor.drainAllPendingFollowUps();
-    if (orphaned.length === 0) return;
+    this.deferredUserFollowUpDrains ||= new Map();
+    this.deferredUserFollowUpDispatches ||= new Set();
+    this.deferredUserFollowUpRetryTimers ||= new Map();
+    // Migrate any legacy executor-owned entries into the same visible FIFO.
+    // This is a one-way drain, so repeated calls cannot duplicate them.
+    const legacyFollowUps = executor.drainAllPendingFollowUps();
+    if (legacyFollowUps.length > 0) {
+      const queued = this.deferredUserFollowUps.get(taskId) || [];
+      const migrated = legacyFollowUps.map<DeferredUserFollowUp>((followUp, index) => ({
+        ...followUp,
+        queueId: crypto.randomUUID(),
+        displayMessage: followUp.message,
+        queuedAt: Date.now() + index,
+        userMessageAlreadyEmitted: true,
+      }));
+      this.deferredUserFollowUps.set(taskId, [...migrated, ...queued]);
+    }
 
-    console.log(
-      `[AgentDaemon] Processing ${orphaned.length} orphaned follow-up(s) for task ${taskId}`,
-    );
+    if ((this.deferredUserFollowUps.get(taskId) || []).length === 0) {
+      const retryTimer = this.deferredUserFollowUpRetryTimers.get(taskId);
+      if (retryTimer) clearTimeout(retryTimer);
+      this.deferredUserFollowUpRetryTimers.delete(taskId);
+      return;
+    }
+    if (this.deferredUserFollowUpDrains.has(taskId)) return;
 
-    // Process each follow-up sequentially via sendMessage (mutex is now free).
-    // The user_message event was already emitted when the message was queued, so
-    // tell the executor to suppress the duplicate emission.
-    // Fire-and-forget: each follow-up is independent and errors are logged.
-    let _chain: Promise<void> = Promise.resolve();
-    for (const followUp of orphaned) {
-      _chain = _chain
-        .then(() => {
+    // The mutex alone is not enough: a lifecycle promise can release it while
+    // the task record still says the previous run is executing. Waiting for a
+    // settled task state prevents the next turn from overwriting final events.
+    const task = this.taskRepo.findById(taskId);
+    const status = task ? deriveCanonicalTaskStatus(task) : undefined;
+    if (
+      executor.isRunning ||
+      status === "pending" ||
+      status === "queued" ||
+      status === "planning" ||
+      status === "executing"
+    ) {
+      this.scheduleDeferredUserFollowUpDrain(taskId, executor);
+      return;
+    }
+
+    const drain = this.drainDeferredUserFollowUps(taskId, executor).finally(() => {
+      if (this.deferredUserFollowUpDrains.get(taskId) === drain) {
+        this.deferredUserFollowUpDrains.delete(taskId);
+      }
+      // A message may have arrived between the final queue check and cleanup.
+      // Re-evaluate once without creating an overlapping drain.
+      if ((this.deferredUserFollowUps.get(taskId) || []).length > 0) {
+        this.processOrphanedFollowUps(taskId, executor);
+      }
+    });
+    this.deferredUserFollowUpDrains.set(taskId, drain);
+  }
+
+  private scheduleDeferredUserFollowUpDrain(
+    taskId: string,
+    executor: TaskExecutor,
+  ): void {
+    this.deferredUserFollowUpRetryTimers ||= new Map();
+    if (this.deferredUserFollowUpRetryTimers.has(taskId)) return;
+
+    const timer = setTimeout(() => {
+      this.deferredUserFollowUpRetryTimers.delete(taskId);
+      this.processOrphanedFollowUps(taskId, executor);
+    }, 250);
+    timer.unref?.();
+    this.deferredUserFollowUpRetryTimers.set(taskId, timer);
+  }
+
+  private async drainDeferredUserFollowUps(
+    taskId: string,
+    executor: TaskExecutor,
+  ): Promise<void> {
+    console.log(`[AgentDaemon] Draining queued follow-ups for task ${taskId}`);
+
+    while (true) {
+      const task = this.taskRepo.findById(taskId);
+      const status = task ? deriveCanonicalTaskStatus(task) : undefined;
+      if (
+        executor.isRunning ||
+        status === "pending" ||
+        status === "queued" ||
+        status === "planning" ||
+        status === "executing"
+      ) {
+        return;
+      }
+
+      const queued = this.deferredUserFollowUps.get(taskId) || [];
+      const followUp = queued.shift();
+      if (!followUp) {
+        this.deferredUserFollowUps.delete(taskId);
+        return;
+      }
+      // Remove only the item whose turn is starting. Later messages remain
+      // visible and editable in the queue until their own turn begins.
+      if (queued.length === 0) {
+        this.deferredUserFollowUps.delete(taskId);
+      } else {
+        this.deferredUserFollowUps.set(taskId, queued);
+      }
+
+      try {
+        if (followUp.userMessageAlreadyEmitted) {
           executor.suppressNextUserMessageEvent();
-          return this.sendMessage(
-            taskId,
-            followUp.message,
-            followUp.images,
-            followUp.quotedAssistantMessage,
-            Object.prototype.hasOwnProperty.call(followUp, "integrationMentions")
+        }
+        this.deferredUserFollowUpDispatches.add(taskId);
+        const dispatch = this.sendMessage(
+          taskId,
+          followUp.message,
+          followUp.images,
+          followUp.quotedAssistantMessage,
+          {
+            ...(Object.prototype.hasOwnProperty.call(followUp, "integrationMentions")
               ? { integrationMentions: followUp.integrationMentions }
-              : undefined,
-          );
-        })
-        .then(() => {
-          /* result intentionally ignored */
-        })
-        .catch((err) => {
-          console.error(
-            `[AgentDaemon] Failed to process orphaned follow-up for task ${taskId}:`,
-            err,
-          );
-        });
+              : {}),
+            ...(Object.prototype.hasOwnProperty.call(followUp, "agentConfigOverride")
+              ? { agentConfigOverride: followUp.agentConfigOverride }
+              : {}),
+          },
+        );
+        // The bypass is only for the synchronous queue decision at dispatch
+        // time. Do not let unrelated IPC messages bypass the FIFO while this
+        // turn is awaiting the model or tools.
+        this.deferredUserFollowUpDispatches.delete(taskId);
+        await dispatch;
+      } catch (err) {
+        console.error(
+          `[AgentDaemon] Failed to process queued follow-up for task ${taskId}:`,
+          err,
+        );
+      } finally {
+        this.deferredUserFollowUpDispatches.delete(taskId);
+      }
     }
   }
 

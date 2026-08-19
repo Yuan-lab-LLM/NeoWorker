@@ -18,7 +18,7 @@ Comprehensive performance optimization guide for React Native applications, desi
 
 ---
 
-## Repo Workflows (CoWork OS)
+## Repo Workflows (NeoWorker)
 
 Commands verified from `package.json` scripts.
 

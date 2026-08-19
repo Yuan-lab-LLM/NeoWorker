@@ -666,9 +666,9 @@ export function renderVisualAnnotatorHtml(bootstrap: AnnotatorBootstrap): string
     }
 
     async function send(actionName) {
-      const api = window.coworkCanvas;
+      const api = window.neoworkerCanvas;
       if (!api || typeof api.sendA2UIAction !== 'function') {
-        toast('coworkCanvas API not available (this must run in canvas://)');
+        toast('neoworkerCanvas API not available (this must run in canvas://)');
         return;
       }
       const ctx = payloadV1();

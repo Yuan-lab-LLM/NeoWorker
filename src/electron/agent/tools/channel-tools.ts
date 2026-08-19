@@ -100,6 +100,10 @@ export class ChannelTools {
       "email",
       "teams",
       "googlechat",
+      "feishu",
+      "dingtalk",
+      "weixin",
+      "wecom",
       "x",
     ];
 
@@ -171,7 +175,7 @@ export class ChannelTools {
         name: "channel_fetch_discord_messages",
         description:
           "Fetch recent messages directly from a Discord channel via the live API (not the local gateway log). " +
-          "Use when you need to see messages that have not passed through CoWork yet, or to get full channel context. " +
+          "Use when you need to see messages that have not passed through NeoWorker yet, or to get full channel context. " +
           "Requires Discord channel to be configured and connected. Returns up to 100 messages, oldest-first. " +
           "Messages with attachments are marked with +Natt. Use channel_download_discord_attachment to download attachments.",
         input_schema: {
@@ -234,7 +238,7 @@ export class ChannelTools {
     if (!channel) {
       return {
         success: false,
-        error: `Channel "${channelType}" is not configured in this CoWork OS instance.`,
+        error: `Channel "${channelType}" is not configured in this NeoWorker instance.`,
       };
     }
 
@@ -379,7 +383,7 @@ export class ChannelTools {
     if (!channel) {
       return {
         success: false,
-        error: `Channel "${channelType}" is not configured in this CoWork OS instance.`,
+        error: `Channel "${channelType}" is not configured in this NeoWorker instance.`,
       };
     }
 

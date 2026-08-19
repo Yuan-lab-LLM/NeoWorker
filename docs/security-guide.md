@@ -1,10 +1,10 @@
 # Security Guide for End Users
 
-This document explains the security model, permissions, and considerations for users who clone and run CoWork OS on their machines.
+This document explains the security model, permissions, and considerations for users who clone and run NeoWorker on their machines.
 
 ## Overview
 
-CoWork OS is an AI-powered task automation tool that can execute actions on your behalf. By design, it has capabilities that require careful consideration:
+NeoWorker is an AI-powered task automation tool that can execute actions on your behalf. By design, it has capabilities that require careful consideration:
 
 - Execute shell commands
 - Read and write files
@@ -13,7 +13,7 @@ CoWork OS is an AI-powered task automation tool that can execute actions on your
 
 All of these capabilities are **consent-based** and **sandboxed** where possible.
 
-CoWork OS can also expose **Chronicle**, an opt-in desktop recent-screen context feature. Chronicle keeps a short local passive screen buffer to resolve vague on-screen references, but it does not send those passive screenshots to external providers by itself. Chronicle is configured from **Settings > Memory Hub > Chronicle**, with pause/resume controls and explicit consent gating. See [Chronicle](chronicle.md).
+NeoWorker can also expose **Chronicle**, an opt-in desktop recent-screen context feature. Chronicle keeps a short local passive screen buffer to resolve vague on-screen references, but it does not send those passive screenshots to external providers by itself. Chronicle is configured from **Settings > Memory Hub > Chronicle**, with pause/resume controls and explicit consent gating. See [Chronicle](chronicle.md).
 
 ---
 
@@ -64,7 +64,7 @@ result.
 
 ### Configurable Guardrails
 
-CoWork OS includes configurable guardrails in **Settings > Guardrails** to limit what the agent can do:
+NeoWorker includes configurable guardrails in **Settings > Guardrails** to limit what the agent can do:
 
 | Guardrail | Description | Default |
 |-----------|-------------|---------|
@@ -125,14 +125,14 @@ This prevents unintended browsing during automation tasks.
 
 ### Workspace Kit Project Access Rules
 
-If a workspace contains a `.cowork/projects/<projectId>/ACCESS.md` file, built-in tools enforce per-project access based on the task's assigned agent role:
+If a workspace contains a `.neoworker/projects/<projectId>/ACCESS.md` file, built-in tools enforce per-project access based on the task's assigned agent role:
 
 - `## Allow` and `## Deny` sections accept agent role IDs (one per line prefixed with `-`).
 - Use `all` to match every agent role.
 - Deny wins over allow.
 
 Enforcement applies to:
-- File/edit/grep/search tools when the path is inside `.cowork/projects/<projectId>/...`
+- File/edit/grep/search tools when the path is inside `.neoworker/projects/<projectId>/...`
 - Workspace-kit context injection (denied projects are excluded from injected context)
 
 Important: shell commands are not subject to these per-project access rules. Keep shell permission disabled unless you explicitly need it, and review shell approvals carefully.
@@ -163,7 +163,7 @@ The app includes Playwright for web automation:
 | Execute JavaScript | Within page context only |
 | Mode | Headless by default |
 
-**User agent**: `CoWork OS Browser Automation`
+**User agent**: `NeoWorker Browser Automation`
 
 ### Chronicle Screen Context
 
@@ -174,11 +174,11 @@ Chronicle is separate from browser automation and from dedicated computer-use mo
 | Passive capture | Opt-in only; local recent-screen buffer in the desktop app |
 | Consent / controls | Explicit consent before first enable; pause/resume from Settings or the tray menu when available |
 | Storage model | Raw passive frames stay in app-local storage and are pruned aggressively |
-| Workspace persistence | Only task-used observations are copied into `.cowork/chronicle/`; linked `screen_context` memory generation can follow when enabled |
+| Workspace persistence | Only task-used observations are copied into `.neoworker/chronicle/`; linked `screen_context` memory generation can follow when enabled |
 | Network behavior | No automatic provider export; later vision analysis still follows normal approval rules |
 | Availability | Desktop app only; not offered in headless or channel runtimes |
 
-Chronicle also introduces a **prompt-injection risk from visible screen content**. A malicious page, document, or chat window can place instructions on screen that the agent may later treat as relevant context. CoWork marks Chronicle text as untrusted screen text, but you should still keep Chronicle paused or off when viewing sensitive or untrusted material, and prefer direct source tools over screen-derived context when a file, URL, PR, or thread can be read directly.
+Chronicle also introduces a **prompt-injection risk from visible screen content**. A malicious page, document, or chat window can place instructions on screen that the agent may later treat as relevant context. NeoWorker marks Chronicle text as untrusted screen text, but you should still keep Chronicle paused or off when viewing sensitive or untrusted material, and prefer direct source tools over screen-derived context when a file, URL, PR, or thread can be read directly.
 
 ---
 
@@ -232,13 +232,13 @@ Remote ACP delegation is constrained more tightly than ordinary outbound automat
 
 ### Control Plane Exposure
 
-The Control Plane binds to loopback by default. Headless/managed deployments fail closed on `0.0.0.0`/`::` binds unless Tailscale exposure is enabled, the process is running in a privately published container with `COWORK_CONTROL_PLANE_BIND_CONTEXT=container`, or `COWORK_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND=1` is set as a break-glass override.
+The Control Plane binds to loopback by default. Headless/managed deployments fail closed on `0.0.0.0`/`::` binds unless Tailscale exposure is enabled, the process is running in a privately published container with `NEOWORKER_CONTROL_PLANE_BIND_CONTEXT=container`, or `NEOWORKER_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND=1` is set as a break-glass override.
 
-Reverse-proxied dashboards should set `COWORK_CONTROL_PLANE_ALLOWED_ORIGINS` to the public HTTPS origin. Only enable `COWORK_CONTROL_PLANE_TRUST_PROXY=1` behind a proxy that controls forwarded headers.
+Reverse-proxied dashboards should set `NEOWORKER_CONTROL_PLANE_ALLOWED_ORIGINS` to the public HTTPS origin. Only enable `NEOWORKER_CONTROL_PLANE_TRUST_PROXY=1` behind a proxy that controls forwarded headers.
 
 ### No Telemetry
 
-CoWork OS does **not**:
+NeoWorker does **not**:
 - Send usage analytics
 - Track user behavior
 - Phone home to any server
@@ -256,14 +256,14 @@ Settings stored through `SecureSettingsRepository` are encrypted inside the loca
 
 | Data | Location | Encryption |
 |------|----------|------------|
-| All Settings | `app.getPath('userData')/cowork-os.db` | OS Keychain + AES-256 |
-| Database file | `app.getPath('userData')/cowork-os.db` | Plain SQLite file; selected settings and sensitive fields are encrypted per category/feature |
-| Machine ID | `app.getPath('userData')/.cowork-machine-id` | Stable identifier for encryption |
+| All Settings | `app.getPath('userData')/neoworker.db` | OS Keychain + AES-256 |
+| Database file | `app.getPath('userData')/neoworker.db` | Plain SQLite file; selected settings and sensitive fields are encrypted per category/feature |
+| Machine ID | `app.getPath('userData')/.neoworker-machine-id` | Stable identifier for encryption |
 
 Typical `userData` locations:
-- macOS: `~/Library/Application Support/cowork-os/`
-- Linux: `~/.config/cowork-os/`
-- Windows: `%APPDATA%\\cowork-os\\`
+- macOS: `~/Library/Application Support/neoworker/`
+- Linux: `~/.config/neoworker/`
+- Windows: `%APPDATA%\\neoworker\\`
 
 ### Encryption Layers
 
@@ -311,7 +311,7 @@ Memory Write Approval is configured in **Settings → Memory Hub**. It can stage
 - `background_only`: automatic capture, Dreaming, distillation, and external mirroring wait for review
 - `all`: every durable memory write waits for review
 
-Pending rows live in `pending_memory_writes` inside the normal SQLite database. Since that table is not whole-file encrypted, CoWork blocks sensitive external-memory payloads before queueing them. Approvals first claim rows as `applying`, then replay the write with the gate bypassed and mark it `applied`; duplicate or stale approve attempts fail instead of replaying again.
+Pending rows live in `pending_memory_writes` inside the normal SQLite database. Since that table is not whole-file encrypted, NeoWorker blocks sensitive external-memory payloads before queueing them. Approvals first claim rows as `applying`, then replay the write with the gate bypassed and mark it `applied`; duplicate or stale approve attempts fail instead of replaying again.
 
 ### Data Integrity
 
@@ -328,7 +328,7 @@ Each stored setting includes:
 - Channel message history (incoming/outgoing message content for configured channels)
 - **All encrypted settings** (API keys, preferences, configurations)
 
-Everything is stored **locally** on your machine. CoWork OS does not upload your database or message history to any CoWork OS servers.
+Everything is stored **locally** on your machine. NeoWorker does not upload your database or message history to any NeoWorker servers.
 
 ### API Key Security
 
@@ -342,7 +342,7 @@ Your API keys are:
 
 ### Media and File Validation
 
-CoWork also applies guardrails before certain file and media operations reach external providers:
+NeoWorker also applies guardrails before certain file and media operations reach external providers:
 
 - large text writes are blocked by the configured file-size guardrail
 - binary files are rejected from text-only write paths
@@ -482,7 +482,7 @@ See [Secure MCP Tunnels](secure-mcp-tunnels.md) for the tunnel-specific security
 
 ## Threat Model
 
-### What CoWork OS Protects Against
+### What NeoWorker Protects Against
 
 | Threat | Protection |
 |--------|------------|
@@ -550,7 +550,7 @@ See [SECURITY.md](SECURITY.md) for full details.
 
 ## Advanced Security Framework (v0.3.8.7+)
 
-CoWork OS includes a comprehensive security framework inspired by formal verification techniques.
+NeoWorker includes a comprehensive security framework inspired by formal verification techniques.
 
 ### Tool Groups & Risk Levels
 
@@ -660,7 +660,7 @@ Imported skills and imported plugin packs now pass through the same install-time
 | **Package Malware Checks** | Detected `npx` / `uvx` package references can be checked against live package-malware intelligence |
 | **Quarantine Instead of Activate** | Imports with blocking findings are preserved in quarantine rather than registered into the active runtime |
 | **Persisted Scan Reports** | Managed imports store a security report for warning UX, review, and later integrity checks |
-| **Digest Enforcement** | If a managed imported bundle changes after install, CoWork can quarantine it again on the next load |
+| **Digest Enforcement** | If a managed imported bundle changes after install, NeoWorker can quarantine it again on the next load |
 
 **Rejected inputs (skill IDs)**:
 - `../../../etc/passwd` - Path traversal
@@ -688,13 +688,13 @@ The bundled Codex Security pack runs repository, diff, and deep multi-pass secur
 | Protection | Description |
 |------------|-------------|
 | **First-party pack loading** | The bundled Codex Security pack is discovered from `resources/plugin-packs/codex-security/` in development and `plugin-packs/codex-security/` in packaged builds. |
-| **Normal workspace policy** | Scan tasks use the same workspace path, shell, network, and approval controls as other CoWork tasks. |
-| **Artifact containment** | Scan artifacts should be written under the active workspace, normally `.cowork/security-scans/<repo-name>/<scan-id>/`. |
+| **Normal workspace policy** | Scan tasks use the same workspace path, shell, network, and approval controls as other NeoWorker tasks. |
+| **Artifact containment** | Scan artifacts should be written under the active workspace, normally `.neoworker/security-scans/<repo-name>/<scan-id>/`. |
 | **Scoped-path discipline** | Scoped scans should use relative repository paths; absolute paths and `..` segments should be rejected by the workflow before scanning. |
 | **Deep worker completeness** | Deep-scan reconciliation expects six usable workers, with all required files present and valid JSONL in worker ledgers/candidates. |
 | **Report rendering through bundled scripts** | Report validation and HTML rendering should use bundled Codex Security scripts from the packaged plugin pack, not user-provided renderer paths. |
 
-These controls keep the scan workflow auditable and keep scan activity within the same policy boundary as normal CoWork task execution.
+These controls keep the scan workflow auditable and keep scan activity within the same policy boundary as normal NeoWorker task execution.
 
 **Implementation**:
 - `src/electron/agent/tools/registry.ts` (normal workspace-scoped tool catalog used by scan skills)
@@ -722,7 +722,7 @@ Test files:
 
 ## Summary
 
-CoWork OS is designed with security in mind:
+NeoWorker is designed with security in mind:
 
 | Aspect | Status |
 |--------|--------|
@@ -743,7 +743,7 @@ CoWork OS is designed with security in mind:
 ### Guardrails Settings Location
 
 All guardrail settings can be configured at:
-- **Database**: stored as an encrypted `guardrails` category inside `app.getPath('userData')/cowork-os.db`
+- **Database**: stored as an encrypted `guardrails` category inside `app.getPath('userData')/neoworker.db`
 - **UI**: Settings (gear icon) → Guardrails tab
 
 ### Settings Migration

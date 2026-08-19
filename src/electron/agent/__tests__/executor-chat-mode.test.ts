@@ -29,6 +29,9 @@ vi.mock("../../memory/DurableContextService", () => ({
 
 vi.mock("../../settings/personality-manager", () => ({
   PersonalityManager: {
+    getAgentName: vi.fn().mockReturnValue("NeoWorker"),
+    getUserName: vi.fn().mockReturnValue(""),
+    getGreeting: vi.fn().mockReturnValue("Hi there"),
     getPersonalityPrompt: vi.fn().mockReturnValue(""),
     getPersonalityPromptById: vi.fn().mockReturnValue(""),
     getIdentityPrompt: vi.fn().mockReturnValue(""),
@@ -137,10 +140,10 @@ describe("TaskExecutor chat mode", () => {
         "Summarize this PDF",
         "",
         "Attached files (relative to workspace):",
-        "- report.pdf (.cowork/uploads/123/report.pdf)",
+        "- report.pdf (.neoworker/uploads/123/report.pdf)",
         "  Extracted content:",
         "    PDF attachment: report.pdf",
-        "    Path: .cowork/uploads/123/report.pdf",
+        "    Path: .neoworker/uploads/123/report.pdf",
       ].join("\n"),
       userPrompt: "Summarize this PDF",
       rawPrompt: "Summarize this PDF",
@@ -260,6 +263,51 @@ describe("TaskExecutor chat mode", () => {
     );
   });
 
+  it("does not mark a failed artifact task completed after a chat-only follow-up", async () => {
+    const executor = Object.create(TaskExecutor.prototype) as Any;
+    executor.task = {
+      id: "task-failed-artifact-follow-up",
+      agentType: "sub",
+      agentConfig: { conversationMode: "chat" },
+    };
+    executor.workspace = { id: "ws-chat-follow-up", path: "/tmp" };
+    executor.provider = { type: "openai" };
+    executor.conversationHistory = [];
+    executor.daemon = { updateTaskStatus: vi.fn() };
+    executor.emitEvent = vi.fn();
+    executor.getRoleContextPrompt = vi.fn().mockReturnValue("");
+    executor.buildUserProfileBlock = vi.fn().mockReturnValue("");
+    executor.isExplicitChatExecutionMode = vi.fn().mockReturnValue(false);
+    executor.getEffectiveExecutionMode = vi.fn().mockReturnValue("chat");
+    executor.getEffectiveTaskDomain = vi.fn().mockReturnValue("general");
+    executor.setPromptCacheContext = vi.fn().mockReturnValue("system prompt");
+    executor.buildChatOrThinkSystemBlocks = vi.fn().mockReturnValue([]);
+    executor.generateCompanionFallbackResponse = vi.fn().mockReturnValue("fallback");
+    executor.runTextTurnKernel = vi.fn().mockResolvedValue({
+      assistantText: "The file is still missing.",
+      messages: [{ role: "assistant", content: "The file is still missing." }],
+    });
+    executor.updateConversationHistory = vi.fn();
+    executor.saveConversationSnapshot = vi.fn();
+    executor.finalizeFollowUpCompletion = vi.fn();
+
+    await (TaskExecutor as Any).prototype.respondInChatMode.call(
+      executor,
+      "What happened?",
+      "failed",
+    );
+
+    expect(executor.daemon.updateTaskStatus).toHaveBeenCalledWith(
+      "task-failed-artifact-follow-up",
+      "failed",
+    );
+    expect(executor.finalizeFollowUpCompletion).not.toHaveBeenCalled();
+    expect(executor.emitEvent).toHaveBeenCalledWith(
+      "task_status",
+      expect.objectContaining({ status: "failed" }),
+    );
+  });
+
   it("does not treat inferred chat intent as explicit chat mode", async () => {
     const executor = Object.create(TaskExecutor.prototype) as Any;
 
@@ -289,6 +337,42 @@ describe("TaskExecutor chat mode", () => {
     executor.isLikelyTaskRequest = vi.fn().mockReturnValue(false);
 
     expect((TaskExecutor as Any).prototype.shouldShortCircuitSimpleNonExecuteAnswer.call(executor)).toBe(false);
+  });
+
+  it("routes Chinese greetings and identity questions through companion mode", () => {
+    const prompts = ["你好", "您好啊", "你是谁？", "你好啊。你是谁啊", "介绍一下你自己"];
+
+    for (const prompt of prompts) {
+      const executor = createInferredChatExecutor(prompt);
+      expect(
+        (TaskExecutor as Any).prototype.shouldHandleInitialPromptAsCompanion.call(
+          executor,
+          prompt,
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("returns a deterministic Chinese identity response", () => {
+    const executor = createInferredChatExecutor("你好啊。你是谁啊");
+
+    expect(
+      (TaskExecutor as Any).prototype.getDeterministicCompanionResponse.call(
+        executor,
+        "你好啊。你是谁啊",
+      ),
+    ).toBe("我是 NeoWorker，你的智能工作助手。你可以直接告诉我想完成什么，我会根据需要帮你处理信息和执行任务。");
+  });
+
+  it("does not force deterministic replies for substantive chat prompts", () => {
+    const executor = createInferredChatExecutor("你怎么看远程办公的利弊？");
+
+    expect(
+      (TaskExecutor as Any).prototype.getDeterministicCompanionResponse.call(
+        executor,
+        "你怎么看远程办公的利弊？",
+      ),
+    ).toBeNull();
   });
 
   it("does not route local walking errand prompts through companion mode", () => {
@@ -396,6 +480,33 @@ describe("TaskExecutor chat mode", () => {
     ).toBe(false);
   });
 
+  it.each([
+    "北京今天天气怎么样？",
+    "帮我查看一下浪潮信息股票今天的情况",
+    "你去查一下",
+  ])("routes explicit chat live lookups through the tool-capable task path: %s", (prompt) => {
+    const executor = createInferredChatExecutor(prompt, {
+      executionMode: "chat",
+      executionModeSource: "user",
+      conversationMode: "chat",
+      taskIntent: "chat",
+    });
+
+    expect(
+      (TaskExecutor as Any).prototype.shouldHandleInitialPromptAsCompanion.call(
+        executor,
+        prompt,
+      ),
+    ).toBe(false);
+    expect(
+      (TaskExecutor as Any).prototype.resolveConversationMode.call(
+        executor,
+        prompt,
+        true,
+      ),
+    ).toBe("task");
+  });
+
   it("keeps ambiguous inferred chat prompts in the normal executor path", () => {
     const prompts = [
       "are there premier league games tomorrow",
@@ -409,7 +520,7 @@ describe("TaskExecutor chat mode", () => {
       "summarize report.pdf",
       "describe this image",
       "Attached files:\n- photo.png\nWhat is in this image?",
-      "PDF attachment: report.pdf\nPath: .cowork/uploads/123/report.pdf\nSummarize it",
+      "PDF attachment: report.pdf\nPath: .neoworker/uploads/123/report.pdf\nSummarize it",
     ];
 
     for (const prompt of prompts) {
@@ -547,7 +658,7 @@ describe("TaskExecutor chat mode", () => {
 
   it("reuses a cached explicit chat summary instead of regenerating it every turn", async () => {
     const executor = Object.create(TaskExecutor.prototype) as Any;
-    const buildCompactionSummaryBlock = vi.fn().mockResolvedValue("<cowork_compaction_summary>\nsummary\n</cowork_compaction_summary>");
+    const buildCompactionSummaryBlock = vi.fn().mockResolvedValue("<neoworker_compaction_summary>\nsummary\n</neoworker_compaction_summary>");
 
     executor.conversationHistory = Array.from({ length: 30 }, (_, index) => ({
       role: index % 2 === 0 ? "user" : "assistant",
@@ -575,12 +686,12 @@ describe("TaskExecutor chat mode", () => {
       typeof first[0].content === "string"
         ? first[0].content
         : JSON.stringify(first[0].content),
-    ).toContain("<cowork_compaction_summary>");
+    ).toContain("<neoworker_compaction_summary>");
     expect(
       typeof second[0].content === "string"
         ? second[0].content
         : JSON.stringify(second[0].content),
-    ).toContain("<cowork_compaction_summary>");
+    ).toContain("<neoworker_compaction_summary>");
   });
 
   it("routes long sub-agent chat synthesis through the shared text turn kernel flow", async () => {

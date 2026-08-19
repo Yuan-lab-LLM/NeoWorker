@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import type { CronStoreFile, CronJob } from "../types";
 
-const ORIGINAL_COWORK_USER_DATA_DIR = process.env.COWORK_USER_DATA_DIR;
+const ORIGINAL_NEOWORKER_USER_DATA_DIR = process.env.NEOWORKER_USER_DATA_DIR;
 
 // Mock electron app
 vi.mock("electron", () => ({
@@ -28,14 +28,14 @@ import {
 
 describe("resolveCronStorePath", () => {
   beforeEach(() => {
-    process.env.COWORK_USER_DATA_DIR = "/mock/user/data";
+    process.env.NEOWORKER_USER_DATA_DIR = "/mock/user/data";
   });
 
   afterEach(() => {
-    if (ORIGINAL_COWORK_USER_DATA_DIR === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+    if (ORIGINAL_NEOWORKER_USER_DATA_DIR === undefined) {
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = ORIGINAL_COWORK_USER_DATA_DIR;
+      process.env.NEOWORKER_USER_DATA_DIR = ORIGINAL_NEOWORKER_USER_DATA_DIR;
     }
   });
 

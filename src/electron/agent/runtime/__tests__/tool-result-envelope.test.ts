@@ -52,4 +52,27 @@ describe("buildToolResultEnvelope", () => {
         "CHECKLIST REMINDER:\n- Add a verification item before finishing.",
     });
   });
+
+  it("exposes native Office creation results as artifact evidence", () => {
+    const envelope = buildToolResultEnvelope({
+      toolUseId: "tool-office",
+      toolName: "create_spreadsheet",
+      status: "success",
+      result: {
+        path: "经营复盘.xlsx",
+        success: true,
+        mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      },
+    });
+
+    expect(envelope.evidence).toEqual([
+      expect.objectContaining({
+        type: "artifact",
+        value: "经营复盘.xlsx",
+        extra: {
+          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        },
+      }),
+    ]);
+  });
 });

@@ -276,7 +276,7 @@ export const REMOTE_COMMAND_DEFINITIONS: RemoteCommandDefinition[] = [
   {
     name: "queue",
     aliases: ["q"],
-    description: "Show or clear the CoWork queue.",
+    description: "Show or clear the NeoWorker queue.",
     activeTaskPolicy: "dispatch",
     category: "Task Control",
     argsHint: "[clear|prompt]",

@@ -148,7 +148,7 @@ describe("MoaProvider", () => {
       role: "user",
     });
     expect(String(aggregatorRequest.messages.at(-1)?.content)).toContain(
-      "cowork_moa_advisory",
+      "neoworker_moa_advisory",
     );
   });
 

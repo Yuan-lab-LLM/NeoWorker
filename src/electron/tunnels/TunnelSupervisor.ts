@@ -25,7 +25,7 @@ export class SecureMcpTunnelSupervisor extends EventEmitter {
   }
 
   async startEnabledTunnels(): Promise<void> {
-    if (process.env.COWORK_SECURE_MCP_TUNNELS !== "1") {
+    if (process.env.NEOWORKER_SECURE_MCP_TUNNELS !== "1") {
       return;
     }
     const settings = SecureMcpTunnelSettingsManager.loadSettings();
@@ -89,8 +89,8 @@ export class SecureMcpTunnelSupervisor extends EventEmitter {
           state: "stopped",
           relayUrl: tunnel.relayUrl,
           targetUrl:
-            tunnel.targetType === "cowork-host"
-              ? `http://127.0.0.1:${tunnel.coworkHostPort || 3333}/mcp`
+            tunnel.targetType === "neoworker-host"
+              ? `http://127.0.0.1:${tunnel.neoworkerHostPort || 3333}/mcp`
               : tunnel.targetUrl || "",
           lastConnectedAt: tunnel.lastConnectedAt,
           lastError: tunnel.lastError,

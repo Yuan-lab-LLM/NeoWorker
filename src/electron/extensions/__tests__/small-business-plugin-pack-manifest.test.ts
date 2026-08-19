@@ -15,7 +15,7 @@ const MANIFEST_PATH = path.resolve(
   "resources",
   "plugin-packs",
   "smb-complete",
-  "cowork.plugin.json",
+  "neoworker.plugin.json",
 );
 
 function readManifest() {

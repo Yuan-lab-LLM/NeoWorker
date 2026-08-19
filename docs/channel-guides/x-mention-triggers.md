@@ -26,7 +26,7 @@ An allowlisted author mentions the account with the configured prefix:
 @yourbot do: summarize this thread and extract action items
 ```
 
-CoWork creates one task for the mention and avoids duplicate work for the same tweet ID.
+NeoWorker creates one task for the mention and avoids duplicate work for the same tweet ID.
 
 ## Best Practices
 

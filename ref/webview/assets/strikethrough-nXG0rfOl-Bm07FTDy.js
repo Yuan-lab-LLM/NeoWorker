@@ -1,0 +1,3 @@
+import { n as e, t } from "./strikethrough-nXG0rfOl-bXIfalua.js";
+e();
+export { t as default };

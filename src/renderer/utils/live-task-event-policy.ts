@@ -1,7 +1,8 @@
 import type { TaskEvent } from "../../shared/types";
 import { getEffectiveTaskEventType } from "./task-event-compat";
 
-export type LiveTaskEventLane = "immediate" | "batchable" | "coalescible" | "hiddenLiveNoise";
+export type LiveTaskEventLane =
+  "immediate" | "batchable" | "coalescible" | "hiddenLiveNoise";
 
 const IMMEDIATE_EVENT_TYPES = new Set([
   "assistant_message",
@@ -33,9 +34,11 @@ const HIDDEN_LIVE_NOISE_EVENT_TYPES = new Set([
   "task_analysis",
   "llm_output_budget",
   "llm_output_budget_escalation",
+  "llm_output_budget_continuation",
 ]);
 
-const NETWORK_FAILURE_RE = /\b(fetch failed|network|timeout|timed out|unable to get local issuer certificate|certificate|tls)\b/i;
+const NETWORK_FAILURE_RE =
+  /\b(fetch failed|network|timeout|timed out|unable to get local issuer certificate|certificate|tls)\b/i;
 
 function asObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
@@ -57,12 +60,15 @@ function getPayloadText(payload: Record<string, unknown>): string {
     .join(" ");
 }
 
-export function getLiveTaskEventCoalesceFingerprint(event: TaskEvent): string | null {
+export function getLiveTaskEventCoalesceFingerprint(
+  event: TaskEvent,
+): string | null {
   const effectiveType = getEffectiveTaskEventType(event);
   const payload = asObject(event.payload);
   const text = getPayloadText(payload);
   const tool = typeof payload.tool === "string" ? payload.tool.trim() : "";
-  const provider = typeof payload.provider === "string" ? payload.provider.trim() : "";
+  const provider =
+    typeof payload.provider === "string" ? payload.provider.trim() : "";
   const code = typeof payload.code === "string" ? payload.code.trim() : "";
   const failureClass =
     typeof payload.failureClass === "string" ? payload.failureClass.trim() : "";
@@ -75,14 +81,24 @@ export function getLiveTaskEventCoalesceFingerprint(event: TaskEvent): string | 
     effectiveType === "follow_up_failed"
   ) {
     if (!normalizedText && !code && !failureClass) return null;
-    return [event.taskId, effectiveType, provider, tool, code, failureClass, normalizedText]
+    return [
+      event.taskId,
+      effectiveType,
+      provider,
+      tool,
+      code,
+      failureClass,
+      normalizedText,
+    ]
       .filter(Boolean)
       .join(":");
   }
 
   if (
     effectiveType === "tool_result" &&
-    (payload.success === false || payload.isError === true || NETWORK_FAILURE_RE.test(text))
+    (payload.success === false ||
+      payload.isError === true ||
+      NETWORK_FAILURE_RE.test(text))
   ) {
     return [event.taskId, effectiveType, tool, code, normalizedText]
       .filter(Boolean)
@@ -90,10 +106,13 @@ export function getLiveTaskEventCoalesceFingerprint(event: TaskEvent): string | 
   }
 
   if (
-    (effectiveType === "progress_update" || effectiveType === "timeline_step_updated") &&
+    (effectiveType === "progress_update" ||
+      effectiveType === "timeline_step_updated") &&
     NETWORK_FAILURE_RE.test(text)
   ) {
-    return [event.taskId, effectiveType, code, normalizedText].filter(Boolean).join(":");
+    return [event.taskId, effectiveType, code, normalizedText]
+      .filter(Boolean)
+      .join(":");
   }
 
   return null;
@@ -101,7 +120,8 @@ export function getLiveTaskEventCoalesceFingerprint(event: TaskEvent): string | 
 
 export function classifyLiveTaskEvent(event: TaskEvent): LiveTaskEventLane {
   const effectiveType = getEffectiveTaskEventType(event);
-  if (HIDDEN_LIVE_NOISE_EVENT_TYPES.has(effectiveType)) return "hiddenLiveNoise";
+  if (HIDDEN_LIVE_NOISE_EVENT_TYPES.has(effectiveType))
+    return "hiddenLiveNoise";
   if (getLiveTaskEventCoalesceFingerprint(event)) return "coalescible";
   if (IMMEDIATE_EVENT_TYPES.has(effectiveType)) return "immediate";
   if (BATCHABLE_EVENT_TYPES.has(effectiveType)) return "batchable";

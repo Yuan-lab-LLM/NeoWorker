@@ -13,7 +13,7 @@ describe("viewer path security", () => {
   let externalRoot: string;
 
   beforeEach(async () => {
-    tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-viewer-path-"));
+    tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-viewer-path-"));
     workspaceRoot = path.join(tempRoot, "workspace");
     externalRoot = path.join(tempRoot, "external");
     await fs.mkdir(workspaceRoot);

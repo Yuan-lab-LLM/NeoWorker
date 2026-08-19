@@ -22,7 +22,7 @@ export class AcpxRuntimeUnavailableError extends Error {
 }
 
 export function getAcpxSessionName(taskId: string): string {
-  return `cowork-${taskId}`;
+  return `neoworker-${taskId}`;
 }
 
 export function getAcpxPermissionArgs(
@@ -508,7 +508,7 @@ export class AcpxRuntimeRunner {
             settled = true;
             reject(
               new AcpxRuntimeUnavailableError(
-                "acpx is not installed and CoWork could not launch it via npx acpx@latest",
+                "acpx is not installed and NeoWorker could not launch it via npx acpx@latest",
               ),
             );
             return;

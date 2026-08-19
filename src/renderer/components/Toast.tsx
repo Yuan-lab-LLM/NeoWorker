@@ -1,4 +1,5 @@
 import { ToastNotification } from "../../shared/types";
+import { translate } from "../i18n";
 
 interface ToastContainerProps {
   toasts: ToastNotification[];
@@ -25,7 +26,11 @@ function renderToast(
   onTaskClick?: (taskId: string) => void,
 ) {
   const actions =
-    toast.actions && toast.actions.length > 0 ? toast.actions : toast.action ? [toast.action] : [];
+    toast.actions && toast.actions.length > 0
+      ? toast.actions
+      : toast.action
+        ? [toast.action]
+        : [];
 
   return (
     <div
@@ -34,7 +39,9 @@ function renderToast(
       onClick={() => toast.taskId && onTaskClick?.(toast.taskId)}
       style={{ cursor: toast.taskId ? "pointer" : "default" }}
     >
-      <div className={`toast-icon toast-icon-${toast.type}`}>{getToastIcon(toast.type)}</div>
+      <div className={`toast-icon toast-icon-${toast.type}`}>
+        {getToastIcon(toast.type)}
+      </div>
       <div className="toast-content">
         <div className="toast-title">{toast.title}</div>
         {toast.message && <div className="toast-message">{toast.message}</div>}
@@ -64,8 +71,11 @@ function renderToast(
           e.stopPropagation();
           onDismiss(toast.id);
         }}
-        title="Dismiss"
-        aria-label="Dismiss notification"
+        title={translate("common.dismiss", "Dismiss")}
+        aria-label={translate(
+          "toast.dismissNotification",
+          "Dismiss notification",
+        )}
       >
         <svg
           width="14"
@@ -84,7 +94,11 @@ function renderToast(
   );
 }
 
-export function ToastContainer({ toasts, onDismiss, onTaskClick }: ToastContainerProps) {
+export function ToastContainer({
+  toasts,
+  onDismiss,
+  onTaskClick,
+}: ToastContainerProps) {
   if (toasts.length === 0) {
     return null;
   }
@@ -97,12 +111,16 @@ export function ToastContainer({ toasts, onDismiss, onTaskClick }: ToastContaine
     <>
       {regularToasts.length > 0 && (
         <div className="toast-container toast-container-top-right">
-          {regularToasts.map((toast) => renderToast(toast, onDismiss, onTaskClick))}
+          {regularToasts.map((toast) =>
+            renderToast(toast, onDismiss, onTaskClick),
+          )}
         </div>
       )}
       {approvalToasts.length > 0 && (
         <div className="toast-container toast-container-center">
-          {approvalToasts.map((toast) => renderToast(toast, onDismiss, onTaskClick))}
+          {approvalToasts.map((toast) =>
+            renderToast(toast, onDismiss, onTaskClick),
+          )}
         </div>
       )}
     </>

@@ -1,6 +1,6 @@
 # Security Harness
 
-The security harness is the first local implementation of the CoWork OS security-discovery loop:
+The security harness is the first local implementation of the NeoWorker security-discovery loop:
 
 `prepare -> scan -> validate/debate -> dedup -> prove -> eval coverage`
 

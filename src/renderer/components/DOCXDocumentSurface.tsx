@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import type { DocumentEditorDocxBlock, DocxBlockSelection } from "../../shared/types";
+import type {
+  DocumentEditorDocxBlock,
+  DocxBlockSelection,
+} from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 type DOCXDocumentSurfaceProps = {
   blocks: DocumentEditorDocxBlock[];
@@ -12,6 +16,8 @@ export function DOCXDocumentSurface({
   selection,
   onSelectionChange,
 }: DOCXDocumentSurfaceProps) {
+  useLanguage();
+  const t = translate;
   const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -21,10 +27,14 @@ export function DOCXDocumentSurface({
     return () => window.removeEventListener("pointerup", handlePointerUp);
   }, []);
 
-  const selectedIds = useMemo(() => new Set(selection?.blockIds || []), [selection]);
+  const selectedIds = useMemo(
+    () => new Set(selection?.blockIds || []),
+    [selection],
+  );
 
   const updateSelection = (startIndex: number, endIndex: number) => {
-    const [from, to] = startIndex <= endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+    const [from, to] =
+      startIndex <= endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
     const selectedBlocks = blocks.slice(from, to + 1);
     onSelectionChange({
       kind: "docx",
@@ -36,7 +46,11 @@ export function DOCXDocumentSurface({
   };
 
   if (blocks.length === 0) {
-    return <div className="document-editor-empty">No structured DOCX blocks were extracted.</div>;
+    return (
+      <div className="document-editor-empty">
+        {t("docxSurface.empty", "No structured DOCX blocks were extracted.")}
+      </div>
+    );
   }
 
   return (
@@ -66,15 +80,22 @@ export function DOCXDocumentSurface({
             <span className="docx-block-id">{block.id}</span>
           </div>
           {block.type === "heading" ? (
-            <div className={`docx-block-heading docx-block-heading-${block.level || 1}`}>
+            <div
+              className={`docx-block-heading docx-block-heading-${block.level || 1}`}
+            >
               {block.text}
             </div>
           ) : block.type === "table" ? (
             <div className="docx-block-table-preview">
               {(block.rows || []).slice(0, 4).map((row, rowIndex) => (
-                <div key={`${block.id}-${rowIndex}`} className="docx-block-table-row">
+                <div
+                  key={`${block.id}-${rowIndex}`}
+                  className="docx-block-table-row"
+                >
                   {row.map((cell, cellIndex) => (
-                    <span key={`${block.id}-${rowIndex}-${cellIndex}`}>{cell || " "}</span>
+                    <span key={`${block.id}-${rowIndex}-${cellIndex}`}>
+                      {cell || " "}
+                    </span>
                   ))}
                 </div>
               ))}

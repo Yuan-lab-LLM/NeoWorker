@@ -1,18 +1,15 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   FolderOpen,
-  File,
   Search,
   Clock,
   HardDrive,
   Cloud,
-  FileSpreadsheet,
-  FileText,
-  Image,
-  Code,
   Archive,
 } from "lucide-react";
 import { DocumentAwareFileModal } from "./DocumentAwareFileModal";
+import { ArtifactFileTypeIcon } from "./ArtifactFileTypeIcon";
+import { translate, useLanguage } from "../i18n";
 
 interface UnifiedFile {
   id: string;
@@ -34,21 +31,16 @@ const SOURCE_TABS = [
   { key: "dropbox", label: "Dropbox", icon: Cloud },
 ];
 
-function getFileIcon(mimeType: string, isDir?: boolean) {
+function getFileIcon(fileName: string, isDir?: boolean) {
   if (isDir) return <FolderOpen size={16} style={{ color: "#f59e0b" }} />;
-  if (mimeType.startsWith("image/")) return <Image size={16} style={{ color: "#8b5cf6" }} />;
-  if (mimeType.includes("spreadsheet") || mimeType.includes("excel"))
-    return <FileSpreadsheet size={16} style={{ color: "#22c55e" }} />;
-  if (
-    mimeType.includes("javascript") ||
-    mimeType.includes("typescript") ||
-    mimeType.includes("python") ||
-    mimeType.includes("json")
-  )
-    return <Code size={16} style={{ color: "#3b82f6" }} />;
-  if (mimeType.includes("text") || mimeType.includes("markdown"))
-    return <FileText size={16} style={{ color: "#6b7280" }} />;
-  return <File size={16} style={{ color: "var(--text-tertiary, #666)" }} />;
+  return (
+    <ArtifactFileTypeIcon
+      filePath={fileName}
+      className="file-hub-format-icon"
+      size={15}
+      containerSize={26}
+    />
+  );
 }
 
 function formatSize(bytes: number): string {
@@ -58,32 +50,49 @@ function formatSize(bytes: number): string {
 }
 
 function formatDate(ms: number): string {
+  const t = translate;
   const d = new Date(ms);
   const now = Date.now();
   const diff = now - ms;
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  if (diff < 3600000)
+    return t("time.minutesAgoShortCompact", "{count}m ago", {
+      count: Math.floor(diff / 60000),
+    });
+  if (diff < 86400000)
+    return t("time.hoursAgoShortCompact", "{count}h ago", {
+      count: Math.floor(diff / 3600000),
+    });
   return d.toLocaleDateString();
 }
 
-export const FileHub: React.FC<{ workspaceId?: string }> = ({ workspaceId: _workspaceId }) => {
+export const FileHub: React.FC<{ workspaceId?: string }> = ({
+  workspaceId: _workspaceId,
+}) => {
+  useLanguage();
+  const t = translate;
   const [activeSource, setActiveSource] = useState("local");
   const [files, setFiles] = useState<UnifiedFile[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [recentFiles, setRecentFiles] = useState<UnifiedFile[]>([]);
   const [showRecent, setShowRecent] = useState(false);
-  const [availableSources, setAvailableSources] = useState<string[]>(["local", "artifacts"]);
+  const [availableSources, setAvailableSources] = useState<string[]>([
+    "local",
+    "artifacts",
+  ]);
   const [viewerFilePath, setViewerFilePath] = useState<string | null>(null);
 
   const loadFiles = useCallback(async () => {
     try {
       if (searchQuery.trim()) {
-        const results = await (window as Any).electronAPI.searchHubFiles(searchQuery, [
-          activeSource,
-        ]);
+        const results = await (window as Any).electronAPI.searchHubFiles(
+          searchQuery,
+          [activeSource],
+        );
         setFiles((results || []).map((r: Any) => r.file));
       } else {
-        const result = await (window as Any).electronAPI.listHubFiles({ source: activeSource });
+        const result = await (window as Any).electronAPI.listHubFiles({
+          source: activeSource,
+        });
         setFiles(result || []);
       }
     } catch {
@@ -119,7 +128,12 @@ export const FileHub: React.FC<{ workspaceId?: string }> = ({ workspaceId: _work
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Search bar */}
-      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border-color, #333)" }}>
+      <div
+        style={{
+          padding: "12px 16px",
+          borderBottom: "1px solid var(--border-color, #333)",
+        }}
+      >
         <div
           style={{
             display: "flex",
@@ -131,11 +145,17 @@ export const FileHub: React.FC<{ workspaceId?: string }> = ({ workspaceId: _work
             background: "var(--surface-secondary, #1a1a1a)",
           }}
         >
-          <Search size={14} style={{ color: "var(--text-tertiary, #666)", flexShrink: 0 }} />
+          <Search
+            size={14}
+            style={{ color: "var(--text-tertiary, #666)", flexShrink: 0 }}
+          />
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search files across all sources..."
+            placeholder={t(
+              "fileHub.searchPlaceholder",
+              "Search files across all sources...",
+            )}
             style={{
               flex: 1,
               border: "none",
@@ -168,42 +188,48 @@ export const FileHub: React.FC<{ workspaceId?: string }> = ({ workspaceId: _work
             borderRadius: 4,
             border: "none",
             background: showRecent ? "var(--accent-bg, #2563eb22)" : "none",
-            color: showRecent ? "var(--accent-color, #60a5fa)" : "var(--text-secondary, #999)",
+            color: showRecent
+              ? "var(--accent-color, #60a5fa)"
+              : "var(--text-secondary, #999)",
             cursor: "pointer",
             fontSize: 12,
             whiteSpace: "nowrap",
           }}
         >
-          <Clock size={12} /> Recent
+          <Clock size={12} /> {t("fileHub.recent", "Recent")}
         </button>
-        {SOURCE_TABS.filter((t) => availableSources.includes(t.key)).map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => {
-              setActiveSource(tab.key);
-              setShowRecent(false);
-            }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              padding: "4px 10px",
-              borderRadius: 4,
-              border: "none",
-              background:
-                activeSource === tab.key && !showRecent ? "var(--accent-bg, #2563eb22)" : "none",
-              color:
-                activeSource === tab.key && !showRecent
-                  ? "var(--accent-color, #60a5fa)"
-                  : "var(--text-secondary, #999)",
-              cursor: "pointer",
-              fontSize: 12,
-              whiteSpace: "nowrap",
-            }}
-          >
-            <tab.icon size={12} /> {tab.label}
-          </button>
-        ))}
+        {SOURCE_TABS.filter((t) => availableSources.includes(t.key)).map(
+          (tab) => (
+            <button
+              key={tab.key}
+              onClick={() => {
+                setActiveSource(tab.key);
+                setShowRecent(false);
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "4px 10px",
+                borderRadius: 4,
+                border: "none",
+                background:
+                  activeSource === tab.key && !showRecent
+                    ? "var(--accent-bg, #2563eb22)"
+                    : "none",
+                color:
+                  activeSource === tab.key && !showRecent
+                    ? "var(--accent-color, #60a5fa)"
+                    : "var(--text-secondary, #999)",
+                cursor: "pointer",
+                fontSize: 12,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <tab.icon size={12} /> {t(`fileHub.source.${tab.key}`, tab.label)}
+            </button>
+          ),
+        )}
       </div>
 
       {/* File list */}
@@ -217,7 +243,9 @@ export const FileHub: React.FC<{ workspaceId?: string }> = ({ workspaceId: _work
               fontSize: 13,
             }}
           >
-            {searchQuery ? "No files match your search" : "No files found"}
+            {searchQuery
+              ? t("fileHub.empty.search", "No files match your search")
+              : t("fileHub.empty", "No files found")}
           </div>
         ) : (
           (showRecent ? recentFiles : files).map((file) => (
@@ -240,7 +268,7 @@ export const FileHub: React.FC<{ workspaceId?: string }> = ({ workspaceId: _work
                 (e.currentTarget as HTMLDivElement).style.background = "";
               }}
             >
-              {getFileIcon(file.mimeType, file.isDirectory)}
+              {getFileIcon(file.name, file.isDirectory)}
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
@@ -254,15 +282,25 @@ export const FileHub: React.FC<{ workspaceId?: string }> = ({ workspaceId: _work
                 >
                   {file.name}
                 </div>
-                <div style={{ fontSize: 11, color: "var(--text-tertiary, #666)" }}>
+                <div
+                  style={{ fontSize: 11, color: "var(--text-tertiary, #666)" }}
+                >
                   {file.source !== "local" && (
-                    <span style={{ marginRight: 8 }}>{file.source.replace("_", " ")}</span>
+                    <span style={{ marginRight: 8 }}>
+                      {file.source.replace("_", " ")}
+                    </span>
                   )}
                   {!file.isDirectory && formatSize(file.size)}
                 </div>
               </div>
 
-              <div style={{ fontSize: 11, color: "var(--text-tertiary, #666)", flexShrink: 0 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--text-tertiary, #666)",
+                  flexShrink: 0,
+                }}
+              >
                 {formatDate(file.modifiedAt)}
               </div>
             </div>

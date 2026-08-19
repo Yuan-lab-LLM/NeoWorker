@@ -1,6 +1,6 @@
 # Operator Runtime Visibility
 
-Operator Runtime Visibility is the productized surface for the learning-loop, recall, shell, terminal, and router work that now ships in CoWork OS. The goal is not to add a second learning system. It is to make the existing memory, Dreaming, playbook, skill-promotion, shell, terminal, and routing subsystems visible after every task, while keeping CoWork OS centered on its core surfaces: desktop control plane, channels, inbox, devices, and governed automation.
+Operator Runtime Visibility is the productized surface for the learning-loop, recall, shell, terminal, and router work that now ships in NeoWorker. The goal is not to add a second learning system. It is to make the existing memory, Dreaming, playbook, skill-promotion, shell, terminal, and routing subsystems visible after every task, while keeping NeoWorker centered on its core surfaces: desktop control plane, channels, inbox, devices, and governed automation.
 
 ## What users see
 
@@ -72,13 +72,13 @@ Skill execution is now visible without obscuring the original task:
 - runtime events explain whether a skill was shortlisted, applied, reused, or blocked
 - skill guidance is additive context, not a hidden rewritten task prompt
 
-This is important for trust. Operators can tell what they asked for, what skills CoWork layered on top, and why.
+This is important for trust. Operators can tell what they asked for, what skills NeoWorker layered on top, and why.
 
-## What stays core to CoWork OS
+## What stays core to NeoWorker
 
 Operator Runtime Visibility is an observability and operator-experience upgrade, not a replacement for the existing product identity.
 
-CoWork OS still centers on:
+NeoWorker still centers on:
 
 - desktop control plane (including **computer use**: governed `screenshot`/`click`/`type_text` sessions with platform helpers and **Esc** abort — see [Computer use](computer-use.md))
 - channels and inbox
@@ -106,5 +106,5 @@ Chronicle is part of this visibility story:
 - [Skills Runtime Model](skills-runtime-model.md)
 - [Mission Control](mission-control.md)
 - [Evolving Agent Intelligence](evolving-agent-intelligence.md)
-- [OpenClaw / CoWork comparison](openclaw-comparison.md)
+- [OpenClaw / NeoWorker comparison](openclaw-comparison.md)
 - [Changelog](changelog.md)

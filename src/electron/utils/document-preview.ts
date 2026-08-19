@@ -147,7 +147,7 @@ async function convertDocWithSoffice(
   filePath: string,
   runCommand: CommandRunner,
 ): Promise<string | null> {
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-doc-preview-"));
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-doc-preview-"));
   try {
     await runCommand("soffice", [
       "--headless",

@@ -13,14 +13,13 @@ const RELEASE_DIR = path.join(ROOT, "release");
 const REQUIRED_FILES = [
   "package.json",
   "INSTALL.md",
-  "bin/coworkd-node.js",
-  "bin/coworkctl.js",
+  "bin/neoworkerd-node.js",
+  "bin/neoworkerctl.js",
   "dist/daemon/daemon/main.js",
-  "deploy/systemd/cowork-os-node.service",
-  "deploy/systemd/cowork-os.env.example",
+  "deploy/systemd/neoworker-node.service",
+  "deploy/systemd/neoworker.env.example",
   "docs/vps-linux.md",
-  "resources/branding/cowork-os-app-logo-dark.png",
-  "resources/branding/cowork-os-app-logo-light.png",
+  "resources/branding/neoworker-app-icon.png",
   "resources/persona-templates/software-engineer.json",
   "node_modules/better-sqlite3/package.json",
 ];
@@ -50,7 +49,7 @@ async function findTarball() {
 
   const names = await fs.readdir(RELEASE_DIR);
   const candidates = names
-    .filter((name) => /^cowork-os-server-linux-x64-v.+\.tar\.gz$/.test(name))
+    .filter((name) => /^neoworker-server-linux-x64-v.+\.tar\.gz$/.test(name))
     .sort()
     .reverse();
 
@@ -109,7 +108,7 @@ async function main() {
   }
 
   const tarballPath = await findTarball();
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-linux-server-smoke-"));
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-linux-server-smoke-"));
   let daemon = null;
 
   try {
@@ -121,7 +120,7 @@ async function main() {
       await fs.access(path.join(packageRoot, relativePath));
     }
 
-    run(process.execPath, ["bin/coworkd-node.js", "--help"], { cwd: packageRoot });
+    run(process.execPath, ["bin/neoworkerd-node.js", "--help"], { cwd: packageRoot });
     run(
       process.execPath,
       [
@@ -135,14 +134,14 @@ async function main() {
     const userDataDir = path.join(tempRoot, "data");
     await fs.mkdir(userDataDir, { recursive: true });
 
-    daemon = spawn(process.execPath, ["bin/coworkd-node.js"], {
+    daemon = spawn(process.execPath, ["bin/neoworkerd-node.js"], {
       cwd: packageRoot,
       env: {
         ...process.env,
-        COWORK_USER_DATA_DIR: userDataDir,
-        COWORK_CONTROL_PLANE_HOST: "127.0.0.1",
-        COWORK_CONTROL_PLANE_PORT: String(port),
-        COWORK_IMPORT_ENV_SETTINGS: "0",
+        NEOWORKER_USER_DATA_DIR: userDataDir,
+        NEOWORKER_CONTROL_PLANE_HOST: "127.0.0.1",
+        NEOWORKER_CONTROL_PLANE_PORT: String(port),
+        NEOWORKER_IMPORT_ENV_SETTINGS: "0",
       },
       stdio: "inherit",
     });

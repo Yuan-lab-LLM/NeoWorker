@@ -1,6 +1,6 @@
 # Workspace Memory Flow
 
-This document describes how CoWork OS stores, curates, retrieves, and injects workspace memory after the layered-memory upgrade.
+This document describes how NeoWorker stores, curates, retrieves, and injects workspace memory after the layered-memory upgrade.
 
 The foundation is still the hybrid memory system, but the runtime now makes it explicit as a four-layer wake-up model built on top of those storage lanes:
 
@@ -8,7 +8,7 @@ The foundation is still the hybrid memory system, but the runtime now makes it e
 - **Recall archive**: larger searchable memory/history, not injected by default
 - **Structured observations**: inspectable sidecar metadata for archive memories
 - **Session recall**: recent transcript/checkpoint history for “what happened in that run?”
-- **Topic packs**: focused `.cowork/memory/topics/*.md` files loaded explicitly for topical work
+- **Topic packs**: focused `.neoworker/memory/topics/*.md` files loaded explicitly for topical work
 
 An optional external provider lane can also sit beside that local stack. Today that provider is Supermemory, and it is additive rather than authoritative.
 
@@ -27,9 +27,9 @@ Chronicle fits this model as a **screen-context evidence source**, not as a fift
 
 ## Memory Write Governance
 
-Durable memory writes pass through `MemoryWriteGate` before they commit when approval is enabled. The default mode is `off`, which preserves existing behavior. Stricter modes can be set through memory feature settings, or with `COWORK_MEMORY_WRITE_APPROVAL_MODE` for headless/local validation:
+Durable memory writes pass through `MemoryWriteGate` before they commit when approval is enabled. The default mode is `off`, which preserves existing behavior. Stricter modes can be set through memory feature settings, or with `NEOWORKER_MEMORY_WRITE_APPROVAL_MODE` for headless/local validation:
 
-- `curated_only`: stage writes to the hot `.cowork/USER.md` / `.cowork/MEMORY.md` layer.
+- `curated_only`: stage writes to the hot `.neoworker/USER.md` / `.neoworker/MEMORY.md` layer.
 - `external_only`: stage writes before anything is saved or mirrored to Supermemory.
 - `background_only`: stage background, distillation, Dreaming, and mirror writes while allowing explicit agent tool saves.
 - `all`: stage every durable archive, curated, and external memory write.
@@ -56,8 +56,8 @@ User messages / task events / accepted distill candidates
         │
         ├─→ CuratedMemoryService
         │     ├─→ curated_memory_entries (SQLite)
-        │     ├─→ .cowork/USER.md (auto block)
-        │     └─→ .cowork/MEMORY.md (auto block)
+        │     ├─→ .neoworker/USER.md (auto block)
+        │     └─→ .neoworker/MEMORY.md (auto block)
         │
         ├─→ MemoryService
         │     ├─→ memories + embeddings + summaries (archive lane)
@@ -69,14 +69,14 @@ User messages / task events / accepted distill candidates
         │     └─→ mirrored non-private memory captures
         │
         ├─→ TranscriptStore
-        │     └─→ .cowork/memory/transcripts/*
+        │     └─→ .neoworker/memory/transcripts/*
         │
         ├─→ DreamingService
         │     ├─→ dreaming_runs
         │     └─→ dreaming_candidates (reviewable memory maintenance proposals)
         │
         └─→ DailyLogService / DailyLogSummarizer
-              └─→ .cowork/memory/daily + summaries
+              └─→ .neoworker/memory/daily + summaries
 
 MemorySynthesizer.synthesize()
         │
@@ -102,7 +102,7 @@ Explicit recall tools
         └─→ supermemory_forget
 
 Chronicle promoted observations
-        ├─→ .cowork/chronicle/observations + assets
+        ├─→ .neoworker/chronicle/observations + assets
         └─→ ChronicleMemoryService → MemoryService (`screen_context`)
 ```
 
@@ -112,7 +112,7 @@ Chronicle promoted observations
 
 **Service:** `src/electron/memory/CuratedMemoryService.ts`  
 **Storage:** `curated_memory_entries` table  
-**Mirrors:** `.cowork/USER.md`, `.cowork/MEMORY.md`
+**Mirrors:** `.neoworker/USER.md`, `.neoworker/MEMORY.md`
 
 This lane is for the small set of durable facts that should stay front-and-center in prompts:
 
@@ -134,13 +134,13 @@ This lane is for the small set of durable facts that should stay front-and-cente
 - curated content is normalized before storage
 - stored curated content is capped at **320 characters**
 - `match` strings used for replace/remove are capped at **120 characters**
-- writes mirror into auto-managed blocks inside `.cowork/USER.md` and `.cowork/MEMORY.md`
+- writes mirror into auto-managed blocks inside `.neoworker/USER.md` and `.neoworker/MEMORY.md`
 - file sync is serialized per workspace to reduce last-writer-wins races
 - replace/remove prefers stable `id` values from `memory_curated_read` for deterministic updates
 
 ### Prompt behavior
 
-Curated hot memory is injected by default through `<cowork_hot_memory>`.
+Curated hot memory is injected by default through `<neoworker_hot_memory>`.
 
 ### Dreaming interaction
 
@@ -171,7 +171,7 @@ This lane still uses hybrid lexical + local semantic retrieval, but it is **not 
 
 Every archive memory can have a structured observation sidecar keyed by `memory_id`. The sidecar stores title, subtitle, narrative, facts, concepts, file/tool provenance, source event IDs, content hash, capture reason, privacy state, generation source, and migration status.
 
-This gives CoWork a compact index for retrieval and a user-inspectable control plane without rewriting the original `memories` table. The original archive row remains authoritative for full content.
+This gives NeoWorker a compact index for retrieval and a user-inspectable control plane without rewriting the original `memories` table. The original archive row remains authoritative for full content.
 
 Backfill is deterministic and local. It derives metadata from existing content and summaries without per-row LLM calls. It does not run as a synchronous startup write path; Memory Hub shows status and can trigger rebuild explicitly.
 
@@ -179,7 +179,7 @@ Destructive inspector actions are workspace-scoped. Delete is implemented as con
 
 ### Retrieval path
 
-- `search_memories` searches archive memory plus indexed `.cowork/` markdown
+- `search_memories` searches archive memory plus indexed `.neoworker/` markdown
 - `memory_search_index` returns compact structured observation matches first
 - `memory_timeline` returns compact neighboring observations around an anchor ID or query
 - `memory_details` expands only selected observation IDs and is scoped to the active workspace
@@ -202,7 +202,7 @@ Dreaming candidates keep evidence refs so future Memory Hub review can show why 
 ## Screen Context Evidence — Chronicle Promotions
 
 **Services:** `src/electron/chronicle/ChronicleCaptureService.ts`, `src/electron/chronicle/ChronicleObservationRepository.ts`, `src/electron/chronicle/ChronicleMemoryService.ts`
-**Workspace storage:** `.cowork/chronicle/observations/*.json`, `.cowork/chronicle/assets/*`
+**Workspace storage:** `.neoworker/chronicle/observations/*.json`, `.neoworker/chronicle/assets/*`
 
 Chronicle keeps a local recent-screen buffer in app user-data storage, but only writes into the workspace when a task actually used a screen observation.
 
@@ -237,14 +237,14 @@ Durable promotion is also gated by Chronicle's `respectWorkspaceMemory` setting:
 **Service:** `src/electron/memory/SupermemoryService.ts`  
 **Surface:** `Settings → Memory Hub → Supermemory`
 
-Supermemory is an optional external memory provider that runs alongside CoWork's local memory system.
+Supermemory is an optional external memory provider that runs alongside NeoWorker's local memory system.
 
 What it adds:
 
 - scoped profile fetches for prompt construction
 - explicit external recall and write tools
 - optional mirroring of non-private local memory captures
-- workspace-scoped container tags derived from a template such as `cowork:{workspaceId}`
+- workspace-scoped container tags derived from a template such as `neoworker:{workspaceId}`
 
 What it does not replace:
 
@@ -263,7 +263,7 @@ What it does not replace:
 
 ### Prompt behavior
 
-If prompt injection is enabled in Memory Hub, CoWork appends a Supermemory profile block during chat, execution, and follow-up prompt construction. This block is treated as soft context and should lose to fresher or conflicting user instructions in the active conversation.
+If prompt injection is enabled in Memory Hub, NeoWorker appends a Supermemory profile block during chat, execution, and follow-up prompt construction. This block is treated as soft context and should lose to fresher or conflicting user instructions in the active conversation.
 
 ### Mirroring behavior
 
@@ -277,7 +277,7 @@ Current boundary:
 
 ### Failure handling
 
-Supermemory requests are guarded with timeouts, best-effort behavior, and a temporary circuit breaker after repeated failures. When the provider is unavailable, CoWork continues with local memory only.
+Supermemory requests are guarded with timeouts, best-effort behavior, and a temporary circuit breaker after repeated failures. When the provider is unavailable, NeoWorker continues with local memory only.
 
 ---
 
@@ -290,8 +290,8 @@ Recent task/session history is now a first-class recall lane rather than somethi
 
 Stored artifacts include:
 
-- transcript spans under `.cowork/memory/transcripts/spans/*.jsonl`
-- lightweight checkpoints under `.cowork/memory/transcripts/checkpoints/*.json`
+- transcript spans under `.neoworker/memory/transcripts/spans/*.jsonl`
+- lightweight checkpoints under `.neoworker/memory/transcripts/checkpoints/*.json`
 
 Each checkpoint can now carry two complementary artifacts:
 
@@ -328,7 +328,7 @@ Results return exact excerpts plus provenance such as `sourceType`, `objectId`, 
 ## Topic Packs
 
 **Service:** `src/electron/memory/LayeredMemoryIndexService.ts`  
-**Files:** `.cowork/memory/MEMORY.md`, `.cowork/memory/topics/*.md`
+**Files:** `.neoworker/memory/MEMORY.md`, `.neoworker/memory/topics/*.md`
 
 Topic packs are query-scoped, focused memory slices generated from:
 
@@ -352,7 +352,7 @@ Topic packs are for topical work such as “bring me the onboarding context for 
 ### Operational Daily Log
 
 **Service:** `src/electron/memory/DailyLogService.ts`  
-**Location:** `.cowork/memory/daily/<YYYY-MM-DD>.md`
+**Location:** `.neoworker/memory/daily/<YYYY-MM-DD>.md`
 
 When another runtime path or automation writes entries through `DailyLogService`, the files act as raw operational journals for:
 
@@ -366,7 +366,7 @@ Raw daily logs are never injected into prompts.
 ### Daily Summaries
 
 **Service:** `src/electron/memory/DailyLogSummarizer.ts`  
-**Location:** `.cowork/memory/summaries/<YYYY-MM-DD>.md`
+**Location:** `.neoworker/memory/summaries/<YYYY-MM-DD>.md`
 
 Daily summaries remain part of the structured memory lane. They are ranked below curated/user relationship facts and above raw archive snippets when archive injection is enabled.
 
@@ -378,8 +378,8 @@ Daily summaries remain part of the structured memory lane. They are ranked below
 
 Prompt synthesis now builds separate sections instead of one monolithic synthesized-memory block:
 
-- `<cowork_hot_memory>` — `L0 Identity`: curated hot memory + user/profile + active relationship items
-- `<cowork_structured_memory>` — `L1 Essential Story`: playbook, daily summaries, active commitments, and current KG context
+- `<neoworker_hot_memory>` — `L0 Identity`: curated hot memory + user/profile + active relationship items
+- `<neoworker_structured_memory>` — `L1 Essential Story`: playbook, daily summaries, active commitments, and current KG context
 - optional Supermemory profile block — external profile/search context appended only when enabled
 
 `L2 Topic Packs` and `L3 Deep Recall` are not injected into the live prompt by default. They stay explicit and tool-driven.
@@ -412,7 +412,7 @@ Workspace kit context is still injected separately and placed before the memory 
 ## Workspace Kit Context
 
 **Service:** `src/electron/memory/WorkspaceKitContext.ts`  
-**Location:** `.cowork/*.md`
+**Location:** `.neoworker/*.md`
 
 The workspace kit remains a governed durable context layer with its own contracts, freshness windows, and prompt budgets. `USER.md` and `MEMORY.md` now contain auto-managed curated-memory blocks in addition to human-authored content.
 

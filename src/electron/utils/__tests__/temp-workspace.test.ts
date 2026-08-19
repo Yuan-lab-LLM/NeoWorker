@@ -6,8 +6,10 @@ import { TEMP_WORKSPACE_ID_PREFIX, TEMP_WORKSPACE_NAME } from "../../../shared/t
 import {
   createUniqueScopedTempWorkspaceDirectorySync,
   ensureTempWorkspaceDirectoryPathSync,
+  migrateLegacyTempWorkspaceDirectorySync,
   pruneTempWorkspaces,
 } from "../temp-workspace";
+import { LEGACY_TEMP_WORKSPACE_ROOT_DIR_NAMES } from "../../migrations/legacy-brand-compat";
 
 type WorkspaceRow = {
   id: string;
@@ -151,6 +153,56 @@ class MockDb {
   }
 }
 
+describe("migrateLegacyTempWorkspaceDirectorySync", () => {
+  const cleanupPaths: string[] = [];
+
+  afterEach(() => {
+    for (const cleanupPath of cleanupPaths.reverse()) {
+      fs.rmSync(cleanupPath, { recursive: true, force: true });
+    }
+    cleanupPaths.length = 0;
+  });
+
+  it("copies a recognized legacy workspace without removing its source", () => {
+    const legacyRoot = path.join(
+      os.tmpdir(),
+      LEGACY_TEMP_WORKSPACE_ROOT_DIR_NAMES[0],
+    );
+    fs.mkdirSync(legacyRoot, { recursive: true });
+    const legacyWorkspace = fs.mkdtempSync(path.join(legacyRoot, "vitest-"));
+    const destinationRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "neoworker-temp-migration-test-"),
+    );
+    cleanupPaths.push(legacyWorkspace, destinationRoot);
+    fs.writeFileSync(path.join(legacyWorkspace, "notes.txt"), "keep me");
+
+    const result = migrateLegacyTempWorkspaceDirectorySync(
+      destinationRoot,
+      legacyWorkspace,
+    );
+
+    expect(result.path).toContain(destinationRoot);
+    expect(fs.readFileSync(path.join(result.path, "notes.txt"), "utf8")).toBe(
+      "keep me",
+    );
+    expect(fs.existsSync(path.join(legacyWorkspace, "notes.txt"))).toBe(true);
+  });
+
+  it("rejects paths outside the known legacy roots", () => {
+    const unknownRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "unknown-temp-migration-test-"),
+    );
+    const destinationRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "neoworker-temp-migration-test-"),
+    );
+    cleanupPaths.push(unknownRoot, destinationRoot);
+
+    expect(() =>
+      migrateLegacyTempWorkspaceDirectorySync(destinationRoot, unknownRoot),
+    ).toThrow("not recognized");
+  });
+});
+
 describe("pruneTempWorkspaces", () => {
   const tempDirsToCleanup: string[] = [];
 
@@ -166,7 +218,7 @@ describe("pruneTempWorkspaces", () => {
   });
 
   const createTempRoot = (): string => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-temp-prune-test-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-temp-prune-test-"));
     tempDirsToCleanup.push(root);
     return root;
   };
@@ -494,7 +546,7 @@ describe("pruneTempWorkspaces", () => {
 
   it("prunes stale temp workspace DB rows even when temp root does not exist", () => {
     const db = new MockDb();
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-temp-prune-missing-root-"));
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-temp-prune-missing-root-"));
     tempDirsToCleanup.push(base);
     const missingRoot = path.join(base, "missing-root");
     const nowMs = 6_000_000;

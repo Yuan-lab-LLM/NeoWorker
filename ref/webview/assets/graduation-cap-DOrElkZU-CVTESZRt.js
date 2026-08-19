@@ -1,0 +1,3 @@
+import { n as e, t } from "./graduation-cap-DOrElkZU-mCzRz69x.js";
+e();
+export { t as default };

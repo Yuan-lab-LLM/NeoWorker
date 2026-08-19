@@ -13,4 +13,4 @@ The user-facing concept is now **Workflow Intelligence**. It combines Memory, He
 
 See the canonical architecture guide: [Workflow Intelligence](workflow-intelligence.md).
 
-Implementation note: some internal names still use `Subconscious` for compatibility, including `.cowork/subconscious/`, `SubconsciousLoopService`, and legacy SQLite table names.
+Implementation note: some internal names still use `Subconscious` for compatibility, including `.neoworker/subconscious/`, `SubconsciousLoopService`, and legacy SQLite table names.

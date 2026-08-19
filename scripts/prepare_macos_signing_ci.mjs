@@ -21,7 +21,7 @@ function appendGithubEnv(name, value) {
 
 function writeKeyFile(contents, suffix = ".p8") {
   const dir = process.env.RUNNER_TEMP || os.tmpdir();
-  const filePath = path.join(dir, `cowork-apple-api-key-${Date.now()}${suffix}`);
+  const filePath = path.join(dir, `neoworker-apple-api-key-${Date.now()}${suffix}`);
   fs.writeFileSync(filePath, contents, { mode: 0o600 });
   appendGithubEnv("APPLE_API_KEY", filePath);
   return filePath;

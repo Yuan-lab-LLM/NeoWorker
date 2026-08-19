@@ -240,7 +240,7 @@ export class HooksServer {
     const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?$/.test(origin);
     res.setHeader("Access-Control-Allow-Origin", isLocalOrigin ? origin : "http://localhost");
     res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CoWork-Token");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-NeoWorker-Token");
 
     // Handle preflight
     if (req.method === "OPTIONS") {
@@ -687,9 +687,9 @@ export class HooksServer {
       if (token) return { token, fromQuery: false };
     }
 
-    // Check X-CoWork-Token header
+    // Check X-NeoWorker-Token header
     const headerToken =
-      typeof req.headers["x-cowork-token"] === "string" ? req.headers["x-cowork-token"].trim() : "";
+      typeof req.headers["x-neoworker-token"] === "string" ? req.headers["x-neoworker-token"].trim() : "";
     if (headerToken) return { token: headerToken, fromQuery: false };
 
     // Check query param (deprecated)

@@ -14,6 +14,8 @@ export * from "./imessage";
 export * from "./signal";
 export * from "./google-chat";
 export * from "./feishu";
+export * from "./dingtalk";
+export * from "./weixin";
 export * from "./wecom";
 export * from "./mattermost";
 export * from "./matrix";

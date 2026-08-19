@@ -39,21 +39,21 @@ jobs:
         continue-on-error: true
         run: npm run qa:eval:run -- --suite reliability-regressions --mode deterministic
         env:
-          COWORK_DB_PATH: ${{ runner.temp }}/cowork-release-eval.db
-          COWORK_EVAL_ALLOW_EMPTY: '1'
+          NEOWORKER_DB_PATH: ${{ runner.temp }}/neoworker-release-eval.db
+          NEOWORKER_EVAL_ALLOW_EMPTY: '1'
 
       - name: Run battery suite when hooks are configured
         id: run_battery
         continue-on-error: true
         env:
-          COWORK_HOOKS_ORIGIN: ${{ secrets.COWORK_HOOKS_ORIGIN }}
-          COWORK_HOOKS_TOKEN: ${{ secrets.COWORK_HOOKS_TOKEN }}
-          COWORK_DB_PATH: ${{ secrets.COWORK_DB_PATH }}
+          NEOWORKER_HOOKS_ORIGIN: ${{ secrets.NEOWORKER_HOOKS_ORIGIN }}
+          NEOWORKER_HOOKS_TOKEN: ${{ secrets.NEOWORKER_HOOKS_TOKEN }}
+          NEOWORKER_DB_PATH: ${{ secrets.NEOWORKER_DB_PATH }}
         run: |
-          if [ -n "${COWORK_HOOKS_ORIGIN}" ] && [ -n "${COWORK_HOOKS_TOKEN}" ] && [ -n "${COWORK_DB_PATH}" ]; then
+          if [ -n "${NEOWORKER_HOOKS_ORIGIN}" ] && [ -n "${NEOWORKER_HOOKS_TOKEN}" ] && [ -n "${NEOWORKER_DB_PATH}" ]; then
             node scripts/qa/run_battery.cjs
           else
-            echo "Battery skipped: set COWORK_HOOKS_ORIGIN, COWORK_HOOKS_TOKEN, and COWORK_DB_PATH secrets."
+            echo "Battery skipped: set NEOWORKER_HOOKS_ORIGIN, NEOWORKER_HOOKS_TOKEN, and NEOWORKER_DB_PATH secrets."
           fi
 
       - name: Enforce release hardening gate
@@ -195,7 +195,7 @@ jobs:
             gh release edit "${release_tag}" --repo "${GITHUB_REPOSITORY}" --title "${release_title}" --notes-file release-notes.md --draft=true
           fi
 
-          echo "Cowork release draft prepared: ${release_tag}"
+          echo "NeoWorker release draft prepared: ${release_tag}"
 
       - name: Prepare package.json for electron-builder
         shell: bash
@@ -219,7 +219,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${RUNNER_OS}" = "macOS" ]; then
-            COWORK_MAC_UNSIGNED=1 node scripts/run_electron_builder.mjs --mac --publish never
+            NEOWORKER_MAC_UNSIGNED=1 node scripts/run_electron_builder.mjs --mac --publish never
           else
             npm run package
           fi
@@ -385,8 +385,8 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          server_artifacts=(release/cowork-os-server-linux-x64-v*.tar.gz)
-          server_checksums=(release/cowork-os-server-linux-x64-v*.tar.gz.sha256)
+          server_artifacts=(release/neoworker-server-linux-x64-v*.tar.gz)
+          server_checksums=(release/neoworker-server-linux-x64-v*.tar.gz.sha256)
           if [ "${#server_artifacts[@]}" -ne 1 ]; then
             echo "Expected exactly one Linux server tarball in release/." >&2
             exit 1
@@ -407,7 +407,7 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
           release_tag="${{ steps.release_metadata.outputs.release_tag }}"
-          artifacts=(release/cowork-os-server-linux-x64-v*.tar.gz release/cowork-os-server-linux-x64-v*.tar.gz.sha256)
+          artifacts=(release/neoworker-server-linux-x64-v*.tar.gz release/neoworker-server-linux-x64-v*.tar.gz.sha256)
           if [ "${#artifacts[@]}" -eq 0 ]; then
             echo "No Linux server release artifacts found to upload." >&2
             exit 1
@@ -471,7 +471,7 @@ jobs:
         with:
           node-version: '24'
           registry-url: 'https://npm.pkg.github.com'
-          scope: '@cowork-os'
+          scope: '@neoworker'
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -484,7 +484,7 @@ jobs:
           # GitHub Packages requires scoped package names
           node -e "
             const pkg = require('./package.json');
-            pkg.name = '@cowork-os/cowork-os';
+            pkg.name = '@neoworker/neoworker';
             require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           "
 

@@ -1,6 +1,6 @@
 # Performance & Stability Enhancements
 
-This document covers performance optimizations and stability fixes applied to CoWork OS to address resource issues observed during multitask runs (collaborative team reviews, parallel agent execution).
+This document covers performance optimizations and stability fixes applied to NeoWorker to address resource issues observed during multitask runs (collaborative team reviews, parallel agent execution).
 
 ## Problem Statement
 
@@ -190,7 +190,7 @@ Daily database maintenance (deferred 60 seconds after startup):
 
 ### Grep Directory Exclusions
 
-Added to `skipDirs`: `release`, `.cowork`, `out`, `.cache`, `.parcel-cache`, `.turbo`
+Added to `skipDirs`: `release`, `.neoworker`, `out`, `.cache`, `.parcel-cache`, `.turbo`
 
 These directories contain build artifacts and worktrees that bloat search scope during code review tasks.
 

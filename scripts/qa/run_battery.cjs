@@ -5,15 +5,15 @@ const os = require('os');
 
 const { execFileSync } = require('child_process');
 
-const HOOKS_ORIGIN = process.env.COWORK_HOOKS_ORIGIN || 'http://127.0.0.1:9877';
-const HOOKS_TOKEN = process.env.COWORK_HOOKS_TOKEN || 'qa-token';
+const HOOKS_ORIGIN = process.env.NEOWORKER_HOOKS_ORIGIN || 'http://127.0.0.1:9877';
+const HOOKS_TOKEN = process.env.NEOWORKER_HOOKS_TOKEN || 'qa-token';
 const DB_PATH =
-  process.env.COWORK_DB_PATH ||
-  path.join(os.homedir(), 'Library', 'Application Support', 'cowork-os', 'cowork-os.db');
-const SQLITE_BUSY_TIMEOUT_MS = Number(process.env.COWORK_SQLITE_BUSY_TIMEOUT_MS) || 15000;
+  process.env.NEOWORKER_DB_PATH ||
+  path.join(os.homedir(), 'Library', 'Application Support', 'neoworker', 'neoworker.db');
+const SQLITE_BUSY_TIMEOUT_MS = Number(process.env.NEOWORKER_SQLITE_BUSY_TIMEOUT_MS) || 15000;
 
-const QA_WORKSPACE_ID = process.env.COWORK_QA_WORKSPACE_ID || 'f0e94e20-1c54-4d8b-93fe-700c77ad3258';
-const REPO_WORKSPACE_ID = process.env.COWORK_REPO_WORKSPACE_ID || '07d63869-c23a-4418-8b25-b0ced9c76b12';
+const QA_WORKSPACE_ID = process.env.NEOWORKER_QA_WORKSPACE_ID || 'f0e94e20-1c54-4d8b-93fe-700c77ad3258';
+const REPO_WORKSPACE_ID = process.env.NEOWORKER_REPO_WORKSPACE_ID || '07d63869-c23a-4418-8b25-b0ced9c76b12';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

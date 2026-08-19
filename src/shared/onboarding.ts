@@ -198,7 +198,7 @@ export const ONBOARDING_COMMAND_OPTIONS = [
   },
 ] as const;
 
-const ONBOARDING_SLASH_COMMANDS = new Set(["/start", "/onboard", "/begin", "/cowork-os:begin"]);
+const ONBOARDING_SLASH_COMMANDS = new Set(["/start", "/onboard", "/begin", "/neoworker:begin"]);
 
 export function getOnboardingOptionTitle<T extends string>(
   options: OnboardingOption<T>[],

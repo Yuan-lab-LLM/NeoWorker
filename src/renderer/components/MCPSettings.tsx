@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
 import { MCPRegistryBrowser } from "./MCPRegistryBrowser";
 import { ConnectorSetupModal, ConnectorProvider } from "./ConnectorSetupModal";
-import { useAgentContext } from "../hooks/useAgentContext";
+import { translate, useLanguage } from "../i18n";
 
 // Types (matching preload types)
 type MCPTransportType = "stdio" | "sse" | "websocket";
-type MCPConnectionStatus = "disconnected" | "connecting" | "connected" | "reconnecting" | "error";
+type MCPConnectionStatus =
+  "disconnected" | "connecting" | "connected" | "reconnecting" | "error";
 
 interface MCPServerConfig {
   id: string;
@@ -61,8 +62,21 @@ interface MCPUpdateInfo {
   latestVersion: string;
 }
 
-type SecureMcpTunnelTargetType = "cowork-host" | "http";
-type SecureMcpTunnelState = "stopped" | "connecting" | "connected" | "reconnecting" | "error";
+const DEFAULT_MCP_SETTINGS: MCPSettingsData = {
+  servers: [],
+  autoConnect: false,
+  toolNamePrefix: "mcp_",
+  maxReconnectAttempts: 3,
+  reconnectDelayMs: 1000,
+  registryEnabled: true,
+  registryUrl: "",
+  hostEnabled: false,
+  hostPort: 3333,
+};
+
+type SecureMcpTunnelTargetType = "neoworker-host" | "http";
+type SecureMcpTunnelState =
+  "stopped" | "connecting" | "connected" | "reconnecting" | "error";
 
 interface SecureMcpTunnelPolicy {
   allowedTools: string[];
@@ -79,7 +93,7 @@ interface SecureMcpTunnelConfig {
   relayUrl: string;
   targetType: SecureMcpTunnelTargetType;
   targetUrl?: string;
-  coworkHostPort?: number;
+  neoworkerHostPort?: number;
   policy: SecureMcpTunnelPolicy;
   hasClientToken: boolean;
   hasCallerToken: boolean;
@@ -114,16 +128,24 @@ interface SecureMcpTunnelAuditEvent {
 }
 
 export function MCPSettings() {
+  useLanguage();
+  const t = translate;
   const [settings, setSettings] = useState<MCPSettingsData | null>(null);
   const [serverStatuses, setServerStatuses] = useState<MCPServerStatus[]>([]);
-  const [secureTunnels, setSecureTunnels] = useState<SecureMcpTunnelConfig[]>([]);
-  const [secureTunnelStatuses, setSecureTunnelStatuses] = useState<SecureMcpTunnelStatus[]>([]);
-  const [secureTunnelAudit, setSecureTunnelAudit] = useState<SecureMcpTunnelAuditEvent[]>([]);
+  const [secureTunnels, setSecureTunnels] = useState<SecureMcpTunnelConfig[]>(
+    [],
+  );
+  const [secureTunnelStatuses, setSecureTunnelStatuses] = useState<
+    SecureMcpTunnelStatus[]
+  >([]);
+  const [secureTunnelAudit, setSecureTunnelAudit] = useState<
+    SecureMcpTunnelAuditEvent[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeView, setActiveView] = useState<"servers" | "registry" | "tunnels" | "settings">(
-    "servers",
-  );
+  const [activeView, setActiveView] = useState<
+    "servers" | "registry" | "tunnels" | "settings"
+  >("servers");
 
   // Add server form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -132,11 +154,15 @@ export function MCPSettings() {
   const [newServerArgs, setNewServerArgs] = useState("");
   const [newServerEnv, setNewServerEnv] = useState("");
   const [showAddTunnelForm, setShowAddTunnelForm] = useState(false);
-  const [newTunnelName, setNewTunnelName] = useState("CoWork tools");
-  const [newTunnelRelayUrl, setNewTunnelRelayUrl] = useState("http://127.0.0.1:8787");
+  const [newTunnelName, setNewTunnelName] = useState("NeoWorker tools");
+  const [newTunnelRelayUrl, setNewTunnelRelayUrl] = useState(
+    "http://127.0.0.1:8787",
+  );
   const [newTunnelTargetType, setNewTunnelTargetType] =
-    useState<SecureMcpTunnelTargetType>("cowork-host");
-  const [newTunnelTargetUrl, setNewTunnelTargetUrl] = useState("http://127.0.0.1:3333/mcp");
+    useState<SecureMcpTunnelTargetType>("neoworker-host");
+  const [newTunnelTargetUrl, setNewTunnelTargetUrl] = useState(
+    "http://127.0.0.1:3333/mcp",
+  );
   const [newTunnelClientToken, setNewTunnelClientToken] = useState("");
   const [newTunnelCallerToken, setNewTunnelCallerToken] = useState("");
   const [newTunnelAllowedTools, setNewTunnelAllowedTools] = useState("");
@@ -148,7 +174,6 @@ export function MCPSettings() {
 
   // Test result
   const [testingServer, setTestingServer] = useState<string | null>(null);
-  const agentContext = useAgentContext();
   const [testResult, setTestResult] = useState<{
     serverId: string;
     success: boolean;
@@ -160,7 +185,9 @@ export function MCPSettings() {
   const [connectingServer, setConnectingServer] = useState<string | null>(null);
 
   // Connection error state (shows errors inline instead of alerts)
-  const [connectionErrors, setConnectionErrors] = useState<Record<string, string>>({});
+  const [connectionErrors, setConnectionErrors] = useState<
+    Record<string, string>
+  >({});
 
   // Update state
   const [availableUpdates, setAvailableUpdates] = useState<MCPUpdateInfo[]>([]);
@@ -188,9 +215,11 @@ export function MCPSettings() {
     const unsubscribe = window.electronAPI.onMCPStatusChange((statuses) => {
       setServerStatuses(statuses);
     });
-    const unsubscribeTunnels = window.electronAPI.onSecureMcpTunnelStatusChange((statuses) => {
-      setSecureTunnelStatuses(statuses);
-    });
+    const unsubscribeTunnels = window.electronAPI.onSecureMcpTunnelStatusChange(
+      (statuses) => {
+        setSecureTunnelStatuses(statuses);
+      },
+    );
 
     return () => {
       unsubscribe();
@@ -201,16 +230,23 @@ export function MCPSettings() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [loadedSettings, statuses, tunnelSettings, tunnelStatuses, tunnelAudit] = await Promise.all([
+      const [
+        loadedSettings,
+        statuses,
+        tunnelSettings,
+        tunnelStatuses,
+        tunnelAudit,
+      ] = await Promise.all([
         window.electronAPI.getMCPSettings(),
         window.electronAPI.getMCPStatus(),
         window.electronAPI.getSecureMcpTunnelSettings(),
         window.electronAPI.getSecureMcpTunnelStatus(),
         window.electronAPI.getSecureMcpTunnelAudit(),
       ]);
-      setSettings(loadedSettings);
-      setServerStatuses(statuses);
-      setSecureTunnels(tunnelSettings.tunnels || []);
+      const nextSettings = loadedSettings || DEFAULT_MCP_SETTINGS;
+      setSettings(nextSettings);
+      setServerStatuses(statuses || []);
+      setSecureTunnels(tunnelSettings?.tunnels || []);
       setSecureTunnelStatuses(tunnelStatuses || []);
       setSecureTunnelAudit(tunnelAudit || []);
     } catch (error) {
@@ -225,7 +261,9 @@ export function MCPSettings() {
 
     try {
       setSaving(true);
-      const args = newServerArgs ? newServerArgs.split(" ").filter((a) => a.trim()) : [];
+      const args = newServerArgs
+        ? newServerArgs.split(" ").filter((a) => a.trim())
+        : [];
       const env: Record<string, string> = {};
 
       if (newServerEnv) {
@@ -257,7 +295,11 @@ export function MCPSettings() {
       await loadData();
     } catch (error: Any) {
       console.error("Failed to add server:", error);
-      alert(`Failed to add server: ${error.message}`);
+      alert(
+        t("mcp.error.addServer", "Failed to add server: {message}", {
+          message: error.message,
+        }),
+      );
     } finally {
       setSaving(false);
     }
@@ -275,8 +317,9 @@ export function MCPSettings() {
         name: newTunnelName,
         relayUrl: newTunnelRelayUrl,
         targetType: newTunnelTargetType,
-        targetUrl: newTunnelTargetType === "http" ? newTunnelTargetUrl : undefined,
-        coworkHostPort: 3333,
+        targetUrl:
+          newTunnelTargetType === "http" ? newTunnelTargetUrl : undefined,
+        neoworkerHostPort: 3333,
         clientToken: newTunnelClientToken || undefined,
         callerToken: newTunnelCallerToken || undefined,
         enabled: false,
@@ -321,7 +364,10 @@ export function MCPSettings() {
   };
 
   const handleRemoveTunnel = async (tunnelId: string) => {
-    if (!confirm("Remove this secure MCP tunnel?")) return;
+    if (
+      !confirm(t("mcp.confirm.removeTunnel", "Remove this secure MCP tunnel?"))
+    )
+      return;
     try {
       await window.electronAPI.deleteSecureMcpTunnel(tunnelId);
       await loadData();
@@ -356,7 +402,8 @@ export function MCPSettings() {
       // Store error in state for inline display
       setConnectionErrors((prev) => ({
         ...prev,
-        [serverId]: error.message || "Connection failed",
+        [serverId]:
+          error.message || t("mcp.error.connectionFailed", "Connection failed"),
       }));
     } finally {
       setConnectingServer(null);
@@ -376,7 +423,8 @@ export function MCPSettings() {
       console.error("Failed to disconnect server:", error);
       setConnectionErrors((prev) => ({
         ...prev,
-        [serverId]: error.message || "Disconnect failed",
+        [serverId]:
+          error.message || t("mcp.error.disconnectFailed", "Disconnect failed"),
       }));
     } finally {
       setConnectingServer(null);
@@ -478,7 +526,9 @@ export function MCPSettings() {
       const config = settings?.servers.find((s) => s.id === editingServer);
 
       // Parse args from space-separated string
-      let args = editServerArgs ? editServerArgs.split(" ").filter((a) => a.trim()) : [];
+      let args = editServerArgs
+        ? editServerArgs.split(" ").filter((a) => a.trim())
+        : [];
 
       // For Filesystem server, append the paths to args
       if (isFilesystemServer(config)) {
@@ -583,7 +633,9 @@ export function MCPSettings() {
       setUpdatingServer(serverId);
       await window.electronAPI.updateMCPServerFromRegistry(serverId);
       // Remove from available updates
-      setAvailableUpdates((prev) => prev.filter((u) => u.serverId !== serverId));
+      setAvailableUpdates((prev) =>
+        prev.filter((u) => u.serverId !== serverId),
+      );
       // Reload data
       await loadData();
       alert("Server updated successfully!");
@@ -616,19 +668,21 @@ export function MCPSettings() {
   const getStatusText = (status: MCPConnectionStatus): string => {
     switch (status) {
       case "connected":
-        return "Connected";
+        return t("mcp.status.connected", "Connected");
       case "connecting":
-        return "Connecting...";
+        return t("mcp.status.connecting", "Connecting...");
       case "reconnecting":
-        return "Reconnecting...";
+        return t("mcp.status.reconnecting", "Reconnecting...");
       case "error":
-        return "Error";
+        return t("mcp.status.error", "Error");
       default:
-        return "Disconnected";
+        return t("mcp.status.disconnected", "Disconnected");
     }
   };
 
-  const getTunnelStatus = (tunnelId: string): SecureMcpTunnelStatus | undefined => {
+  const getTunnelStatus = (
+    tunnelId: string,
+  ): SecureMcpTunnelStatus | undefined => {
     return secureTunnelStatuses.find((status) => status.tunnelId === tunnelId);
   };
 
@@ -647,7 +701,11 @@ export function MCPSettings() {
   };
 
   if (loading) {
-    return <div className="settings-loading">Loading MCP settings...</div>;
+    return (
+      <div className="settings-loading">
+        {t("mcp.loading", "Loading MCP settings...")}
+      </div>
+    );
   }
 
   return (
@@ -658,59 +716,65 @@ export function MCPSettings() {
           className={`mcp-nav-button ${activeView === "servers" ? "active" : ""}`}
           onClick={() => setActiveView("servers")}
         >
-          Installed
+          {t("mcp.nav.installed", "Installed")}
         </button>
         <button
           className={`mcp-nav-button ${activeView === "registry" ? "active" : ""}`}
           onClick={() => setActiveView("registry")}
         >
-          Browse Registry
+          {t("mcp.nav.registry", "Browse Registry")}
         </button>
         <button
           className={`mcp-nav-button ${activeView === "tunnels" ? "active" : ""}`}
           onClick={() => setActiveView("tunnels")}
         >
-          Secure Tunnels
+          {t("mcp.nav.tunnels", "Secure Tunnels")}
         </button>
         <button
           className={`mcp-nav-button ${activeView === "settings" ? "active" : ""}`}
           onClick={() => setActiveView("settings")}
         >
-          Settings
+          {t("mcp.nav.settings", "Settings")}
         </button>
       </div>
 
       {activeView === "servers" && (
         <>
-          <div className="settings-section">
-            <div className="settings-section-header">
-              <h3>MCP Servers</h3>
+          <div className="settings-section mcp-view-section mcp-servers-section">
+            <div className="settings-section-header mcp-view-header">
+              <h3>{t("mcp.servers.title", "MCP Servers")}</h3>
               <div className="mcp-header-actions">
                 <button
                   className="button-small button-secondary"
                   onClick={handleCheckUpdates}
                   disabled={checkingUpdates}
                 >
-                  {checkingUpdates ? "Checking..." : "Check for Updates"}
+                  {checkingUpdates
+                    ? t("mcp.action.checking", "Checking...")
+                    : t("mcp.action.checkUpdates", "Check for Updates")}
                 </button>
                 <button
                   className="button-small button-primary"
                   onClick={() => setShowAddForm(!showAddForm)}
                 >
-                  {showAddForm ? "Cancel" : "+ Add Server"}
+                  {showAddForm
+                    ? t("mcp.action.cancel", "Cancel")
+                    : t("mcp.action.addServerPlus", "+ Add Server")}
                 </button>
               </div>
             </div>
             <p className="settings-description">
-              Connect to MCP servers to extend CoWork with additional tools. Tools from connected
-              servers will be available to the AI agent.
+              {t(
+                "mcp.servers.description",
+                "Connect to MCP servers to extend NeoWorker with additional tools. Tools from connected servers will be available to the AI agent.",
+              )}
             </p>
 
             {showAddForm && (
               <div className="mcp-add-form">
-                <h4>Add New MCP Server</h4>
+                <h4>{t("mcp.addServer.title", "Add New MCP Server")}</h4>
                 <div className="settings-field">
-                  <label>Server Name</label>
+                  <label>{t("mcp.addServer.name", "Server Name")}</label>
                   <input
                     type="text"
                     className="settings-input"
@@ -720,7 +784,7 @@ export function MCPSettings() {
                   />
                 </div>
                 <div className="settings-field">
-                  <label>Command</label>
+                  <label>{t("mcp.addServer.command", "Command")}</label>
                   <input
                     type="text"
                     className="settings-input"
@@ -728,10 +792,20 @@ export function MCPSettings() {
                     value={newServerCommand}
                     onChange={(e) => setNewServerCommand(e.target.value)}
                   />
-                  <p className="settings-hint">The command to start the MCP server</p>
+                  <p className="settings-hint">
+                    {t(
+                      "mcp.addServer.commandHint",
+                      "The command to start the MCP server",
+                    )}
+                  </p>
                 </div>
                 <div className="settings-field">
-                  <label>Arguments (space-separated)</label>
+                  <label>
+                    {t(
+                      "mcp.addServer.arguments",
+                      "Arguments (space-separated)",
+                    )}
+                  </label>
                   <input
                     type="text"
                     className="settings-input"
@@ -741,7 +815,12 @@ export function MCPSettings() {
                   />
                 </div>
                 <div className="settings-field">
-                  <label>Environment Variables (KEY=value, one per line)</label>
+                  <label>
+                    {t(
+                      "mcp.addServer.env",
+                      "Environment Variables (KEY=value, one per line)",
+                    )}
+                  </label>
                   <textarea
                     className="settings-textarea"
                     placeholder="API_KEY=xxx&#10;DEBUG=true"
@@ -756,7 +835,9 @@ export function MCPSettings() {
                     onClick={handleAddServer}
                     disabled={!newServerName || !newServerCommand || saving}
                   >
-                    {saving ? "Adding..." : "Add Server"}
+                    {saving
+                      ? t("mcp.action.adding", "Adding...")
+                      : t("mcp.action.addServer", "Add Server")}
                   </button>
                 </div>
               </div>
@@ -764,46 +845,73 @@ export function MCPSettings() {
 
             {serverStatuses.length === 0 && !showAddForm ? (
               <div className="mcp-empty-state">
-                <p>{agentContext.getUiCopy("mcpEmptyTitle")}</p>
-                <p className="settings-hint">{agentContext.getUiCopy("mcpEmptyHint")}</p>
+                <p>{t("mcp.empty.title", "No MCP servers configured.")}</p>
+                <p className="settings-hint">
+                  {t(
+                    "mcp.empty.hint",
+                    'Click "Add Server" to connect to an MCP server and extend NeoWorker capabilities.',
+                  )}
+                </p>
               </div>
             ) : (
               <div className="mcp-server-list">
                 {serverStatuses.map((serverStatus) => {
-                  const config = settings?.servers.find((s) => s.id === serverStatus.id);
+                  const config = settings?.servers.find(
+                    (s) => s.id === serverStatus.id,
+                  );
                   const isConnecting = connectingServer === serverStatus.id;
                   const isTesting = testingServer === serverStatus.id;
                   const updateInfo = getUpdateInfo(serverStatus.id);
                   const isUpdating = updatingServer === serverStatus.id;
-                  const connectorProvider = getConnectorProvider(serverStatus.name);
+                  const connectorProvider = getConnectorProvider(
+                    serverStatus.name,
+                  );
 
                   return (
                     <div key={serverStatus.id} className="mcp-server-card">
                       <div className="mcp-server-header">
                         <div className="mcp-server-info">
                           <div className="mcp-server-name-row">
-                            <span className="mcp-server-name">{serverStatus.name}</span>
+                            <span className="mcp-server-name">
+                              {serverStatus.name}
+                            </span>
                             {updateInfo && (
                               <span
                                 className="mcp-update-badge"
-                                title={`Update available: ${updateInfo.currentVersion} → ${updateInfo.latestVersion}`}
+                                title={t(
+                                  "mcp.update.availableTitle",
+                                  "Update available: {current} -> {latest}",
+                                  {
+                                    current: updateInfo.currentVersion,
+                                    latest: updateInfo.latestVersion,
+                                  },
+                                )}
                               >
-                                Update
+                                {t("mcp.update.badge", "Update")}
                               </span>
                             )}
                             <span
                               className="mcp-server-status"
-                              style={{ color: getStatusColor(serverStatus.status) }}
+                              style={{
+                                color: getStatusColor(serverStatus.status),
+                              }}
                             >
                               <span
                                 className="mcp-status-dot"
-                                style={{ backgroundColor: getStatusColor(serverStatus.status) }}
+                                style={{
+                                  backgroundColor: getStatusColor(
+                                    serverStatus.status,
+                                  ),
+                                }}
                               />
                               {getStatusText(serverStatus.status)}
                             </span>
                           </div>
                           {config?.command && (
-                            <span className="mcp-server-command">
+                            <span
+                              className="mcp-server-command"
+                              title={`${config.command} ${config.args?.join(" ") || ""}`.trim()}
+                            >
                               {config.command} {config.args?.join(" ")}
                             </span>
                           )}
@@ -814,7 +922,10 @@ export function MCPSettings() {
                               type="checkbox"
                               checked={config?.enabled ?? false}
                               onChange={(e) =>
-                                handleToggleEnabled(serverStatus.id, e.target.checked)
+                                handleToggleEnabled(
+                                  serverStatus.id,
+                                  e.target.checked,
+                                )
                               }
                             />
                             <span className="toggle-slider" />
@@ -822,22 +933,25 @@ export function MCPSettings() {
                         </div>
                       </div>
 
-                      {(serverStatus.error || connectionErrors[serverStatus.id]) && (
+                      {(serverStatus.error ||
+                        connectionErrors[serverStatus.id]) && (
                         <div className="mcp-server-error">
                           <span className="mcp-error-icon">
                             <AlertTriangle size={14} strokeWidth={2} />
                           </span>
-                          {connectionErrors[serverStatus.id] || serverStatus.error}
+                          {connectionErrors[serverStatus.id] ||
+                            serverStatus.error}
                           {connectionErrors[serverStatus.id] && (
                             <button
                               className="mcp-error-dismiss"
                               onClick={() =>
                                 setConnectionErrors((prev) => {
-                                  const { [serverStatus.id]: _, ...rest } = prev;
+                                  const { [serverStatus.id]: _, ...rest } =
+                                    prev;
                                   return rest;
                                 })
                               }
-                              title="Dismiss"
+                              title={t("mcp.action.dismiss", "Dismiss")}
                             >
                               ×
                             </button>
@@ -846,18 +960,30 @@ export function MCPSettings() {
                       )}
 
                       <div className="mcp-server-tools-count">
-                        {serverStatus.tools.length} tool{serverStatus.tools.length !== 1 ? "s" : ""}{" "}
-                        available
+                        {t(
+                          "mcp.tools.availableCount",
+                          "{count} tools available",
+                          {
+                            count: serverStatus.tools.length,
+                          },
+                        )}
                       </div>
 
                       <div className="mcp-server-actions">
                         {serverStatus.status === "connected" ? (
                           <button
                             className="button-small button-secondary"
-                            onClick={() => handleDisconnectServer(serverStatus.id)}
+                            onClick={() =>
+                              handleDisconnectServer(serverStatus.id)
+                            }
                             disabled={isConnecting}
                           >
-                            {isConnecting ? "Disconnecting..." : "Disconnect"}
+                            {isConnecting
+                              ? t(
+                                  "mcp.action.disconnecting",
+                                  "Disconnecting...",
+                                )
+                              : t("mcp.action.disconnect", "Disconnect")}
                           </button>
                         ) : (
                           <button
@@ -865,7 +991,9 @@ export function MCPSettings() {
                             onClick={() => handleConnectServer(serverStatus.id)}
                             disabled={isConnecting || !config?.enabled}
                           >
-                            {isConnecting ? "Connecting..." : "Connect"}
+                            {isConnecting
+                              ? t("mcp.status.connecting", "Connecting...")
+                              : t("mcp.action.connect", "Connect")}
                           </button>
                         )}
 
@@ -881,7 +1009,7 @@ export function MCPSettings() {
                               )
                             }
                           >
-                            Setup
+                            {t("mcp.action.setup", "Setup")}
                           </button>
                         )}
 
@@ -890,15 +1018,18 @@ export function MCPSettings() {
                           onClick={() => handleViewTools(serverStatus.id)}
                           disabled={serverStatus.status !== "connected"}
                         >
-                          View Tools
+                          {t("mcp.action.viewTools", "View Tools")}
                         </button>
 
                         <button
                           className="button-small button-secondary"
                           onClick={() => handleOpenEditServer(serverStatus.id)}
-                          title="Configure arguments and environment variables"
+                          title={t(
+                            "mcp.action.configureTitle",
+                            "Configure arguments and environment variables",
+                          )}
                         >
-                          Configure
+                          {t("mcp.action.configure", "Configure")}
                         </button>
 
                         <button
@@ -906,7 +1037,9 @@ export function MCPSettings() {
                           onClick={() => handleTestServer(serverStatus.id)}
                           disabled={isTesting}
                         >
-                          {isTesting ? "Testing..." : "Test"}
+                          {isTesting
+                            ? t("mcp.action.testing", "Testing...")
+                            : t("mcp.action.test", "Test")}
                         </button>
 
                         {updateInfo && (
@@ -914,9 +1047,22 @@ export function MCPSettings() {
                             className="button-small button-success"
                             onClick={() => handleUpdateServer(serverStatus.id)}
                             disabled={isUpdating}
-                            title={`Update from ${updateInfo.currentVersion} to ${updateInfo.latestVersion}`}
+                            title={t(
+                              "mcp.update.fromTo",
+                              "Update from {current} to {latest}",
+                              {
+                                current: updateInfo.currentVersion,
+                                latest: updateInfo.latestVersion,
+                              },
+                            )}
                           >
-                            {isUpdating ? "Updating..." : `Update to ${updateInfo.latestVersion}`}
+                            {isUpdating
+                              ? t("mcp.update.updating", "Updating...")
+                              : t(
+                                  "mcp.update.toVersion",
+                                  "Update to {version}",
+                                  { version: updateInfo.latestVersion },
+                                )}
                           </button>
                         )}
 
@@ -924,7 +1070,7 @@ export function MCPSettings() {
                           className="button-small button-danger"
                           onClick={() => handleRemoveServer(serverStatus.id)}
                         >
-                          Remove
+                          {t("mcp.action.remove", "Remove")}
                         </button>
                       </div>
 
@@ -933,7 +1079,11 @@ export function MCPSettings() {
                           className={`mcp-test-result ${testResult.success ? "success" : "error"}`}
                         >
                           {testResult.success
-                            ? `✓ Connection successful (${testResult.tools} tools)`
+                            ? t(
+                                "mcp.test.success",
+                                "Connection successful ({count} tools)",
+                                { count: testResult.tools },
+                              )
                             : `✗ ${testResult.error}`}
                         </div>
                       )}
@@ -947,11 +1097,13 @@ export function MCPSettings() {
       )}
 
       {activeView === "registry" && (
-        <div className="settings-section">
-          <h3>MCP Server Registry</h3>
+        <div className="settings-section mcp-view-section mcp-registry-section">
+          <h3>{t("mcp.registry.title", "MCP Server Registry")}</h3>
           <p className="settings-description">
-            Browse and install MCP servers from the official registry. Click on a server to see
-            details and install with one click.
+            {t(
+              "mcp.registry.description",
+              "Browse and install MCP servers from the official registry. Click on a server to see details and install with one click.",
+            )}
           </p>
           <MCPRegistryBrowser
             onInstall={() => {
@@ -964,120 +1116,158 @@ export function MCPSettings() {
       )}
 
       {activeView === "tunnels" && (
-        <div className="settings-section">
-          <div className="settings-section-header">
-            <h3>Secure MCP Tunnels</h3>
+        <div className="settings-section mcp-view-section mcp-tunnels-section">
+          <div className="settings-section-header mcp-view-header">
+            <h3>{t("mcp.tunnels.title", "Secure MCP Tunnels")}</h3>
             <button
               className="button-small button-primary"
               onClick={() => setShowAddTunnelForm(!showAddTunnelForm)}
             >
-              {showAddTunnelForm ? "Cancel" : "+ Add Tunnel"}
+              {showAddTunnelForm
+                ? t("mcp.action.cancel", "Cancel")
+                : t("mcp.tunnels.addPlus", "+ Add Tunnel")}
             </button>
           </div>
           <p className="settings-description">
-            Expose selected local MCP tools through an outbound-only CoWork relay. No public port is
-            opened on this machine.
+            {t(
+              "mcp.tunnels.description",
+              "Expose selected local MCP tools through an outbound-only NeoWorker relay. No public port is opened on this machine.",
+            )}
           </p>
 
           {showAddTunnelForm && (
-            <div className="mcp-add-form">
-              <h4>Add Secure MCP Tunnel</h4>
-              <div className="settings-field">
-                <label>Tunnel Name</label>
-                <input
-                  className="settings-input"
-                  value={newTunnelName}
-                  onChange={(e) => setNewTunnelName(e.target.value)}
-                />
-              </div>
-              <div className="settings-field">
-                <label>Relay URL</label>
-                <input
-                  className="settings-input"
-                  value={newTunnelRelayUrl}
-                  onChange={(e) => setNewTunnelRelayUrl(e.target.value)}
-                  placeholder="http://127.0.0.1:8787"
-                />
-              </div>
-              <div className="settings-field">
-                <label>Target</label>
-                <select
-                  className="settings-select"
-                  value={newTunnelTargetType}
-                  onChange={(e) =>
-                    setNewTunnelTargetType(e.target.value as SecureMcpTunnelTargetType)
-                  }
-                >
-                  <option value="cowork-host">CoWork MCP host</option>
-                  <option value="http">Private HTTP MCP URL</option>
-                </select>
-              </div>
-              {newTunnelTargetType === "http" && (
+            <div className="mcp-add-form mcp-tunnel-form">
+              <h4>{t("mcp.tunnels.addTitle", "Add Secure MCP Tunnel")}</h4>
+              <div className="mcp-tunnel-form-grid">
                 <div className="settings-field">
-                  <label>Target URL</label>
+                  <label>{t("mcp.tunnels.name", "Tunnel Name")}</label>
                   <input
                     className="settings-input"
-                    value={newTunnelTargetUrl}
-                    onChange={(e) => setNewTunnelTargetUrl(e.target.value)}
-                    placeholder="http://127.0.0.1:3333/mcp"
+                    value={newTunnelName}
+                    onChange={(e) => setNewTunnelName(e.target.value)}
                   />
                 </div>
-              )}
-              <div className="settings-field">
-                <label>Client Token</label>
-                <input
-                  type="password"
-                  className="settings-input"
-                  value={newTunnelClientToken}
-                  onChange={(e) => setNewTunnelClientToken(e.target.value)}
-                  placeholder="Paste the relay client token"
-                />
+                <div className="settings-field">
+                  <label>{t("mcp.tunnels.relayUrl", "Relay URL")}</label>
+                  <input
+                    className="settings-input"
+                    value={newTunnelRelayUrl}
+                    onChange={(e) => setNewTunnelRelayUrl(e.target.value)}
+                    placeholder="http://127.0.0.1:8787"
+                  />
+                </div>
+                <div className="settings-field">
+                  <label>{t("mcp.tunnels.target", "Target")}</label>
+                  <select
+                    className="settings-select"
+                    value={newTunnelTargetType}
+                    onChange={(e) =>
+                      setNewTunnelTargetType(
+                        e.target.value as SecureMcpTunnelTargetType,
+                      )
+                    }
+                  >
+                    <option value="neoworker-host">
+                      {t(
+                        "mcp.tunnels.target.neoworkerHost",
+                        "NeoWorker MCP host",
+                      )}
+                    </option>
+                    <option value="http">
+                      {t(
+                        "mcp.tunnels.target.privateHttp",
+                        "Private HTTP MCP URL",
+                      )}
+                    </option>
+                  </select>
+                </div>
+                {newTunnelTargetType === "http" && (
+                  <div className="settings-field">
+                    <label>{t("mcp.tunnels.targetUrl", "Target URL")}</label>
+                    <input
+                      className="settings-input"
+                      value={newTunnelTargetUrl}
+                      onChange={(e) => setNewTunnelTargetUrl(e.target.value)}
+                      placeholder="http://127.0.0.1:3333/mcp"
+                    />
+                  </div>
+                )}
+                <div className="settings-field">
+                  <label>{t("mcp.tunnels.clientToken", "Client Token")}</label>
+                  <input
+                    type="password"
+                    className="settings-input"
+                    value={newTunnelClientToken}
+                    onChange={(e) => setNewTunnelClientToken(e.target.value)}
+                    placeholder={t(
+                      "mcp.tunnels.clientTokenPlaceholder",
+                      "Paste the relay client token",
+                    )}
+                  />
+                </div>
+                <div className="settings-field">
+                  <label>{t("mcp.tunnels.callerToken", "Caller Token")}</label>
+                  <input
+                    type="password"
+                    className="settings-input"
+                    value={newTunnelCallerToken}
+                    onChange={(e) => setNewTunnelCallerToken(e.target.value)}
+                    placeholder={t(
+                      "mcp.tunnels.callerTokenPlaceholder",
+                      "Optional: paste the relay caller token for local reference",
+                    )}
+                  />
+                </div>
+                <div className="settings-field mcp-tunnel-tools-field">
+                  <label>
+                    {t("mcp.tunnels.allowedTools", "Allowed Tools")}
+                  </label>
+                  <textarea
+                    className="settings-textarea"
+                    rows={4}
+                    value={newTunnelAllowedTools}
+                    onChange={(e) => setNewTunnelAllowedTools(e.target.value)}
+                    placeholder={t(
+                      "mcp.tunnels.allowedToolsPlaceholder",
+                      "One tool name per line. Leave empty to allow all.",
+                    )}
+                  />
+                </div>
               </div>
-              <div className="settings-field">
-                <label>Caller Token</label>
-                <input
-                  type="password"
-                  className="settings-input"
-                  value={newTunnelCallerToken}
-                  onChange={(e) => setNewTunnelCallerToken(e.target.value)}
-                  placeholder="Optional: paste the relay caller token for local reference"
-                />
-              </div>
-              <div className="settings-field">
-                <label>Allowed Tools</label>
-                <textarea
-                  className="settings-textarea"
-                  rows={4}
-                  value={newTunnelAllowedTools}
-                  onChange={(e) => setNewTunnelAllowedTools(e.target.value)}
-                  placeholder="One tool name per line. Leave empty to allow all."
-                />
-              </div>
-              <div className="settings-field">
+              <div className="settings-field mcp-tunnel-policy-field">
                 <label className="settings-checkbox">
                   <input
                     type="checkbox"
                     checked={newTunnelReadOnly}
                     onChange={(e) => setNewTunnelReadOnly(e.target.checked)}
                   />
-                  <span>Read-only mode</span>
+                  <span>{t("mcp.tunnels.readOnly", "Read-only mode")}</span>
                 </label>
               </div>
               <div className="mcp-form-actions">
                 <button
                   className="button-primary"
                   onClick={handleAddTunnel}
-                  disabled={!newTunnelName || !newTunnelRelayUrl || !newTunnelClientToken || saving}
+                  disabled={
+                    !newTunnelName ||
+                    !newTunnelRelayUrl ||
+                    !newTunnelClientToken ||
+                    saving
+                  }
                 >
-                  {saving ? "Adding..." : "Add Tunnel"}
+                  {saving
+                    ? t("mcp.action.adding", "Adding...")
+                    : t("mcp.tunnels.add", "Add Tunnel")}
                 </button>
               </div>
             </div>
           )}
 
           {secureTunnels.length === 0 ? (
-            <div className="mcp-empty-state">
-              <p>No secure MCP tunnels configured.</p>
+            <div className="mcp-empty-state mcp-tunnel-empty-state">
+              <p>
+                {t("mcp.tunnels.empty", "No secure MCP tunnels configured.")}
+              </p>
             </div>
           ) : (
             <div className="mcp-server-list">
@@ -1099,7 +1289,9 @@ export function MCPSettings() {
                           >
                             <span
                               className="mcp-status-dot"
-                              style={{ backgroundColor: getTunnelStatusColor(state) }}
+                              style={{
+                                backgroundColor: getTunnelStatusColor(state),
+                              }}
                             />
                             {state}
                           </span>
@@ -1107,8 +1299,8 @@ export function MCPSettings() {
                         <span className="mcp-server-command">
                           {tunnel.relayUrl} {"->"}{" "}
                           {status?.targetUrl ||
-                            (tunnel.targetType === "cowork-host"
-                              ? `http://127.0.0.1:${tunnel.coworkHostPort || 3333}/mcp`
+                            (tunnel.targetType === "neoworker-host"
+                              ? `http://127.0.0.1:${tunnel.neoworkerHostPort || 3333}/mcp`
                               : tunnel.targetUrl)}
                         </span>
                       </div>
@@ -1125,19 +1317,32 @@ export function MCPSettings() {
 
                     <div className="mcp-server-tools-count">
                       {tunnel.policy.allowedTools.length > 0
-                        ? `${tunnel.policy.allowedTools.length} allowed tools`
-                        : "All MCP tools allowed"}
-                      {tunnel.policy.readOnly ? " · read-only" : ""}
+                        ? t(
+                            "mcp.tunnels.allowedToolsCount",
+                            "{count} allowed tools",
+                            {
+                              count: tunnel.policy.allowedTools.length,
+                            },
+                          )
+                        : t(
+                            "mcp.tunnels.allToolsAllowed",
+                            "All MCP tools allowed",
+                          )}
+                      {tunnel.policy.readOnly
+                        ? t("mcp.tunnels.readOnlySuffix", " · read-only")
+                        : ""}
                     </div>
 
                     <div className="mcp-server-actions">
-                      {state === "connected" || state === "connecting" || state === "reconnecting" ? (
+                      {state === "connected" ||
+                      state === "connecting" ||
+                      state === "reconnecting" ? (
                         <button
                           className="button-small button-secondary"
                           onClick={() => handleStopTunnel(tunnel.id)}
                           disabled={saving}
                         >
-                          Stop
+                          {t("mcp.action.stop", "Stop")}
                         </button>
                       ) : (
                         <button
@@ -1145,14 +1350,14 @@ export function MCPSettings() {
                           onClick={() => handleStartTunnel(tunnel.id)}
                           disabled={saving || !tunnel.hasClientToken}
                         >
-                          Start
+                          {t("mcp.action.start", "Start")}
                         </button>
                       )}
                       <button
                         className="button-small button-danger"
                         onClick={() => handleRemoveTunnel(tunnel.id)}
                       >
-                        Remove
+                        {t("mcp.action.remove", "Remove")}
                       </button>
                     </div>
 
@@ -1164,7 +1369,9 @@ export function MCPSettings() {
                               {event.toolName || event.method} · {event.status}
                             </div>
                             {event.error && (
-                              <div className="mcp-tool-description">{event.error}</div>
+                              <div className="mcp-tool-description">
+                                {event.error}
+                              </div>
                             )}
                           </div>
                         ))}
@@ -1179,84 +1386,133 @@ export function MCPSettings() {
       )}
 
       {activeView === "settings" && settings && (
-        <div className="settings-section">
-          <h3>MCP Configuration</h3>
+        <div className="settings-section mcp-view-section mcp-config-section">
+          <h3>{t("mcp.config.title", "MCP Configuration")}</h3>
 
-          <div className="settings-field">
-            <label className="settings-checkbox">
-              <input
-                type="checkbox"
-                checked={settings.autoConnect}
-                onChange={(e) => setSettings({ ...settings, autoConnect: e.target.checked })}
-              />
-              <span>Auto-connect to enabled servers on startup</span>
-            </label>
-          </div>
+          <div className="mcp-config-panel">
+            <div className="settings-field mcp-config-auto-connect">
+              <label className="settings-checkbox">
+                <input
+                  type="checkbox"
+                  checked={settings.autoConnect}
+                  onChange={(e) =>
+                    setSettings({ ...settings, autoConnect: e.target.checked })
+                  }
+                />
+                <span>
+                  {t(
+                    "mcp.config.autoConnect",
+                    "Auto-connect to enabled servers on startup",
+                  )}
+                </span>
+              </label>
+            </div>
 
-          <div className="settings-field">
-            <label>Tool Name Prefix</label>
-            <input
-              type="text"
-              className="settings-input"
-              placeholder="mcp_"
-              value={settings.toolNamePrefix}
-              onChange={(e) => setSettings({ ...settings, toolNamePrefix: e.target.value })}
-            />
-            <p className="settings-hint">
-              Prefix added to MCP tool names to avoid conflicts with built-in tools. For example, a
-              tool named "read_file" becomes "{settings.toolNamePrefix || "mcp_"}read_file".
-            </p>
-          </div>
+            <div className="mcp-config-form-grid">
+              <div className="settings-field mcp-config-prefix-field">
+                <label>
+                  {t("mcp.config.toolNamePrefix", "Tool Name Prefix")}
+                </label>
+                <input
+                  type="text"
+                  className="settings-input"
+                  placeholder="mcp_"
+                  value={settings.toolNamePrefix}
+                  onChange={(e) =>
+                    setSettings({ ...settings, toolNamePrefix: e.target.value })
+                  }
+                />
+                <p className="settings-hint">
+                  {t(
+                    "mcp.config.toolNamePrefixHint",
+                    'Prefix added to MCP tool names to avoid conflicts with built-in tools. For example, a tool named "read_file" becomes "{prefix}read_file".',
+                    { prefix: settings.toolNamePrefix || "mcp_" },
+                  )}
+                </p>
+              </div>
 
-          <div className="settings-field">
-            <label>Max Reconnect Attempts</label>
-            <input
-              type="number"
-              className="settings-input"
-              min={0}
-              max={20}
-              value={settings.maxReconnectAttempts}
-              onChange={(e) =>
-                setSettings({ ...settings, maxReconnectAttempts: parseInt(e.target.value) || 0 })
-              }
-            />
-            <p className="settings-hint">
-              Number of times to attempt reconnection if a server disconnects unexpectedly.
-            </p>
-          </div>
+              <div className="settings-field">
+                <label>
+                  {t(
+                    "mcp.config.maxReconnectAttempts",
+                    "Max Reconnect Attempts",
+                  )}
+                </label>
+                <input
+                  type="number"
+                  className="settings-input"
+                  min={0}
+                  max={20}
+                  value={settings.maxReconnectAttempts}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      maxReconnectAttempts: parseInt(e.target.value) || 0,
+                    })
+                  }
+                />
+                <p className="settings-hint">
+                  {t(
+                    "mcp.config.maxReconnectAttemptsHint",
+                    "Number of times to attempt reconnection if a server disconnects unexpectedly.",
+                  )}
+                </p>
+              </div>
 
-          <div className="settings-field">
-            <label>Reconnect Delay (ms)</label>
-            <input
-              type="number"
-              className="settings-input"
-              min={100}
-              max={60000}
-              value={settings.reconnectDelayMs}
-              onChange={(e) =>
-                setSettings({ ...settings, reconnectDelayMs: parseInt(e.target.value) || 1000 })
-              }
-            />
-            <p className="settings-hint">
-              Base delay between reconnection attempts (uses exponential backoff).
-            </p>
-          </div>
+              <div className="settings-field">
+                <label>
+                  {t("mcp.config.reconnectDelay", "Reconnect Delay (ms)")}
+                </label>
+                <input
+                  type="number"
+                  className="settings-input"
+                  min={100}
+                  max={60000}
+                  value={settings.reconnectDelayMs}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      reconnectDelayMs: parseInt(e.target.value) || 1000,
+                    })
+                  }
+                />
+                <p className="settings-hint">
+                  {t(
+                    "mcp.config.reconnectDelayHint",
+                    "Base delay between reconnection attempts (uses exponential backoff).",
+                  )}
+                </p>
+              </div>
+            </div>
 
-          <div className="settings-actions">
-            <button className="button-primary" onClick={handleSaveSettings} disabled={saving}>
-              {saving ? "Saving..." : "Save Settings"}
-            </button>
+            <div className="settings-actions">
+              <button
+                className="button-primary"
+                onClick={handleSaveSettings}
+                disabled={saving}
+              >
+                {saving
+                  ? t("mcp.action.saving", "Saving...")
+                  : t("mcp.action.saveSettings", "Save Settings")}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Tools Modal */}
       {viewingToolsFor && (
-        <div className="mcp-modal-overlay" onClick={() => setViewingToolsFor(null)}>
+        <div
+          className="mcp-modal-overlay"
+          onClick={() => setViewingToolsFor(null)}
+        >
           <div className="mcp-modal" onClick={(e) => e.stopPropagation()}>
             <div className="mcp-modal-header">
-              <h3>Available Tools</h3>
-              <button className="mcp-modal-close" onClick={() => setViewingToolsFor(null)}>
+              <h3>{t("mcp.tools.availableTitle", "Available Tools")}</h3>
+              <button
+                className="mcp-modal-close"
+                onClick={() => setViewingToolsFor(null)}
+              >
                 <svg
                   width="20"
                   height="20"
@@ -1271,18 +1527,24 @@ export function MCPSettings() {
             </div>
             <div className="mcp-modal-content">
               {serverTools.length === 0 ? (
-                <p className="mcp-no-tools">No tools available from this server.</p>
+                <p className="mcp-no-tools">
+                  {t("mcp.tools.none", "No tools available from this server.")}
+                </p>
               ) : (
                 <div className="mcp-tools-list">
                   {serverTools.map((tool) => (
                     <div key={tool.name} className="mcp-tool-item">
                       <div className="mcp-tool-name">{tool.name}</div>
                       {tool.description && (
-                        <div className="mcp-tool-description">{tool.description}</div>
+                        <div className="mcp-tool-description">
+                          {tool.description}
+                        </div>
                       )}
                       {tool.inputSchema.properties && (
                         <div className="mcp-tool-params">
-                          <span className="mcp-tool-params-label">Parameters: </span>
+                          <span className="mcp-tool-params-label">
+                            {t("mcp.tools.parameters", "Parameters: ")}{" "}
+                          </span>
                           {Object.keys(tool.inputSchema.properties).join(", ")}
                         </div>
                       )}
@@ -1297,11 +1559,20 @@ export function MCPSettings() {
 
       {/* Edit Server Modal */}
       {editingServer && (
-        <div className="mcp-modal-overlay" onClick={() => setEditingServer(null)}>
-          <div className="mcp-modal mcp-modal-wide" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="mcp-modal-overlay"
+          onClick={() => setEditingServer(null)}
+        >
+          <div
+            className="mcp-modal mcp-modal-wide"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="mcp-modal-header">
-              <h3>Configure Server</h3>
-              <button className="mcp-modal-close" onClick={() => setEditingServer(null)}>
+              <h3>{t("mcp.configure.title", "Configure Server")}</h3>
+              <button
+                className="mcp-modal-close"
+                onClick={() => setEditingServer(null)}
+              >
                 <svg
                   width="20"
                   height="20"
@@ -1316,17 +1587,26 @@ export function MCPSettings() {
             </div>
             <div className="mcp-modal-content">
               {/* Filesystem Server: Show Allowed Paths UI */}
-              {isFilesystemServer(settings?.servers.find((s) => s.id === editingServer)) && (
+              {isFilesystemServer(
+                settings?.servers.find((s) => s.id === editingServer),
+              ) && (
                 <div className="settings-field">
-                  <label>Allowed Paths</label>
+                  <label>
+                    {t("mcp.configure.allowedPaths", "Allowed Paths")}
+                  </label>
                   <p className="settings-description">
-                    The Filesystem server can only access these directories. Add folders you want to
-                    allow.
+                    {t(
+                      "mcp.configure.allowedPathsHint",
+                      "The Filesystem server can only access these directories. Add folders you want to allow.",
+                    )}
                   </p>
                   <div className="mcp-paths-list">
                     {editServerPaths.length === 0 ? (
                       <div className="mcp-paths-empty">
-                        No paths configured. Add at least one folder.
+                        {t(
+                          "mcp.configure.noPaths",
+                          "No paths configured. Add at least one folder.",
+                        )}
                       </div>
                     ) : (
                       editServerPaths.map((path, index) => (
@@ -1347,7 +1627,7 @@ export function MCPSettings() {
                           <button
                             className="mcp-path-remove"
                             onClick={() => handleRemovePath(path)}
-                            title="Remove path"
+                            title={t("mcp.configure.removePath", "Remove path")}
                           >
                             <svg
                               width="16"
@@ -1378,15 +1658,19 @@ export function MCPSettings() {
                     >
                       <path d="M12 5v14M5 12h14" />
                     </svg>
-                    Add Folder
+                    {t("mcp.configure.addFolder", "Add Folder")}
                   </button>
                 </div>
               )}
 
               {/* Non-Filesystem Server: Show generic args */}
-              {!isFilesystemServer(settings?.servers.find((s) => s.id === editingServer)) && (
+              {!isFilesystemServer(
+                settings?.servers.find((s) => s.id === editingServer),
+              ) && (
                 <div className="settings-field">
-                  <label>Command Arguments</label>
+                  <label>
+                    {t("mcp.configure.commandArguments", "Command Arguments")}
+                  </label>
                   <input
                     type="text"
                     value={editServerArgs}
@@ -1394,14 +1678,16 @@ export function MCPSettings() {
                     placeholder="e.g., postgresql://user:pass@localhost/db"
                   />
                   <p className="settings-description">
-                    Space-separated arguments passed to the server command. For PostgreSQL, enter
-                    the database URL here.
+                    {t(
+                      "mcp.configure.commandArgumentsHint",
+                      "Space-separated arguments passed to the server command. For PostgreSQL, enter the database URL here.",
+                    )}
                   </p>
                 </div>
               )}
 
               <div className="settings-field">
-                <label>Environment Variables</label>
+                <label>{t("mcp.configure.env", "Environment Variables")}</label>
                 <textarea
                   value={editServerEnv}
                   onChange={(e) => setEditServerEnv(e.target.value)}
@@ -1410,17 +1696,25 @@ export function MCPSettings() {
                   className="mcp-env-textarea"
                 />
                 <p className="settings-description">
-                  One variable per line in KEY=value format. Examples: BRAVE_API_KEY,
-                  GITHUB_PERSONAL_ACCESS_TOKEN
+                  {t(
+                    "mcp.configure.envHint",
+                    "One variable per line in KEY=value format. Examples: BRAVE_API_KEY, GITHUB_PERSONAL_ACCESS_TOKEN",
+                  )}
                 </p>
               </div>
 
               <div className="mcp-modal-actions">
-                <button className="button-secondary" onClick={() => setEditingServer(null)}>
-                  Cancel
+                <button
+                  className="button-secondary"
+                  onClick={() => setEditingServer(null)}
+                >
+                  {t("mcp.action.cancel", "Cancel")}
                 </button>
-                <button className="button-primary" onClick={handleSaveEditServer}>
-                  Save Configuration
+                <button
+                  className="button-primary"
+                  onClick={handleSaveEditServer}
+                >
+                  {t("mcp.configure.save", "Save Configuration")}
                 </button>
               </div>
             </div>

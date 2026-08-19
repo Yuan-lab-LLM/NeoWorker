@@ -1,9 +1,10 @@
 import os from "os";
 import path from "path";
+import "../migrations/legacy-brand-compat";
 
 const PROFILE_DIR_NAME = "profiles";
 const DEFAULT_PROFILE_ID = "default";
-const DEFAULT_ELECTRON_USER_DATA_DIR_NAME = "cowork-os";
+const DEFAULT_ELECTRON_USER_DATA_DIR_NAME = "neoworker";
 
 export function getStableElectronUserDataRoot(appDataPath: string): string {
   return path.join(appDataPath, DEFAULT_ELECTRON_USER_DATA_DIR_NAME);
@@ -59,8 +60,8 @@ function normalizeProfileId(input: string): string {
 export function getActiveProfileId(): string {
   const raw =
     getArgFlagValue("--profile") ??
-    process.env.COWORK_PROFILE ??
-    process.env.COWORK_PROFILE_ID ??
+    process.env.NEOWORKER_PROFILE ??
+    process.env.NEOWORKER_PROFILE_ID ??
     "";
   if (typeof raw !== "string" || raw.trim().length === 0) {
     return DEFAULT_PROFILE_ID;
@@ -82,7 +83,7 @@ export function hasNonDefaultProfile(): boolean {
 }
 
 export function getUserDataRootDir(): string {
-  const override = process.env.COWORK_USER_DATA_DIR;
+  const override = process.env.NEOWORKER_USER_DATA_DIR;
   if (typeof override === "string" && override.trim().length > 0) {
     return expandPath(override);
   }
@@ -100,16 +101,16 @@ export function getUserDataRootDir(): string {
   }
 
   const home = process.env.HOME || process.env.USERPROFILE || os.homedir() || "";
-  return path.join(home, ".cowork");
+  return path.join(home, ".neoworker");
 }
 
 /**
  * Resolve the userData directory for persistence (DB + settings).
  *
  * In Electron runtime, this will usually be the app's default userData path.
- * In headless/server deployments we also support `COWORK_USER_DATA_DIR` as an override.
+ * In headless/server deployments we also support `NEOWORKER_USER_DATA_DIR` as an override.
  * As a convenience, `--user-data-dir <path>` is also supported (works in both Electron and Node entrypoints).
- * For multi-profile execution, `COWORK_PROFILE` or `--profile <id>` scopes data under `profiles/<id>`.
+ * For multi-profile execution, `NEOWORKER_PROFILE` or `--profile <id>` scopes data under `profiles/<id>`.
  *
  * This helper intentionally avoids a static `import { app } from 'electron'` so it can be reused
  * by future non-Electron daemon entrypoints.

@@ -6,11 +6,11 @@ import type { ImprovementEligibility } from "../../shared/types";
 import { SecureSettingsRepository } from "../database/SecureSettingsRepository";
 import { getUserDataDir } from "../utils/user-data-dir";
 
-const OWNER_SIGNATURE_ENV = "COWORK_SELF_IMPROVEMENT_OWNER_SIGNATURE";
-const OWNER_REPO_REMOTE = "github.com/CoWork-OS/CoWork-OS";
+const OWNER_SIGNATURE_ENV = "NEOWORKER_SELF_IMPROVEMENT_OWNER_SIGNATURE";
+const OWNER_REPO_REMOTE = "github.com/NeoWorker/NeoWorker";
 const OWNER_SETTINGS_CATEGORY = "improvement-owner";
-const OWNER_MACHINE_ID_FILE = ".cowork-machine-id";
-const OWNER_ENROLLMENT_SCOPE = "cowork-self-improvement-owner";
+const OWNER_MACHINE_ID_FILE = ".neoworker-machine-id";
+const OWNER_ENROLLMENT_SCOPE = "neoworker-self-improvement-owner";
 const OWNER_ENROLLMENT_VERSION = 1;
 const OWNER_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAU31JMjkwh/AwbrG24EKz1XLJqT0IYlyfkP9jFUIhGFk=
@@ -27,7 +27,7 @@ interface ImprovementOwnerEnrollment {
 export function getImprovementEligibility(): ImprovementEligibility {
   const repoPath = resolveRepoPath();
   const unpackagedApp = !isPackagedElectronApp();
-  const canonicalRepo = isCanonicalCoworkRepo(repoPath);
+  const canonicalRepo = isCanonicalNeoWorkerRepo(repoPath);
   const machineFingerprint = getMachineFingerprint();
   const ownerEnrollmentChallenge = buildOwnerEnrollmentChallenge(machineFingerprint);
   const envSignature = getOwnerSignatureFromEnv();
@@ -110,7 +110,7 @@ function buildReason(checks: ImprovementEligibility["checks"]): string {
     return "Self-improvement is disabled in packaged end-user builds.";
   }
   if (!checks.canonicalRepo) {
-    return "Self-improvement is only enabled inside the canonical CoWork OS repository.";
+    return "Self-improvement is only enabled inside the canonical NeoWorker repository.";
   }
   if (!checks.ownerProofPresent) {
     return `Maintainer-signed owner enrollment is missing. Paste a valid signature into Settings → Self-Improvement, or set ${OWNER_SIGNATURE_ENV}.`;
@@ -122,7 +122,7 @@ function buildReason(checks: ImprovementEligibility["checks"]): string {
 }
 
 function getPreferredRepoPath(): string {
-  const explicit = process.env.COWORK_SELF_IMPROVEMENT_REPO;
+  const explicit = process.env.NEOWORKER_SELF_IMPROVEMENT_REPO;
   if (typeof explicit === "string" && explicit.trim().length > 0) {
     return path.resolve(explicit.trim());
   }
@@ -242,7 +242,7 @@ function saveEnrollment(enrollment: ImprovementOwnerEnrollment): ImprovementOwne
   }
 }
 
-function isCanonicalCoworkRepo(repoPath: string): boolean {
+function isCanonicalNeoWorkerRepo(repoPath: string): boolean {
   const normalizedExpected = normalizeGitRemote(OWNER_REPO_REMOTE);
   const originRemote = getGitRemoteOrigin(repoPath);
   const normalizedOrigin = normalizeGitRemote(originRemote);

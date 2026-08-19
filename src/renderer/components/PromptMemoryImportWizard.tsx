@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { X } from "lucide-react";
+import { translate, useLanguage } from "../i18n";
 
 interface TextMemoryImportResult {
   success: boolean;
@@ -44,17 +46,22 @@ export function PromptMemoryImportWizard({
   onClose,
   onImportComplete,
 }: PromptMemoryImportWizardProps) {
+  useLanguage();
+  const t = translate;
   const [provider, setProvider] = useState<string>("Claude");
   const [customProvider, setCustomProvider] = useState<string>("");
   const [pastedText, setPastedText] = useState<string>("");
   const [forcePrivate, setForcePrivate] = useState(true);
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
+    "idle",
+  );
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<TextMemoryImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const resolvedProvider = useMemo(() => {
-    const value = provider === "Other" ? customProvider.trim() : provider.trim();
+    const value =
+      provider === "Other" ? customProvider.trim() : provider.trim();
     return value || "";
   }, [provider, customProvider]);
 
@@ -83,11 +90,15 @@ export function PromptMemoryImportWizard({
 
   const handleImport = async () => {
     if (!resolvedProvider) {
-      setError("Please choose a provider name.");
+      setError(
+        t("promptMemory.error.provider", "Please choose a provider name."),
+      );
       return;
     }
     if (!pastedText.trim()) {
-      setError("Paste the exported memory text first.");
+      setError(
+        t("promptMemory.error.paste", "Paste the exported memory text first."),
+      );
       return;
     }
 
@@ -105,7 +116,11 @@ export function PromptMemoryImportWizard({
         onImportComplete?.();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Import failed unexpectedly.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("promptMemory.error.import", "Import failed unexpectedly."),
+      );
     } finally {
       setImporting(false);
     }
@@ -117,19 +132,31 @@ export function PromptMemoryImportWizard({
     <div className="mcp-modal-overlay" onClick={onClose}>
       <div
         className="mcp-modal"
-        style={{ width: "min(96vw, 980px)", maxWidth: "980px", maxHeight: "88vh" }}
+        style={{
+          width: "min(96vw, 980px)",
+          maxWidth: "980px",
+          maxHeight: "88vh",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mcp-modal-header">
-          <h3 style={{ margin: 0 }}>Import memory from other AI providers</h3>
-          <button className="mcp-modal-close" onClick={onClose} aria-label="Close import popup">
-            ✕
+          <h3 style={{ margin: 0 }}>
+            {t("promptMemory.title", "Import memory from other AI providers")}
+          </h3>
+          <button
+            className="mcp-modal-close"
+            onClick={onClose}
+            aria-label={t("promptMemory.close", "Close import popup")}
+          >
+            <X size={17} aria-hidden="true" />
           </button>
         </div>
         <div className="mcp-modal-content">
           <p className="settings-form-hint" style={{ marginTop: 0 }}>
-            Copy a prompt into another chatbot, then paste the output here to import memories
-            quickly.
+            {t(
+              "promptMemory.description",
+              "Copy a prompt into another chatbot, then paste the output here to import memories quickly.",
+            )}
           </p>
 
           {!result && (
@@ -142,7 +169,10 @@ export function PromptMemoryImportWizard({
                     marginBottom: "8px",
                   }}
                 >
-                  1. Copy this prompt and run it in your other AI chat
+                  {t(
+                    "promptMemory.step.copyPrompt",
+                    "1. Copy this prompt and run it in your other AI chat",
+                  )}
                 </div>
                 <textarea
                   readOnly
@@ -160,23 +190,35 @@ export function PromptMemoryImportWizard({
                     resize: "vertical",
                   }}
                 />
-                <div className="chatgpt-import-actions" style={{ justifyContent: "flex-start" }}>
+                <div
+                  className="chatgpt-import-actions"
+                  style={{ justifyContent: "flex-start" }}
+                >
                   <button
                     className="chatgpt-import-btn chatgpt-import-btn-primary"
                     onClick={handleCopyPrompt}
                   >
-                    {copyState === "copied" ? "Copied" : "Copy Prompt"}
+                    {copyState === "copied"
+                      ? t("common.copied", "Copied")
+                      : t("promptMemory.copyPrompt", "Copy Prompt")}
                   </button>
                   {copyState === "error" && (
-                    <span style={{ fontSize: "12px", color: "var(--color-error)" }}>
-                      Could not copy automatically. Copy it manually.
+                    <span
+                      style={{ fontSize: "12px", color: "var(--color-error)" }}
+                    >
+                      {t(
+                        "promptMemory.copyFailed",
+                        "Could not copy automatically. Copy it manually.",
+                      )}
                     </span>
                   )}
                 </div>
               </div>
 
               <div className="settings-form-group">
-                <label className="settings-label">Provider</label>
+                <label className="settings-label">
+                  {t("promptMemory.provider", "Provider")}
+                </label>
                 <select
                   className="settings-select"
                   value={provider}
@@ -194,7 +236,10 @@ export function PromptMemoryImportWizard({
                     type="text"
                     value={customProvider}
                     onChange={(e) => setCustomProvider(e.target.value)}
-                    placeholder="Enter provider name"
+                    placeholder={t(
+                      "promptMemory.providerPlaceholder",
+                      "Enter provider name",
+                    )}
                     style={{ marginTop: "8px" }}
                   />
                 )}
@@ -208,12 +253,18 @@ export function PromptMemoryImportWizard({
                     marginBottom: "8px",
                   }}
                 >
-                  2. Paste the full response below
+                  {t(
+                    "promptMemory.step.paste",
+                    "2. Paste the full response below",
+                  )}
                 </div>
                 <textarea
                   value={pastedText}
                   onChange={(e) => setPastedText(e.target.value)}
-                  placeholder="Paste the full exported memory response here"
+                  placeholder={t(
+                    "promptMemory.pastePlaceholder",
+                    "Paste the full exported memory response here",
+                  )}
                   style={{
                     width: "100%",
                     minHeight: "220px",
@@ -239,14 +290,31 @@ export function PromptMemoryImportWizard({
                   }}
                 >
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontWeight: 500, color: "var(--color-text-primary)" }}>
-                      Mark imported memories as private
+                    <div
+                      style={{
+                        fontWeight: 500,
+                        color: "var(--color-text-primary)",
+                      }}
+                    >
+                      {t(
+                        "promptMemory.private",
+                        "Mark imported memories as private",
+                      )}
                     </div>
-                    <p className="settings-form-hint" style={{ marginTop: "4px", marginBottom: 0 }}>
-                      Recommended for imported personal context.
+                    <p
+                      className="settings-form-hint"
+                      style={{ marginTop: "4px", marginBottom: 0 }}
+                    >
+                      {t(
+                        "promptMemory.privateHint",
+                        "Recommended for imported personal context.",
+                      )}
                     </p>
                   </div>
-                  <label className="settings-toggle" style={{ flexShrink: 0, marginTop: "2px" }}>
+                  <label
+                    className="settings-toggle"
+                    style={{ flexShrink: 0, marginTop: "2px" }}
+                  >
                     <input
                       type="checkbox"
                       checked={forcePrivate}
@@ -266,13 +334,15 @@ export function PromptMemoryImportWizard({
                   disabled={importing}
                   style={{ opacity: importing ? 0.6 : 1 }}
                 >
-                  {importing ? "Importing..." : "Add to Memory"}
+                  {importing
+                    ? t("promptMemory.importing", "Importing...")
+                    : t("promptMemory.addToMemory", "Add to Memory")}
                 </button>
                 <button
                   className="chatgpt-import-btn chatgpt-import-btn-secondary"
                   onClick={onClose}
                 >
-                  Cancel
+                  {t("common.cancel", "Cancel")}
                 </button>
               </div>
             </div>
@@ -283,41 +353,77 @@ export function PromptMemoryImportWizard({
               <div
                 className={`chatgpt-import-result ${hasCreatedMemories ? "chatgpt-import-result-success" : "chatgpt-import-result-error"}`}
               >
-                <h4 style={{ margin: "0 0 8px", color: "var(--color-text-primary)" }}>
-                  {hasCreatedMemories ? "Import complete" : "No memories imported"}
+                <h4
+                  style={{
+                    margin: "0 0 8px",
+                    color: "var(--color-text-primary)",
+                  }}
+                >
+                  {hasCreatedMemories
+                    ? t("promptMemory.result.complete", "Import complete")
+                    : t("promptMemory.result.none", "No memories imported")}
                 </h4>
                 <div className="chatgpt-import-result-stats">
                   <div className="chatgpt-import-result-stat">
                     <strong>{result.entriesDetected}</strong>
-                    <span>entries detected</span>
+                    <span>
+                      {t(
+                        "promptMemory.result.entriesDetected",
+                        "entries detected",
+                      )}
+                    </span>
                   </div>
                   <div className="chatgpt-import-result-stat">
                     <strong>{result.memoriesCreated}</strong>
-                    <span>memories created</span>
+                    <span>
+                      {t(
+                        "promptMemory.result.memoriesCreated",
+                        "memories created",
+                      )}
+                    </span>
                   </div>
                   {result.duplicatesSkipped > 0 && (
                     <div className="chatgpt-import-result-stat">
                       <strong>{result.duplicatesSkipped}</strong>
-                      <span>duplicates skipped</span>
+                      <span>
+                        {t(
+                          "promptMemory.result.duplicatesSkipped",
+                          "duplicates skipped",
+                        )}
+                      </span>
                     </div>
                   )}
                   {result.truncated > 0 && (
                     <div className="chatgpt-import-result-stat">
                       <strong>{result.truncated}</strong>
-                      <span>entries not imported (limit)</span>
+                      <span>
+                        {t(
+                          "promptMemory.result.truncated",
+                          "entries not imported (limit)",
+                        )}
+                      </span>
                     </div>
                   )}
                 </div>
                 {result.errors.length > 0 && (
-                  <p style={{ margin: "10px 0 0", color: "var(--color-error)", fontSize: "13px" }}>
+                  <p
+                    style={{
+                      margin: "10px 0 0",
+                      color: "var(--color-error)",
+                      fontSize: "13px",
+                    }}
+                  >
                     {result.errors[0]}
                   </p>
                 )}
               </div>
 
               <div className="chatgpt-import-actions">
-                <button className="chatgpt-import-btn chatgpt-import-btn-primary" onClick={onClose}>
-                  Done
+                <button
+                  className="chatgpt-import-btn chatgpt-import-btn-primary"
+                  onClick={onClose}
+                >
+                  {t("common.done", "Done")}
                 </button>
                 <button
                   className="chatgpt-import-btn chatgpt-import-btn-secondary"
@@ -327,7 +433,7 @@ export function PromptMemoryImportWizard({
                     setError(null);
                   }}
                 >
-                  Import Another
+                  {t("promptMemory.importAnother", "Import Another")}
                 </button>
               </div>
             </div>

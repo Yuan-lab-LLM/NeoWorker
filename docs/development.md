@@ -15,8 +15,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/CoWork-OS/CoWork-OS.git
-cd CoWork-OS
+git clone https://github.com/NeoWorker/NeoWorker.git
+cd NeoWorker
 
 # Install dependencies
 npm install
@@ -26,14 +26,14 @@ npm run setup
 
 # Build and package the app
 npm run build          # compile TypeScript and bundle the UI
-npm run build:cli      # compile the standalone cowork CLI
+npm run build:cli      # compile the standalone neoworker CLI
 npm run package        # package desktop installers (.dmg on macOS, .exe on Windows)
 ```
 
 Once complete, the packaged app will be in the `release/` folder:
 - **`*.dmg`** — macOS installer image
 - **`*.exe`** — Windows NSIS installer
-- **`mac-*/CoWork OS.app`** — unpacked macOS app bundle
+- **`mac-*/NeoWorker.app`** — unpacked macOS app bundle
 - **`win-*/`** — unpacked Windows app directory
 
 ## Linux Server Release Package
@@ -45,9 +45,9 @@ npm run package:linux:server
 npm run package:linux:server:smoke
 ```
 
-This must run on Linux x64 so native runtime modules match the target. The package script builds the daemon and connectors, stages runtime dependencies, installs the Electron binary compatibility dependency, copies the full `resources/` tree, derives the connector list from `build:connectors`, writes `release/cowork-os-server-linux-x64-v<version>.tar.gz`, and writes a matching `.sha256` file.
+This must run on Linux x64 so native runtime modules match the target. The package script builds the daemon and connectors, stages runtime dependencies, installs the Electron binary compatibility dependency, copies the full `resources/` tree, derives the connector list from `build:connectors`, writes `release/neoworker-server-linux-x64-v<version>.tar.gz`, and writes a matching `.sha256` file.
 
-The smoke test extracts the tarball, verifies required files/resources/dependencies, checks `better-sqlite3`, confirms the Electron binary exists, starts `coworkd-node` on a temporary Control Plane port, and checks `/health`.
+The smoke test extracts the tarball, verifies required files/resources/dependencies, checks `better-sqlite3`, confirms the Electron binary exists, starts `neoworkerd-node` on a temporary Control Plane port, and checks `/health`.
 
 Managed deployment hardening is part of this release path: the daemon reports deployment posture through `config.get`, blocks unsafe public Control Plane binds in headless/managed mode, and the Docker/systemd templates default to loopback/private exposure with hardened process settings.
 
@@ -62,7 +62,7 @@ npm run dev
 On macOS, development startup enables Node's system certificate store by default with `NODE_OPTIONS=--use-system-ca`. This helps provider calls work on corporate networks where tools such as Zscaler install a company root certificate into the macOS trust store. To opt out for comparison, run:
 
 ```bash
-COWORK_DEV_USE_SYSTEM_CA=0 npm run dev
+NEOWORKER_DEV_USE_SYSTEM_CA=0 npm run dev
 ```
 
 If a corporate root certificate still is not trusted by Node, export it as PEM and use:
@@ -95,7 +95,7 @@ always retain the newest 20 runs, and cap retained `dev-*.log`/`dev-*.jsonl` fil
 oldest run pairs first. Local overrides are available:
 
 ```bash
-COWORK_DEV_LOG_RETENTION_DAYS=7 COWORK_DEV_LOG_MIN_RUNS=10 COWORK_DEV_LOG_MAX_MB=50 npm run dev:log
+NEOWORKER_DEV_LOG_RETENTION_DAYS=7 NEOWORKER_DEV_LOG_MIN_RUNS=10 NEOWORKER_DEV_LOG_MAX_MB=50 npm run dev:log
 ```
 
 Force log capture regardless of Settings:
@@ -112,7 +112,7 @@ npm run dev:log
 | `npm run dev:log` | Start development mode and force redacted text + JSONL logs to `logs/` |
 | `npm run dev:start` | Internal raw dev start command (used by wrappers) |
 | `npm run build` | Production build |
-| `npm run build:cli` | Compile the `cowork` CLI TypeScript output |
+| `npm run build:cli` | Compile the `neoworker` CLI TypeScript output |
 | `npm run package` | Package desktop installers (`.dmg` on macOS, `.exe` on Windows) |
 | `npm run package:linux:server` | Build the Linux x64 server tarball and checksum on Linux |
 | `npm run package:linux:server:smoke` | Extract and boot-smoke the Linux server tarball on Linux |
@@ -135,42 +135,42 @@ npm run dev:log
 
 ## macOS Dev Electron Bundle
 
-On macOS, `npm run dev` brands the local `node_modules/electron/dist/Electron.app` display name and icon as CoWork OS by default. The branding script preserves `CFBundleName=Electron` and `CFBundleIdentifier=com.github.Electron` so development safeStorage continues to use the Electron identity.
+On macOS, `npm run dev` brands the local `node_modules/electron/dist/Electron.app` display name and icon as NeoWorker by default. The branding script preserves `CFBundleName=Electron` and `CFBundleIdentifier=com.github.Electron` so development safeStorage continues to use the Electron identity.
 
 Use these overrides only when you explicitly need them:
 
 ```bash
-COWORK_DEV_BRAND_APP=0 npm run dev
-COWORK_CODESIGN_ENABLE=1 node scripts/codesign_electron_dev.mjs
-COWORK_CODESIGN_IDENTITY="Apple Development: Name (TEAMID)" node scripts/codesign_electron_dev.mjs
+NEOWORKER_DEV_BRAND_APP=0 npm run dev
+NEOWORKER_CODESIGN_ENABLE=1 node scripts/codesign_electron_dev.mjs
+NEOWORKER_CODESIGN_IDENTITY="Apple Development: Name (TEAMID)" node scripts/codesign_electron_dev.mjs
 ```
 
 Development codesigning remains opt-in for a valid app bundle. If local branding or another file mutation leaves `Electron.app` with an invalid signature, `scripts/codesign_electron_dev.mjs` repairs it with an ad-hoc development signature without app entitlements, so macOS can register the app while Electron's run-as-node native-module checks keep working.
 
 ## CLI Development
 
-The standalone terminal entrypoint is `cowork`. It is separate from in-app terminal tabs: terminal tabs give users a real PTY inside the desktop workspace, while `cowork` starts CoWork tasks from an external terminal.
+The standalone terminal entrypoint is `neoworker`. It is separate from in-app terminal tabs: terminal tabs give users a real PTY inside the desktop workspace, while `neoworker` starts NeoWorker tasks from an external terminal.
 
 Implementation landmarks:
 
-- `bin/cowork-cli.js`: npm binary launcher and source-checkout artifact bootstrap
+- `bin/neoworker-cli.js`: npm binary launcher and source-checkout artifact bootstrap
 - `src/cli/main.ts`: argument parsing, interactive terminal UI, slash commands, diagnostics, and remote dispatch
 - `src/cli/direct-run.ts`: local one-shot task execution
-- `src/electron/main.ts`: hidden `--cowork-cli-direct-run` app-entry mode for local CLI tasks
+- `src/electron/main.ts`: hidden `--neoworker-cli-direct-run` app-entry mode for local CLI tasks
 - `tsconfig.cli.json`: CLI TypeScript build target
 
 Common local commands:
 
 ```bash
 npm run build:cli
-cowork --help
-cowork
-cowork run "who are you?"
-cowork run "who are you?" --json
-COWORK_CLI_DEBUG=1 cowork run "diagnose local provider setup"
+neoworker --help
+neoworker
+neoworker run "who are you?"
+neoworker run "who are you?" --json
+NEOWORKER_CLI_DEBUG=1 neoworker run "diagnose local provider setup"
 ```
 
-Local `cowork run` should not require `COWORK_CONTROL_PLANE_TOKEN`. It uses the local profile and normally prefers the hidden Electron app-entry runner so desktop-encrypted settings can be read with the same app identity. `cowork run ... --remote` is the explicit Control Plane client path and is the mode that requires Control Plane URL/token configuration.
+Local `neoworker run` should not require `NEOWORKER_CONTROL_PLANE_TOKEN`. It uses the local profile and normally prefers the hidden Electron app-entry runner so desktop-encrypted settings can be read with the same app identity. `neoworker run ... --remote` is the explicit Control Plane client path and is the mode that requires Control Plane URL/token configuration.
 
 Focused validation:
 
@@ -180,7 +180,7 @@ npm run build:electron
 npx vitest run src/cli/__tests__/main.test.ts src/cli/__tests__/terminal-ui.test.ts src/cli/__tests__/local-control-plane-discovery.test.ts
 ```
 
-For packaged or npm-release checks, verify the package includes `dist/cli`, `bin/cowork-cli.js`, and `tsconfig.cli.json`, then test both `cowork --help` and one local `cowork run` command from a clean install.
+For packaged or npm-release checks, verify the package includes `dist/cli`, `bin/neoworker-cli.js`, and `tsconfig.cli.json`, then test both `neoworker --help` and one local `neoworker run` command from a clean install.
 
 ## Renderer Bundle Size
 
@@ -238,7 +238,7 @@ Implementation contract:
 - Default run mode is `Chat`, with `shellAccess: false`, `allowUserInput: false`, and no clarifying check-ins. Execute-mode tasks use hard-blocker-only human input by default; Plan/Debug can opt into structured `request_user_input`.
 - `Local` sets `shellAccess: true`.
 - `Worktree` must not be combined with `Continue thread`; the UI disables that path and lower-level worktree payloads force `New task`.
-- Saved prompts should include a source task title, task ID, and `cowork://tasks/<taskId>` deeplink so future runs remain traceable.
+- Saved prompts should include a source task title, task ID, and `neoworker://tasks/<taskId>` deeplink so future runs remain traceable.
 - Template selection should fill name, prompt, and schedule only; templates are not managed agents.
 - Routine observability belongs in the routines surface. Compiled scheduled-task observability belongs in `src/renderer/components/ScheduledTasksSettings.tsx`: use `listCronJobs`, `getCronRunHistory`, and `clearCronRunHistory` for run health, latest result, delivery status, target-thread/new-task labels, and per-run task links. Do not duplicate scheduler history in the task automation modal.
 - Automation-specific agent config must be passed as transient run override for same-thread follow-ups; it must not overwrite the persisted task agent config.
@@ -305,7 +305,7 @@ npm run qa:eval:build -- --window-days 30 --limit 300 --suite reliability-regres
 npm run qa:eval:run -- --suite reliability-regressions --mode deterministic
 
 # Optional: run against a custom DB path
-COWORK_DB_PATH=/tmp/cowork-eval.db npm run qa:eval:run -- --suite reliability-regressions --mode deterministic
+NEOWORKER_DB_PATH=/tmp/neoworker-eval.db npm run qa:eval:run -- --suite reliability-regressions --mode deterministic
 
 # Validate production-fix regression policy (mainly used by PR CI)
 npm run qa:eval:enforce-regressions
@@ -408,9 +408,9 @@ The bundled `unbroker` skill has Python helper scripts and a local PII ledger. W
 
 ```bash
 python3 -m py_compile resources/skills/unbroker/scripts/*.py
-PDD_DATA_DIR=/tmp/cowork-unbroker-qa python3 resources/skills/unbroker/scripts/pdd.py doctor
-PDD_DATA_DIR=/tmp/cowork-unbroker-qa python3 resources/skills/unbroker/scripts/pdd.py setup --auto
-PDD_DATA_DIR=/tmp/cowork-unbroker-qa-smoke python3 resources/skills/unbroker/scripts/pdd.py intake \
+PDD_DATA_DIR=/tmp/neoworker-unbroker-qa python3 resources/skills/unbroker/scripts/pdd.py doctor
+PDD_DATA_DIR=/tmp/neoworker-unbroker-qa python3 resources/skills/unbroker/scripts/pdd.py setup --auto
+PDD_DATA_DIR=/tmp/neoworker-unbroker-qa-smoke python3 resources/skills/unbroker/scripts/pdd.py intake \
   --full-name "Test Person" \
   --email test@example.com \
   --city Oakland \
@@ -418,11 +418,11 @@ PDD_DATA_DIR=/tmp/cowork-unbroker-qa-smoke python3 resources/skills/unbroker/scr
   --residency US-CA \
   --consent \
   --consent-method self
-PDD_DATA_DIR=/tmp/cowork-unbroker-qa-smoke python3 resources/skills/unbroker/scripts/pdd.py next <subject_id>
+PDD_DATA_DIR=/tmp/neoworker-unbroker-qa-smoke python3 resources/skills/unbroker/scripts/pdd.py next <subject_id>
 npm run skills:check
 ```
 
-The smoke subject should be fake test data only. The skill stores sensitive PII under `PDD_DATA_DIR`, `COWORK_HOME/unbroker`, `COWORK_USER_DATA_DIR/unbroker`, or the legacy upstream `HERMES_HOME/unbroker` fallback, so never point validation at a real operator ledger unless the test is explicitly about migration or recovery.
+The smoke subject should be fake test data only. The skill stores sensitive PII under `PDD_DATA_DIR`, `NEOWORKER_HOME/unbroker`, `NEOWORKER_USER_DATA_DIR/unbroker`, or the legacy upstream `HERMES_HOME/unbroker` fallback, so never point validation at a real operator ledger unless the test is explicitly about migration or recovery.
 
 ### Everything Workbench artifact model
 
@@ -592,7 +592,7 @@ npx vitest run \
   src/renderer/utils/__tests__/task-event-compat.test.ts
 ```
 
-For sidebar virtualization and `@chenglou/pretext` measurement work in the `CoWork-OS/CoWork-OS` repo, run:
+For sidebar virtualization and `@chenglou/pretext` measurement work in the `NeoWorker/NeoWorker` repo, run:
 
 ```bash
 npx vitest run \
@@ -679,7 +679,7 @@ Implementation boundaries:
 - `src/renderer/App.tsx` owns the safe `/clear` task-view reset. `/clear` must not delete task history or switch workspaces.
 - `src/electron/agent/skill-slash-aliases.ts` resolves plugin-pack `slashCommands` aliases to target skill IDs. Backend precedence must match picker display; enabled plugin aliases win over direct skill IDs when tokens collide.
 - `src/electron/agent/executor.ts` owns generic skill slash execution. The deterministic `/schedule` handler must continue to run before generic skill slash routing.
-- `resources/plugin-packs/cowork-shortcuts/cowork.plugin.json` seeds the bundled CoWork Shortcuts workflow pack as normal skills and aliases.
+- `resources/plugin-packs/neoworker-shortcuts/neoworker.plugin.json` seeds the bundled NeoWorker Shortcuts workflow pack as normal skills and aliases.
 
 Focused checks:
 
@@ -752,10 +752,10 @@ See [Troubleshooting](troubleshooting.md) for common build and setup issues.
 
 Hard executor budget contracts are now opt-in.
 
-- Env var: `COWORK_AGENT_BUDGET_CONTRACTS`
+- Env var: `NEOWORKER_AGENT_BUDGET_CONTRACTS`
 - Default: `false`
 - Effect when disabled: strict budget-contract caps (including tool-call caps) are not enforced by default.
-- To restore legacy behavior: set `COWORK_AGENT_BUDGET_CONTRACTS=true`
+- To restore legacy behavior: set `NEOWORKER_AGENT_BUDGET_CONTRACTS=true`
 
 Validation after this change:
 

@@ -13,6 +13,7 @@
  */
 
 import * as path from "path";
+import { createHash } from "crypto";
 import {
   canonicalizeToolName,
   getToolDedupeClass,
@@ -32,6 +33,104 @@ export class AwaitingUserInputError extends Error {
     this.reasonCode = opts?.reasonCode;
     this.userMessage = opts?.userMessage;
   }
+}
+
+/**
+ * A NeoWorker-side deadline, not proof that the upstream provider is busy.
+ * Keep it structured so routing and UI code do not collapse it into a generic
+ * provider outage.
+ */
+export class LLMRequestTimeoutError extends Error {
+  readonly code = "NEOWORKER_LLM_TIMEOUT";
+  readonly retryable = true;
+  readonly retryKind = "request_timeout" as const;
+  readonly operation: string;
+  readonly timeoutMs: number;
+
+  constructor(operation: string, timeoutMs: number) {
+    super(`${operation} timed out after ${timeoutMs / 1000}s`);
+    this.name = "LLMRequestTimeoutError";
+    this.operation = operation;
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+export type LLMRetryKind =
+  | "request_timeout"
+  | "rate_limit"
+  | "provider_overloaded"
+  | "network"
+  | "malformed_response"
+  | "unknown";
+
+/** Classify the actual failure that caused an LLM retry. */
+export function classifyLLMRetryKind(error: unknown): LLMRetryKind {
+  const value = error as {
+    retryKind?: unknown;
+    code?: unknown;
+    status?: unknown;
+    message?: unknown;
+    cause?: { code?: unknown };
+  } | null;
+  const explicitKind = String(value?.retryKind || "").trim();
+  if (
+    explicitKind === "request_timeout" ||
+    explicitKind === "rate_limit" ||
+    explicitKind === "provider_overloaded" ||
+    explicitKind === "network" ||
+    explicitKind === "malformed_response"
+  ) {
+    return explicitKind;
+  }
+
+  const message = String(value?.message || "").toLowerCase();
+  const code = String(value?.code || value?.cause?.code || "").toUpperCase();
+  const status = Number(value?.status);
+  if (
+    code === "NEOWORKER_LLM_TIMEOUT" ||
+    status === 408 ||
+    /timed out|timeout/.test(message)
+  ) {
+    return "request_timeout";
+  }
+  if (
+    status === 429 ||
+    /rate limit|too many requests|free-models-per-min/.test(message)
+  ) {
+    return "rate_limit";
+  }
+  if (
+    [500, 502, 503, 504].includes(status) ||
+    /service unavailable|temporarily unavailable|server(?:s)? (?:is|are) (?:currently )?overloaded|server_is_overloaded|service_unavailable_error/.test(
+      message,
+    )
+  ) {
+    return "provider_overloaded";
+  }
+  if (
+    [
+      "ECONNRESET",
+      "ETIMEDOUT",
+      "ENOTFOUND",
+      "EAI_AGAIN",
+      "ECONNREFUSED",
+      "EPIPE",
+      "ECONNABORTED",
+      "ERR_STREAM_PREMATURE_CLOSE",
+      "UND_ERR_CONNECT_TIMEOUT",
+      "UND_ERR_HEADERS_TIMEOUT",
+      "UND_ERR_SOCKET",
+    ].includes(code) ||
+    /fetch failed|network|socket hang up|stream disconnected|connection reset|unexpected eof|terminated/.test(
+      message,
+    )
+  ) {
+    return "network";
+  }
+  if (/malformed tool|tool arguments|invalid.*json/.test(message)) {
+    return "malformed_response";
+  }
+  return "unknown";
 }
 
 // ===== Types =====
@@ -485,6 +584,39 @@ export class ToolCallDeduplicator {
       const rawUrl = String(input.url || "").trim();
       const normalizedUrl = this.normalizeUrlForSemanticSignature(rawUrl);
       return `${canonicalToolName}:url:${normalizedUrl}`;
+    }
+
+    // edit_file is commonly used to assemble one large HTML/document artifact
+    // through distinct placeholder replacements. Grouping every edit_file call
+    // under the tool name alone misclassifies normal incremental authoring as a
+    // retry loop after four edits. Keep loop detection for repeated anchors,
+    // while allowing independent edits to the same target file.
+    if (canonicalToolName === "edit_file") {
+      const filename = String(
+        input.file_path || input.path || input.filename || input.targetPath || "",
+      )
+        .replace(/\\/g, "/")
+        .trim();
+      const anchor = String(
+        input.old_string ||
+          input.oldText ||
+          input.search ||
+          input.match ||
+          input.anchor ||
+          [input.startLine, input.endLine].filter((value) => value !== undefined).join(":"),
+      ).trim();
+      if (!anchor) {
+        // Exact-call dedupe still protects identical calls. Without an anchor,
+        // a semantic grouping would be too coarse to distinguish valid edits.
+        return `${canonicalToolName}:file:${filename}:unanchored:${createHash("sha1")
+          .update(JSON.stringify(input))
+          .digest("hex")
+          .slice(0, 12)}`;
+      }
+      return `${canonicalToolName}:file:${filename}:anchor:${createHash("sha1")
+        .update(anchor)
+        .digest("hex")
+        .slice(0, 12)}`;
     }
 
     // For file operations, normalize the filename to detect variants
@@ -963,6 +1095,20 @@ export class ToolFailureTracker {
    * @returns true if the tool should be disabled (circuit broken)
    */
   recordFailure(toolName: string, errorMessage: string): boolean {
+    toolName = canonicalizeToolName(toolName);
+
+    // Office artifact creation is a refinement workflow, not a one-shot side
+    // effect. Content coverage, layout QA and integrity checks may legitimately
+    // reject several drafts before the publisher accepts one. A generic circuit
+    // breaker must never permanently remove the only tool capable of delivering
+    // the requested file; the artifact pipeline owns its bounded retry policy.
+    if (isArtifactGenerationToolName(toolName)) {
+      this.failures.delete(toolName);
+      this.inputDependentFailures.delete(toolName);
+      this.disabledTools.delete(toolName);
+      return false;
+    }
+
     const browserHttpStatusFailure =
       toolName.startsWith("browser_") &&
       /http\s*[45]\d{2}|client error\s*\(\d{3}\)|server error\s*\(\d{3}\)/i.test(errorMessage);
@@ -1045,14 +1191,24 @@ export class ToolFailureTracker {
    * Record a successful tool call (resets failure count for both types)
    */
   recordSuccess(toolName: string): void {
+    toolName = canonicalizeToolName(toolName);
     this.failures.delete(toolName);
     this.inputDependentFailures.delete(toolName);
+    this.disabledTools.delete(toolName);
   }
 
   /**
    * Check if a tool is disabled (with automatic re-enablement after cooldown)
    */
   isDisabled(toolName: string): boolean {
+    toolName = canonicalizeToolName(toolName);
+    if (isArtifactGenerationToolName(toolName)) {
+      this.failures.delete(toolName);
+      this.inputDependentFailures.delete(toolName);
+      this.disabledTools.delete(toolName);
+      return false;
+    }
+
     const disabled = this.disabledTools.get(toolName);
     if (!disabled) {
       return false;
@@ -1079,9 +1235,10 @@ export class ToolFailureTracker {
     // Clean up expired cooldowns first
     const now = Date.now();
     for (const [name, info] of this.disabledTools.entries()) {
-      if (now - info.disabledAt >= this.cooldownMs) {
+      if (isArtifactGenerationToolName(name) || now - info.disabledAt >= this.cooldownMs) {
         this.disabledTools.delete(name);
         this.failures.delete(name);
+        this.inputDependentFailures.delete(name);
       }
     }
     return Array.from(this.disabledTools.keys());
@@ -1091,6 +1248,7 @@ export class ToolFailureTracker {
    * Get the last error for a tool with guidance for alternative approaches
    */
   getLastError(toolName: string): string | undefined {
+    toolName = canonicalizeToolName(toolName);
     const disabled = this.disabledTools.get(toolName);
     const baseError = disabled?.reason || this.failures.get(toolName)?.lastError;
 
@@ -1619,7 +1777,7 @@ export function withTimeout<T>(
       } catch {
         // Best-effort timeout hook; preserve timeout error semantics.
       }
-      reject(new Error(`${operation} timed out after ${timeoutMs / 1000}s`));
+      reject(new LLMRequestTimeoutError(operation, timeoutMs));
     }, timeoutMs);
 
     promise

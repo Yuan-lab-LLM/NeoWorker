@@ -2,12 +2,8 @@
 
 ## Multi-Channel AI Gateway
 
-17 messaging channels with unified operations, plus per-channel, per-chat, and per-topic specialization for workspace, agent role, guidance, tool policy, and shared-memory opt-in. See [Channel Integrations](channels.md) for setup details, [Channel User Guides](channel-user-guides.md) for per-channel features and best practices, [Dedicated Channel Guides](channel-guides/) for separate channel pages, [Using CoWork from WhatsApp and Other Channels](gateway-user-guide.md) for end-user workflows, and [Gateway Message Lifecycle](gateway-message-lifecycle.md) for remote command routing, active-task behavior, delivery, and scheduled outputs.
+17 messaging channels with unified operations, plus per-channel, per-chat, and per-topic specialization for workspace, agent role, guidance, tool policy, and shared-memory opt-in. See [Channel Integrations](channels.md) for setup details, [Channel User Guides](channel-user-guides.md) for per-channel features and best practices, [Dedicated Channel Guides](channel-guides/) for separate channel pages, [Using NeoWorker from WhatsApp and Other Channels](gateway-user-guide.md) for end-user workflows, and [Gateway Message Lifecycle](gateway-message-lifecycle.md) for remote command routing, active-task behavior, delivery, and scheduled outputs.
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-12.webp" alt="Messaging channel settings" width="700">
-  <br><em>Channels can be configured with provider setup, routing, specialization, and security controls.</em>
-</p>
 
 - **WhatsApp**: QR code pairing, self-chat mode, markdown support, `/new` and `/new temp` task resets, `/stop` cancellation, editable progress delivery, and hidden temporary scratch workspaces
 - **Telegram**: Bot commands, streaming responses, workspace selection, group routing modes, allowed-group allowlists, and group/topic specialization
@@ -36,21 +32,21 @@
 - **Profiles & Portability**: Separate app profiles isolate their own database, credentials, channels, skills, and sessions. Profiles can be exported/imported as bundles for migration or cloning.
 
 - **Ideas Panel**: Curated launch panel accessible from the sidebar above Sessions. Pre-written prompts organized by category let you start common workflows in one click. See [Ideas Panel: Supported Capabilities](ideas-capabilities.md) for the full list of tools each prompt uses and their graceful fallbacks.
-- **GUI-first, CLI-capable AI Super App, Everything App, and Personal Agentic OS**: CoWork OS is a local-first super app for everyday AI work: coding, email, web design, research, documents, spreadsheets, presentations, automations, channels, devices, terminal tasks, and long-running work in one governed workspace.
+- **GUI-first, CLI-capable AI Super App, Everything App, and Personal Agentic OS**: NeoWorker is a local-first super app for everyday AI work: coding, email, web design, research, documents, spreadsheets, presentations, automations, channels, devices, terminal tasks, and long-running work in one governed workspace.
 - **GUI-first Agent Management**: Agents Hub, Mission Control, task timelines, visual boards, Teams, Devices, and Automations let users create reusable agents, spawn many parallel or specialized agents, inspect delegated runs, assign work, review approvals, and monitor outcomes through the desktop operator console.
-- **CoWork CLI**: `cowork` opens an interactive terminal UI for local agent work, and `cowork run "task"` starts one-shot local tasks using the same local profile, providers, workspaces, skills, and MCP configuration as the desktop app. Normal local CLI use does not require a Control Plane token; `--remote` is the explicit remote client path. See [CoWork OS CLI](cli.md).
-- **Everything Workbench**: Generated documents, spreadsheets, presentations, web pages, PDFs, and previews share one artifact model: compact output card, sidebar open, fullscreen artifact workspace, follow-up composer, and refresh after the agent completes requested edits. This makes CoWork the default place to create, inspect, and revise everyday Word/Excel/PowerPoint-style work while keeping external app actions available for advanced native workflows. See [Everything Workbench](everything-workbench.md).
-- **Terminal Tabs**: CoWork now includes real xterm.js + node-pty terminal tabs inside the workspace, with native macOS login-shell behavior, Windows `cmd.exe` through ConPTY/winpty, keyboard shortcuts, Tab completion, Ctrl+C, interactive prompts, resizing, closeable tabs, and cwd-only prompts. This is a major super-app step because direct CLI work, repository work, agents, artifacts, browser testing, approvals, channels, and automations can stay in one governed workspace. See [Terminal Tabs](terminal-tabs.md).
+- **NeoWorker CLI**: `neoworker` opens an interactive terminal UI for local agent work, and `neoworker run "task"` starts one-shot local tasks using the same local profile, providers, workspaces, skills, and MCP configuration as the desktop app. Normal local CLI use does not require a Control Plane token; `--remote` is the explicit remote client path. See [NeoWorker CLI](cli.md).
+- **Everything Workbench**: Generated documents, spreadsheets, presentations, web pages, PDFs, and previews share one artifact model: compact output card, sidebar open, fullscreen artifact workspace, follow-up composer, and refresh after the agent completes requested edits. This makes NeoWorker the default place to create, inspect, and revise everyday Word/Excel/PowerPoint-style work while keeping external app actions available for advanced native workflows. See [Everything Workbench](everything-workbench.md).
+- **Terminal Tabs**: NeoWorker now includes real xterm.js + node-pty terminal tabs inside the workspace, with native macOS login-shell behavior, Windows `cmd.exe` through ConPTY/winpty, keyboard shortcuts, Tab completion, Ctrl+C, interactive prompts, resizing, closeable tabs, and cwd-only prompts. This is a major super-app step because direct CLI work, repository work, agents, artifacts, browser testing, approvals, channels, and automations can stay in one governed workspace. See [Terminal Tabs](terminal-tabs.md).
 - **Browser Workbench / Browser V2**: live website and local-app testing opens in a visible right-sidebar/fullscreen browser by default. Browser-use tools target the same webview the user can see through Browser V2, with responsive viewport testing through `browser_emulate`, accessibility snapshot refs, CDP-backed actions, tabs, diagnostics, screenshots, annotation, and visible cursor movement during agent actions. Explicit fallback modes include local Playwright, external Chrome/Edge CDP attach with consent, and Browser Use Cloud stealth browsers through `browser_provider: "browser-use-cloud"` for public HTTP(S) targets. See [Browser Workbench](browser-workbench.md) and [Browser V2 Architecture](browser-v2-architecture.md).
 - **Task-Based Workflow**: Multi-step execution with plan-execute-observe loops
-- **Task Overflow Actions**: task view title menus expose supported task actions in place: pin/unpin, rename, archive, copy working directory, copy task ID, copy `cowork://tasks/<taskId>` deeplink, copy Markdown, fork session, view outputs, and create a same-thread or new-task automation from the current task. See [Task Automations](task-automations.md).
+- **Task Overflow Actions**: task view title menus expose supported task actions in place: pin/unpin, rename, archive, copy working directory, copy task ID, copy `neoworker://tasks/<taskId>` deeplink, copy Markdown, fork session, view outputs, and create a same-thread or new-task automation from the current task. See [Task Automations](task-automations.md).
 - **Managed Agents**: Agents Hub provides a dedicated surface for creating, inspecting, publishing, suspending, and improving reusable agents. Agent detail screens are configuration-first and single-pane: test, preview, and starter-prompt actions create normal runtime managed sessions and open their backing tasks in the main task window, where questions, responses, approvals, artifacts, and outputs are handled like any other task. See [Managed Agents](managed-agents.md).
 - **Runtime Orchestration**: SessionRuntime owns task-session state, session checklists, resume snapshots, recovery state, and task projection while the turn kernel handles each individual step, follow-up, or text turn; metadata-driven tool scheduling, graph-backed delegation, typed worker roles, verifier verdicts, semantic tool-batch summaries, and terminal-state reconciliation keep delegated work coherent across tasks, follow-ups, teams, and ACP runs.
 - **Prompt-Aware Tooling**: visible tools receive concise prompt-local guidance after policy filtering, and planning plus execution share the same render source for compact tool text and provider-facing tool descriptions.
 - **Composer Mentions**: type `@` in the main composer to choose Agents, configured Integrations, or Files. Integration mentions render as icon+name chips and add soft runtime routing guidance without changing permissions. See [Composer Mentions](composer-mentions.md).
 - **Message Box Shortcuts**: type `/` in the main composer to search deterministic app commands and skill-backed workflow shortcuts in one picker. App commands include `/side`, `/schedule`, `/clear`, `/plan`, `/cost`, `/multitask`, `/compact`, `/doctor`, and `/undo`; `/side ...` opens a read-only side conversation about the selected running session, and `/schedule here ...` targets the selected thread for a scheduled follow-up. Plugin-pack aliases resolve to their target skills through the existing skills runtime. Skill-backed selections insert the command token so users can add context before sending. See [Message Box Shortcuts](message-box-shortcuts.md), [Side Chat](side-chat.md), and [Multitask Command](multitask.md).
 - **Sectioned Prompt Stack**: execution and follow-up prompts are built from named session- and turn-scoped sections with explicit budgets, memoization of stable sections, provider-aware prompt caching, and truncation/drop reporting when token pressure rises.
-- **Provider-Aware Prompt Caching**: CoWork keeps stable system blocks cacheable and dynamic turn context uncached, prefers Anthropic automatic caching where supported, uses explicit Claude breakpoints on OpenRouter, and derives stable OpenAI-family cache keys for GPT routes.
+- **Provider-Aware Prompt Caching**: NeoWorker keeps stable system blocks cacheable and dynamic turn context uncached, prefers Anthropic automatic caching where supported, uses explicit Claude breakpoints on OpenRouter, and derives stable OpenAI-family cache keys for GPT routes.
 - **Mixture of Agents**: Settings can expose a virtual LLM provider where enabled presets run tool-free advisor models first and then hand bounded advisory context to a final aggregator model with the original tools. Presets support named advisor/aggregator slots, advisor output limits, concurrency, slot-level provider failover, and whole-preset failover when explicitly configured. See [Mixture of Agents](mixture-of-agents.md).
 - **OpenRouter Pareto Code Routing**: OpenRouter model selection includes `openrouter/pareto-code` and `openrouter/pareto-code:nitro`. When selected, Settings exposes OpenRouter's optional Pareto minimum coding score as a decimal from `0` to `1` so coding tasks can route by capability tier without pinning one concrete model.
 - **Grok Subscription Routing**: xAI/Grok can run with either a direct xAI API key or browser OAuth against an active SuperGrok subscription. The OAuth path uses `grok-4.3` by default and keeps token refresh inside encrypted profile settings.
@@ -62,10 +58,6 @@
 - **151 Built-in Skills**: GitHub, Slack, Notion, Spotify, Apple Notes, Unity, Unreal, Terraform, Kubernetes, financial analysis, and more. Bundled workflows now include [LLM Wiki](llm-wiki.md) for persistent research vaults, [manim-video](skills/manim-video.md) for deterministic technical animation, [architecture-design](skills/architecture-design.md) for Rhino/Blender/ComfyUI concept architecture workflows, [kami](skills/kami.md) for editorial PDFs and slide decks, [react-best-practices](skills/react-best-practices.md) for React and Next.js implementation work, [unbroker](skills/unbroker.md) for consent-gated data-broker cleanup, and `taste-skill` for high-agency frontend design. Optional CLI-based skills (e.g. [aurl](skills/aurl.md) for OpenAPI/GraphQL APIs) appear when the binary is installed.
 - **Additive Skill Runtime**: Skills can still be proactively shortlisted from task semantics, but they now apply as additive context and scoped runtime directives. They never replace the original task prompt. See [Skills Runtime Model](skills-runtime-model.md).
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-3.webp" alt="Agents Hub" width="700">
-  <br><em>Agents Hub turns reusable agent definitions into a first-class product surface.</em>
-</p>
 
 - **Chat Mode**: Direct LLM chat with no tools by default, no step timeline, same-session follow-ups, chat-only streaming for supported providers, and a fixed high output budget for explicit `executionMode: "chat"` sessions. Uploaded PDF turns that need deeper document reading are narrowly promoted into read-only analysis so the document parser can run. See [Chat Mode](chat-mode.md).
 - **Side Chat**: Right-side read-only questions about an active running session without steering or stopping the parent task. Side Chat uses a side-specific fork with hidden parent context, live parent-status snapshots for progress questions, a side-only visible transcript, and Markdown-rendered answers. See [Side Chat](side-chat.md).
@@ -73,7 +65,7 @@
 - **Document Artifact Workbench**: task-created Word-style files use compact artifact cards in the task feed. `.docx` opens directly into a resizable right-sidebar editor with a Google Docs-style toolbar, direct text editing, copy, save, external-open, and folder actions. `.doc`, `.rtf`, `.odt`, `.ott`, `.pages`, and related formats are recognized as document artifacts and use best-effort preview or external-app/folder actions depending on parser support. Fullscreen mode expands editable documents across the app and keeps a functional follow-up composer with the main task model picker, voice input, attachments, send behavior, latest-turn/working context, and automatic preview refresh after follow-up edits. See [Document Artifacts](document-artifacts.md).
 - **Format-Aware File Preview Popup**: clicking a file link in chat opens a single in-app preview modal that adapts its layout, header metadata, and per-format affordances to the file type. Supported formats: HTML (sandboxed iframe), Markdown, code with `highlight.js` syntax highlighting, plain text, JSON / JSONL / GeoJSON (collapsible tree with raw/tree toggle and parse-error fallback), CSV / TSV (RFC-4180 quoted-field parser feeding a sortable-style table), XLSX, DOCX, PDF (with page/native-text/OCR summary and inline document surface), images (with fit/actual-size toggle, dimension readout, and an alpha checkerboard for PNG/SVG/WebP/GIF/ICO), video, audio (mp3/wav/ogg/m4a/flac/aac with duration metadata), and LaTeX. Modal width and padding are driven by a single `data-format` attribute, so HTML/PDF/image/video get more horizontal room while text/code stay compact and audio renders narrow. The header shows a format-specific subtitle (e.g. `PNG · 1920×1080 · 240 KB`, `PDF · 12 pages · 1.4 MB`, `CSV · 412 rows · 24 KB`) and a unified action bar — Copy path (with copied flash), Show in Finder, Open externally, Close — plus contextual buttons such as the image fit toggle and the JSON tree/raw toggle. Theme tokens replace the previously hardcoded modal background and PDF summary colors, so the popup renders consistently in light and dark themes.
 - **Smart PDF Attachments**: uploaded PDFs are saved into the workspace and represented in the prompt with stable metadata: filename, workspace-relative path, page count, extraction mode/status, OCR/scan counts, and a compact excerpt. If the user asks about PDF contents beyond that excerpt, the runtime calls `parse_document` on the attached path instead of inlining the whole PDF. PDF excerpts are marked as untrusted document data so instructions inside the PDF cannot override the user or system prompt.
-- **Video Attachments**: uploaded `.mp4`, `.mov`, and `.webm` files are saved into the workspace, sampled into up to 10 representative frames, and sent to image-capable models as visual input. CoWork emits a contact sheet and representative full frame as timeline image artifacts under `.cowork/video-frames/...`, so the user can inspect the same screenshots the agent used. See [Video Attachments](video-attachments.md).
+- **Video Attachments**: uploaded `.mp4`, `.mov`, and `.webm` files are saved into the workspace, sampled into up to 10 representative frames, and sent to image-capable models as visual input. NeoWorker emits a contact sheet and representative full frame as timeline image artifacts under `.neoworker/video-frames/...`, so the user can inspect the same screenshots the agent used. See [Video Attachments](video-attachments.md).
 - **Spreadsheet Artifact Workbench**: task-created spreadsheet files use compact artifact cards in the task feed. `.xlsx`, `.xls`, `.xlsm`, `.csv`, and `.tsv` open a resizable right-sidebar spreadsheet viewer with sheet tabs, sticky headers, working zoom, cell/range/row/column selection, copy with a short `Copied` flash, inline editing, add row/column, and save back to the file. `.numbers`, `.gsheet`, `.ods`, and `.xlsb` are recognized as spreadsheet artifacts and use external-app/folder actions. Fullscreen mode expands editable sheets across the app and keeps a functional follow-up composer with the main task model picker, voice input, attachments, and send behavior. See [Spreadsheet Artifacts](spreadsheet-artifacts.md).
 - **Presentation Artifact Workbench**: PPTX artifacts render as compact task-feed cards and open by default in the resizable right-sidebar presentation viewer. The viewer includes slide thumbnails, previous/next controls, zoom, a white slide canvas, extracted slide text, speaker notes, fast text-first loading, cached rendered slide images, fullscreen follow-up context, external-app/folder actions, and preview refresh after follow-up edits. Legacy PowerPoint formats are recognized with external actions. See [Presentation Artifacts and PPTX Preview](pptx-generation-and-preview.md).
 - **Web Page Artifact Workbench**: generated `.html` / `.htm` files and built React output entrypoints render as compact task-feed cards and open by default in the resizable right-sidebar web viewer. The viewer uses a sandboxed iframe with local assets inlined where possible, browser/folder/copy actions, fullscreen follow-up context, and preview refresh after matching file/build-output updates. React-style projects without built output show a build-output-needed state instead of auto-starting a dev server. See [Web Page Artifacts](web-page-artifacts.md).
@@ -81,7 +73,7 @@
 - **Persistent Memory**: Cross-session context with curated hot memory, searchable archive recall, session transcript recall, topic packs, privacy-aware observation capture, opt-in durable runtime context for compacted active-task recall, and an optional Supermemory external provider lane
 - **Chronicle (Desktop Research Preview)**: opt-in local recent-screen context for vague prompts like `this`, `that`, `what is this`, `latest draft`, or `why is this failing`, with Memory Hub controls, pause/resume, promoted `screen_context` evidence, and optional linked background memory generation. See [Chronicle](chronicle.md).
 - **Knowledge Graph**: SQLite-backed entity/relationship memory with FTS5 search, graph traversal, and auto-extraction
-- **Workspace Kit**: `.cowork/` project kit + markdown indexing with context injection
+- **Workspace Kit**: `.neoworker/` project kit + markdown indexing with context injection
 - **Agent Teams**: Multi-agent collaboration with shared checklists, graph-backed coordinated runs, and team management UI
 - **Collaborative Mode**: Auto-create ephemeral teams where multiple agents work on the same task, sharing thoughts in real-time through the delegated orchestration graph
 - **Multitask Command**: `/multitask [N] <task>` starts a collaborative run from one prompt, auto-splits it into bounded lane-specific child tasks, respects the global queue limit, and synthesizes the lane outputs. See [Multitask Command](multitask.md).
@@ -102,7 +94,7 @@
 - **Performance Reviews**: Score and review agent-role outcomes with autonomy-level recommendations
 - **Vision**: Analyze workspace images via the active image-capable model/provider (OpenAI, Anthropic, Azure OpenAI, or Bedrock)
 - **Image Attachments**: Attach images to tasks and follow-ups for multimodal analysis
-- **Video Attachment Analysis**: Attach local MP4, MOV, or WebM videos to tasks and follow-ups. CoWork extracts visual evidence as still frames, shows those frames in the agentic timeline, and avoids unnecessary shell/glob probing for normal inspection requests.
+- **Video Attachment Analysis**: Attach local MP4, MOV, or WebM videos to tasks and follow-ups. NeoWorker extracts visual evidence as still frames, shows those frames in the agentic timeline, and avoids unnecessary shell/glob probing for normal inspection requests.
 - **Image Generation**: Multi-provider support (Gemini, OpenAI gpt-image-1/1.5/DALL-E, Azure OpenAI, OpenRouter) with configurable provider ordering
 - **Video Generation**: Text-to-video and image-to-video via new video generation providers. Configure preferred video model in Settings > AI & Models. Generated videos render inline in the task feed.
 - **Programmatic Technical Animation**: The bundled [manim-video](skills/manim-video.md) skill scaffolds Manim CE projects for math explainers, algorithm walkthroughs, architecture animations, and data stories with local project files, dependency preflight, and draft-first render helpers.
@@ -115,7 +107,7 @@
 - **Context Summarization**: Automatic context compression surfaced in the task timeline
 - **Structured Input Requests**: In plan-mode flows, the agent can pause with 1-3 short multiple-choice questions instead of asking ambiguous free-text follow-ups
 - **Parallel Tool Timeline**: Concurrent read-only tool bursts are grouped into lane-based timeline cards instead of flooding the event feed; screenshot-heavy refinement loops stay more compact in summary mode
-- **Renderer Performance**: In the `CoWork-OS/CoWork-OS` repo, the renderer uses `@chenglou/pretext` for text-heavy sidebar/timeline measurement, with flattened visible sidebar rows and post-render height reconciliation for expanded timeline cards
+- **Renderer Performance**: In the `NeoWorker/NeoWorker` repo, the renderer uses `@chenglou/pretext` for text-heavy sidebar/timeline measurement, with flattened visible sidebar rows and post-render height reconciliation for expanded timeline cards
 - **Adaptive Runtime Recovery**: Main interactive tasks no longer receive implicit strategy turn caps. They use explicit-only window caps, bounded follow-up recovery, retry-aware turn guidance, and lifetime/emergency safety-stop escalation instead of default hard-window failure
 - **Session Snapshot Resume**: SessionRuntime prefers `session_runtime_v2` checkpoint and event payloads, falls back to legacy `conversationHistory` payloads or event-derived history, and rewrites legacy resumes to V2 on the next checkpoint
 - **Workspace Rule Manager**: Settings can list and remove workspace-local permission rules directly, and approval prompts can persist new workspace or profile rules with explicit reasons and scope previews.
@@ -132,7 +124,7 @@
 
 ### LLM Wiki Research Vaults
 
-CoWork includes `llm-wiki` as a bundled first-class research-vault workflow inspired by Andrej Karpathy's LLM Wiki concept.
+NeoWorker includes `llm-wiki` as a bundled first-class research-vault workflow inspired by Andrej Karpathy's LLM Wiki concept.
 
 - **Persistent vaults**: creates workspace-local markdown knowledge bases instead of one-off research outputs
 - **Obsidian-friendly structure**: durable notes, maps, `[[wikilinks]]`, source-preserving `raw/` captures, and filed-back `outputs/`
@@ -175,7 +167,7 @@ Chronicle is the desktop-only recent-screen context lane for underspecified on-s
 - **Memory Hub-first controls**: Chronicle is configured from `Settings > Memory Hub > Chronicle`, with consent gating, pause/resume, capture scope, Screen Recording / Accessibility / OCR status, and recent-buffer status
 - **Dedicated Chronicle tool lane**: `screen_context_resolve` now lives in its own `chronicle` built-in tool category instead of piggybacking on `computer_use`
 - **Screen-context resolution**: `screen_context_resolve` searches recent local frames first and only falls back to a fresh local screenshot when passive context is weak
-- **No second memory system**: raw passive frames are ephemeral; only task-used observations are promoted into `.cowork/chronicle/`, unified recall, and optionally linked `screen_context` memory entries
+- **No second memory system**: raw passive frames are ephemeral; only task-used observations are promoted into `.neoworker/chronicle/`, unified recall, and optionally linked `screen_context` memory entries
 - **Mission Control visibility**: promoted observations appear as `screen_context` evidence, a dedicated learning-progress step, and recall hits
 - **Task-level control**: task creation in the main composer and Devices panel can disable Chronicle for one task without changing the global setting
 - **Privacy boundary**: passive capture stays local, screen-derived text is marked untrusted, and Chronicle-backed promotion can respect workspace memory privacy/auto-capture settings
@@ -211,7 +203,7 @@ See the full workflow guide in [Inbox Agent](inbox-agent.md) and the retrieval/I
 
 ### Managed Devices & Remote Operations
 
-CoWork OS now includes a dedicated Devices tab for running and observing work across multiple machines.
+NeoWorker now includes a dedicated Devices tab for running and observing work across multiple machines.
 
 - **Local + remote device inventory**: track the current machine alongside saved remote devices in one view
 - **Connection-aware remote cards**: direct, SSH-tunneled, and Tailscale-backed devices expose connection state, last-seen time, active runs, storage summary, app summary, and attention state
@@ -226,10 +218,6 @@ See [Remote Access](remote-access.md) for connection patterns and [Mission Contr
 
 Automation features are now grouped together in `Settings > Automations`:
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-6.webp" alt="Automations control center" width="700">
-  <br><em>Automations separate core runtime settings, scheduled tasks, webhooks, triggers, and briefing workflows.</em>
-</p>
 
 - **Routines**: the primary automation abstraction for saved instructions, execution target, triggers, outputs, approval policy, connector policy, and recent runs
 - **Workflow Intelligence**: Memory, Heartbeat, internal Reflection, Dreaming, and reviewable Suggestions form one always-on runtime owned by automation profiles
@@ -251,11 +239,11 @@ Ownership model:
 
 The home dashboard also surfaces recent automation runs so background work is visible without opening Settings. See [Core Automation](core-automation.md).
 
-Task view can also create a task-sourced routine from the selected task with `... > Add automation...`. The popup is prefilled from the task title/prompt, keeps the source task reference and `cowork://tasks/<taskId>` deeplink, continues the same thread by default, and compiles schedule/API/event triggers to the lower-level cron, webhook, or event engines as needed. See [Task Automations](task-automations.md).
+Task view can also create a task-sourced routine from the selected task with `... > Add automation...`. The popup is prefilled from the task title/prompt, keeps the source task reference and `neoworker://tasks/<taskId>` deeplink, continues the same thread by default, and compiles schedule/API/event triggers to the lower-level cron, webhook, or event engines as needed. See [Task Automations](task-automations.md).
 
 ### Routines
 
-`Routines` are now the main way to define saved automation in CoWork OS.
+`Routines` are now the main way to define saved automation in NeoWorker.
 
 Each routine can carry:
 
@@ -285,9 +273,9 @@ Current product stance:
 
 ### Zero-Human Company Ops
 
-CoWork OS can also be configured as a founder-directed autonomous company shell by composing several existing systems into one operating loop:
+NeoWorker can also be configured as a founder-directed autonomous company shell by composing several existing systems into one operating loop:
 
-- **Venture operator workspace kit**: initializes `.cowork/` with `COMPANY.md`, `OPERATIONS.md`, `KPIS.md`, `PRIORITIES.md`, and `HEARTBEAT.md`
+- **Venture operator workspace kit**: initializes `.neoworker/` with `COMPANY.md`, `OPERATIONS.md`, `KPIS.md`, `PRIORITIES.md`, and `HEARTBEAT.md`
 - **Companies control surface**: `Settings > Companies` centralizes company creation, company-graph editing, linked operators, and direct handoff into Digital Twins or Mission Control
 - **Operator personas**: venture-oriented templates such as `Founder Office Operator`, `Company Planner`, `Growth Operator`, and `Customer Ops Lead`
 - **Automation profiles**: always-on ownership for the chosen operator roles
@@ -308,7 +296,7 @@ See [Zero-Human Company Operations](zero-human-company.md) for architecture, set
 
 ### Workflow Intelligence
 
-`Workflow Intelligence` is the primary always-on cognition layer in CoWork OS:
+`Workflow Intelligence` is the primary always-on cognition layer in NeoWorker:
 
 - **Memory as source of truth**: reflection outputs become memory candidates such as preferences, workflow patterns, open loops, corrections, recurring tasks, and ignored noise
 - **Heartbeat as scheduler**: Heartbeat decides when accumulated signals justify reflection
@@ -318,7 +306,7 @@ See [Zero-Human Company Operations](zero-human-company.md) for architecture, set
 - **Stable target identities**: supports core-owned targets such as `global`, `workspace`, `agent_role`, `code_workspace`, and `pull_request`
 - **Fixed reflective pipeline**: collect evidence, generate 3-5 hypotheses, critique them, synthesize one winner, write backlog, and create a suggestion by default
 - **Feedback learning**: act/edit/snooze/dismiss/ignore responses update memory and future scoring
-- **Durable artifacts plus SQLite indexing**: compatibility files are written under `.cowork/subconscious/` and indexed for UI/search/filtering
+- **Durable artifacts plus SQLite indexing**: compatibility files are written under `.neoworker/subconscious/` and indexed for UI/search/filtering
 - **Guarded downstream execution**: auto-created tasks require explicit policy, low risk, clear scope, and trusted or repeatedly accepted patterns
 - **Recommendation-only success path**: if no executor mapping exists or policy does not allow autonomy, the run still completes with a reviewable suggestion or deferred recommendation
 - **No maintainer-only enrollment gate**: safety remains enforced by the existing executor approval and capability policies
@@ -451,7 +439,7 @@ Access from **Mission Control** > **Add Digital Twin**. See [Digital Twins](digi
 
 Role-specific and workflow bundles that group skills, agent roles, connectors, and slash commands into installable packs. Each pack targets a job function or workflow area and can optionally link to a Digital Twin Persona as an optional role preset.
 
-- **35 bundled packs**: Engineering, Engineering Management, Product Management, DevOps, Mobile Development, Game Development, Data Analysis, QA & Testing, Sales CRM, Customer Support, Content & Marketing, Technical Writing, finance packs, Claude-for-Legal practice packs, Geo SEO, and CoWork Shortcuts
+- **35 bundled packs**: Engineering, Engineering Management, Product Management, DevOps, Mobile Development, Game Development, Data Analysis, QA & Testing, Sales CRM, Customer Support, Content & Marketing, Technical Writing, finance packs, Claude-for-Legal practice packs, Geo SEO, and NeoWorker Shortcuts
 - **100+ pack skills and shortcuts**: Code review prep, sprint health, feature triage, incident response, prospect research, DCF modeling, LBO analysis, `/strategy`, `/batch-rename`, `/gmail-summary-drive`, `/multi-source-report`, and more
 - **Unified Customize panel**: Browse, enable/disable packs, view skills/commands/agents, click "Try asking" prompts
 - **Search & filter**: Real-time sidebar search across pack names, descriptions, categories, and skill names
@@ -468,7 +456,7 @@ Role-specific and workflow bundles that group skills, agent roles, connectors, a
 - **Quarantine & report UX**: blocked imported packs move into a dedicated quarantine area with stored reports, retry scan, and removal actions in the Customize panel
 - **Warning-only local detection**: unmanaged local pack folders remain discoverable in v1, but security findings can surface as warning badges and report details
 - **Remote Pack Registry**: Community-contributed packs catalog with search and category filtering
-- **Extensible**: Create custom packs with JSON manifests in `~/.cowork/extensions/`
+- **Extensible**: Create custom packs with JSON manifests in `~/.neoworker/extensions/`
 - **Active Context sidebar**: Always-visible right-panel section showing connected MCP connectors with branded Lucide icons (47 connectors supported) and enabled skills, with scrollable sub-sections and 30-second auto-refresh
 - **Skill conflict detection**: Warns when multiple packs register the same skill ID, preventing silent overwrites
 - **Admin Policies**: Organization-level controls for allowed/blocked/required packs, installation permissions, and agent limits
@@ -479,17 +467,17 @@ Access from **Settings** > **Customize**. See [Plugin Packs](plugin-packs.md) fo
 
 ## Skill Store & External Skills
 
-CoWork OS supports external skill installation through the desktop GUI, not just bundled skills or CoWork-native packs.
+NeoWorker supports external skill installation through the desktop GUI, not just bundled skills or NeoWorker-native packs.
 
-- **CoWork Registry tab**: Browse curated skills distributed through CoWork’s own registry flow
+- **NeoWorker Registry tab**: Browse curated skills distributed through NeoWorker’s own registry flow
 - **ClawHub tab**: Search ClawHub directly from the app, view live skill stats, and install from result cards
 - **Popular ClawHub list**: Opening the ClawHub tab with no query shows the top downloaded public ClawHub skills
 - **External import field**: Install skills from Git repositories, ClawHub page URLs, raw JSON manifests, or raw `SKILL.md` URLs
-- **Managed install path**: Imported skills are staged, scanned, and then copied into CoWork’s managed skills directory only when activation is allowed
+- **Managed install path**: Imported skills are staged, scanned, and then copied into NeoWorker’s managed skills directory only when activation is allowed
 - **Security outcomes**: installs now return installed, installed with warning, or quarantined, with summary text surfaced directly in the Skill Store UI
 - **Quarantine & report UX**: blocked imported skills move to a dedicated quarantine area with stored reports, retry scan, and removal actions
-- **Optional external directories**: Add one or more absolute read-only skill folders in Settings so shared team skills can load without being copied into CoWork
-- **Warning-only local discovery**: optional external skill directories are not auto-quarantined in v1, but CoWork can still surface unscanned or warning-state badges and reports for those bundles
+- **Optional external directories**: Add one or more absolute read-only skill folders in Settings so shared team skills can load without being copied into NeoWorker
+- **Warning-only local discovery**: optional external skill directories are not auto-quarantined in v1, but NeoWorker can still surface unscanned or warning-state badges and reports for those bundles
 - **Clear precedence**: Workspace skills override managed installs, managed installs override external directories, and external directories override bundled defaults
 - **Cross-ecosystem support**: Other external skill stores are supported when they expose Git repos, raw manifests, or raw `SKILL.md` bundle entry points
 - **Shared runtime contract**: Once loaded, external skills follow the same additive execution model as bundled skills. They can add context and scoped directives, but they cannot replace the canonical task prompt.
@@ -556,12 +544,12 @@ Configure in **Settings** > **Voice**.
 | **Checkpoint Capture** | Runtime-native checkpoints are written before compaction, on non-trivial task completion, and every 12 meaningful exchanges, each carrying both a structured summary and a verbatim evidence packet |
 | **Session Recall** | `search_sessions` searches recent transcript spans and optional checkpoints when the agent needs to recall what happened in a prior run |
 | **Verbatim Quote Recall** | `search_quotes` returns exact spans with provenance from transcripts, task messages, imported memories, and indexed workspace markdown when the agent needs “what was actually said?” |
-| **Topic Packs** | `memory_topics_load` loads focused packs from `.cowork/memory/topics`, and `refresh: false` performs a true read-only lookup over existing topic files |
+| **Topic Packs** | `memory_topics_load` loads focused packs from `.neoworker/memory/topics`, and `refresh: false` performs a true read-only lookup over existing topic files |
 | **Memory Hub Preview And Inspector** | Memory Hub shows the current `L0/L1` payload, the `L2/L3` layers excluded from default injection, structured observation search, detail/timeline views, token estimates, privacy filters, metadata editing, promotion, redaction, suppression, and explicit metadata rebuild |
 | **Memory Write Governance** | Optional approval modes can stage durable archive, curated, background, and external-provider writes before commit. Pending writes are reviewed in Memory Hub, approvals are atomically claimed as `applying`, and sensitive external-memory payloads are blocked before they can be stored in the queue. [Flow](workspace-memory-flow.md#memory-write-governance) |
 | **Supermemory Provider** | Optional external provider lane with prompt-time profile injection, explicit `supermemory_profile` / `supermemory_search` / `supermemory_remember` / `supermemory_forget` tools, and optional mirroring of non-private `MemoryService.capture(...)` writes |
 | **Privacy Protection** | Auto-detects sensitive patterns (API keys, passwords, tokens) |
-| **Unified Search** | `search_memories` searches archive memory plus indexed `.cowork/` markdown with hybrid semantic + BM25 ranking |
+| **Unified Search** | `search_memories` searches archive memory plus indexed `.neoworker/` markdown with hybrid semantic + BM25 ranking |
 | **LLM Compression** | Summarizes observations for ~10x token efficiency |
 | **Prompt Defaults** | `L0 Identity` and `L1 Essential Story` are injected by default; archive injection is off by default; `L2/L3` recall stays explicit and tool-driven |
 | **Temporal Knowledge Graph** | Relationships can carry `valid_from` / `valid_to`, `kg_invalidate_edge` closes an active fact without deleting history, and historical reads can opt into `as_of` |
@@ -573,7 +561,7 @@ Configure in **Settings** > **Voice**.
 
 Inline privacy controls are also available during capture: `<no-memory>` disables automatic capture for that task content, and `<private>...</private>` redacts the marked segment from captured memory. Redacted and suppressed observations are excluded from prompt recall, and private/redacted/suppressed entries are not mirrored to Supermemory.
 
-Supermemory is additive, not a replacement for local memory. CoWork still keeps the workspace kit, curated hot memory, archive memory, structured observation metadata, Dreaming candidates, transcript recall, and knowledge graph locally. Memory Write Governance can require approval before external writes or mirrors are committed; sensitive external-memory payloads are blocked rather than stored in the pending queue. The current integration mirrors local memory captures only when you opt in; it does not yet stream every chat turn into Supermemory conversations. See [Structured Memory Observations](memory-observations.md), [Dreaming](dreaming.md), [Workspace Memory Flow](workspace-memory-flow.md#memory-write-governance), and [Supermemory Integration](supermemory.md).
+Supermemory is additive, not a replacement for local memory. NeoWorker still keeps the workspace kit, curated hot memory, archive memory, structured observation metadata, Dreaming candidates, transcript recall, and knowledge graph locally. Memory Write Governance can require approval before external writes or mirrors are committed; sensitive external-memory payloads are blocked rather than stored in the pending queue. The current integration mirrors local memory captures only when you opt in; it does not yet stream every chat turn into Supermemory conversations. See [Structured Memory Observations](memory-observations.md), [Dreaming](dreaming.md), [Workspace Memory Flow](workspace-memory-flow.md#memory-write-governance), and [Supermemory Integration](supermemory.md).
 
 Configure in **Settings** > **Memory Hub**.
 
@@ -581,12 +569,12 @@ Configure in **Settings** > **Memory Hub**.
 
 ## ChatGPT History Import
 
-Import your full ChatGPT conversation history into CoWork OS's memory system. Instead of starting from scratch, the agent immediately understands your preferences, past projects, communication style, and context from hundreds or thousands of previous conversations.
+Import your full ChatGPT conversation history into NeoWorker's memory system. Instead of starting from scratch, the agent immediately understands your preferences, past projects, communication style, and context from hundreds or thousands of previous conversations.
 
 ### How It Works
 
 1. **Export from ChatGPT**: Go to [ChatGPT Settings > Data Controls > Export Data](https://chat.openai.com/#settings/DataControls). OpenAI emails you a `.zip` file containing `conversations.json`.
-2. **Import in CoWork OS**: Go to **Settings > Memory Hub > Import ChatGPT History** and select the exported `.zip` or `conversations.json` file.
+2. **Import in NeoWorker**: Go to **Settings > Memory Hub > Import ChatGPT History** and select the exported `.zip` or `conversations.json` file.
 3. **Processing**: Conversations are parsed, deduplicated, and stored as memory entries with full-text search indexing. User messages are captured as context; assistant responses are summarized for token efficiency.
 
 ### What Gets Imported
@@ -608,13 +596,13 @@ Import your full ChatGPT conversation history into CoWork OS's memory system. In
 
 ### Why This Matters
 
-Most AI assistants start with zero context about you. Every new tool means re-explaining your preferences, projects, and constraints. ChatGPT history import eliminates this cold-start problem — CoWork OS learns from your existing AI conversations so it can be useful from the first task.
+Most AI assistants start with zero context about you. Every new tool means re-explaining your preferences, projects, and constraints. ChatGPT history import eliminates this cold-start problem — NeoWorker learns from your existing AI conversations so it can be useful from the first task.
 
 ---
 
 ## Durable Learning Stack
 
-CoWork OS still keeps a multi-layered learning stack under the reflective loop. These services improve recall, personalization, and future evidence quality across sessions.
+NeoWorker still keeps a multi-layered learning stack under the reflective loop. These services improve recall, personalization, and future evidence quality across sessions.
 
 | Layer | Service | What It Learns |
 |-------|---------|----------------|
@@ -640,14 +628,14 @@ A set of connected subsystems that make improvement visible and measurable over 
 
 | Subsystem | Purpose |
 |-----------|---------|
-| **Layered Memory Runtime** | Uses explicit wake-up layers: `<cowork_hot_memory>` for `L0 Identity`, `<cowork_structured_memory>` for `L1 Essential Story`, and tool-driven `L2/L3` recall through `memory_topics_load`, `search_sessions`, `search_memories`, and `search_quotes`. |
+| **Layered Memory Runtime** | Uses explicit wake-up layers: `<neoworker_hot_memory>` for `L0 Identity`, `<neoworker_structured_memory>` for `L1 Essential Story`, and tool-driven `L2/L3` recall through `memory_topics_load`, `search_sessions`, `search_memories`, and `search_quotes`. |
 | **Retry-Aware Recovery Guidance** | When execution retries or resumes, injects retry count, retry reason/classification, pending verification items, and recent session evidence so the agent keeps moving from the last good state instead of restarting blindly. Planning retries can also include compact playbook context. |
 | **Adaptive Style Engine** | Observes message length, emoji usage, technical vocabulary, and structured feedback to gradually shift personality settings (response length, emoji usage, explanation depth). Rate-limited to a configurable number of level-shifts per week. |
 | **Playbook-to-Skill Promotion** | When a playbook pattern is reinforced 3+ times, auto-generates a `skill_proposal` for admin review. No skill is created until explicitly approved. |
 | **Channel Persona Adapter** | Applies channel-appropriate communication directives (Slack = terse/structured, email = formal/greeting+sign-off, WhatsApp = short/emoji, etc.) on top of the core persona without replacing it. |
 | **Evolution Metrics** | Computes 5 on-demand metrics: Correction Rate, Style Adaptations, Knowledge Graph growth, Task Success Rate, and Style Alignment. Produces an overall 0–100 Evolution Score. Surfaced in the Daily Briefing. |
-| **Daily Operational Log** | `DailyLogService` manages optional per-day raw logs under `.cowork/memory/daily/<YYYY-MM-DD>.md`. Raw logs are never injected directly into prompts. |
-| **Daily Log Summarizer** | Reads pre-written summary files from `.cowork/memory/summaries/<YYYY-MM-DD>.md`, applies recency decay, and feeds ranked summaries into the structured-memory lane. |
+| **Daily Operational Log** | `DailyLogService` manages optional per-day raw logs under `.neoworker/memory/daily/<YYYY-MM-DD>.md`. Raw logs are never injected directly into prompts. |
+| **Daily Log Summarizer** | Reads pre-written summary files from `.neoworker/memory/summaries/<YYYY-MM-DD>.md`, applies recency decay, and feeds ranked summaries into the structured-memory lane. |
 
 **Behavior Adaptation controls** (Settings > Guardrails > Behavior Adaptation):
 - **Adaptive Style** toggle — enable/disable style learning (off by default)
@@ -661,7 +649,7 @@ See [Evolving Agent Intelligence](evolving-agent-intelligence.md) and [Behavior 
 
 ## Operator Runtime Visibility
 
-CoWork OS now exposes the learning loop as a visible operator surface instead of leaving it buried inside background services.
+NeoWorker now exposes the learning loop as a visible operator surface instead of leaving it buried inside background services.
 
 | Surface | What users see |
 |---------|----------------|
@@ -671,7 +659,7 @@ CoWork OS now exposes the learning loop as a visible operator surface instead of
 | **Model routing visibility** | Live active provider/model, routing reason, fallback chain, and retry/fallback state in the task UI and settings surfaces. |
 | **Applied skills visibility** | The task header keeps the canonical request visible and shows applied skills separately, including trigger/reason metadata from runtime events. |
 
-This layer is intentionally additive. It makes learning and routing legible while preserving the desktop control plane, channels, inbox, devices, and governed automation that define CoWork OS.
+This layer is intentionally additive. It makes learning and routing legible while preserving the desktop control plane, channels, inbox, devices, and governed automation that define NeoWorker.
 
 See [Operator Runtime Visibility](operator-runtime-visibility.md) for the cross-surface implementation summary and [Skills Runtime Model](skills-runtime-model.md) for the skill-specific runtime contract.
 
@@ -697,9 +685,9 @@ See [Knowledge Graph](knowledge-graph.md) for the full architecture guide.
 
 ---
 
-## Workspace Kit (.cowork)
+## Workspace Kit (.neoworker)
 
-Initialize and maintain a `.cowork/` directory inside each workspace for durable, human-edited context, scoped prompt injection, project scaffolding, and workspace health checks.
+Initialize and maintain a `.neoworker/` directory inside each workspace for durable, human-edited context, scoped prompt injection, project scaffolding, and workspace health checks.
 
 The workspace kit is contract-driven: every tracked markdown file has a declared title, scope, parser, prompt budget, freshness window, mutability model, and optional special handling.
 
@@ -727,11 +715,11 @@ The workspace kit is contract-driven: every tracked markdown file has a declared
 
 ### Project and role subdirectories
 
-- Project-specific context lives under `.cowork/projects/<projectId>/`
+- Project-specific context lives under `.neoworker/projects/<projectId>/`
 - `CONTEXT.md` is the project-scoped task brief, decisions, and notes file
 - `ACCESS.md` is the project-scoped access and boundary file for task and role usage
-- Per-role persona files live under `.cowork/agents/<roleId>/`
-- The health model also tracks supporting directories such as `.cowork/memory/`, `.cowork/memory/hourly/`, `.cowork/memory/weekly/`, `.cowork/projects/`, and `.cowork/agents/`
+- Per-role persona files live under `.neoworker/agents/<roleId>/`
+- The health model also tracks supporting directories such as `.neoworker/memory/`, `.neoworker/memory/hourly/`, `.neoworker/memory/weekly/`, `.neoworker/projects/`, and `.neoworker/agents/`
 
 ### Frontmatter, parsing, and injection
 
@@ -751,23 +739,23 @@ updated: 2026-03-14
 ### Special handling
 
 - `BOOTSTRAP.md` is onboarding-only context, not a durable memory file
-- When `BOOTSTRAP.md` is first present, CoWork OS records `bootstrapSeededAt` in `.cowork/workspace-state.json`
-- When `BOOTSTRAP.md` is later removed, CoWork OS records `onboardingCompletedAt` and does not recreate it during missing-only init flows
+- When `BOOTSTRAP.md` is first present, NeoWorker records `bootstrapSeededAt` in `.neoworker/workspace-state.json`
+- When `BOOTSTRAP.md` is later removed, NeoWorker records `onboardingCompletedAt` and does not recreate it during missing-only init flows
 - `HEARTBEAT.md` is reserved for recurring Heartbeat v3 checklist work and is intentionally separate from general task/session context
 
 ### Health, linting, and revisions
 
 - The app surfaces workspace-kit health with missing tracked entries, stale files, warning/error counts, revision counts, and onboarding metadata
 - `ACCESS.md` and `TOOLS.md` receive additional secret detection to catch likely credentials or copied tokens
-- Tracked writes keep snapshots under `.cowork/**/.history/<file>/` together with revision metadata
-- `search_memories` indexes `.cowork/` markdown alongside the main memory system
+- Tracked writes keep snapshots under `.neoworker/**/.history/<file>/` together with revision metadata
+- `search_memories` indexes `.neoworker/` markdown alongside the main memory system
 - `npm run kit:lint` validates the current workspace kit from the command line
 - `npm run kit:lint -- --json` emits raw status JSON
 - `npm run kit:lint -- --strict` exits non-zero on warnings or missing tracked entries
 
 ### Quick-open kit files
 
-The Memory Hub exposes **Open USER.md** and **Open MEMORY.md** buttons that open the corresponding `.cowork/` file directly in the system editor. If the file does not exist it is created from a default template (with full frontmatter and section scaffolding) before opening.
+The Memory Hub exposes **Open USER.md** and **Open MEMORY.md** buttons that open the corresponding `.neoworker/` file directly in the system editor. If the file does not exist it is created from a default template (with full frontmatter and section scaffolding) before opening.
 
 Configure in **Settings** > **Memory Hub**.
 
@@ -775,7 +763,7 @@ Configure in **Settings** > **Memory Hub**.
 
 ## Role Profile Files
 
-Define per-role personality and operating guidelines in `.cowork/agents/<role-id>/`. These files reuse the same contracts, parser rules, and titles as the root workspace kit, and role/task prompts can combine role files with root workspace files when scopes match.
+Define per-role personality and operating guidelines in `.neoworker/agents/<role-id>/`. These files reuse the same contracts, parser rules, and titles as the root workspace kit, and role/task prompts can combine role files with root workspace files when scopes match.
 
 | File | Title | Purpose |
 |---|---|---|
@@ -807,10 +795,6 @@ Configure in **Mission Control** > **Teams**.
 
 Centralized agent orchestration and monitoring dashboard. Access from **Settings** > **Mission Control**. The surface now separates Heartbeat-enabled agents, the global runtime queue, and workspace-scoped Mission Board work so users can tell whether an item is monitoring, waiting to execute, or tracked on the board.
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-8.webp" alt="Mission Control board" width="700">
-  <br><em>Mission Control shows global runtime queue state, scoped board work, agent status, and operational review.</em>
-</p>
 
 | Panel | Purpose |
 |-------|---------|
@@ -982,7 +966,7 @@ Session-scoped note-taking system for agents during long-running tasks.
 | `scratchpad_write` | Write or update notes with key-value pairs (max 100-char keys, 10,000-char values) |
 | `scratchpad_read` | Retrieve all notes or a specific note by key |
 
-Notes persist to `.cowork/scratchpad-{taskId}.json` for crash recovery. The scratchpad is ephemeral per task — useful for agents to track intermediate findings, partial results, and working state during complex multi-step tasks.
+Notes persist to `.neoworker/scratchpad-{taskId}.json` for crash recovery. The scratchpad is ephemeral per task — useful for agents to track intermediate findings, partial results, and working state during complex multi-step tasks.
 
 ---
 
@@ -1027,11 +1011,11 @@ Spreadsheet outputs also participate in the artifact workbench. Task completion 
 
 Word-style document outputs also participate in the artifact workbench. Task completion cards, `file_created`, `file_modified`, and `artifact_created` events can render the compact document card for DOCX, DOCM, DOTX, DOTM, DOC, RTF, ODT, OTT, and Pages outputs. DOCX defaults to the right-sidebar editor and can expand to fullscreen with follow-up context; other document formats use best-effort preview or external-open actions. See [Document Artifacts](document-artifacts.md).
 
-For explicit LaTeX, TeX, TikZ, `.tex`, or "write a paper and compile PDF" requests, the runtime prefers the source-first path: write the editable `.tex` file, then call `compile_latex`. CoWork does not bundle a TeX distribution; if no supported engine is installed, the task keeps the `.tex` source and reports the missing dependency instead of silently falling back to the HTML/markdown PDF generator.
+For explicit LaTeX, TeX, TikZ, `.tex`, or "write a paper and compile PDF" requests, the runtime prefers the source-first path: write the editable `.tex` file, then call `compile_latex`. NeoWorker does not bundle a TeX distribution; if no supported engine is installed, the task keeps the `.tex` source and reports the missing dependency instead of silently falling back to the HTML/markdown PDF generator.
 
-PPTX outputs also participate in the artifact workbench. Task completion cards, `file_created`, `file_modified`, `artifact_created` events, and assistant summaries can show an inline presentation card, and default **Open** launches the resizable sidebar viewer for `.pptx` decks. CoWork always extracts slide text and notes first, then renders or reuses cached slide images in the background through the Codex presentation runtime with local converter fallback. Fullscreen mode keeps the functional follow-up composer and refreshes the preview after matching deck updates. See [Presentation Artifacts and PPTX Preview](pptx-generation-and-preview.md).
+PPTX outputs also participate in the artifact workbench. Task completion cards, `file_created`, `file_modified`, `artifact_created` events, and assistant summaries can show an inline presentation card, and default **Open** launches the resizable sidebar viewer for `.pptx` decks. NeoWorker always extracts slide text and notes first, then renders or reuses cached slide images in the background through the Codex presentation runtime with local converter fallback. Fullscreen mode keeps the functional follow-up composer and refreshes the preview after matching deck updates. See [Presentation Artifacts and PPTX Preview](pptx-generation-and-preview.md).
 
-Web page outputs also participate in the artifact workbench. Task completion cards, `file_created`, `file_modified`, `artifact_created` events, and assistant summaries can show an inline web page card for generated `.html` / `.htm` files. Built React/Vite/Next output entrypoints such as `dist/index.html`, `build/index.html`, and `out/index.html` preview in the same sandboxed iframe surface. React-style source projects without built output return a structured build-output-needed state; CoWork does not auto-run dev servers from the artifact viewer. See [Web Page Artifacts](web-page-artifacts.md).
+Web page outputs also participate in the artifact workbench. Task completion cards, `file_created`, `file_modified`, `artifact_created` events, and assistant summaries can show an inline web page card for generated `.html` / `.htm` files. Built React/Vite/Next output entrypoints such as `dist/index.html`, `build/index.html`, and `out/index.html` preview in the same sandboxed iframe surface. React-style source projects without built output return a structured build-output-needed state; NeoWorker does not auto-run dev servers from the artifact viewer. See [Web Page Artifacts](web-page-artifacts.md).
 
 Live website testing uses the Browser Workbench instead of the generated web artifact iframe. Browser-use prompts open a visible right-sidebar/fullscreen webview with a persistent workspace profile, Browser V2 snapshot refs, functional navigation controls, diagnostics, screenshots, annotation, and cursor movement for agent actions. See [Browser Workbench](browser-workbench.md).
 
@@ -1076,7 +1060,7 @@ Access from the **File Hub** panel in the sidebar.
 
 ## Web Access
 
-Serve CoWork OS as a web application accessible from any browser on the network.
+Serve NeoWorker as a web application accessible from any browser on the network.
 
 | Feature | Description |
 |---------|-------------|
@@ -1135,7 +1119,7 @@ To enable them:
 3. Turn on **Show research vault** to display the workspace-local `research/wiki` browser near the composer.
 4. Turn on **Show next actions** to display Workflow Intelligence suggestions under the welcome message box.
 
-When disabled, CoWork does not render those cards and skips their home-screen data loads.
+When disabled, NeoWorker does not render those cards and skips their home-screen data loads.
 
 ---
 
@@ -1194,7 +1178,7 @@ Three-tier web interaction stack — from lightweight HTTP fetching to visible i
 
 ### In-App Browser Workbench
 
-Interactive browser-use tasks open inside CoWork OS by default. When a user asks the agent to go to a site and test, use, click through, or inspect it as a normal user, `browser_navigate` opens a visible browser workbench in the resizable right sidebar. Browser V2 controls the same webview the user can see through a main-process session manager and CDP-backed actions, using a persistent per-workspace browser profile that is isolated from system Chrome.
+Interactive browser-use tasks open inside NeoWorker by default. When a user asks the agent to go to a site and test, use, click through, or inspect it as a normal user, `browser_navigate` opens a visible browser workbench in the resizable right sidebar. Browser V2 controls the same webview the user can see through a main-process session manager and CDP-backed actions, using a persistent per-workspace browser profile that is isolated from system Chrome.
 
 The browser workbench supports:
 
@@ -1318,7 +1302,7 @@ See [Chrome Remote Debugging](https://developer.chrome.com/docs/devtools/remote-
 | **Screenshot Annotation** | Capture, mark up, save, and send browser screenshots back to the agent as image attachments |
 | **Real-Browser Consent** | System Chrome/Edge profile control requires explicit approval; default workbench never silently reuses system cookies |
 | **Profile Presets** | `user` (launch new Chrome with system profile after consent — fails if Chrome is already running), `chrome-relay` (extension relay), `workspace` (workspace default). For existing signed-in sessions, use `browser_attach` instead. |
-| **Persistent Profiles** | Cookies and storage persist across tasks in `.cowork/browser-profiles/` |
+| **Persistent Profiles** | Cookies and storage persist across tasks in `.neoworker/browser-profiles/` |
 | **Consent Auto-Dismiss** | 40+ pattern detectors for cookie/GDPR consent popups |
 | **Retry Logic** | 2-attempt retry with per-attempt timeout calculation |
 | **Failure Diagnostics** | Screenshot + page content + URL captured on failure |
@@ -1328,7 +1312,7 @@ See [Chrome Remote Debugging](https://developer.chrome.com/docs/devtools/remote-
 
 ### Comparison with ClawHub Agent Browser
 
-| Capability | ClawHub Agent Browser | CoWork OS Browser |
+| Capability | ClawHub Agent Browser | NeoWorker Browser |
 |---|---|---|
 | **Architecture** | External Rust CLI, commands via Bash shell | Browser V2 session manager with visible Electron-workbench default plus Playwright/external-CDP adapters |
 | **Performance** | CLI process spawn per command + JSON serialization | Persistent browser session, CDP-backed workbench actions, fallback adapters only when needed |
@@ -1352,7 +1336,7 @@ See [Chrome Remote Debugging](https://developer.chrome.com/docs/devtools/remote-
 | **Multi-browser** | Playwright only | Chromium, Chrome, Brave |
 | **Integration** | Loose (CLI → Bash → agent) | Tight (session manager, visible workbench, IPC, daemon logging, artifact registry, diagnostics drawer) |
 
-**Key advantage:** CoWork OS's Browser V2 approach keeps normal website testing in the visible app surface while using a shared session manager for automation, diagnostics, guardrails, and fallback adapters. The tiered architecture also means the agent does not launch or control a browser when a simple HTTP fetch is enough.
+**Key advantage:** NeoWorker's Browser V2 approach keeps normal website testing in the visible app surface while using a shared session manager for automation, diagnostics, guardrails, and fallback adapters. The tiered architecture also means the agent does not launch or control a browser when a simple HTTP fetch is enough.
 
 ---
 
@@ -1431,9 +1415,9 @@ See [Remote Access](remote-access.md) for details.
 ## MCP (Model Context Protocol)
 
 - **MCP Client**: Connect to external MCP servers
-- **MCP Host**: Expose CoWork's tools as an MCP server
+- **MCP Host**: Expose NeoWorker's tools as an MCP server
 - **MCP Registry**: Browse and install servers from a catalog
-- **Secure MCP Tunnels**: Expose selected local/private MCP tools through an outbound-only CoWork relay you operate, with separate client/caller tokens, tool allowlists, read-only mode, and local audit logs. See [Secure MCP Tunnels](secure-mcp-tunnels.md).
+- **Secure MCP Tunnels**: Expose selected local/private MCP tools through an outbound-only NeoWorker relay you operate, with separate client/caller tokens, tool allowlists, read-only mode, and local audit logs. See [Secure MCP Tunnels](secure-mcp-tunnels.md).
 - **Versioned tool snapshots**: Tool discovery tracks a stable catalog hash across native tools and MCP state so status/tool changes invalidate caches immediately
 
 ---
@@ -1442,10 +1426,6 @@ See [Remote Access](remote-access.md) for details.
 
 **47 pre-built connectors** for enterprise integrations and local creative workflows. Install from **Settings > Connectors > Browse Registry**.
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-11.webp" alt="Connector catalog" width="700">
-  <br><em>The connector catalog keeps MCP-backed integrations discoverable and configurable.</em>
-</p>
 
 | Connector | Type | Notes |
 |-----------|------|-------|
@@ -1500,7 +1480,7 @@ See [Remote Access](remote-access.md) for details.
 | **Blender** | 3D/Rendering | localhost bridge for import, materials, camera, lighting, viewport, render, and scene save operations |
 | **ComfyUI** | Image Generation | local API workflow submission, Flux-style photoreal pass, job status, history, and output collection |
 
-GitHub and Notion prefer native CoWork integrations first, with MCP as fallback. See [Enterprise Connectors](enterprise-connectors.md) for the full catalog and contract.
+GitHub and Notion prefer native NeoWorker integrations first, with MCP as fallback. See [Enterprise Connectors](enterprise-connectors.md) for the full catalog and contract.
 
 ---
 
@@ -1647,7 +1627,7 @@ Schedule recurring tasks with cron expressions and optional channel delivery.
 
 - Standard cron syntax with workspace binding
 - Run standalone scheduled tasks from Settings, or use task view `... > Add automation...` to create a routine that compiles to a scheduled task when it has a schedule trigger
-- Task-sourced scheduled jobs preserve a source task title, task ID, and `cowork://tasks/<taskId>` deeplink in the compiled prompt/description
+- Task-sourced scheduled jobs preserve a source task title, task ID, and `neoworker://tasks/<taskId>` deeplink in the compiled prompt/description
 - Target modes: create a new task for each run or continue an existing task thread with a scheduled follow-up
 - Run mode presets: `Chat` for no-shell unattended work, `Local` for shell-enabled workspace work; worktree automation is forced to new-task execution instead of continuing a thread
 - Channel delivery to any of the 17 channels through the shared gateway delivery path, with idempotency, formatting, chunking, and outbox retry behavior aligned with normal chat replies
@@ -1697,11 +1677,11 @@ Run multiple tasks concurrently with configurable limits (1-10, default: 3). Tas
 
 ## Web Browser Mode (Planned)
 
-Access CoWork OS from any web browser — no Electron desktop app required.
+Access NeoWorker from any web browser — no Electron desktop app required.
 
 | Aspect | Details |
 |--------|---------|
-| **How** | `cowork-os --serve --port 3000` starts a Node.js server exposing the full React UI over HTTP/WebSocket |
+| **How** | `neoworker --serve --port 3000` starts a Node.js server exposing the full React UI over HTTP/WebSocket |
 | **Approach** | Reuses all existing main-process logic (agent, tools, database, gateways). IPC calls are mapped to HTTP/WebSocket endpoints |
 | **Desktop features** | System tray, desktop screenshots, and AppleScript degrade gracefully. File dialogs use browser-native pickers |
 | **Security** | Challenge-response authentication (extends existing control plane auth). HTTPS recommended for production |
@@ -1731,4 +1711,4 @@ Programmatic API for external automation and mobile companion apps.
 | **Private LAN / Tailscale** | private interface or Tailscale URL | Mobile companions and remote devices |
 | **Container** | `0.0.0.0:18789` inside container, host port loopback/private | Docker or Kubernetes-style deployment |
 
-Configure in **Settings** > **Control Plane**. For reverse proxies, keep the daemon loopback/private when possible, set `COWORK_CONTROL_PLANE_ALLOWED_ORIGINS` to the public HTTPS origin, and only set `COWORK_CONTROL_PLANE_TRUST_PROXY=1` behind a proxy you control.
+Configure in **Settings** > **Control Plane**. For reverse proxies, keep the daemon loopback/private when possible, set `NEOWORKER_CONTROL_PLANE_ALLOWED_ORIGINS` to the public HTTPS origin, and only set `NEOWORKER_CONTROL_PLANE_TRUST_PROXY=1` behind a proxy you control.

@@ -374,7 +374,7 @@ describe("ImprovementLoopService", () => {
     return {
       id: "__temp_workspace__:ui-session-test",
       name: "Temporary Workspace",
-      path: "/tmp/cowork-os-temp/ui-session-test",
+      path: "/tmp/neoworker-temp/ui-session-test",
       createdAt: Date.now(),
       isTemp: true,
       permissions: {
@@ -761,7 +761,7 @@ describe("ImprovementLoopService", () => {
     const tempWorkspace = makeTempWorkspace();
     const realWorkspace = makeWorkspace({
       id: "workspace-real",
-      name: "cowork",
+      name: "neoworker",
       path: process.cwd(),
     });
     const candidate = makeCandidate();
@@ -820,24 +820,24 @@ describe("ImprovementLoopService", () => {
     expect(campaign?.status).toBe("reproducing");
   });
 
-  it("always executes self-improvement inside the canonical CoWork repo while preserving the observed workspace", async () => {
+  it("always executes self-improvement inside the canonical NeoWorker repo while preserving the observed workspace", async () => {
     const observedWorkspace = makeWorkspace({
       id: "workspace-observed",
       name: "new",
       path: "/tmp/new",
     });
-    const coworkWorkspace = makeWorkspace({
-      id: "workspace-cowork",
-      name: "cowork",
+    const neoworkerWorkspace = makeWorkspace({
+      id: "workspace-neoworker",
+      name: "neoworker",
       path: process.cwd(),
     });
     const candidate = makeCandidate();
     candidate.workspaceId = observedWorkspace.id;
     candidate.title = "Fix repeated contract error failures";
-    candidate.summary = "Failures are observed in the app, but the fix belongs in CoWork OS code.";
+    candidate.summary = "Failures are observed in the app, but the fix belongs in NeoWorker code.";
 
     workspaces.set(observedWorkspace.id, observedWorkspace);
-    workspaces.set(coworkWorkspace.id, coworkWorkspace);
+    workspaces.set(neoworkerWorkspace.id, neoworkerWorkspace);
     candidates.set(candidate.id, candidate);
 
     const candidateService = {
@@ -884,13 +884,13 @@ describe("ImprovementLoopService", () => {
 
     expect(campaign).toBeTruthy();
     expect(campaign?.workspaceId).toBe(observedWorkspace.id);
-    expect(campaign?.executionWorkspaceId).toBe(coworkWorkspace.id);
+    expect(campaign?.executionWorkspaceId).toBe(neoworkerWorkspace.id);
     expect(tasks.get(campaign!.rootTaskId!)?.workspaceId).toBe(observedWorkspace.id);
 
     const scoutTask = tasks.get(campaign!.variants[0].taskId!);
-    expect(scoutTask?.workspaceId).toBe(coworkWorkspace.id);
+    expect(scoutTask?.workspaceId).toBe(neoworkerWorkspace.id);
     expect(scoutTask?.prompt).toContain(`Observed workspace: ${observedWorkspace.name} (${observedWorkspace.path})`);
-    expect(scoutTask?.prompt).toContain(`Execution workspace: ${coworkWorkspace.name} (${coworkWorkspace.path})`);
+    expect(scoutTask?.prompt).toContain(`Execution workspace: ${neoworkerWorkspace.name} (${neoworkerWorkspace.path})`);
     expect(scoutTask?.prompt).toContain(
       "Use the observed workspace for failure context and evidence, but inspect and modify code only in the execution workspace git repository.",
     );
@@ -940,7 +940,7 @@ describe("ImprovementLoopService", () => {
     mockImprovementEligibility.mockReturnValue({
       eligible: false,
       reason:
-        "Maintainer-signed owner enrollment is missing. Paste a valid signature into Settings → Self-Improvement, or set COWORK_SELF_IMPROVEMENT_OWNER_SIGNATURE.",
+        "Maintainer-signed owner enrollment is missing. Paste a valid signature into Settings → Self-Improvement, or set NEOWORKER_SELF_IMPROVEMENT_OWNER_SIGNATURE.",
       enrolled: false,
       repoPath: process.cwd(),
       checks: {
@@ -964,7 +964,7 @@ describe("ImprovementLoopService", () => {
     const service = new ImprovementLoopService({} as Any, candidateService);
 
     await expect(service.runNextExperiment()).rejects.toThrow(
-      "Maintainer-signed owner enrollment is missing. Paste a valid signature into Settings → Self-Improvement, or set COWORK_SELF_IMPROVEMENT_OWNER_SIGNATURE.",
+      "Maintainer-signed owner enrollment is missing. Paste a valid signature into Settings → Self-Improvement, or set NEOWORKER_SELF_IMPROVEMENT_OWNER_SIGNATURE.",
     );
   });
 

@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.coworkos.companion"
+    namespace = "com.neoworker.companion"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.coworkos.companion"
+        applicationId = "com.neoworker.companion"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

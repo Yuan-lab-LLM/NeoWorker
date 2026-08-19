@@ -1,20 +1,20 @@
-# CoWork OS — Use Case Showcase
+# NeoWorker — Use Case Showcase
 
-A comprehensive guide to what you can build, automate, and manage with CoWork OS. Each section includes the capabilities involved, example prompts, and which skills/connectors/packs power the workflow.
+A comprehensive guide to what you can build, automate, and manage with NeoWorker. Each section includes the capabilities involved, example prompts, and which skills/connectors/packs power the workflow.
 
 ## AI Super App For Everyday Work
 
-CoWork OS is positioned as a GUI-first, CLI-capable local AI super app and everything app: one place for coding, email, research, web design, documents, spreadsheets, presentations, agent spawning and management, automations, channels, devices, terminal starts, and long-running work. The product is broader than an office artifact viewer; artifacts are one part of the larger agentic workspace.
+NeoWorker is positioned as a GUI-first, CLI-capable local AI super app and everything app: one place for coding, email, research, web design, documents, spreadsheets, presentations, agent spawning and management, automations, channels, devices, terminal starts, and long-running work. The product is broader than an office artifact viewer; artifacts are one part of the larger agentic workspace.
 
-CoWork makes many-agent work visible while still offering a terminal entrypoint: users can create reusable agents in Agents Hub, spawn parallel lanes, watch delegated runs in task timelines, assign work through Mission Control, manage teams from GUI surfaces built for normal daily operation, and start local one-shot tasks with `cowork run`.
+NeoWorker makes many-agent work visible while still offering a terminal entrypoint: users can create reusable agents in Agents Hub, spawn parallel lanes, watch delegated runs in task timelines, assign work through Mission Control, manage teams from GUI surfaces built for normal daily operation, and start local one-shot tasks with `neoworker run`.
 
 ---
 
 ## Everything Workbench For Knowledge Work
 
-Inside that broader OS, the Everything Workbench makes generated knowledge-work outputs first-class. Instead of treating docs, sheets, decks, pages, and PDFs as disconnected files, CoWork shows them as task artifacts: open them in the right sidebar, expand them fullscreen, review or lightly edit them, and ask the agent for follow-up changes in the same context. See [Everything Workbench](everything-workbench.md).
+Inside that broader OS, the Everything Workbench makes generated knowledge-work outputs first-class. Instead of treating docs, sheets, decks, pages, and PDFs as disconnected files, NeoWorker shows them as task artifacts: open them in the right sidebar, expand them fullscreen, review or lightly edit them, and ask the agent for follow-up changes in the same context. See [Everything Workbench](everything-workbench.md).
 
-This makes CoWork the default workspace instead of jumping between Word, Excel, PowerPoint, browser previews, Finder, mail, and chat for generated work. External app actions remain available when the task needs advanced native functionality.
+This makes NeoWorker the default workspace instead of jumping between Word, Excel, PowerPoint, browser previews, Finder, mail, and chat for generated work. External app actions remain available when the task needs advanced native functionality.
 
 ---
 
@@ -155,7 +155,7 @@ packages that conflict with our MIT license.
 > **Best-fit workflow: IT Ops**
 > **Why this is a strong fit:** Incident and release workflows have clear triggers, defined completion criteria, and high cost of error — conditions where approval gates, local audit trails, and governed execution outperform ad-hoc tooling.
 > **Who already buys this outcome:** Managed infrastructure providers, SRE-as-a-service teams, IT outsourcers operating under SLAs.
-> **What CoWork OS contributes:** Incident response with comms templates, deployment checklists with rollback procedures, IaC generation from plain language, and blameless post-mortems with structured action items. Enable the DevOps Pack and connect ServiceNow or Jira.
+> **What NeoWorker contributes:** Incident response with comms templates, deployment checklists with rollback procedures, IaC generation from plain language, and blameless post-mortems with structured action items. Enable the DevOps Pack and connect ServiceNow or Jira.
 
 ### Kubernetes Cluster Operations
 
@@ -446,7 +446,7 @@ optimization plan to hit 30fps stable.
 > **Best-fit workflow: Sales Ops**
 > **Why this is a strong fit:** Outbound sales workflows are high-volume and repetitive but require personalization at scale — the balance where governed AI delivery performs best.
 > **Who already buys this outcome:** Outsourced SDR/BDR providers, sales development agencies, in-house sales teams running a managed outbound lane.
-> **What CoWork OS contributes:** Prospect research briefings, personalized follow-up drafts, pipeline health reviews, and objection-handling scripts. Enable the Sales CRM Pack and connect HubSpot or Salesforce.
+> **What NeoWorker contributes:** Prospect research briefings, personalized follow-up drafts, pipeline health reviews, and objection-handling scripts. Enable the Sales CRM Pack and connect HubSpot or Salesforce.
 
 Connect to Salesforce and HubSpot to automate pipeline management, prospect research, and follow-up sequences.
 
@@ -525,7 +525,7 @@ Set up a Discord server structure for our open-source project:
 > **Best-fit workflow: Support Ops**
 > **Why this is a strong fit:** Support volume is predictable, quality criteria are measurable, and the workflow is well-defined — exactly the conditions where governed AI delivery outperforms ad-hoc tooling.
 > **Who already buys this outcome:** BPOs, CX outsourcers, managed-services providers, in-house support teams that operate like a managed lane.
-> **What CoWork OS contributes:** Ticket triage with priority and sentiment analysis, tone-matched response drafting, one-step KB article generation, and escalation summaries engineering can act on immediately. Enable the Customer Support Pack and connect Zendesk or ServiceNow.
+> **What NeoWorker contributes:** Ticket triage with priority and sentiment analysis, tone-matched response drafting, one-step KB article generation, and escalation summaries engineering can act on immediately. Enable the Customer Support Pack and connect Zendesk or ServiceNow.
 
 Connect to Zendesk and ServiceNow to automate ticket triage, response drafting, and escalation management.
 
@@ -773,7 +773,7 @@ Turn this meeting transcript into action items. For each item:
 
 Scrape websites, monitor prices, map site structures, and extract structured data with anti-bot bypass.
 
-For normal-user website testing, JavaScript-heavy app checks, forms, screenshots, responsive breakpoints, or visual QA, CoWork opens the [Browser Workbench](browser-workbench.md): a visible right-sidebar/fullscreen Browser V2 surface where the agent and user share the same page, with cursor movement, desktop/tablet/mobile viewport control, snapshot refs, diagnostics, screenshot capture, downloads/uploads, and annotation.
+For normal-user website testing, JavaScript-heavy app checks, forms, screenshots, responsive breakpoints, or visual QA, NeoWorker opens the [Browser Workbench](browser-workbench.md): a visible right-sidebar/fullscreen Browser V2 surface where the agent and user share the same page, with cursor movement, desktop/tablet/mobile viewport control, snapshot refs, diagnostics, screenshot capture, downloads/uploads, and annotation.
 
 **What it handles:**
 - Visible browser-use testing for live websites and local apps, including responsive viewport checks
@@ -944,7 +944,7 @@ Send me a summary when done.
 
 ### Headless & Server Deployment
 
-Run CoWork OS as a headless daemon on Linux servers with remote access via Tailscale, SSH, or WebSocket. The recommended production path is the packaged Linux x64 server release tarball, which includes built daemon assets, bundled resources, connector runtimes, and systemd templates.
+Run NeoWorker as a headless daemon on Linux servers with remote access via Tailscale, SSH, or WebSocket. The recommended production path is the packaged Linux x64 server release tarball, which includes built daemon assets, bundled resources, connector runtimes, and systemd templates.
 
 **What it handles:**
 - Packaged Linux x64 VPS installs via systemd

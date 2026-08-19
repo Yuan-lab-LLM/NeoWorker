@@ -1,28 +1,23 @@
 import { useState, useEffect } from "react";
 import { FolderIcon } from "./LineIcons";
 import { Workspace } from "../../shared/types";
+import { PRODUCT_DISPLAY_VERSION } from "../../shared/product-brand";
+import { translate, useLanguage } from "../i18n";
 
 interface WorkspaceSelectorProps {
   onWorkspaceSelected: (workspace: Workspace) => void;
 }
 
-export function WorkspaceSelector({ onWorkspaceSelected }: WorkspaceSelectorProps) {
+export function WorkspaceSelector({
+  onWorkspaceSelected,
+}: WorkspaceSelectorProps) {
+  useLanguage();
+  const t = translate;
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [appVersion, setAppVersion] = useState<string>("");
 
   useEffect(() => {
     loadWorkspaces();
-    loadVersion();
   }, []);
-
-  const loadVersion = async () => {
-    try {
-      const versionInfo = await window.electronAPI.getAppVersion();
-      setAppVersion(versionInfo.version);
-    } catch (error) {
-      console.error("Failed to load version:", error);
-    }
-  };
 
   const loadWorkspaces = async () => {
     try {
@@ -38,8 +33,12 @@ export function WorkspaceSelector({ onWorkspaceSelected }: WorkspaceSelectorProp
       const folderPath = await window.electronAPI.selectFolder();
       if (!folderPath) return;
 
-      const folderName = folderPath.split("/").pop() || "Workspace";
-      const permissionSettings = await window.electronAPI.getPermissionSettings().catch(() => null);
+      const folderName =
+        folderPath.split("/").pop() ||
+        t("workspaceSelector.defaultName", "Workspace");
+      const permissionSettings = await window.electronAPI
+        .getPermissionSettings()
+        .catch(() => null);
 
       const workspace = await window.electronAPI.createWorkspace({
         name: folderName,
@@ -69,29 +68,29 @@ export function WorkspaceSelector({ onWorkspaceSelected }: WorkspaceSelectorProp
             <span className="cli-dot"></span>
             <span className="cli-dot active"></span>
           </div>
-          <span className="cli-terminal-title">CoWork OS — init</span>
+          <span className="cli-terminal-title">NeoWorker — init</span>
         </div>
 
         {/* Logo Section */}
         <div className="cli-logo-section">
           <img
-            src="./cowork-os-sl-dark-logo.png"
-            alt="CoWork OS"
+            src="./neoworker-home.svg"
+            alt="NeoWorker"
             className="cli-brand-wordmark terminal-only logo-for-dark"
           />
           <img
-            src="./cowork-os-sl-color-logo.png"
-            alt="CoWork OS"
+            src="./neoworker-home.svg"
+            alt="NeoWorker"
             className="cli-brand-wordmark terminal-only logo-for-light"
           />
           <img
-            src="./cowork-os-sl-dark-logo.png"
-            alt="CoWork OS"
+            src="./neoworker-home.svg"
+            alt="NeoWorker"
             className="modern-logo-text modern-only logo-for-dark"
           />
           <img
-            src="./cowork-os-sl-color-logo.png"
-            alt="CoWork OS"
+            src="./neoworker-home.svg"
+            alt="NeoWorker"
             className="modern-logo-text modern-only logo-for-light"
           />
           <pre className="cli-ascii-logo terminal-only">{`
@@ -101,9 +100,15 @@ export function WorkspaceSelector({ onWorkspaceSelected }: WorkspaceSelectorProp
  ██║     ██║   ██║██║███╗██║██║   ██║██╔══██╗██╔═██╗ ╚════╝██║   ██║╚════██║
  ╚██████╗╚██████╔╝╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗      ╚██████╔╝███████║
   ╚═════╝ ╚═════╝  ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝       ╚═════╝ ╚══════╝`}</pre>
-          <div className="cli-version">{appVersion ? `v${appVersion}` : ""}</div>
-          <div className="workspace-modern-title modern-only">Choose a workspace</div>
-          <div className="workspace-modern-subtitle modern-only">Pick a folder to get started.</div>
+          <div className="cli-version">
+            {PRODUCT_DISPLAY_VERSION}
+          </div>
+          <div className="workspace-modern-title modern-only">
+            {t("workspaceSelector.choose", "Choose a workspace")}
+          </div>
+          <div className="workspace-modern-subtitle modern-only">
+            {t("workspaceSelector.pickFolder", "Pick a folder to get started.")}
+          </div>
         </div>
 
         {/* Terminal Info */}
@@ -111,26 +116,46 @@ export function WorkspaceSelector({ onWorkspaceSelected }: WorkspaceSelectorProp
           <div className="cli-line">
             <span className="cli-prompt">$</span>
             <span className="cli-text">
-              <span className="terminal-only">Welcome to CoWork OS</span>
-              <span className="modern-only">Welcome to CoWork OS</span>
+              <span className="terminal-only">
+                {t("workspaceSelector.welcome", "Welcome to NeoWorker")}
+              </span>
+              <span className="modern-only">
+                {t("workspaceSelector.welcome", "Welcome to NeoWorker")}
+              </span>
             </span>
           </div>
           <div className="cli-line">
             <span className="cli-prompt">$</span>
             <span className="cli-text">
               <span className="terminal-only">
-                Select a workspace folder to initialize your environment
+                {t(
+                  "workspaceSelector.selectFolderInit",
+                  "Select a workspace folder to initialize your environment",
+                )}
               </span>
               <span className="modern-only">
-                Select a workspace folder to initialize your environment
+                {t(
+                  "workspaceSelector.selectFolderInit",
+                  "Select a workspace folder to initialize your environment",
+                )}
               </span>
             </span>
           </div>
           <div className="cli-line cli-blink">
             <span className="cli-prompt">$</span>
             <span className="cli-text">
-              <span className="terminal-only">Waiting for workspace selection...</span>
-              <span className="modern-only">Waiting for your workspace selection...</span>
+              <span className="terminal-only">
+                {t(
+                  "workspaceSelector.waiting",
+                  "Waiting for workspace selection...",
+                )}
+              </span>
+              <span className="modern-only">
+                {t(
+                  "workspaceSelector.waitingYourSelection",
+                  "Waiting for your workspace selection...",
+                )}
+              </span>
             </span>
             <span className="cli-cursor-block">_</span>
           </div>
@@ -142,8 +167,12 @@ export function WorkspaceSelector({ onWorkspaceSelected }: WorkspaceSelectorProp
             <div className="cli-section-header">
               <span className="cli-section-prompt">&gt;</span>
               <span className="cli-section-title">
-                <span className="terminal-only">RECENT_WORKSPACES</span>
-                <span className="modern-only">Recent workspaces</span>
+                <span className="terminal-only">
+                  {t("workspaceSelector.recentTerminal", "RECENT_WORKSPACES")}
+                </span>
+                <span className="modern-only">
+                  {t("workspaceSelector.recent", "Recent workspaces")}
+                </span>
               </span>
             </div>
             {workspaces.map((workspace, index) => (
@@ -152,7 +181,9 @@ export function WorkspaceSelector({ onWorkspaceSelected }: WorkspaceSelectorProp
                 className="cli-workspace-item"
                 onClick={() => onWorkspaceSelected(workspace)}
               >
-                <span className="cli-item-num">{String(index + 1).padStart(2, "0")}</span>
+                <span className="cli-item-num">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
                 <span className="cli-item-icon">
                   <span className="terminal-only">[dir]</span>
                   <span className="modern-only">
@@ -178,12 +209,24 @@ export function WorkspaceSelector({ onWorkspaceSelected }: WorkspaceSelectorProp
             </span>
             <span className="cli-btn-text">
               <span className="terminal-only">select_folder</span>
-              <span className="modern-only">Select folder</span>
+              <span className="modern-only">
+                {t("workspaceSelector.selectFolder", "Select folder")}
+              </span>
             </span>
           </button>
           <p className="cli-hint">
-            <span className="terminal-only"># choose a directory for CoWork OS to operate in</span>
-            <span className="modern-only">Choose a directory for CoWork OS to operate in.</span>
+            <span className="terminal-only">
+              {t(
+                "workspaceSelector.chooseDirectoryTerminal",
+                "# choose a directory for NeoWorker to operate in",
+              )}
+            </span>
+            <span className="modern-only">
+              {t(
+                "workspaceSelector.chooseDirectory",
+                "Choose a directory for NeoWorker to operate in.",
+              )}
+            </span>
           </p>
         </div>
 
@@ -192,7 +235,9 @@ export function WorkspaceSelector({ onWorkspaceSelected }: WorkspaceSelectorProp
           <span className="cli-footer-prompt">$</span>
           <span className="cli-footer-text">
             <span className="terminal-only">ready</span>
-            <span className="modern-only">Ready to continue</span>
+            <span className="modern-only">
+              {t("workspaceSelector.ready", "Ready to continue")}
+            </span>
           </span>
         </div>
       </div>

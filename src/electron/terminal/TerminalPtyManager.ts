@@ -58,7 +58,7 @@ function buildTerminalEnv(): Record<string, string> {
   delete env.ELECTRON_RUN_AS_NODE;
   env.TERM = env.TERM || "xterm-256color";
   env.COLORTERM = env.COLORTERM || "truecolor";
-  env.TERM_PROGRAM = "CoWork OS";
+  env.TERM_PROGRAM = "NeoWorker";
   if (process.platform === "win32") {
     env.PROMPT = "$P$G ";
   } else {
@@ -66,7 +66,7 @@ function buildTerminalEnv(): Record<string, string> {
   }
   if (process.platform !== "win32" && path.basename(resolveTerminalShellExecutable()) === "zsh") {
     env.ZDOTDIR = ensureTerminalZdotdir();
-    env.COWORK_TERMINAL_ZDOTDIR = env.ZDOTDIR;
+    env.NEOWORKER_TERMINAL_ZDOTDIR = env.ZDOTDIR;
   }
   return env;
 }
@@ -85,13 +85,13 @@ function buildZshPromptSetup(): string {
     "PS1=$PROMPT",
     "RPROMPT=''",
     "RPS1=''",
-    "function __cowork_terminal_emit_cwd() {",
+    "function __neoworker_terminal_emit_cwd() {",
     "  printf '\\e]7;file://%s%s\\a' \"$HOST\" \"${PWD// /%20}\"",
     "}",
     "autoload -Uz add-zsh-hook 2>/dev/null",
     "if (( $+functions[add-zsh-hook] )); then",
-    "  add-zsh-hook precmd __cowork_terminal_emit_cwd",
-    "  add-zsh-hook chpwd __cowork_terminal_emit_cwd",
+    "  add-zsh-hook precmd __neoworker_terminal_emit_cwd",
+    "  add-zsh-hook chpwd __neoworker_terminal_emit_cwd",
     "fi",
     "",
   ].join("\n");
@@ -100,7 +100,7 @@ function buildZshPromptSetup(): string {
 function ensureTerminalZdotdir(): string {
   if (terminalZdotdir && fs.existsSync(terminalZdotdir)) return terminalZdotdir;
   const home = os.homedir();
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-terminal-zsh-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-terminal-zsh-"));
   fs.writeFileSync(path.join(dir, ".zshenv"), buildZshSourceLine(path.join(home, ".zshenv")));
   fs.writeFileSync(path.join(dir, ".zprofile"), buildZshSourceLine(path.join(home, ".zprofile")));
   fs.writeFileSync(

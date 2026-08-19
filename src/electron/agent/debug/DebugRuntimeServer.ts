@@ -78,16 +78,16 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     return;
   }
 
-  if (req.method !== "POST" || !url.pathname.includes("/cowork-debug/")) {
+  if (req.method !== "POST" || !url.pathname.includes("/neoworker-debug/")) {
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("Not found");
     return;
   }
 
   const parts = url.pathname.split("/").filter(Boolean);
-  // /cowork-debug/<taskId>/ingest
+  // /neoworker-debug/<taskId>/ingest
   const ingestIdx = parts.indexOf("ingest");
-  if (ingestIdx < 2 || parts[0] !== "cowork-debug") {
+  if (ingestIdx < 2 || parts[0] !== "neoworker-debug") {
     res.writeHead(400, { "Content-Type": "text/plain" });
     res.end("Bad path");
     return;
@@ -140,7 +140,7 @@ export async function openDebugRuntimeSession(
   const token = randomBytes(24).toString("hex");
   sessions.set(taskId, { token, onIngest });
   const baseUrl = `http://127.0.0.1:${port}`;
-  const ingestUrl = `${baseUrl}/cowork-debug/${encodeURIComponent(taskId)}/ingest?token=${encodeURIComponent(token)}`;
+  const ingestUrl = `${baseUrl}/neoworker-debug/${encodeURIComponent(taskId)}/ingest?token=${encodeURIComponent(token)}`;
   return { baseUrl, token, ingestUrl };
 }
 

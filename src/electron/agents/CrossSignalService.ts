@@ -20,11 +20,11 @@ type WorkspaceState = {
   flushTimer: ReturnType<typeof setTimeout> | null;
 };
 
-const KIT_DIRNAME = ".cowork";
+const KIT_DIRNAME = ".neoworker";
 const CROSS_SIGNALS_PATH = path.join(KIT_DIRNAME, "CROSS_SIGNALS.md");
 
-const AUTO_SIGNALS_START = "<!-- cowork:auto:signals:start -->";
-const AUTO_SIGNALS_END = "<!-- cowork:auto:signals:end -->";
+const AUTO_SIGNALS_START = "<!-- neoworker:auto:signals:start -->";
+const AUTO_SIGNALS_END = "<!-- neoworker:auto:signals:end -->";
 
 const MAX_SOURCE_CHARS = 24_000;
 const MAX_ENTITIES_PER_MESSAGE = 40;

@@ -1,22 +1,68 @@
-import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, useDeferredValue, memo } from "react";
-import { ChevronDown, ChevronRight, SlidersHorizontal, EyeOff, AppWindow, Bell, HardDrive, Rows3, Search, Server, Workflow, HeartPulse, Lightbulb, Inbox, Users, UsersRound, ListFilter, EllipsisVertical, Shapes, Plus, Sparkles, Repeat2 } from "lucide-react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useCallback,
+  useDeferredValue,
+  memo,
+} from "react";
+import { createPortal } from "react-dom";
+import {
+  ChevronDown,
+  ChevronRight,
+  SlidersHorizontal,
+  EyeOff,
+  AppWindow,
+  Bell,
+  HardDrive,
+  Rows3,
+  Search,
+  Server,
+  Workflow,
+  UsersRound,
+  ListFilter,
+  EllipsisVertical,
+  Plus,
+  Sparkles,
+  Repeat2,
+  Pencil,
+  Pin,
+  PinOff,
+  Trash2,
+  Lightbulb,
+  Wrench,
+  Clock3,
+} from "lucide-react";
 import { resolveTwinIcon } from "../utils/twin-icons";
 import { stripAllEmojis } from "../utils/emoji-replacer";
-import { Task, Workspace, UiDensity, InfraStatus, UpdateInfo } from "../../shared/types";
-import type { MailboxDigestSnapshot, MailboxSyncStatus } from "../../shared/mailbox";
+import { Task, Workspace, UiDensity, UpdateInfo } from "../../shared/types";
+import { PRODUCT_DISPLAY_VERSION } from "../../shared/product-brand";
 import { isAutomatedTaskLike } from "../../shared/automated-task-detection";
+import {
+  deriveTaskAttentionState,
+  getTaskAttentionCount,
+} from "../../shared/task-attention";
 import { VirtualList } from "./VirtualList";
+import { SidebarTaskSignals } from "./SidebarTaskSignals";
 import { capitalizeSidebarSessionTitle } from "../utils/sidebar-title";
 import { deriveSlashCommandTaskTitle } from "../utils/slash-command-title";
+import { translate, useLanguage } from "../i18n";
+import { getLocalizedAgentRoleName } from "../utils/localized-agent-roles";
+import { getLocalizedSidebarSystemTitle } from "../utils/localized-sidebar-titles";
 
 const SIDEBAR_ITEM_HEIGHT = 22;
 const SIDEBAR_DATE_HEADER_HEIGHT = 20;
 const SIDEBAR_FOCUSED_ITEM_HEIGHT = 28;
 const SIDEBAR_FOCUSED_DATE_HEADER_HEIGHT = 26;
-const SIDEBAR_AUTOMATED_HEADER_HEIGHT = 30;
 const SIDEBAR_LOAD_MORE_HEIGHT = 32;
 const SIDEBAR_VIRTUALIZATION_MIN_ROWS = 30;
 const SIDEBAR_LOAD_MORE_THRESHOLD_PX = 320;
+const SIDEBAR_TASK_MENU_WIDTH = 168;
+const SIDEBAR_TASK_MENU_ESTIMATED_HEIGHT = 168;
+const SIDEBAR_TASK_MENU_GAP = 8;
+const SIDEBAR_TASK_MENU_VIEWPORT_PADDING = 8;
 
 interface AgentRoleInfo {
   id: string;
@@ -46,26 +92,23 @@ interface SidebarProps {
   workspace: Workspace | null;
   tasks: Task[];
   selectedTaskId: string | null;
-  isHomeActive?: boolean;
-  isIdeasActive?: boolean;
-  isInboxAgentActive?: boolean;
-  isAgentsActive?: boolean;
   isEverydayAgentActive?: boolean;
-  isMissionControlActive?: boolean;
-  isHealthActive?: boolean;
+  isAgentTeamActive?: boolean;
+  isIdeasActive?: boolean;
+  isAutomationsActive?: boolean;
+  isToolsAndSkillsActive?: boolean;
   isLoadingSessions?: boolean;
   isLoadingMoreTasks?: boolean;
   completionAttentionTaskIds?: string[];
   onSelectTask: (id: string | null) => void;
-  onOpenHome?: () => void;
-  onOpenIdeas?: () => void;
-  onOpenInboxAgent?: () => void;
-  onOpenAgents?: () => void;
   onOpenEverydayAgent?: () => void;
-  onOpenHealth?: () => void;
+  onOpenAgentTeam?: () => void;
+  onOpenIdeas?: () => void;
+  onOpenToolsAndSkills?: () => void;
   onNewSession?: () => void;
   onOpenSettings: () => void;
-  onOpenMissionControl: () => void;
+  onOpenSetupGuide?: () => void;
+  onOpenAutomations: () => void;
   onOpenDevices?: () => void;
   isDevicesActive?: boolean;
 
@@ -89,29 +132,36 @@ export type SessionMode =
   | "comparison"
   | "video";
 
-const SESSION_MODE_META: Record<SessionMode, { label: string; shortLabel: string; color: string }> =
-  {
-    standard: { label: "Standard", shortLabel: "STD", color: "standard" },
-    autonomous: { label: "Autonomous", shortLabel: "AUTO", color: "autonomous" },
-    collab: { label: "Collaborative", shortLabel: "COLLAB", color: "collab" },
-    multitask: { label: "Multitask", shortLabel: "MULTI", color: "collab" },
-    "multi-llm": { label: "Multi-LLM", shortLabel: "MULTI", color: "multi-llm" },
-    scheduled: { label: "Scheduled", shortLabel: "SCHED", color: "scheduled" },
-    think: { label: "Think", shortLabel: "THINK", color: "think" },
-    comparison: { label: "Comparison", shortLabel: "CMP", color: "comparison" },
-    video: { label: "Video", shortLabel: "VID", color: "video" },
-  };
+const SESSION_MODE_META: Record<
+  SessionMode,
+  { label: string; shortLabel: string; color: string }
+> = {
+  standard: { label: "Standard", shortLabel: "STD", color: "standard" },
+  autonomous: { label: "Autonomous", shortLabel: "AUTO", color: "autonomous" },
+  collab: { label: "Collaborative", shortLabel: "COLLAB", color: "collab" },
+  multitask: { label: "Multitask", shortLabel: "MULTI", color: "collab" },
+  "multi-llm": { label: "Multi-LLM", shortLabel: "MULTI", color: "multi-llm" },
+  scheduled: { label: "Scheduled", shortLabel: "SCHED", color: "scheduled" },
+  think: { label: "Think", shortLabel: "THINK", color: "think" },
+  comparison: { label: "Comparison", shortLabel: "CMP", color: "comparison" },
+  video: { label: "Video", shortLabel: "VID", color: "video" },
+};
 
 /** Derive the primary session mode from task metadata */
 export function getSessionMode(task: Task): SessionMode {
-  if (task.agentConfig?.videoGenerationMode || task.agentConfig?.taskDomain === "media") return "video";
+  if (
+    task.agentConfig?.videoGenerationMode ||
+    task.agentConfig?.taskDomain === "media"
+  )
+    return "video";
   if (task.agentConfig?.multitaskMode) return "multitask";
   if (task.agentConfig?.collaborativeMode) return "collab";
   if (task.agentConfig?.multiLlmMode) return "multi-llm";
   if (task.agentConfig?.autonomousMode) return "autonomous";
   if (task.agentConfig?.conversationMode === "think") return "think";
   if (task.comparisonSessionId) return "comparison";
-  if (task.source === "cron" || task.title?.startsWith("Scheduled:")) return "scheduled";
+  if (task.source === "cron" || task.title?.startsWith("Scheduled:"))
+    return "scheduled";
   return "standard";
 }
 
@@ -122,24 +172,24 @@ export function isAutomatedSession(task: Task): boolean {
   return isAutomatedTaskLike(task);
 }
 
-const HIDDEN_FOCUSED_STATUSES: ReadonlySet<Task["status"]> = new Set(["failed", "cancelled"]);
+/** Returns true for conversations created by the one-click agent team flow. */
+export function isTeamSession(task: Task): boolean {
+  return task.agentConfig?.collaborativeMode === true;
+}
+
+const HIDDEN_FOCUSED_STATUSES: ReadonlySet<Task["status"]> = new Set([
+  "failed",
+  "cancelled",
+]);
 const ACTIVE_SESSION_STATUSES: ReadonlySet<Task["status"]> = new Set([
   "executing",
   "planning",
   "interrupted",
 ]);
-const AWAITING_SESSION_STATUSES: ReadonlySet<Task["status"]> = new Set(["paused", "blocked"]);
-
-function MacMiniIcon({ className, size = 18 }: { className?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor" style={{ display: 'block' }}>
-      <path d="M 4 6.5 L 20 6.5 Q 21.8 6.5 21.8 8.3 L 21.8 14.1 Q 21.8 15.9 20 15.9 L 4 15.9 Q 2.2 15.9 2.2 14.1 L 2.2 8.3 Q 2.2 6.5 4 6.5 Z" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M 6.5 16.2 Q 12 19.1 17.5 16.2" strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="17.0" cy="11.2" r="1.1" fill="currentColor" stroke="none" />
-      <circle cx="19.6" cy="11.2" r="0.55" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
+const AWAITING_SESSION_STATUSES: ReadonlySet<Task["status"]> = new Set([
+  "paused",
+  "blocked",
+]);
 
 export function isActiveSessionStatus(status: Task["status"]): boolean {
   return ACTIVE_SESSION_STATUSES.has(status);
@@ -157,15 +207,40 @@ export function shouldShowTaskInSidebarSessions(task: Task): boolean {
 export function compareTasksByPinAndRecency(a: Task, b: Task): number {
   const pinnedDiff = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned));
   if (pinnedDiff !== 0) return pinnedDiff;
-  const recencyDiff = (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt);
+  const recencyDiff =
+    (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt);
   if (recencyDiff !== 0) return recencyDiff;
   return b.createdAt - a.createdAt;
 }
 
-export function getSidebarDateGroup(task: Pick<Task, "createdAt" | "pinned">, now = new Date()): string {
+export function getLatestUserSidebarTaskId(tasks: Task[]): string | null {
+  let latest: Task | null = null;
+  for (const task of tasks) {
+    if (task.parentTaskId || !shouldShowTaskInSidebarSessions(task)) continue;
+    if (isAutomatedSession(task)) continue;
+    if (!latest) {
+      latest = task;
+      continue;
+    }
+    const taskActivityAt = task.updatedAt || task.createdAt;
+    const latestActivityAt = latest.updatedAt || latest.createdAt;
+    if (
+      taskActivityAt > latestActivityAt ||
+      (taskActivityAt === latestActivityAt && task.createdAt > latest.createdAt)
+    ) {
+      latest = task;
+    }
+  }
+  return latest?.id ?? null;
+}
+
+export function getSidebarDateGroup(
+  task: Pick<Task, "createdAt" | "updatedAt" | "pinned">,
+  now = new Date(),
+): string {
   if (task.pinned) return "Pinned";
 
-  const date = new Date(task.createdAt);
+  const date = new Date(task.updatedAt || task.createdAt);
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today.getTime() - 86400000);
   if (date >= today) return "Today";
@@ -173,7 +248,14 @@ export function getSidebarDateGroup(task: Pick<Task, "createdAt" | "pinned">, no
   return "Earlier";
 }
 
-function areStringSetsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+function translateSidebarDateGroup(label: string): string {
+  return translate(`sidebar.date.${label.toLowerCase()}`, label);
+}
+
+function areStringSetsEqual(
+  left: ReadonlySet<string>,
+  right: ReadonlySet<string>,
+): boolean {
   if (left.size !== right.size) return false;
   for (const value of left) {
     if (!right.has(value)) return false;
@@ -186,15 +268,21 @@ export function shouldShowRootTaskInSidebar(
   uiDensity: UiDensity,
   showFailedSessions: boolean,
   hasPinnedDescendant = false,
+  forceVisible = false,
 ): boolean {
   if (uiDensity !== "focused") return true;
   if (showFailedSessions) return true;
+  if (forceVisible) return true;
   if (task.pinned) return true;
   if (hasPinnedDescendant) return true;
   return !HIDDEN_FOCUSED_STATUSES.has(task.status);
 }
 
-export function countHiddenFailedSessions(tasks: Task[], uiDensity: UiDensity): number {
+export function countHiddenFailedSessions(
+  tasks: Task[],
+  uiDensity: UiDensity,
+  forceVisibleTaskIds: ReadonlySet<string> = new Set(),
+): number {
   const cache = new Map<string, Task[]>();
   for (const task of tasks) {
     if (task.parentTaskId) {
@@ -232,6 +320,7 @@ export function countHiddenFailedSessions(tasks: Task[], uiDensity: UiDensity): 
       shouldShowTaskInSidebarSessions(task) &&
       !task.parentTaskId &&
       !task.pinned &&
+      !forceVisibleTaskIds.has(task.id) &&
       !hasPinnedDescendant(task.id) &&
       HIDDEN_FOCUSED_STATUSES.has(task.status),
   ).length;
@@ -243,6 +332,29 @@ export interface TaskTreeNode {
   children: TaskTreeNode[];
   synthetic?: boolean;
   displayTitle?: string;
+}
+
+export type SidebarSessionCategory = "all" | "team" | "automated";
+
+export function resolveSidebarSessionCategoryTrees(
+  userTaskTree: TaskTreeNode[],
+  automatedTaskTree: TaskTreeNode[],
+  category: SidebarSessionCategory,
+  revealAllForSearch = false,
+): { user: TaskTreeNode[]; automated: TaskTreeNode[] } {
+  if (revealAllForSearch) {
+    return { user: userTaskTree, automated: automatedTaskTree };
+  }
+  if (category === "all") {
+    return { user: userTaskTree, automated: [] };
+  }
+  if (category === "team") {
+    return {
+      user: userTaskTree.filter((node) => isTeamSession(node.task)),
+      automated: [],
+    };
+  }
+  return { user: [], automated: automatedTaskTree };
 }
 
 const GENERIC_SESSION_TITLES = new Set([
@@ -261,7 +373,9 @@ function normalizeSidebarTitleCandidate(value?: string | null): string {
   const trimmed = value.trim();
   if (!trimmed) return "";
   const userRequestMatch = trimmed.match(/(?:^|\n)User request:\s*([\s\S]+)/i);
-  const candidate = (userRequestMatch?.[1] || trimmed).replace(/\s+/g, " ").trim();
+  const candidate = (userRequestMatch?.[1] || trimmed)
+    .replace(/\s+/g, " ")
+    .trim();
   return deriveSlashCommandTaskTitle(candidate) || candidate;
 }
 
@@ -269,11 +383,14 @@ function isGenericSidebarTitle(value: string): boolean {
   return GENERIC_SESSION_TITLES.has(normalizeSidebarSessionSearch(value));
 }
 
-export function getSidebarSessionTitle(node: Pick<TaskTreeNode, "displayTitle" | "task">): string {
+export function getSidebarSessionTitle(
+  node: Pick<TaskTreeNode, "displayTitle" | "task">,
+): string {
   const primaryCandidates = [node.displayTitle, node.task.title];
   for (const candidate of primaryCandidates) {
     const normalized = normalizeSidebarTitleCandidate(candidate);
-    if (normalized && !isGenericSidebarTitle(normalized)) return capitalizeSidebarSessionTitle(normalized);
+    if (normalized && !isGenericSidebarTitle(normalized))
+      return capitalizeSidebarSessionTitle(normalized);
   }
 
   const fallbackCandidates = [
@@ -361,7 +478,9 @@ function SidebarWordBoundaryTitle({
   title: string;
 }) {
   const ref = useRef<HTMLSpanElement | null>(null);
-  const [displayText, setDisplayText] = useState(() => text.replace(/\s+/g, " ").trim());
+  const [displayText, setDisplayText] = useState(() =>
+    text.replace(/\s+/g, " ").trim(),
+  );
 
   useLayoutEffect(() => {
     const element = ref.current;
@@ -427,7 +546,10 @@ function getTaskTreeNodeSearchText(node: TaskTreeNode): string {
       node.task.branchLabel,
       node.task.id,
     ]
-      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .filter(
+        (value): value is string =>
+          typeof value === "string" && value.trim().length > 0,
+      )
       .join(" "),
   );
 }
@@ -437,12 +559,16 @@ function filterTaskTreeBySearchInternal(
   normalizedQuery: string,
 ): TaskTreeNode[] {
   return nodes.flatMap((node) => {
-    const matchesSelf = getTaskTreeNodeSearchText(node).includes(normalizedQuery);
+    const matchesSelf =
+      getTaskTreeNodeSearchText(node).includes(normalizedQuery);
     if (matchesSelf) {
       return [node];
     }
 
-    const filteredChildren = filterTaskTreeBySearchInternal(node.children, normalizedQuery);
+    const filteredChildren = filterTaskTreeBySearchInternal(
+      node.children,
+      normalizedQuery,
+    );
 
     if (filteredChildren.length === 0) {
       return [];
@@ -452,7 +578,10 @@ function filterTaskTreeBySearchInternal(
   });
 }
 
-export function filterTaskTreeBySearch(nodes: TaskTreeNode[], query: string): TaskTreeNode[] {
+export function filterTaskTreeBySearch(
+  nodes: TaskTreeNode[],
+  query: string,
+): TaskTreeNode[] {
   const normalizedQuery = normalizeSidebarSessionSearch(query);
   if (!normalizedQuery) return nodes;
   return filterTaskTreeBySearchInternal(nodes, normalizedQuery);
@@ -472,13 +601,6 @@ export type SidebarVirtualRow =
       label: string;
     }
   | {
-      kind: "automated-header";
-      id: string;
-      count: number;
-      expanded: boolean;
-      hasActive: boolean;
-    }
-  | {
       kind: "task";
       row: SidebarVisibleRow;
       section?: "user" | "automated";
@@ -495,7 +617,11 @@ export function flattenVisibleTaskRows(
 ): SidebarVisibleRow[] {
   const rows: SidebarVisibleRow[] = [];
 
-  const visit = (siblings: TaskTreeNode[], depth: number, rootIndex: number) => {
+  const visit = (
+    siblings: TaskTreeNode[],
+    depth: number,
+    rootIndex: number,
+  ) => {
     siblings.forEach((node, siblingIndex) => {
       const resolvedRootIndex = depth === 0 ? siblingIndex : rootIndex;
       rows.push({
@@ -554,7 +680,10 @@ function getSidebarTaskListSignature(tasks: Task[]): string {
   const parts: string[] = [];
   for (let i = 0; i < Math.min(tasks.length, 100); i++) {
     const t = tasks[i];
-    parts.push(`${t.id}:${t.status}:${t.updatedAt ?? 0}`);
+    parts.push(
+      `${t.id}:${t.status}:${t.terminalStatus || ""}:${t.updatedAt ?? 0}:` +
+        `${t.provenanceSummary?.providerKey || ""}:${t.provenanceSummary?.count || 0}`,
+    );
   }
   return `${tasks.length}|${parts.join(",")}`;
 }
@@ -563,52 +692,53 @@ function areSidebarPropsEqual(prev: SidebarProps, next: SidebarProps): boolean {
   return (
     prev.workspace?.id === next.workspace?.id &&
     prev.selectedTaskId === next.selectedTaskId &&
-    prev.isHomeActive === next.isHomeActive &&
-    prev.isIdeasActive === next.isIdeasActive &&
-    prev.isInboxAgentActive === next.isInboxAgentActive &&
-    prev.isAgentsActive === next.isAgentsActive &&
     prev.isEverydayAgentActive === next.isEverydayAgentActive &&
-    prev.isMissionControlActive === next.isMissionControlActive &&
-    prev.isHealthActive === next.isHealthActive &&
+    prev.isAgentTeamActive === next.isAgentTeamActive &&
+    prev.isIdeasActive === next.isIdeasActive &&
+    prev.isAutomationsActive === next.isAutomationsActive &&
+    prev.isToolsAndSkillsActive === next.isToolsAndSkillsActive &&
     prev.isDevicesActive === next.isDevicesActive &&
     prev.isLoadingSessions === next.isLoadingSessions &&
     prev.isLoadingMoreTasks === next.isLoadingMoreTasks &&
     prev.hasMoreTasks === next.hasMoreTasks &&
     prev.uiDensity === next.uiDensity &&
-    getSidebarTaskListSignature(prev.tasks) === getSidebarTaskListSignature(next.tasks) &&
-    (prev.completionAttentionTaskIds || []).join(",") === (next.completionAttentionTaskIds || []).join(",") &&
+    getSidebarTaskListSignature(prev.tasks) ===
+      getSidebarTaskListSignature(next.tasks) &&
+    (prev.completionAttentionTaskIds || []).join(",") ===
+      (next.completionAttentionTaskIds || []).join(",") &&
     prev.updateInfo?.latestVersion === next.updateInfo?.latestVersion &&
     prev.onSelectTask === next.onSelectTask &&
     prev.onTasksChanged === next.onTasksChanged &&
     prev.onOpenSettings === next.onOpenSettings &&
-    prev.onOpenMissionControl === next.onOpenMissionControl
+    prev.onOpenSetupGuide === next.onOpenSetupGuide &&
+    prev.onOpenAgentTeam === next.onOpenAgentTeam &&
+    prev.onOpenIdeas === next.onOpenIdeas &&
+    prev.onOpenToolsAndSkills === next.onOpenToolsAndSkills &&
+    prev.onOpenAutomations === next.onOpenAutomations
   );
 }
 
 function SidebarComponent({
-  workspace,
+  workspace: _workspace,
   tasks,
   selectedTaskId,
-  isHomeActive = false,
-  isIdeasActive = false,
-  isInboxAgentActive = false,
-  isAgentsActive = false,
   isEverydayAgentActive = false,
-  isMissionControlActive = false,
-  isHealthActive = false,
+  isAgentTeamActive = false,
+  isIdeasActive = false,
+  isAutomationsActive = false,
+  isToolsAndSkillsActive = false,
   isLoadingSessions = false,
   completionAttentionTaskIds = [],
   onSelectTask,
-  onOpenHome,
-  onOpenIdeas,
-  onOpenInboxAgent,
-  onOpenAgents,
   onOpenEverydayAgent,
-  onOpenHealth,
+  onOpenAgentTeam,
+  onOpenIdeas,
+  onOpenToolsAndSkills,
   onNewSession,
   onOpenSettings,
-  onOpenMissionControl,
-  onOpenDevices,
+  onOpenSetupGuide,
+  onOpenAutomations,
+  onOpenDevices: _onOpenDevices,
   isDevicesActive = false,
   isLoadingMoreTasks = false,
 
@@ -619,27 +749,35 @@ function SidebarComponent({
   updateInfo,
   onViewUpdate,
 }: SidebarProps) {
+  useLanguage();
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const [menuOpenTaskId, setMenuOpenTaskId] = useState<string | null>(null);
   const [renameTaskId, setRenameTaskId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [collapsedTasks, setCollapsedTasks] = useState<Set<string>>(new Set());
-  const [agentRoles, setAgentRoles] = useState<Map<string, AgentRoleInfo>>(new Map());
-  const [showFailedSessions, setShowFailedSessions] = useState(false);
-  const [showAutomatedSessions, setShowAutomatedSessions] = useState(false);
+  const [agentRoles, setAgentRoles] = useState<Map<string, AgentRoleInfo>>(
+    new Map(),
+  );
+  // Failure is a task status, not a top-level conversation category. Failed
+  // sessions remain visible in history and carry their status marker there.
+  const [sessionCategory, setSessionCategory] =
+    useState<SidebarSessionCategory>("all");
   const [showSessionSearch, setShowSessionSearch] = useState(false);
   const [showSessionFilters, setShowSessionFilters] = useState(false);
   const [pinActionError, setPinActionError] = useState<string | null>(null);
-  const [archiveActionError, setArchiveActionError] = useState<string | null>(null);
-  const [activeModeFilters, setActiveModeFilters] = useState<Set<SessionMode>>(new Set());
+  const [archiveActionError, setArchiveActionError] = useState<string | null>(
+    null,
+  );
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const [activeModeFilters, setActiveModeFilters] = useState<Set<SessionMode>>(
+    new Set(),
+  );
   const [showFilterBar] = useState(false);
   const [sessionsCollapsed, setSessionsCollapsed] = useState(false);
-  const [moreCollapsed, setMoreCollapsed] = useState(true);
   const [sessionSearch, setSessionSearch] = useState("");
-  // Automated sessions folder is collapsed by default to keep the sidebar clean
-  const [automatedFolderCollapsed, setAutomatedFolderCollapsed] = useState(true);
-  const [mailboxDigest, setMailboxDigest] = useState<MailboxDigestSnapshot | null>(null);
-  const [mailboxStatus, setMailboxStatus] = useState<MailboxSyncStatus | null>(null);
   const pinActionErrorTimeoutRef = useRef<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<Map<string, HTMLButtonElement>>(new Map());
@@ -655,68 +793,42 @@ function SidebarComponent({
     [deferredSessionSearch],
   );
   const hasSessionSearch = normalizedSessionSearch.length > 0;
-  const isMoreActive = isMissionControlActive || isHealthActive || isIdeasActive;
-  const isMoreExpanded = isMoreActive || !moreCollapsed;
 
   useEffect(() => {
     window.electronAPI
       .getAgentRoles(false)
-      .then((roles: { id: string; displayName: string; color?: string; icon?: string }[]) => {
-        const map = new Map<string, AgentRoleInfo>();
-        for (const r of roles) {
-          map.set(r.id, {
-            id: r.id,
-            displayName: r.displayName,
-            color: r.color || "#6366f1",
-            icon: r.icon,
-          });
-        }
-        setAgentRoles(map);
-      })
+      .then(
+        (
+          roles: {
+            id: string;
+            displayName: string;
+            color?: string;
+            icon?: string;
+          }[],
+        ) => {
+          const map = new Map<string, AgentRoleInfo>();
+          for (const r of roles) {
+            map.set(r.id, {
+              id: r.id,
+              displayName: r.displayName,
+              color: r.color || "#6366f1",
+              icon: r.icon,
+            });
+          }
+          setAgentRoles(map);
+        },
+      )
       .catch(() => {});
   }, []);
 
-  const loadMailboxInboxUnread = useCallback(async () => {
-    const api = window.electronAPI;
-    if (!api?.getMailboxDigest || !api?.getMailboxSyncStatus) return;
-    const [digest, status] = await Promise.all([
-      api.getMailboxDigest(workspace?.id).catch(() => null),
-      api.getMailboxSyncStatus().catch(() => null),
-    ]);
-    setMailboxDigest(digest);
-    setMailboxStatus(status);
-  }, [workspace?.id]);
+  const forceVisibleSessionIds = useMemo(() => {
+    const ids = new Set<string>();
+    const latestTaskId = getLatestUserSidebarTaskId(tasks);
+    if (latestTaskId) ids.add(latestTaskId);
+    if (selectedTaskId) ids.add(selectedTaskId);
+    return ids;
+  }, [selectedTaskId, tasks]);
 
-  useEffect(() => {
-    void loadMailboxInboxUnread();
-  }, [loadMailboxInboxUnread]);
-
-  const mailboxEventDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    const api = window.electronAPI;
-    if (!api?.onMailboxEvent) return;
-    const unsubscribe = api.onMailboxEvent(() => {
-      if (mailboxEventDebounceRef.current !== null) {
-        clearTimeout(mailboxEventDebounceRef.current);
-      }
-      mailboxEventDebounceRef.current = setTimeout(() => {
-        mailboxEventDebounceRef.current = null;
-        void loadMailboxInboxUnread();
-      }, 500);
-    });
-    return () => {
-      unsubscribe();
-      if (mailboxEventDebounceRef.current !== null) {
-        clearTimeout(mailboxEventDebounceRef.current);
-      }
-    };
-  }, [loadMailboxInboxUnread]);
-
-  const inboxUnreadCount = mailboxDigest?.unreadCount ?? mailboxStatus?.unreadCount ?? 0;
-  const inboxNavLabel =
-    inboxUnreadCount > 0
-      ? `Inbox (${inboxUnreadCount > 99 ? "99+" : inboxUnreadCount})`
-      : "Inbox";
   // Build task tree from flat list
   const taskTree = useMemo(() => {
     const childrenMap = new Map<string, Task[]>();
@@ -767,7 +879,13 @@ function SidebarComponent({
     let rootTasks = tasks
       .filter((t) => !t.parentTaskId && shouldShowTaskInSidebarSessions(t))
       .filter((t) =>
-        shouldShowRootTaskInSidebar(t, uiDensity, showFailedSessions, hasPinnedDescendant(t.id)),
+        shouldShowRootTaskInSidebar(
+          t,
+          uiDensity,
+          true,
+          hasPinnedDescendant(t.id),
+          forceVisibleSessionIds.has(t.id),
+        ),
       )
       .sort(compareTasksByPinAndRecency);
 
@@ -784,7 +902,9 @@ function SidebarComponent({
       const suffix = match[2].trim();
       const siblings = improvementRoots.filter((candidate) => {
         if (consumed.has(candidate.id)) return false;
-        const candidateMatch = candidate.title.match(/^Improve \(([^)]+)\):\s*(.+)$/);
+        const candidateMatch = candidate.title.match(
+          /^Improve \(([^)]+)\):\s*(.+)$/,
+        );
         if (!candidateMatch) return false;
         if (candidateMatch[2].trim() !== suffix) return false;
         return Math.abs(candidate.createdAt - task.createdAt) <= 60_000;
@@ -804,7 +924,10 @@ function SidebarComponent({
             ? "paused"
             : siblings.every((item) => item.status === "completed")
               ? "completed"
-              : siblings.every((item) => item.status === "failed" || item.status === "cancelled")
+              : siblings.every(
+                    (item) =>
+                      item.status === "failed" || item.status === "cancelled",
+                  )
                 ? "failed"
                 : siblings[0].status,
         createdAt: Math.min(...siblings.map((item) => item.createdAt)),
@@ -819,9 +942,11 @@ function SidebarComponent({
       });
     }
 
-    const remainingNodes = rootTasks.filter((task) => !consumed.has(task.id)).map(buildNode);
+    const remainingNodes = rootTasks
+      .filter((task) => !consumed.has(task.id))
+      .map(buildNode);
     return [...groupedNodes, ...remainingNodes].sort(compareTaskTreeNodes);
-  }, [tasks, uiDensity, showFailedSessions]);
+  }, [forceVisibleSessionIds, tasks, uiDensity]);
 
   // Split root tasks into user-created vs automated sessions.
   // Automated sessions (improvement, cron, hook, api, heartbeat) are rendered
@@ -839,10 +964,30 @@ function SidebarComponent({
     return { userTaskTree: user, automatedTaskTree: automated };
   }, [taskTree]);
 
-  // Count hidden failed sessions for the toggle label
-  const failedSessionCount = useMemo(() => {
-    return countHiddenFailedSessions(tasks, uiDensity);
-  }, [tasks, uiDensity]);
+  const teamSessionCount = useMemo(
+    () => userTaskTree.filter((node) => isTeamSession(node.task)).length,
+    [userTaskTree],
+  );
+
+  useEffect(() => {
+    if (
+      (sessionCategory === "team" && teamSessionCount === 0) ||
+      (sessionCategory === "automated" && automatedTaskTree.length === 0)
+    ) {
+      setSessionCategory("all");
+    }
+  }, [automatedTaskTree.length, sessionCategory, teamSessionCount]);
+
+  const categoryTrees = useMemo(
+    () =>
+      resolveSidebarSessionCategoryTrees(
+        userTaskTree,
+        automatedTaskTree,
+        sessionCategory,
+        hasSessionSearch,
+      ),
+    [automatedTaskTree, hasSessionSearch, sessionCategory, userTaskTree],
+  );
 
   // Count root tasks per session mode (for filter badge counts).
   // Automated sessions live in their own folder, so they're excluded from
@@ -864,7 +1009,10 @@ function SidebarComponent({
     }
     return modes;
   }, [modeCounts]);
-  const availableModeSet = useMemo(() => new Set(availableModes), [availableModes]);
+  const availableModeSet = useMemo(
+    () => new Set(availableModes),
+    [availableModes],
+  );
 
   // Remove stale filters when workspace/task data changes and previously
   // selected modes are no longer available.
@@ -897,9 +1045,11 @@ function SidebarComponent({
   // Apply mode filter to user sessions only; automated sessions are always
   // shown in their own folder regardless of the active mode filter.
   const modeFilteredTaskTree = useMemo(() => {
-    if (activeModeFilters.size === 0) return userTaskTree;
-    return userTaskTree.filter((node) => activeModeFilters.has(getSessionMode(node.task)));
-  }, [userTaskTree, activeModeFilters]);
+    if (activeModeFilters.size === 0) return categoryTrees.user;
+    return categoryTrees.user.filter((node) =>
+      activeModeFilters.has(getSessionMode(node.task)),
+    );
+  }, [activeModeFilters, categoryTrees.user]);
 
   const filteredTaskTree = useMemo(
     () => filterTaskTreeBySearch(modeFilteredTaskTree, normalizedSessionSearch),
@@ -907,13 +1057,11 @@ function SidebarComponent({
   );
 
   const filteredAutomatedTaskTree = useMemo(
-    () => filterTaskTreeBySearch(automatedTaskTree, normalizedSessionSearch),
-    [automatedTaskTree, normalizedSessionSearch],
+    () =>
+      filterTaskTreeBySearch(categoryTrees.automated, normalizedSessionSearch),
+    [categoryTrees.automated, normalizedSessionSearch],
   );
-  const visibleAutomatedTaskTree = useMemo(
-    () => (hasSessionSearch || showAutomatedSessions ? filteredAutomatedTaskTree : []),
-    [filteredAutomatedTaskTree, hasSessionSearch, showAutomatedSessions],
-  );
+  const visibleAutomatedTaskTree = filteredAutomatedTaskTree;
 
   const effectiveCollapsedTasks = useMemo(
     () => (hasSessionSearch ? new Set<string>() : collapsedTasks),
@@ -940,56 +1088,38 @@ function SidebarComponent({
     };
   }, []);
 
-  const virtualizedTaskRows = useMemo(
-    () => flattenVisibleTaskRows(filteredTaskTree, effectiveCollapsedTasks),
-    [effectiveCollapsedTasks, filteredTaskTree],
+  const visibleCategoryTaskTree = useMemo(
+    () =>
+      [...filteredTaskTree, ...visibleAutomatedTaskTree].sort(
+        compareTaskTreeNodes,
+      ),
+    [filteredTaskTree, visibleAutomatedTaskTree],
   );
-  const automatedTaskRows = useMemo(
-    () => flattenVisibleTaskRows(visibleAutomatedTaskTree, effectiveCollapsedTasks),
-    [effectiveCollapsedTasks, visibleAutomatedTaskTree],
+  const visibleCategoryTaskRows = useMemo(
+    () =>
+      flattenVisibleTaskRows(visibleCategoryTaskTree, effectiveCollapsedTasks),
+    [effectiveCollapsedTasks, visibleCategoryTaskTree],
   );
-  const automatedRowsExpanded = hasSessionSearch || !automatedFolderCollapsed;
-  const sidebarVirtualRows = useMemo(
-    () => {
-      const rows: SidebarVirtualRow[] = [];
-      if (visibleAutomatedTaskTree.length > 0) {
-        rows.push({
-          kind: "automated-header",
-          id: "automated-header",
-          count: visibleAutomatedTaskTree.length,
-          expanded: automatedRowsExpanded,
-          hasActive: visibleAutomatedTaskTree.some((node) => isActiveSessionStatus(node.task.status)),
-        });
-        if (automatedRowsExpanded) {
-          rows.push(
-            ...automatedTaskRows.map(
-              (row): SidebarVirtualRow => ({ kind: "task", row, section: "automated" }),
-            ),
-          );
-        }
-      }
-      rows.push(
-        ...buildSidebarVirtualRows(virtualizedTaskRows, {
-          showDateHeaders: uiDensity === "focused",
-        }),
-      );
-      if (hasMoreTasks) {
-        rows.push({ kind: "load-more", id: "load-more", loading: isLoadingMoreTasks });
-      }
-      return rows;
-    },
-    [
-      automatedRowsExpanded,
-      automatedTaskRows,
-      hasMoreTasks,
-      isLoadingMoreTasks,
-      uiDensity,
-      virtualizedTaskRows,
-      visibleAutomatedTaskTree,
-    ],
-  );
+  const sidebarVirtualRows = useMemo(() => {
+    const rows = buildSidebarVirtualRows(visibleCategoryTaskRows, {
+      showDateHeaders: uiDensity === "focused",
+    }).map((row): SidebarVirtualRow =>
+      row.kind === "task" && isAutomatedSession(row.row.node.task)
+        ? { ...row, section: "automated" }
+        : row,
+    );
+    if (hasMoreTasks) {
+      rows.push({
+        kind: "load-more",
+        id: "load-more",
+        loading: isLoadingMoreTasks,
+      });
+    }
+    return rows;
+  }, [hasMoreTasks, isLoadingMoreTasks, uiDensity, visibleCategoryTaskRows]);
 
-  const useVirtualizedTaskRows = sidebarVirtualRows.length > SIDEBAR_VIRTUALIZATION_MIN_ROWS;
+  const useVirtualizedTaskRows =
+    sidebarVirtualRows.length > SIDEBAR_VIRTUALIZATION_MIN_ROWS;
 
   // Auto-collapse sub-agent trees in focused mode
   const hasInitializedCollapse = useRef(false);
@@ -1004,9 +1134,9 @@ function SidebarComponent({
       }
     }
 
-    const expandAncestorsForPinned = (collapsed: Set<string>): void => {
+    const expandAncestorsForImportantTasks = (collapsed: Set<string>): void => {
       for (const task of tasks) {
-        if (!task.pinned) continue;
+        if (!task.pinned && task.id !== selectedTaskId) continue;
 
         let currentParent = task.parentTaskId;
         const seen = new Set<string>();
@@ -1022,17 +1152,19 @@ function SidebarComponent({
 
     if (uiDensity === "focused") {
       if (!hasInitializedCollapse.current) {
-        expandAncestorsForPinned(parentsWithChildren);
+        expandAncestorsForImportantTasks(parentsWithChildren);
         if (parentsWithChildren.size > 0) {
           setCollapsedTasks((prev) =>
-            areStringSetsEqual(prev, parentsWithChildren) ? prev : parentsWithChildren,
+            areStringSetsEqual(prev, parentsWithChildren)
+              ? prev
+              : parentsWithChildren,
           );
         }
         hasInitializedCollapse.current = true;
       } else {
         setCollapsedTasks((prev) => {
           const next = new Set(prev);
-          expandAncestorsForPinned(next);
+          expandAncestorsForImportantTasks(next);
           return areStringSetsEqual(prev, next) ? prev : next;
         });
       }
@@ -1040,7 +1172,7 @@ function SidebarComponent({
     if (uiDensity === "full") {
       hasInitializedCollapse.current = false;
     }
-  }, [uiDensity, tasks]);
+  }, [selectedTaskId, uiDensity, tasks]);
 
   // Infinite scroll — load the next page when the user scrolls near the bottom
   useEffect(() => {
@@ -1050,7 +1182,10 @@ function SidebarComponent({
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = el;
-      if (scrollHeight - scrollTop - clientHeight < SIDEBAR_LOAD_MORE_THRESHOLD_PX) {
+      if (
+        scrollHeight - scrollTop - clientHeight <
+        SIDEBAR_LOAD_MORE_THRESHOLD_PX
+      ) {
         onLoadMoreTasks();
       }
     };
@@ -1062,7 +1197,13 @@ function SidebarComponent({
   // If the first page does not fill the scroll container (for example because
   // focused mode hides failed sessions), keep paging until the list can scroll.
   useEffect(() => {
-    if (useVirtualizedTaskRows || sessionsCollapsed || !hasMoreTasks || !onLoadMoreTasks) return;
+    if (
+      useVirtualizedTaskRows ||
+      sessionsCollapsed ||
+      !hasMoreTasks ||
+      !onLoadMoreTasks
+    )
+      return;
 
     const frame = window.requestAnimationFrame(() => {
       const el = taskListRef.current;
@@ -1082,17 +1223,68 @@ function SidebarComponent({
     visibleAutomatedTaskTree.length,
   ]);
 
-  // Close menu when clicking outside (use 'click' not 'mousedown' so moving from outside to menu still allows selection)
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (menuRef.current && !menuRef.current.contains(target)) {
-        setMenuOpenTaskId(null);
-      }
-    };
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
+  const updateMenuPosition = useCallback((taskId: string) => {
+    const button = menuButtonRef.current.get(taskId);
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    const menuWidth = SIDEBAR_TASK_MENU_WIDTH;
+    const menuHeight =
+      menuRef.current?.offsetHeight || SIDEBAR_TASK_MENU_ESTIMATED_HEIGHT;
+    const viewportPadding = SIDEBAR_TASK_MENU_VIEWPORT_PADDING;
+
+    let left = rect.right + SIDEBAR_TASK_MENU_GAP;
+    if (left + menuWidth > window.innerWidth - viewportPadding) {
+      left = Math.max(
+        viewportPadding,
+        rect.left - menuWidth - SIDEBAR_TASK_MENU_GAP,
+      );
+    }
+
+    let top = rect.top - 4;
+    if (top + menuHeight > window.innerHeight - viewportPadding) {
+      top = Math.max(
+        viewportPadding,
+        window.innerHeight - menuHeight - viewportPadding,
+      );
+    }
+    top = Math.max(viewportPadding, top);
+
+    setMenuPosition({ top, left });
   }, []);
+
+  useLayoutEffect(() => {
+    if (!menuOpenTaskId) {
+      setMenuPosition(null);
+      return;
+    }
+
+    updateMenuPosition(menuOpenTaskId);
+    const handleReposition = () => updateMenuPosition(menuOpenTaskId);
+    window.addEventListener("resize", handleReposition);
+    window.addEventListener("scroll", handleReposition, true);
+    return () => {
+      window.removeEventListener("resize", handleReposition);
+      window.removeEventListener("scroll", handleReposition, true);
+    };
+  }, [menuOpenTaskId, updateMenuPosition]);
+
+  // Close menu when clicking outside the floating menu or its trigger.
+  useEffect(() => {
+    if (!menuOpenTaskId) return;
+
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      const trigger = menuButtonRef.current.get(menuOpenTaskId);
+      if (menuRef.current?.contains(target) || trigger?.contains(target))
+        return;
+      setMenuOpenTaskId(null);
+      setMenuPosition(null);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [menuOpenTaskId]);
 
   // Focus rename input when entering rename mode
   useEffect(() => {
@@ -1104,7 +1296,20 @@ function SidebarComponent({
 
   const handleMenuToggle = (e: React.MouseEvent, taskId: string) => {
     e.stopPropagation();
-    setMenuOpenTaskId(menuOpenTaskId === taskId ? null : taskId);
+    const nextOpen = menuOpenTaskId === taskId ? null : taskId;
+    if (nextOpen) {
+      updateMenuPosition(nextOpen);
+    } else {
+      setMenuPosition(null);
+    }
+    setMenuOpenTaskId(nextOpen);
+  };
+
+  const handleTaskContextMenu = (e: React.MouseEvent, taskId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    updateMenuPosition(taskId);
+    setMenuOpenTaskId(taskId);
   };
 
   const focusMenuButton = (taskId: string) => {
@@ -1116,7 +1321,9 @@ function SidebarComponent({
 
   const focusFirstMenuItem = () => {
     const menu = menuRef.current;
-    const first = menu?.querySelector<HTMLButtonElement>("button[data-menu-option]");
+    const first = menu?.querySelector<HTMLButtonElement>(
+      "button[data-menu-option]",
+    );
     first?.focus();
   };
 
@@ -1129,7 +1336,9 @@ function SidebarComponent({
     );
     if (options.length === 0) return;
 
-    const currentIndex = options.indexOf(document.activeElement as HTMLButtonElement);
+    const currentIndex = options.indexOf(
+      document.activeElement as HTMLButtonElement,
+    );
     const nextIndex = (currentIndex + offset + options.length) % options.length;
     const next = options[nextIndex];
     next?.focus();
@@ -1137,6 +1346,7 @@ function SidebarComponent({
 
   const closeMenu = (taskId: string) => {
     setMenuOpenTaskId(null);
+    setMenuPosition(null);
     focusMenuButton(taskId);
   };
 
@@ -1144,6 +1354,11 @@ function SidebarComponent({
     if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
       e.preventDefault();
       const nextOpen = menuOpenTaskId === taskId ? null : taskId;
+      if (nextOpen) {
+        updateMenuPosition(nextOpen);
+      } else {
+        setMenuPosition(null);
+      }
       setMenuOpenTaskId(nextOpen);
       if (nextOpen) {
         requestAnimationFrame(() => focusFirstMenuItem());
@@ -1178,6 +1393,7 @@ function SidebarComponent({
     e.stopPropagation();
     e.preventDefault();
     setMenuOpenTaskId(null);
+    setMenuPosition(null);
     setRenameTaskId(task.id);
     setRenameValue(task.title);
   };
@@ -1195,13 +1411,16 @@ function SidebarComponent({
     e.stopPropagation();
     e.preventDefault();
     setMenuOpenTaskId(null);
+    setMenuPosition(null);
     setPinActionError(null);
     try {
       await window.electronAPI.toggleTaskPin(task.id);
       onTasksChanged();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unable to update pin state. Please try again.";
+        error instanceof Error
+          ? error.message
+          : "Unable to update pin state. Please try again.";
       console.error("Failed to toggle pin:", error);
       setPinActionError(message);
       if (pinActionErrorTimeoutRef.current !== null) {
@@ -1226,6 +1445,7 @@ function SidebarComponent({
     e.stopPropagation();
     e.preventDefault();
     setMenuOpenTaskId(null);
+    setMenuPosition(null);
     setArchiveActionError(null);
     try {
       await window.electronAPI.archiveTask(taskId);
@@ -1235,7 +1455,12 @@ function SidebarComponent({
       onTasksChanged();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unable to archive session. Please try again.";
+        error instanceof Error
+          ? error.message
+          : translate(
+              "generated.components.sidebar.1395.0",
+              "Unable to move to recently deleted, please try again.",
+            );
       console.error("Failed to archive task:", error);
       setArchiveActionError(message);
       if (pinActionErrorTimeoutRef.current !== null) {
@@ -1260,141 +1485,80 @@ function SidebarComponent({
     });
   };
 
-  const getStatusIndicator = (status: Task["status"], showCompletionAttention = false) => {
-    if (isActiveSessionStatus(status)) {
-      return (
-        <>
-          <span className="terminal-only">[~]</span>
-          <span className="modern-only">
-            <span className="cli-session-indicator cli-session-indicator-active" aria-hidden="true" />
-          </span>
-        </>
-      );
-    }
-
-    if (isAwaitingSessionStatus(status)) {
-      return (
-        <>
-          <span className="terminal-only">[?]</span>
-          <span className="modern-only">
-            <span
-              className="cli-session-indicator cli-session-indicator-awaiting"
-              aria-hidden="true"
-            />
-          </span>
-        </>
-      );
-    }
-
-    switch (status) {
-      case "completed":
-        if (!showCompletionAttention) {
-          return (
-            <>
-              <span className="terminal-only">[ ]</span>
-              <span className="modern-only">
-                <span className="cli-session-indicator cli-session-indicator-invisible" aria-hidden="true" />
-              </span>
-            </>
-          );
-        }
-        return (
-          <>
-            <span className="terminal-only">[•]</span>
-            <span className="modern-only">
-              <span
-                className="cli-session-indicator cli-session-indicator-completed"
-                aria-hidden="true"
-              />
-            </span>
-          </>
-        );
-      case "failed":
-      case "cancelled":
-        return (
-          <>
-            <span className="terminal-only">[✗]</span>
-            <span className="modern-only">
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </span>
-          </>
-        );
-      default:
-        return (
-          <>
-            <span className="terminal-only">[ ]</span>
-            <span className="modern-only">
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" opacity="0.3"></circle>
-              </svg>
-            </span>
-          </>
-        );
-    }
-  };
-
-  const getStatusClass = (status: Task["status"], showCompletionAttention = false) => {
-    if (isActiveSessionStatus(status)) return "active";
-    if (isAwaitingSessionStatus(status)) return "awaiting";
-    if (status === "completed" && showCompletionAttention) return "completed";
-
-    switch (status) {
-      case "failed":
-      case "cancelled":
-        return "failed";
-      default:
-        return "";
-    }
-  };
-
   const getSubagentIcon = (task: Task) => {
     if (!task.parentTaskId) return null;
-    const role = task.assignedAgentRoleId ? agentRoles.get(task.assignedAgentRoleId) : undefined;
+    const role = task.assignedAgentRoleId
+      ? agentRoles.get(task.assignedAgentRoleId)
+      : undefined;
     if (role?.icon) {
       const Icon = resolveTwinIcon(role.icon);
       return (
-        <span title={role.displayName}>
-          <Icon
-            className="cli-subagent-icon"
-            size={14}
-            strokeWidth={2}
-          />
+        <span
+          className="cli-subagent-icon-shell"
+          title={getLocalizedAgentRoleName(role.displayName)}
+          style={
+            {
+              "--subagent-accent": role.color || "var(--color-accent)",
+            } as React.CSSProperties
+          }
+        >
+          <Icon className="cli-subagent-icon" size={13} strokeWidth={1.8} />
         </span>
       );
     }
     if (task.agentType === "parallel") {
       return (
-        <span title="Parallel agent">
+        <span
+          className="cli-subagent-icon-shell"
+          title={translate("sidebar.parallelAgent", "Parallel agent")}
+        >
           <Workflow
             className="cli-subagent-icon cli-subagent-icon-parallel"
-            size={14}
-            strokeWidth={2}
+            size={13}
+            strokeWidth={1.8}
           />
         </span>
       );
     }
-    return null;
+    return (
+      <span
+        className="cli-subagent-icon-shell"
+        title={translate("sidebar.subagent", "Collaborating agent")}
+      >
+        <UsersRound className="cli-subagent-icon" size={13} strokeWidth={1.8} />
+      </span>
+    );
+  };
+
+  const getSubagentState = (status: Task["status"]) => {
+    if (isActiveSessionStatus(status)) {
+      return {
+        key: "working",
+        label: translate("sidebar.subagent.working", "Working"),
+      };
+    }
+    if (isAwaitingSessionStatus(status)) {
+      return {
+        key: "waiting",
+        label: translate("sidebar.subagent.waiting", "Waiting for review"),
+      };
+    }
+    if (status === "completed") {
+      return {
+        key: "done",
+        label: translate("sidebar.subagent.completed", "Completed"),
+      };
+    }
+    if (status === "failed" || status === "cancelled") {
+      return {
+        key: "failed",
+        label: translate("sidebar.subagent.stopped", "Needs attention"),
+      };
+    }
+    return {
+      key: "idle",
+      label: translate("sidebar.subagent.ready", "Ready"),
+    };
   };
 
   const handleNewTask = () => {
@@ -1407,14 +1571,20 @@ function SidebarComponent({
   };
 
   const navigateDevicesSection = useCallback(
-    (section: "overview" | "tasks" | "devices" | "apps" | "storage" | "alerts") => {
-      window.dispatchEvent(new CustomEvent("devices:navigate", { detail: { section } }));
+    (
+      section: "overview" | "tasks" | "devices" | "apps" | "storage" | "alerts",
+    ) => {
+      window.dispatchEvent(
+        new CustomEvent("devices:navigate", { detail: { section } }),
+      );
     },
     [],
   );
 
   const triggerDevicesAction = useCallback((action: "pairing") => {
-    window.dispatchEvent(new CustomEvent("devices:action", { detail: { action } }));
+    window.dispatchEvent(
+      new CustomEvent("devices:action", { detail: { action } }),
+    );
   }, []);
 
   const remoteTasks = useMemo(
@@ -1457,30 +1627,37 @@ function SidebarComponent({
     // Tree connector prefix based on depth
     const treePrefix = depth > 0 ? (isLast ? "└─" : "├─") : "";
     const taskMode = depth === 0 ? getSessionMode(task) : null;
-    const modeClass = taskMode && taskMode !== "standard" ? `session-mode-${taskMode}` : "";
-    const isChatSession =
-      task.agentConfig?.executionMode === "chat" &&
-      task.agentConfig?.executionModeSource === "user";
+    const modeClass =
+      taskMode && taskMode !== "standard" ? `session-mode-${taskMode}` : "";
+    const showCompletionMarker = task.status === "completed";
     const showCompletionAttention =
-      task.status === "completed" &&
-      !isChatSession &&
+      showCompletionMarker &&
       selectedTaskId !== task.id &&
       completionAttentionSet.has(task.id);
-    const isAwaitingSession = isAwaitingSessionStatus(task.status);
+    const attentionState = deriveTaskAttentionState(task);
+    const attentionCount = getTaskAttentionCount(attentionState);
+    const isAwaitingSession =
+      attentionState === "waiting" ||
+      attentionState === "needs_approval" ||
+      attentionState === "needs_attention";
     const isAutomatedTask = isAutomatedSession(task);
     const sessionTitle = getSidebarSessionTitle(node);
+    const subagentState = getSubagentState(task.status);
     const sessionActions = !node.synthetic ? (
-      <div
-        className="task-item-actions cli-task-actions"
-        ref={menuOpenTaskId === task.id ? menuRef : null}
-      >
+      <div className="task-item-actions cli-task-actions">
         <button
           type="button"
           className="task-item-more cli-more-btn"
           aria-haspopup="menu"
           aria-expanded={menuOpenTaskId === task.id}
           aria-controls={`task-menu-${task.id}`}
-          aria-label={`Session actions for ${sessionTitle}`}
+          aria-label={translate(
+            "sidebar.sessionActionsFor",
+            "Session actions for {title}",
+            {
+              title: sessionTitle,
+            },
+          )}
           onClick={(e) => handleMenuToggle(e, task.id)}
           onKeyDown={(e) => handleMenuButtonKeyDown(e, task.id)}
           ref={(el) => {
@@ -1493,238 +1670,335 @@ function SidebarComponent({
         >
           <EllipsisVertical size={16} strokeWidth={2.2} aria-hidden="true" />
         </button>
-        {menuOpenTaskId === task.id && (
-          <div
-            id={`task-menu-${task.id}`}
-            className="task-item-menu cli-task-menu"
-            role="menu"
-            aria-label="Session actions"
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              className="task-item-menu-option cli-menu-option"
-              role="menuitem"
-              data-menu-option="rename"
-              onMouseDown={(e) => {
-                if (e.button === 0) {
-                  e.preventDefault();
-                  handleRenameClick(e as unknown as React.MouseEvent, task);
-                }
+        {menuOpenTaskId === task.id &&
+          menuPosition &&
+          createPortal(
+            <div
+              id={`task-menu-${task.id}`}
+              className="task-item-menu task-item-menu-floating cli-task-menu"
+              role="menu"
+              aria-label={translate(
+                "sidebar.sessionActions",
+                "Session actions",
+              )}
+              ref={menuRef}
+              style={{
+                position: "fixed",
+                top: menuPosition.top,
+                left: menuPosition.left,
+                right: "auto",
               }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  handleRenameClick(e as unknown as React.MouseEvent, task);
-                }
-                handleMenuItemKeyDown(e, task.id);
-              }}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
             >
-              <span className="cli-menu-prefix">&gt;</span>
-              rename
-            </button>
-            <button
-              type="button"
-              className="task-item-menu-option cli-menu-option"
-              role="menuitem"
-              data-menu-option="pin"
-              onMouseDown={(e) => {
-                if (e.button === 0) {
-                  e.preventDefault();
-                  handlePinClick(e as unknown as React.MouseEvent, task);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  handlePinClick(e as unknown as React.MouseEvent, task);
-                }
-                handleMenuItemKeyDown(e, task.id);
-              }}
-            >
-              <span className="cli-menu-prefix">&gt;</span>
-              {task.pinned ? "unpin" : "pin"}
-            </button>
-            <button
-              type="button"
-              className="task-item-menu-option task-item-menu-option-danger cli-menu-option cli-menu-danger"
-              role="menuitem"
-              data-menu-option="archive"
-              onMouseDown={(e) => {
-                if (e.button === 0) {
-                  e.preventDefault();
-                  handleArchiveClick(e as unknown as React.MouseEvent, task.id);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  handleArchiveClick(e as unknown as React.MouseEvent, task.id);
-                }
-                handleMenuItemKeyDown(e, task.id);
-              }}
-            >
-              <span className="cli-menu-prefix">&gt;</span>
-              archive
-            </button>
-          </div>
-        )}
+              <button
+                type="button"
+                className="task-item-menu-option cli-menu-option"
+                role="menuitem"
+                data-menu-option="rename"
+                onMouseDown={(e) => {
+                  if (e.button === 0) {
+                    e.preventDefault();
+                    handleRenameClick(e as unknown as React.MouseEvent, task);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleRenameClick(e as unknown as React.MouseEvent, task);
+                  }
+                  handleMenuItemKeyDown(e, task.id);
+                }}
+              >
+                <Pencil size={15} strokeWidth={1.9} aria-hidden="true" />
+                <span>{translate("sidebar.sessions.rename", "Rename")}</span>
+              </button>
+              <button
+                type="button"
+                className="task-item-menu-option cli-menu-option"
+                role="menuitem"
+                data-menu-option="pin"
+                onMouseDown={(e) => {
+                  if (e.button === 0) {
+                    e.preventDefault();
+                    handlePinClick(e as unknown as React.MouseEvent, task);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handlePinClick(e as unknown as React.MouseEvent, task);
+                  }
+                  handleMenuItemKeyDown(e, task.id);
+                }}
+              >
+                {task.pinned ? (
+                  <PinOff size={15} strokeWidth={1.9} aria-hidden="true" />
+                ) : (
+                  <Pin size={15} strokeWidth={1.9} aria-hidden="true" />
+                )}
+                <span>
+                  {task.pinned
+                    ? translate("sidebar.sessions.unpin", "Unpin")
+                    : translate("sidebar.sessions.pin", "Pin")}
+                </span>
+              </button>
+              <button
+                type="button"
+                className="task-item-menu-option task-item-menu-option-danger cli-menu-option cli-menu-danger"
+                role="menuitem"
+                data-menu-option="archive"
+                onMouseDown={(e) => {
+                  if (e.button === 0) {
+                    e.preventDefault();
+                    handleArchiveClick(
+                      e as unknown as React.MouseEvent,
+                      task.id,
+                    );
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleArchiveClick(
+                      e as unknown as React.MouseEvent,
+                      task.id,
+                    );
+                  }
+                  handleMenuItemKeyDown(e, task.id);
+                }}
+              >
+                <Trash2 size={15} strokeWidth={1.9} aria-hidden="true" />
+                <span>
+                  {translate(
+                    "sidebar.sessions.archive",
+                    "Move to recently deleted",
+                  )}
+                </span>
+              </button>
+            </div>,
+            document.body,
+          )}
       </div>
     ) : null;
 
     return (
       <div
-        className={`task-item cli-task-item ${selectedTaskId === task.id ? "task-item-selected" : ""} ${isSubAgent ? "task-item-subagent" : ""} ${node.synthetic ? "task-item-group-root" : ""} ${modeClass} ${hasChildren ? "task-item-has-children" : ""} ${showCompletionAttention ? "task-completion-unread" : ""}`}
+        className={`task-item cli-task-item ${selectedTaskId === task.id ? "task-item-selected" : ""} ${isSubAgent ? `task-item-subagent subagent-state-${subagentState.key}` : ""} ${node.synthetic ? "task-item-group-root" : ""} ${modeClass} ${hasChildren ? "task-item-has-children" : ""} ${showCompletionAttention ? "task-completion-unread" : ""}`}
         data-task-id={node.synthetic ? undefined : task.id}
         onClick={() => {
           if (node.synthetic) return;
           if (renameTaskId === task.id) return;
           onSelectTask(task.id);
         }}
+        onContextMenu={(e) => {
+          if (node.synthetic) return;
+          handleTaskContextMenu(e, task.id);
+        }}
         style={
           {
-            "--cli-task-padding-left": depth === 0 ? "12px" : `${4 + depth * 12}px`,
+            "--cli-task-padding-left":
+              depth === 0 ? "12px" : `${4 + depth * 12}px`,
           } as React.CSSProperties
         }
         title={
-          taskMode && taskMode !== "standard" ? SESSION_MODE_META[taskMode].label : undefined
+          taskMode && taskMode !== "standard"
+            ? SESSION_MODE_META[taskMode].label
+            : undefined
         }
       >
-          {/* Tree connector for sub-agents */}
-          {depth > 0 && <span className="cli-tree-prefix">{treePrefix}</span>}
+        {/* Tree connector for sub-agents */}
+        {depth > 0 && <span className="cli-tree-prefix">{treePrefix}</span>}
 
-          <span className="cli-task-num">
-            {depth === 0 ? String(rootIndex + 1).padStart(2, "0") : "··"}
+        <span className="cli-task-num">
+          {depth === 0 ? String(rootIndex + 1).padStart(2, "0") : "··"}
+        </span>
+
+        <SidebarTaskSignals
+          taskId={task.id}
+          attentionState={attentionState}
+          attentionCount={attentionCount}
+          provenance={task.provenanceSummary}
+          onOpenSource={(taskId) => {
+            onSelectTask(taskId);
+            window.setTimeout(() => {
+              window.dispatchEvent(
+                new CustomEvent("task-source:focus", { detail: { taskId } }),
+              );
+            }, 0);
+          }}
+        />
+
+        {task.pinned && (
+          <span
+            className="cli-task-pinned"
+            title={translate("sidebar.pinned", "Pinned")}
+          >
+            <Pin size={11} strokeWidth={2} aria-hidden="true" />
           </span>
+        )}
 
-          {!isAwaitingSession && (
-            <span className={`cli-task-status ${getStatusClass(task.status, showCompletionAttention)}`}>
-              {getStatusIndicator(task.status, showCompletionAttention)}
-            </span>
-          )}
+        {/* Lucide icon for sub-agents */}
+        {getSubagentIcon(task)}
 
-          {task.pinned && (
-            <span className="cli-task-pinned" title="Pinned">
-              📌
-            </span>
-          )}
-
-          {/* Lucide icon for sub-agents */}
-          {getSubagentIcon(task)}
-
-          {/* Git branch indicator for worktree-isolated tasks */}
-          {task.worktreeBranch && (
-            <span
-              className="cli-task-branch"
-              title={task.worktreeBranch}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                marginRight: "4px",
-                color: "var(--color-accent)",
-                opacity: 0.7,
-                flexShrink: 0,
-              }}
+        {/* Git branch indicator for worktree-isolated tasks */}
+        {task.worktreeBranch && (
+          <span
+            className="cli-task-branch"
+            title={task.worktreeBranch}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              marginRight: "4px",
+              color: "var(--color-accent)",
+              opacity: 0.7,
+              flexShrink: 0,
+            }}
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
             >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              >
-                <line x1="6" y1="3" x2="6" y2="15" />
-                <circle cx="18" cy="6" r="3" />
-                <circle cx="6" cy="18" r="3" />
-                <path d="M18 9a9 9 0 0 1-9 9" />
-              </svg>
-            </span>
-          )}
+              <line x1="6" y1="3" x2="6" y2="15" />
+              <circle cx="18" cy="6" r="3" />
+              <circle cx="6" cy="18" r="3" />
+              <path d="M18 9a9 9 0 0 1-9 9" />
+            </svg>
+          </span>
+        )}
 
-          <div className="task-item-content cli-task-content">
-            {renameTaskId === task.id ? (
-              <input
-                ref={renameInputRef}
-                type="text"
-                className="task-item-rename-input cli-rename-input"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                onKeyDown={(e) => handleRenameKeyDown(e, task.id)}
-                onBlur={() => handleRenameSubmit(task.id)}
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <div className={`cli-task-title-row ${isAwaitingSession ? "cli-task-title-row-awaiting" : ""}`}>
-                {isSubAgent && task.assignedAgentRoleId ? (
+        <div className="task-item-content cli-task-content">
+          {renameTaskId === task.id ? (
+            <input
+              ref={renameInputRef}
+              type="text"
+              className="task-item-rename-input cli-rename-input"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => handleRenameKeyDown(e, task.id)}
+              onBlur={() => handleRenameSubmit(task.id)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <div
+              className={`cli-task-title-row ${isAwaitingSession ? "cli-task-title-row-awaiting" : ""}`}
+            >
+              {isSubAgent && task.assignedAgentRoleId ? (
+                <span
+                  className="cli-task-title cli-task-title-with-agent cli-task-title-subagent-role"
+                  title={`${sessionTitle} - ${subagentState.label}`}
+                >
+                  {(() => {
+                    const role = agentRoles.get(task.assignedAgentRoleId!);
+                    const label = role
+                      ? getLocalizedAgentRoleName(
+                          stripAllEmojis(role.displayName),
+                        )
+                      : getLocalizedSidebarSystemTitle(
+                          stripAllEmojis(sessionTitle),
+                        );
+                    return <span className="cli-task-agent-name">{label}</span>;
+                  })()}
+                </span>
+              ) : (
+                <SidebarWordBoundaryTitle
+                  text={getLocalizedSidebarSystemTitle(sessionTitle)}
+                  className="cli-task-title"
+                  title={getLocalizedSidebarSystemTitle(sessionTitle)}
+                />
+              )}
+              {hasChildren && !hasSessionSearch && (
+                <button
+                  type="button"
+                  className="cli-collapse-btn cli-collapse-btn-inline"
+                  onClick={(e) => toggleCollapse(e, task.id)}
+                  aria-expanded={!isCollapsed}
+                  aria-label={
+                    isCollapsed
+                      ? translate("common.expand", "Expand")
+                      : translate("common.collapse", "Collapse")
+                  }
+                  title={
+                    isCollapsed
+                      ? translate("common.expand", "Expand")
+                      : translate("common.collapse", "Collapse")
+                  }
+                >
+                  {isCollapsed ? (
+                    <ChevronRight
+                      size={14}
+                      strokeWidth={2}
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
+                  )}
+                </button>
+              )}
+              {!isAwaitingSession && (
+                <span className="cli-task-time-wrap">
+                  {showCompletionMarker && (
+                    <span
+                      className="task-completion-dot"
+                      title={
+                        showCompletionAttention
+                          ? translate(
+                              "sidebar.sessions.completedWithNewResultHint",
+                              "Completed · There are new completion results, marked as viewed after opening",
+                            )
+                          : translate("sidebar.sessions.completed", "Completed")
+                      }
+                      aria-label={
+                        showCompletionAttention
+                          ? translate(
+                              "sidebar.sessions.newResult",
+                              "new results",
+                            )
+                          : translate("sidebar.sessions.completed", "Completed")
+                      }
+                    />
+                  )}
                   <span
-                    className="cli-task-title cli-task-title-with-agent cli-task-title-subagent-role"
-                    title={sessionTitle}
+                    className="cli-task-automation-slot"
+                    aria-hidden={!isAutomatedTask}
                   >
-                    {(() => {
-                      const role = agentRoles.get(task.assignedAgentRoleId!);
-                      const label = role
-                        ? stripAllEmojis(role.displayName)
-                        : stripAllEmojis(sessionTitle);
-                      return (
-                        <span
-                          className="cli-task-agent-name"
-                          style={role ? { color: role.color } : undefined}
-                        >
-                          {label}
-                        </span>
-                      );
-                    })()}
-                  </span>
-                ) : (
-                  <SidebarWordBoundaryTitle
-                    text={sessionTitle}
-                    className="cli-task-title"
-                    title={sessionTitle}
-                  />
-                )}
-                {isAwaitingSession && (
-                  <span className="cli-task-awaiting-badge">Awaiting response</span>
-                )}
-                {hasChildren && !hasSessionSearch && (
-                  <button
-                    className="cli-collapse-btn cli-collapse-btn-inline"
-                    onClick={(e) => toggleCollapse(e, task.id)}
-                    title={isCollapsed ? "Expand" : "Collapse"}
-                  >
-                    {isCollapsed ? "▸" : "▾"}
-                  </button>
-                )}
-                {!isAwaitingSession && (
-                  <span className="cli-task-time-wrap">
-                    {showCompletionAttention && (
-                      <span className="task-completion-unread-dot" aria-hidden="true" />
-                    )}
                     {isAutomatedTask && (
                       <span
                         className="cli-task-automation-icon"
-                        title="Automated task"
-                        aria-label="Automated task"
+                        title={translate(
+                          "sidebar.sessions.automated",
+                          "Automated task",
+                        )}
+                        aria-label={translate(
+                          "sidebar.sessions.automated",
+                          "Automated task",
+                        )}
                       >
                         <Repeat2 size={13} strokeWidth={2} />
                       </span>
                     )}
-                    <span className="cli-task-time" aria-hidden="true">
-                      {formatRelativeShort(task.updatedAt || task.createdAt)}
-                    </span>
-                    {sessionActions}
                   </span>
-                )}
-                {isAwaitingSession && sessionActions && (
-                  <span className="cli-task-action-wrap">
-                    {sessionActions}
+                  <span className="cli-task-time" aria-hidden="true">
+                    {formatRelativeShort(task.updatedAt || task.createdAt)}
                   </span>
-                )}
-              </div>
-            )}
-          </div>
-
+                  {sessionActions ?? (
+                    <span
+                      className="cli-task-actions cli-task-actions-placeholder"
+                      aria-hidden="true"
+                    />
+                  )}
+                </span>
+              )}
+              {isAwaitingSession && sessionActions && (
+                <span className="cli-task-action-wrap">{sessionActions}</span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -1738,6 +2012,9 @@ function SidebarComponent({
     const { task, children } = node;
     const isCollapsed = !hasSessionSearch && collapsedTasks.has(task.id);
     const hasChildren = children.length > 0;
+    const isSubagentRoster =
+      hasChildren &&
+      children.every((child) => Boolean(child.task.parentTaskId));
 
     return (
       <div
@@ -1748,9 +2025,16 @@ function SidebarComponent({
 
         {/* Render children if not collapsed */}
         {hasChildren && !isCollapsed && (
-          <div className="task-tree-children">
+          <div
+            className={`task-tree-children${isSubagentRoster ? " task-tree-subagent-roster" : ""}`}
+          >
             {children.map((child, childIndex) =>
-              renderTaskNode(child, childIndex, depth + 1, childIndex === children.length - 1),
+              renderTaskNode(
+                child,
+                childIndex,
+                depth + 1,
+                childIndex === children.length - 1,
+              ),
             )}
           </div>
         )}
@@ -1760,32 +2044,10 @@ function SidebarComponent({
 
   const renderSidebarVirtualRow = (row: SidebarVirtualRow): React.ReactNode => {
     if (row.kind === "date-header") {
-      return <div className="sidebar-date-group">{row.label}</div>;
-    }
-    if (row.kind === "automated-header") {
       return (
-        <button
-          type="button"
-          className="automated-folder-header"
-          onClick={() => setAutomatedFolderCollapsed((value) => !value)}
-          aria-expanded={row.expanded}
-          title={row.expanded ? "Hide automated sessions" : "Show automated sessions"}
-        >
-          <span className="automated-folder-label">
-            <span className="terminal-only">AUTOMATED</span>
-            <span className="modern-only">Automated</span>
-            <span className="automated-folder-chevron" aria-hidden="true">
-              {row.expanded ? "▾" : "▸"}
-            </span>
-          </span>
-          <span className="automated-folder-count">{row.count}</span>
-          {row.hasActive && (
-            <span
-              className="cli-session-indicator cli-session-indicator-active automated-folder-active"
-              aria-label="Has active session"
-            />
-          )}
-        </button>
+        <div className="sidebar-date-group">
+          {translateSidebarDateGroup(row.label)}
+        </div>
       );
     }
     if (row.kind === "load-more") {
@@ -1801,7 +2063,12 @@ function SidebarComponent({
             {row.loading ? "loading more..." : "load more sessions"}
           </span>
           <span className="modern-only">
-            {row.loading ? "Loading more sessions..." : "Load more sessions"}
+            {row.loading
+              ? translate(
+                  "sidebar.sessions.loadingMore",
+                  "Loading more sessions...",
+                )
+              : translate("sidebar.sessions.loadMore", "Load more sessions")}
           </span>
         </button>
       );
@@ -1811,7 +2078,12 @@ function SidebarComponent({
       <div
         className={`task-tree-node ${row.row.depth > 0 ? "task-tree-node-child" : ""} ${row.section === "automated" ? "task-tree-node-automated" : ""} ${menuOpenTaskId === row.row.node.task.id ? "task-item-menu-open" : ""}`}
       >
-        {renderTaskRow(row.row.node, row.row.rootIndex, row.row.depth, row.row.isLast)}
+        {renderTaskRow(
+          row.row.node,
+          row.row.rootIndex,
+          row.row.depth,
+          row.row.isLast,
+        )}
       </div>
     );
   };
@@ -1823,7 +2095,10 @@ function SidebarComponent({
           <button
             type="button"
             className="update-banner"
-            aria-label="Open update settings"
+            aria-label={translate(
+              "sidebar.update.openSettings",
+              "Open update settings",
+            )}
             onMouseDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -1833,217 +2108,246 @@ function SidebarComponent({
               onViewUpdate?.();
             }}
           >
-            Update
+            {translate("sidebar.update", "Update")}
           </button>
           <button
             type="button"
             className="update-banner-dismiss"
-            aria-label="Dismiss update banner"
+            aria-label={translate(
+              "sidebar.update.dismiss",
+              "Dismiss update banner",
+            )}
             onClick={(event) => {
               event.stopPropagation();
               setUpdateDismissed(true);
             }}
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M9 3L3 9M3 3L9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M9 3L3 9M3 3L9 9"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </button>
         </div>
       )}
 
+      <div className="sidebar-brand-row">
+        <div
+          className="sidebar-brand-identity"
+          aria-label={`NeoWorker ${PRODUCT_DISPLAY_VERSION}`}
+        >
+          <span className="sidebar-brand-name">NeoWorker</span>
+          <span className="sidebar-brand-version">
+            {PRODUCT_DISPLAY_VERSION}
+          </span>
+        </div>
+        <button
+          type="button"
+          className={`sidebar-brand-search ${showSessionSearch ? "active" : ""}`}
+          onClick={() => {
+            setSessionsCollapsed(false);
+            setShowSessionSearch((value) => {
+              if (value) setSessionSearch("");
+              return !value;
+            });
+          }}
+          aria-pressed={showSessionSearch}
+          title={
+            showSessionSearch
+              ? translate("sidebar.sessions.hideSearch", "Hide search")
+              : translate("sidebar.sessions.search", "Search sessions")
+          }
+          aria-label={
+            showSessionSearch
+              ? translate("sidebar.sessions.hideSearch", "Hide search")
+              : translate("sidebar.sessions.search", "Search sessions")
+          }
+        >
+          <Search size={15} strokeWidth={1.8} aria-hidden="true" />
+        </button>
+      </div>
+
       {/* New Session Button */}
       <div className="sidebar-header">
         <div className="cli-header-actions sidebar-nav">
-          <button
-            className="new-task-btn cli-new-task-btn cli-action-btn sidebar-new-session-btn"
-            onClick={handleNewTask}
-          >
-            <span className="terminal-only">
-              <span className="cli-btn-bracket">[</span>
-              <span className="cli-btn-plus">+</span>
-              <span className="cli-btn-bracket">]</span>
-            </span>
-            <span className="cli-btn-text">
-              <span className="terminal-only">new_session</span>
-              <span className="modern-only cli-new-task-modern-label">
-                <span className="sidebar-home-btn-icon sidebar-new-session-icon" aria-hidden="true">
-                  <Plus size={16} strokeWidth={2} style={{ display: "block" }} />
-                </span>
-                <span>New</span>
+          <div className="sidebar-top-actions-row">
+            <button
+              className="new-task-btn cli-new-task-btn cli-action-btn sidebar-new-session-btn"
+              onClick={handleNewTask}
+            >
+              <span className="terminal-only">
+                <span className="cli-btn-bracket">[</span>
+                <span className="cli-btn-plus">+</span>
+                <span className="cli-btn-bracket">]</span>
               </span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className={`new-task-btn cli-new-task-btn cli-action-btn sidebar-home-btn sidebar-nav-item ${isAgentsActive ? "active" : ""}`}
-            onClick={onOpenAgents}
-            aria-pressed={isAgentsActive}
-            title="Agents"
-          >
-            <span className="cli-btn-text">
-              <span className="terminal-only">agents</span>
-              <span className="modern-only cli-new-task-modern-label">
-                <span className="sidebar-home-btn-icon" aria-hidden="true" style={{ display: "flex" }}>
-                  <UsersRound size={16} strokeWidth={2} style={{ display: "block" }} />
+              <span className="cli-btn-text">
+                <span className="terminal-only">new_session</span>
+                <span className="modern-only cli-new-task-modern-label">
+                  <span
+                    className="sidebar-home-btn-icon sidebar-new-session-icon"
+                    aria-hidden="true"
+                  >
+                    <Plus
+                      size={16}
+                      strokeWidth={2}
+                      style={{ display: "block" }}
+                    />
+                  </span>
+                  <span>{translate("sidebar.newWork", "New job")}</span>
                 </span>
-                <span>Agents</span>
               </span>
-            </span>
-          </button>
+            </button>
+          </div>
 
-          <button
-            className={`new-task-btn cli-new-task-btn cli-action-btn sidebar-devices-btn cli-devices-btn sidebar-nav-item ${isDevicesActive ? "active" : ""}`}
-            onClick={onOpenDevices}
-            title="Devices"
+          <div
+            className="sidebar-nav-group"
+            role="group"
+            aria-label={translate("sidebar.group.work", "Work")}
           >
-            <span className="terminal-only">
-              <span className="cli-btn-bracket">[</span>
-              <span className="cli-btn-accent">DV</span>
-              <span className="cli-btn-bracket">]</span>
-            </span>
-            <span className="cli-btn-text">
-              <span className="terminal-only">devices</span>
-              <span className="modern-only cli-new-task-modern-label">
-                <span className="sidebar-home-btn-icon" aria-hidden="true" style={{ display: 'flex' }}>
-                  <MacMiniIcon size={16} />
-                </span>
-                <span>Devices</span>
-              </span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className={`new-task-btn cli-new-task-btn cli-action-btn sidebar-home-btn sidebar-nav-item ${isInboxAgentActive ? "active" : ""}`}
-            onClick={onOpenInboxAgent}
-            aria-pressed={isInboxAgentActive}
-            title={inboxNavLabel}
-            aria-label={inboxNavLabel}
-          >
-            <span className="cli-btn-text">
-              <span className="terminal-only">inbox</span>
-              <span className="modern-only cli-new-task-modern-label">
-                <span className="sidebar-home-btn-icon" aria-hidden="true" style={{ display: 'flex' }}>
-                  <Inbox size={16} strokeWidth={2} style={{ display: 'block' }} />
-                </span>
-                <span>{inboxNavLabel}</span>
-              </span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className={`new-task-btn cli-new-task-btn cli-action-btn sidebar-home-btn sidebar-nav-item ${isHomeActive ? "active" : ""}`}
-            onClick={onOpenHome}
-            aria-pressed={isHomeActive}
-            title="Automations"
-          >
-            <span className="cli-btn-text">
-              <span className="terminal-only">automation</span>
-              <span className="modern-only cli-new-task-modern-label">
-                <span className="sidebar-home-btn-icon" aria-hidden="true" style={{ display: 'flex' }}>
-                  <Workflow size={16} strokeWidth={2} style={{ display: 'block' }} />
-                </span>
-                <span>Automations</span>
-              </span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className={`new-task-btn cli-new-task-btn cli-action-btn sidebar-home-btn sidebar-nav-item ${isEverydayAgentActive ? "active" : ""}`}
-            onClick={onOpenEverydayAgent}
-            aria-pressed={isEverydayAgentActive}
-            title="Everyday Agent"
-          >
-            <span className="cli-btn-text">
-              <span className="terminal-only">everyday_agent</span>
-              <span className="modern-only cli-new-task-modern-label">
-                <span className="sidebar-home-btn-icon" aria-hidden="true" style={{ display: "flex" }}>
-                  <Sparkles size={16} strokeWidth={2} style={{ display: "block" }} />
-                </span>
-                <span>Everyday</span>
-              </span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className="new-task-btn cli-new-task-btn cli-action-btn sidebar-home-btn sidebar-nav-item sidebar-more-toggle"
-            onClick={() => setMoreCollapsed((value) => !value)}
-            aria-expanded={isMoreExpanded}
-            title={isMoreExpanded ? "Collapse More" : "Expand More"}
-          >
-            <span className="cli-btn-text">
-              <span className="terminal-only">more</span>
-              <span className="modern-only cli-new-task-modern-label">
-                <span className="sidebar-home-btn-icon sidebar-more-dots" aria-hidden="true" style={{ display: "flex" }}>
-                  <Shapes size={16} strokeWidth={2.1} style={{ display: "block" }} />
-                </span>
-                <span>More</span>
-              </span>
-            </span>
-          </button>
-
-          {isMoreExpanded && (
-            <div className="sidebar-more-items">
-              <button
-                type="button"
-                className={`new-task-btn cli-new-task-btn cli-action-btn sidebar-home-btn sidebar-nav-item ${isMissionControlActive ? "active" : ""}`}
-                onClick={onOpenMissionControl}
-                aria-pressed={isMissionControlActive}
-                title="Mission Control"
-              >
-                <span className="cli-btn-text">
-                  <span className="terminal-only">mission_control</span>
-                  <span className="modern-only cli-new-task-modern-label">
-                    <span className="sidebar-home-btn-icon" aria-hidden="true" style={{ display: "flex" }}>
-                      <Users size={16} strokeWidth={2} style={{ display: "block" }} />
-                    </span>
-                    <span>Mission Control</span>
+            <button
+              type="button"
+              className={`new-task-btn cli-new-task-btn cli-action-btn sidebar-home-btn sidebar-nav-item ${isEverydayAgentActive ? "active" : ""}`}
+              onClick={onOpenEverydayAgent}
+              aria-pressed={isEverydayAgentActive}
+              title={translate("sidebar.proactiveAgent", "Daily assistant")}
+            >
+              <span className="cli-btn-text">
+                <span className="terminal-only">everyday_agent</span>
+                <span className="modern-only cli-new-task-modern-label">
+                  <span
+                    className="sidebar-home-btn-icon"
+                    aria-hidden="true"
+                    style={{ display: "flex" }}
+                  >
+                    <Sparkles
+                      size={16}
+                      strokeWidth={2}
+                      style={{ display: "block" }}
+                    />
+                  </span>
+                  <span>
+                    {translate("sidebar.proactive", "Daily assistant")}
                   </span>
                 </span>
-              </button>
+              </span>
+            </button>
 
-              <button
-                type="button"
-                className={`new-task-btn cli-new-task-btn cli-action-btn sidebar-home-btn sidebar-nav-item ${isHealthActive ? "active" : ""}`}
-                onClick={onOpenHealth}
-                aria-pressed={isHealthActive}
-                title="Health"
-              >
-                <span className="cli-btn-text">
-                  <span className="terminal-only">health</span>
-                  <span className="modern-only cli-new-task-modern-label">
-                    <span className="sidebar-home-btn-icon" aria-hidden="true" style={{ display: 'flex' }}>
-                      <HeartPulse size={16} strokeWidth={2} style={{ display: 'block' }} />
-                    </span>
-                    <span>Health</span>
+            <button
+              type="button"
+              className={`new-task-btn cli-new-task-btn cli-action-btn sidebar-home-btn sidebar-nav-item ${isAgentTeamActive ? "active" : ""}`}
+              onClick={onOpenAgentTeam}
+              aria-pressed={isAgentTeamActive}
+              title={translate("sidebar.agentTeam", "Agent team")}
+            >
+              <span className="cli-btn-text">
+                <span className="terminal-only">agent_team</span>
+                <span className="modern-only cli-new-task-modern-label">
+                  <span
+                    className="sidebar-home-btn-icon"
+                    aria-hidden="true"
+                    style={{ display: "flex" }}
+                  >
+                    <UsersRound
+                      size={16}
+                      strokeWidth={2}
+                      style={{ display: "block" }}
+                    />
+                  </span>
+                  <span>{translate("sidebar.agentTeam", "Agent team")}</span>
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={`new-task-btn cli-new-task-btn cli-action-btn sidebar-home-btn sidebar-nav-item ${isIdeasActive ? "active" : ""}`}
+              onClick={onOpenIdeas}
+              aria-pressed={isIdeasActive}
+              title={translate("sidebar.ideas", "Inspiration")}
+            >
+              <span className="cli-btn-text">
+                <span className="terminal-only">ideas</span>
+                <span className="modern-only cli-new-task-modern-label">
+                  <span
+                    className="sidebar-home-btn-icon"
+                    aria-hidden="true"
+                    style={{ display: "flex" }}
+                  >
+                    <Lightbulb
+                      size={16}
+                      strokeWidth={2}
+                      style={{ display: "block" }}
+                    />
+                  </span>
+                  <span>{translate("sidebar.ideas", "Inspiration")}</span>
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={`new-task-btn cli-new-task-btn cli-action-btn sidebar-home-btn sidebar-nav-item ${isAutomationsActive ? "active" : ""}`}
+              onClick={onOpenAutomations}
+              aria-pressed={isAutomationsActive}
+              title={translate("sidebar.automations", "Automation")}
+            >
+              <span className="cli-btn-text">
+                <span className="terminal-only">automations</span>
+                <span className="modern-only cli-new-task-modern-label">
+                  <span
+                    className="sidebar-home-btn-icon"
+                    aria-hidden="true"
+                    style={{ display: "flex" }}
+                  >
+                    <Clock3
+                      size={16}
+                      strokeWidth={2}
+                      style={{ display: "block" }}
+                    />
+                  </span>
+                  <span>{translate("sidebar.automations", "Automation")}</span>
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={`new-task-btn cli-new-task-btn cli-action-btn sidebar-home-btn sidebar-nav-item ${isToolsAndSkillsActive ? "active" : ""}`}
+              onClick={onOpenToolsAndSkills}
+              aria-pressed={isToolsAndSkillsActive}
+              title={translate("sidebar.toolsAndSkills", "Tools and Skills")}
+            >
+              <span className="cli-btn-text">
+                <span className="terminal-only">tools_and_skills</span>
+                <span className="modern-only cli-new-task-modern-label">
+                  <span
+                    className="sidebar-home-btn-icon"
+                    aria-hidden="true"
+                    style={{ display: "flex" }}
+                  >
+                    <Wrench
+                      size={16}
+                      strokeWidth={2}
+                      style={{ display: "block" }}
+                    />
+                  </span>
+                  <span>
+                    {translate("sidebar.toolsAndSkills", "Tools and Skills")}
                   </span>
                 </span>
-              </button>
-
-              <button
-                type="button"
-                className={`new-task-btn cli-new-task-btn cli-action-btn sidebar-ideas-btn sidebar-nav-item ${isIdeasActive ? "active" : ""}`}
-                onClick={onOpenIdeas}
-                aria-pressed={isIdeasActive}
-                title="Ideas"
-              >
-                <span className="cli-btn-text">
-                  <span className="terminal-only">ideas</span>
-                  <span className="modern-only cli-new-task-modern-label">
-                    <span className="sidebar-home-btn-icon" aria-hidden="true" style={{ display: 'flex' }}>
-                      <Lightbulb size={16} strokeWidth={2} style={{ display: 'block' }} />
-                    </span>
-                    <span>Ideas</span>
-                  </span>
-                </span>
-              </button>
-            </div>
-          )}
-
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2051,68 +2355,176 @@ function SidebarComponent({
         <div className="devices-sidebar-panel">
           <div className="devices-sidebar-header">
             <div className="devices-sidebar-home">
-              <button type="button" className="devices-sidebar-home-btn active" onClick={() => navigateDevicesSection("overview")}>
+              <button
+                type="button"
+                className="devices-sidebar-home-btn active"
+                onClick={() => navigateDevicesSection("overview")}
+              >
                 <span className="devices-sidebar-home-icon">
                   <Server size={14} />
                 </span>
-                <span>Fleet Home</span>
-                <span className="devices-sidebar-home-count">{remoteDeviceIds.size}</span>
+                <span>
+                  {translate("devices.sidebar.fleetHome", "Fleet Home")}
+                </span>
+                {remoteDeviceIds.size > 0 ? (
+                  <span className="devices-sidebar-home-count">
+                    {remoteDeviceIds.size}
+                  </span>
+                ) : null}
               </button>
             </div>
             <div className="devices-sidebar-grid">
-              <button type="button" className="devices-sidebar-link" onClick={() => triggerDevicesAction("pairing")}>
+              <button
+                type="button"
+                className="devices-sidebar-link"
+                onClick={() => triggerDevicesAction("pairing")}
+              >
                 <Server size={14} />
-                <span>Pair remote</span>
+                <span>
+                  {translate("devices.sidebar.pairRemote", "Pair remote")}
+                </span>
                 <strong>+</strong>
               </button>
-              <button type="button" className="devices-sidebar-link" onClick={() => navigateDevicesSection("alerts")}>
+              <button
+                type="button"
+                className="devices-sidebar-link"
+                onClick={() => navigateDevicesSection("alerts")}
+              >
                 <Bell size={14} />
-                <span>Attention queue</span>
+                <span>
+                  {translate(
+                    "devices.sidebar.attentionQueue",
+                    "Attention queue",
+                  )}
+                </span>
                 <strong>{remoteAttentionCount}</strong>
               </button>
-              <button type="button" className="devices-sidebar-link" onClick={() => navigateDevicesSection("apps")}>
+              <button
+                type="button"
+                className="devices-sidebar-link"
+                onClick={() => navigateDevicesSection("apps")}
+              >
                 <AppWindow size={14} />
-                <span>Setup inbox</span>
+                <span>
+                  {translate("devices.sidebar.setupInbox", "Setup inbox")}
+                </span>
               </button>
-              <button type="button" className="devices-sidebar-link" onClick={() => navigateDevicesSection("storage")}>
+              <button
+                type="button"
+                className="devices-sidebar-link"
+                onClick={() => navigateDevicesSection("storage")}
+              >
                 <HardDrive size={14} />
-                <span>Isolation check</span>
+                <span>
+                  {translate(
+                    "devices.sidebar.isolationCheck",
+                    "Isolation check",
+                  )}
+                </span>
               </button>
             </div>
           </div>
 
           <div className="devices-sidebar-subhead">
-            <span>Observer</span>
-            <button type="button" className="devices-sidebar-sort" onClick={() => navigateDevicesSection("alerts")}>
-              Attention {remoteAttentionCount > 0 ? `(${remoteAttentionCount})` : ""}
+            <span>{translate("devices.sidebar.observer", "Observer")}</span>
+            <button
+              type="button"
+              className="devices-sidebar-sort"
+              onClick={() => navigateDevicesSection("alerts")}
+            >
+              {translate("devices.sidebar.attention", "Attention")}{" "}
+              {remoteAttentionCount > 0 ? `(${remoteAttentionCount})` : ""}
             </button>
           </div>
 
           <div className="devices-sidebar-list">
-            <button type="button" className="devices-sidebar-item featured" onClick={() => navigateDevicesSection("tasks")}>
+            <button
+              type="button"
+              className="devices-sidebar-item featured"
+              onClick={() => navigateDevicesSection("tasks")}
+            >
               <div className="devices-sidebar-item-top">
                 <Rows3 size={14} />
-                <span className="devices-sidebar-item-label">Execution lane</span>
+                <span className="devices-sidebar-item-label">
+                  {translate("devices.sidebar.executionLane", "Execution lane")}
+                </span>
                 <span className="devices-sidebar-item-dot" />
               </div>
-              <strong>{remoteTasks.length > 0 ? `${remoteTasks.length} remote runs in view` : "No remote runs yet"}</strong>
-              <span>Use this page to launch and supervise work happening on paired remotes.</span>
+              <strong>
+                {remoteTasks.length > 0
+                  ? translate(
+                      "devices.sidebar.remoteRunsInView",
+                      "{count} remote runs in view",
+                    ).replace("{count}", String(remoteTasks.length))
+                  : translate(
+                      "devices.sidebar.noRemoteRuns",
+                      "No remote runs yet",
+                    )}
+              </strong>
+              <span>
+                {translate(
+                  "devices.sidebar.executionLaneHint",
+                  "Use this page to launch and supervise work happening on paired remotes.",
+                )}
+              </span>
             </button>
-            <button type="button" className="devices-sidebar-item" onClick={() => triggerDevicesAction("pairing")}>
+            <button
+              type="button"
+              className="devices-sidebar-item"
+              onClick={() => triggerDevicesAction("pairing")}
+            >
               <div className="devices-sidebar-item-top">
                 <Server size={14} />
-                <span>Fleet shape</span>
+                <span>
+                  {translate("devices.sidebar.fleetShape", "Fleet shape")}
+                </span>
               </div>
-              <strong>{remoteDeviceIds.size > 0 ? `${remoteDeviceIds.size} remotes paired or active` : "Start with your first remote"}</strong>
-              <span>Separate work, personal, archive, or automation machines without mixing disks.</span>
+              <strong>
+                {remoteDeviceIds.size > 0
+                  ? translate(
+                      "devices.sidebar.remotesPaired",
+                      "{count} remotes paired or active",
+                    ).replace("{count}", String(remoteDeviceIds.size))
+                  : translate(
+                      "devices.sidebar.startFirstRemote",
+                      "Start with your first remote",
+                    )}
+              </strong>
+              <span>
+                {translate(
+                  "devices.sidebar.fleetShapeHint",
+                  "Separate work, personal, archive, or automation machines without mixing disks.",
+                )}
+              </span>
             </button>
-            <button type="button" className="devices-sidebar-item" onClick={() => navigateDevicesSection("alerts")}>
+            <button
+              type="button"
+              className="devices-sidebar-item"
+              onClick={() => navigateDevicesSection("alerts")}
+            >
               <div className="devices-sidebar-item-top">
                 <Bell size={14} />
-                <span>Observer feed</span>
+                <span>
+                  {translate("devices.sidebar.observerFeed", "Observer feed")}
+                </span>
               </div>
-              <strong>{remoteAttentionCount > 0 ? `${remoteAttentionCount} issues waiting` : "Observer is quiet"}</strong>
-              <span>Approvals, failed app connections, and offline remotes surface here.</span>
+              <strong>
+                {remoteAttentionCount > 0
+                  ? translate(
+                      "devices.sidebar.issuesWaiting",
+                      "{count} issues waiting",
+                    ).replace("{count}", String(remoteAttentionCount))
+                  : translate(
+                      "devices.sidebar.observerQuiet",
+                      "Observer is quiet",
+                    )}
+              </strong>
+              <span>
+                {translate(
+                  "devices.sidebar.observerFeedHint",
+                  "Approvals, failed app connections, and offline remotes surface here.",
+                )}
+              </span>
             </button>
           </div>
         </div>
@@ -2120,140 +2532,208 @@ function SidebarComponent({
         <>
           {/* Sessions List Header */}
           <div className="sidebar-header-sessions">
-                <div className="new-task-btn cli-new-task-btn cli-action-btn cli-sessions-header">
+            <div className="new-task-btn cli-new-task-btn cli-action-btn cli-sessions-header">
+              <button
+                type="button"
+                className="cli-list-header-toggle"
+                onClick={() => setSessionsCollapsed((value) => !value)}
+                aria-expanded={!sessionsCollapsed}
+                title={
+                  sessionsCollapsed
+                    ? translate("sidebar.sessions.expand", "Expand sessions")
+                    : translate(
+                        "sidebar.sessions.collapse",
+                        "Collapse sessions",
+                      )
+                }
+              >
+                <span className="cli-section-prompt terminal-only">
+                  {sessionsCollapsed ? "▸" : "▾"}
+                </span>
+                <span className="terminal-only">
+                  {translate("sidebar.sessions.terminalTitle", "SESSIONS")}
+                </span>
+                <span className="modern-only cli-new-task-modern-label">
+                  <span
+                    className="sidebar-home-btn-icon cli-sessions-icon"
+                    aria-hidden="true"
+                  >
+                    <SlidersHorizontal
+                      size={16}
+                      strokeWidth={2}
+                      style={{ display: "block" }}
+                    />
+                  </span>
+                  <span className="cli-sessions-title">
+                    {translate("sidebar.sessions", "Sessions")}
+                  </span>
+                  <span
+                    className="cli-sessions-collapse-indicator"
+                    aria-hidden="true"
+                  >
+                    {sessionsCollapsed ? (
+                      <ChevronRight size={14} strokeWidth={2.5} />
+                    ) : (
+                      <ChevronDown size={14} strokeWidth={2.5} />
+                    )}
+                  </span>
+                </span>
+              </button>
+              <div className="cli-list-header-actions">
+                <button
+                  type="button"
+                  className={`sidebar-session-action ${showSessionSearch ? "active" : ""}`}
+                  onClick={() => {
+                    setSessionsCollapsed(false);
+                    setShowSessionSearch((value) => {
+                      if (value) setSessionSearch("");
+                      return !value;
+                    });
+                  }}
+                  aria-pressed={showSessionSearch}
+                  title={
+                    showSessionSearch
+                      ? translate("sidebar.sessions.hideSearch", "Hide search")
+                      : translate("sidebar.sessions.search", "Search sessions")
+                  }
+                >
+                  <Search size={16} strokeWidth={2} />
+                </button>
+                <button
+                  type="button"
+                  className={`sidebar-session-action ${showSessionFilters ? "active" : ""}`}
+                  onClick={() => {
+                    setSessionsCollapsed(false);
+                    setShowSessionFilters((value) => !value);
+                  }}
+                  aria-pressed={showSessionFilters}
+                  title={
+                    showSessionFilters
+                      ? translate(
+                          "sidebar.sessions.hideFilters",
+                          "Hide filters",
+                        )
+                      : translate("sidebar.sessions.filter", "Filter sessions")
+                  }
+                >
+                  <ListFilter size={16} strokeWidth={2} />
+                </button>
+              </div>
+            </div>
+
+            {(pinActionError || archiveActionError) && (
+              <div
+                className="cli-sidebar-error"
+                role="alert"
+                style={{
+                  marginTop: "4px",
+                  marginLeft: "4px",
+                  marginRight: "4px",
+                }}
+              >
+                {pinActionError || archiveActionError}
+              </div>
+            )}
+
+            {!sessionsCollapsed && showSessionFilters && (
+              <div className="sidebar-session-filter-panel">
+                <button
+                  type="button"
+                  className={`sidebar-session-filter-option ${sessionCategory === "all" ? "active" : ""}`}
+                  onClick={() => setSessionCategory("all")}
+                  aria-pressed={sessionCategory === "all"}
+                >
+                  <span>
+                    {translate(
+                      "sidebar.sessions.conversations",
+                      "Conversations",
+                    )}
+                  </span>
+                  {userTaskTree.length > 0 && (
+                    <span>{userTaskTree.length}</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className={`sidebar-session-filter-option ${sessionCategory === "team" ? "active" : ""}`}
+                  onClick={() => setSessionCategory("team")}
+                  disabled={teamSessionCount === 0}
+                  aria-pressed={sessionCategory === "team"}
+                >
+                  <span>{translate("sidebar.sessions.team", "Team")}</span>
+                  {teamSessionCount > 0 && <span>{teamSessionCount}</span>}
+                </button>
+                <button
+                  type="button"
+                  className={`sidebar-session-filter-option ${sessionCategory === "automated" ? "active" : ""}`}
+                  onClick={() => setSessionCategory("automated")}
+                  disabled={automatedTaskTree.length === 0}
+                  aria-pressed={sessionCategory === "automated"}
+                >
+                  <span>
+                    {translate("sidebar.sessions.automated", "Automated")}
+                  </span>
+                  {automatedTaskTree.length > 0 && (
+                    <span>{automatedTaskTree.length}</span>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {!sessionsCollapsed && showSessionSearch && (
+              <label className="sidebar-sessions-search">
+                <Search size={14} />
+                <input
+                  type="search"
+                  aria-label={translate(
+                    "sidebar.sessions.search",
+                    "Search sessions",
+                  )}
+                  placeholder={translate("sidebar.sessions.search", "Search")}
+                  value={sessionSearch}
+                  onChange={(event) => setSessionSearch(event.target.value)}
+                />
+              </label>
+            )}
+
+            {showFilterBar && (
+              <div className="session-filters-bar cli-session-filters">
+                <div className="session-filters-scroll">
                   <button
                     type="button"
-                    className="cli-list-header-toggle"
-                    onClick={() => setSessionsCollapsed((value) => !value)}
-                    aria-expanded={!sessionsCollapsed}
-                    title={sessionsCollapsed ? "Expand sessions" : "Collapse sessions"}
+                    className={`session-filter-chip standard ${activeModeFilters.size === 0 ? "active" : ""}`}
+                    onClick={() => setActiveModeFilters(new Set())}
                   >
-                    <span className="cli-section-prompt terminal-only">{sessionsCollapsed ? "▸" : "▾"}</span>
-                    <span className="terminal-only">SESSIONS</span>
-                    <span className="modern-only cli-new-task-modern-label">
-                      <span className="sidebar-home-btn-icon cli-sessions-icon" aria-hidden="true">
-                        <SlidersHorizontal size={16} strokeWidth={2} style={{ display: 'block' }} />
-                      </span>
-                      <span className="cli-sessions-title">Sessions</span>
-                      <span className="cli-sessions-collapse-indicator" aria-hidden="true">
-                        {sessionsCollapsed ? (
-                          <ChevronRight size={14} strokeWidth={2.5} />
-                        ) : (
-                          <ChevronDown size={14} strokeWidth={2.5} />
-                        )}
-                      </span>
-                    </span>
+                    {translate("sidebar.sessions.all", "All")}
                   </button>
-                  <div className="cli-list-header-actions">
+                  {availableModes.map((mode) => (
                     <button
+                      key={mode}
                       type="button"
-                      className={`sidebar-session-action ${showSessionSearch ? "active" : ""}`}
-                      onClick={() => {
-                        setSessionsCollapsed(false);
-                        setShowSessionSearch((value) => {
-                          if (value) setSessionSearch("");
-                          return !value;
-                        });
-                      }}
-                      aria-pressed={showSessionSearch}
-                      title={showSessionSearch ? "Hide search" : "Search sessions"}
+                      className={`session-filter-chip ${mode} ${activeModeFilters.has(mode) ? "active" : ""}`}
+                      onClick={() => toggleModeFilter(mode)}
                     >
-                      <Search size={16} strokeWidth={2} />
+                      <span className="filter-chip-dot" />
+                      {mode}
                     </button>
-                    <button
-                      type="button"
-                      className={`sidebar-session-action ${showSessionFilters ? "active" : ""}`}
-                      onClick={() => {
-                        setSessionsCollapsed(false);
-                        setShowSessionFilters((value) => !value);
-                      }}
-                      aria-pressed={showSessionFilters}
-                      title={showSessionFilters ? "Hide filters" : "Filter sessions"}
-                    >
-                      <ListFilter size={16} strokeWidth={2} />
-                    </button>
-                  </div>
+                  ))}
                 </div>
-
-                {(pinActionError || archiveActionError) && (
-                  <div className="cli-sidebar-error" role="alert" style={{ marginTop: '4px', marginLeft: '4px', marginRight: '4px' }}>
-                    {pinActionError || archiveActionError}
-                  </div>
-                )}
-
-                {!sessionsCollapsed && showSessionFilters && (
-                  <div className="sidebar-session-filter-panel">
-                    <button
-                      type="button"
-                      className={`sidebar-session-filter-option ${showFailedSessions ? "active" : ""}`}
-                      onClick={() => setShowFailedSessions((value) => !value)}
-                      disabled={failedSessionCount === 0}
-                    >
-                      <span>Failed</span>
-                      {failedSessionCount > 0 && <span>{failedSessionCount}</span>}
-                    </button>
-                    <button
-                      type="button"
-                      className={`sidebar-session-filter-option ${showAutomatedSessions ? "active" : ""}`}
-                      onClick={() => {
-                        setShowAutomatedSessions((value) => !value);
-                        setAutomatedFolderCollapsed(false);
-                      }}
-                    >
-                      <span>Automated</span>
-                      {automatedTaskTree.length > 0 && <span>{automatedTaskTree.length}</span>}
-                    </button>
-                  </div>
-                )}
-
-                {!sessionsCollapsed && showSessionSearch && (
-                  <label className="sidebar-sessions-search">
-                    <Search size={14} />
-                    <input
-                      type="search"
-                      aria-label="Search sessions"
-                      placeholder="Search"
-                      value={sessionSearch}
-                      onChange={(event) => setSessionSearch(event.target.value)}
-                    />
-                  </label>
-                )}
-
-                {showFilterBar && (
-                  <div className="session-filters-bar cli-session-filters">
-                    <div className="session-filters-scroll">
-                      <button
-                        type="button"
-                        className={`session-filter-chip standard ${activeModeFilters.size === 0 ? "active" : ""}`}
-                        onClick={() => setActiveModeFilters(new Set())}
-                      >
-                        All
-                      </button>
-                      {availableModes.map((mode) => (
-                        <button
-                          key={mode}
-                          type="button"
-                          className={`session-filter-chip ${mode} ${activeModeFilters.has(mode) ? "active" : ""}`}
-                          onClick={() => toggleModeFilter(mode)}
-                        >
-                          <span className="filter-chip-dot" />
-                          {mode}
-                        </button>
-                      ))}
-                    </div>
-                    {activeModeFilters.size > 0 && (
-                      <button
-                        type="button"
-                        className="session-filter-clear"
-                        onClick={() => setActiveModeFilters(new Set())}
-                        title="Clear filters"
-                      >
-                        Clear
-                      </button>
+                {activeModeFilters.size > 0 && (
+                  <button
+                    type="button"
+                    className="session-filter-clear"
+                    onClick={() => setActiveModeFilters(new Set())}
+                    title={translate(
+                      "sidebar.sessions.clearFilters",
+                      "Clear filters",
                     )}
-                  </div>
+                  >
+                    {translate("sidebar.sessions.clearFilters", "Clear")}
+                  </button>
                 )}
               </div>
+            )}
+          </div>
 
           {/* Sessions Scrollable List */}
           <div
@@ -2262,86 +2742,125 @@ function SidebarComponent({
           >
             {!sessionsCollapsed && (
               <>
-            {filteredTaskTree.length === 0 && visibleAutomatedTaskTree.length === 0 ? (
-              isLoadingSessions && !hasSessionSearch && activeModeFilters.size === 0 ? (
-                <div className="sidebar-session-skeleton" aria-label="Loading sessions">
-                  <span className="sidebar-session-skeleton-line" />
-                  <span className="sidebar-session-skeleton-line" />
-                  <span className="sidebar-session-skeleton-line" />
-                </div>
-              ) : hasSessionSearch ? (
-                <div
-                  className={`sidebar-empty cli-empty ${uiDensity === "focused" ? "sidebar-empty-focused" : ""}`}
-                >
-                  <div className="sidebar-empty-message sidebar-search-empty-message">
-                    <Search size={32} style={{ opacity: 0.3 }} />
-                    <p>No matching sessions</p>
-                    <span>Try a different title, prompt, or session id</span>
-                  </div>
-                </div>
-              ) : activeModeFilters.size > 0 ? null : (
-                <div
-                  className={`sidebar-empty cli-empty ${uiDensity === "focused" ? "sidebar-empty-focused" : ""}`}
-                >
-                  <pre className="cli-tree terminal-only">{`├── (no sessions yet)
-└── ...`}</pre>
-                  {uiDensity === "focused" ? (
-                    <div className="sidebar-empty-message">
-                      <EyeOff size={32} style={{ opacity: 0.3 }} />
-                      <p>Your conversations will appear here</p>
-                      <span>Start a new session to get going</span>
+                {filteredTaskTree.length === 0 &&
+                visibleAutomatedTaskTree.length === 0 ? (
+                  isLoadingSessions &&
+                  !hasSessionSearch &&
+                  activeModeFilters.size === 0 ? (
+                    <div
+                      className="sidebar-session-skeleton"
+                      aria-label={translate(
+                        "sidebar.sessions.loading",
+                        "Loading sessions",
+                      )}
+                    >
+                      <span className="sidebar-session-skeleton-line" />
+                      <span className="sidebar-session-skeleton-line" />
+                      <span className="sidebar-session-skeleton-line" />
                     </div>
-                  ) : (
-                    <p className="cli-hint">
-                      <span className="terminal-only"># start a new session above</span>
-                      <span className="modern-only">Start a new session to begin</span>
-                    </p>
-                  )}
-                </div>
-              )
-            ) : useVirtualizedTaskRows ? (
-              <VirtualList
-                items={sidebarVirtualRows}
-                getItemKey={(row) => {
-                  if (row.kind === "task") return `${row.section ?? "user"}:${row.row.node.task.id}`;
-                  return row.id;
-                }}
-                getItemHeight={(row) =>
-                  row.kind === "date-header"
-                    ? uiDensity === "focused"
-                      ? SIDEBAR_FOCUSED_DATE_HEADER_HEIGHT
-                      : SIDEBAR_DATE_HEADER_HEIGHT
-                    : row.kind === "automated-header"
-                      ? SIDEBAR_AUTOMATED_HEADER_HEIGHT
-                      : row.kind === "load-more"
-                        ? SIDEBAR_LOAD_MORE_HEIGHT
-                        : uiDensity === "focused"
-                          ? SIDEBAR_FOCUSED_ITEM_HEIGHT
-                          : SIDEBAR_ITEM_HEIGHT
-                }
-                renderItem={(row) => renderSidebarVirtualRow(row)}
-                estimatedItemHeight={
-                  uiDensity === "focused" ? SIDEBAR_FOCUSED_ITEM_HEIGHT : SIDEBAR_ITEM_HEIGHT
-                }
-                overscan={10}
-                enabled
-                className="sidebar-virtual-list"
-                style={{ height: "100%" }}
-                role="list"
-                onScrollNearEnd={onLoadMoreTasks}
-              />
-            ) : (
-              sidebarVirtualRows.map((row) => (
-                <div
-                  key={
-                    row.kind === "task" ? `${row.section ?? "user"}:${row.row.node.task.id}` : row.id
-                  }
-                >
-                  {renderSidebarVirtualRow(row)}
-                </div>
-              ))
-            )}
-
+                  ) : hasSessionSearch ? (
+                    <div
+                      className={`sidebar-empty cli-empty ${uiDensity === "focused" ? "sidebar-empty-focused" : ""}`}
+                    >
+                      <div className="sidebar-empty-message sidebar-search-empty-message">
+                        <Search size={32} style={{ opacity: 0.3 }} />
+                        <p>
+                          {translate(
+                            "sidebar.sessions.noMatches",
+                            "No matching sessions",
+                          )}
+                        </p>
+                        <span>
+                          {translate(
+                            "sidebar.sessions.noMatchesHint",
+                            "Try a different title, prompt, or session id",
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ) : activeModeFilters.size > 0 ? null : (
+                    <div
+                      className={`sidebar-empty cli-empty ${uiDensity === "focused" ? "sidebar-empty-focused" : ""}`}
+                    >
+                      <pre className="cli-tree terminal-only">{`├── (no sessions yet)
+└── ...`}</pre>
+                      {uiDensity === "focused" ? (
+                        <div className="sidebar-empty-message">
+                          <EyeOff size={32} style={{ opacity: 0.3 }} />
+                          <p>
+                            {translate(
+                              "sidebar.sessions.emptyTitle",
+                              "Your conversations will appear here",
+                            )}
+                          </p>
+                          <span>
+                            {translate(
+                              "sidebar.sessions.emptyHint",
+                              "Start a new session to get going",
+                            )}
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="cli-hint">
+                          <span className="terminal-only">
+                            # start a new session above
+                          </span>
+                          <span className="modern-only">
+                            {translate(
+                              "sidebar.sessions.emptyModern",
+                              "Start a new session to begin",
+                            )}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                  )
+                ) : useVirtualizedTaskRows ? (
+                  <VirtualList
+                    items={sidebarVirtualRows}
+                    getItemKey={(row) => {
+                      if (row.kind === "task")
+                        return `${row.section ?? "user"}:${row.row.node.task.id}`;
+                      return row.id;
+                    }}
+                    getItemHeight={(row) =>
+                      row.kind === "date-header"
+                        ? uiDensity === "focused"
+                          ? SIDEBAR_FOCUSED_DATE_HEADER_HEIGHT
+                          : SIDEBAR_DATE_HEADER_HEIGHT
+                        : row.kind === "load-more"
+                          ? SIDEBAR_LOAD_MORE_HEIGHT
+                          : uiDensity === "focused"
+                            ? SIDEBAR_FOCUSED_ITEM_HEIGHT
+                            : SIDEBAR_ITEM_HEIGHT
+                    }
+                    renderItem={(row) => renderSidebarVirtualRow(row)}
+                    estimatedItemHeight={
+                      uiDensity === "focused"
+                        ? SIDEBAR_FOCUSED_ITEM_HEIGHT
+                        : SIDEBAR_ITEM_HEIGHT
+                    }
+                    overscan={10}
+                    enabled
+                    className="sidebar-virtual-list"
+                    style={{ height: "100%" }}
+                    role="list"
+                    onScrollNearEnd={onLoadMoreTasks}
+                    suppressAutoScrollOnItemsChange
+                  />
+                ) : (
+                  sidebarVirtualRows.map((row) => (
+                    <div
+                      key={
+                        row.kind === "task"
+                          ? `${row.section ?? "user"}:${row.row.node.task.id}`
+                          : row.id
+                      }
+                    >
+                      {renderSidebarVirtualRow(row)}
+                    </div>
+                  ))
+                )}
               </>
             )}
           </div>
@@ -2350,12 +2869,11 @@ function SidebarComponent({
 
       {/* Footer */}
       <div className="sidebar-footer cli-sidebar-footer">
-        <InfraWalletBadge onOpenSettings={onOpenSettings} />
         <div className="cli-footer-actions">
           <button
             className="settings-btn cli-settings-btn"
             onClick={onOpenSettings}
-            title="Settings"
+            title={translate("sidebar.settings", "Settings")}
           >
             <span className="terminal-only">[cfg]</span>
             <span className="modern-only">
@@ -2372,73 +2890,29 @@ function SidebarComponent({
                 <circle cx="12" cy="12" r="3" />
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
-              Settings
+              {translate("sidebar.settings", "Settings")}
             </span>
           </button>
+          {onOpenSetupGuide && (
+            <button
+              className="settings-btn cli-settings-btn cli-onboarding-btn"
+              onClick={onOpenSetupGuide}
+              title={translate("sidebar.setupWizard.title", "Open setup guide")}
+              aria-label={translate(
+                "sidebar.setupWizard.aria",
+                "Open setup guide",
+              )}
+            >
+              <span className="terminal-only">[guide]</span>
+              <span className="modern-only">
+                <Sparkles size={15} strokeWidth={2} />
+                {translate("sidebar.setupWizard", "Setup Guide")}
+              </span>
+            </button>
+          )}
         </div>
       </div>
     </div>
-  );
-}
-
-function InfraWalletBadge({ onOpenSettings }: { onOpenSettings: () => void }) {
-  const [balance, setBalance] = useState<string | null>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const ipcAPI = window.electronAPI;
-    if (!ipcAPI?.infraGetStatus || !ipcAPI?.infraGetSettings) return;
-
-    const load = async () => {
-      try {
-        const [status, settings] = await Promise.all([
-          ipcAPI.infraGetStatus(),
-          ipcAPI.infraGetSettings(),
-        ]);
-        if (settings?.showWalletInSidebar && status?.enabled && status?.wallet?.balanceUsdc) {
-          setBalance(status.wallet.balanceUsdc);
-          setVisible(true);
-        } else {
-          setVisible(false);
-        }
-      } catch {
-        setVisible(false);
-      }
-    };
-
-    load();
-
-    const unsubscribe = ipcAPI.onInfraStatusChange?.((status: InfraStatus) => {
-      if (status?.enabled && status?.wallet?.balanceUsdc) {
-        setBalance(status.wallet.balanceUsdc);
-        setVisible(true);
-      }
-    });
-    return () => unsubscribe?.();
-  }, []);
-
-  if (!visible || !balance) return null;
-
-  return (
-    <button
-      type="button"
-      className="infra-wallet-badge"
-      onClick={onOpenSettings}
-      title="Infrastructure — click to open settings"
-      aria-label="Open Infrastructure settings"
-    >
-      <svg
-        width="12"
-        height="12"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-      </svg>
-      <span className="infra-wallet-balance">{balance} USDC</span>
-    </button>
   );
 }
 

@@ -43,11 +43,15 @@ describe("DispatchedAgentsPanel compact stream rows", () => {
   it("renders compact inline time rows for step and progress events", () => {
     const childTasks = [makeTask()];
     const childEvents = [
-      makeEvent("step_started", 1740840900000, { description: "collect requirements" }),
+      makeEvent("step_started", 1740840900000, {
+        description: "collect requirements",
+      }),
       makeEvent("progress_update", 1740840960000, {
         message: "reviewing workspace notes for edge cases",
       }),
-      makeEvent("step_completed", 1740841020000, { description: "collect requirements" }),
+      makeEvent("step_completed", 1740841020000, {
+        description: "collect requirements",
+      }),
     ];
 
     const markup = render(

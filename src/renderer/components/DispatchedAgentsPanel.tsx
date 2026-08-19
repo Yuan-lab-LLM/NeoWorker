@@ -10,6 +10,8 @@ import { replaceEmojisInChildren } from "../utils/emoji-replacer";
 import { getEffectiveTaskEventType } from "../utils/task-event-compat";
 import { sanitizeToolCallTextFromAssistant } from "../../shared/tool-call-text-sanitizer";
 import { formatProviderErrorForDisplay } from "../../shared/provider-error-format";
+import { localizeErrorText } from "../utils/localized-error-text";
+import { translate, useLanguage } from "../i18n";
 
 interface AgentRoleInfo {
   id: string;
@@ -96,11 +98,17 @@ function buildTaskCompletionStreamText(payload: TaskEvent["payload"]): string {
   const semanticSummary =
     typeof p?.semanticSummary === "string" ? p.semanticSummary.trim() : "";
   const verificationVerdict =
-    typeof p?.verificationVerdict === "string" ? p.verificationVerdict.trim() : "";
+    typeof p?.verificationVerdict === "string"
+      ? p.verificationVerdict.trim()
+      : "";
   const verificationReport =
-    typeof p?.verificationReport === "string" ? p.verificationReport.trim() : "";
+    typeof p?.verificationReport === "string"
+      ? p.verificationReport.trim()
+      : "";
 
-  const summary = [resultSummary, semanticSummary].filter((value) => value.length > 0).join("\n\n");
+  const summary = [resultSummary, semanticSummary]
+    .filter((value) => value.length > 0)
+    .join("\n\n");
   if (!verificationVerdict && !verificationReport) {
     return summary || "Task completed successfully";
   }
@@ -112,7 +120,9 @@ function buildTaskCompletionStreamText(payload: TaskEvent["payload"]): string {
     .filter((value) => value.length > 0)
     .join("\n");
 
-  return [summary, verification].filter((value) => value.length > 0).join("\n\n");
+  return [summary, verification]
+    .filter((value) => value.length > 0)
+    .join("\n\n");
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- event payloads are untyped
@@ -124,7 +134,8 @@ function formatEventContent(
   const p = payload as Record<string, unknown> | undefined;
   const step = p?.step as Record<string, unknown> | undefined;
   const plan = p?.plan as Record<string, unknown> | undefined;
-  const sanitize = (value: unknown): string => sanitizeToolCallTextFromAssistant(String(value || "")).text;
+  const sanitize = (value: unknown): string =>
+    sanitizeToolCallTextFromAssistant(String(value || "")).text;
   switch (type) {
     case "assistant_message":
       return sanitize(p?.message);
@@ -135,7 +146,13 @@ function formatEventContent(
     case "step_completed":
       return `Completed: ${sanitize(step?.description || p?.description || "step") || "step"}`;
     case "step_failed":
-      return `Failed: ${sanitize(step?.description || p?.description || "step") || "step"} — ${sanitize(formatProviderErrorForDisplay(String(p?.error || p?.reason || ""), { task }))}`;
+      return `Failed: ${sanitize(step?.description || p?.description || "step") || "step"} — ${sanitize(
+        localizeErrorText(
+          formatProviderErrorForDisplay(String(p?.error || p?.reason || ""), {
+            task,
+          }),
+        ),
+      )}`;
     case "plan_created": {
       const steps = (plan?.steps as unknown[]) || (p?.steps as unknown[]) || [];
       return `Created plan with ${steps.length} step${steps.length !== 1 ? "s" : ""}`;
@@ -145,23 +162,43 @@ function formatEventContent(
     case "task_cancelled":
       return "Task was cancelled";
     case "error":
-      return sanitize(formatProviderErrorForDisplay(String(p?.message || p?.error || "An error occurred"), { task }));
+      return sanitize(
+        localizeErrorText(
+          formatProviderErrorForDisplay(
+            String(p?.message || p?.error || "An error occurred"),
+            { task },
+          ),
+        ),
+      );
     default:
       return "";
   }
 }
 
-function StreamBubble({ item, isCompactEvent }: { item: StreamItem; isCompactEvent: boolean }) {
+function StreamBubble({
+  item,
+  isCompactEvent,
+}: {
+  item: StreamItem;
+  isCompactEvent: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   const isLong = item.content.length > 600;
   const displayContent =
-    !isCompactEvent && isLong && !expanded ? item.content.slice(0, 600) + "..." : item.content;
+    !isCompactEvent && isLong && !expanded
+      ? item.content.slice(0, 600) + "..."
+      : item.content;
 
   const time = new Date(item.timestamp);
-  const timeStr = time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const timeStr = time.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   const isStep =
-    item.type === "step_started" || item.type === "step_completed" || item.type === "step_failed";
+    item.type === "step_started" ||
+    item.type === "step_completed" ||
+    item.type === "step_failed";
   const isMarkdown = item.type === "assistant_message";
 
   if (isCompactEvent) {
@@ -170,16 +207,32 @@ function StreamBubble({ item, isCompactEvent }: { item: StreamItem; isCompactEve
         <div className="stream-event-row">
           <div className="stream-event-main">
             {item.type === "step_completed" && (
-              <Check size={14} strokeWidth={2.5} className="step-icon step-icon-completed" />
+              <Check
+                size={14}
+                strokeWidth={2.5}
+                className="step-icon step-icon-completed"
+              />
             )}
             {item.type === "step_failed" && (
-              <X size={14} strokeWidth={2.5} className="step-icon step-icon-failed" />
+              <X
+                size={14}
+                strokeWidth={2.5}
+                className="step-icon step-icon-failed"
+              />
             )}
             {item.type === "step_started" && (
-              <Play size={14} strokeWidth={2} className="step-icon step-icon-started" />
+              <Play
+                size={14}
+                strokeWidth={2}
+                className="step-icon step-icon-started"
+              />
             )}
             {item.type === "progress_update" && (
-              <Loader2 size={14} strokeWidth={2} className="step-icon step-icon-progress" />
+              <Loader2
+                size={14}
+                strokeWidth={2}
+                className="step-icon step-icon-progress"
+              />
             )}
             <p
               className={`step-event ${item.type === "step_completed" ? "step-completed" : ""} ${item.type === "step_failed" ? "step-failed" : ""} ${item.type === "progress_update" ? "step-progress" : ""}`}
@@ -187,8 +240,12 @@ function StreamBubble({ item, isCompactEvent }: { item: StreamItem; isCompactEve
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkBreaks]}
                 components={{
-                  p: ({ children }) => <>{replaceEmojisInChildren(children, 13)}</>,
-                  li: ({ children }) => <>{replaceEmojisInChildren(children, 13)}</>,
+                  p: ({ children }) => (
+                    <>{replaceEmojisInChildren(children, 13)}</>
+                  ),
+                  li: ({ children }) => (
+                    <>{replaceEmojisInChildren(children, 13)}</>
+                  ),
                 }}
               >
                 {normalizeMarkdownForCollab(displayContent)}
@@ -209,19 +266,35 @@ function StreamBubble({ item, isCompactEvent }: { item: StreamItem; isCompactEve
             className={`step-event ${item.type === "step_completed" ? "step-completed" : ""} ${item.type === "step_failed" ? "step-failed" : ""}`}
           >
             {item.type === "step_completed" && (
-              <Check size={14} strokeWidth={2.5} className="step-icon step-icon-completed" />
+              <Check
+                size={14}
+                strokeWidth={2.5}
+                className="step-icon step-icon-completed"
+              />
             )}
             {item.type === "step_failed" && (
-              <X size={14} strokeWidth={2.5} className="step-icon step-icon-failed" />
+              <X
+                size={14}
+                strokeWidth={2.5}
+                className="step-icon step-icon-failed"
+              />
             )}
             {item.type === "step_started" && (
-              <Play size={14} strokeWidth={2} className="step-icon step-icon-started" />
+              <Play
+                size={14}
+                strokeWidth={2}
+                className="step-icon step-icon-started"
+              />
             )}
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkBreaks]}
               components={{
-                p: ({ children }) => <>{replaceEmojisInChildren(children, 13)}</>,
-                li: ({ children }) => <>{replaceEmojisInChildren(children, 13)}</>,
+                p: ({ children }) => (
+                  <>{replaceEmojisInChildren(children, 13)}</>
+                ),
+                li: ({ children }) => (
+                  <>{replaceEmojisInChildren(children, 13)}</>
+                ),
               }}
             >
               {normalizeMarkdownForCollab(displayContent)}
@@ -241,8 +314,13 @@ function StreamBubble({ item, isCompactEvent }: { item: StreamItem; isCompactEve
       <div className="thought-footer">
         <span className="thought-time">{timeStr}</span>
         {!isCompactEvent && isLong && (
-          <button className="thought-expand-btn" onClick={() => setExpanded(!expanded)}>
-            {expanded ? "Show less" : "Show more"}
+          <button
+            className="thought-expand-btn"
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded
+              ? translate("common.showLess", "Show less")
+              : translate("common.showMore", "Show more")}
           </button>
         )}
       </div>
@@ -252,18 +330,28 @@ function StreamBubble({ item, isCompactEvent }: { item: StreamItem; isCompactEve
 
 function DispatchPhaseIndicator({ childTasks }: { childTasks: Task[] }) {
   const allTerminal = childTasks.every(
-    (t) => t.status === "completed" || t.status === "failed" || t.status === "cancelled",
+    (t) =>
+      t.status === "completed" ||
+      t.status === "failed" ||
+      t.status === "cancelled",
   );
   const anyWorking = childTasks.some(
-    (t) => t.status === "executing" || t.status === "planning" || t.status === "interrupted",
+    (t) =>
+      t.status === "executing" ||
+      t.status === "planning" ||
+      t.status === "interrupted",
   );
-  const phase = allTerminal ? "complete" : anyWorking ? "working" : "dispatched";
+  const phase = allTerminal
+    ? "complete"
+    : anyWorking
+      ? "working"
+      : "dispatched";
 
   const phases = ["dispatched", "working", "complete"];
   const labels: Record<string, string> = {
-    dispatched: "Dispatched",
-    working: "Working",
-    complete: "Complete",
+    dispatched: translate("dispatchedAgents.phase.dispatched", "Dispatched"),
+    working: translate("dispatchedAgents.phase.working", "Working"),
+    complete: translate("dispatchedAgents.phase.complete", "Complete"),
   };
   const currentIndex = phases.indexOf(phase);
 
@@ -295,7 +383,10 @@ export function DispatchedAgentsPanel({
   onSelectChildTask,
   onOpenChildAgentSidebar,
 }: DispatchedAgentsPanelProps) {
-  const [agentRoles, setAgentRoles] = useState<Map<string, AgentRoleInfo>>(new Map());
+  useLanguage();
+  const [agentRoles, setAgentRoles] = useState<Map<string, AgentRoleInfo>>(
+    new Map(),
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -328,7 +419,11 @@ export function DispatchedAgentsPanel({
     while (scrollParent) {
       const style = getComputedStyle(scrollParent);
       const overflowY = style.overflowY;
-      if (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") {
+      if (
+        overflowY === "auto" ||
+        overflowY === "scroll" ||
+        overflowY === "overlay"
+      ) {
         break;
       }
       scrollParent = scrollParent.parentElement;
@@ -338,7 +433,9 @@ export function DispatchedAgentsPanel({
 
     const onScroll = () => {
       const remaining =
-        scrollParent!.scrollHeight - scrollParent!.scrollTop - scrollParent!.clientHeight;
+        scrollParent!.scrollHeight -
+        scrollParent!.scrollTop -
+        scrollParent!.clientHeight;
       stickToBottomRef.current = remaining <= 120;
     };
     onScroll();
@@ -356,7 +453,9 @@ export function DispatchedAgentsPanel({
   // Resolve agent info per child task
   const agentInfos = useMemo(() => {
     return childTasks.map((task) => {
-      const role = task.assignedAgentRoleId ? agentRoles.get(task.assignedAgentRoleId) : undefined;
+      const role = task.assignedAgentRoleId
+        ? agentRoles.get(task.assignedAgentRoleId)
+        : undefined;
       return {
         task,
         role,
@@ -373,9 +472,15 @@ export function DispatchedAgentsPanel({
       if (!DISPLAY_EVENT_TYPES.has(effectiveType)) continue;
       const task = childTasks.find((t) => t.id === event.taskId);
       if (!task) continue;
-      const role = task.assignedAgentRoleId ? agentRoles.get(task.assignedAgentRoleId) : undefined;
+      const role = task.assignedAgentRoleId
+        ? agentRoles.get(task.assignedAgentRoleId)
+        : undefined;
 
-      const content = formatEventContent(effectiveType as StreamEventType, event.payload, task);
+      const content = formatEventContent(
+        effectiveType as StreamEventType,
+        event.payload,
+        task,
+      );
       if (!content) continue;
 
       items.push({
@@ -394,20 +499,33 @@ export function DispatchedAgentsPanel({
   }, [childEvents, childTasks, agentRoles]);
 
   const workingCount = childTasks.filter(
-    (t) => t.status === "executing" || t.status === "planning" || t.status === "interrupted",
+    (t) =>
+      t.status === "executing" ||
+      t.status === "planning" ||
+      t.status === "interrupted",
   ).length;
   const openChildAgent = onOpenChildAgentSidebar ?? onSelectChildTask;
 
   return (
     <div className="dispatched-agents-panel" ref={scrollRef}>
       <div className="thoughts-header">
-        <span className="thoughts-title">Dispatched Agents ({childTasks.length})</span>
+        <span className="thoughts-title">
+          {translate("dispatchedAgents.title", "Dispatched Agents ({count})", {
+            count: childTasks.length,
+          })}
+        </span>
       </div>
 
       {/* Agent chips */}
       <div className="team-announcement">
         <div className="team-announcement-text">
-          {childTasks.length} agent{childTasks.length !== 1 ? "s" : ""} working on sub-tasks
+          {translate(
+            "dispatchedAgents.workingOnSubtasks",
+            "{count} agents working on sub-tasks",
+            {
+              count: childTasks.length,
+            },
+          )}
         </div>
         <div className="team-members-grid">
           {agentInfos.map((info) => (
@@ -419,7 +537,15 @@ export function DispatchedAgentsPanel({
                 cursor: openChildAgent ? "pointer" : undefined,
               }}
               onClick={() => openChildAgent?.(info.task.id)}
-              title={`Click to view ${info.role?.displayName || "agent"}'s task`}
+              title={translate(
+                "dispatchedAgents.openAgentTask",
+                "Click to view {name}'s task",
+                {
+                  name:
+                    info.role?.displayName ||
+                    translate("dispatchedAgents.agent", "agent"),
+                },
+              )}
             >
               <span className="team-member-icon">
                 {(() => {
@@ -427,15 +553,22 @@ export function DispatchedAgentsPanel({
                   return <Icon size={16} strokeWidth={1.5} />;
                 })()}
               </span>
-              <span className="team-member-name" style={{ color: info.role?.color || "#6366f1" }}>
-                {info.role?.displayName || "Agent"}
+              <span
+                className="team-member-name"
+                style={{ color: info.role?.color || "#6366f1" }}
+              >
+                {info.role?.displayName ||
+                  translate("dispatchedAgents.agent", "Agent")}
               </span>
               <span className={`dispatched-agent-status status-${info.status}`}>
                 {info.status === "executing" || info.status === "interrupted"
-                  ? "working"
+                  ? translate("dispatchedAgents.status.working", "working")
                   : info.status === "planning"
-                    ? "planning"
-                    : info.status}
+                    ? translate("dispatchedAgents.status.planning", "planning")
+                    : translate(
+                        `dispatchedAgents.status.${info.status}`,
+                        info.status,
+                      )}
               </span>
             </div>
           ))}
@@ -447,7 +580,12 @@ export function DispatchedAgentsPanel({
       {/* Event stream */}
       <div className="thoughts-stream">
         {streamItems.length === 0 && (
-          <div className="thoughts-empty">Dispatching agents and waiting for results...</div>
+          <div className="thoughts-empty">
+            {translate(
+              "dispatchedAgents.empty.dispatching",
+              "Dispatching agents and waiting for results...",
+            )}
+          </div>
         )}
         {streamItems.map((item, i) => {
           const prev = i > 0 ? streamItems[i - 1] : null;
@@ -468,7 +606,10 @@ export function DispatchedAgentsPanel({
                         return <Icon size={14} strokeWidth={1.5} />;
                       })()}
                     </span>
-                    <span className="stream-agent-name-inline" style={{ color: item.agentColor }}>
+                    <span
+                      className="stream-agent-name-inline"
+                      style={{ color: item.agentColor }}
+                    >
                       {item.agentName}
                     </span>
                   </div>
@@ -483,9 +624,19 @@ export function DispatchedAgentsPanel({
       {/* Sticky status bar */}
       {workingCount > 0 && (
         <div className="collab-phase-status">
-          <Loader2 className="collab-phase-spinner" size={14} strokeWidth={2.5} />
+          <Loader2
+            className="collab-phase-spinner"
+            size={14}
+            strokeWidth={2.5}
+          />
           <span className="collab-phase-label">
-            {workingCount} agent{workingCount !== 1 ? "s" : ""} working...
+            {translate(
+              "dispatchedAgents.statusBar.working",
+              "{count} agents working...",
+              {
+                count: workingCount,
+              },
+            )}
           </span>
         </div>
       )}

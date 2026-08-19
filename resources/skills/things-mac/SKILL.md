@@ -1,13 +1,13 @@
 ---
 name: things-mac
-description: "Manage Things 3 via the `things` CLI on macOS (add/update projects+todos via URL scheme; read/search/list from the local Things database). Use when a user asks CoWork-OSS to add a task to Things, list inbox/today/upcoming, search tasks, or inspect projects/areas/tags."
+description: "Manage Things 3 via the `things` CLI on macOS (add/update projects+todos via URL scheme; read/search/list from the local Things database). Use when a user asks NeoWorker to add a task to Things, list inbox/today/upcoming, search tasks, or inspect projects/areas/tags."
 ---
 
 # Things-mac
 
 ## Purpose
 
-Manage Things 3 via the `things` CLI on macOS (add/update projects+todos via URL scheme; read/search/list from the local Things database). Use when a user asks CoWork-OSS to add a task to Things, list inbox/today/upcoming, search tasks, or inspect projects/areas/tags.
+Manage Things 3 via the `things` CLI on macOS (add/update projects+todos via URL scheme; read/search/list from the local Things database). Use when a user asks NeoWorker to add a task to Things, list inbox/today/upcoming, search tasks, or inspect projects/areas/tags.
 
 ## Routing
 

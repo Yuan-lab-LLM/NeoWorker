@@ -17,7 +17,8 @@ function getGithubReleaseContext(releaseUrl: string): {
       return null;
     }
 
-    const releaseTag = rest[0] === "releases" && rest[1] === "tag" ? rest[2] : undefined;
+    const releaseTag =
+      rest[0] === "releases" && rest[1] === "tag" ? rest[2] : undefined;
     return {
       origin: parsed.origin,
       owner,
@@ -29,7 +30,10 @@ function getGithubReleaseContext(releaseUrl: string): {
   }
 }
 
-export function transformReleaseNotesUrl(url: string, releaseUrl?: string): string {
+export function transformReleaseNotesUrl(
+  url: string,
+  releaseUrl?: string,
+): string {
   const normalized = url.trim();
   if (!normalized) {
     return "";

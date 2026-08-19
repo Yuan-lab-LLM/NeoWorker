@@ -5,6 +5,8 @@ import { isBrowserToolName } from "../../utils/timeline-tool-labels";
 import { StepFeed } from "./StepFeed";
 import type { TimelineIndicatorSpec } from "./timeline-indicators";
 import type { ParallelGroupProjection } from "./parallel-group-projection";
+import { translate, useLanguage } from "../../i18n";
+import { localizeProgressText } from "../../utils/localized-progress-text";
 
 type ParallelGroupLane = ParallelGroupProjection["lanes"][number];
 
@@ -17,19 +19,24 @@ interface ParallelGroupFeedProps {
   defaultExpanded?: boolean;
 }
 
-function buildIndicatorForStatus(status: TimelineEventStatus): TimelineIndicatorSpec {
+function buildIndicatorForStatus(
+  status: TimelineEventStatus,
+): TimelineIndicatorSpec {
   if (status === "failed" || status === "blocked" || status === "cancelled") {
     return {
       icon: AlertTriangle,
       tone: "error",
-      label: "Parallel group failed",
+      label: translate("timeline.parallel.failed", "Parallel group failed"),
     };
   }
   if (status === "completed" || status === "skipped") {
     return {
       icon: Check,
       tone: "success",
-      label: "Parallel group completed",
+      label: translate(
+        "timeline.parallel.completed",
+        "Parallel group completed",
+      ),
     };
   }
   if (status === "in_progress" || status === "pending") {
@@ -37,19 +44,23 @@ function buildIndicatorForStatus(status: TimelineEventStatus): TimelineIndicator
       icon: Loader2,
       tone: "active",
       spin: true,
-      label: "Parallel group running",
+      label: translate("timeline.parallel.running", "Parallel group running"),
     };
   }
   return {
     icon: Circle,
     tone: "neutral",
-    label: "Parallel group",
+    label: translate("timeline.parallel.group", "Parallel group"),
   };
 }
 
-function laneTone(status: TimelineEventStatus): "neutral" | "active" | "success" | "error" {
-  if (status === "failed" || status === "blocked" || status === "cancelled") return "error";
-  if (status === "completed" || status === "skipped") return "success";
+function laneTone(
+  status: TimelineEventStatus,
+): "neutral" | "active" | "success" | "error" {
+  if (status === "failed" || status === "blocked" || status === "cancelled")
+    return "error";
+  if (status === "completed") return "success";
+  if (status === "skipped") return "neutral";
   if (status === "in_progress" || status === "pending") return "active";
   return "neutral";
 }
@@ -67,31 +78,48 @@ function hasActiveImageGenerationLane(group: ParallelGroupProjection): boolean {
 }
 
 function isBrowserToolGroup(group: ParallelGroupProjection): boolean {
-  return group.lanes.length > 0 && group.lanes.every((lane) => isBrowserToolName(lane.toolName));
+  return (
+    group.lanes.length > 0 &&
+    group.lanes.every((lane) => isBrowserToolName(lane.toolName))
+  );
 }
 
 function ImageGenerationFramePreview() {
+  useLanguage();
   return (
     <div
       className="parallel-group-feed-image-frame"
       role="status"
       aria-live="polite"
-      aria-label="Generating image"
+      aria-label={translate("timeline.generatingImage", "Generating image")}
     >
-      <span className="parallel-group-feed-image-frame-core" aria-hidden="true" />
-      <span className="parallel-group-feed-image-frame-sheen" aria-hidden="true" />
+      <span
+        className="parallel-group-feed-image-frame-core"
+        aria-hidden="true"
+      />
+      <span
+        className="parallel-group-feed-image-frame-sheen"
+        aria-hidden="true"
+      />
     </div>
   );
 }
 
-function buildParallelGroupTitle(group: ParallelGroupProjection, isActive: boolean): string {
+function buildParallelGroupTitle(
+  group: ParallelGroupProjection,
+  isActive: boolean,
+): string {
   const count = group.lanes.length;
   if (isBrowserToolGroup(group)) {
-    return isActive ? "Using the browser" : "Used the browser";
+    return isActive
+      ? translate("timeline.parallel.usingBrowser", "Using the browser")
+      : translate("timeline.parallel.usedBrowser", "Used the browser");
   }
 
   const singleLaneTitle =
-    count === 1 && typeof group.lanes[0]?.title === "string" ? group.lanes[0].title.trim() : "";
+    count === 1 && typeof group.lanes[0]?.title === "string"
+      ? group.lanes[0].title.trim()
+      : "";
   if (singleLaneTitle) {
     return singleLaneTitle;
   }
@@ -107,7 +135,9 @@ function buildParallelGroupTitle(group: ParallelGroupProjection, isActive: boole
   const toolNames = Array.from(
     new Set(
       group.lanes
-        .map((lane) => (typeof lane.toolName === "string" ? lane.toolName.trim() : ""))
+        .map((lane) =>
+          typeof lane.toolName === "string" ? lane.toolName.trim() : "",
+        )
         .filter((name) => name.length > 0),
     ),
   );
@@ -115,19 +145,43 @@ function buildParallelGroupTitle(group: ParallelGroupProjection, isActive: boole
   if (toolNames.length === 1) {
     const tool = toolNames[0];
     if (tool === "web_fetch" || tool === "http_request") {
-      return `${isActive ? "Fetching" : "Fetched"} ${count} page${count === 1 ? "" : "s"}`;
+      return isActive
+        ? translate(
+            "timeline.parallel.fetchingPages",
+            "Fetching {count} pages",
+            { count },
+          )
+        : translate("timeline.parallel.fetchedPages", "Fetched {count} pages", {
+            count,
+          });
     }
     if (tool === "web_search") {
-      return `${isActive ? "Searching" : "Searched"} the web`;
+      return isActive
+        ? translate("timeline.parallel.searchingWeb", "Searching the web")
+        : translate("timeline.parallel.searchedWeb", "Searched the web");
     }
     if (tool === "read_file" || tool === "read_files") {
-      return `${isActive ? "Reading" : "Read"} ${count} file${count === 1 ? "" : "s"}`;
+      return isActive
+        ? translate("timeline.parallel.readingFiles", "Reading {count} files", {
+            count,
+          })
+        : translate("timeline.parallel.readFiles", "Read {count} files", {
+            count,
+          });
     }
   }
 
   return isActive
-    ? `Running ${count} task${count === 1 ? "" : "s"} in parallel`
-    : `${count} parallel task${count === 1 ? "" : "s"} completed`;
+    ? translate(
+        "timeline.parallel.runningTasks",
+        "Running {count} tasks in parallel",
+        { count },
+      )
+    : translate(
+        "timeline.parallel.tasksCompleted",
+        "{count} parallel tasks completed",
+        { count },
+      );
 }
 
 export function ParallelGroupFeed({
@@ -138,18 +192,18 @@ export function ParallelGroupFeed({
   showConnectorBelow = false,
   defaultExpanded = false,
 }: ParallelGroupFeedProps) {
+  useLanguage();
   void _formatTime;
-  if (group.lanes.length === 0) {
-    return null;
-  }
-
   const singleLane = group.lanes.length === 1 ? group.lanes[0] : null;
   const isBrowserGroup = isBrowserToolGroup(group);
   const isActive =
-    isActiveStatus(group.status) || group.lanes.some((lane) => isActiveStatus(lane.status));
+    isActiveStatus(group.status) ||
+    group.lanes.some((lane) => isActiveStatus(lane.status));
   const showImageGenerationFrame = hasActiveImageGenerationLane(group);
   const hasExpandableDetails = group.lanes.length > 1 || isBrowserGroup;
-  const [expanded, setExpanded] = useState(hasExpandableDetails && (isActive || defaultExpanded));
+  const [expanded, setExpanded] = useState(
+    hasExpandableDetails && (isActive || defaultExpanded),
+  );
 
   useEffect(() => {
     if (!hasExpandableDetails) {
@@ -161,8 +215,26 @@ export function ParallelGroupFeed({
     }
   }, [defaultExpanded, hasExpandableDetails, isActive]);
 
-  const indicator = useMemo(() => buildIndicatorForStatus(group.status), [group.status]);
-  const groupTitle = useMemo(() => buildParallelGroupTitle(group, isActive), [group, isActive]);
+  const indicator = useMemo(
+    () => buildIndicatorForStatus(group.status),
+    [group.status],
+  );
+  const groupTitle = useMemo(
+    () => buildParallelGroupTitle(group, isActive),
+    [group, isActive],
+  );
+  const visibleGroupTitle =
+    singleLane?.status === "skipped"
+      ? localizeProgressText(groupTitle)
+      : groupTitle;
+
+  // Keep hooks unconditional. A streaming projection can mount the group
+  // before its lanes arrive, then populate them in the next event batch.
+  // Returning before useState/useEffect changed the hook order and crashed the
+  // entire conversation surface, which looked like a blank transcript.
+  if (group.lanes.length === 0) {
+    return null;
+  }
 
   if (singleLane && !isBrowserGroup) {
     return (
@@ -172,8 +244,11 @@ export function ParallelGroupFeed({
             className={`parallel-group-feed-lane-dot tone-${laneTone(singleLane.status)}`}
             aria-hidden="true"
           />
-          <div className="parallel-group-feed-lane-title" title={groupTitle}>
-            {groupTitle}
+          <div
+            className="parallel-group-feed-lane-title"
+            title={visibleGroupTitle}
+          >
+            {visibleGroupTitle}
           </div>
         </div>
         {showImageGenerationFrame ? <ImageGenerationFramePreview /> : null}
@@ -184,9 +259,10 @@ export function ParallelGroupFeed({
   const title = (
     <span>
       {groupTitle}
-      {hasExpandableDetails && !(groupTitle.match(/\b\d+\b/) && group.lanes.length > 0) && (
-        <span className="event-title-meta"> ({group.lanes.length})</span>
-      )}
+      {hasExpandableDetails &&
+        !(groupTitle.match(/\b\d+\b/) && group.lanes.length > 0) && (
+          <span className="event-title-meta"> ({group.lanes.length})</span>
+        )}
     </span>
   );
 
@@ -201,7 +277,9 @@ export function ParallelGroupFeed({
       showConnectorBelow={showConnectorBelow}
       expandable={hasExpandableDetails}
       expanded={expanded}
-      onToggle={hasExpandableDetails ? () => setExpanded((prev) => !prev) : undefined}
+      onToggle={
+        hasExpandableDetails ? () => setExpanded((prev) => !prev) : undefined
+      }
       details={
         hasExpandableDetails && expanded ? (
           <div className="parallel-group-feed-details">
@@ -211,8 +289,13 @@ export function ParallelGroupFeed({
                   className={`parallel-group-feed-lane-dot tone-${laneTone(lane.status)}`}
                   aria-hidden="true"
                 />
-                <div className="parallel-group-feed-lane-title" title={lane.title}>
-                  {lane.title}
+                <div
+                  className="parallel-group-feed-lane-title"
+                  title={lane.title}
+                >
+                  {lane.status === "skipped"
+                    ? localizeProgressText(lane.title)
+                    : lane.title}
                 </div>
               </div>
             ))}

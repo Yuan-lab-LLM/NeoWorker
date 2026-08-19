@@ -344,6 +344,25 @@ export class ControlPlaneCoreService {
     return project;
   }
 
+  createProjectWithWorkspace(
+    input: ProjectCreateInput & { workspaceId: string },
+  ): { project: Project; link: ProjectWorkspaceLink } {
+    return this.db.transaction(() => {
+      const project = this.createProject(input);
+      const link = this.linkProjectWorkspace({
+        projectId: project.id,
+        workspaceId: input.workspaceId,
+        isPrimary: true,
+      });
+      for (const existing of this.listProjectWorkspaces(project.id)) {
+        if (existing.workspaceId !== input.workspaceId) {
+          this.unlinkProjectWorkspace(project.id, existing.workspaceId);
+        }
+      }
+      return { project: this.getProject(project.id) || project, link };
+    })();
+  }
+
   updateProject(id: string, updates: ProjectUpdate): Project | undefined {
     const fields: string[] = [];
     const values: Any[] = [];
@@ -448,14 +467,34 @@ export class ControlPlaneCoreService {
         link.createdAt,
         link.updatedAt,
       );
+    this.db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(now, link.projectId);
     return link;
   }
 
   unlinkProjectWorkspace(projectId: string, workspaceId: string): boolean {
-    const result = this.db
-      .prepare("DELETE FROM project_workspace_links WHERE project_id = ? AND workspace_id = ?")
-      .run(projectId, workspaceId);
-    return result.changes > 0;
+    const links = this.listProjectWorkspaces(projectId);
+    const target = links.find((link) => link.workspaceId === workspaceId);
+    if (!target || links.length <= 1) return false;
+
+    return this.db.transaction(() => {
+      const result = this.db
+        .prepare("DELETE FROM project_workspace_links WHERE project_id = ? AND workspace_id = ?")
+        .run(projectId, workspaceId);
+      if (result.changes === 0) return false;
+      const now = Date.now();
+      if (target.isPrimary) {
+        const replacement = links.find((link) => link.workspaceId !== workspaceId);
+        if (replacement) {
+          this.db
+            .prepare(
+              "UPDATE project_workspace_links SET is_primary = 1, updated_at = ? WHERE project_id = ? AND workspace_id = ?",
+            )
+            .run(now, projectId, replacement.workspaceId);
+        }
+      }
+      this.db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(now, projectId);
+      return true;
+    })();
   }
 
   setPrimaryProjectWorkspace(projectId: string, workspaceId: string): ProjectWorkspaceLink | undefined {
@@ -469,6 +508,7 @@ export class ControlPlaneCoreService {
           "UPDATE project_workspace_links SET is_primary = 1, updated_at = ? WHERE project_id = ? AND workspace_id = ?",
         )
         .run(now, projectId, workspaceId);
+      this.db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(now, projectId);
     });
     tx();
     const row = this.db
@@ -1668,7 +1708,7 @@ export class ControlPlaneCoreService {
 
   private ensureCompanyWorkspaceStructure(workspacePath: string): void {
     fs.mkdirSync(workspacePath, { recursive: true });
-    for (const entry of [".cowork", "projects", "ops", "research", "artifacts"]) {
+    for (const entry of [".neoworker", "projects", "ops", "research", "artifacts"]) {
       fs.mkdirSync(path.join(workspacePath, entry), { recursive: true });
     }
   }

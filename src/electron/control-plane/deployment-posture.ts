@@ -75,7 +75,7 @@ export function evaluateControlPlaneDeploymentPosture(
     if (!permitted) {
       reasons.push("Managed/headless deployments cannot bind the Control Plane publicly by default.");
       recommendations.push(
-        "Set COWORK_CONTROL_PLANE_BIND_CONTEXT=container only for loopback-published containers, enable Tailscale, or explicitly set COWORK_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND=1.",
+        "Set NEOWORKER_CONTROL_PLANE_BIND_CONTEXT=container only for loopback-published containers, enable Tailscale, or explicitly set NEOWORKER_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND=1.",
       );
     } else if (options.allowInsecurePublicBind) {
       reasons.push("Public bind is enabled through an explicit break-glass override.");
@@ -90,7 +90,7 @@ export function evaluateControlPlaneDeploymentPosture(
 
   if (managedMode && !operatorTokenStrong) {
     reasons.push("Managed/headless deployment requires a strong operator token.");
-    recommendations.push("Regenerate the Control Plane token or let CoWork create a 64-character token.");
+    recommendations.push("Regenerate the Control Plane token or let NeoWorker create a 64-character token.");
   }
   if (managedMode && !nodeTokenStrong) {
     reasons.push("Managed/headless deployment requires a strong node token.");

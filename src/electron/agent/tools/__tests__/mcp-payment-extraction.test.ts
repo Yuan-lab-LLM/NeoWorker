@@ -110,8 +110,8 @@ describe("extractPaymentAmountFromX402Tool", () => {
         },
       },
     };
-    const previous = process.env.COWORK_PAYMENT_LIMIT_USD;
-    process.env.COWORK_PAYMENT_LIMIT_USD = "50";
+    const previous = process.env.NEOWORKER_PAYMENT_LIMIT_USD;
+    process.env.NEOWORKER_PAYMENT_LIMIT_USD = "50";
 
     try {
       expect(getMcpPaymentLimitError({ amount: 75 }, amountTool)).toMatch(
@@ -119,9 +119,9 @@ describe("extractPaymentAmountFromX402Tool", () => {
       );
     } finally {
       if (previous === undefined) {
-        delete process.env.COWORK_PAYMENT_LIMIT_USD;
+        delete process.env.NEOWORKER_PAYMENT_LIMIT_USD;
       } else {
-        process.env.COWORK_PAYMENT_LIMIT_USD = previous;
+        process.env.NEOWORKER_PAYMENT_LIMIT_USD = previous;
       }
     }
   });
@@ -137,16 +137,16 @@ describe("extractPaymentAmountFromX402Tool", () => {
       },
     };
 
-    const previous = process.env.COWORK_PAYMENT_LIMIT_USD;
-    process.env.COWORK_PAYMENT_LIMIT_USD = "75";
+    const previous = process.env.NEOWORKER_PAYMENT_LIMIT_USD;
+    process.env.NEOWORKER_PAYMENT_LIMIT_USD = "75";
 
     try {
       expect(getMcpPaymentLimitError({ maxAmount: 50 }, amountTool)).toBeNull();
     } finally {
       if (previous === undefined) {
-        delete process.env.COWORK_PAYMENT_LIMIT_USD;
+        delete process.env.NEOWORKER_PAYMENT_LIMIT_USD;
       } else {
-        process.env.COWORK_PAYMENT_LIMIT_USD = previous;
+        process.env.NEOWORKER_PAYMENT_LIMIT_USD = previous;
       }
     }
   });

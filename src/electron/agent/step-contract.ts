@@ -71,8 +71,20 @@ const SHELL_OPERATOR_REGEX = /(?:\|\||&&|[|;<>])/;
 const URL_LIKE_REGEX = /^[a-z][a-z0-9+.-]*:\/\//i;
 const STRONG_WRITE_VERB_REGEX =
   /\b(write|create|draft|generate|produce|compose|build|save|author|scaffold|bootstrap|initialize|implement|configure|add|edit|update|append|rewrite)\b/;
+const COPY_WRITE_INTENT_REGEX =
+  /\b(?:copy|duplicate|clone)\b(?=[\s\S]{0,80}\b(?:file|document|workbook|spreadsheet|artifact|source|version|to|into|as)\b)|\b(?:save|export)\b(?=[\s\S]{0,80}\b(?:file|document|workbook|spreadsheet|artifact|version)\b)[\s\S]{0,80}\bas\b|\b(?:make|create)\s+(?:a\s+)?copy\b/;
 const PASSIVE_ARTIFACT_WRITE_CUE_REGEX =
   /\b(saved|written|created|generated|produced|updated|edited|rewritten|appended|stored|placed)\s+(?:as|to|at|in|under)\b/;
+const CJK_STRONG_WRITE_VERB_REGEX =
+  /(?:生成|创建|制作|编写|撰写|写入|保存|导出|产出|交付|构建|实现|新增|修改|编辑|更新|追加|重写|落盘)/;
+const CJK_COPY_WRITE_INTENT_REGEX =
+  /(?:复制|拷贝|另存为|另存|创建副本|生成副本|保存副本)/;
+const CJK_READ_ONLY_INTENT_REGEX =
+  /(?:读取|搜索|检索|查找|浏览|访问|抓取|获取|分析|审查|审核|检查|解析|提取|总结|研究|调研|调查|查看|核实)/;
+const CJK_DISCOVERY_INTENT_REGEX =
+  /(?:搜索|检索|查找|寻找|发现|识别|盘点|扫描|探测|调查)/;
+const CJK_ARTIFACT_CUE_REGEX =
+  /(?:文件|文档|报告|网页|页面|白皮书|演示文稿|幻灯片|表格|视频|代码|源码|脚本|项目|工作区)/;
 
 function normalizeWithLeadingDot(extension: string): string {
   const raw = String(extension || "").trim().toLowerCase();
@@ -206,15 +218,29 @@ export function descriptionHasWriteIntent(text: string): boolean {
   return prepareArtifactCue;
 }
 
+export function descriptionHasCopyIntent(text: string): boolean {
+  const desc = String(text || "").toLowerCase();
+  return (
+    COPY_WRITE_INTENT_REGEX.test(desc) || CJK_COPY_WRITE_INTENT_REGEX.test(desc)
+  );
+}
+
 export function descriptionHasStrongWriteIntent(text: string): boolean {
   const desc = String(text || "").toLowerCase();
-  return STRONG_WRITE_VERB_REGEX.test(desc) || PASSIVE_ARTIFACT_WRITE_CUE_REGEX.test(desc);
+  return (
+    STRONG_WRITE_VERB_REGEX.test(desc) ||
+    descriptionHasCopyIntent(desc) ||
+    PASSIVE_ARTIFACT_WRITE_CUE_REGEX.test(desc) ||
+    CJK_STRONG_WRITE_VERB_REGEX.test(desc)
+  );
 }
 
 export function descriptionHasReadOnlyIntent(text: string): boolean {
   const desc = String(text || "").toLowerCase();
-  return /\b(read|search|fetch|retrieve|browse|visit|analy[sz]e|review|understand|examine|inspect|check|parse|extract|summarize|study|explore|investigate|look)\b/.test(
-    desc,
+  return (
+    /\b(read|search|fetch|retrieve|browse|visit|analy[sz]e|review|understand|examine|inspect|check|parse|extract|summarize|study|explore|investigate|look)\b/.test(
+      desc,
+    ) || CJK_READ_ONLY_INTENT_REGEX.test(desc)
   );
 }
 
@@ -222,7 +248,8 @@ export function descriptionHasDiscoveryIntent(text: string): boolean {
   const desc = String(text || "").toLowerCase();
   return (
     /\b(search|locate|find|discover|identify|inventory|catalog|survey|enumerate|scan|detect)\b/.test(desc) ||
-    /\bclarify\s+scope\b/.test(desc)
+    /\bclarify\s+scope\b/.test(desc) ||
+    CJK_DISCOVERY_INTENT_REGEX.test(desc)
   ) && !descriptionHasWriteIntent(desc);
 }
 
@@ -240,8 +267,10 @@ export function descriptionHasScaffoldIntent(text: string): boolean {
 
 export function descriptionHasArtifactCue(text: string): boolean {
   const desc = String(text || "").toLowerCase();
-  return /\b(file|document|docx?|pdf|whitepaper|markdown|csv|xlsx|json|jsonl|txt|pptx|mp4|mov|webm|presentation|slides?|video|clip|footage|spec(?:ification)?|proposal|project|workspace|widget|xcode|scheme|entitlements?|plist|source code|code file)\b/.test(
-    desc,
+  return (
+    /\b(file|document|docx?|pdf|html|webpage|web page|website|whitepaper|markdown|csv|xlsx|json|jsonl|txt|pptx|mp4|mov|webm|presentation|slides?|video|clip|footage|spec(?:ification)?|proposal|project|workspace|widget|xcode|scheme|entitlements?|plist|source code|code file)\b/.test(
+      desc,
+    ) || CJK_ARTIFACT_CUE_REGEX.test(desc)
   );
 }
 

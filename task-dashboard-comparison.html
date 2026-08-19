@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task dashboard design comparison</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 28px;
+        color: #1d2939;
+        background: #eef1f5;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      header { margin-bottom: 20px; }
+      h1 { margin: 0; font-size: 24px; }
+      p { margin: 6px 0 0; color: #667085; font-size: 13px; }
+      main {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        align-items: start;
+      }
+      figure {
+        margin: 0;
+        padding: 14px;
+        border: 1px solid #d9dee6;
+        border-radius: 12px;
+        background: #fff;
+        box-shadow: 0 4px 16px rgba(16, 24, 40, 0.06);
+      }
+      figcaption {
+        margin-bottom: 12px;
+        color: #344054;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid #e4e7ec;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>任务页：参考风格与 NeoWorker 试验版</h1>
+      <p>比较信息密度、分区、任务状态和主操作层级。</p>
+    </header>
+    <main>
+      <figure>
+        <figcaption>参考：企业运营后台</figcaption>
+        <img src="/task-dashboard-reference.png" alt="参考界面" />
+      </figure>
+      <figure>
+        <figcaption>实现：NeoWorker 任务页试验版</figcaption>
+        <img src="/task-dashboard-experiment.png" alt="实现界面" />
+      </figure>
+    </main>
+  </body>
+</html>

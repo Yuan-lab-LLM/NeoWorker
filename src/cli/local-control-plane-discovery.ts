@@ -23,7 +23,7 @@ interface SecureSettingsRow {
   checksum: string;
 }
 
-const MACHINE_ID_FILE = ".cowork-machine-id";
+const MACHINE_ID_FILE = ".neoworker-machine-id";
 
 export function discoverLocalControlPlane(profileName?: string): LocalControlPlaneDiscoveryResult {
   const dirs = discoverUserDataDirs(profileName);
@@ -73,13 +73,13 @@ function readLocalConnectionDescriptor(userDataDir: string): LocalControlPlaneDi
 }
 
 export function discoverUserDataDirs(profileName?: string): string[] {
-  const roots = process.env.COWORK_USER_DATA_DIR
-    ? [process.env.COWORK_USER_DATA_DIR]
-    : Array.from(new Set([getPlatformElectronUserDataRoot(), path.join(os.homedir(), ".cowork")].filter(Boolean) as string[]));
+  const roots = process.env.NEOWORKER_USER_DATA_DIR
+    ? [process.env.NEOWORKER_USER_DATA_DIR]
+    : Array.from(new Set([getPlatformElectronUserDataRoot(), path.join(os.homedir(), ".neoworker")].filter(Boolean) as string[]));
   const dirs: string[] = [];
   for (const root of roots) {
     dirs.push(root);
-    const normalized = normalizeProfileId(profileName || process.env.COWORK_PROFILE || process.env.COWORK_PROFILE_ID || "");
+    const normalized = normalizeProfileId(profileName || process.env.NEOWORKER_PROFILE || process.env.NEOWORKER_PROFILE_ID || "");
     if (normalized && normalized !== "default") {
       dirs.push(path.join(root, "profiles", normalized));
     }
@@ -107,12 +107,12 @@ function readLegacySettings(userDataDir: string): LocalControlPlaneDiscoveryResu
 }
 
 function readDatabaseSettings(userDataDir: string): LocalControlPlaneDiscoveryResult {
-  const dbPath = path.join(userDataDir, "cowork-os.db");
+  const dbPath = path.join(userDataDir, "neoworker.db");
   if (!fs.existsSync(dbPath)) return {};
 
   let db: Any | undefined;
   try {
-    // Loaded dynamically so `cowork --help` and tests do not need SQLite.
+    // Loaded dynamically so `neoworker --help` and tests do not need SQLite.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const Database = require("better-sqlite3");
     const openedDb = new Database(dbPath, { readonly: true, fileMustExist: true });
@@ -197,7 +197,7 @@ function decryptSecureSettings(row: SecureSettingsRow, userDataDir: string): str
   }
   if (encryptedData.startsWith("os:")) {
     throw new Error(
-      "settings are encrypted with the Electron OS keychain. Open CoWork OS settings and copy the Control Plane token once, or run `cowork login --token <token>`.",
+      "settings are encrypted with the Electron OS keychain. Open NeoWorker settings and copy the Control Plane token once, or run `neoworker login --token <token>`.",
     );
   }
   verifyChecksum(encryptedData, row.checksum);
@@ -210,7 +210,7 @@ function verifyChecksum(data: string, expected: string): void {
 }
 
 function deriveAppKey(userDataDir: string): Buffer {
-  const appSalt = "cowork-os-secure-settings-v1";
+  const appSalt = "neoworker-secure-settings-v1";
   const machineId = readMachineIdentifier(userDataDir);
   return crypto.pbkdf2Sync(appSalt, machineId, 100000, 32, "sha512");
 }
@@ -225,18 +225,18 @@ function readMachineIdentifier(userDataDir: string): string {
   } catch {
     // Use path-derived fallback below.
   }
-  return [userDataDir, machineIdPath, "cowork-os-secure-settings-fallback-v2"].join(":");
+  return [userDataDir, machineIdPath, "neoworker-secure-settings-fallback-v2"].join(":");
 }
 
 function getPlatformElectronUserDataRoot(): string | undefined {
   const home = os.homedir();
-  if (process.platform === "darwin") return path.join(home, "Library", "Application Support", "cowork-os");
+  if (process.platform === "darwin") return path.join(home, "Library", "Application Support", "neoworker");
   if (process.platform === "win32") {
     const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
-    return path.join(appData, "cowork-os");
+    return path.join(appData, "neoworker");
   }
   const configHome = process.env.XDG_CONFIG_HOME || path.join(home, ".config");
-  return path.join(configHome, "cowork-os");
+  return path.join(configHome, "neoworker");
 }
 
 function isProcessRunning(pid: number): boolean {

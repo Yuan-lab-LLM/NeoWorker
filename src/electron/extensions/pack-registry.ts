@@ -8,7 +8,7 @@
 /** Default registry URL — overridable via PLUGIN_PACK_REGISTRY env var */
 const DEFAULT_REGISTRY_URL =
   process.env.PLUGIN_PACK_REGISTRY ||
-  "https://raw.githubusercontent.com/CoWork-OS/CoWork-OS/main/registry";
+  "https://raw.githubusercontent.com/NeoWorker/NeoWorker/main/registry";
 
 const FETCH_TIMEOUT_MS = 15_000;
 

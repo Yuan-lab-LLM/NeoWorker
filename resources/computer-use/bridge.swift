@@ -1336,7 +1336,7 @@ final class Bridge {
 	}
 
 	private func systemScreenshotWindow(windowId: UInt32) throws -> [String: Any]? {
-		let tempUrl = FileManager.default.temporaryDirectory.appendingPathComponent("cowork-cu-\(UUID().uuidString).png")
+		let tempUrl = FileManager.default.temporaryDirectory.appendingPathComponent("neoworker-cu-\(UUID().uuidString).png")
 		defer { try? FileManager.default.removeItem(at: tempUrl) }
 
 		let process = Process()

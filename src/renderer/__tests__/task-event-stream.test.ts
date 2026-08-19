@@ -2,16 +2,36 @@ import { describe, expect, it } from "vitest";
 import type { TaskEvent } from "../../shared/types";
 import {
   hydrateSelectedTaskEvents,
+  getTaskStatusUpdateFromEvent,
+  loadTaskTimelineWithLegacyFallback,
   mergeTaskEventsByIdentity,
   shouldIncludeTaskEventInSelectedSession,
   shouldRefreshCanonicalEventsForTerminalUpdate,
 } from "../utils/task-event-stream";
 
+function makeTimelinePage(events: TaskEvent[]) {
+  return {
+    taskId: "task-1",
+    events,
+    hasMoreHistory: false,
+    nextCursor: null,
+    summary: {
+      eventCount: events.length,
+      payloadBytes: 0,
+      truncatedEventCount: 0,
+      largestEventPayloadBytes: 0,
+    },
+  };
+}
+
 function makeEvent(
-  overrides: Partial<TaskEvent> & Pick<TaskEvent, "taskId" | "type" | "timestamp">,
+  overrides: Partial<TaskEvent> &
+    Pick<TaskEvent, "taskId" | "type" | "timestamp">,
 ): TaskEvent {
   return {
-    id: overrides.id ?? `${overrides.taskId}:${overrides.type}:${overrides.timestamp}`,
+    id:
+      overrides.id ??
+      `${overrides.taskId}:${overrides.type}:${overrides.timestamp}`,
     taskId: overrides.taskId,
     type: overrides.type,
     timestamp: overrides.timestamp,
@@ -118,7 +138,71 @@ describe("hydrateSelectedTaskEvents", () => {
 
     const hydrated = hydrateSelectedTaskEvents("task-2", [live], [historical]);
 
-    expect(hydrated.map((event) => event.eventId)).toEqual(["evt-history", "evt-live"]);
+    expect(hydrated.map((event) => event.eventId)).toEqual([
+      "evt-history",
+      "evt-live",
+    ]);
+  });
+});
+
+describe("loadTaskTimelineWithLegacyFallback", () => {
+  it("falls back when the projected timeline handler is unavailable", async () => {
+    const event = makeEvent({
+      taskId: "task-1",
+      type: "timeline_step_started",
+      timestamp: 100,
+    });
+
+    const result = await loadTaskTimelineWithLegacyFallback({
+      request: { taskId: "task-1" },
+      getTaskTimelinePage: async () => {
+        throw new Error("No handler registered for task:timelinePage");
+      },
+      getTaskEvents: async () => [event],
+    });
+
+    expect(result.source).toBe("legacy");
+    expect(result.timelinePage).toBeNull();
+    expect(result.events).toEqual([event]);
+  });
+
+  it("recovers legacy events when a projected page is unexpectedly empty", async () => {
+    const event = makeEvent({
+      taskId: "task-1",
+      type: "timeline_step_started",
+      timestamp: 100,
+    });
+
+    const result = await loadTaskTimelineWithLegacyFallback({
+      request: { taskId: "task-1" },
+      getTaskTimelinePage: async () => makeTimelinePage([]),
+      getTaskEvents: async () => [event],
+    });
+
+    expect(result.source).toBe("legacy");
+    expect(result.events).toEqual([event]);
+  });
+
+  it("keeps a non-empty projected timeline without calling the legacy API", async () => {
+    const event = makeEvent({
+      taskId: "task-1",
+      type: "timeline_step_started",
+      timestamp: 100,
+    });
+    let legacyCalls = 0;
+
+    const result = await loadTaskTimelineWithLegacyFallback({
+      request: { taskId: "task-1" },
+      getTaskTimelinePage: async () => makeTimelinePage([event]),
+      getTaskEvents: async () => {
+        legacyCalls += 1;
+        return [];
+      },
+    });
+
+    expect(result.source).toBe("page");
+    expect(result.events).toEqual([event]);
+    expect(legacyCalls).toBe(0);
   });
 });
 
@@ -245,5 +329,38 @@ describe("shouldRefreshCanonicalEventsForTerminalUpdate", () => {
         nextStatus: "executing",
       }),
     ).toBe(false);
+  });
+});
+
+describe("getTaskStatusUpdateFromEvent", () => {
+  it("does not fail a task for a retryable timeline error", () => {
+    const event = makeEvent({
+      taskId: "task-1",
+      type: "timeline_error",
+      status: "failed",
+      timestamp: 100,
+      payload: {
+        legacyType: "llm_error",
+        message: "LLM API error: provider busy",
+      },
+    });
+
+    expect(getTaskStatusUpdateFromEvent(event)).toBeUndefined();
+  });
+
+  it("fails a task when the terminal timeline error arrives", () => {
+    const event = makeEvent({
+      taskId: "task-1",
+      type: "timeline_error",
+      status: "failed",
+      timestamp: 100,
+      payload: {
+        legacyType: "error",
+        message: "Provider retries exhausted",
+        terminal_failure_fingerprint: "provider busy|unknown|",
+      },
+    });
+
+    expect(getTaskStatusUpdateFromEvent(event)).toBe("failed");
   });
 });

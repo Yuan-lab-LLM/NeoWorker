@@ -10,7 +10,7 @@ describe("NotificationService", () => {
   let storePath: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-notifications-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-notifications-"));
     storePath = path.join(tmpDir, "notifications.json");
   });
 

@@ -1,0 +1,3 @@
+import { n as e, t } from "./gdscript-CHXlrDAm.js";
+e();
+export { t as default };

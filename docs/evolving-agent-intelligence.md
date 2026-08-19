@@ -1,6 +1,6 @@
 # Evolving Agent Intelligence
 
-CoWork OS has a layered memory runtime, a full personality engine, 15+ channels, and a playbook system that auto-captures what worked. The **Evolving Agent Intelligence** layer connects these systems so the agent visibly improves over time — reducing correction overhead, aligning to communication preferences, and surfacing quantifiable ROI metrics.
+NeoWorker has a layered memory runtime, a full personality engine, 15+ channels, and a playbook system that auto-captures what worked. The **Evolving Agent Intelligence** layer connects these systems so the agent visibly improves over time — reducing correction overhead, aligning to communication preferences, and surfacing quantifiable ROI metrics.
 
 All improvements are opt-in (admin-toggleable), rate-limited, and governed by the existing guardrail system. No changes to the security or local-first architecture.
 
@@ -16,9 +16,9 @@ The learning loop is now visible as part of the task and operator experience, no
 - Persistent shell sessions preserve cwd, env deltas, and aliases per task/workspace for longer operator workflows
 - Provider routing and fallback decisions are surfaced so automatic model changes are legible in real time
 
-This layer is additive: it makes the learning loop easier to understand and trust while preserving CoWork OS's core surfaces of desktop control, channels, inbox, devices, and governed automation.
+This layer is additive: it makes the learning loop easier to understand and trust while preserving NeoWorker's core surfaces of desktop control, channels, inbox, devices, and governed automation.
 
-One concrete expression of this philosophy is `llm-wiki`: instead of letting research disappear into transient chat, CoWork can maintain a durable workspace-local knowledge base with raw-source preservation, linked notes, and deterministic vault-health analysis. See [LLM Wiki](llm-wiki.md).
+One concrete expression of this philosophy is `llm-wiki`: instead of letting research disappear into transient chat, NeoWorker can maintain a durable workspace-local knowledge base with raw-source preservation, linked notes, and deterministic vault-health analysis. See [LLM Wiki](llm-wiki.md).
 
 ### Retry-time reuse
 
@@ -44,17 +44,17 @@ The old monolithic synthesized-memory block mixed durable facts, broad archive r
 
 `MemorySynthesizer.synthesize()` now uses an explicit wake-up model with distinct roles and budgets:
 
-1. **L0 Identity** in `<cowork_hot_memory>` for the facts that should stay front-and-center:
+1. **L0 Identity** in `<neoworker_hot_memory>` for the facts that should stay front-and-center:
    - curated hot-memory entries from `CuratedMemoryService`
    - user profile facts
    - relationship memory
    - workspace-kit essentials
-2. **L1 Essential Story** in `<cowork_structured_memory>` for ranked supporting context:
+2. **L1 Essential Story** in `<neoworker_structured_memory>` for ranked supporting context:
    - playbook patterns
    - current knowledge graph entities/relationships
    - daily summaries
    - archive memory only when explicitly enabled
-3. **L2 Topic Packs** as explicit `.cowork/memory/topics/*.md` loads through `memory_topics_load`
+3. **L2 Topic Packs** as explicit `.neoworker/memory/topics/*.md` loads through `memory_topics_load`
 4. **L3 Deep Recall** as explicit tools:
    - `search_quotes`
    - `search_sessions`
@@ -79,7 +79,7 @@ Default runtime behavior:
 - Curated entry content is capped at **320 characters**
 - `match` strings for replace/remove are capped at **120 characters**
 - `memory_curate` supports stable `id` values so replace/remove operations can be deterministic
-- Curated file sync into `.cowork/USER.md` and `.cowork/MEMORY.md` is serialized per workspace and retried on file-change races
+- Curated file sync into `.neoworker/USER.md` and `.neoworker/MEMORY.md` is serialized per workspace and retried on file-change races
 
 ### Dreaming curation
 
@@ -95,25 +95,25 @@ The runtime now thinks about sources by wake-up layer instead of one flat synthe
 |------|---------|
 | **L0 Identity** | `CuratedMemoryService`, `UserProfileService`, `RelationshipMemoryService`, workspace-kit essentials |
 | **L1 Essential Story** | `PlaybookService`, `KnowledgeGraphService`, `DailyLogSummarizer`, optional archive fragments from `MemoryService` |
-| **L2 Topic Packs** | `memory_topics_load` over `.cowork/memory/topics/*.md` |
+| **L2 Topic Packs** | `memory_topics_load` over `.neoworker/memory/topics/*.md` |
 | **L3 Deep Recall** | `search_quotes`, `search_sessions`, `search_memories` |
 | **Dreaming Evidence** | transcript spans, structured observations, curated hot memory, and heartbeat memory-drift signals |
 
-`daily_summary` fragments come from `.cowork/memory/summaries/<YYYY-MM-DD>.md` files produced by `DailyLogSummarizer`. Raw daily log files (`.cowork/memory/daily/`) are **never** injected into prompts.
+`daily_summary` fragments come from `.neoworker/memory/summaries/<YYYY-MM-DD>.md` files produced by `DailyLogSummarizer`. Raw daily log files (`.neoworker/memory/daily/`) are **never** injected into prompts.
 
 ### Output format
 
 ```xml
-<cowork_hot_memory>
+<neoworker_hot_memory>
 ## Curated Hot Memory
 - [Curated entry]
 
 ## You & the User
 - [UserProfile fact]
 - [RelationshipMemory item]
-</cowork_hot_memory>
+</neoworker_hot_memory>
 
-<cowork_structured_memory>
+<neoworker_structured_memory>
 ## Past Task Patterns
 - [Playbook entry]
 
@@ -122,7 +122,7 @@ The runtime now thinks about sources by wake-up layer instead of one flat synthe
 
 ## Recent Summaries
 [Daily summary snippet]
-</cowork_structured_memory>
+</neoworker_structured_memory>
 ```
 
 ---
@@ -273,7 +273,7 @@ const channelDirective = ChannelPersonaAdapter.adaptForChannel(
 
 ### Problem
 
-CoWork OS tracks basic relationship stats (tasks completed, days together) but has no concept of measuring agent *improvement over time*. For enterprise buyers, quantifiable ROI is the difference between a tool and a strategic investment.
+NeoWorker tracks basic relationship stats (tasks completed, days together) but has no concept of measuring agent *improvement over time*. For enterprise buyers, quantifiable ROI is the difference between a tool and a strategic investment.
 
 ### Solution
 
@@ -316,7 +316,7 @@ Agent Evolution (Day 45, 123 tasks completed):
 
 ### Purpose
 
-Provides structured per-day journaling as input for the summary-first memory pipeline. Entries are written to `.cowork/memory/daily/<YYYY-MM-DD>.md`.
+Provides structured per-day journaling as input for the summary-first memory pipeline. Entries are written to `.neoworker/memory/daily/<YYYY-MM-DD>.md`.
 
 ### When to write entries
 
@@ -362,12 +362,12 @@ await DailyLogService.appendEntry(workspacePath, {
 
 ### Purpose
 
-Produces ranked `MemoryFragment` objects from pre-written daily summary files (`.cowork/memory/summaries/<YYYY-MM-DD>.md`). This completes the summary-first retrieval pipeline: summaries rank higher than raw log snippets but lower than user profile and relationship memory.
+Produces ranked `MemoryFragment` objects from pre-written daily summary files (`.neoworker/memory/summaries/<YYYY-MM-DD>.md`). This completes the summary-first retrieval pipeline: summaries rank higher than raw log snippets but lower than user profile and relationship memory.
 
 ### Directory layout
 
 ```
-.cowork/
+.neoworker/
   memory/
     daily/
       2026-03-14.md    ← raw operational log (DailyLogService writes)
@@ -412,7 +412,7 @@ day: 2026-03-14
 
 ### Integration
 
-`MemorySynthesizer.synthesize()` calls `DailyLogSummarizer.getRecentSummaryFragments()` for the last 7 days and adds the results to the structured-memory lane as `daily_summary` fragments. They render under `## Recent Summaries` inside `<cowork_structured_memory>`.
+`MemorySynthesizer.synthesize()` calls `DailyLogSummarizer.getRecentSummaryFragments()` for the last 7 days and adds the results to the structured-memory lane as `daily_summary` fragments. They render under `## Recent Summaries` inside `<neoworker_structured_memory>`.
 
 ### Helper
 
@@ -461,7 +461,7 @@ Feedback is routed to `UserProfileService.ingestUserFeedback()` and (via daemon)
 
 ## Governance Summary
 
-All improvements respect CoWork OS's security-first positioning:
+All improvements respect NeoWorker's security-first positioning:
 
 | Improvement | Guardrail flag | Default | Rate limit | Audit trail |
 |-------------|---------------|---------|------------|-------------|
@@ -471,7 +471,7 @@ All improvements respect CoWork OS's security-first positioning:
 | Channel Persona | `channelPersonaEnabled` | Off | — | Visible in system prompt |
 | Evolution Metrics | — | Computed on-demand | — | Read-only, no mutations |
 | Daily Log | — | Available when a writer uses `DailyLogService` | File append only | Per-day markdown files |
-| Daily Summaries | — | Active when summary files exist | Token budget (ranked) | Summary files in `.cowork/memory/summaries/` |
+| Daily Summaries | — | Active when summary files exist | Token budget (ranked) | Summary files in `.neoworker/memory/summaries/` |
 | Message Feedback | — | Always visible on completed messages | IPC: `limited` tier | Routed to UserProfileService |
 
 ---

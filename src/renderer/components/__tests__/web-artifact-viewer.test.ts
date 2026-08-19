@@ -22,10 +22,10 @@ describe("WebArtifactViewer", () => {
     );
 
     expect(markup.match(/index\.html/g)?.length).toBe(1);
-    expect(markup).toContain("Open web page in full screen");
+    expect(markup).toContain("web-artifact-viewer-header-fullscreen");
   });
 
-  it("renders fullscreen turn context collapsed by default", () => {
+  it("keeps the latest update visible when fullscreen turn context is collapsed", () => {
     const markup = render(
       React.createElement(WebArtifactViewer, {
         filePath: "/workspace/index.html",
@@ -46,7 +46,7 @@ describe("WebArtifactViewer", () => {
 
     expect(markup).toContain("spreadsheet-viewer-turn-frame collapsed");
     expect(markup).toContain("Latest turn");
-    expect(markup).not.toContain("Created the page.");
+    expect(markup).toContain("Created the page.");
   });
 
   it("renders review controls before an HTML preview is loaded", () => {
@@ -62,7 +62,25 @@ describe("WebArtifactViewer", () => {
     );
 
     expect(markup).toContain("HTML");
-    expect(markup).toContain("Copy");
-    expect(markup).toContain("Folder");
+    expect(markup.match(/web-artifact-viewer-tool-btn/g)?.length).toBe(3);
+    expect(markup).toMatch(/Folder|文件夹/);
+    expect(markup).toMatch(/Download|下载/);
+    expect(markup).toContain("document-zoom-controls");
+    expect(markup).toContain("100%");
+  });
+
+  it("uses a more readable default zoom in fullscreen mode", () => {
+    const markup = render(
+      React.createElement(WebArtifactViewer, {
+        filePath: "/workspace/index.html",
+        workspacePath: "/workspace",
+        mode: "fullscreen",
+        onClose: () => {},
+        onFullscreen: () => {},
+        onExitFullscreen: () => {},
+      }),
+    );
+
+    expect(markup).toContain("115%");
   });
 });

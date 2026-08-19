@@ -19,6 +19,8 @@ describe("TaskEventRepository.findTimelinePage", () => {
     seq?: number;
     legacyType?: string;
     payload?: unknown;
+    status?: string;
+    stepId?: string;
   }): void {
     db.rows.push({
       id: input.id,
@@ -31,8 +33,8 @@ describe("TaskEventRepository.findTimelinePage", () => {
       event_id: input.id,
       seq: input.seq ?? 10,
       ts: input.timestamp ?? 1000,
-      status: "completed",
-      step_id: null,
+      status: input.status ?? "completed",
+      step_id: input.stepId ?? null,
       group_id: null,
       actor: "assistant",
       legacy_type: input.legacyType ?? "file_created",
@@ -69,7 +71,7 @@ describe("TaskEventRepository.findTimelinePage", () => {
     const event = page.events[0]!;
 
     expect(page.summary.truncatedEventCount).toBe(1);
-    expect(event.payload?.__coworkPayloadTruncated).toBe(true);
+    expect(event.payload?.__neoworkerPayloadTruncated).toBe(true);
 
     const detail = repo.findEventDetailById("evt-large");
     expect(detail.event?.payload?.text).toBe(largeText);
@@ -138,6 +140,71 @@ describe("TaskEventRepository.findTimelinePage", () => {
     expect(page.summary.planStepCount).toBe(1);
     expect(page.hasMoreHistory).toBe(true);
     expect(page.nextCursor).toMatchObject({ id: "latest" });
+  });
+
+  it("pins each plan step's latest lifecycle state into the first page", () => {
+    insertEvent({
+      id: "plan",
+      seq: 1,
+      timestamp: 1,
+      legacyType: "plan_created",
+      payload: {
+        plan: {
+          steps: [
+            { id: "step-1", description: "Collect sources", status: "pending" },
+            { id: "step-2", description: "Compare findings", status: "pending" },
+            { id: "step-3", description: "Write report", status: "pending" },
+          ],
+        },
+      },
+    });
+    insertEvent({
+      id: "step-1-completed",
+      seq: 2,
+      timestamp: 2,
+      legacyType: "step_completed",
+      status: "completed",
+      stepId: "step-1",
+      payload: { step: { id: "step-1", description: "Collect sources" } },
+    });
+    insertEvent({
+      id: "step-2-started",
+      seq: 3,
+      timestamp: 3,
+      legacyType: "step_started",
+      status: "in_progress",
+      stepId: "step-2",
+      payload: { step: { id: "step-2", description: "Compare findings" } },
+    });
+    insertEvent({
+      id: "step-2-completed",
+      seq: 4,
+      timestamp: 4,
+      legacyType: "step_completed",
+      status: "completed",
+      stepId: "step-2",
+      payload: { step: { id: "step-2", description: "Compare findings" } },
+    });
+    insertEvent({
+      id: "step-3-started",
+      seq: 5,
+      timestamp: 5,
+      legacyType: "step_started",
+      status: "in_progress",
+      stepId: "step-3",
+      payload: { step: { id: "step-3", description: "Write report" } },
+    });
+    insertEvent({ id: "latest", seq: 6, timestamp: 6, legacyType: "progress_update" });
+
+    const page = repo.findTimelinePage({ taskId: "task-1", limit: 1 });
+
+    expect(page.events.map((event) => event.id)).toEqual([
+      "plan",
+      "step-1-completed",
+      "step-2-completed",
+      "step-3-started",
+      "latest",
+    ]);
   });
 
   it("does not pin the task plan into older cursor pages", () => {
@@ -347,6 +414,36 @@ class FakeTaskEventDb {
   }
 
   private selectRows(sql: string, args: unknown[]): FakeTaskEventRow[] {
+    if (
+      sql.includes("AND COALESCE(seq, timestamp) > ?") &&
+      sql.includes("'step_started'") &&
+      sql.includes("'step_completed'")
+    ) {
+      const taskId = String(args[0] ?? "");
+      const planOrder = Number(args[1]) || 0;
+      const lifecycleTypes = new Set([
+        "step_started",
+        "step_completed",
+        "step_failed",
+        "step_skipped",
+      ]);
+      return this.rows
+        .filter(
+          (row) =>
+            row.task_id === taskId &&
+            (row.seq ?? row.timestamp) > planOrder &&
+            lifecycleTypes.has(row.legacy_type || row.type),
+        )
+        .map((row) => ({ ...row, timeline_order: row.seq ?? row.timestamp }))
+        .sort((a, b) => {
+          const orderDelta = (b.timeline_order ?? 0) - (a.timeline_order ?? 0);
+          if (orderDelta !== 0) return orderDelta;
+          const timestampDelta = b.timestamp - a.timestamp;
+          if (timestampDelta !== 0) return timestampDelta;
+          return b.id.localeCompare(a.id);
+        });
+    }
+
     const limit = Number(args[args.length - 1]) || 100;
     const countPlaceholders = (pattern: RegExp): number => {
       const match = sql.match(pattern);

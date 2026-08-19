@@ -16,7 +16,7 @@ describe("kit-lint-cli", () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-kit-cli-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-kit-cli-"));
     originalArgv = [...process.argv];
     logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -40,7 +40,7 @@ describe("kit-lint-cli", () => {
 
   it("returns success when no lint findings are present", async () => {
     writeFile(
-      path.join(tmpDir, ".cowork", "AGENTS.md"),
+      path.join(tmpDir, ".neoworker", "AGENTS.md"),
       [
         "---",
         "file: AGENTS.md",
@@ -68,7 +68,7 @@ describe("kit-lint-cli", () => {
 
   it("returns non-zero and includes issue details when lint findings are present", async () => {
     writeFile(
-      path.join(tmpDir, ".cowork", "TOOLS.md"),
+      path.join(tmpDir, ".neoworker", "TOOLS.md"),
       [
         "---",
         "file: TOOLS.md",
@@ -96,7 +96,7 @@ describe("kit-lint-cli", () => {
 
   it("emits JSON output when requested", async () => {
     writeFile(
-      path.join(tmpDir, ".cowork", "BOOTSTRAP.md"),
+      path.join(tmpDir, ".neoworker", "BOOTSTRAP.md"),
       [
         "---",
         "file: BOOTSTRAP.md",

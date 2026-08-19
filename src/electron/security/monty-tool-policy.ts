@@ -38,7 +38,7 @@ type CachedPolicyFile = { mtimeMs: number; code: string; hash: string };
 const fileCache = new Map<string, CachedPolicyFile>();
 
 async function loadPolicyCode(workspacePath: string): Promise<CachedPolicyFile | null> {
-  const absPath = path.join(workspacePath, ".cowork", "policy", "tools.monty");
+  const absPath = path.join(workspacePath, ".neoworker", "policy", "tools.monty");
   let stat: Any;
   try {
     stat = await fs.stat(absPath);

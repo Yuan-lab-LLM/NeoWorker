@@ -23,15 +23,15 @@ describe("JsonlPreview", () => {
     const markup = renderToStaticMarkup(
       createElement(JsonlPreview, {
         content:
-          '{"timestamp":"2026-05-20T08:12:00.000Z","level":"info","message":"starter content written","component":"cowork-routine"}',
+          '{"timestamp":"2026-05-20T08:12:00.000Z","level":"info","message":"starter content written","component":"neoworker-routine"}',
       }),
     );
 
     expect(markup).toContain("JSONL");
-    expect(markup).toContain("1 record");
+    expect(markup).toMatch(/1 (?:record|条记录)/);
     expect(markup).toContain('data-tone="info"');
     expect(markup).toContain("2026-05-20T08:12:00.000Z");
-    expect(markup).toContain("cowork-routine");
+    expect(markup).toContain("neoworker-routine");
     expect(markup).toContain("starter content written");
   });
 });

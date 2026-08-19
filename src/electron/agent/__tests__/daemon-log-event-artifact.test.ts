@@ -59,6 +59,29 @@ function createDaemonLike(taskOverrides: Record<string, unknown> = {}) {
 }
 
 describe("AgentDaemon.logEvent artifact normalization", () => {
+  it("does not open a new timeline stage after task_completed", () => {
+    const daemonLike = createDaemonLike();
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "task_completed", {
+      message: "Task completed successfully",
+    });
+
+    expect(daemonLike.transitionTimelineStage).not.toHaveBeenCalled();
+    const [timelineEvent] = (daemonLike.persistTimelineEvent as Any).mock.calls[0];
+    expect(timelineEvent.legacyType).toBe("task_completed");
+  });
+
+  it("does not reopen a timeline stage for post-completion events", () => {
+    const daemonLike = createDaemonLike({ status: "completed" });
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "verification_started", {
+      message: "Running post-completion verification",
+    });
+
+    expect(daemonLike.transitionTimelineStage).not.toHaveBeenCalled();
+    expect(daemonLike.persistTimelineEvent).toHaveBeenCalledTimes(1);
+  });
+
   it("normalizes relative artifact paths to absolute workspace paths and assigns stable label", () => {
     const daemonLike = createDaemonLike();
 
@@ -141,6 +164,30 @@ describe("AgentDaemon.logEvent artifact normalization", () => {
     expect(assistantOptions.legacyType).toBe("assistant_message");
   });
 
+  it("does not render provisional HTML bootstrap files as full-size frames", () => {
+    const daemonLike = createDaemonLike({
+      title: "Show an investment performance chart",
+      prompt: "Create a compact investment performance card with a chart.",
+    });
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "file_created", {
+      path: "artifacts/investment-performance.html",
+      source: "artifact_bootstrap",
+    });
+
+    expect((daemonLike.persistTimelineEvent as Any).mock.calls).toHaveLength(1);
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "file_created", {
+      path: "artifacts/investment-performance.html",
+      mimeType: "text/html",
+      source: "write_file",
+    });
+
+    expect((daemonLike.persistTimelineEvent as Any).mock.calls).toHaveLength(3);
+    const [assistantEvent] = (daemonLike.persistTimelineEvent as Any).mock.calls[2];
+    expect(String(assistantEvent.payload.message)).toContain("::frame{");
+  });
+
   it("does not emit inline frame previews for full website or landing page HTML artifacts", () => {
     const daemonLike = createDaemonLike({
       title: "Create a landing page design",
@@ -151,6 +198,23 @@ describe("AgentDaemon.logEvent artifact normalization", () => {
       path: "artifacts/landing-page.html",
       mimeType: "text/html",
       label: "Landing page",
+    });
+
+    expect((daemonLike.persistTimelineEvent as Any).mock.calls).toHaveLength(1);
+    const [fileEvent] = (daemonLike.persistTimelineEvent as Any).mock.calls[0];
+    expect(fileEvent.type).toBe("timeline_artifact_emitted");
+  });
+
+  it("does not emit inline frames for Chinese full-page HTML requests", () => {
+    const daemonLike = createDaemonLike({
+      title: "制作一份完整的人工智能产业研究网页",
+      prompt: "生成完整网页，包含目录、数据表格、时间线和交互效果。",
+    });
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "file_created", {
+      path: ".neoworker/在当前工作区生成_output_token_budget_test_html_制作一份完整的人工智能.html",
+      mimeType: "text/html",
+      source: "write_file",
     });
 
     expect((daemonLike.persistTimelineEvent as Any).mock.calls).toHaveLength(1);
@@ -279,6 +343,7 @@ describe("AgentDaemon.persistTimelineEvent", () => {
       taskRepo: {
         findById: vi.fn().mockReturnValue(null),
       },
+      maybeMaterializeMailComposeInlineFrame: vi.fn(),
       logActivityForEvent: vi.fn(),
       emitTaskEvent,
       maybeEmitTeamThought: vi.fn(),

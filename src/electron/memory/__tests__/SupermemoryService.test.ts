@@ -42,7 +42,7 @@ describe("SupermemoryService", () => {
     expect(status.enabled).toBe(false);
     expect(status.apiKeyConfigured).toBe(false);
     expect(status.baseUrl).toBe("https://api.supermemory.ai");
-    expect(status.containerTagTemplate).toBe("cowork:{workspaceId}");
+    expect(status.containerTagTemplate).toBe("neoworker:{workspaceId}");
     expect(status.searchMode).toBe("hybrid");
     expect(status.isConfigured).toBe(false);
   });
@@ -51,7 +51,7 @@ describe("SupermemoryService", () => {
     mocks.storedSettings = {
       enabled: true,
       apiKey: "sm_test_existing",
-      containerTagTemplate: "cowork:{workspaceName}",
+      containerTagTemplate: "neoworker:{workspaceName}",
     };
 
     SupermemoryService.clearCache();
@@ -78,7 +78,7 @@ describe("SupermemoryService", () => {
     mocks.storedSettings = {
       enabled: true,
       apiKey: "sm_test",
-      containerTagTemplate: "cowork:{workspaceName}:{workspaceId}",
+      containerTagTemplate: "neoworker:{workspaceName}:{workspaceId}",
     };
 
     SupermemoryService.clearCache();
@@ -87,7 +87,7 @@ describe("SupermemoryService", () => {
       name: "My Workspace / Dev",
     });
 
-    expect(tag).toBe("cowork:My-Workspace-Dev:ws_123");
+    expect(tag).toBe("neoworker:My-Workspace-Dev:ws_123");
   });
 
   it("redacts the stored api key from renderer-facing settings views", () => {
@@ -107,22 +107,22 @@ describe("SupermemoryService", () => {
     mocks.storedSettings = {
       enabled: true,
       apiKey: "sm_test",
-      containerTagTemplate: "cowork:{workspaceId}",
-      customContainers: [{ tag: "cowork:shared-research" }],
+      containerTagTemplate: "neoworker:{workspaceId}",
+      customContainers: [{ tag: "neoworker:shared-research" }],
     };
 
     expect(() =>
       SupermemoryService.resolveContainerTag(
         { id: "workspace-a", name: "Workspace A" },
-        "cowork:workspace-b",
+        "neoworker:workspace-b",
       ),
     ).toThrow(/not allowed/i);
 
     expect(
       SupermemoryService.resolveContainerTag(
         { id: "workspace-a", name: "Workspace A" },
-        "cowork:shared-research",
+        "neoworker:shared-research",
       ),
-    ).toBe("cowork:shared-research");
+    ).toBe("neoworker:shared-research");
   });
 });

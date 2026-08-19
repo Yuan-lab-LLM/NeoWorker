@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 const tempDirs: string[] = [];
 
 function makeTempVault(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-llm-wiki-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-llm-wiki-"));
   tempDirs.push(dir);
   return dir;
 }

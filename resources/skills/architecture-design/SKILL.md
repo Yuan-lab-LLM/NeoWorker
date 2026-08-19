@@ -18,7 +18,7 @@ Orchestrate architectural concept design from brief and references through Rhino
 
 ## Workflow
 
-1. Create a workspace project folder under `.cowork/architecture-projects/<project-id>/` and use it as `COWORK_ARCH_PROJECT_ROOT`.
+1. Create a workspace project folder under `.neoworker/architecture-projects/<project-id>/` and use it as `NEOWORKER_ARCH_PROJECT_ROOT`.
 2. Write `brief.json` and `manifest.json` before calling design tools.
 3. Check connector health in this order:
    - `mcp_rhino.health`
@@ -33,7 +33,7 @@ Orchestrate architectural concept design from brief and references through Rhino
 ## Safety Rules
 
 - Never claim Rhino, Blender, or ComfyUI completed a step without a tool result or saved artifact.
-- Keep all generated files in the project folder; connector file arguments are rejected if they resolve outside `COWORK_ARCH_PROJECT_ROOT`.
+- Keep all generated files in the project folder; connector file arguments are rejected if they resolve outside `NEOWORKER_ARCH_PROJECT_ROOT`.
 - Copy imported user assets into the project folder before mutation.
 - Ask for confirmation before overwriting source CAD files, deleting generated assets, or starting expensive/long renders.
 - Treat the result as concept design unless a licensed professional validates code, structure, accessibility, and MEP requirements.
@@ -41,7 +41,7 @@ Orchestrate architectural concept design from brief and references through Rhino
 ## Artifact Layout
 
 ```text
-.cowork/architecture-projects/<project-id>/
+.neoworker/architecture-projects/<project-id>/
   brief.json
   manifest.json
   references/
@@ -56,7 +56,7 @@ Orchestrate architectural concept design from brief and references through Rhino
 
 ## Connector Notes
 
-- Rhino connector expects `COWORK_ARCH_PROJECT_ROOT` and a localhost Rhino bridge configured by `RHINO_MCP_BRIDGE_URL`.
-- Blender connector expects `COWORK_ARCH_PROJECT_ROOT` and a localhost Blender bridge configured by `BLENDER_MCP_BRIDGE_URL`.
-- ComfyUI connector expects `COWORK_ARCH_PROJECT_ROOT` and uses `COMFYUI_BASE_URL`, defaulting to `http://127.0.0.1:8188`.
+- Rhino connector expects `NEOWORKER_ARCH_PROJECT_ROOT` and a localhost Rhino bridge configured by `RHINO_MCP_BRIDGE_URL`.
+- Blender connector expects `NEOWORKER_ARCH_PROJECT_ROOT` and a localhost Blender bridge configured by `BLENDER_MCP_BRIDGE_URL`.
+- ComfyUI connector expects `NEOWORKER_ARCH_PROJECT_ROOT` and uses `COMFYUI_BASE_URL`, defaulting to `http://127.0.0.1:8188`.
 - If any connector is missing, provide setup steps and continue with the available stages only.

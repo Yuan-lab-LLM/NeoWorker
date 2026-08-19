@@ -24,6 +24,8 @@ export const CHANNEL_TYPES = [
   "teams",
   "googlechat",
   "feishu",
+  "dingtalk",
+  "weixin",
   "wecom",
   "x",
 ] as const;
@@ -271,7 +273,7 @@ export interface WhatsAppConfig extends ChannelConfig {
    */
   ambientMode?: boolean;
   /**
-   * Prefix to add to bot responses (e.g., "[CoWork]" or "🤖")
+   * Prefix to add to bot responses (e.g., "[NeoWorker]" or "🤖")
    * Only used when selfChatMode is true. Default: "🤖"
    */
   responsePrefix?: string;
@@ -655,6 +657,24 @@ export interface FeishuConfig extends ChannelConfig {
 }
 
 /**
+ * DingTalk Stream-mode configuration
+ */
+export interface DingTalkConfig extends ChannelConfig {
+  /** Client ID (AppKey) from the DingTalk developer console */
+  clientId: string;
+  /** Client Secret (AppSecret) from the DingTalk developer console */
+  clientSecret: string;
+  /** Bot display name */
+  displayName?: string;
+  /** Optional prefix added to bot replies */
+  responsePrefix?: string;
+  /** Enable incoming message deduplication (default: true) */
+  deduplicationEnabled?: boolean;
+  /** Enable DingTalk Stream SDK debug output */
+  debug?: boolean;
+}
+
+/**
  * WeCom-specific configuration
  */
 export interface WeComConfig extends ChannelConfig {
@@ -677,6 +697,24 @@ export interface WeComConfig extends ChannelConfig {
   /** Response prefix for bot replies */
   responsePrefix?: string;
   /** Enable message deduplication (default: true) */
+  deduplicationEnabled?: boolean;
+}
+
+/**
+ * Personal WeChat configuration using Tencent's iLink Bot API.
+ */
+export interface WeixinConfig extends ChannelConfig {
+  /** Bot account returned after QR-code confirmation */
+  accountId: string;
+  /** iLink bot access token */
+  botToken: string;
+  /** iLink API base URL */
+  baseUrl: string;
+  /** Bound WeChat user ID, when returned by the login service */
+  userId?: string;
+  /** Optional prefix for replies */
+  responsePrefix?: string;
+  /** Enable message de-duplication (default: true) */
   deduplicationEnabled?: boolean;
 }
 
@@ -879,7 +917,7 @@ export interface ChannelUser {
 }
 
 /**
- * Channel session - links a channel chat to a CoWork task
+ * Channel session - links a channel chat to a NeoWorker task
  */
 export interface ChannelSession {
   /** Session ID */
@@ -888,7 +926,7 @@ export interface ChannelSession {
   channel: ChannelType;
   /** Chat ID on the channel */
   chatId: string;
-  /** Associated CoWork task ID (if any) */
+  /** Associated NeoWorker task ID (if any) */
   taskId?: string;
   /** Associated workspace ID */
   workspaceId?: string;

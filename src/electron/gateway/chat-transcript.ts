@@ -5,7 +5,7 @@ export interface ChatTranscriptOptions {
   agentName?: string;
   sinceMs?: number;
   untilMs?: number;
-  /** Include CoWork OS responses that were sent back into the chat (direction=outgoing). Default: true. */
+  /** Include NeoWorker responses that were sent back into the chat (direction=outgoing). Default: true. */
   includeOutgoing?: boolean;
   /**
    * Include messages sent by the local user account when the channel supports capturing them

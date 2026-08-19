@@ -2,14 +2,14 @@
 
 ## Production-Ready Implementation
 
-CoWork OS is a **security-first, GUI-first local AI super app and everything app** with multi-channel messaging support, visual agent management, comprehensive guardrails, and extensive test coverage.
+NeoWorker is a **security-first, GUI-first local AI super app and everything app** with multi-channel messaging support, visual agent management, comprehensive guardrails, and extensive test coverage.
 
-### What CoWork OS Is
+### What NeoWorker Is
 
 - **Personal AI Super App**: Code, email, research, create documents, work with spreadsheets and decks, test web pages, automate work, and manage agents from one app
 - **GUI-first Agent Management**: Create reusable agents, spawn many runs, inspect timelines, assign work, and monitor teams through Agents Hub, Mission Control, task boards, and approval dialogs
 - **Personal AI Gateway**: Connect your AI assistant to WhatsApp, Telegram, Discord, Slack, and iMessage
-- **Managed Device Control Surface**: Run and inspect work across local and remote CoWork machines from a dedicated Devices tab
+- **Managed Device Control Surface**: Run and inspect work across local and remote NeoWorker machines from a dedicated Devices tab
 - **Automation Operating Surface**: Task Queue, Self-Improve, Scheduled Tasks, Webhooks, Event Triggers, and Daily Briefing are grouped under Automations
 - **Security-First Design**: 4,500+ automated tests, configurable guardrails, approval workflows
 - **Multi-Provider Support**: 30+ LLM providers including free local models via Ollama
@@ -158,7 +158,7 @@ CoWork OS is a **security-first, GUI-first local AI super app and everything app
 - [x] YAML-based skill definitions
 - [x] Priority-based sorting
 - [x] Parameter input modal for skill variables
-- [x] Located: `~/Library/Application Support/cowork-os/skills/`
+- [x] Located: `~/Library/Application Support/neoworker/skills/`
 
 #### Think With Me Mode
 - [x] Socratic brainstorming mode (`think` conversation mode)
@@ -255,7 +255,7 @@ CoWork OS is a **security-first, GUI-first local AI super app and everything app
 
 #### MCP (Model Context Protocol)
 - [x] MCP Client - Connect to external MCP servers
-- [x] MCP Host - Expose CoWork's tools as MCP server
+- [x] MCP Host - Expose NeoWorker's tools as MCP server
 - [x] MCP Registry - One-click server installation
 - [x] SSE and WebSocket transports
 - [x] Located: `src/electron/mcp/`
@@ -332,7 +332,7 @@ CoWork OS is a **security-first, GUI-first local AI super app and everything app
 ## File Structure
 
 ```
-cowork-os/
+neoworker/
 ├── src/
 │   ├── electron/
 │   │   ├── main.ts
@@ -551,7 +551,7 @@ Expected behavior:
 
 ## Summary
 
-**CoWork OS is a production-ready, security-first, GUI-first local AI super app and everything app:**
+**NeoWorker is a production-ready, security-first, GUI-first local AI super app and everything app:**
 
 ### Core Strengths
 - **Security**: 4,932 automated tests across 390 test files, configurable guardrails, approval workflows, brute-force protection

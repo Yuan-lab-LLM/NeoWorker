@@ -4,7 +4,12 @@ import { IntegrationMentionIcon } from "./IntegrationMentionIcon";
 
 type IntegrationMentionTextPart =
   | { type: "text"; key: string; text: string }
-  | { type: "mention"; key: string; mention: IntegrationMentionSelection; text: string };
+  | {
+      type: "mention";
+      key: string;
+      mention: IntegrationMentionSelection;
+      text: string;
+    };
 
 function hasMentionBoundary(text: string, start: number, end: number): boolean {
   const before = start > 0 ? text[start - 1] : "";
@@ -16,7 +21,8 @@ function buildIntegrationMentionTextParts(
   text: string,
   mentions?: IntegrationMentionSelection[],
 ): IntegrationMentionTextPart[] {
-  if (!text || !mentions || mentions.length === 0) return [{ type: "text", key: "text:0", text }];
+  if (!text || !mentions || mentions.length === 0)
+    return [{ type: "text", key: "text:0", text }];
 
   const sortedMentions = [...mentions]
     .filter((mention) => mention.label.trim().length > 0)
@@ -28,7 +34,11 @@ function buildIntegrationMentionTextParts(
     if (text[cursor] !== "@") {
       const nextAt = text.indexOf("@", cursor + 1);
       const end = nextAt === -1 ? text.length : nextAt;
-      parts.push({ type: "text", key: `text:${cursor}:${end}`, text: text.slice(cursor, end) });
+      parts.push({
+        type: "text",
+        key: `text:${cursor}:${end}`,
+        text: text.slice(cursor, end),
+      });
       cursor = end;
       continue;
     }
@@ -36,7 +46,9 @@ function buildIntegrationMentionTextParts(
     const match = sortedMentions.find((mention) => {
       const token = `@${mention.label}`;
       const end = cursor + token.length;
-      return text.startsWith(token, cursor) && hasMentionBoundary(text, cursor, end);
+      return (
+        text.startsWith(token, cursor) && hasMentionBoundary(text, cursor, end)
+      );
     });
 
     if (!match) {
@@ -62,7 +74,9 @@ export function hasRenderableIntegrationMentions(
   text: string,
   mentions?: IntegrationMentionSelection[],
 ): boolean {
-  return buildIntegrationMentionTextParts(text, mentions).some((part) => part.type === "mention");
+  return buildIntegrationMentionTextParts(text, mentions).some(
+    (part) => part.type === "mention",
+  );
 }
 
 export function IntegrationMentionText({
@@ -72,7 +86,10 @@ export function IntegrationMentionText({
   text: string;
   mentions?: IntegrationMentionSelection[];
 }) {
-  const parts = useMemo(() => buildIntegrationMentionTextParts(text, mentions), [mentions, text]);
+  const parts = useMemo(
+    () => buildIntegrationMentionTextParts(text, mentions),
+    [mentions, text],
+  );
 
   return (
     <span className="integration-mention-message-text">
@@ -90,7 +107,9 @@ export function IntegrationMentionText({
               label={part.mention.label}
               size="xs"
             />
-            <span className="integration-mention-chip-label">{part.mention.label}</span>
+            <span className="integration-mention-chip-label">
+              {part.mention.label}
+            </span>
           </span>
         ),
       )}

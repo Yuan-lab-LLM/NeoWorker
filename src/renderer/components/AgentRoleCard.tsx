@@ -1,5 +1,10 @@
 import { AgentRoleData, AgentCapability } from "../../electron/preload";
 import { resolveTwinIcon } from "../utils/twin-icons";
+import { translate, useLanguage } from "../i18n";
+import {
+  getLocalizedAgentCapability,
+  getLocalizedAgentRoleText,
+} from "../utils/localized-agent-roles";
 
 // Alias for UI usage
 type AgentRole = AgentRoleData;
@@ -14,28 +19,6 @@ interface AgentRoleCardProps {
   compact?: boolean;
 }
 
-const CAPABILITY_LABELS: Record<AgentCapability, string> = {
-  code: "Code",
-  review: "Review",
-  research: "Research",
-  test: "Test",
-  document: "Document",
-  plan: "Plan",
-  design: "Design",
-  analyze: "Analyze",
-};
-
-const CAPABILITY_ICONS: Record<AgentCapability, string> = {
-  code: "💻",
-  review: "🔍",
-  research: "📚",
-  test: "🧪",
-  document: "📝",
-  plan: "📋",
-  design: "🎨",
-  analyze: "📊",
-};
-
 export function AgentRoleCard({
   role,
   onEdit,
@@ -45,6 +28,9 @@ export function AgentRoleCard({
   selected = false,
   compact = false,
 }: AgentRoleCardProps) {
+  useLanguage();
+  const t = translate;
+  const localizedRole = getLocalizedAgentRoleText(role);
   const handleClick = () => {
     if (onSelect) {
       onSelect(role);
@@ -54,23 +40,36 @@ export function AgentRoleCard({
   return (
     <div
       className={`agent-role-card ${!role.isActive ? "inactive" : ""} ${selected ? "selected" : ""} ${compact ? "compact" : ""}`}
-      style={{ borderColor: role.color }}
       onClick={onSelect ? handleClick : undefined}
     >
       <div className="agent-role-card-header">
-        <div className="agent-role-icon" style={{ backgroundColor: role.color }}>
-          {role.icon ? (() => {
-            const Icon = resolveTwinIcon(role.icon);
-            return <Icon size={20} strokeWidth={2} />;
-          })() : null}
+        <div className="agent-role-icon">
+          {role.icon
+            ? (() => {
+                const Icon = resolveTwinIcon(role.icon);
+                return <Icon size={20} strokeWidth={2} />;
+              })()
+            : null}
         </div>
         <div className="agent-role-info">
           <span className="agent-role-name">
-            {role.displayName}
-            {role.isSystem && <span className="agent-role-badge system">Built-in</span>}
-            {!role.isActive && <span className="agent-role-badge inactive">Inactive</span>}
+            {localizedRole.name}
+            {role.isSystem && (
+              <span className="agent-role-badge system">
+                {t("agentRoleCard.builtIn", "Built-in")}
+              </span>
+            )}
+            {!role.isActive && (
+              <span className="agent-role-badge inactive">
+                {t("agentRoleCard.inactive", "Inactive")}
+              </span>
+            )}
           </span>
-          {role.description && <span className="agent-role-description">{role.description}</span>}
+          {localizedRole.description && (
+            <span className="agent-role-description">
+              {localizedRole.description}
+            </span>
+          )}
         </div>
         {!compact && (
           <div className="agent-role-toggle">
@@ -94,14 +93,15 @@ export function AgentRoleCard({
           <div className="agent-role-capabilities">
             {role.capabilities.map((cap) => (
               <span key={cap} className="agent-capability-tag">
-                {CAPABILITY_ICONS[cap]} {CAPABILITY_LABELS[cap]}
+                {getLocalizedAgentCapability(cap) ||
+                  t(`agentRoleCard.capability.${cap}`, String(cap))}
               </span>
             ))}
           </div>
 
           {role.modelKey && (
             <div className="agent-role-model">
-              <span className="model-label">Model:</span>
+              <span className="model-label">{t("common.model", "Model")}:</span>
               <span className="model-value">{role.modelKey}</span>
             </div>
           )}
@@ -113,7 +113,7 @@ export function AgentRoleCard({
                 e.stopPropagation();
                 onEdit(role);
               }}
-              title="Edit"
+              title={t("common.edit", "Edit")}
             >
               <svg
                 width="14"
@@ -134,7 +134,7 @@ export function AgentRoleCard({
                   e.stopPropagation();
                   onDelete(role.id);
                 }}
-                title="Delete"
+                title={t("common.delete", "Delete")}
               >
                 <svg
                   width="14"
@@ -195,6 +195,9 @@ export function AgentRoleCard({
           justify-content: center;
           font-size: 18px;
           flex-shrink: 0;
+          color: var(--color-text-secondary);
+          background: var(--color-bg-tertiary);
+          border: 1px solid var(--color-border-subtle);
         }
 
         .agent-role-card.compact .agent-role-icon {
@@ -226,13 +229,15 @@ export function AgentRoleCard({
         }
 
         .agent-role-badge.system {
-          background: var(--color-accent);
-          color: white;
+          background: var(--color-bg-tertiary);
+          color: var(--color-text-muted);
+          border: 1px solid var(--color-border-subtle);
         }
 
         .agent-role-badge.inactive {
-          background: var(--color-text-muted);
-          color: var(--color-bg-primary);
+          background: var(--color-bg-tertiary);
+          color: var(--color-text-muted);
+          border: 1px solid var(--color-border-subtle);
         }
 
         .agent-role-description {

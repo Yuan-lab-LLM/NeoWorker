@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderVisualAnnotatorHtml } from "../visual-tools";
 
 describe("renderVisualAnnotatorHtml", () => {
-  it("includes the coworkCanvas bridge and bootstrap JSON", () => {
+  it("includes the neoworkerCanvas bridge and bootstrap JSON", () => {
     const html = renderVisualAnnotatorHtml({
       version: 1,
       sessionId: "sess",
@@ -10,7 +10,7 @@ describe("renderVisualAnnotatorHtml", () => {
       imageFilename: "image.png",
     });
 
-    expect(html).toContain("window.coworkCanvas");
+    expect(html).toContain("window.neoworkerCanvas");
     expect(html).toContain('type="application/json"');
     expect(html).toContain('"sessionId":"sess"');
     expect(html).toContain('"imageFilename":"image.png"');

@@ -17,13 +17,13 @@ type ExtractedSection = {
   content: string;
 };
 
-const KIT_DIRNAME = ".cowork";
+const KIT_DIRNAME = ".neoworker";
 const MAX_FILE_BYTES = 96 * 1024;
 const MAX_SECTION_CHARS = 6000;
 const MAX_TOTAL_CHARS = 16000;
 const MAX_DESIGN_CONTEXT_CHARS = 7000;
-const AUTO_LORE_START = "<!-- cowork:auto:lore:start -->";
-const AUTO_LORE_END = "<!-- cowork:auto:lore:end -->";
+const AUTO_LORE_START = "<!-- neoworker:auto:lore:start -->";
+const AUTO_LORE_END = "<!-- neoworker:auto:lore:end -->";
 
 const MAP_FILES: Array<{ relPath: string; title: string }> = [
   { relPath: "docs/CODEBASE_MAP.md", title: "Codebase Map" },
@@ -32,7 +32,7 @@ const MAP_FILES: Array<{ relPath: string; title: string }> = [
 ];
 
 const DESIGN_SYSTEM_FILES = [
-  ".cowork/DESIGN.md",
+  ".neoworker/DESIGN.md",
   "DESIGN.md",
   "docs/DESIGN.md",
   "design/DESIGN.md",
@@ -200,7 +200,7 @@ export function buildWorkspaceDesignSystemContext(workspacePath: string, taskPro
     const raw = readFilePrefix(absPath, MAX_FILE_BYTES);
     if (!raw) continue;
 
-    const contract = relPath === ".cowork/DESIGN.md" ? WORKSPACE_KIT_CONTRACTS["DESIGN.md"] : undefined;
+    const contract = relPath === ".neoworker/DESIGN.md" ? WORKSPACE_KIT_CONTRACTS["DESIGN.md"] : undefined;
     const parsed = contract ? parseKitDocument(absPath, contract, relPath) : null;
     const source = parsed?.body || raw;
     const content = sanitizeForInjection(clampSection(source, MAX_DESIGN_CONTEXT_CHARS));
@@ -219,11 +219,11 @@ export function buildWorkspaceDesignSystemContext(workspacePath: string, taskPro
 
   return [
     "### Workspace Design System (not found)",
-    "This task appears to involve UI/frontend/design work, but no DESIGN.md was found at .cowork/DESIGN.md, DESIGN.md, docs/DESIGN.md, or design/DESIGN.md.",
+    "This task appears to involve UI/frontend/design work, but no DESIGN.md was found at .neoworker/DESIGN.md, DESIGN.md, docs/DESIGN.md, or design/DESIGN.md.",
     "",
     "Design-system behavior:",
     "- Before changing UI, inspect existing styles, CSS variables, theme files, and nearby components to infer the current design system.",
-    "- If the task creates or materially changes the visual system, create or update .cowork/DESIGN.md with tokens and design principles as part of the work.",
+    "- If the task creates or materially changes the visual system, create or update .neoworker/DESIGN.md with tokens and design principles as part of the work.",
     "- Do not invent disconnected colors, typography, spacing, or component treatments when existing UI patterns are discoverable.",
   ].join("\n");
 }

@@ -1,13 +1,13 @@
 import * as fs from "fs";
 import * as path from "path";
 
-export const COWORK_PRIVATE_ROOT = ".cowork";
-export const COWORK_TASK_TMP_ROOT = ".cowork/tmp";
-export const COWORK_AUTOMATED_OUTPUT_ROOT = ".cowork/automated-outputs";
+export const NEOWORKER_PRIVATE_ROOT = ".neoworker";
+export const NEOWORKER_TASK_TMP_ROOT = ".neoworker/tmp";
+export const NEOWORKER_AUTOMATED_OUTPUT_ROOT = ".neoworker/automated-outputs";
 
 const DEFAULT_LOCAL_EXCLUDE_PATHS = [
-  COWORK_TASK_TMP_ROOT,
-  COWORK_AUTOMATED_OUTPUT_ROOT,
+  NEOWORKER_TASK_TMP_ROOT,
+  NEOWORKER_AUTOMATED_OUTPUT_ROOT,
 ];
 
 const excludeUpdates = new Set<string>();
@@ -68,7 +68,7 @@ function buildExcludeEntry(repoRoot: string, workspacePath: string, workspaceRel
   return entry.startsWith("/") ? entry : entry;
 }
 
-export function ensureCoWorkPrivatePathsExcluded(
+export function ensureNeoWorkerPrivatePathsExcluded(
   workspacePath: string,
   relativePaths: string[] = DEFAULT_LOCAL_EXCLUDE_PATHS,
 ): void {
@@ -101,9 +101,9 @@ export function ensureCoWorkPrivatePathsExcluded(
     }
 
     const newline = content.length > 0 && !content.endsWith("\n") ? "\n" : "";
-    const comment = content.includes("# CoWork OS local scratch and generated outputs")
+    const comment = content.includes("# NeoWorker local scratch and generated outputs")
       ? ""
-      : "# CoWork OS local scratch and generated outputs\n";
+      : "# NeoWorker local scratch and generated outputs\n";
     fs.writeFileSync(excludePath, `${content}${newline}${comment}${missing.join("\n")}\n`, "utf-8");
     excludeUpdates.add(cacheKey);
   } catch {
@@ -111,12 +111,12 @@ export function ensureCoWorkPrivatePathsExcluded(
   }
 }
 
-export function isCoWorkPrivateGeneratedPath(relativePath: string): boolean {
+export function isNeoWorkerPrivateGeneratedPath(relativePath: string): boolean {
   const normalized = toPosixPath(relativePath).replace(/^\.\//, "");
   return (
-    normalized === COWORK_TASK_TMP_ROOT ||
-    normalized.startsWith(`${COWORK_TASK_TMP_ROOT}/`) ||
-    normalized === COWORK_AUTOMATED_OUTPUT_ROOT ||
-    normalized.startsWith(`${COWORK_AUTOMATED_OUTPUT_ROOT}/`)
+    normalized === NEOWORKER_TASK_TMP_ROOT ||
+    normalized.startsWith(`${NEOWORKER_TASK_TMP_ROOT}/`) ||
+    normalized === NEOWORKER_AUTOMATED_OUTPUT_ROOT ||
+    normalized.startsWith(`${NEOWORKER_AUTOMATED_OUTPUT_ROOT}/`)
   );
 }

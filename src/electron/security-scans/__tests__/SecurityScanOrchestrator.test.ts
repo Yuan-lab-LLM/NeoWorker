@@ -32,7 +32,7 @@ function writeWorkerArtifacts(workerDir: string, title: string): void {
 
 describe("SecurityScanOrchestrator", () => {
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-security-scan-test-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-security-scan-test-"));
   });
 
   afterEach(() => {
@@ -51,7 +51,7 @@ describe("SecurityScanOrchestrator", () => {
       scanId: "test-scan",
     });
 
-    expect(result.paths.scanDir).toBe(path.join(repoRoot, ".cowork", "security-scans", "repo", "test-scan"));
+    expect(result.paths.scanDir).toBe(path.join(repoRoot, ".neoworker", "security-scans", "repo", "test-scan"));
     expect(fs.existsSync(result.paths.rankInput)).toBe(true);
     expect(fs.existsSync(result.paths.deepReviewInput)).toBe(true);
     expect(result.rankInputRows).toBeGreaterThan(0);

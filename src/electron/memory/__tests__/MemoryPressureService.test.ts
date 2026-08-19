@@ -13,7 +13,7 @@ describe("MemoryPressureService", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-memory-pressure-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-memory-pressure-"));
   });
 
   afterEach(() => {
@@ -21,9 +21,9 @@ describe("MemoryPressureService", () => {
   });
 
   it("flags hot memory files that exceed the compaction threshold", async () => {
-    writeFile(path.join(tmpDir, ".cowork", "USER.md"), `${"A".repeat(1700)}\n`);
+    writeFile(path.join(tmpDir, ".neoworker", "USER.md"), `${"A".repeat(1700)}\n`);
     writeFile(
-      path.join(tmpDir, ".cowork", "MEMORY.md"),
+      path.join(tmpDir, ".neoworker", "MEMORY.md"),
       "- Use deterministic prompts\n- Use deterministic prompts\n",
     );
 
@@ -33,6 +33,6 @@ describe("MemoryPressureService", () => {
 
     expect(user?.level).toBe("compact");
     expect(memory?.duplicateLineCount).toBe(1);
-    expect(MemoryPressureService.buildCompactionInstructions(report)).toContain(".cowork/USER.md");
+    expect(MemoryPressureService.buildCompactionInstructions(report)).toContain(".neoworker/USER.md");
   });
 });

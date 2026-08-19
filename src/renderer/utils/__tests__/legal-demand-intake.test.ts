@@ -21,18 +21,24 @@ describe("parseLegalDemandIntakeSlashPrompt", () => {
   });
 
   it("does not match unrelated slash commands", () => {
-    expect(parseLegalDemandIntakeSlashPrompt("/litigation-legal-demand-draft payment-acme")).toEqual(
-      {
-        matched: false,
-        args: "",
-      },
-    );
+    expect(
+      parseLegalDemandIntakeSlashPrompt(
+        "/litigation-legal-demand-draft payment-acme",
+      ),
+    ).toEqual({
+      matched: false,
+      args: "",
+    });
   });
 });
 
 describe("parseLegalWorkflowSlashPrompt", () => {
   it("routes demand intake to the specialized form", () => {
-    expect(parseLegalWorkflowSlashPrompt("/litigation-legal-demand-intake unpaid invoices")).toEqual({
+    expect(
+      parseLegalWorkflowSlashPrompt(
+        "/litigation-legal-demand-intake unpaid invoices",
+      ),
+    ).toEqual({
       matched: true,
       commandName: "litigation-legal-demand-intake",
       args: "unpaid invoices",
@@ -42,7 +48,9 @@ describe("parseLegalWorkflowSlashPrompt", () => {
 
   it("matches other Claude-for-Legal workflows that benefit from matter context", () => {
     expect(
-      parseLegalWorkflowSlashPrompt("/commercial-legal-saas-msa-review acme subscription"),
+      parseLegalWorkflowSlashPrompt(
+        "/commercial-legal-saas-msa-review acme subscription",
+      ),
     ).toEqual({
       matched: true,
       commandName: "commercial-legal-saas-msa-review",
@@ -52,7 +60,9 @@ describe("parseLegalWorkflowSlashPrompt", () => {
   });
 
   it("does not show a context form for legal pack management commands", () => {
-    expect(parseLegalWorkflowSlashPrompt("/legal-builder-hub-disable old-skill")).toMatchObject({
+    expect(
+      parseLegalWorkflowSlashPrompt("/legal-builder-hub-disable old-skill"),
+    ).toMatchObject({
       matched: false,
       commandName: "",
       args: "",
@@ -60,7 +70,9 @@ describe("parseLegalWorkflowSlashPrompt", () => {
   });
 
   it("does not match unrelated slash commands", () => {
-    expect(parseLegalWorkflowSlashPrompt("/plan build the thing")).toMatchObject({
+    expect(
+      parseLegalWorkflowSlashPrompt("/plan build the thing"),
+    ).toMatchObject({
       matched: false,
       commandName: "",
       args: "",
@@ -95,7 +107,9 @@ describe("buildLegalDemandIntakeFollowUp", () => {
       desiredOutcome: "Payment of $42,000 by wire.",
     });
 
-    expect(message).toContain("Demand intake details for /litigation-legal-demand-intake.");
+    expect(message).toContain(
+      "Demand intake details for /litigation-legal-demand-intake.",
+    );
     expect(message).toContain("- Sender: Almarion LLC");
     expect(message).toContain("Payment of $42,000 by wire.");
     expect(message).toContain("[not provided]");
@@ -114,8 +128,12 @@ describe("buildGenericLegalWorkflowFollowUp", () => {
       documents: "DPA_v4.docx",
     });
 
-    expect(message).toContain("Legal workflow context for /privacy-legal-dpa-review.");
-    expect(message).toContain("- Jurisdiction / governing law: California and GDPR");
+    expect(message).toContain(
+      "Legal workflow context for /privacy-legal-dpa-review.",
+    );
+    expect(message).toContain(
+      "- Jurisdiction / governing law: California and GDPR",
+    );
     expect(message).toContain("DPA_v4.docx");
     expect(message).toContain("[not provided]");
   });

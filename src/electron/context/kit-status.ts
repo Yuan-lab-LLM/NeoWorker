@@ -7,7 +7,7 @@ import { lintKitDoc, isKitDocStale } from "./kit-linter";
 import { parseKitDocument } from "./kit-parser";
 import { getKitRevisionCount } from "./kit-revisions";
 
-export const KIT_DIR_NAME = ".cowork";
+export const KIT_DIR_NAME = ".neoworker";
 const WORKSPACE_STATE_FILE_NAME = "workspace-state.json";
 const WORKSPACE_STATE_VERSION = 1;
 

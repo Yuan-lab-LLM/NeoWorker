@@ -1,0 +1,3 @@
+import { n as e, t } from "./square-x-BenxoFm--Cycz4mMV.js";
+t();
+export { e as default };

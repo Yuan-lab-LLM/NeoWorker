@@ -18,8 +18,8 @@ function buildConfig(overrides: Partial<SecureMcpTunnelConfig> = {}): SecureMcpT
     name: "Local tunnel",
     enabled: true,
     relayUrl: "ws://127.0.0.1:9000",
-    targetType: "cowork-host",
-    coworkHostPort: 3333,
+    targetType: "neoworker-host",
+    neoworkerHostPort: 3333,
     policy: {
       ...DEFAULT_SECURE_MCP_TUNNEL_POLICY,
       allowedTools: ["read_file"],
@@ -48,7 +48,7 @@ describe("McpTunnelForwarder", () => {
     vi.clearAllMocks();
   });
 
-  it("adds the local MCP host bearer token for cowork-host targets", async () => {
+  it("adds the local MCP host bearer token for neoworker-host targets", async () => {
     const forwarder = new McpTunnelForwarder(buildConfig());
 
     await forwarder.forward({

@@ -1,0 +1,3 @@
+import { n as e, t } from "./lua-Chx3Xp78.js";
+t();
+export { e as default };

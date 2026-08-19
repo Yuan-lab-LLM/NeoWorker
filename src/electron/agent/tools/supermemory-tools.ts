@@ -238,7 +238,7 @@ export class SupermemoryTools {
       content: input.content,
       containerTag: input.containerTag,
       metadata: {
-        source: "cowork_tool",
+        source: "neoworker_tool",
         taskId: this.taskId,
         workspaceId: this.workspace.id,
       },

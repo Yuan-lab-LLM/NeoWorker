@@ -74,7 +74,7 @@ describe("maps MCP connector", () => {
       expect.stringContaining("nominatim.openstreetmap.org/search"),
       expect.objectContaining({
         headers: expect.objectContaining({
-          "User-Agent": expect.stringContaining("CoWorkOS"),
+          "User-Agent": expect.stringContaining("NeoWorker"),
         }),
       }),
     );

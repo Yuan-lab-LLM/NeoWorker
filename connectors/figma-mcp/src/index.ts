@@ -98,7 +98,7 @@ class FigmaClient {
       headers: {
         'X-Figma-Token': this.getAuthHeader(),
         'Accept': 'application/json',
-        'User-Agent': 'CoWork-Figma-Connector/0.1.0',
+        'User-Agent': 'NeoWorker-Figma-Connector/0.1.0',
       },
     });
 

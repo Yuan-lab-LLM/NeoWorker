@@ -13,5 +13,5 @@ dependencyResolution {
     }
 }
 
-rootProject.name = "CoWorkCompanion"
+rootProject.name = "NeoWorkerCompanion"
 include(":app")

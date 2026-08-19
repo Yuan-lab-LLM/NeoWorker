@@ -65,7 +65,7 @@ This biases tool choice without hiding unrelated tools, granting new permissions
 
 `@Inbox` is a special mention for Inbox Agent. It can be selected from the Integrations section or typed directly as `@inbox`.
 
-When a new main-composer prompt starts with `@Inbox` or `@inbox`, CoWork:
+When a new main-composer prompt starts with `@Inbox` or `@inbox`, NeoWorker:
 
 1. removes the mention from the user-facing query
 2. opens the Inbox Agent view

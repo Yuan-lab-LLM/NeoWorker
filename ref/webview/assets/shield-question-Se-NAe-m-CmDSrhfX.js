@@ -1,0 +1,3 @@
+import { n as e, t } from "./shield-question-Se-NAe-m-CeUXGWek.js";
+t();
+export { e as default };

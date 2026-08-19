@@ -1,0 +1,3 @@
+import { n as e, t } from "./globe-lock-Bl5yXyzW-RQt1peai.js";
+t();
+export { e as default };

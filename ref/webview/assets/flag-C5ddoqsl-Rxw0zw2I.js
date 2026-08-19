@@ -1,0 +1,3 @@
+import { n as e, t } from "./flag-C5ddoqsl-BzeHSuwT.js";
+e();
+export { t as default };

@@ -59,7 +59,7 @@ describe("SpreadsheetArtifactViewer", () => {
     expect(markup).not.toContain("New tab");
   });
 
-  it("renders fullscreen turn context collapsed by default", () => {
+  it("keeps the latest update visible when fullscreen turn context is collapsed", () => {
     const markup = render(
       React.createElement(SpreadsheetArtifactViewer, {
         filePath: "/workspace/sample.xlsx",
@@ -80,6 +80,6 @@ describe("SpreadsheetArtifactViewer", () => {
 
     expect(markup).toContain("spreadsheet-viewer-turn-frame collapsed");
     expect(markup).toContain("Latest turn");
-    expect(markup).not.toContain("Created the sample spreadsheet.");
+    expect(markup).toContain("Created the sample spreadsheet.");
   });
 });

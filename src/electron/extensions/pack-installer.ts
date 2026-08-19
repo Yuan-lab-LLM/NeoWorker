@@ -19,10 +19,13 @@ import { getCapabilityBundleSecurityService } from "../security/capability-bundl
 import { assertNetworkPolicyAllowed } from "../security/network-policy";
 import { validateManifest } from "./loader";
 import { PluginManifest } from "./types";
+import { findPluginManifestPath, PLUGIN_MANIFEST_FILENAME } from "./manifest-file";
+import {
+  parsePluginManifestResponse,
+  type PluginManifestResponseErrorCode,
+} from "./plugin-manifest-response";
 
 const execFileAsync = promisify(execFile);
-
-const MANIFEST_FILENAME = "cowork.plugin.json";
 
 /** Regex for valid pack names */
 const VALID_PACK_ID = /^[a-z0-9_-]+$/;
@@ -53,6 +56,7 @@ export interface InstallResult {
   skillCount?: number;
   agentCount?: number;
   security?: InstallSecurityOutcome;
+  errorCode?: PluginManifestResponseErrorCode;
 }
 
 export interface UninstallResult {
@@ -88,7 +92,7 @@ function sanitizePackId(packId: string): string | null {
  * Get the user extensions directory
  */
 function getUserExtensionsDir(): string {
-  const userDataPath = app?.getPath?.("userData") || path.join(process.env.HOME || process.env.USERPROFILE || "", ".cowork");
+  const userDataPath = app?.getPath?.("userData") || path.join(process.env.HOME || process.env.USERPROFILE || "", ".neoworker");
   return path.join(userDataPath, "extensions");
 }
 
@@ -145,7 +149,7 @@ function findInstalledPackDirByManifestName(
   }
 
   const directDir = path.join(extensionsDir, safeManifestName);
-  if (fs.existsSync(path.join(directDir, MANIFEST_FILENAME))) {
+  if (findPluginManifestPath(directDir)) {
     return directDir;
   }
 
@@ -154,8 +158,8 @@ function findInstalledPackDirByManifestName(
     if (!entry.isDirectory()) continue;
 
     const packDir = path.join(extensionsDir, entry.name);
-    const manifestPath = path.join(packDir, MANIFEST_FILENAME);
-    if (!fs.existsSync(manifestPath)) continue;
+    const manifestPath = findPluginManifestPath(packDir);
+    if (!manifestPath) continue;
 
     try {
       const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as PluginManifest;
@@ -279,11 +283,11 @@ export async function installFromGit(
     });
 
     // Check for manifest
-    const manifestPath = path.join(workingDir, MANIFEST_FILENAME);
-    if (!fs.existsSync(manifestPath)) {
+    const manifestPath = findPluginManifestPath(workingDir);
+    if (!manifestPath) {
       // Clean up
       fs.rmSync(workingDir, { recursive: true, force: true });
-      return { success: false, error: `Repository does not contain ${MANIFEST_FILENAME}` };
+      return { success: false, error: `Repository does not contain ${PLUGIN_MANIFEST_FILENAME}` };
     }
 
     // Parse and validate manifest
@@ -385,7 +389,7 @@ export async function installFromGit(
 }
 
 /**
- * Install a plugin pack from a URL pointing to a cowork.plugin.json
+ * Install a plugin pack from a URL pointing to a neoworker.plugin.json
  */
 export async function installFromUrl(
   url: string,
@@ -415,7 +419,19 @@ export async function installFromUrl(
       return { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
     }
 
-    const manifestData = await response.json();
+    const responseBody = await response.text();
+    const parsedManifest = parsePluginManifestResponse(
+      responseBody,
+      response.headers.get("content-type") || "",
+    );
+    if (!parsedManifest.ok) {
+      return {
+        success: false,
+        errorCode: parsedManifest.errorCode,
+        error: parsedManifest.error,
+      };
+    }
+    const manifestData = parsedManifest.data;
 
     notify({ status: "validating", progress: 50, message: "Validating manifest..." });
 
@@ -442,7 +458,7 @@ export async function installFromUrl(
 
     fs.mkdirSync(tempDir, { recursive: true });
     fs.writeFileSync(
-      path.join(tempDir, MANIFEST_FILENAME),
+      path.join(tempDir, PLUGIN_MANIFEST_FILENAME),
       JSON.stringify(manifest, null, 2) + "\n",
       "utf-8",
     );
@@ -526,8 +542,8 @@ export async function uninstallPack(packName: string): Promise<UninstallResult> 
   }
 
   // Verify it's actually a plugin pack
-  const manifestPath = path.join(packDir, MANIFEST_FILENAME);
-  if (!fs.existsSync(manifestPath)) {
+  const manifestPath = findPluginManifestPath(packDir);
+  if (!manifestPath) {
     return { success: false, error: `Directory "${safeId}" does not contain a valid plugin pack` };
   }
 
@@ -544,7 +560,7 @@ export async function uninstallPack(packName: string): Promise<UninstallResult> 
 }
 
 /**
- * List user-installed plugin packs (from ~/.cowork/extensions/)
+ * List user-installed plugin packs (from ~/.neoworker/extensions/)
  */
 export function listInstalledPacks(): { name: string; path: string; manifest?: PluginManifest }[] {
   const extensionsDir = getUserExtensionsDir();
@@ -560,9 +576,9 @@ export function listInstalledPacks(): { name: string; path: string; manifest?: P
     if (!entry.isDirectory()) continue;
 
     const packDir = path.join(extensionsDir, entry.name);
-    const manifestPath = path.join(packDir, MANIFEST_FILENAME);
+    const manifestPath = findPluginManifestPath(packDir);
 
-    if (!fs.existsSync(manifestPath)) continue;
+    if (!manifestPath) continue;
 
     try {
       const content = fs.readFileSync(manifestPath, "utf-8");

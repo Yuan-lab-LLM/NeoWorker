@@ -1,0 +1,136 @@
+{
+  "id": "presentation-studio",
+  "name": "Presentation Studio",
+  "description": "Create, edit, and visually verify native PowerPoint decks with integrated narrative planning, style routing, editable PPTX generation, and QA.",
+  "icon": "📊",
+  "category": "Content Creation",
+  "priority": 18,
+  "prompt": "# Presentation Studio\n\nUse this as NeoWorker's default workflow for PowerPoint, PPT, PPTX, slide, deck, and presentation requests. It consolidates narrative planning, quality rules, layout/style routing, editable PPTX generation, and rendered-slide QA into one workflow. Do not use it for Word, Excel, a web-only slide show, or a request that only mentions a presentation as background context.\n\nInputs:\n- Mode: {{mode}}\n- Language: {{language}}\n- Visual style: {{visual_style}}\n- Palette: {{palette}}\n- Source path: {{source_path}}\n- Output directory: {{output_dir}}\n\nExecution workflow:\n1. Resolve the mode. Use create when no source deck exists, edit when {{source_path}} points to a PPTX, and read when the user asks only for analysis.\n2. Resolve the project directory. If {{output_dir}} is empty, use {artifactDir}/presentation-studio. Never overwrite an earlier deck; later builds create a versioned PPTX.\n3. Run `node {baseDir}/scripts/preflight.mjs`.\n4. Read `{baseDir}/SKILL.md` completely. For creation, also read `references/narrative-and-quality.md`, `references/style-routing.md`, `references/design-system.md`, `references/slide-types.md`, and `references/pitfalls.md`. For edits, also read `references/editing.md`. Read `references/pptxgenjs.md` only when API details are needed.\n5. For a new deck, run `node {baseDir}/scripts/bootstrap_project.mjs --project-dir \"<project dir>\" --language \"<resolved language>\" --style \"<resolved style>\" --palette \"<resolved palette>\" --title \"<deck title>\"`.\n6. Complete `presentation-plan.json` before layout: audience, purpose, coreMessage, narrative context/tension/resolution, evidence register, primary visual grammar, and one role/intent/takeaway per slide.\n7. Validate the plan with `node {baseDir}/scripts/validate_plan.mjs --project-dir \"<project dir>\"`. Repair errors before authoring final slide geometry.\n8. Create one synchronous slide module per slide under `<project dir>/slides/`. Use the generated theme for fonts and colors. Keep assets in `slides/imgs/`. Never expose speaker notes, prompts, or production instructions as visible slide copy.\n9. Compile and verify with `node {baseDir}/scripts/build_and_qa.mjs --project-dir \"<project dir>\"`.\n10. Inspect every rendered PNG at full size. Fix clipping, collisions, missing glyphs, weak hierarchy, low contrast, unreadable charts, unsupported claims, repeated silhouettes, and broken narrative continuity. Rebuild after fixes.\n11. Never claim completion from package validity alone. If slide images could not be rendered, say visual QA is incomplete.\n12. Deliver the exact newly generated PPTX path reported by the build, the editable source directory, and the QA report.\n\nSuccess criteria:\n- The PPTX is native and editable.\n- The deck has a decision-oriented narrative, one clear job per slide, and traceable evidence.\n- The selected visual grammar is consistent without becoming repetitive.\n- Package, content, narrative, and rendered-slide QA have all been considered.\n- The final response reports any warning instead of hiding it.",
+  "parameters": [
+    {
+      "name": "mode",
+      "type": "select",
+      "description": "Create, edit, read, or infer the PowerPoint workflow",
+      "required": false,
+      "default": "auto",
+      "options": [
+        "auto",
+        "create",
+        "edit",
+        "read"
+      ]
+    },
+    {
+      "name": "language",
+      "type": "select",
+      "description": "Primary deck language",
+      "required": false,
+      "default": "auto",
+      "options": [
+        "auto",
+        "chinese",
+        "english",
+        "mixed"
+      ]
+    },
+    {
+      "name": "visual_style",
+      "type": "select",
+      "description": "Layout and spacing recipe",
+      "required": false,
+      "default": "auto",
+      "options": [
+        "auto",
+        "sharp",
+        "soft",
+        "rounded",
+        "pill"
+      ]
+    },
+    {
+      "name": "palette",
+      "type": "string",
+      "description": "Optional palette name or brand-color direction",
+      "required": false
+    },
+    {
+      "name": "source_path",
+      "type": "string",
+      "input": "file",
+      "description": "Optional source PPTX or source-material file",
+      "required": false
+    },
+    {
+      "name": "output_dir",
+      "type": "string",
+      "input": "folder",
+      "description": "Workspace-local project directory",
+      "required": false
+    }
+  ],
+  "enabled": true,
+  "invocation": {
+    "userInvocable": true,
+    "disableModelInvocation": false
+  },
+  "metadata": {
+    "version": "2.0.0",
+    "author": "NeoWorker; adapted from MiniMax AI, presentation-skill, and Knowledge Cat PPT Skill",
+    "license": "MIT",
+    "homepage": "https://github.com/siril9/presentation-skill",
+    "repository": "https://github.com/siril9/presentation-skill",
+    "tags": [
+      "presentation",
+      "powerpoint",
+      "ppt",
+      "pptx",
+      "slides",
+      "deck",
+      "演示文稿",
+      "幻灯片"
+    ],
+    "routing": {
+      "useWhen": "Use for requests to create, edit, inspect, repair, or improve a PowerPoint/PPT/PPTX presentation, slide deck, or set of slides.",
+      "dontUseWhen": "Do not use for Word or Excel work, web-only presentations, UI tabs called slides, or requests where a presentation is only mentioned as context and no deck work is requested.",
+      "outputs": "An editable source-first slide project, narrative and evidence plan, native PPTX, rendered previews, and a QA report.",
+      "successCriteria": "The PPTX is editable, narrative-led, visually varied, evidence-aware, uses platform-safe fonts, and passes package/content/rendered-slide QA.",
+      "expectedArtifacts": [
+        "presentation-studio/output/presentation.pptx",
+        "presentation-studio/qa-report.json"
+      ],
+      "keywords": [
+        "ppt",
+        "pptx",
+        "powerpoint",
+        "presentation",
+        "slide deck",
+        "slides",
+        "deck",
+        "演示文稿",
+        "幻灯片",
+        "做个ppt",
+        "生成ppt",
+        "制作ppt"
+      ],
+      "examples": {
+        "positive": [
+          "帮我做一份产品介绍 PPT。",
+          "把这份材料整理成演示文稿。",
+          "Create an editable investor pitch deck.",
+          "Fix the typography and layout in this PPTX.",
+          "Read this PowerPoint and improve the weak slides."
+        ],
+        "negative": [
+          "帮我做一个 Excel 财务模型。",
+          "写一份 Word 报告。",
+          "设计网页里的轮播图组件。",
+          "在会议中有人做了一个 presentation。",
+          "给这个 tab 加一个 slide animation。"
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "high"
+    }
+  }
+}

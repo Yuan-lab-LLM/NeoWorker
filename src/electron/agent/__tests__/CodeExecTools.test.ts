@@ -43,6 +43,34 @@ describe("CodeExecTools", () => {
     expect(result.language).toBe("python");
   });
 
+  it("returns sandbox termination diagnostics to the agent", async () => {
+    const { createSandbox } = await import("../sandbox/sandbox-factory");
+    vi.mocked(createSandbox).mockResolvedValueOnce({
+      type: "macos",
+      initialize: vi.fn().mockResolvedValue(undefined),
+      execute: vi.fn().mockResolvedValue({
+        exitCode: 1,
+        stdout: "",
+        stderr: "Process terminated by signal SIGABRT",
+        killed: false,
+        timedOut: false,
+        signal: "SIGABRT",
+        error: "Process terminated by signal SIGABRT",
+      }),
+      executeCode: vi.fn(),
+      cleanup: vi.fn(),
+    } as never);
+
+    const tools = new CodeExecTools(
+      fakeWorkspace as unknown as import("../../../shared/types").Workspace,
+    );
+    const result = await tools.executeCode({ language: "shell", code: "python3 -c pass" });
+
+    expect(result.signal).toBe("SIGABRT");
+    expect(result.error).toBe("Process terminated by signal SIGABRT");
+    expect(result.stderr).toContain("SIGABRT");
+  });
+
   it("rejects execution when no OS-level sandbox is available", async () => {
     const { createSandbox } = await import("../sandbox/sandbox-factory");
     vi.mocked(createSandbox).mockResolvedValueOnce({

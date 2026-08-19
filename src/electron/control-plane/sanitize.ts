@@ -7,8 +7,11 @@ import os from "os";
 import path from "path";
 import * as fs from "fs/promises";
 import type {
+  ActiveArtifactContext,
   ImageAttachment,
   IntegrationMentionSelection,
+  ExecutionMode,
+  TaskDomain,
   PermissionMode,
   QuotedAssistantMessage,
 } from "../../shared/types";
@@ -30,6 +33,9 @@ export function sanitizeTaskMessageParams(params: unknown): {
   message: string;
   images?: ImageAttachment[];
   quotedAssistantMessage?: QuotedAssistantMessage;
+  activeArtifactContext?: ActiveArtifactContext;
+  executionMode?: ExecutionMode;
+  taskDomain?: TaskDomain;
   permissionMode?: PermissionMode;
   shellAccess?: boolean;
   integrationMentions?: IntegrationMentionSelection[];
@@ -67,6 +73,44 @@ export function sanitizeTaskMessageParams(params: unknown): {
       throw { code: ErrorCodes.INVALID_PARAMS, message: `Invalid quoted assistant message: ${msg}` };
     }
     quotedAssistantMessage = parsed.data as QuotedAssistantMessage;
+  }
+
+  let activeArtifactContext: ActiveArtifactContext | undefined;
+  if (p.activeArtifactContext && typeof p.activeArtifactContext === "object") {
+    const ActiveArtifactContextSchema = z
+      .object({
+        kind: z.enum(["spreadsheet", "document", "presentation", "webpage"]),
+        path: z.string().trim().min(1).max(10000),
+      })
+      .strict();
+    const parsed = ActiveArtifactContextSchema.safeParse(p.activeArtifactContext);
+    if (!parsed.success) {
+      const msg = parsed.error.issues.map((issue: { message: string }) => issue.message).join("; ");
+      throw { code: ErrorCodes.INVALID_PARAMS, message: `Invalid active artifact context: ${msg}` };
+    }
+    activeArtifactContext = parsed.data as ActiveArtifactContext;
+  }
+
+  let executionMode: ExecutionMode | undefined;
+  if (typeof p.executionMode === "string") {
+    const parsed = z
+      .enum(["execute", "chat", "plan", "analyze", "verified", "debug"])
+      .safeParse(p.executionMode);
+    if (!parsed.success) {
+      throw { code: ErrorCodes.INVALID_PARAMS, message: "Invalid executionMode" };
+    }
+    executionMode = parsed.data;
+  }
+
+  let taskDomain: TaskDomain | undefined;
+  if (typeof p.taskDomain === "string") {
+    const parsed = z
+      .enum(["auto", "code", "research", "operations", "writing", "general", "media"])
+      .safeParse(p.taskDomain);
+    if (!parsed.success) {
+      throw { code: ErrorCodes.INVALID_PARAMS, message: "Invalid taskDomain" };
+    }
+    taskDomain = parsed.data;
   }
 
   let permissionMode: PermissionMode | undefined;
@@ -118,6 +162,9 @@ export function sanitizeTaskMessageParams(params: unknown): {
     message,
     images,
     quotedAssistantMessage,
+    activeArtifactContext,
+    executionMode,
+    taskDomain,
     permissionMode,
     shellAccess,
     integrationMentions,

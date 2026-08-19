@@ -2,14 +2,10 @@
 
 Task automations turn an existing task into scheduled or triggered follow-up work without leaving the task view. By default, they continue the same conversation thread so future runs keep the context that was already built up.
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-6.webp" alt="Automations dashboard" width="700">
-  <br><em>Saved automations and scheduled work are managed from the Automations surface.</em>
-</p>
 
 ## Where It Fits
 
-CoWork's automation model has three layers:
+NeoWorker's automation model has three layers:
 
 - `Workflow Intelligence` is the always-on cognitive runtime.
 - `Routines` are the primary saved automation product for instructions, targets, triggers, outputs, policy, and observability.
@@ -38,7 +34,7 @@ In task view, the task title includes a three-dot overflow menu. The menu expose
 - `Add automation...`
 - `View outputs` when task outputs are available
 
-`Copy deeplink` copies `cowork://tasks/<taskId>`. The app handles that URL by reopening the matching task, so copied links can be pasted into another task, a note, or an external place that can launch the CoWork URL scheme.
+`Copy deeplink` copies `neoworker://tasks/<taskId>`. The app handles that URL by reopening the matching task, so copied links can be pasted into another task, a note, or an external place that can launch the NeoWorker URL scheme.
 
 ## Add Automation Flow
 

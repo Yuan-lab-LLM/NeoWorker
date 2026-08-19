@@ -9,7 +9,7 @@ import { buildDocumentPreviewFromFile } from "../document-preview";
 
 describe("document preview extraction", () => {
   it("extracts DOCX HTML, text, and editable block metadata", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-docx-preview-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-docx-preview-"));
     const outPath = path.join(tmpDir, "sample.docx");
     const doc = new Document({
       sections: [
@@ -44,7 +44,7 @@ describe("document preview extraction", () => {
   });
 
   it("extracts readable text from RTF", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-rtf-preview-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-rtf-preview-"));
     const outPath = path.join(tmpDir, "sample.rtf");
     await fs.writeFile(outPath, "{\\rtf1\\ansi Hello\\par World}", "utf-8");
 
@@ -58,7 +58,7 @@ describe("document preview extraction", () => {
   });
 
   it("extracts text from ODT content.xml", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-odt-preview-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-odt-preview-"));
     const outPath = path.join(tmpDir, "sample.odt");
     const zip = new JSZip();
     zip.file(
@@ -79,7 +79,7 @@ describe("document preview extraction", () => {
   });
 
   it("returns structured unavailable metadata for DOC when no converter works", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-doc-preview-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-doc-preview-"));
     const outPath = path.join(tmpDir, "legacy.doc");
     await fs.writeFile(outPath, "legacy binary placeholder", "utf-8");
 

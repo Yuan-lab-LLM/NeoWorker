@@ -132,7 +132,7 @@ class FakeDatabase {
             status,
             result,
             error,
-            coworkTaskId,
+            neoworkerTaskId,
             remoteTaskId,
             workspaceId,
             createdAt,
@@ -148,7 +148,7 @@ class FakeDatabase {
             status,
             result,
             error,
-            cowork_task_id: coworkTaskId,
+            neoworker_task_id: neoworkerTaskId,
             remote_task_id: remoteTaskId,
             workspace_id: workspaceId,
             created_at: createdAt,
@@ -351,7 +351,7 @@ describe("ACP Handler", () => {
       expect(result.task.id).toBeDefined();
       expect(result.task.assigneeId).toBe("local:coder");
       expect(result.task.status).toBe("running");
-      expect(result.task.coworkTaskId).toBe("task-123");
+      expect(result.task.neoworkerTaskId).toBe("task-123");
       expect(deps.createTask).toHaveBeenCalled();
     });
 

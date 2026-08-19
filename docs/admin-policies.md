@@ -10,10 +10,10 @@ Access from **Settings** > **Admin Policies** (requires Power density mode).
 
 ### Policy File
 
-Policies are stored as JSON in the CoWork OS user data directory:
+Policies are stored as JSON in the NeoWorker user data directory:
 
 ```
-~/.cowork/policies.json
+~/.neoworker/policies.json
 ```
 
 The file is created when policies are first saved via the Admin Policies panel. If the file doesn't exist, permissive defaults apply (everything allowed, nothing blocked or required).
@@ -78,7 +78,7 @@ Policies are enforced in the following IPC handlers:
     "allowGitInstall": true,
     "allowUrlInstall": true,
     "orgName": "Acme Corp",
-    "orgPluginDir": "/opt/acme/cowork-plugins"
+    "orgPluginDir": "/opt/acme/neoworker-plugins"
   }
 }
 ```
@@ -137,36 +137,36 @@ Organization admins can distribute plugin packs to all users by placing them in 
 
 ### Setup
 
-1. Create a directory for org plugins (e.g., `/opt/company/cowork-plugins/`)
-2. Place plugin packs as subdirectories, each with a `cowork.plugin.json`
+1. Create a directory for org plugins (e.g., `/opt/company/neoworker-plugins/`)
+2. Place plugin packs as subdirectories, each with a `neoworker.plugin.json`
 3. Set the path in Admin Policies > Organization > Organization Plugin Directory
-4. Restart CoWork OS
+4. Restart NeoWorker
 
 ### Directory Structure
 
 ```
-/opt/company/cowork-plugins/
+/opt/company/neoworker-plugins/
 ├── company-engineering/
-│   └── cowork.plugin.json
+│   └── neoworker.plugin.json
 ├── company-sales/
-│   └── cowork.plugin.json
+│   └── neoworker.plugin.json
 └── company-compliance/
-    └── cowork.plugin.json
+    └── neoworker.plugin.json
 ```
 
 ### How It Works
 
 1. On startup, the Plugin Loader scans three directories in order:
    - Built-in packs (`resources/plugin-packs/`)
-   - Organization packs (from `orgPluginDir` or `~/.cowork/org-plugins/`)
-   - User packs (`~/.cowork/extensions/`)
+   - Organization packs (from `orgPluginDir` or `~/.neoworker/org-plugins/`)
+   - User packs (`~/.neoworker/extensions/`)
 2. Organization packs are loaded with `scope: "organization"` in their manifest
 3. In the Customize panel, org packs appear in a separate "Organization" section
 4. Admin policies can make org packs required (cannot be disabled)
 
 ### Default Org Directory
 
-If no custom `orgPluginDir` is configured, CoWork OS checks `~/.cowork/org-plugins/`. Create this directory to use it as the default org plugin location.
+If no custom `orgPluginDir` is configured, NeoWorker checks `~/.neoworker/org-plugins/`. Create this directory to use it as the default org plugin location.
 
 ---
 
@@ -206,7 +206,7 @@ The Admin Policies panel is accessible from **Settings** > **Admin Policies** (v
 
 ### Saving
 
-Click "Save Policies" to persist changes to `~/.cowork/policies.json`. Changes take effect immediately — no restart required. The "Reset" button reloads the last saved state.
+Click "Save Policies" to persist changes to `~/.neoworker/policies.json`. Changes take effect immediately — no restart required. The "Reset" button reloads the last saved state.
 
 ---
 
@@ -300,7 +300,7 @@ A complete enterprise setup:
     "allowGitInstall": false,
     "allowUrlInstall": false,
     "orgName": "Acme Corp",
-    "orgPluginDir": "/opt/acme/cowork-plugins"
+    "orgPluginDir": "/opt/acme/neoworker-plugins"
   }
 }
 ```
@@ -350,7 +350,7 @@ const check = await window.electronAPI.checkPackPolicy("engineering");
                                           │  policies.ts          │
                                           │  (load/save/validate) │
                                           │                       │
-                                          │  ~/.cowork/           │
+                                          │  ~/.neoworker/           │
                                           │   policies.json       │
                                           └──────────────────────┘
 
@@ -370,7 +370,7 @@ Enforcement:
 | `src/electron/admin/policies.ts` | Policy loading, saving, validation, and query functions |
 | `src/electron/ipc/admin-policy-handlers.ts` | IPC handlers for policy CRUD operations |
 | `src/renderer/components/AdminPoliciesPanel.tsx` | React UI for managing policies |
-| `~/.cowork/policies.json` | Persisted policy configuration |
+| `~/.neoworker/policies.json` | Persisted policy configuration |
 
 ---
 
@@ -378,7 +378,7 @@ Enforcement:
 
 ### Policies not taking effect
 - Policies are applied immediately on save — no restart needed
-- Verify `~/.cowork/policies.json` was written correctly
+- Verify `~/.neoworker/policies.json` was written correctly
 - Check the main process console for policy-related errors
 
 ### Cannot toggle a pack on
@@ -392,8 +392,8 @@ Enforcement:
 
 ### Org plugins not loading
 - Verify the org plugin directory path exists and contains valid packs
-- Each subdirectory must have a `cowork.plugin.json` at its root
-- Restart CoWork OS after changing the org directory path
+- Each subdirectory must have a `neoworker.plugin.json` at its root
+- Restart NeoWorker after changing the org directory path
 
 ### "Installation disabled by admin policy"
 - Custom pack creation, git install, or URL install has been disabled

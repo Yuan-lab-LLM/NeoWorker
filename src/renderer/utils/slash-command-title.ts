@@ -74,7 +74,9 @@ export function deriveSlashCommandTaskTitle(value: string): string {
   const trimmed = String(value || "").trim();
   if (!trimmed) return "";
 
-  const match = /^(?:run\s+)?\/([a-z0-9][a-z0-9-]*)(?:\s+([\s\S]*))?$/i.exec(trimmed);
+  const match = /^(?:run\s+)?\/([a-z0-9][a-z0-9-]*)(?:\s+([\s\S]*))?$/i.exec(
+    trimmed,
+  );
   if (!match) return "";
 
   const commandName = (match[1] || "").toLowerCase();

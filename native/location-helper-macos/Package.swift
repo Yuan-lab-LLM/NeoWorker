@@ -2,15 +2,15 @@
 import PackageDescription
 
 let package = Package(
-    name: "CoWorkLocationHelper",
+    name: "NeoWorkerLocationHelper",
     platforms: [.macOS(.v13)],
     products: [
-        .executable(name: "CoWorkLocationHelper", targets: ["CoWorkLocationHelper"]),
+        .executable(name: "NeoWorkerLocationHelper", targets: ["NeoWorkerLocationHelper"]),
     ],
     targets: [
         .executableTarget(
-            name: "CoWorkLocationHelper",
-            path: "Sources/CoWorkLocationHelper",
+            name: "NeoWorkerLocationHelper",
+            path: "Sources/NeoWorkerLocationHelper",
             swiftSettings: [
                 .unsafeFlags(["-parse-as-library"])
             ]

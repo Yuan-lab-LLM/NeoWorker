@@ -1,10 +1,10 @@
 /**
  * Plugin Loader
  *
- * Discovers, validates, and loads plugins from cowork.plugin.json manifests.
+ * Discovers, validates, and loads plugins from neoworker.plugin.json manifests.
  * Plugins can be loaded from:
  * - Built-in extensions directory
- * - User extensions directory (~/.cowork/extensions)
+ * - User extensions directory (~/.neoworker/extensions)
  * - Explicitly specified paths
  */
 
@@ -21,9 +21,9 @@ import {
   PluginState as _PluginState,
   PluginConfigSchema,
 } from "./types";
+import { findPluginManifestPath, PLUGIN_MANIFEST_FILENAME } from "./manifest-file";
+import { LEGACY_PRODUCT_DISPLAY_NAMES } from "../migrations/legacy-brand-compat";
 
-/** Manifest filename */
-const MANIFEST_FILENAME = "cowork.plugin.json";
 const securityService = getCapabilityBundleSecurityService();
 
 function getElectronApp(): { isPackaged?: boolean } | null {
@@ -43,7 +43,11 @@ function normalizeLegacyAuthor(author?: string): string | undefined {
   if (typeof author !== "string") return author;
   const trimmed = author.trim();
   if (!trimmed) return undefined;
-  return /^cowork-oss$/i.test(trimmed) ? "CoWork OS" : trimmed;
+  return LEGACY_PRODUCT_DISPLAY_NAMES.some(
+    (legacyName) => legacyName.toLowerCase() === trimmed.toLowerCase(),
+  )
+    ? "NeoWorker"
+    : trimmed;
 }
 
 function normalizeManifestBranding(manifest: PluginManifest): PluginManifest {
@@ -202,9 +206,9 @@ export async function discoverPlugins(dirs?: string[]): Promise<PluginDiscoveryR
       }
 
       const pluginDir = path.join(dir, entry.name);
-      const manifestPath = path.join(pluginDir, MANIFEST_FILENAME);
+      const manifestPath = findPluginManifestPath(pluginDir);
 
-      if (!fs.existsSync(manifestPath)) {
+      if (!manifestPath) {
         continue;
       }
 
@@ -246,13 +250,13 @@ export async function discoverPlugins(dirs?: string[]): Promise<PluginDiscoveryR
  * Load a plugin from its directory
  */
 export async function loadPlugin(pluginPath: string): Promise<PluginLoadResult> {
-  const manifestPath = path.join(pluginPath, MANIFEST_FILENAME);
+  const manifestPath = findPluginManifestPath(pluginPath);
 
   // Check manifest exists
-  if (!fs.existsSync(manifestPath)) {
+  if (!manifestPath) {
     return {
       success: false,
-      error: new Error(`Plugin manifest not found: ${manifestPath}`),
+      error: new Error(`Plugin manifest not found in: ${pluginPath}`),
     };
   }
 
@@ -371,10 +375,10 @@ export function getPluginDataPath(pluginName: string): string {
 }
 
 /**
- * Check if a plugin is compatible with current CoWork version
+ * Check if a plugin is compatible with current NeoWorker version
  */
-export function isPluginCompatible(manifest: PluginManifest, coworkVersion: string): boolean {
-  if (!manifest.coworkVersion) {
+export function isPluginCompatible(manifest: PluginManifest, neoworkerVersion: string): boolean {
+  if (!manifest.neoworkerVersion) {
     return true; // No version constraint
   }
 
@@ -388,12 +392,12 @@ export function isPluginCompatible(manifest: PluginManifest, coworkVersion: stri
     return [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)];
   };
 
-  const required = parse(manifest.coworkVersion);
+  const required = parse(manifest.neoworkerVersion);
   if (!required) {
     return false;
   }
 
-  const current = parse(coworkVersion);
+  const current = parse(neoworkerVersion);
   if (!current) {
     // If we cannot parse our own version, be permissive rather than breaking plugin loads.
     return true;
@@ -418,7 +422,7 @@ export function generateManifestTemplate(
     name: name.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
     displayName: name,
     version: "1.0.0",
-    description: `${name} plugin for CoWork`,
+    description: `${name} plugin for NeoWorker`,
     type,
     main: "dist/index.js",
     configSchema: {
@@ -453,6 +457,6 @@ export function writeManifestTemplate(pluginDir: string, manifest: PluginManifes
     fs.mkdirSync(pluginDir, { recursive: true });
   }
 
-  const manifestPath = path.join(pluginDir, MANIFEST_FILENAME);
+  const manifestPath = path.join(pluginDir, PLUGIN_MANIFEST_FILENAME);
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
 }

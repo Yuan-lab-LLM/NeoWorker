@@ -44,7 +44,7 @@ COPY --chown=node:node --from=build /app/connectors ./connectors
 COPY --chown=node:node --from=build /app/resources ./resources
 COPY --chown=node:node --from=build /app/docs ./docs
 
-# Optional: COWORK_TZ sets TZ for the process (IANA timezone, e.g. America/New_York).
+# Optional: NEOWORKER_TZ sets TZ for the process (IANA timezone, e.g. America/New_York).
 COPY deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
@@ -60,4 +60,4 @@ EXPOSE 18789
 HEALTHCHECK --interval=30s --timeout=3s --start-period=25s --retries=3 \
   CMD curl -fsS http://127.0.0.1:18789/health || exit 1
 
-CMD ["node", "bin/coworkd-node.js"]
+CMD ["node", "bin/neoworkerd-node.js"]

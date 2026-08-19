@@ -42,7 +42,10 @@ export const TWIN_ICON_KEYS = [
 
 export type TwinIconKey = (typeof TWIN_ICON_KEYS)[number];
 
-export const LUCIDE_TWIN_ICONS: Record<TwinIconKey, ComponentType<LucideProps>> = {
+export const LUCIDE_TWIN_ICONS: Record<
+  TwinIconKey,
+  ComponentType<LucideProps>
+> = {
   Bot,
   Laptop,
   Search,
@@ -65,7 +68,9 @@ export const LUCIDE_TWIN_ICONS: Record<TwinIconKey, ComponentType<LucideProps>> 
  * Resolve twin icon string to a Lucide React component.
  * Supports Lucide icon keys (e.g. "Laptop", "Bot") and legacy emoji for backward compatibility.
  */
-export function resolveTwinIcon(icon: string | undefined): ComponentType<LucideProps> {
+export function resolveTwinIcon(
+  icon: string | undefined,
+): ComponentType<LucideProps> {
   if (!icon) return Bot;
   const key = icon as TwinIconKey;
   if (LUCIDE_TWIN_ICONS[key]) return LUCIDE_TWIN_ICONS[key];

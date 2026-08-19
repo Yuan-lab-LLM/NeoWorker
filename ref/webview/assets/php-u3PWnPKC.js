@@ -1,0 +1,3 @@
+import { n as e, t } from "./php-CBDkyndG.js";
+t();
+export { e as default };

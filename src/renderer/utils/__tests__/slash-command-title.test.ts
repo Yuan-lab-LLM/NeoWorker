@@ -12,18 +12,22 @@ describe("deriveSlashCommandTaskTitle", () => {
   });
 
   it("humanizes acronyms in command names", () => {
-    expect(deriveSlashCommandTaskTitle("/privacy-legal-dpa-review acme processor terms")).toBe(
-      "Privacy DPA Review: acme processor terms",
-    );
     expect(
-      deriveSlashCommandTaskTitle("/commercial-legal-saas-msa-review enterprise renewal"),
+      deriveSlashCommandTaskTitle(
+        "/privacy-legal-dpa-review acme processor terms",
+      ),
+    ).toBe("Privacy DPA Review: acme processor terms");
+    expect(
+      deriveSlashCommandTaskTitle(
+        "/commercial-legal-saas-msa-review enterprise renewal",
+      ),
     ).toBe("Commercial SaaS MSA Review: enterprise renewal");
   });
 
   it("strips the Run prefix used by older slash task titles", () => {
-    expect(deriveSlashCommandTaskTitle("Run /litigation-legal-demand-intake")).toBe(
-      "Litigation Demand Intake",
-    );
+    expect(
+      deriveSlashCommandTaskTitle("Run /litigation-legal-demand-intake"),
+    ).toBe("Litigation Demand Intake");
   });
 
   it("uses concise names for app slash commands", () => {

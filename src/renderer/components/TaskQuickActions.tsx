@@ -1,8 +1,20 @@
 import { useState } from "react";
 import { ThemeIcon } from "./ThemeIcon";
-import { BotIcon, CalendarIcon, ClockIcon, ColumnsIcon, FlagIcon, TagIcon } from "./LineIcons";
+import {
+  BotIcon,
+  CalendarIcon,
+  ClockIcon,
+  ColumnsIcon,
+  FlagIcon,
+  TagIcon,
+} from "./LineIcons";
 import { getEmojiIcon } from "../utils/emoji-icon-map";
-import { TaskBoardColumn, TaskLabelData, AgentRoleData } from "../../electron/preload";
+import {
+  TaskBoardColumn,
+  TaskLabelData,
+  AgentRoleData,
+} from "../../electron/preload";
+import { translate, useLanguage } from "../i18n";
 
 interface Task {
   id: string;
@@ -71,6 +83,8 @@ export function TaskQuickActions({
   onAssignAgent,
   onClose,
 }: TaskQuickActionsProps) {
+  useLanguage();
+  const t = translate;
   const [activePanel, setActivePanel] = useState<
     "column" | "priority" | "labels" | "agent" | "due" | "estimate" | null
   >(null);
@@ -99,7 +113,7 @@ export function TaskQuickActions({
     <div className="task-quick-actions-overlay" onClick={onClose}>
       <div className="task-quick-actions" onClick={(e) => e.stopPropagation()}>
         <div className="actions-header">
-          <h4>Task Actions</h4>
+          <h4>{t("taskQuickActions.title", "Task Actions")}</h4>
           <button className="close-btn" onClick={onClose}>
             ✕
           </button>
@@ -108,50 +122,84 @@ export function TaskQuickActions({
         <div className="action-buttons">
           <button
             className={`action-btn ${activePanel === "column" ? "active" : ""}`}
-            onClick={() => setActivePanel(activePanel === "column" ? null : "column")}
+            onClick={() =>
+              setActivePanel(activePanel === "column" ? null : "column")
+            }
           >
-            <ThemeIcon className="action-icon" emoji="📋" icon={<ColumnsIcon size={16} />} />
-            Move to Column
+            <ThemeIcon
+              className="action-icon"
+              emoji="📋"
+              icon={<ColumnsIcon size={16} />}
+            />
+            {t("taskQuickActions.moveToColumn", "Move to Column")}
           </button>
 
           <button
             className={`action-btn ${activePanel === "priority" ? "active" : ""}`}
-            onClick={() => setActivePanel(activePanel === "priority" ? null : "priority")}
+            onClick={() =>
+              setActivePanel(activePanel === "priority" ? null : "priority")
+            }
           >
-            <ThemeIcon className="action-icon" emoji="!" icon={<FlagIcon size={16} />} />
-            Set Priority
+            <ThemeIcon
+              className="action-icon"
+              emoji="!"
+              icon={<FlagIcon size={16} />}
+            />
+            {t("taskQuickActions.setPriority", "Set Priority")}
           </button>
 
           <button
             className={`action-btn ${activePanel === "labels" ? "active" : ""}`}
-            onClick={() => setActivePanel(activePanel === "labels" ? null : "labels")}
+            onClick={() =>
+              setActivePanel(activePanel === "labels" ? null : "labels")
+            }
           >
-            <ThemeIcon className="action-icon" emoji="🏷️" icon={<TagIcon size={16} />} />
-            Labels
+            <ThemeIcon
+              className="action-icon"
+              emoji="🏷️"
+              icon={<TagIcon size={16} />}
+            />
+            {t("taskQuickActions.labels", "Labels")}
           </button>
 
           <button
             className={`action-btn ${activePanel === "agent" ? "active" : ""}`}
-            onClick={() => setActivePanel(activePanel === "agent" ? null : "agent")}
+            onClick={() =>
+              setActivePanel(activePanel === "agent" ? null : "agent")
+            }
           >
-            <ThemeIcon className="action-icon" emoji="🤖" icon={<BotIcon size={16} />} />
-            Assign Agent
+            <ThemeIcon
+              className="action-icon"
+              emoji="🤖"
+              icon={<BotIcon size={16} />}
+            />
+            {t("taskQuickActions.assignAgent", "Assign Agent")}
           </button>
 
           <button
             className={`action-btn ${activePanel === "due" ? "active" : ""}`}
             onClick={() => setActivePanel(activePanel === "due" ? null : "due")}
           >
-            <ThemeIcon className="action-icon" emoji="📅" icon={<CalendarIcon size={16} />} />
-            Due Date
+            <ThemeIcon
+              className="action-icon"
+              emoji="📅"
+              icon={<CalendarIcon size={16} />}
+            />
+            {t("taskQuickActions.dueDate", "Due Date")}
           </button>
 
           <button
             className={`action-btn ${activePanel === "estimate" ? "active" : ""}`}
-            onClick={() => setActivePanel(activePanel === "estimate" ? null : "estimate")}
+            onClick={() =>
+              setActivePanel(activePanel === "estimate" ? null : "estimate")
+            }
           >
-            <ThemeIcon className="action-icon" emoji="⏱️" icon={<ClockIcon size={16} />} />
-            Estimate
+            <ThemeIcon
+              className="action-icon"
+              emoji="⏱️"
+              icon={<ClockIcon size={16} />}
+            />
+            {t("taskQuickActions.estimate", "Estimate")}
           </button>
         </div>
 
@@ -166,8 +214,11 @@ export function TaskQuickActions({
                   setActivePanel(null);
                 }}
               >
-                <span className="option-dot" style={{ backgroundColor: col.color }} />
-                {col.label}
+                <span
+                  className="option-dot"
+                  style={{ backgroundColor: col.color }}
+                />
+                {t(`taskBoard.column.${col.id}`, col.label)}
               </button>
             ))}
           </div>
@@ -184,8 +235,11 @@ export function TaskQuickActions({
                   setActivePanel(null);
                 }}
               >
-                <span className="option-dot" style={{ backgroundColor: p.color }} />
-                {p.label}
+                <span
+                  className="option-dot"
+                  style={{ backgroundColor: p.color }}
+                />
+                {t(`task.priority.${p.value}`, p.label)}
               </button>
             ))}
           </div>
@@ -194,7 +248,9 @@ export function TaskQuickActions({
         {activePanel === "labels" && (
           <div className="action-panel">
             {labels.length === 0 ? (
-              <div className="panel-empty">No labels available</div>
+              <div className="panel-empty">
+                {t("taskQuickActions.noLabels", "No labels available")}
+              </div>
             ) : (
               labels.map((label) => {
                 const isAssigned = taskLabels.includes(label.id);
@@ -210,7 +266,10 @@ export function TaskQuickActions({
                       }
                     }}
                   >
-                    <span className="label-preview" style={{ backgroundColor: label.color }}>
+                    <span
+                      className="label-preview"
+                      style={{ backgroundColor: label.color }}
+                    >
                       {label.name}
                     </span>
                     {isAssigned && <span className="check-mark">✓</span>}
@@ -230,8 +289,11 @@ export function TaskQuickActions({
                 setActivePanel(null);
               }}
             >
-              <span className="option-dot" style={{ backgroundColor: "#6b7280" }} />
-              Unassigned
+              <span
+                className="option-dot"
+                style={{ backgroundColor: "#6b7280" }}
+              />
+              {t("taskQuickActions.unassigned", "Unassigned")}
             </button>
             {agents.map((agent) => (
               <button
@@ -242,7 +304,10 @@ export function TaskQuickActions({
                   setActivePanel(null);
                 }}
               >
-                <span className="agent-avatar" style={{ backgroundColor: agent.color }}>
+                <span
+                  className="agent-avatar"
+                  style={{ backgroundColor: agent.color }}
+                >
                   {(() => {
                     const Icon = getEmojiIcon(agent.icon || "🤖");
                     return <Icon size={16} strokeWidth={2} />;
@@ -263,16 +328,25 @@ export function TaskQuickActions({
                 setActivePanel(null);
               }}
             >
-              No due date
+              {t("taskQuickActions.noDueDate", "No due date")}
             </button>
-            <button className="panel-option" onClick={() => handleDueDateQuickSet(0)}>
-              Today
+            <button
+              className="panel-option"
+              onClick={() => handleDueDateQuickSet(0)}
+            >
+              {t("taskQuickActions.today", "Today")}
             </button>
-            <button className="panel-option" onClick={() => handleDueDateQuickSet(1)}>
-              Tomorrow
+            <button
+              className="panel-option"
+              onClick={() => handleDueDateQuickSet(1)}
+            >
+              {t("taskQuickActions.tomorrow", "Tomorrow")}
             </button>
-            <button className="panel-option" onClick={() => handleDueDateQuickSet(7)}>
-              Next week
+            <button
+              className="panel-option"
+              onClick={() => handleDueDateQuickSet(7)}
+            >
+              {t("taskQuickActions.nextWeek", "Next week")}
             </button>
             <div className="custom-date-row">
               <input
@@ -280,8 +354,12 @@ export function TaskQuickActions({
                 value={customDueDate}
                 onChange={(e) => setCustomDueDate(e.target.value)}
               />
-              <button className="apply-btn" onClick={handleCustomDueDate} disabled={!customDueDate}>
-                Set
+              <button
+                className="apply-btn"
+                onClick={handleCustomDueDate}
+                disabled={!customDueDate}
+              >
+                {t("common.set", "Set")}
               </button>
             </div>
           </div>
@@ -298,7 +376,10 @@ export function TaskQuickActions({
                   setActivePanel(null);
                 }}
               >
-                {opt.label}
+                {t(
+                  `taskQuickActions.estimate.${opt.value ?? "none"}`,
+                  opt.label,
+                )}
               </button>
             ))}
           </div>

@@ -11,7 +11,8 @@ vi.mock("child_process", () => ({
 import { isMacOSSandboxAvailable, resetMacOSSandboxCache } from "../sandbox-factory";
 
 function makeChildProcess(options: {
-  closeCode?: number;
+  closeCode?: number | null;
+  closeSignal?: NodeJS.Signals | null;
   stdout?: string;
   stderr?: string;
   errorMessage?: string;
@@ -29,7 +30,11 @@ function makeChildProcess(options: {
         proc.emit("error", new Error(options.errorMessage));
         return;
       }
-      proc.emit("close", options.closeCode ?? 0, null);
+      proc.emit(
+        "close",
+        options.closeCode === undefined ? 0 : options.closeCode,
+        options.closeSignal ?? null,
+      );
     });
   }
   return proc;
@@ -57,9 +62,17 @@ describe("sandbox factory macOS probe", () => {
 
     expect(spawnMock).toHaveBeenCalledWith(
       "sandbox-exec",
-      ["-p", "(version 1)\n(allow default)", "/bin/echo", "ok"],
+      ["-f", expect.any(String), "/bin/echo", "ok"],
       expect.objectContaining({ shell: false }),
     );
+  });
+
+  it("reports macOS sandbox-exec unavailable when the strict probe is aborted", async () => {
+    spawnMock.mockReturnValueOnce(
+      makeChildProcess({ closeCode: null, closeSignal: "SIGABRT" }),
+    );
+
+    await expect(isMacOSSandboxAvailable()).resolves.toBe(false);
   });
 
   it("reports macOS sandbox-exec unavailable when sandbox_apply fails", async () => {

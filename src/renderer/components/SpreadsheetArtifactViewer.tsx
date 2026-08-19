@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
-import { ArrowUp, ChevronDown, Copy, Maximize2, Mic, Minimize2, Plus, Save, Square, X } from "lucide-react";
+import {
+  ArrowUp,
+  Copy,
+  Maximize2,
+  Mic,
+  Minimize2,
+  Plus,
+  Save,
+  Square,
+  X,
+} from "lucide-react";
 import type { FileViewerResult } from "../../electron/preload";
 import type {
   ImageAttachment,
@@ -20,8 +30,15 @@ import type {
 } from "../../shared/spreadsheet-workbook";
 import { getSpreadsheetFormatLabel } from "../../shared/spreadsheet-formats";
 import { useVoiceInput } from "../hooks/useVoiceInput";
+import { translate, useLanguage } from "../i18n";
 import { ModelDropdown } from "./MainContent";
+import { ArtifactFileTypeIcon } from "./ArtifactFileTypeIcon";
+import { ArtifactDownloadButton } from "./ArtifactDownloadButton";
 import { SpreadsheetArtifactCard } from "./SpreadsheetArtifactCard";
+import {
+  ArtifactTurnProgressPanel,
+  type SpreadsheetTurnContext,
+} from "./ArtifactTurnProgressPanel";
 import "./artifact-viewers.css";
 
 type SpreadsheetArtifactViewerMode = "sidebar" | "fullscreen";
@@ -54,20 +71,6 @@ type PendingSpreadsheetAttachment = {
   mimeType?: string;
 };
 
-export type SpreadsheetTurnContext = {
-  statusLabel: string;
-  summary: string;
-  secondaryText?: string;
-  artifactPath: string;
-  artifactName: string;
-  events?: Array<{
-    id: string;
-    kind: "step" | "assistant";
-    text: string;
-    tone?: "muted" | "active" | "done";
-  }>;
-};
-
 type SpreadsheetArtifactViewerProps = {
   filePath: string;
   workspacePath: string;
@@ -75,7 +78,10 @@ type SpreadsheetArtifactViewerProps = {
   onClose: () => void;
   onFullscreen: () => void;
   onExitFullscreen: () => void;
-  onSendMessage?: (message: string, images?: ImageAttachment[]) => Promise<void>;
+  onSendMessage?: (
+    message: string,
+    images?: ImageAttachment[],
+  ) => Promise<void>;
   selectedModelLabel?: string;
   selectedModel?: string;
   selectedProvider?: LLMProviderType;
@@ -126,7 +132,8 @@ function getCellStyle(cell: SpreadsheetPreviewCell): CSSProperties | undefined {
   if (cell.italic) style.fontStyle = "italic";
   if (cell.backgroundColor) style.backgroundColor = cell.backgroundColor;
   if (cell.fontColor) style.color = cell.fontColor;
-  if (cell.horizontalAlignment) style.textAlign = cell.horizontalAlignment as CSSProperties["textAlign"];
+  if (cell.horizontalAlignment)
+    style.textAlign = cell.horizontalAlignment as CSSProperties["textAlign"];
   return Object.keys(style).length > 0 ? style : undefined;
 }
 
@@ -155,7 +162,11 @@ function ensureSheetBounds(
   );
   while (sheet.rows.length < targetRows) {
     const rowNumber = sheet.rows.length + 1;
-    sheet.rows.push(Array.from({ length: targetColumns }, (_, index) => createCell(rowNumber, index + 1)));
+    sheet.rows.push(
+      Array.from({ length: targetColumns }, (_, index) =>
+        createCell(rowNumber, index + 1),
+      ),
+    );
   }
   for (let rowIndex = 0; rowIndex < targetRows; rowIndex += 1) {
     const row = sheet.rows[rowIndex] || [];
@@ -197,7 +208,11 @@ function normalizeRange(range: CellRange | null): CellRange | null {
   };
 }
 
-function cellIsInRange(range: CellRange | null, row: number, column: number): boolean {
+function cellIsInRange(
+  range: CellRange | null,
+  row: number,
+  column: number,
+): boolean {
   const normalized = normalizeRange(range);
   if (!normalized) return false;
   return (
@@ -215,7 +230,9 @@ function buildFallbackPreview(data: ViewerData): SpreadsheetPreview | null {
     const hasSheetHeader = lines[0]?.startsWith("## Sheet: ");
     const name = hasSheetHeader ? lines[0].replace("## Sheet: ", "") : "Sheet";
     const rowLines = hasSheetHeader ? lines.slice(1) : lines;
-    const rawRows = rowLines.filter((line) => line.length > 0).map((line) => line.split("\t"));
+    const rawRows = rowLines
+      .filter((line) => line.length > 0)
+      .map((line) => line.split("\t"));
     const columnCount = Math.max(...rawRows.map((row) => row.length), 0);
     return {
       name,
@@ -258,11 +275,15 @@ export function SpreadsheetArtifactViewer({
   onOpenSettings,
   turnContext,
 }: SpreadsheetArtifactViewerProps) {
+  useLanguage();
+  const t = translate;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fileData, setFileData] = useState<ViewerData | null>(null);
-  const [workbookSession, setWorkbookSession] = useState<SpreadsheetWorkbookSession | null>(null);
-  const [editablePreview, setEditablePreview] = useState<SpreadsheetPreview | null>(null);
+  const [workbookSession, setWorkbookSession] =
+    useState<SpreadsheetWorkbookSession | null>(null);
+  const [editablePreview, setEditablePreview] =
+    useState<SpreadsheetPreview | null>(null);
   const [pendingPatches, setPendingPatches] = useState<SpreadsheetPatch[]>([]);
   const [activeSheetIndex, setActiveSheetIndex] = useState(0);
   const [selectedCell, setSelectedCell] = useState<CellPosition | null>({
@@ -286,19 +307,22 @@ export function SpreadsheetArtifactViewer({
   >([]);
   const [attachmentError, setAttachmentError] = useState("");
   const [voiceNotice, setVoiceNotice] = useState("");
-  const [turnContextExpanded, setTurnContextExpanded] = useState(false);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const fileName = fileData?.fileName || getFileName(filePath);
   const voiceInput = useVoiceInput({
     onTranscript: (text) => {
       setVoiceNotice("");
-      setFullscreenMessage((current) => current ? `${current} ${text}` : text);
+      setFullscreenMessage((current) =>
+        current ? `${current} ${text}` : text,
+      );
     },
     onError: (message) => {
       setVoiceNotice(message);
     },
     onNotConfigured: () => {
-      setVoiceNotice("Voice input is not configured.");
+      setVoiceNotice(
+        t("common.voiceInputNotConfigured", "Voice input is not configured."),
+      );
       onOpenSettings?.("voice");
     },
   });
@@ -314,20 +338,37 @@ export function SpreadsheetArtifactViewer({
     setPendingPatches([]);
     setActiveSheetIndex(0);
     setSelectedCell({ row: 1, column: 1 });
-    setSelectedRange({ start: { row: 1, column: 1 }, end: { row: 1, column: 1 } });
+    setSelectedRange({
+      start: { row: 1, column: 1 },
+      end: { row: 1, column: 1 },
+    });
     setEditingCell(null);
     setDirty(false);
     setSaveMessage("");
 
     const loadLegacyPreview = async () => {
-      const result = await window.electronAPI.readFileForViewer(filePath, workspacePath);
+      const result = await window.electronAPI.readFileForViewer(
+        filePath,
+        workspacePath,
+      );
       if (cancelled) return;
       if (!result.success || !result.data) {
-        setError(result.error || "Failed to load spreadsheet");
+        setError(
+          result.error ||
+            t(
+              "artifactViewer.spreadsheet.loadFailed",
+              "Failed to load spreadsheet",
+            ),
+        );
         return;
       }
       if (result.data.fileType !== "xlsx" && result.data.fileType !== "csv") {
-        setError("File is not a spreadsheet.");
+        setError(
+          t(
+            "artifactViewer.spreadsheet.notSpreadsheet",
+            "File is not a spreadsheet.",
+          ),
+        );
         return;
       }
       setFileData(result.data);
@@ -370,7 +411,14 @@ export function SpreadsheetArtifactViewer({
     loadWorkbook()
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load spreadsheet");
+        setError(
+          err instanceof Error
+            ? err.message
+            : t(
+                "artifactViewer.spreadsheet.loadFailed",
+                "Failed to load spreadsheet",
+              ),
+        );
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -379,7 +427,9 @@ export function SpreadsheetArtifactViewer({
     return () => {
       cancelled = true;
       if (openedSessionId && window.electronAPI.closeSpreadsheetWorkbook) {
-        void window.electronAPI.closeSpreadsheetWorkbook({ sessionId: openedSessionId });
+        void window.electronAPI.closeSpreadsheetWorkbook({
+          sessionId: openedSessionId,
+        });
       }
     };
   }, [filePath, workspaceId, workspacePath]);
@@ -394,30 +444,53 @@ export function SpreadsheetArtifactViewer({
   }, [preview]);
 
   useEffect(() => {
-    if (saveMessage !== "Copied" && saveMessage !== "Saved") return;
+    if (
+      saveMessage !== t("common.copied", "Copied") &&
+      saveMessage !== t("common.saved", "Saved")
+    )
+      return;
     const timeout = window.setTimeout(() => {
       setSaveMessage((current) => (current === saveMessage ? "" : current));
     }, 2200);
     return () => window.clearTimeout(timeout);
   }, [saveMessage]);
 
-  const activeSheet = editablePreview?.sheets[activeSheetIndex] || editablePreview?.sheets[0] || null;
+  const activeSheet =
+    editablePreview?.sheets[activeSheetIndex] ||
+    editablePreview?.sheets[0] ||
+    null;
   const selected =
     activeSheet && selectedCell
-      ? activeSheet.rows[selectedCell.row - 1]?.[selectedCell.column - 1] || null
+      ? activeSheet.rows[selectedCell.row - 1]?.[selectedCell.column - 1] ||
+        null
       : null;
   const selectedAddress = selectedCell
     ? `${spreadsheetColumnLetter(selectedCell.column - 1)}${selectedCell.row}`
     : "A1";
   const formulaText = getCellText(selected);
   const zoomScale = zoom / 100;
-  const visibleColumnCount = Math.max(activeSheet?.columnCount || 0, mode === "fullscreen" ? 10 : 4);
-  const visibleRowCount = Math.max(activeSheet?.rowCount || 0, mode === "fullscreen" ? 26 : 18);
+  const visibleColumnCount = Math.max(
+    activeSheet?.columnCount || 0,
+    mode === "fullscreen" ? 10 : 4,
+  );
+  const visibleRowCount = Math.max(
+    activeSheet?.rowCount || 0,
+    mode === "fullscreen" ? 26 : 18,
+  );
   const normalizedSelectedRange = normalizeRange(selectedRange);
-  const fullscreenLabel = mode === "fullscreen" ? "Exit full screen" : "Open spreadsheet in full screen";
+  const fullscreenLabel =
+    mode === "fullscreen"
+      ? t("artifactViewer.exitFullscreen", "Exit full screen")
+      : t(
+          "artifactViewer.spreadsheet.openFullscreen",
+          "Open spreadsheet in full screen",
+        );
   const formatLabel = getSpreadsheetFormatLabel(fileName);
-  const activeSheetId = workbookSession?.sheets[activeSheetIndex]?.id || workbookSession?.activeSheetId;
-  const isSpreadsheetReadOnly = workbookSession?.capabilities.canEditCells === false;
+  const activeSheetId =
+    workbookSession?.sheets[activeSheetIndex]?.id ||
+    workbookSession?.activeSheetId;
+  const isSpreadsheetReadOnly =
+    workbookSession?.capabilities.canEditCells === false;
 
   const queuePatch = (patch: SpreadsheetPatch) => {
     setPendingPatches((current) => {
@@ -446,7 +519,10 @@ export function SpreadsheetArtifactViewer({
     setEditingCell(null);
   };
 
-  const selectRange = (range: CellRange, active: CellPosition = range.start) => {
+  const selectRange = (
+    range: CellRange,
+    active: CellPosition = range.start,
+  ) => {
     setSelectedCell(active);
     setSelectedRange(range);
     setEditingCell(null);
@@ -457,7 +533,10 @@ export function SpreadsheetArtifactViewer({
     selectRange(
       {
         start: { row: 1, column },
-        end: { row: Math.max(activeSheet?.rowCount || visibleRowCount, 1), column },
+        end: {
+          row: Math.max(activeSheet?.rowCount || visibleRowCount, 1),
+          column,
+        },
       },
       { row: 1, column },
     );
@@ -467,7 +546,10 @@ export function SpreadsheetArtifactViewer({
     selectRange(
       {
         start: { row, column: 1 },
-        end: { row, column: Math.max(activeSheet?.columnCount || visibleColumnCount, 1) },
+        end: {
+          row,
+          column: Math.max(activeSheet?.columnCount || visibleColumnCount, 1),
+        },
       },
       { row, column: 1 },
     );
@@ -486,14 +568,20 @@ export function SpreadsheetArtifactViewer({
   const getSelectedRangeText = () => {
     if (!activeSheet || !normalizedSelectedRange) return "";
     const lines: string[] = [];
-    for (let row = normalizedSelectedRange.start.row; row <= normalizedSelectedRange.end.row; row += 1) {
+    for (
+      let row = normalizedSelectedRange.start.row;
+      row <= normalizedSelectedRange.end.row;
+      row += 1
+    ) {
       const values: string[] = [];
       for (
         let column = normalizedSelectedRange.start.column;
         column <= normalizedSelectedRange.end.column;
         column += 1
       ) {
-        values.push(getCellText(activeSheet.rows[row - 1]?.[column - 1] || null));
+        values.push(
+          getCellText(activeSheet.rows[row - 1]?.[column - 1] || null),
+        );
       }
       lines.push(values.join("\t"));
     }
@@ -505,15 +593,15 @@ export function SpreadsheetArtifactViewer({
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
-      setSaveMessage("Copied");
+      setSaveMessage(t("common.copied", "Copied"));
     } catch {
-      setSaveMessage("Copy failed");
+      setSaveMessage(t("common.copyFailed", "Copy failed"));
     }
   };
 
   const updateCellValue = (row: number, column: number, value: string) => {
     if (isSpreadsheetReadOnly) {
-      setSaveMessage("Read-only");
+      setSaveMessage(t("artifactViewer.readOnly", "Read-only"));
       return;
     }
     if (activeSheetId) {
@@ -552,10 +640,11 @@ export function SpreadsheetArtifactViewer({
 
   const startEditing = (position: CellPosition, initialValue?: string) => {
     if (isSpreadsheetReadOnly) {
-      setSaveMessage("Read-only");
+      setSaveMessage(t("artifactViewer.readOnly", "Read-only"));
       return;
     }
-    const cell = activeSheet?.rows[position.row - 1]?.[position.column - 1] || null;
+    const cell =
+      activeSheet?.rows[position.row - 1]?.[position.column - 1] || null;
     setSelectedCell(position);
     setSelectedRange({ start: position, end: position });
     setEditingCell(position);
@@ -587,7 +676,7 @@ export function SpreadsheetArtifactViewer({
 
   const addRows = (count = 1) => {
     if (isSpreadsheetReadOnly) {
-      setSaveMessage("Read-only");
+      setSaveMessage(t("artifactViewer.readOnly", "Read-only"));
       return;
     }
     if (activeSheetId && activeSheet) {
@@ -603,7 +692,11 @@ export function SpreadsheetArtifactViewer({
       const next = clonePreview(current);
       const sheet = next.sheets[activeSheetIndex] || next.sheets[0];
       if (!sheet) return current;
-      ensureSheetBounds(sheet, (sheet.rowCount || 0) + count, Math.max(sheet.columnCount || 1, 1));
+      ensureSheetBounds(
+        sheet,
+        (sheet.rowCount || 0) + count,
+        Math.max(sheet.columnCount || 1, 1),
+      );
       return next;
     });
     setDirty(true);
@@ -611,7 +704,7 @@ export function SpreadsheetArtifactViewer({
 
   const addColumns = (count = 1) => {
     if (isSpreadsheetReadOnly) {
-      setSaveMessage("Read-only");
+      setSaveMessage(t("artifactViewer.readOnly", "Read-only"));
       return;
     }
     if ((activeSheet?.columnCount || 0) >= MAX_EDITABLE_COLUMNS) return;
@@ -629,7 +722,11 @@ export function SpreadsheetArtifactViewer({
       const sheet = next.sheets[activeSheetIndex] || next.sheets[0];
       if (!sheet) return current;
       if ((sheet.columnCount || 0) >= MAX_EDITABLE_COLUMNS) return current;
-      ensureSheetBounds(sheet, Math.max(sheet.rowCount || 1, 1), (sheet.columnCount || 0) + count);
+      ensureSheetBounds(
+        sheet,
+        Math.max(sheet.rowCount || 1, 1),
+        (sheet.columnCount || 0) + count,
+      );
       return next;
     });
     setDirty(true);
@@ -637,11 +734,14 @@ export function SpreadsheetArtifactViewer({
 
   const pasteTabularData = (text: string) => {
     if (isSpreadsheetReadOnly) {
-      setSaveMessage("Read-only");
+      setSaveMessage(t("artifactViewer.readOnly", "Read-only"));
       return;
     }
     if (!selectedCell || !text.trim()) return;
-    const rows = text.replace(/\r/g, "").split("\n").filter((line) => line.length > 0);
+    const rows = text
+      .replace(/\r/g, "")
+      .split("\n")
+      .filter((line) => line.length > 0);
     const values = rows.map((line) => line.split("\t"));
     if (activeSheetId) {
       queuePatch({
@@ -665,13 +765,16 @@ export function SpreadsheetArtifactViewer({
       ensureSheetBounds(
         sheet,
         selectedCell.row + values.length - 1,
-        selectedCell.column + Math.max(...values.map((row) => row.length), 1) - 1,
+        selectedCell.column +
+          Math.max(...values.map((row) => row.length), 1) -
+          1,
       );
       values.forEach((rowValues, rowOffset) => {
         rowValues.forEach((value, columnOffset) => {
           const row = selectedCell.row + rowOffset;
           const column = selectedCell.column + columnOffset;
-          const cell = sheet.rows[row - 1][column - 1] || createCell(row, column);
+          const cell =
+            sheet.rows[row - 1][column - 1] || createCell(row, column);
           if (value.startsWith("=")) {
             cell.formula = value.slice(1);
             cell.value = value;
@@ -693,34 +796,55 @@ export function SpreadsheetArtifactViewer({
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c") {
       event.preventDefault();
       void copySelectionToClipboard();
-    } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
+    } else if (
+      (event.metaKey || event.ctrlKey) &&
+      event.key.toLowerCase() === "a"
+    ) {
       event.preventDefault();
       selectAllVisibleSheet();
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       if (event.shiftKey && selectedCell) {
-        selectCell({ row: Math.max(1, selectedCell.row - 1), column: selectedCell.column }, true);
+        selectCell(
+          {
+            row: Math.max(1, selectedCell.row - 1),
+            column: selectedCell.column,
+          },
+          true,
+        );
       } else {
         moveSelection(-1, 0);
       }
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
       if (event.shiftKey && selectedCell) {
-        selectCell({ row: selectedCell.row + 1, column: selectedCell.column }, true);
+        selectCell(
+          { row: selectedCell.row + 1, column: selectedCell.column },
+          true,
+        );
       } else {
         moveSelection(1, 0);
       }
     } else if (event.key === "ArrowLeft") {
       event.preventDefault();
       if (event.shiftKey && selectedCell) {
-        selectCell({ row: selectedCell.row, column: Math.max(1, selectedCell.column - 1) }, true);
+        selectCell(
+          {
+            row: selectedCell.row,
+            column: Math.max(1, selectedCell.column - 1),
+          },
+          true,
+        );
       } else {
         moveSelection(0, -1);
       }
     } else if (event.key === "ArrowRight") {
       event.preventDefault();
       if (event.shiftKey && selectedCell) {
-        selectCell({ row: selectedCell.row, column: selectedCell.column + 1 }, true);
+        selectCell(
+          { row: selectedCell.row, column: selectedCell.column + 1 },
+          true,
+        );
       } else {
         moveSelection(0, 1);
       }
@@ -745,7 +869,7 @@ export function SpreadsheetArtifactViewer({
   const handleSave = async () => {
     if (!editablePreview || saving) return;
     if (isSpreadsheetReadOnly) {
-      setSaveMessage("Read-only");
+      setSaveMessage(t("artifactViewer.readOnly", "Read-only"));
       return;
     }
     setSaving(true);
@@ -763,7 +887,10 @@ export function SpreadsheetArtifactViewer({
               setWorkbookSession(null);
               currentSession = null;
             } else {
-              setSaveMessage(applyResult.error || "Save failed");
+              setSaveMessage(
+                applyResult.error ||
+                  t("artifactViewer.saveFailed", "Save failed"),
+              );
               return;
             }
           } else if (applyResult.session) {
@@ -776,10 +903,20 @@ export function SpreadsheetArtifactViewer({
             sessionId: currentSession.sessionId,
           });
           if (!saveResult.success) {
-            if (saveResult.error === "Spreadsheet session not found") {
+            if (saveResult.conflict) {
+              setSaveMessage(
+                t(
+                  "artifactViewer.spreadsheet.saveConflict",
+                  "The file was modified outside NeoWorker. Your unsaved edits are preserved; reopen the file before saving again.",
+                ),
+              );
+            } else if (saveResult.error === "Spreadsheet session not found") {
               setWorkbookSession(null);
             } else {
-              setSaveMessage(saveResult.error || "Save failed");
+              setSaveMessage(
+                saveResult.error ||
+                  t("artifactViewer.saveFailed", "Save failed"),
+              );
               return;
             }
           } else {
@@ -797,7 +934,7 @@ export function SpreadsheetArtifactViewer({
             }
             setPendingPatches([]);
             setDirty(false);
-            setSaveMessage("Saved");
+            setSaveMessage(t("common.saved", "Saved"));
             return;
           }
         }
@@ -808,15 +945,21 @@ export function SpreadsheetArtifactViewer({
         preview: editablePreview,
       });
       if (!result.success || !result.data) {
-        setSaveMessage(result.error || "Save failed");
+        setSaveMessage(
+          result.error || t("artifactViewer.saveFailed", "Save failed"),
+        );
         return;
       }
       setFileData(result.data);
       setEditablePreview(result.data.spreadsheetPreview || editablePreview);
       setDirty(false);
-      setSaveMessage("Saved");
+      setSaveMessage(t("common.saved", "Saved"));
     } catch (err: unknown) {
-      setSaveMessage(err instanceof Error ? err.message : "Save failed");
+      setSaveMessage(
+        err instanceof Error
+          ? err.message
+          : t("artifactViewer.saveFailed", "Save failed"),
+      );
     } finally {
       setSaving(false);
     }
@@ -835,7 +978,12 @@ export function SpreadsheetArtifactViewer({
         })),
       ]);
     } catch {
-      setAttachmentError("Failed to add attachments. Please try again.");
+      setAttachmentError(
+        t(
+          "common.attachments.addFailed",
+          "Failed to add attachments. Please try again.",
+        ),
+      );
     }
   }, [workspacePath]);
 
@@ -845,45 +993,61 @@ export function SpreadsheetArtifactViewer({
     );
   }, []);
 
-  const buildMessageWithAttachments = useCallback(async (message: string) => {
-    if (fullscreenAttachments.length === 0) {
-      return { message, images: undefined as ImageAttachment[] | undefined };
-    }
+  const buildMessageWithAttachments = useCallback(
+    async (message: string) => {
+      if (fullscreenAttachments.length === 0) {
+        return { message, images: undefined as ImageAttachment[] | undefined };
+      }
 
-    const importedAttachments = workspaceId
-      ? await window.electronAPI.importFilesToWorkspace({
-          workspaceId,
-          files: fullscreenAttachments.map((attachment) => attachment.path),
-        })
-      : [];
+      const importedAttachments = workspaceId
+        ? await window.electronAPI.importFilesToWorkspace({
+            workspaceId,
+            files: fullscreenAttachments.map((attachment) => attachment.path),
+          })
+        : [];
 
-    const attachmentLines =
-      importedAttachments.length > 0
-        ? importedAttachments.map(
-            (attachment) => `- ${attachment.fileName} (${attachment.relativePath})`,
-          )
-        : fullscreenAttachments.map((attachment) => `- ${attachment.name} (${attachment.path})`);
+      const attachmentLines =
+        importedAttachments.length > 0
+          ? importedAttachments.map(
+              (attachment) =>
+                `- ${attachment.fileName} (${attachment.relativePath})`,
+            )
+          : fullscreenAttachments.map(
+              (attachment) => `- ${attachment.name} (${attachment.path})`,
+            );
 
-    const base = message || "Please review the attached files.";
-    const attachedMessage = `${base}\n\nAttached files:\n${attachmentLines.join("\n")}`;
-    const images = fullscreenAttachments
-      .filter(isImageAttachment)
-      .map((attachment) => ({
-        filePath: attachment.path,
-        mimeType: attachment.mimeType as ImageAttachment["mimeType"],
-        filename: attachment.name,
-        sizeBytes: attachment.size,
-      }));
+      const base =
+        message ||
+        t(
+          "common.attachments.reviewAttached",
+          "Please review the attached files.",
+        );
+      const attachedMessage = `${base}\n\n${t("common.attachments.attachedFiles", "Attached files:")}\n${attachmentLines.join("\n")}`;
+      const images = fullscreenAttachments
+        .filter(isImageAttachment)
+        .map((attachment) => ({
+          filePath: attachment.path,
+          mimeType: attachment.mimeType as ImageAttachment["mimeType"],
+          filename: attachment.name,
+          sizeBytes: attachment.size,
+        }));
 
-    return {
-      message: attachedMessage,
-      images: images.length > 0 ? images : undefined,
-    };
-  }, [fullscreenAttachments, workspaceId]);
+      return {
+        message: attachedMessage,
+        images: images.length > 0 ? images : undefined,
+      };
+    },
+    [fullscreenAttachments, workspaceId],
+  );
 
   const handleFullscreenSend = async () => {
     const message = fullscreenMessage.trim();
-    if ((!message && fullscreenAttachments.length === 0) || !onSendMessage || fullscreenSending) return;
+    if (
+      (!message && fullscreenAttachments.length === 0) ||
+      !onSendMessage ||
+      fullscreenSending
+    )
+      return;
     const previousMessage = fullscreenMessage;
     const previousAttachments = fullscreenAttachments;
     setFullscreenSending(true);
@@ -896,7 +1060,12 @@ export function SpreadsheetArtifactViewer({
     } catch {
       setFullscreenMessage(previousMessage);
       setFullscreenAttachments(previousAttachments);
-      setAttachmentError("Failed to send message. Please try again.");
+      setAttachmentError(
+        t(
+          "common.sendFailedRetry",
+          "Failed to send message. Please try again.",
+        ),
+      );
     } finally {
       setFullscreenSending(false);
     }
@@ -906,7 +1075,10 @@ export function SpreadsheetArtifactViewer({
     <section className={`spreadsheet-viewer spreadsheet-viewer-${mode}`}>
       <div className="spreadsheet-viewer-tabbar">
         <div className="spreadsheet-viewer-tab">
-          <span className="spreadsheet-viewer-file-icon">X</span>
+          <ArtifactFileTypeIcon
+            filePath={filePath}
+            className="spreadsheet-viewer-file-icon"
+          />
           <span className="spreadsheet-viewer-tab-title">{fileName}</span>
         </div>
         <button
@@ -916,13 +1088,17 @@ export function SpreadsheetArtifactViewer({
           title={fullscreenLabel}
           aria-label={fullscreenLabel}
         >
-          {mode === "fullscreen" ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          {mode === "fullscreen" ? (
+            <Minimize2 size={16} />
+          ) : (
+            <Maximize2 size={16} />
+          )}
         </button>
         <button
           type="button"
           className="spreadsheet-viewer-close"
           onClick={onClose}
-          title="Close spreadsheet"
+          title={t("artifactViewer.spreadsheet.close", "Close spreadsheet")}
         >
           <X size={17} />
         </button>
@@ -930,11 +1106,16 @@ export function SpreadsheetArtifactViewer({
 
       <div className="spreadsheet-viewer-titlebar">
         <div className="spreadsheet-viewer-format">{formatLabel}</div>
-        <label className="spreadsheet-viewer-zoom" title="Zoom">
+        <label
+          className="spreadsheet-viewer-zoom"
+          title={t("artifactViewer.zoom", "Zoom")}
+        >
           <select
             value={zoom}
             onChange={(event) => {
-              const nextZoom = Number(event.target.value) as (typeof ZOOM_OPTIONS)[number];
+              const nextZoom = Number(
+                event.target.value,
+              ) as (typeof ZOOM_OPTIONS)[number];
               setZoom(ZOOM_OPTIONS.includes(nextZoom) ? nextZoom : 100);
             }}
           >
@@ -950,44 +1131,84 @@ export function SpreadsheetArtifactViewer({
           className="spreadsheet-viewer-tool-btn"
           onClick={() => addRows(1)}
           disabled={isSpreadsheetReadOnly}
-          title={isSpreadsheetReadOnly ? "This workbook is read-only" : "Add row"}
+          title={
+            isSpreadsheetReadOnly
+              ? t(
+                  "artifactViewer.spreadsheet.readOnlyTitle",
+                  "This workbook is read-only",
+                )
+              : t("artifactViewer.spreadsheet.addRow", "Add row")
+          }
         >
-          + Row
+          {t("artifactViewer.spreadsheet.rowShort", "+ Row")}
         </button>
         <button
           type="button"
           className="spreadsheet-viewer-tool-btn"
           onClick={() => addColumns(1)}
-          disabled={isSpreadsheetReadOnly || (activeSheet?.columnCount || 0) >= MAX_EDITABLE_COLUMNS}
-          title={isSpreadsheetReadOnly ? "This workbook is read-only" : "Add column"}
+          disabled={
+            isSpreadsheetReadOnly ||
+            (activeSheet?.columnCount || 0) >= MAX_EDITABLE_COLUMNS
+          }
+          title={
+            isSpreadsheetReadOnly
+              ? t(
+                  "artifactViewer.spreadsheet.readOnlyTitle",
+                  "This workbook is read-only",
+                )
+              : t("artifactViewer.spreadsheet.addColumn", "Add column")
+          }
         >
-          + Col
+          {t("artifactViewer.spreadsheet.colShort", "+ Col")}
         </button>
         <button
           type="button"
           className="spreadsheet-viewer-tool-btn"
           onClick={() => void copySelectionToClipboard()}
           disabled={!normalizedSelectedRange}
-          title="Copy selected cells"
+          title={t(
+            "artifactViewer.spreadsheet.copyCells",
+            "Copy selected cells",
+          )}
         >
           <Copy size={14} />
-          Copy
+          {t("common.copy", "Copy")}
         </button>
         <button
           type="button"
           className="spreadsheet-viewer-save-btn"
           onClick={handleSave}
-          disabled={isSpreadsheetReadOnly || !dirty || saving || !editablePreview}
-          title={isSpreadsheetReadOnly ? "This workbook is read-only" : "Save workbook"}
+          disabled={
+            isSpreadsheetReadOnly || !dirty || saving || !editablePreview
+          }
+          title={
+            isSpreadsheetReadOnly
+              ? t(
+                  "artifactViewer.spreadsheet.readOnlyTitle",
+                  "This workbook is read-only",
+                )
+              : t("artifactViewer.spreadsheet.saveWorkbook", "Save workbook")
+          }
         >
           <Save size={15} />
-          {saving ? "Saving" : "Save"}
+          {saving
+            ? t("common.savingShort", "Saving")
+            : t("common.save", "Save")}
         </button>
-        {saveMessage && <div className="spreadsheet-viewer-save-message">{saveMessage}</div>}
+        <ArtifactDownloadButton
+          filePath={filePath}
+          workspacePath={workspacePath}
+          className="spreadsheet-viewer-download-btn"
+        />
+        {saveMessage && (
+          <div className="spreadsheet-viewer-save-message">{saveMessage}</div>
+        )}
       </div>
 
       <div className="spreadsheet-viewer-formula">
-        <span className="spreadsheet-viewer-cell-address">{selected?.address || selectedAddress}</span>
+        <span className="spreadsheet-viewer-cell-address">
+          {selected?.address || selectedAddress}
+        </span>
         <span className="spreadsheet-viewer-fx">{"{ƒ}"}</span>
         <input
           className="spreadsheet-viewer-formula-input"
@@ -1018,15 +1239,21 @@ export function SpreadsheetArtifactViewer({
           if (!text) return;
           event.preventDefault();
           event.clipboardData.setData("text/plain", text);
-          setSaveMessage("Copied");
+          setSaveMessage(t("common.copied", "Copied"));
         }}
       >
         {loading ? (
-          <div className="spreadsheet-viewer-state">Loading spreadsheet...</div>
+          <div className="spreadsheet-viewer-state">
+            {t("artifactViewer.spreadsheet.loading", "Loading spreadsheet...")}
+          </div>
         ) : error ? (
-          <div className="spreadsheet-viewer-state spreadsheet-viewer-error">{error}</div>
+          <div className="spreadsheet-viewer-state spreadsheet-viewer-error">
+            {error}
+          </div>
         ) : !activeSheet ? (
-          <div className="spreadsheet-viewer-state">No sheet data available.</div>
+          <div className="spreadsheet-viewer-state">
+            {t("artifactViewer.spreadsheet.noData", "No sheet data available.")}
+          </div>
         ) : (
           <table
             className="spreadsheet-viewer-grid"
@@ -1037,28 +1264,43 @@ export function SpreadsheetArtifactViewer({
                 <th
                   className="spreadsheet-viewer-corner"
                   onClick={selectAllVisibleSheet}
-                  title="Select all cells"
+                  title={t(
+                    "artifactViewer.spreadsheet.selectAll",
+                    "Select all cells",
+                  )}
                 />
-                {Array.from({ length: visibleColumnCount }, (_, columnIndex) => (
-                  <th
-                    key={columnIndex}
-                    className={
-                      normalizedSelectedRange?.start.column === columnIndex + 1 &&
-                      normalizedSelectedRange?.end.column === columnIndex + 1 &&
-                      normalizedSelectedRange?.start.row === 1 &&
-                      normalizedSelectedRange?.end.row >= Math.max(activeSheet.rowCount || visibleRowCount, 1)
-                        ? "spreadsheet-viewer-col-header selected"
-                        : "spreadsheet-viewer-col-header"
-                    }
-                    style={{
-                      minWidth: `${Math.max(64, (activeSheet.columnWidths[columnIndex] || 10) * 8) * zoomScale}px`,
-                    }}
-                    onClick={() => selectColumn(columnIndex + 1)}
-                    title={`Select column ${spreadsheetColumnLetter(columnIndex)}`}
-                  >
-                    {spreadsheetColumnLetter(columnIndex)}
-                  </th>
-                ))}
+                {Array.from(
+                  { length: visibleColumnCount },
+                  (_, columnIndex) => (
+                    <th
+                      key={columnIndex}
+                      className={
+                        normalizedSelectedRange?.start.column ===
+                          columnIndex + 1 &&
+                        normalizedSelectedRange?.end.column ===
+                          columnIndex + 1 &&
+                        normalizedSelectedRange?.start.row === 1 &&
+                        normalizedSelectedRange?.end.row >=
+                          Math.max(activeSheet.rowCount || visibleRowCount, 1)
+                          ? "spreadsheet-viewer-col-header selected"
+                          : "spreadsheet-viewer-col-header"
+                      }
+                      style={{
+                        minWidth: `${Math.max(64, (activeSheet.columnWidths[columnIndex] || 10) * 8) * zoomScale}px`,
+                      }}
+                      onClick={() => selectColumn(columnIndex + 1)}
+                      title={t(
+                        "artifactViewer.spreadsheet.selectColumn",
+                        "Select column {column}",
+                        {
+                          column: spreadsheetColumnLetter(columnIndex),
+                        },
+                      )}
+                    >
+                      {spreadsheetColumnLetter(columnIndex)}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody>
@@ -1072,79 +1314,110 @@ export function SpreadsheetArtifactViewer({
                         normalizedSelectedRange?.end.row === rowIndex + 1 &&
                         normalizedSelectedRange?.start.column === 1 &&
                         normalizedSelectedRange?.end.column >=
-                          Math.max(activeSheet.columnCount || visibleColumnCount, 1)
+                          Math.max(
+                            activeSheet.columnCount || visibleColumnCount,
+                            1,
+                          )
                           ? "spreadsheet-viewer-row-header selected"
                           : "spreadsheet-viewer-row-header"
                       }
                       onClick={() => selectRow(rowIndex + 1)}
-                      title={`Select row ${rowIndex + 1}`}
+                      title={t(
+                        "artifactViewer.spreadsheet.selectRow",
+                        "Select row {row}",
+                        { row: rowIndex + 1 },
+                      )}
                     >
                       {rowIndex + 1}
                     </th>
-                    {Array.from({ length: visibleColumnCount }, (_, columnIndex) => {
-                      const cell = row[columnIndex];
-                      const selectedCellActive =
-                        selectedCell?.row === rowIndex + 1 && selectedCell?.column === columnIndex + 1;
-                      const rangeSelected = cellIsInRange(
-                        normalizedSelectedRange,
-                        rowIndex + 1,
-                        columnIndex + 1,
-                      );
-                      return (
-                        <td
-                          key={columnIndex}
-                          className={[
-                            rangeSelected ? "range-selected" : "",
-                            selectedCellActive ? "selected" : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" ") || undefined}
-                          style={cell ? getCellStyle(cell) : undefined}
-                          onMouseDown={(event) => {
-                            event.preventDefault();
-                            selectCell(
-                              { row: rowIndex + 1, column: columnIndex + 1 },
-                              event.shiftKey,
-                            );
-                          }}
-                          onMouseEnter={(event) => {
-                            if (event.buttons !== 1 || !selectedRange?.start) return;
-                            setSelectedCell({ row: rowIndex + 1, column: columnIndex + 1 });
-                            setSelectedRange({
-                              start: selectedRange.start,
-                              end: { row: rowIndex + 1, column: columnIndex + 1 },
-                            });
-                          }}
-                          onDoubleClick={() =>
-                            startEditing({ row: rowIndex + 1, column: columnIndex + 1 })
-                          }
-                          title={cell?.formula ? `=${cell.formula}` : cell?.value}
-                        >
-                          {editingCell?.row === rowIndex + 1 &&
-                          editingCell?.column === columnIndex + 1 ? (
-                            <input
-                              className="spreadsheet-viewer-cell-input"
-                              value={editingValue}
-                              autoFocus
-                              onChange={(event) => setEditingValue(event.target.value)}
-                              onBlur={commitEditing}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter" || event.key === "Tab") {
-                                  event.preventDefault();
-                                  commitEditing();
-                                  if (event.key === "Tab") moveSelection(0, event.shiftKey ? -1 : 1);
-                                } else if (event.key === "Escape") {
-                                  event.preventDefault();
-                                  cancelEditing();
+                    {Array.from(
+                      { length: visibleColumnCount },
+                      (_, columnIndex) => {
+                        const cell = row[columnIndex];
+                        const selectedCellActive =
+                          selectedCell?.row === rowIndex + 1 &&
+                          selectedCell?.column === columnIndex + 1;
+                        const rangeSelected = cellIsInRange(
+                          normalizedSelectedRange,
+                          rowIndex + 1,
+                          columnIndex + 1,
+                        );
+                        return (
+                          <td
+                            key={columnIndex}
+                            className={
+                              [
+                                rangeSelected ? "range-selected" : "",
+                                selectedCellActive ? "selected" : "",
+                              ]
+                                .filter(Boolean)
+                                .join(" ") || undefined
+                            }
+                            style={cell ? getCellStyle(cell) : undefined}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              selectCell(
+                                { row: rowIndex + 1, column: columnIndex + 1 },
+                                event.shiftKey,
+                              );
+                            }}
+                            onMouseEnter={(event) => {
+                              if (event.buttons !== 1 || !selectedRange?.start)
+                                return;
+                              setSelectedCell({
+                                row: rowIndex + 1,
+                                column: columnIndex + 1,
+                              });
+                              setSelectedRange({
+                                start: selectedRange.start,
+                                end: {
+                                  row: rowIndex + 1,
+                                  column: columnIndex + 1,
+                                },
+                              });
+                            }}
+                            onDoubleClick={() =>
+                              startEditing({
+                                row: rowIndex + 1,
+                                column: columnIndex + 1,
+                              })
+                            }
+                            title={
+                              cell?.formula ? `=${cell.formula}` : cell?.value
+                            }
+                          >
+                            {editingCell?.row === rowIndex + 1 &&
+                            editingCell?.column === columnIndex + 1 ? (
+                              <input
+                                className="spreadsheet-viewer-cell-input"
+                                value={editingValue}
+                                autoFocus
+                                onChange={(event) =>
+                                  setEditingValue(event.target.value)
                                 }
-                              }}
-                            />
-                          ) : (
-                            getCellDisplayText(cell)
-                          )}
-                        </td>
-                      );
-                    })}
+                                onBlur={commitEditing}
+                                onKeyDown={(event) => {
+                                  if (
+                                    event.key === "Enter" ||
+                                    event.key === "Tab"
+                                  ) {
+                                    event.preventDefault();
+                                    commitEditing();
+                                    if (event.key === "Tab")
+                                      moveSelection(0, event.shiftKey ? -1 : 1);
+                                  } else if (event.key === "Escape") {
+                                    event.preventDefault();
+                                    cancelEditing();
+                                  }
+                                }}
+                              />
+                            ) : (
+                              getCellDisplayText(cell)
+                            )}
+                          </td>
+                        );
+                      },
+                    )}
                   </tr>
                 );
               })}
@@ -1173,58 +1446,25 @@ export function SpreadsheetArtifactViewer({
       {mode === "fullscreen" && onSendMessage && (
         <div className="spreadsheet-viewer-fullscreen-controls">
           {turnContext && (
-            <div
-              className={`spreadsheet-viewer-turn-frame ${
-                turnContextExpanded ? "expanded" : "collapsed"
-              }`}
-            >
-              <button
-                type="button"
-                className="spreadsheet-viewer-turn-header"
-                onClick={() => setTurnContextExpanded((current) => !current)}
-                aria-expanded={turnContextExpanded}
-              >
-                <span>{turnContext.statusLabel}</span>
-                <ChevronDown size={18} aria-hidden="true" />
-              </button>
-              {turnContextExpanded && (
-                <div className="spreadsheet-viewer-turn-body">
-                  <p>{turnContext.summary}</p>
-                  {turnContext.secondaryText && (
-                    <p className="spreadsheet-viewer-turn-secondary">
-                      {turnContext.secondaryText}
-                    </p>
-                  )}
-                  {turnContext.events && turnContext.events.length > 0 && (
-                    <div className="spreadsheet-viewer-turn-events">
-                      {turnContext.events.map((event) => (
-                        <div
-                          key={event.id}
-                          className={`spreadsheet-viewer-turn-event kind-${event.kind} ${
-                            event.tone ? `tone-${event.tone}` : ""
-                          }`}
-                        >
-                          <span className="spreadsheet-viewer-turn-event-text">
-                            {event.text}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <SpreadsheetArtifactCard
-                    filePath={turnContext.artifactPath}
-                    workspacePath={workspacePath}
-                    onOpenViewer={onExitFullscreen}
-                  />
-                </div>
-              )}
-            </div>
+            <ArtifactTurnProgressPanel turnContext={turnContext}>
+              <SpreadsheetArtifactCard
+                filePath={turnContext.artifactPath}
+                workspacePath={workspacePath}
+                onOpenViewer={onExitFullscreen}
+              />
+            </ArtifactTurnProgressPanel>
           )}
           <div className="spreadsheet-viewer-composer">
-            {(fullscreenAttachments.length > 0 || attachmentError || voiceNotice) && (
+            {(fullscreenAttachments.length > 0 ||
+              attachmentError ||
+              voiceNotice) && (
               <div className="attachment-panel spreadsheet-viewer-attachment-panel">
-                {attachmentError && <div className="attachment-error">{attachmentError}</div>}
-                {voiceNotice && <div className="attachment-error">{voiceNotice}</div>}
+                {attachmentError && (
+                  <div className="attachment-error">{attachmentError}</div>
+                )}
+                {voiceNotice && (
+                  <div className="attachment-error">{voiceNotice}</div>
+                )}
                 {fullscreenAttachments.length > 0 && (
                   <div className="attachment-list">
                     {fullscreenAttachments.map((attachment) => (
@@ -1242,7 +1482,10 @@ export function SpreadsheetArtifactViewer({
                             <path d="M14 2v6h6" />
                           </svg>
                         </span>
-                        <span className="attachment-name" title={attachment.name}>
+                        <span
+                          className="attachment-name"
+                          title={attachment.name}
+                        >
                           {attachment.name}
                         </span>
                         <span className="attachment-size">
@@ -1252,7 +1495,10 @@ export function SpreadsheetArtifactViewer({
                           type="button"
                           className="attachment-remove"
                           onClick={() => removeAttachment(attachment.id)}
-                          title="Remove attachment"
+                          title={t(
+                            "common.attachments.remove",
+                            "Remove attachment",
+                          )}
                           disabled={fullscreenSending}
                         >
                           <X size={12} aria-hidden="true" />
@@ -1268,8 +1514,11 @@ export function SpreadsheetArtifactViewer({
                 <button
                   type="button"
                   className="attachment-btn attachment-btn-left"
-                  title="Attach files"
-                  aria-label="Attach files"
+                  title={t("common.attachments.attachFiles", "Attach files")}
+                  aria-label={t(
+                    "common.attachments.attachFiles",
+                    "Attach files",
+                  )}
                   onClick={() => void handleAttachFiles()}
                   disabled={fullscreenSending}
                 >
@@ -1278,10 +1527,15 @@ export function SpreadsheetArtifactViewer({
                 <div className="mention-autocomplete-wrapper">
                   <textarea
                     className="input-field input-textarea"
-                    placeholder="Ask for follow-up changes"
+                    placeholder={t(
+                      "artifactViewer.spreadsheet.editPlaceholder",
+                      "Describe how you want to change this spreadsheet",
+                    )}
                     value={fullscreenMessage}
                     rows={1}
-                    onChange={(event) => setFullscreenMessage(event.target.value)}
+                    onChange={(event) =>
+                      setFullscreenMessage(event.target.value)
+                    }
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
@@ -1307,20 +1561,24 @@ export function SpreadsheetArtifactViewer({
                       align="right"
                     />
                   ) : selectedModelLabel ? (
-                    <span className="spreadsheet-viewer-composer-model">{selectedModelLabel}</span>
+                    <span className="spreadsheet-viewer-composer-model">
+                      {selectedModelLabel}
+                    </span>
                   ) : null}
                   <button
                     type="button"
                     className={`voice-input-btn ${voiceInput.state}`}
                     title={
                       voiceInput.state === "idle"
-                        ? "Start voice input"
+                        ? t("artifactViewer.voice.start", "Start voice input")
                         : voiceInput.state === "recording"
-                          ? "Stop recording"
-                          : "Processing..."
+                          ? t("artifactViewer.voice.stop", "Stop recording")
+                          : t("common.processing", "Processing...")
                     }
                     onClick={() => void voiceInput.toggleRecording()}
-                    disabled={voiceInput.state === "processing" || fullscreenSending}
+                    disabled={
+                      voiceInput.state === "processing" || fullscreenSending
+                    }
                   >
                     {voiceInput.state === "processing" ? (
                       <svg
@@ -1336,7 +1594,12 @@ export function SpreadsheetArtifactViewer({
                         <path d="M12 6v6l4 2" />
                       </svg>
                     ) : voiceInput.state === "recording" ? (
-                      <Square size={12} fill="currentColor" strokeWidth={0} aria-hidden="true" />
+                      <Square
+                        size={12}
+                        fill="currentColor"
+                        strokeWidth={0}
+                        aria-hidden="true"
+                      />
                     ) : (
                       <Mic size={16} aria-hidden="true" />
                     )}
@@ -1352,10 +1615,11 @@ export function SpreadsheetArtifactViewer({
                     className="lets-go-btn lets-go-btn-sm"
                     onClick={() => void handleFullscreenSend()}
                     disabled={
-                      (!fullscreenMessage.trim() && fullscreenAttachments.length === 0) ||
+                      (!fullscreenMessage.trim() &&
+                        fullscreenAttachments.length === 0) ||
                       fullscreenSending
                     }
-                    title="Send message"
+                    title={t("common.sendMessage", "Send message")}
                   >
                     <ArrowUp size={16} aria-hidden="true" />
                   </button>
@@ -1364,7 +1628,7 @@ export function SpreadsheetArtifactViewer({
             </div>
             <div className="input-below-actions spreadsheet-viewer-composer-actions">
               <span className="input-status-workspace">
-                Work in a folder
+                {t("artifactViewer.workInFolder", "Work in a folder")}
               </span>
               <span className="shell-toggle shell-toggle-inline enabled">
                 Shell
@@ -1372,8 +1636,12 @@ export function SpreadsheetArtifactViewer({
                   <span className="goal-mode-switch-thumb" />
                 </span>
               </span>
-              <span className="input-status-mode">Execute</span>
-              <span className="input-status-mode">Auto</span>
+              <span className="input-status-mode">
+                {t("composer.mode.execute", "Execute")}
+              </span>
+              <span className="input-status-mode">
+                {t("composer.mode.auto", "Auto")}
+              </span>
             </div>
           </div>
         </div>

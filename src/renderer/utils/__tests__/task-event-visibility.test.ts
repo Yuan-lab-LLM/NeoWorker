@@ -31,27 +31,59 @@ function makeEvent(
 describe("task event visibility helpers", () => {
   it("includes artifact_created as an important summary event", () => {
     expect(IMPORTANT_EVENT_TYPES).toContain("artifact_created");
-    expect(isImportantTaskEvent(makeEvent("artifact_created", { path: "artifacts/report.md" }))).toBe(
-      true,
-    );
+    expect(
+      isImportantTaskEvent(
+        makeEvent("artifact_created", { path: "artifacts/report.md" }),
+      ),
+    ).toBe(true);
   });
 
   it("keeps schedule_task tool_result visible in summary mode", () => {
-    expect(isImportantTaskEvent(makeEvent("tool_result", { tool: "schedule_task" }))).toBe(true);
-    expect(isImportantTaskEvent(makeEvent("tool_result", { tool: "run_command" }))).toBe(false);
+    expect(
+      isImportantTaskEvent(makeEvent("tool_result", { tool: "schedule_task" })),
+    ).toBe(true);
+    expect(
+      isImportantTaskEvent(makeEvent("tool_result", { tool: "run_command" })),
+    ).toBe(false);
   });
 
   it("hides timeline tool-call noise in summary mode", () => {
     expect(
       isImportantTaskEvent(
-        makeEvent("timeline_step_updated", { legacyType: "tool_call", tool: "run_command" }),
+        makeEvent("timeline_step_updated", {
+          legacyType: "tool_call",
+          tool: "run_command",
+        }),
       ),
     ).toBe(false);
     expect(
       isImportantTaskEvent(
-        makeEvent("timeline_step_updated", { legacyType: "tool_result", tool: "run_command" }),
+        makeEvent("timeline_step_updated", {
+          legacyType: "tool_result",
+          tool: "run_command",
+        }),
       ),
     ).toBe(false);
+  });
+
+  it("keeps timeline v2 tool calls and results in execution-record mode", () => {
+    const call = makeEvent("timeline_step_updated", {
+      legacyType: "tool_call",
+      tool: "http_request",
+      callId: "call-1",
+    });
+    const result = makeEvent(
+      "timeline_step_updated",
+      {
+        legacyType: "tool_result",
+        tool: "http_request",
+        callId: "call-1",
+        result: { success: true },
+      },
+      { id: "event-tool-result", timestamp: call.timestamp + 1 },
+    );
+
+    expect(filterVerboseTimelineNoise([call, result])).toEqual([call, result]);
   });
 
   it("hides implementation-only browser action audit events from the step feed", () => {
@@ -62,7 +94,9 @@ describe("task event visibility helpers", () => {
     );
 
     expect(isImportantTaskEvent(browserAction)).toBe(false);
-    expect(shouldShowTaskEventInStepFeed(browserAction, { verboseSteps: true })).toBe(false);
+    expect(
+      shouldShowTaskEventInStepFeed(browserAction, { verboseSteps: true }),
+    ).toBe(false);
   });
 
   it("keeps canonical browser tool calls visible in the verbose step feed", () => {
@@ -71,7 +105,9 @@ describe("task event visibility helpers", () => {
       input: { session_id: "default" },
     });
 
-    expect(shouldShowTaskEventInStepFeed(browserToolCall, { verboseSteps: true })).toBe(true);
+    expect(
+      shouldShowTaskEventInStepFeed(browserToolCall, { verboseSteps: true }),
+    ).toBe(true);
   });
 
   it("keeps timeline assistant messages visible in summary mode", () => {
@@ -85,17 +121,50 @@ describe("task event visibility helpers", () => {
     ).toBe(true);
   });
 
+  it("hides historical relationship-memory steps that were misread as artifact work", () => {
+    const pollutedFailure = makeEvent(
+      "timeline_step_finished",
+      {
+        legacyType: "step_failed",
+        reason:
+          "Step expected an artifact reference/presence but none was detected.",
+        step: {
+          description:
+            "Completed task: 整理今天待办. Outcome: previous summary referenced a .pptx.",
+          error:
+            "Step expected an artifact reference/presence but none was detected.",
+        },
+      },
+      { status: "failed" },
+    );
+
+    expect(shouldShowTaskEventInSummaryMode(pollutedFailure, "completed")).toBe(
+      false,
+    );
+    expect(
+      shouldShowTaskEventInStepFeed(pollutedFailure, { verboseSteps: true }),
+    ).toBe(false);
+  });
+
   it("keeps artifact/task completion events visible in technical timeline when steps are hidden", () => {
-    expect(ALWAYS_VISIBLE_TECHNICAL_EVENT_TYPES.has("artifact_created")).toBe(true);
-    expect(ALWAYS_VISIBLE_TECHNICAL_EVENT_TYPES.has("task_completed")).toBe(true);
+    expect(ALWAYS_VISIBLE_TECHNICAL_EVENT_TYPES.has("artifact_created")).toBe(
+      true,
+    );
+    expect(ALWAYS_VISIBLE_TECHNICAL_EVENT_TYPES.has("task_completed")).toBe(
+      true,
+    );
   });
 
   it("keeps checklist events visible in summary and technical views", () => {
     expect(IMPORTANT_EVENT_TYPES).toContain("task_list_created");
-    expect(ALWAYS_VISIBLE_TECHNICAL_EVENT_TYPES.has("task_list_verification_nudged")).toBe(true);
-    expect(isImportantTaskEvent(makeEvent("task_list_updated", { checklist: { items: [] } }))).toBe(
-      true,
-    );
+    expect(
+      ALWAYS_VISIBLE_TECHNICAL_EVENT_TYPES.has("task_list_verification_nudged"),
+    ).toBe(true);
+    expect(
+      isImportantTaskEvent(
+        makeEvent("task_list_updated", { checklist: { items: [] } }),
+      ),
+    ).toBe(true);
   });
 
   it("hides completed task stage-boundary group start events in summary mode", () => {
@@ -118,14 +187,19 @@ describe("task event visibility helpers", () => {
 
   it("keeps task_completed visible in summary mode for completed tasks", () => {
     expect(
-      shouldShowTaskEventInSummaryMode(makeEvent("task_completed", { message: "All set." }), "completed"),
+      shouldShowTaskEventInSummaryMode(
+        makeEvent("task_completed", { message: "All set." }),
+        "completed",
+      ),
     ).toBe(true);
   });
 
   it("keeps follow_up_completed visible in summary mode for completed tasks", () => {
     expect(
       shouldShowTaskEventInSummaryMode(
-        makeEvent("follow_up_completed", { message: "Follow-up message processed" }),
+        makeEvent("follow_up_completed", {
+          message: "Follow-up message processed",
+        }),
         "completed",
       ),
     ).toBe(true);
@@ -143,7 +217,10 @@ describe("task event visibility helpers", () => {
   it("keeps sub-stage progress visible in summary mode for non-completed tasks", () => {
     expect(
       shouldShowTaskEventInSummaryMode(
-        makeEvent("timeline_group_started", { stage: "FIX", groupLabel: "Preparing workspace" }),
+        makeEvent("timeline_group_started", {
+          stage: "FIX",
+          groupLabel: "Preparing workspace",
+        }),
         "executing",
       ),
     ).toBe(true);
@@ -160,10 +237,14 @@ describe("task event visibility helpers", () => {
 
   it("hides generic stage-boundary cards in the step feed", () => {
     expect(
-      shouldShowTaskEventInStepFeed(makeEvent("timeline_group_started", { stage: "DISCOVER" })),
+      shouldShowTaskEventInStepFeed(
+        makeEvent("timeline_group_started", { stage: "DISCOVER" }),
+      ),
     ).toBe(false);
     expect(
-      shouldShowTaskEventInStepFeed(makeEvent("timeline_group_finished", { stage: "BUILD" })),
+      shouldShowTaskEventInStepFeed(
+        makeEvent("timeline_group_finished", { stage: "BUILD" }),
+      ),
     ).toBe(false);
   });
 
@@ -182,15 +263,36 @@ describe("task event visibility helpers", () => {
     ).toBe(true);
   });
 
+  it("hides stage-boundary cards in the verbose step feed once the task is terminal", () => {
+    expect(
+      shouldShowTaskEventInStepFeed(
+        makeEvent("timeline_group_started", { stage: "DELIVER" }),
+        { verboseSteps: true, taskStatus: "completed" },
+      ),
+    ).toBe(false);
+    expect(
+      shouldShowTaskEventInStepFeed(
+        makeEvent("timeline_group_finished", { stage: "BUILD" }),
+        { verboseSteps: true, taskStatus: "failed" },
+      ),
+    ).toBe(false);
+  });
+
   it("keeps sub-stage and custom group cards in the step feed", () => {
     expect(
       shouldShowTaskEventInStepFeed(
-        makeEvent("timeline_group_started", { stage: "FIX", groupLabel: "Preparing workspace" }),
+        makeEvent("timeline_group_started", {
+          stage: "FIX",
+          groupLabel: "Preparing workspace",
+        }),
       ),
     ).toBe(true);
     expect(
       shouldShowTaskEventInStepFeed(
-        makeEvent("timeline_group_started", { stage: "CUSTOM", groupId: "custom:group" }),
+        makeEvent("timeline_group_started", {
+          stage: "CUSTOM",
+          groupId: "custom:group",
+        }),
       ),
     ).toBe(true);
   });
@@ -218,7 +320,10 @@ describe("task event visibility helpers", () => {
       shouldShowTaskEventInSummaryMode(
         makeEvent("timeline_step_started", {
           groupId: "tools:step:build:123",
-          step: { id: "tool_lane:step:use-1", description: "Running web_search" },
+          step: {
+            id: "tool_lane:step:use-1",
+            description: "Running web_search",
+          },
         }),
         "executing",
       ),
@@ -240,34 +345,81 @@ describe("task event visibility helpers", () => {
     ).toBe(false);
   });
 
-  it("keeps non-internal assistant timeline_step_updated events in verbose mode", () => {
+  it("keeps user-facing and substantive internal assistant updates in verbose mode", () => {
     const t0 = 1_000_000;
     const filtered = filterVerboseTimelineNoise([
       makeEvent(
         "timeline_step_updated",
-        { legacyType: "user_message", message: "Follow-up: please keep going." },
+        {
+          legacyType: "user_message",
+          message: "Follow-up: please keep going.",
+        },
         { id: "user-visible", timestamp: t0 },
       ),
-      makeEvent("timeline_step_updated", { message: "Progress update" }, { id: "a", timestamp: t0 }),
-      makeEvent("timeline_step_updated", { message: "Tackling: Do the real work" }, { id: "b", timestamp: t0 + 500 }),
-      makeEvent("timeline_step_updated", { legacyType: "log", message: "Execution strategy active" }, { id: "c", timestamp: t0 + 1000 }),
-      makeEvent("timeline_step_updated", { legacyType: "tool_call", tool: "web_search" }, { id: "d", timestamp: t0 + 2000 }),
-      makeEvent("timeline_step_updated", { legacyType: "tool_result", tool: "web_search" }, { id: "e", timestamp: t0 + 3000 }),
-      makeEvent("timeline_step_updated", { legacyType: "llm_routing_changed" }, { id: "f", timestamp: t0 + 4000 }),
-      makeEvent("timeline_step_updated", { legacyType: "llm_usage" }, { id: "g", timestamp: t0 + 5000 }),
-      makeEvent("timeline_step_updated", { legacyType: "plan_created" }, { id: "h", timestamp: t0 + 6000 }),
-      makeEvent("timeline_step_updated", { legacyType: "task_analysis" }, { id: "i", timestamp: t0 + 7000 }),
-      makeEvent("timeline_step_updated", { legacyType: "progress_update", message: "Starting execution" }, { id: "j", timestamp: t0 + 8000 }),
       makeEvent(
         "timeline_step_updated",
-        { legacyType: "assistant_message", message: "Here is the actual response." },
+        { message: "Progress update" },
+        { id: "a", timestamp: t0 },
+      ),
+      makeEvent(
+        "timeline_step_updated",
+        { message: "Tackling: Do the real work" },
+        { id: "b", timestamp: t0 + 500 },
+      ),
+      makeEvent(
+        "timeline_step_updated",
+        { legacyType: "log", message: "Execution strategy active" },
+        { id: "c", timestamp: t0 + 1000 },
+      ),
+      makeEvent(
+        "timeline_step_updated",
+        { legacyType: "tool_call", tool: "web_search" },
+        { id: "d", timestamp: t0 + 2000 },
+      ),
+      makeEvent(
+        "timeline_step_updated",
+        { legacyType: "tool_result", tool: "web_search" },
+        { id: "e", timestamp: t0 + 3000 },
+      ),
+      makeEvent(
+        "timeline_step_updated",
+        { legacyType: "llm_routing_changed" },
+        { id: "f", timestamp: t0 + 4000 },
+      ),
+      makeEvent(
+        "timeline_step_updated",
+        { legacyType: "llm_usage" },
+        { id: "g", timestamp: t0 + 5000 },
+      ),
+      makeEvent(
+        "timeline_step_updated",
+        { legacyType: "plan_created" },
+        { id: "h", timestamp: t0 + 6000 },
+      ),
+      makeEvent(
+        "timeline_step_updated",
+        { legacyType: "task_analysis" },
+        { id: "i", timestamp: t0 + 7000 },
+      ),
+      makeEvent(
+        "timeline_step_updated",
+        { legacyType: "progress_update", message: "Starting execution" },
+        { id: "j", timestamp: t0 + 8000 },
+      ),
+      makeEvent(
+        "timeline_step_updated",
+        {
+          legacyType: "assistant_message",
+          message: "Here is the actual response.",
+        },
         { id: "assistant-visible", timestamp: t0 + 9000 },
       ),
       makeEvent(
         "timeline_step_updated",
         {
           legacyType: "assistant_message",
-          message: '::video{path="artifacts/hyperframes-demo.mp4" title="HyperFrames Demo"}',
+          message:
+            '::video{path="artifacts/hyperframes-demo.mp4" title="HyperFrames Demo"}',
           internal: true,
         },
         { id: "assistant-preview", timestamp: t0 + 9500 },
@@ -277,11 +429,26 @@ describe("task event visibility helpers", () => {
         { legacyType: "assistant_message", message: "OK", internal: true },
         { id: "assistant-internal", timestamp: t0 + 10000 },
       ),
+      makeEvent(
+        "timeline_step_updated",
+        {
+          legacyType: "assistant_message",
+          message: "正在核对来源并生成最终报告。",
+          internal: true,
+        },
+        { id: "assistant-execution-note", timestamp: t0 + 11000 },
+      ),
     ]);
     expect(filtered.map((e) => e.id)).toEqual([
       "user-visible",
+      "b",
+      "d",
+      "e",
+      "h",
+      "j",
       "assistant-visible",
       "assistant-preview",
+      "assistant-execution-note",
     ]);
   });
 
@@ -291,7 +458,8 @@ describe("task event visibility helpers", () => {
         "timeline_step_updated",
         {
           legacyType: "assistant_message",
-          message: '::frame{path="artifacts/sync-status.html" title="Sync status" kind="progress"}',
+          message:
+            '::frame{path="artifacts/sync-status.html" title="Sync status" kind="progress"}',
           internal: true,
         },
         { id: "assistant-frame", timestamp: 1_000 },
@@ -309,10 +477,26 @@ describe("task event visibility helpers", () => {
   it("hides timeline_step_finished events but keeps task cancellation", () => {
     const t0 = 1_000_000;
     const filtered = filterVerboseTimelineNoise([
-      makeEvent("timeline_step_finished", { legacyType: "step_completed", message: "glob completed" }, { id: "a", timestamp: t0 }),
-      makeEvent("timeline_step_finished", { legacyType: "step_completed", message: "list_directory completed" }, { id: "b", timestamp: t0 + 1000 }),
-      makeEvent("timeline_step_finished", { legacyType: "task_cancelled", message: "Task was stopped by user" }, { id: "c", timestamp: t0 + 2000 }),
-      makeEvent("timeline_step_finished", { message: "Step finished" }, { id: "d", timestamp: t0 + 3000 }),
+      makeEvent(
+        "timeline_step_finished",
+        { legacyType: "step_completed", message: "glob completed" },
+        { id: "a", timestamp: t0 },
+      ),
+      makeEvent(
+        "timeline_step_finished",
+        { legacyType: "step_completed", message: "list_directory completed" },
+        { id: "b", timestamp: t0 + 1000 },
+      ),
+      makeEvent(
+        "timeline_step_finished",
+        { legacyType: "task_cancelled", message: "Task was stopped by user" },
+        { id: "c", timestamp: t0 + 2000 },
+      ),
+      makeEvent(
+        "timeline_step_finished",
+        { message: "Step finished" },
+        { id: "d", timestamp: t0 + 3000 },
+      ),
     ]);
     expect(filtered.map((e) => e.id)).toEqual(["c"]);
   });
@@ -321,7 +505,11 @@ describe("task event visibility helpers", () => {
     const filtered = filterVerboseTimelineNoise([
       makeEvent(
         "timeline_group_started",
-        { stage: "DISCOVER", groupLabel: "DISCOVER", message: "Starting DISCOVER" },
+        {
+          stage: "DISCOVER",
+          groupLabel: "DISCOVER",
+          message: "Starting DISCOVER",
+        },
         { id: "discover-start" },
       ),
       makeEvent(
@@ -336,14 +524,21 @@ describe("task event visibility helpers", () => {
       ),
     ]);
 
-    expect(filtered.map((event) => event.id)).toEqual(["discover-start", "build-start"]);
+    expect(filtered.map((event) => event.id)).toEqual([
+      "discover-start",
+      "build-start",
+    ]);
   });
 
   it("hides stage starts emitted after a blocking verbose failure", () => {
     const filtered = filterVerboseTimelineNoise([
       makeEvent(
         "timeline_group_started",
-        { stage: "DISCOVER", groupLabel: "DISCOVER", message: "Starting DISCOVER" },
+        {
+          stage: "DISCOVER",
+          groupLabel: "DISCOVER",
+          message: "Starting DISCOVER",
+        },
         { id: "discover-start", timestamp: 1000 },
       ),
       makeEvent(
@@ -363,13 +558,21 @@ describe("task event visibility helpers", () => {
       ),
       makeEvent(
         "timeline_group_started",
-        { stage: "FIX", groupLabel: "Applying fixes", message: "Starting Applying fixes" },
+        {
+          stage: "FIX",
+          groupLabel: "Applying fixes",
+          message: "Starting Applying fixes",
+        },
         { id: "post-failure-fix-start", timestamp: 1300, groupId: "stage:fix" },
       ),
       makeEvent(
         "timeline_group_started",
         { groupLabel: "Custom follow-up" },
-        { id: "custom-after-failure", timestamp: 1400, groupId: "custom:follow-up" },
+        {
+          id: "custom-after-failure",
+          timestamp: 1400,
+          groupId: "custom:follow-up",
+        },
       ),
     ]);
 
@@ -395,20 +598,96 @@ describe("task event visibility helpers", () => {
 
     expect(isLlmRequestCancelledEvent(llmError)).toBe(true);
     expect(shouldShowTaskEventInSummaryMode(llmError, "cancelled")).toBe(false);
-    expect(filterVerboseTimelineNoise([llmError, taskCancelled]).map((event) => event.id)).toEqual([
-      "task-cancelled",
+    expect(
+      filterVerboseTimelineNoise([llmError, taskCancelled]).map(
+        (event) => event.id,
+      ),
+    ).toEqual(["task-cancelled"]);
+  });
+
+  it("keeps user-facing planning and step progress in verbose mode", () => {
+    const filtered = filterVerboseTimelineNoise([
+      makeEvent(
+        "log",
+        {
+          message:
+            "[planning] Using strong model profile for execution plan creation",
+        },
+        { id: "plan-log" },
+      ),
+      makeEvent(
+        "progress_update",
+        { message: "Starting execution of 5 steps" },
+        { id: "start-exec" },
+      ),
+      makeEvent(
+        "progress_update",
+        { message: "Completed step 2: Review repository activity" },
+        { id: "done-step" },
+      ),
+      makeEvent(
+        "timeline_group_finished",
+        { stage: "BUILD", message: "Completed BUILD" },
+        { id: "build-finished" },
+      ),
+      makeEvent(
+        "progress_update",
+        { message: "Tackling: Review repository activity" },
+        { id: "useful" },
+      ),
+    ]);
+    expect(filtered.map((event) => event.id)).toEqual([
+      "plan-log",
+      "start-exec",
+      "done-step",
+      "useful",
     ]);
   });
 
-  it("hides low-value internal lifecycle chatter in verbose mode", () => {
+  it("keeps provider retries and terminal queue recovery visible in verbose mode", () => {
     const filtered = filterVerboseTimelineNoise([
-      makeEvent("log", { message: "[planning] Using strong model profile for execution plan creation" }, { id: "plan-log" }),
-      makeEvent("progress_update", { message: "Starting execution of 5 steps" }, { id: "start-exec" }),
-      makeEvent("progress_update", { message: "Completed step 2: Review repository activity" }, { id: "done-step" }),
-      makeEvent("timeline_group_finished", { stage: "BUILD", message: "Completed BUILD" }, { id: "build-finished" }),
-      makeEvent("progress_update", { message: "Tackling: Review repository activity" }, { id: "useful" }),
+      makeEvent(
+        "timeline_step_updated",
+        {
+          legacyType: "llm_routing_changed",
+          currentProvider: "deepseek",
+          routeReason: "provider_outage",
+          fallbackOccurred: true,
+        },
+        { id: "provider-outage" },
+      ),
+      makeEvent(
+        "timeline_step_updated",
+        {
+          legacyType: "llm_retry",
+          operation: "Plan creation",
+          attempt: 1,
+          maxRetries: 5,
+        },
+        { id: "model-retry" },
+      ),
+      makeEvent(
+        "timeline_step_updated",
+        {
+          legacyType: "task_queued",
+          reason: "transient_retry",
+          message: "Temporary provider error. Retrying 1/2 in 30s.",
+        },
+        { id: "task-retry-queued" },
+      ),
+      makeEvent(
+        "timeline_step_updated",
+        { legacyType: "task_dequeued", message: "Starting now (retry 1/2)." },
+        { id: "task-retry-started" },
+      ),
     ]);
-    expect(filtered).toEqual([]);
+
+    expect(filtered.map((event) => event.id)).toEqual([
+      "provider-outage",
+      "model-retry",
+      "task-retry-queued",
+      "task-retry-started",
+    ]);
   });
 
   it("hides pause and heartbeat progress updates in verbose mode", () => {
@@ -461,17 +740,29 @@ describe("task event visibility helpers", () => {
       ),
       makeEvent(
         "tool_result",
-        { tool: "http_request", toolUseId: "use-1", result: { url: "https://api.github.com/a" } },
+        {
+          tool: "http_request",
+          toolUseId: "use-1",
+          result: { url: "https://api.github.com/a" },
+        },
         { id: "c", timestamp: 1010 },
       ),
       makeEvent(
         "tool_result",
-        { tool: "http_request", toolUseId: "use-1", result: { url: "https://api.github.com/a" } },
+        {
+          tool: "http_request",
+          toolUseId: "use-1",
+          result: { url: "https://api.github.com/a" },
+        },
         { id: "d", timestamp: 1011 },
       ),
       makeEvent(
         "tool_result",
-        { tool: "http_request", toolUseId: "use-2", result: { url: "https://api.github.com/b" } },
+        {
+          tool: "http_request",
+          toolUseId: "use-2",
+          result: { url: "https://api.github.com/b" },
+        },
         { id: "e", timestamp: 1012 },
       ),
     ]);
@@ -490,7 +781,12 @@ describe("task event visibility helpers", () => {
           reason,
           step: { id: "step-1", description: "Applying fixes", error: reason },
         },
-        { id: "step-failed", timestamp: 1000, status: "failed", stepId: "step-1" },
+        {
+          id: "step-failed",
+          timestamp: 1000,
+          status: "failed",
+          stepId: "step-1",
+        },
       ),
       makeEvent(
         "timeline_error",
@@ -506,7 +802,11 @@ describe("task event visibility helpers", () => {
     const reason =
       "Step contract failure [contract_unmet_write_required][artifact_write_checkpoint_failed]: iteration 5 reached without successful file/canvas mutation.";
     const filtered = filterAdjacentDuplicateTimelineFailures([
-      makeEvent("timeline_error", { message: reason }, { id: "matching-error", timestamp: 1000 }),
+      makeEvent(
+        "timeline_error",
+        { message: reason },
+        { id: "matching-error", timestamp: 1000 },
+      ),
       makeEvent(
         "timeline_step_finished",
         {
@@ -515,7 +815,12 @@ describe("task event visibility helpers", () => {
           reason,
           step: { id: "step-1", description: "Applying fixes", error: reason },
         },
-        { id: "step-failed", timestamp: 1001, status: "failed", stepId: "step-1" },
+        {
+          id: "step-failed",
+          timestamp: 1001,
+          status: "failed",
+          stepId: "step-1",
+        },
       ),
     ]);
 
@@ -532,7 +837,12 @@ describe("task event visibility helpers", () => {
           reason: "Step contract failure: missing artifact write",
           step: { id: "step-1", description: "Applying fixes" },
         },
-        { id: "step-failed", timestamp: 1000, status: "failed", stepId: "step-1" },
+        {
+          id: "step-failed",
+          timestamp: 1000,
+          status: "failed",
+          stepId: "step-1",
+        },
       ),
       makeEvent(
         "timeline_error",
@@ -541,7 +851,47 @@ describe("task event visibility helpers", () => {
       ),
     ]);
 
-    expect(filtered.map((event) => event.id)).toEqual(["step-failed", "completion-error"]);
+    expect(filtered.map((event) => event.id)).toEqual([
+      "step-failed",
+      "completion-error",
+    ]);
+  });
+
+  it("drops a lingering DELIVER stage once the final reply is visible", () => {
+    const filtered = filterVerboseTimelineNoise([
+      makeEvent(
+        "timeline_group_started",
+        { stage: "DELIVER", message: "Starting DELIVER" },
+        { id: "deliver-start", timestamp: 1000, groupId: "stage:deliver" },
+      ),
+      makeEvent(
+        "assistant_message",
+        { message: "Here is the answer." },
+        { id: "assistant-final", timestamp: 1100 },
+      ),
+    ]);
+
+    expect(filtered.map((event) => event.id)).toEqual(["assistant-final"]);
+  });
+
+  it("drops stage-boundary events in verbose mode for completed tasks", () => {
+    const filtered = filterVerboseTimelineNoise(
+      [
+        makeEvent(
+          "timeline_group_started",
+          { stage: "DELIVER", message: "Starting DELIVER" },
+          { id: "deliver-start", timestamp: 1000, groupId: "stage:deliver" },
+        ),
+        makeEvent(
+          "timeline_group_started",
+          { groupLabel: "Custom group" },
+          { id: "custom-start", timestamp: 1100, groupId: "custom:group" },
+        ),
+      ],
+      { taskStatus: "completed" },
+    );
+
+    expect(filtered.map((event) => event.id)).toEqual(["custom-start"]);
   });
 
   it("keeps stage-boundary group starts in verbose mode along with custom groups", () => {
@@ -578,7 +928,10 @@ describe("task event visibility helpers", () => {
   it("does not hide custom non-stage group events for completed tasks", () => {
     expect(
       shouldShowTaskEventInSummaryMode(
-        makeEvent("timeline_group_started", { stage: "CUSTOM", groupId: "custom:group" }),
+        makeEvent("timeline_group_started", {
+          stage: "CUSTOM",
+          groupId: "custom:group",
+        }),
         "completed",
       ),
     ).toBe(true);

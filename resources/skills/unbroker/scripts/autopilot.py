@@ -31,7 +31,7 @@ import registry
 import tiers
 
 CACHE_STALE_DAYS = 7          # refresh the live broker list after this
-FANOUT_THRESHOLD = 8          # above this many unscanned brokers, use CoWork subagent fan-out
+FANOUT_THRESHOLD = 8          # above this many unscanned brokers, use NeoWorker subagent fan-out
 
 # States with nothing left to do (absent a due recheck).
 _TERMINAL = {"not_found", "confirmed_removed"}
@@ -257,7 +257,7 @@ def next_actions(dossier: dict, brokers_list: list[dict], cfg: dict,
                 "type": "fanout_scan",
                 "broker_ids": ids,
                 "command": f"python3 scripts/pdd.py fanout {subject_id}",
-                "how": "spawn ONE CoWork subagent per batch IN PARALLEL with each batch's brief; "
+                "how": "spawn ONE NeoWorker subagent per batch IN PARALLEL with each batch's brief; "
                        "parent re-verifies key `found` claims before trusting them",
             })
         else:

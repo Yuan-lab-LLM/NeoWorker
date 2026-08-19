@@ -37,8 +37,8 @@ function parseComponentFilter(raw: string | undefined): Set<string> | null {
   return new Set(tokens);
 }
 
-const configuredLevel = normalizeLevel(process.env.COWORK_LOG_LEVEL);
-const componentFilter = parseComponentFilter(process.env.COWORK_LOG_COMPONENTS);
+const configuredLevel = normalizeLevel(process.env.NEOWORKER_LOG_LEVEL);
+const componentFilter = parseComponentFilter(process.env.NEOWORKER_LOG_COMPONENTS);
 
 function shouldLog(component: string, level: LogLevel): boolean {
   if (LEVEL_ORDER[level] > LEVEL_ORDER[configuredLevel]) {

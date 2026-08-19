@@ -12,7 +12,7 @@ function makeEvidenceRef(line: string): EvidenceRef {
   return {
     evidenceId: `debug_runtime:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`,
     sourceType: "tool_output",
-    sourceUrlOrPath: "cowork://debug-runtime",
+    sourceUrlOrPath: "neoworker://debug-runtime",
     snippet: line.length > 600 ? `${line.slice(0, 600)}…` : line,
     capturedAt: Date.now(),
   };

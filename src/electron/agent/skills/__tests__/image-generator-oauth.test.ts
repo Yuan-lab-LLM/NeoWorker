@@ -77,7 +77,7 @@ describe("ImageGenerator OpenAI OAuth", () => {
       },
       finalResponse: vi.fn().mockResolvedValue({ output: [] }),
     });
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-image-oauth-"));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-image-oauth-"));
   });
 
   afterEach(() => {
@@ -139,7 +139,7 @@ describe("ImageGenerator OpenAI OAuth", () => {
       defaultHeaders: expect.objectContaining({
         "chatgpt-account-id": "acct_test_oauth",
         "OpenAI-Beta": "responses=experimental",
-        originator: "cowork-os",
+        originator: "neoworker",
       }),
     });
 

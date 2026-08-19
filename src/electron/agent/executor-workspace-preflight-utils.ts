@@ -55,7 +55,7 @@ export function preflightWorkspaceCheck<W extends WorkspaceLike>(opts: {
   const isTemp = Boolean(opts.workspace.isTemp) || opts.isTempWorkspaceId(opts.workspace.id);
 
   // When user is in temp workspace (no workspace selected), never auto-switch to another workspace.
-  // The user explicitly chose temp; silently switching to cowork/other would be surprising.
+  // The user explicitly chose temp; silently switching to neoworker/other would be surprising.
   // For "ambiguous" prompts, stay in temp. For "needs_existing", pause and ask instead of auto-switching.
   if (isTemp && !looksLikeProject && workspaceNeed === "ambiguous") {
     return false;

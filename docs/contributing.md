@@ -1,6 +1,6 @@
-# Contributing to CoWork OS
+# Contributing to NeoWorker
 
-Thank you for your interest in contributing to CoWork OS! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to NeoWorker! This document provides guidelines and instructions for contributing.
 
 ## Table of Contents
 
@@ -38,8 +38,8 @@ Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md) to keep our com
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/CoWork-OS.git
-cd CoWork-OS
+git clone https://github.com/YOUR_USERNAME/NeoWorker.git
+cd NeoWorker
 
 # Install dependencies and set up native modules
 npm run setup
@@ -56,7 +56,7 @@ npm run dev
 
 - `npm run dev` - Start development mode with hot reload
 - `npm run build` - Build for production
-- `npm run build:cli` - Build the standalone `cowork` CLI
+- `npm run build:cli` - Build the standalone `neoworker` CLI
 - `npm run package` - Package the Electron app
 - `npm run lint` - Run ESLint
 - `npm run type-check` - Run TypeScript type checking
@@ -65,7 +65,7 @@ npm run dev
 
 ## Releasing (Maintainers Only)
 
-CoWork OS is published to npm for easy global installation. To release a new version:
+NeoWorker is published to npm for easy global installation. To release a new version:
 
 ### Release Workflow
 
@@ -254,7 +254,7 @@ docs(readme): update installation instructions for M1 Macs
 ## Questions?
 
 Feel free to:
-- Open a [Discussion](https://github.com/CoWork-OS/CoWork-OS/discussions) for questions
+- Open a [Discussion](https://github.com/NeoWorker/NeoWorker/discussions) for questions
 - Tag maintainers in issues for guidance
 
-Thank you for contributing to CoWork OS!
+Thank you for contributing to NeoWorker!

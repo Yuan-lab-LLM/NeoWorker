@@ -362,9 +362,9 @@ export class MailboxAutomationRegistry {
       maxMessagesPerRun: Math.max(1, Math.min(500, Number(recipe.maxMessagesPerRun || 100))),
       backfillDays: Math.max(1, Math.min(3650, Number(recipe.backfillDays || 30))),
       lookbackMinutes: Math.max(1, Math.min(7 * 24 * 60, Number(recipe.lookbackMinutes || 20))),
-      forwardedLabelName: normalizeString(recipe.forwardedLabelName) || "cowork/forwarded",
-      rejectedLabelName: normalizeString(recipe.rejectedLabelName) || "cowork/rejected",
-      candidateLabelName: normalizeString(recipe.candidateLabelName) || "cowork/candidate",
+      forwardedLabelName: normalizeString(recipe.forwardedLabelName) || "neoworker/forwarded",
+      rejectedLabelName: normalizeString(recipe.rejectedLabelName) || "neoworker/rejected",
+      candidateLabelName: normalizeString(recipe.candidateLabelName) || "neoworker/candidate",
       gmailQuery: normalizeString(recipe.gmailQuery),
       enabled: recipe.enabled ?? true,
     };
@@ -426,11 +426,11 @@ export class MailboxAutomationRegistry {
       targetEmail: normalizeString(patch.targetEmail ?? record.forward?.targetEmail) || "",
       providerThreadId: normalizeString(patch.providerThreadId ?? record.forward?.providerThreadId),
       forwardedLabelName:
-        normalizeString(patch.forwardedLabelName ?? record.forward?.forwardedLabelName) || "cowork/forwarded",
+        normalizeString(patch.forwardedLabelName ?? record.forward?.forwardedLabelName) || "neoworker/forwarded",
       rejectedLabelName:
-        normalizeString(patch.rejectedLabelName ?? record.forward?.rejectedLabelName) || "cowork/rejected",
+        normalizeString(patch.rejectedLabelName ?? record.forward?.rejectedLabelName) || "neoworker/rejected",
       candidateLabelName:
-        normalizeString(patch.candidateLabelName ?? record.forward?.candidateLabelName) || "cowork/candidate",
+        normalizeString(patch.candidateLabelName ?? record.forward?.candidateLabelName) || "neoworker/candidate",
       gmailQuery: normalizeString(patch.gmailQuery ?? record.forward?.gmailQuery),
       maxMessagesPerRun: Math.max(
         1,

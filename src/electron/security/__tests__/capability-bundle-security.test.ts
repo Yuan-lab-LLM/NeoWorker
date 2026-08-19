@@ -24,16 +24,16 @@ describe("CapabilityBundleSecurityService", () => {
   let service: CapabilityBundleSecurityService;
 
   beforeEach(() => {
-    rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-security-"));
+    rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-security-"));
     managedSkillsDir = path.join(rootDir, "managed-skills");
     fs.mkdirSync(managedSkillsDir, { recursive: true });
-    process.env.COWORK_USER_DATA_DIR = rootDir;
+    process.env.NEOWORKER_USER_DATA_DIR = rootDir;
     service = new CapabilityBundleSecurityService();
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
-    delete process.env.COWORK_USER_DATA_DIR;
+    delete process.env.NEOWORKER_USER_DATA_DIR;
     fs.rmSync(rootDir, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
@@ -113,7 +113,7 @@ describe("CapabilityBundleSecurityService", () => {
         },
       ],
     };
-    fs.writeFileSync(path.join(packDir, "cowork.plugin.json"), JSON.stringify(manifest), "utf-8");
+    fs.writeFileSync(path.join(packDir, "neoworker.plugin.json"), JSON.stringify(manifest), "utf-8");
 
     const report = await service.scanPluginPack({
       bundleId: manifest.name,

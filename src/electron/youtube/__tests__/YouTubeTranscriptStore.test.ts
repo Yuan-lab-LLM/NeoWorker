@@ -46,7 +46,7 @@ describeWithNativeDb("YouTubeTranscriptStore", () => {
       videoId: "dQw4w9WgXcQ",
       url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
       title: "Planning Demo",
-      channel: "CoWork",
+      channel: "NeoWorker",
       fetchedAt: 1_700_000_000,
     });
     YouTubeTranscriptStore.saveSegments("workspace-1", "dQw4w9WgXcQ", [

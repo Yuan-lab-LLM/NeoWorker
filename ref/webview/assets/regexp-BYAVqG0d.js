@@ -1,0 +1,3 @@
+import { n as e, t } from "./regexp-CGA3ydyB.js";
+t();
+export { e as default };

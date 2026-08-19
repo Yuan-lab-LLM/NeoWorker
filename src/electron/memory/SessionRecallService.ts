@@ -21,7 +21,7 @@ function compareRecallResults(a: SessionRecallResult, b: SessionRecallResult): n
 }
 
 function checkpointsDir(workspacePath: string): string {
-  return path.join(workspacePath, ".cowork", "memory", "transcripts", "checkpoints");
+  return path.join(workspacePath, ".neoworker", "memory", "transcripts", "checkpoints");
 }
 
 function summarizePayload(payload: unknown): string {

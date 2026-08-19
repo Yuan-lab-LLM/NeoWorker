@@ -2,15 +2,15 @@
 
 ## macOS app won't launch with "Apple could not verify"
 
-CoWork OS macOS DMGs are currently unsigned. On first launch, macOS may show **"Apple could not verify CoWork OS is free of malware"** or **`"CoWork OS" was blocked to protect your Mac`**.
+NeoWorker macOS DMGs are currently unsigned. On first launch, macOS may show **"Apple could not verify NeoWorker is free of malware"** or **`"NeoWorker" was blocked to protect your Mac`**.
 
 Use the macOS Gatekeeper override:
 
-1. Drag **CoWork OS** from the DMG into **Applications**.
-2. Open **CoWork OS** once. If macOS blocks it, click **Done**.
+1. Drag **NeoWorker** from the DMG into **Applications**.
+2. Open **NeoWorker** once. If macOS blocks it, click **Done**.
 3. Open **System Settings > Privacy & Security**.
 4. Scroll to **Security**.
-5. Next to **`"CoWork OS" was blocked to protect your Mac`**, click **Open Anyway**.
+5. Next to **`"NeoWorker" was blocked to protect your Mac`**, click **Open Anyway**.
 6. In the confirmation dialog, click **Open Anyway** again.
 
 Release maintainers can create unsigned macOS DMG/ZIP artifacts with:
@@ -22,13 +22,13 @@ npm run package:mac:unsigned
 Terminal fallback:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/CoWork OS.app"
+xattr -dr com.apple.quarantine "/Applications/NeoWorker.app"
 ```
 
 If the app closes immediately with a `dyld` signature error:
 
 ```bash
-codesign --force --deep --sign - "/Applications/CoWork OS.app"
+codesign --force --deep --sign - "/Applications/NeoWorker.app"
 ```
 
 > `spctl --add` / `spctl --enable` are deprecated on newer macOS and may show "This operation is no longer supported".
@@ -38,7 +38,7 @@ codesign --force --deep --sign - "/Applications/CoWork OS.app"
 If install fails with `SIGKILL` during `node_modules/electron/install.js`, use a two-step install:
 
 ```bash
-npm install --ignore-scripts cowork-os@latest --no-audit --no-fund
+npm install --ignore-scripts neoworker@latest --no-audit --no-fund
 npm run setup
 ```
 
@@ -46,27 +46,27 @@ For local package testing, use the same `--ignore-scripts` flow with the tarball
 
 ```bash
 npm init -y
-npm install --ignore-scripts /path/to/cowork-os-<version>.tgz
+npm install --ignore-scripts /path/to/neoworker-<version>.tgz
 ```
 
-## CoWork CLI issues
+## NeoWorker CLI issues
 
-The `cowork` command has a local mode and an explicit remote mode. Normal local use should not require a Control Plane token.
+The `neoworker` command has a local mode and an explicit remote mode. Normal local use should not require a Control Plane token.
 
-### `cowork run` says `Missing token`
+### `neoworker run` says `Missing token`
 
 This error belongs to the remote Control Plane path. Check whether the command includes `--remote` or a remote alias. For local one-shot execution, run without `--remote`:
 
 ```bash
-cowork run "who are you?"
+neoworker run "who are you?"
 ```
 
 For remote execution, configure the Control Plane connection:
 
 ```bash
-export COWORK_CONTROL_PLANE_URL=http://127.0.0.1:3333
-export COWORK_CONTROL_PLANE_TOKEN=<token>
-cowork run "check remote status" --remote
+export NEOWORKER_CONTROL_PLANE_URL=http://127.0.0.1:3333
+export NEOWORKER_CONTROL_PLANE_TOKEN=<token>
+neoworker run "check remote status" --remote
 ```
 
 ### CLI build artifacts are missing
@@ -93,12 +93,12 @@ Local one-shot CLI runs prefer a hidden Electron app-entry mode so OS-encrypted 
 3. Run the CLI with diagnostics:
 
    ```bash
-   COWORK_CLI_DEBUG=1 cowork run "diagnose provider setup"
+   NEOWORKER_CLI_DEBUG=1 neoworker run "diagnose provider setup"
    ```
 
 4. If running from source, rebuild both Electron and CLI artifacts.
 
-See [CoWork OS CLI](cli.md) for the full local-vs-remote model.
+See [NeoWorker CLI](cli.md) for the full local-vs-remote model.
 
 ## OpenAI or MoA fails on a corporate Mac with Zscaler
 
@@ -113,7 +113,7 @@ NODE_OPTIONS=--use-system-ca
 To confirm whether this behavior matters, compare with:
 
 ```bash
-COWORK_DEV_USE_SYSTEM_CA=0 npm run dev
+NEOWORKER_DEV_USE_SYSTEM_CA=0 npm run dev
 ```
 
 If requests still fail, export your Zscaler or company root CA certificate as a PEM file and run:
@@ -138,7 +138,7 @@ npm run setup
 
 If **screenshots fail or time out** on macOS, grant **Screen Recording** for the helper path shown in **Settings → Tools → Computer use**, then **quit and restart** the app. If **clicks or typing do nothing**, enable **Accessibility** for that helper path the same way.
 
-On Windows, keep the target window visible and non-minimized. If the target app is running as administrator, run CoWork with comparable privileges; protected apps may block capture or input.
+On Windows, keep the target window visible and non-minimized. If the target app is running as administrator, run NeoWorker with comparable privileges; protected apps may block capture or input.
 
 If the agent **never uses** the computer-use tools, confirm **Settings → Tools → Built-in tools** includes the **computer use** category, and phrase tasks as **native app / window / dialog** work (not pure browser or CLI tasks).
 
@@ -194,7 +194,7 @@ See [Ask Inbox Architecture](ask-inbox-architecture.md).
 
 ### `@Gmail`, `@Google Tasks`, `@Google Slides`, or `@Inbox` says Google Workspace authorization failed
 
-The composer `@` menu uses local configured state, so a stale Google token can still appear until the next provider call proves it is invalid. If a Google Workspace request reports a token refresh bad request, CoWork clears the stale access/refresh tokens and requires a reconnect. If the token is valid but was granted before newer services existed, CoWork reports missing scopes and also requires reconnect.
+The composer `@` menu uses local configured state, so a stale Google token can still appear until the next provider call proves it is invalid. If a Google Workspace request reports a token refresh bad request, NeoWorker clears the stale access/refresh tokens and requires a reconnect. If the token is valid but was granted before newer services existed, NeoWorker reports missing scopes and also requires reconnect.
 
 Fix:
 
@@ -208,7 +208,7 @@ If you recently changed the Google OAuth client id, client secret, or scopes, re
 
 ### Integration reconnect notifications
 
-When a background integration request fails because authorization is stale, revoked, missing scopes, or blocked by a sign-in challenge, CoWork now creates a warning notification instead of silently retrying forever. The notification points you back to Settings so you can reconnect or update the provider credentials.
+When a background integration request fails because authorization is stale, revoked, missing scopes, or blocked by a sign-in challenge, NeoWorker now creates a warning notification instead of silently retrying forever. The notification points you back to Settings so you can reconnect or update the provider credentials.
 
 This applies to the shared Google Workspace path used by Gmail, Calendar, and Drive; X (Twitter) login/challenge failures; and MCP connector tool calls or connection status errors that look like auth failures. To avoid notification spam, repeated auth failures for the same integration are de-duped for a short window.
 
@@ -243,18 +243,18 @@ Mailbox schema migrations should add classification, Today/domain, attachment, a
 
 ## PPTX previews only show text or speaker notes
 
-CoWork can always extract slide text and presenter notes from `.pptx` files. The presentation viewer loads that fast text preview first, then renders slide images in the background. Rendered slide thumbnails are best-effort and use this order:
+NeoWorker can always extract slide text and presenter notes from `.pptx` files. The presentation viewer loads that fast text preview first, then renders slide images in the background. Rendered slide thumbnails are best-effort and use this order:
 
 1. Codex bundled `@oai/artifact-tool` presentation renderer.
 2. `soffice` from LibreOffice to convert the deck to PDF.
 3. `pdftoppm` to render PDF pages to PNG thumbnails.
 4. Text/notes preview if image rendering fails.
 
-If artifact-tool is unavailable and either local binary is missing or fails on a deck, the presentation viewer stays in text/notes mode. Install LibreOffice and Poppler, restart CoWork, then reopen the artifact to regenerate the cached preview. The `.pptx` file itself is still available through **Open file** or **Show in Finder**.
+If artifact-tool is unavailable and either local binary is missing or fails on a deck, the presentation viewer stays in text/notes mode. Install LibreOffice and Poppler, restart NeoWorker, then reopen the artifact to regenerate the cached preview. The `.pptx` file itself is still available through **Open file** or **Show in Finder**.
 
 ## Everything Workbench artifacts do not appear as cards
 
-Generated documents, spreadsheets, presentations, web pages, PDFs, and previews should appear as first-class artifact cards when CoWork recognizes the output type. The shared flow is: output card, main **Open** action, sidebar workbench, fullscreen artifact workspace, follow-up composer, and refresh after completed edits.
+Generated documents, spreadsheets, presentations, web pages, PDFs, and previews should appear as first-class artifact cards when NeoWorker recognizes the output type. The shared flow is: output card, main **Open** action, sidebar workbench, fullscreen artifact workspace, follow-up composer, and refresh after completed edits.
 
 If an output only appears as a plain file link:
 
@@ -386,7 +386,7 @@ If Browser Use Cloud does not start:
 
 If a Browser Use Cloud run fails after creating a session:
 
-1. Check the tool result for `browserUseSession.id`. CoWork keeps this id when cleanup fails so `browser_close` can retry stopping the remote browser.
+1. Check the tool result for `browserUseSession.id`. NeoWorker keeps this id when cleanup fails so `browser_close` can retry stopping the remote browser.
 2. If the error says the Browser Use Cloud session is pending stop, call `browser_close` again after network/API connectivity recovers.
 3. Stale or expired Browser Use CDP sessions are cleaned up and retried once. If the retry also fails, inspect Browser Use account/session status and the redacted API error in the task timeline or dev logs.
 4. API errors and Browser Use live/CDP URLs are redacted; do not expect raw API keys or full tokenized URLs in logs.
@@ -427,7 +427,7 @@ If Chronicle never seems to help with prompts like `what is this on the right si
 1. **Enable Chronicle** in **Settings > Memory Hub > Chronicle** and accept the consent prompt.
 2. Confirm **Settings > Tools > Built-in tools** still has the **Chronicle** category enabled.
 3. Make sure the per-task **Chronicle ON** toggle was not turned off in the task composer or Devices panel.
-4. Confirm **Screen Recording** is granted for CoWork OS.
+4. Confirm **Screen Recording** is granted for NeoWorker.
 5. If Chronicle is enabled but paused, resume it from the Chronicle settings card or the tray menu.
 6. Restart the app if Screen Recording was just changed.
 7. Leave the target window visible for **15-30 seconds** so Chronicle has recent frames.
@@ -480,8 +480,8 @@ If those never appear, see [Chronicle](chronicle.md) and [Computer use](computer
 If first launch exits after:
 
 ```text
-[cowork] $ npm.cmd rebuild --ignore-scripts=false better-sqlite3
-[cowork] Native setup failed.
+[neoworker] $ npm.cmd rebuild --ignore-scripts=false better-sqlite3
+[neoworker] Native setup failed.
 ```
 
 install native build prerequisites, then retry:
@@ -501,20 +501,20 @@ py -3 --version
 ```powershell
 setx GYP_MSVS_VERSION 2022
 setx npm_config_msvs_version 2022
-cowork-os
+neoworker
 ```
 
 Windows ARM64 note:
 - Setup now auto-tries x64 Electron emulation if ARM64 native rebuild fails.
-- To disable that fallback and force native ARM64 only, set `COWORK_SETUP_SKIP_X64_FALLBACK=1`.
+- To disable that fallback and force native ARM64 only, set `NEOWORKER_SETUP_SKIP_X64_FALLBACK=1`.
 
 ## App shows "vUnknown" or remote method error
 
 If the app opens but shows `vUnknown` or `Error invoking remote method 'app:getVersion'`, you likely connected to an older already-running instance.
 
 ```bash
-pkill -f '/cowork-os' || true
-cowork-os
+pkill -f '/neoworker' || true
+neoworker
 ```
 
 ## Windows opens to a black screen (`ERR_FILE_NOT_FOUND dist/renderer/index.html`)
@@ -530,9 +530,9 @@ the published package is missing renderer build assets.
 For users:
 
 ```powershell
-npm uninstall -g cowork-os
+npm uninstall -g neoworker
 npm cache clean --force
-npm install -g cowork-os@latest --no-audit --no-fund
+npm install -g neoworker@latest --no-audit --no-fund
 ```
 
 For maintainers (before publish), verify tarball contains renderer assets:
@@ -544,16 +544,16 @@ npm pack --json --dry-run | jq -r '.[0].files[].path' | grep '^dist/renderer/ind
 
 ## VPS: "tsc: not found"
 
-If you see `sh: 1: tsc: not found` right after `npx coworkd-node`, you are on an older broken npm publish. Upgrade and retry:
+If you see `sh: 1: tsc: not found` right after `npx neoworkerd-node`, you are on an older broken npm publish. Upgrade and retry:
 
 ```bash
-npm install cowork-os@latest --no-audit --no-fund
+npm install neoworker@latest --no-audit --no-fund
 ```
 
-For production VPS installs, prefer the packaged Linux server release from GitHub Releases instead of the npm quick-start path. The package is named `cowork-os-server-linux-x64-v<version>.tar.gz`, includes built daemon assets, resources, connectors, and runtime dependencies, and runs with:
+For production VPS installs, prefer the packaged Linux server release from GitHub Releases instead of the npm quick-start path. The package is named `neoworker-server-linux-x64-v<version>.tar.gz`, includes built daemon assets, resources, connectors, and runtime dependencies, and runs with:
 
 ```bash
-node bin/coworkd-node.js --print-control-plane-token
+node bin/neoworkerd-node.js --print-control-plane-token
 ```
 
 See [Linux VPS](vps-linux.md) for the full tarball + checksum + systemd flow.
@@ -570,24 +570,24 @@ that means hard executor budget contracts are enabled.
 
 Current default behavior:
 
-- `COWORK_AGENT_BUDGET_CONTRACTS=false` (opt-in only)
+- `NEOWORKER_AGENT_BUDGET_CONTRACTS=false` (opt-in only)
 
 If your environment still enforces this cap, check for an explicit override and unset it:
 
 ```bash
-unset COWORK_AGENT_BUDGET_CONTRACTS
+unset NEOWORKER_AGENT_BUDGET_CONTRACTS
 ```
 
 Or explicitly disable it:
 
 ```bash
-export COWORK_AGENT_BUDGET_CONTRACTS=false
+export NEOWORKER_AGENT_BUDGET_CONTRACTS=false
 ```
 
 To restore legacy strict budget-contract behavior, set:
 
 ```bash
-export COWORK_AGENT_BUDGET_CONTRACTS=true
+export NEOWORKER_AGENT_BUDGET_CONTRACTS=true
 ```
 
 ## "web_search budget exhausted: X/Y"
@@ -619,7 +619,7 @@ Notes:
 
 ## LaTeX PDF compile fails or only creates `.tex`
 
-The `compile_latex` tool uses a system TeX engine. CoWork OS does not bundle TeX Live, MacTeX, MikTeX, or Tectonic.
+The `compile_latex` tool uses a system TeX engine. NeoWorker does not bundle TeX Live, MacTeX, MikTeX, or Tectonic.
 
 If a LaTeX/TikZ paper task leaves the `.tex` source but does not produce a PDF, check the task timeline for a `compile_latex` diagnostic. The most common message is:
 
@@ -629,7 +629,7 @@ No LaTeX engine found. Install tectonic, latexmk, xelatex, lualatex, or pdflatex
 
 Fix:
 
-1. Install one supported engine on the machine running CoWork OS.
+1. Install one supported engine on the machine running NeoWorker.
 2. Confirm the binary is on `PATH` with one of:
 
 ```bash
@@ -640,7 +640,7 @@ which lualatex
 which pdflatex
 ```
 
-3. Retry the task or ask CoWork to compile the existing `.tex` file.
+3. Retry the task or ask NeoWorker to compile the existing `.tex` file.
 
 Notes:
 

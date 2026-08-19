@@ -48,7 +48,7 @@ Release `0.5.19` expands production operations with **isolated app profiles** (e
 
 ### MCP and automations
 
-- **CoWork MCP host provider** and host server refinements; connector resource subscription behavior documented with **Event Triggers** and MCP notifications.
+- **NeoWorker MCP host provider** and host server refinements; connector resource subscription behavior documented with **Event Triggers** and MCP notifications.
 
 ### Runtime and operator surfaces
 

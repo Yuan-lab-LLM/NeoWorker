@@ -233,7 +233,7 @@ class DiscordClient {
     const url = `${DISCORD_API_BASE}${path}`;
     const headers: Record<string, string> = {
       Authorization: `Bot ${this.getToken()}`,
-      'User-Agent': 'CoWork-Discord-Connector/0.1.0',
+      'User-Agent': 'NeoWorker-Discord-Connector/0.1.0',
     };
     if (body !== undefined) {
       headers['Content-Type'] = 'application/json';

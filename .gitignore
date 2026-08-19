@@ -13,6 +13,7 @@ native/healthkit-bridge/.build/
 build/location-helper-macos/
 build/location-helper-linux/
 build/location-helper-windows/
+build/officecli/
 native/location-helper-macos/.build/
 native/location-helper-macos/.swiftpm/
 *.app
@@ -66,7 +67,7 @@ docs/.vitepress/dist/
 docs/.vitepress/cache/
 
 # Local npm pack artifacts
-cowork-os-*.tgz
+neoworker-*.tgz
 
 # Test coverage
 coverage/
@@ -82,8 +83,8 @@ CLAUDE.md
 # Local Codex config
 .codex/
 
-# CoWork local state
-.cowork/
+# NeoWorker local state
+.neoworker/
 
 # Runtime-generated outputs
 artifacts/
@@ -132,10 +133,10 @@ temp/
 *.aiff
 
 # iOS companion project (separate repo)
-cowork-oss/
+neoworker/
 docs/ios-companion-example.swift
 Mission_Control_Comparison_Recommendations.docx
-CoWork OS founder vault/
+NeoWorker founder vault/
 AGENTS.md
 /Users/
 /solana-dapp/

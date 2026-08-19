@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // Mock electron
 vi.mock("electron", () => ({
   app: {
-    getPath: vi.fn().mockReturnValue("/tmp/test-cowork"),
+    getPath: vi.fn().mockReturnValue("/tmp/test-neoworker"),
   },
   BrowserWindow: vi.fn(),
 }));
@@ -101,7 +101,7 @@ function createMockGateway() {
       if (configured && configured.trim()) {
         return configured;
       }
-      return "/tmp/test-cowork/whatsapp-auth";
+      return "/tmp/test-neoworker/whatsapp-auth";
     },
 
     clearWhatsAppAuthDir(channel?: { config?: { authDir?: string } }) {
@@ -264,7 +264,7 @@ describe("ChannelGateway Cleanup", () => {
 
       const result = gateway.resolveWhatsAppAuthDir(channel);
 
-      expect(result).toBe("/tmp/test-cowork/whatsapp-auth");
+      expect(result).toBe("/tmp/test-neoworker/whatsapp-auth");
     });
 
     it("should return default path if authDir is whitespace", () => {
@@ -272,13 +272,13 @@ describe("ChannelGateway Cleanup", () => {
 
       const result = gateway.resolveWhatsAppAuthDir(channel);
 
-      expect(result).toBe("/tmp/test-cowork/whatsapp-auth");
+      expect(result).toBe("/tmp/test-neoworker/whatsapp-auth");
     });
 
     it("should return default path if channel is undefined", () => {
       const result = gateway.resolveWhatsAppAuthDir(undefined);
 
-      expect(result).toBe("/tmp/test-cowork/whatsapp-auth");
+      expect(result).toBe("/tmp/test-neoworker/whatsapp-auth");
     });
 
     it("should return default path if config is undefined", () => {
@@ -286,7 +286,7 @@ describe("ChannelGateway Cleanup", () => {
 
       const result = gateway.resolveWhatsAppAuthDir(channel);
 
-      expect(result).toBe("/tmp/test-cowork/whatsapp-auth");
+      expect(result).toBe("/tmp/test-neoworker/whatsapp-auth");
     });
   });
 
@@ -296,8 +296,8 @@ describe("ChannelGateway Cleanup", () => {
 
       gateway.clearWhatsAppAuthDir();
 
-      expect(fs.existsSync).toHaveBeenCalledWith("/tmp/test-cowork/whatsapp-auth");
-      expect(fs.rmSync).toHaveBeenCalledWith("/tmp/test-cowork/whatsapp-auth", {
+      expect(fs.existsSync).toHaveBeenCalledWith("/tmp/test-neoworker/whatsapp-auth");
+      expect(fs.rmSync).toHaveBeenCalledWith("/tmp/test-neoworker/whatsapp-auth", {
         recursive: true,
         force: true,
       });

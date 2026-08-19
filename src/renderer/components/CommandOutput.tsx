@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from "react";
+import { translate, useLanguage } from "../i18n";
 
 const DIR_NAME_MAX_LEN = 12;
 const DEFAULT_VISIBLE_OUTPUT_LINES = 300;
@@ -32,6 +33,8 @@ export function CommandOutput({
   taskId,
   onClose,
 }: CommandOutputProps) {
+  useLanguage();
+  const t = translate;
   const outputRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -121,17 +124,26 @@ export function CommandOutput({
   })();
   const visibleOutput = (() => {
     const lines = displayOutput.split("\n");
-    if (isRunning || lines.length <= DEFAULT_VISIBLE_OUTPUT_LINES) return displayOutput;
+    if (isRunning || lines.length <= DEFAULT_VISIBLE_OUTPUT_LINES)
+      return displayOutput;
     const omitted = lines.length - DEFAULT_VISIBLE_OUTPUT_LINES;
     return [
-      `[... ${omitted} earlier line${omitted === 1 ? "" : "s"} hidden ...]`,
+      t(
+        "commandOutput.omittedLines",
+        "[... {count} earlier line(s) hidden ...]",
+        { count: omitted },
+      ),
       ...lines.slice(-DEFAULT_VISIBLE_OUTPUT_LINES),
     ].join("\n");
   })();
 
   const getStatusIndicator = () => {
     if (isRunning) {
-      return <span className="command-status running">Running...</span>;
+      return (
+        <span className="command-status running">
+          {t("commandOutput.running", "Running...")}
+        </span>
+      );
     }
     if (exitCode === 0) {
       return <span className="command-status success">Exit: 0</span>;
@@ -168,7 +180,7 @@ export function CommandOutput({
             <button
               className="command-stop-btn"
               onClick={killCommand}
-              title="Stop command (Ctrl+C)"
+              title={t("commandOutput.stopTitle", "Stop command (Ctrl+C)")}
             >
               <svg
                 width="12"
@@ -180,16 +192,21 @@ export function CommandOutput({
               >
                 <rect x="3" y="3" width="18" height="18" rx="2" />
               </svg>
-              Stop
+              {t("commandOutput.stop", "Stop")}
             </button>
           )}
           {isRunning && taskId && stopClicked && (
             <>
-              <span className="command-stopping">Stopping...</span>
+              <span className="command-stopping">
+                {t("commandOutput.stopping", "Stopping...")}
+              </span>
               <button
                 className="command-force-kill-btn"
                 onClick={forceKillCommand}
-                title="Force kill (SIGKILL) - immediate termination"
+                title={t(
+                  "commandOutput.forceKillTitle",
+                  "Force kill (SIGKILL) - immediate termination",
+                )}
               >
                 <svg
                   width="12"
@@ -202,14 +219,18 @@ export function CommandOutput({
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
-                Force Kill
+                {t("commandOutput.forceKill", "Force Kill")}
               </button>
             </>
           )}
           {getStatusIndicator()}
           {/* Close button - only show when not running */}
           {!isRunning && onClose && (
-            <button className="command-close-btn" onClick={onClose} title="Close output">
+            <button
+              className="command-close-btn"
+              onClick={onClose}
+              title={t("commandOutput.close", "Close output")}
+            >
               <svg
                 width="12"
                 height="12"
@@ -221,16 +242,23 @@ export function CommandOutput({
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
-              Close output
+              {t("commandOutput.close", "Close output")}
             </button>
           )}
         </div>
       </div>
-      <div ref={outputRef} className="command-output-content" onScroll={handleScroll}>
+      <div
+        ref={outputRef}
+        className="command-output-content"
+        onScroll={handleScroll}
+      >
         <pre>
           {isRunning
-            ? visibleOutput || "Waiting for output..."
-            : (visibleOutput || "") + (visibleOutput.endsWith("\n") ? "" : "\n") + `$ ${dirName ? dirName + " " : ""}%`}
+            ? visibleOutput ||
+              t("commandOutput.waiting", "Waiting for output...")
+            : (visibleOutput || "") +
+              (visibleOutput.endsWith("\n") ? "" : "\n") +
+              `$ ${dirName ? dirName + " " : ""}%`}
         </pre>
       </div>
       {!autoScroll && isRunning && (
@@ -243,7 +271,7 @@ export function CommandOutput({
             }
           }}
         >
-          Scroll to bottom
+          {t("commandOutput.scrollToBottom", "Scroll to bottom")}
         </button>
       )}
       {/* Input field for interactive commands */}
@@ -254,7 +282,10 @@ export function CommandOutput({
             ref={inputRef}
             type="text"
             className="command-stdin-input"
-            placeholder="Type input and press Enter..."
+            placeholder={t(
+              "commandOutput.stdinPlaceholder",
+              "Type input and press Enter...",
+            )}
             value={stdinInput}
             onChange={(e) => setStdinInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -263,7 +294,7 @@ export function CommandOutput({
             className="command-stdin-send"
             onClick={sendInput}
             disabled={!stdinInput}
-            title="Send input (Enter)"
+            title={t("commandOutput.sendTitle", "Send input (Enter)")}
           >
             <svg
               width="14"

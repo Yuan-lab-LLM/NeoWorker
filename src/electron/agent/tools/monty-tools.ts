@@ -143,7 +143,7 @@ export class MontyTools {
       {
         name: "monty_list_transforms",
         description:
-          "List workspace-local Monty transforms from .cowork/transforms/*.monty with basic metadata (name, description, file stats).",
+          "List workspace-local Monty transforms from .neoworker/transforms/*.monty with basic metadata (name, description, file stats).",
         input_schema: {
           type: "object",
           properties: {},
@@ -152,7 +152,7 @@ export class MontyTools {
       {
         name: "monty_run_transform",
         description:
-          "Run a named workspace transform from .cowork/transforms/<name>.monty. The input object is available as `input`.",
+          "Run a named workspace transform from .neoworker/transforms/<name>.monty. The input object is available as `input`.",
         input_schema: {
           type: "object",
           properties: {
@@ -275,7 +275,7 @@ export class MontyTools {
   }
 
   async listTransforms(_input?: MontyListTransformsInput): Promise<Any> {
-    const dir = path.join(this.workspace.path, ".cowork", "transforms");
+    const dir = path.join(this.workspace.path, ".neoworker", "transforms");
     try {
       const entries = await fs.readdir(dir, { withFileTypes: true });
       const out: Any[] = [];
@@ -304,7 +304,7 @@ export class MontyTools {
         out.push({
           name: header.name || baseName,
           id: baseName,
-          relPath: path.join(".cowork", "transforms", ent.name).replace(/\\/g, "/"),
+          relPath: path.join(".neoworker", "transforms", ent.name).replace(/\\/g, "/"),
           description: header.description,
           sizeBytes: stat?.size,
           modifiedAt: stat?.mtimeMs,
@@ -326,7 +326,7 @@ export class MontyTools {
   ): Promise<{ id: string; absPath: string; code: string }> {
     const safe = sanitizeTransformName(name);
     const file = safe.toLowerCase().endsWith(".monty") ? safe : `${safe}.monty`;
-    const absPath = path.join(this.workspace.path, ".cowork", "transforms", file);
+    const absPath = path.join(this.workspace.path, ".neoworker", "transforms", file);
     const code = await fs.readFile(absPath, "utf8");
     const id = file.replace(/\.monty$/i, "");
     return { id, absPath, code };

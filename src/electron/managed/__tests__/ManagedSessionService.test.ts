@@ -62,9 +62,9 @@ describeWithSqlite("ManagedSessionService", () => {
   };
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-managed-session-"));
-    previousUserDataDir = process.env.COWORK_USER_DATA_DIR;
-    process.env.COWORK_USER_DATA_DIR = tmpDir;
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-managed-session-"));
+    previousUserDataDir = process.env.NEOWORKER_USER_DATA_DIR;
+    process.env.NEOWORKER_USER_DATA_DIR = tmpDir;
 
     manager = new DatabaseManager();
     db = manager.getDatabase();
@@ -107,11 +107,25 @@ describeWithSqlite("ManagedSessionService", () => {
     vi.restoreAllMocks();
     manager?.close();
     if (previousUserDataDir === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = previousUserDataDir;
+      process.env.NEOWORKER_USER_DATA_DIR = previousUserDataDir;
     }
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("repairs legacy generic agent names from their saved task description", () => {
+    const created = service.createAgent({
+      name: "Personal Agent",
+      description: "创建一个团队问答智能体，使用工作区里的文档回答问题。",
+      systemPrompt: "Answer questions from workspace files.",
+      executionMode: "solo",
+    });
+
+    expect(service.listAgents().find((agent) => agent.id === created.agent.id)?.name).toBe(
+      "团队问答智能体",
+    );
+    expect(service.getAgent(created.agent.id)?.agent.name).toBe("团队问答智能体");
   });
 
   it("pins managed sessions to the agent version used at creation time", async () => {
@@ -304,7 +318,7 @@ describeWithSqlite("ManagedSessionService", () => {
         id: "plan-1",
         sourcePrompt: "Summarize Slack and draft follow-ups",
         name: "Follow Up Agent",
-        subtitle: "Private in CoWork OS",
+        subtitle: "Private in NeoWorker",
         description: "Summarize Slack and draft follow-ups.",
         icon: "Bot",
         color: "#1570ef",
@@ -374,7 +388,7 @@ describeWithSqlite("ManagedSessionService", () => {
     expect(created.routines[0]?.trigger.type).toBe("manual");
 
     const studio = (created.version.metadata?.studio || {}) as Any;
-    expect(studio.subtitle).toBe("Private in CoWork OS");
+    expect(studio.subtitle).toBe("Private in NeoWorker");
     expect(studio.appearance).toEqual({ icon: "Bot", color: "#1570ef" });
     expect(studio.starterPrompts[0]?.title).toBe("Run this now");
     expect(studio.missingConnections[0]?.label).toBe("Gmail");
@@ -399,7 +413,7 @@ describeWithSqlite("ManagedSessionService", () => {
           id: "plan-unresolved",
           sourcePrompt: "Summarize my emails",
           name: "Email Agent",
-          subtitle: "Private in CoWork OS",
+          subtitle: "Private in NeoWorker",
           description: "Summarize emails.",
           icon: "Bot",
           color: "#1570ef",

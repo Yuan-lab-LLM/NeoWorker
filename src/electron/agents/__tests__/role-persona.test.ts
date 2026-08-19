@@ -14,7 +14,7 @@ describe("role-persona", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-role-persona-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-role-persona-"));
   });
 
   afterEach(() => {
@@ -23,7 +23,7 @@ describe("role-persona", () => {
 
   it("prefers role profile files over db soul", () => {
     writeFile(
-      path.join(tmpDir, ".cowork", "agents", "qa-analyst", "SOUL.md"),
+      path.join(tmpDir, ".neoworker", "agents", "qa-analyst", "SOUL.md"),
       "# Role Soul\n\nTone: direct and concise",
     );
 
@@ -38,7 +38,7 @@ describe("role-persona", () => {
     );
 
     expect(prompt).toContain("ROLE PROFILE");
-    expect(prompt).toContain(".cowork/agents/qa-analyst/SOUL.md");
+    expect(prompt).toContain(".neoworker/agents/qa-analyst/SOUL.md");
     expect(prompt).toContain("Tone: direct and concise");
     expect(prompt).not.toContain("ROLE NOTES");
   });
@@ -59,7 +59,7 @@ describe("role-persona", () => {
 
   it("supports default fallback profile folder when name is unavailable", () => {
     writeFile(
-      path.join(tmpDir, ".cowork", "agents", "default", "IDENTITY.md"),
+      path.join(tmpDir, ".neoworker", "agents", "default", "IDENTITY.md"),
       "# Identity\n\n- Role: Test role",
     );
 
@@ -71,16 +71,16 @@ describe("role-persona", () => {
     );
 
     expect(prompt).toContain("ROLE PROFILE");
-    expect(prompt).toContain(".cowork/agents/default/IDENTITY.md");
+    expect(prompt).toContain(".neoworker/agents/default/IDENTITY.md");
   });
 
   it("merges role profile sections across fallback folders", () => {
     writeFile(
-      path.join(tmpDir, ".cowork", "agents", "qa-analyst", "SOUL.md"),
+      path.join(tmpDir, ".neoworker", "agents", "qa-analyst", "SOUL.md"),
       "# Role Persona\n\nTone: direct",
     );
     writeFile(
-      path.join(tmpDir, ".cowork", "agents", "default", "RULES.md"),
+      path.join(tmpDir, ".neoworker", "agents", "default", "RULES.md"),
       "# Rules\n\n- Must be concise",
     );
 
@@ -92,15 +92,15 @@ describe("role-persona", () => {
     );
 
     expect(prompt).toContain("ROLE PROFILE");
-    expect(prompt).toContain(".cowork/agents/qa-analyst/SOUL.md");
-    expect(prompt).toContain(".cowork/agents/default/RULES.md");
+    expect(prompt).toContain(".neoworker/agents/qa-analyst/SOUL.md");
+    expect(prompt).toContain(".neoworker/agents/default/RULES.md");
     expect(prompt).toContain("Tone: direct");
     expect(prompt).toContain("Must be concise");
   });
 
   it("supports preserve-style folder names for role lookup", () => {
     writeFile(
-      path.join(tmpDir, ".cowork", "agents", "qa_analyst", "IDENTITY.md"),
+      path.join(tmpDir, ".neoworker", "agents", "qa_analyst", "IDENTITY.md"),
       "# Identity\n\n- Role: QA analyst",
     );
 
@@ -111,12 +111,12 @@ describe("role-persona", () => {
       tmpDir,
     );
 
-    expect(prompt).toContain(".cowork/agents/qa_analyst/IDENTITY.md");
+    expect(prompt).toContain(".neoworker/agents/qa_analyst/IDENTITY.md");
   });
 
   it("normalizes unicode role names for folder matching", () => {
     writeFile(
-      path.join(tmpDir, ".cowork", "agents", "cafe-analyst", "IDENTITY.md"),
+      path.join(tmpDir, ".neoworker", "agents", "cafe-analyst", "IDENTITY.md"),
       "# Identity\n\n- Name: Café Analyst",
     );
 
@@ -127,7 +127,7 @@ describe("role-persona", () => {
       tmpDir,
     );
 
-    expect(prompt).toContain(".cowork/agents/cafe-analyst/IDENTITY.md");
+    expect(prompt).toContain(".neoworker/agents/cafe-analyst/IDENTITY.md");
   });
 
   it("returns empty string when both inputs are missing", () => {
@@ -137,7 +137,7 @@ describe("role-persona", () => {
 
   it("includes VIBES.md as a role profile file", () => {
     writeFile(
-      path.join(tmpDir, ".cowork", "agents", "qa-analyst", "VIBES.md"),
+      path.join(tmpDir, ".neoworker", "agents", "qa-analyst", "VIBES.md"),
       "# Vibes\n\n- Mode: crunch\n- Energy: high\n- Notes: Deadline approaching",
     );
 
@@ -150,21 +150,21 @@ describe("role-persona", () => {
 
     expect(prompt).toContain("ROLE PROFILE");
     expect(prompt).toContain("Current Operating Mode");
-    expect(prompt).toContain(".cowork/agents/qa-analyst/VIBES.md");
+    expect(prompt).toContain(".neoworker/agents/qa-analyst/VIBES.md");
     expect(prompt).toContain("Mode: crunch");
   });
 
   it("includes role-specific MEMORY.md between SOUL.md and VIBES.md", () => {
     writeFile(
-      path.join(tmpDir, ".cowork", "agents", "qa-analyst", "SOUL.md"),
+      path.join(tmpDir, ".neoworker", "agents", "qa-analyst", "SOUL.md"),
       "# Soul\n\nBe thorough and precise",
     );
     writeFile(
-      path.join(tmpDir, ".cowork", "agents", "qa-analyst", "MEMORY.md"),
+      path.join(tmpDir, ".neoworker", "agents", "qa-analyst", "MEMORY.md"),
       "# Memory\n\n- Regression test style: use focused fixtures",
     );
     writeFile(
-      path.join(tmpDir, ".cowork", "agents", "qa-analyst", "VIBES.md"),
+      path.join(tmpDir, ".neoworker", "agents", "qa-analyst", "VIBES.md"),
       "# Vibes\n\n- Mode: deep-focus",
     );
 
@@ -185,11 +185,11 @@ describe("role-persona", () => {
 
   it("loads SOUL.md before VIBES.md in role profile output", () => {
     writeFile(
-      path.join(tmpDir, ".cowork", "agents", "qa-analyst", "VIBES.md"),
+      path.join(tmpDir, ".neoworker", "agents", "qa-analyst", "VIBES.md"),
       "# Vibes\n\n- Mode: deep-focus",
     );
     writeFile(
-      path.join(tmpDir, ".cowork", "agents", "qa-analyst", "SOUL.md"),
+      path.join(tmpDir, ".neoworker", "agents", "qa-analyst", "SOUL.md"),
       "# Soul\n\nBe thorough and precise",
     );
 

@@ -289,7 +289,7 @@ export class VisionTools {
             path: {
               type: "string",
               description:
-                'Path to an image file within the current workspace (e.g., "screenshot.png" or ".cowork/inbox/.../photo.jpg").',
+                'Path to an image file within the current workspace (e.g., "screenshot.png" or ".neoworker/inbox/.../photo.jpg").',
             },
             prompt: {
               type: "string",
@@ -872,7 +872,7 @@ export class VisionTools {
     }
 
     // Convert PDF pages to images at 72 DPI (sufficient for layout analysis, keeps images small)
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-pdf-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-pdf-"));
     const outputPrefix = path.join(tmpDir, "page");
 
     try {

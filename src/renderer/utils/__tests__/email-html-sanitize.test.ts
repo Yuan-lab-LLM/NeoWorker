@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeEmailExternalWebUrl, sanitizeEmailHtml } from "../email-html-sanitize";
+import {
+  normalizeEmailExternalWebUrl,
+  sanitizeEmailHtml,
+} from "../email-html-sanitize";
 
 describe("sanitizeEmailHtml", () => {
   it("removes meta tags that can trigger srcdoc parser warnings", () => {
-    const html = '<meta name="viewport" content="width=device-width; initial-scale=1"><p>Hello</p>';
+    const html =
+      '<meta name="viewport" content="width=device-width; initial-scale=1"><p>Hello</p>';
 
     expect(sanitizeEmailHtml(html)).toBe("<p>Hello</p>");
   });
@@ -21,7 +25,9 @@ describe("sanitizeEmailHtml", () => {
     expect(result).not.toContain("@import");
     expect(result).not.toContain("@font-face");
     expect(result).not.toContain("https://fonts.example.com");
-    expect(result).toContain("url(\"data:image/gif;base64,R0lGODlhAQABAAAAACw=\")");
+    expect(result).toContain(
+      'url("data:image/gif;base64,R0lGODlhAQABAAAAACw=")',
+    );
   });
 
   it("removes inline script hooks without stripping safe image URLs", () => {
@@ -43,10 +49,12 @@ describe("sanitizeEmailHtml", () => {
   });
 
   it("normalizes only web links for external opening", () => {
-    expect(normalizeEmailExternalWebUrl(" https://example.com/unsubscribe ")).toBe(
-      "https://example.com/unsubscribe",
+    expect(
+      normalizeEmailExternalWebUrl(" https://example.com/unsubscribe "),
+    ).toBe("https://example.com/unsubscribe");
+    expect(normalizeEmailExternalWebUrl("//example.com/path")).toBe(
+      "https://example.com/path",
     );
-    expect(normalizeEmailExternalWebUrl("//example.com/path")).toBe("https://example.com/path");
     expect(normalizeEmailExternalWebUrl("mailto:hello@example.com")).toBeNull();
     expect(normalizeEmailExternalWebUrl("javascript:alert(1)")).toBeNull();
     expect(normalizeEmailExternalWebUrl("#footer")).toBeNull();

@@ -34,7 +34,9 @@ describe("timeline evidence visibility", () => {
     const events = [fullEvent, truncatedDuplicate];
 
     expect(isRedundantTimelineEvidenceEvent(fullEvent, events)).toBe(false);
-    expect(isRedundantTimelineEvidenceEvent(truncatedDuplicate, events)).toBe(true);
+    expect(isRedundantTimelineEvidenceEvent(truncatedDuplicate, events)).toBe(
+      true,
+    );
   });
 
   it("matches the current evidence event by id when renderer events are normalized copies", () => {
@@ -47,16 +49,22 @@ describe("timeline evidence visibility", () => {
       payload: { ...fullEvent.payload },
     } as TaskEvent;
 
-    expect(isRedundantTimelineEvidenceEvent(clonedFullEvent, [fullEvent])).toBe(false);
+    expect(isRedundantTimelineEvidenceEvent(clonedFullEvent, [fullEvent])).toBe(
+      false,
+    );
   });
 
   it("keeps later evidence events when they add a new source", () => {
-    const firstEvent = makeEvidenceEvent("event-first", ["https://example.com/a"]);
+    const firstEvent = makeEvidenceEvent("event-first", [
+      "https://example.com/a",
+    ]);
     const nextEvent = makeEvidenceEvent("event-next", [
       "https://example.com/a",
       "https://example.com/new",
     ]);
 
-    expect(isRedundantTimelineEvidenceEvent(nextEvent, [firstEvent, nextEvent])).toBe(false);
+    expect(
+      isRedundantTimelineEvidenceEvent(nextEvent, [firstEvent, nextEvent]),
+    ).toBe(false);
   });
 });

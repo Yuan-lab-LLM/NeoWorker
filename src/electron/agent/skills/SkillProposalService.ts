@@ -41,7 +41,7 @@ export interface SkillProposalCreateInput {
   draftSkill: SkillProposalDraftSkill;
 }
 
-const PROPOSALS_ROOT = path.join(".cowork", "skills", "proposals");
+const PROPOSALS_ROOT = path.join(".neoworker", "skills", "proposals");
 const PROPOSAL_VERSION = 1;
 const REJECTED_DUPLICATE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 

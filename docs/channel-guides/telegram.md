@@ -1,6 +1,6 @@
 # Telegram User Guide
 
-Telegram is a strong power-user channel for CoWork. It offers native bot commands, DMs, groups, group routing controls, and good mobile ergonomics.
+Telegram is a strong power-user channel for NeoWorker. It offers native bot commands, DMs, groups, group routing controls, and good mobile ergonomics.
 
 ## Best For
 
@@ -12,7 +12,7 @@ Telegram is a strong power-user channel for CoWork. It offers native bot command
 
 ## Key Features
 
-- Core CoWork commands in Telegram's `/` menu.
+- Core NeoWorker commands in Telegram's `/` menu.
 - Direct messages, groups, and topic/thread context where Telegram provides it.
 - Group routing modes: all, mentions only, mentions or commands, commands only.
 - Allowed group chat IDs.
@@ -41,14 +41,14 @@ In groups, mention the bot or use commands depending on the routing mode. In DMs
 - Use command-only routing in busy groups.
 - Use topic specialization when one Telegram forum group hosts several distinct workflows.
 - Use dedicated groups for research-link collection.
-- Use `/task` or `/status` to understand what CoWork thinks is active before steering it.
+- Use `/task` or `/status` to understand what NeoWorker thinks is active before steering it.
 - Keep approvals in DMs unless the group is trusted.
 
 ## Watch-Outs
 
 - Group sessions are shared by the group chat, so multiple people can steer the same active task.
 - Very permissive routing can turn normal conversation into task input.
-- Long outputs may be better summarized in Telegram and inspected in CoWork.
+- Long outputs may be better summarized in Telegram and inspected in NeoWorker.
 
 ## Related Docs
 

@@ -1,0 +1,3 @@
+import { n as e, t } from "./notebook-pen-BsAf2izw-DEl0a0Lk.js";
+t();
+export { e as default };

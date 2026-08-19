@@ -23,10 +23,12 @@ describe("PresentationArtifactViewer", () => {
     );
 
     expect(markup.match(/sample\.pptx/g)?.length).toBe(1);
-    expect(markup).toContain("Open presentation in full screen");
+    expect(markup).toMatch(/Open presentation in full screen|全屏打开演示文稿/);
+    expect(markup).toContain("presentation-artifact-viewer-tab-meta");
+    expect(markup).not.toContain("presentation-artifact-viewer-titlebar");
   });
 
-  it("renders fullscreen turn context collapsed by default", () => {
+  it("keeps the latest update visible when fullscreen turn context is collapsed", () => {
     const markup = render(
       React.createElement(PresentationArtifactViewer, {
         filePath: "/workspace/sample.pptx",
@@ -47,7 +49,7 @@ describe("PresentationArtifactViewer", () => {
 
     expect(markup).toContain("spreadsheet-viewer-turn-frame collapsed");
     expect(markup).toContain("Latest turn");
-    expect(markup).not.toContain("Created the sample deck.");
+    expect(markup).toContain("Created the sample deck.");
   });
 
   it("renders review controls before a PPTX preview is loaded", () => {
@@ -63,11 +65,12 @@ describe("PresentationArtifactViewer", () => {
     );
 
     expect(markup).toContain("PPTX");
-    expect(markup).toContain("Copy");
-    expect(markup).toContain("Folder");
+    expect(markup).toMatch(/Copy|复制/);
+    expect(markup).toMatch(/Folder|文件夹/);
+    expect(markup).toMatch(/Download|下载/);
   });
 
-  it("renders text preview while slide images are still rendering", () => {
+  it("renders a dedicated loading preview while slide images are still rendering", () => {
     const markup = render(
       React.createElement(PresentationViewer, {
         fileName: "sample.pptx",
@@ -82,8 +85,10 @@ describe("PresentationArtifactViewer", () => {
       }),
     );
 
-    expect(markup).toContain("Rendering previews");
-    expect(markup).toContain("Opening slide");
+    expect(markup).toMatch(/Rendering previews|正在渲染预览/);
+    expect(markup).toMatch(/Preparing slide preview|正在生成幻灯片预览/);
+    expect(markup).toContain("presentation-viewer-thumb-placeholder");
+    expect(markup).not.toContain("Opening slide");
     expect(markup).toContain("Rendering slide previews...");
   });
 
@@ -109,6 +114,6 @@ describe("PresentationArtifactViewer", () => {
     );
 
     expect(markup).toContain("media://local/slide-token");
-    expect(markup).toContain("1 rendered");
+    expect(markup).toMatch(/1 rendered|已渲染 1 张/);
   });
 });

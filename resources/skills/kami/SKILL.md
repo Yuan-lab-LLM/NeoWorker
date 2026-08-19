@@ -7,7 +7,7 @@ the user explicitly asks for Kami, the Kami skill, or the Kami editorial design
 system by name. Generic presentation, document, report, resume, PDF, and
 PowerPoint requests should use the native artifact tools instead.
 
-This CoWork bundle ports the upstream [Kami](https://github.com/tw93/Kami) skill into a bundled skill with a workspace-local scaffold flow. The goal is to keep the strong visual system available on request while avoiding edits to bundled templates under `resources/skills/`.
+This NeoWorker bundle ports the upstream [Kami](https://github.com/tw93/Kami) skill into a bundled skill with a workspace-local scaffold flow. The goal is to keep the strong visual system available on request while avoiding edits to bundled templates under `resources/skills/`.
 
 ## Licensing Note
 
@@ -31,7 +31,7 @@ This CoWork bundle ports the upstream [Kami](https://github.com/tw93/Kami) skill
 
 ## Project Layout
 
-The CoWork wrapper scaffolds a workspace-local project with a stable shape:
+The NeoWorker wrapper scaffolds a workspace-local project with a stable shape:
 
 - `templates/` for document or slide source files
 - `diagrams/` for standalone diagram HTML
@@ -72,7 +72,7 @@ Edit only the scaffolded project files. Do not edit bundled files under this ski
 
 ## Chinese Font Rule
 
-When upstream references mention `TsangerJinKai02`, treat that as an optional licensed upgrade, not a bundled requirement in this CoWork port. Default to the patched fallbacks already present in the scaffolded Chinese HTML templates unless the user explicitly provides a licensed font file.
+When upstream references mention `TsangerJinKai02`, treat that as an optional licensed upgrade, not a bundled requirement in this NeoWorker port. Default to the patched fallbacks already present in the scaffolded Chinese HTML templates unless the user explicitly provides a licensed font file.
 
 ## Reference Map
 

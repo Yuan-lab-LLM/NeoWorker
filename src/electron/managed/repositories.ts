@@ -324,7 +324,7 @@ export class ManagedEnvironmentRepository {
     return {
       id: String(row.id ?? ""),
       name: String(row.name ?? ""),
-      kind: String(row.kind ?? "cowork_local") as ManagedEnvironment["kind"],
+      kind: String(row.kind ?? "neoworker_local") as ManagedEnvironment["kind"],
       revision: Number(row.revision ?? 1),
       status: String(row.status ?? "active") as ManagedEnvironment["status"],
       config: safeJsonParse(row.config_json, { workspaceId: "" }),

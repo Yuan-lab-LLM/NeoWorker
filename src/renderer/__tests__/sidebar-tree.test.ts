@@ -112,8 +112,16 @@ describe("buildTaskTree", () => {
   it("should nest child tasks under parent", () => {
     const tasks = [
       createTask({ id: "parent-1", title: "Parent Task" }),
-      createTask({ id: "child-1", title: "Child Task 1", parentTaskId: "parent-1" }),
-      createTask({ id: "child-2", title: "Child Task 2", parentTaskId: "parent-1" }),
+      createTask({
+        id: "child-1",
+        title: "Child Task 1",
+        parentTaskId: "parent-1",
+      }),
+      createTask({
+        id: "child-2",
+        title: "Child Task 2",
+        parentTaskId: "parent-1",
+      }),
     ];
 
     const result = buildTaskTree(tasks);
@@ -130,9 +138,24 @@ describe("buildTaskTree", () => {
   it("should handle deeply nested tasks (3 levels)", () => {
     const tasks = [
       createTask({ id: "root", title: "Root", depth: 0 }),
-      createTask({ id: "level-1", title: "Level 1", parentTaskId: "root", depth: 1 }),
-      createTask({ id: "level-2", title: "Level 2", parentTaskId: "level-1", depth: 2 }),
-      createTask({ id: "level-3", title: "Level 3", parentTaskId: "level-2", depth: 3 }),
+      createTask({
+        id: "level-1",
+        title: "Level 1",
+        parentTaskId: "root",
+        depth: 1,
+      }),
+      createTask({
+        id: "level-2",
+        title: "Level 2",
+        parentTaskId: "level-1",
+        depth: 2,
+      }),
+      createTask({
+        id: "level-3",
+        title: "Level 3",
+        parentTaskId: "level-2",
+        depth: 3,
+      }),
     ];
 
     const result = buildTaskTree(tasks);
@@ -141,7 +164,9 @@ describe("buildTaskTree", () => {
     expect(result[0].task.id).toBe("root");
     expect(result[0].children[0].task.id).toBe("level-1");
     expect(result[0].children[0].children[0].task.id).toBe("level-2");
-    expect(result[0].children[0].children[0].children[0].task.id).toBe("level-3");
+    expect(result[0].children[0].children[0].children[0].task.id).toBe(
+      "level-3",
+    );
   });
 
   it("should handle multiple root tasks with children", () => {
@@ -163,7 +188,11 @@ describe("buildTaskTree", () => {
 
   it("should handle orphan tasks (parent not in list) as roots", () => {
     const tasks = [
-      createTask({ id: "orphan", title: "Orphan", parentTaskId: "non-existent-parent" }),
+      createTask({
+        id: "orphan",
+        title: "Orphan",
+        parentTaskId: "non-existent-parent",
+      }),
     ];
 
     const result = buildTaskTree(tasks);
@@ -276,8 +305,12 @@ describe("getModelIndicator", () => {
 
   it("should handle partial model names", () => {
     const taskOpus = createTask({ agentConfig: { modelKey: "claude-opus-4" } });
-    const taskSonnet = createTask({ agentConfig: { modelKey: "claude-sonnet-3.5" } });
-    const taskHaiku = createTask({ agentConfig: { modelKey: "claude-haiku-3" } });
+    const taskSonnet = createTask({
+      agentConfig: { modelKey: "claude-sonnet-3.5" },
+    });
+    const taskHaiku = createTask({
+      agentConfig: { modelKey: "claude-haiku-3" },
+    });
 
     expect(getModelIndicator(taskOpus)).toBe("O");
     expect(getModelIndicator(taskSonnet)).toBe("S");
@@ -290,9 +323,24 @@ describe("integration: buildTaskTree + flattenTree", () => {
     const tasks = [
       createTask({ id: "main-1", title: "Main Task 1" }),
       createTask({ id: "main-2", title: "Main Task 2" }),
-      createTask({ id: "sub-1a", title: "Sub Agent 1a", parentTaskId: "main-1", agentType: "sub" }),
-      createTask({ id: "sub-1b", title: "Sub Agent 1b", parentTaskId: "main-1", agentType: "sub" }),
-      createTask({ id: "sub-2a", title: "Sub Agent 2a", parentTaskId: "main-2", agentType: "sub" }),
+      createTask({
+        id: "sub-1a",
+        title: "Sub Agent 1a",
+        parentTaskId: "main-1",
+        agentType: "sub",
+      }),
+      createTask({
+        id: "sub-1b",
+        title: "Sub Agent 1b",
+        parentTaskId: "main-1",
+        agentType: "sub",
+      }),
+      createTask({
+        id: "sub-2a",
+        title: "Sub Agent 2a",
+        parentTaskId: "main-2",
+        agentType: "sub",
+      }),
       createTask({
         id: "sub-1a-child",
         title: "Nested Sub",

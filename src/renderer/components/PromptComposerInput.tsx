@@ -1,17 +1,22 @@
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useLayoutEffect,
   useMemo,
   useRef,
 } from "react";
 import type {
+  CompositionEvent as ReactCompositionEvent,
   ClipboardEvent as ReactClipboardEvent,
   KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import type { IntegrationMentionSelection } from "../../shared/types";
-import { IntegrationMentionIcon, renderIntegrationMentionIconContent } from "./IntegrationMentionIcon";
+import {
+  IntegrationMentionIcon,
+  renderIntegrationMentionIconContent,
+} from "./IntegrationMentionIcon";
 
 export type IntegrationMentionSpan = {
   spanId: string;
@@ -24,6 +29,7 @@ export type PromptComposerInputHandle = {
   focus: () => void;
   setSelectionRange: (start: number, end: number) => void;
   getSelectionStart: () => number;
+  getValue: () => string;
   resize: (shrink?: boolean) => void;
 };
 
@@ -42,6 +48,8 @@ type PromptComposerInputProps = {
   onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
   onPaste: (event: ReactClipboardEvent<HTMLDivElement>) => void | Promise<void>;
   onCursorChange: (cursor: number) => void;
+  onCompositionChange?: (isComposing: boolean) => void;
+  onDraftPresenceChange?: (hasDraft: boolean) => void;
   onFocus?: () => void;
   onBlur?: () => void;
 };
@@ -60,7 +68,8 @@ type ComposerLinkSpan = {
   domain: string;
 };
 
-const canonicalMentionText = (mention: IntegrationMentionSelection): string => `@${mention.label}`;
+const canonicalMentionText = (mention: IntegrationMentionSelection): string =>
+  `@${mention.label}`;
 const markdownLinkPattern = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/gi;
 
 function parseWebUrl(text: string): URL | null {
@@ -99,16 +108,25 @@ function getFaviconUrl(domain: string): string {
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`;
 }
 
-function sortedValidMentions(value: string, mentions: IntegrationMentionSpan[]): IntegrationMentionSpan[] {
+function sortedValidMentions(
+  value: string,
+  mentions: IntegrationMentionSpan[],
+): IntegrationMentionSpan[] {
   return mentions
     .filter((span) => {
-      if (span.start < 0 || span.end <= span.start || span.end > value.length) return false;
-      return value.slice(span.start, span.end) === canonicalMentionText(span.mention);
+      if (span.start < 0 || span.end <= span.start || span.end > value.length)
+        return false;
+      return (
+        value.slice(span.start, span.end) === canonicalMentionText(span.mention)
+      );
     })
     .sort((a, b) => a.start - b.start);
 }
 
-function parseMarkdownLinks(value: string, mentions: IntegrationMentionSpan[]): ComposerLinkSpan[] {
+function parseMarkdownLinks(
+  value: string,
+  mentions: IntegrationMentionSpan[],
+): ComposerLinkSpan[] {
   const mentionRanges = sortedValidMentions(value, mentions);
   const links: ComposerLinkSpan[] = [];
   markdownLinkPattern.lastIndex = 0;
@@ -120,7 +138,8 @@ function parseMarkdownLinks(value: string, mentions: IntegrationMentionSpan[]): 
     const start = match.index;
     const end = start + markdown.length;
     if (!label || !urlText) continue;
-    if (mentionRanges.some((span) => span.start < end && span.end > start)) continue;
+    if (mentionRanges.some((span) => span.start < end && span.end > start))
+      continue;
     const url = parseWebUrl(urlText);
     if (!url) continue;
     links.push({
@@ -135,7 +154,10 @@ function parseMarkdownLinks(value: string, mentions: IntegrationMentionSpan[]): 
   return links;
 }
 
-function buildRenderParts(value: string, mentions: IntegrationMentionSpan[]): RenderPart[] {
+function buildRenderParts(
+  value: string,
+  mentions: IntegrationMentionSpan[],
+): RenderPart[] {
   const parts: RenderPart[] = [];
   let cursor = 0;
   const tokens = [
@@ -156,32 +178,51 @@ function buildRenderParts(value: string, mentions: IntegrationMentionSpan[]): Re
   for (const token of tokens) {
     if (token.start < cursor) continue;
     if (token.start > cursor) {
-      parts.push({ type: "text", key: `text:${cursor}:${token.start}`, text: value.slice(cursor, token.start) });
+      parts.push({
+        type: "text",
+        key: `text:${cursor}:${token.start}`,
+        text: value.slice(cursor, token.start),
+      });
     }
     if (token.type === "mention") {
       parts.push({ type: "mention", key: token.span.spanId, span: token.span });
     } else {
-      parts.push({ type: "link", key: `link:${token.start}:${token.end}`, span: token.span });
+      parts.push({
+        type: "link",
+        key: `link:${token.start}:${token.end}`,
+        span: token.span,
+      });
     }
     cursor = token.end;
   }
   if (cursor < value.length) {
-    parts.push({ type: "text", key: `text:${cursor}:end`, text: value.slice(cursor) });
+    parts.push({
+      type: "text",
+      key: `text:${cursor}:end`,
+      text: value.slice(cursor),
+    });
   }
   return parts;
 }
 
 function getTokenElement(node: Node | null): HTMLElement | null {
   let current: HTMLElement | null =
-    node instanceof HTMLElement ? node : node?.parentElement ?? null;
+    node instanceof HTMLElement ? node : (node?.parentElement ?? null);
   while (current) {
-    if (current.dataset.integrationMentionId || current.dataset.composerLinkText) return current;
+    if (
+      current.dataset.integrationMentionId ||
+      current.dataset.composerLinkText
+    )
+      return current;
     current = current.parentElement;
   }
   return null;
 }
 
-function textLengthForNode(node: Node, mentionsById: Map<string, IntegrationMentionSpan>): number {
+function textLengthForNode(
+  node: Node,
+  mentionsById: Map<string, IntegrationMentionSpan>,
+): number {
   if (node instanceof HTMLElement && node.dataset.integrationMentionId) {
     const span = mentionsById.get(node.dataset.integrationMentionId);
     return span ? canonicalMentionText(span.mention).length : 0;
@@ -205,7 +246,8 @@ function getIndexForDomPosition(
   targetOffset: number,
   mentionsById: Map<string, IntegrationMentionSpan>,
 ): number {
-  if (!targetNode || !root.contains(targetNode)) return textLengthForNode(root, mentionsById);
+  if (!targetNode || !root.contains(targetNode))
+    return textLengthForNode(root, mentionsById);
 
   const tokenEl = getTokenElement(targetNode);
   if (tokenEl) {
@@ -213,7 +255,10 @@ function getIndexForDomPosition(
     const children = Array.from(root.childNodes);
     for (const child of children) {
       if (child === tokenEl || child.contains(tokenEl)) {
-        return index + (targetOffset > 0 ? textLengthForNode(child, mentionsById) : 0);
+        return (
+          index +
+          (targetOffset > 0 ? textLengthForNode(child, mentionsById) : 0)
+        );
       }
       index += textLengthForNode(child, mentionsById);
     }
@@ -253,10 +298,19 @@ function getIndexForDomPosition(
   return index;
 }
 
-function getSelectionIndex(root: HTMLElement, mentionsById: Map<string, IntegrationMentionSpan>): number {
+function getSelectionIndex(
+  root: HTMLElement,
+  mentionsById: Map<string, IntegrationMentionSpan>,
+): number {
   const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return textLengthForNode(root, mentionsById);
-  return getIndexForDomPosition(root, selection.anchorNode, selection.anchorOffset, mentionsById);
+  if (!selection || selection.rangeCount === 0)
+    return textLengthForNode(root, mentionsById);
+  return getIndexForDomPosition(
+    root,
+    selection.anchorNode,
+    selection.anchorOffset,
+    mentionsById,
+  );
 }
 
 function findDomPosition(
@@ -265,12 +319,16 @@ function findDomPosition(
   mentionsById: Map<string, IntegrationMentionSpan>,
 ): { node: Node; offset: number } {
   let seen = 0;
-  let fallback: { node: Node; offset: number } = { node: root, offset: root.childNodes.length };
+  let fallback: { node: Node; offset: number } = {
+    node: root,
+    offset: root.childNodes.length,
+  };
 
   const visit = (node: Node): { node: Node; offset: number } | null => {
     if (node instanceof HTMLElement && node.dataset.integrationMentionId) {
       const length = textLengthForNode(node, mentionsById);
-      if (target <= seen) return { node: node.parentNode || root, offset: childOffset(node) };
+      if (target <= seen)
+        return { node: node.parentNode || root, offset: childOffset(node) };
       if (target <= seen + length) {
         return { node: node.parentNode || root, offset: childOffset(node) + 1 };
       }
@@ -279,7 +337,8 @@ function findDomPosition(
     }
     if (node instanceof HTMLElement && node.dataset.composerLinkText) {
       const length = textLengthForNode(node, mentionsById);
-      if (target <= seen) return { node: node.parentNode || root, offset: childOffset(node) };
+      if (target <= seen)
+        return { node: node.parentNode || root, offset: childOffset(node) };
       if (target <= seen + length) {
         return { node: node.parentNode || root, offset: childOffset(node) + 1 };
       }
@@ -310,7 +369,22 @@ function findDomPosition(
 
 function childOffset(node: Node): number {
   if (!node.parentNode) return 0;
-  return Array.prototype.indexOf.call(node.parentNode.childNodes, node) as number;
+  return Array.prototype.indexOf.call(
+    node.parentNode.childNodes,
+    node,
+  ) as number;
+}
+
+function isImeComposing(event: ReactKeyboardEvent<HTMLDivElement>): boolean {
+  const nativeEvent = event.nativeEvent as KeyboardEvent & {
+    isComposing?: boolean;
+    keyCode?: number;
+  };
+  return (
+    nativeEvent.isComposing === true ||
+    nativeEvent.keyCode === 229 ||
+    event.key === "Process"
+  );
 }
 
 function setDomSelection(
@@ -372,10 +446,15 @@ function replaceRange(
   const delta = replacement.length - (end - start);
   const nextMentions = mentions.flatMap((span) => {
     if (span.end <= start) return [span];
-    if (span.start >= end) return [{ ...span, start: span.start + delta, end: span.end + delta }];
+    if (span.start >= end)
+      return [{ ...span, start: span.start + delta, end: span.end + delta }];
     return [];
   });
-  return { value: nextValue, mentions: nextMentions, cursor: start + replacement.length };
+  return {
+    value: nextValue,
+    mentions: nextMentions,
+    cursor: start + replacement.length,
+  };
 }
 
 function renderComposerDom(root: HTMLElement, parts: RenderPart[]): void {
@@ -416,7 +495,11 @@ function renderComposerDom(root: HTMLElement, parts: RenderPart[]): void {
 
     const icon = document.createElement("span");
     icon.className = "integration-mention-icon integration-mention-icon-xs";
-    renderIntegrationMentionIconContent(icon, part.span.mention.iconKey, part.span.mention.label);
+    renderIntegrationMentionIconContent(
+      icon,
+      part.span.mention.iconKey,
+      part.span.mention.label,
+    );
 
     const label = document.createElement("span");
     label.className = "integration-mention-chip-label";
@@ -429,336 +512,468 @@ function renderComposerDom(root: HTMLElement, parts: RenderPart[]): void {
   root.replaceChildren(fragment);
 }
 
-export const PromptComposerInput = forwardRef<PromptComposerInputHandle, PromptComposerInputProps>(
-  function PromptComposerInput(
-    {
-      value,
-      mentions,
-      className,
-      placeholder,
-      ariaLabel,
-      onChange,
-      onKeyDown,
-      onPaste,
-      onCursorChange,
-      onFocus,
-      onBlur,
+export const PromptComposerInput = forwardRef<
+  PromptComposerInputHandle,
+  PromptComposerInputProps
+>(function PromptComposerInput(
+  {
+    value,
+    mentions,
+    className,
+    placeholder,
+    ariaLabel,
+    onChange,
+    onKeyDown,
+    onPaste,
+    onCursorChange,
+    onCompositionChange,
+    onDraftPresenceChange,
+    onFocus,
+    onBlur,
+  },
+  ref,
+) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const pendingSelectionRef = useRef<{ start: number; end: number } | null>(
+    null,
+  );
+  const skipNextBeforeInputRef = useRef(false);
+  const isComposingRef = useRef(false);
+  const latestValueRef = useRef(value);
+  latestValueRef.current = value;
+  const latestDraftPresenceRef = useRef(Boolean(value.trim()));
+  const reportDraftPresence = useCallback(
+    (nextValue: string) => {
+      const hasDraft = Boolean(nextValue.trim());
+      if (hasDraft === latestDraftPresenceRef.current) return;
+      latestDraftPresenceRef.current = hasDraft;
+      onDraftPresenceChange?.(hasDraft);
     },
+    [onDraftPresenceChange],
+  );
+  const validMentions = useMemo(
+    () => sortedValidMentions(value, mentions),
+    [mentions, value],
+  );
+  const mentionsById = useMemo(
+    () => new Map(validMentions.map((span) => [span.spanId, span])),
+    [validMentions],
+  );
+  const parts = useMemo(
+    () => buildRenderParts(value, validMentions),
+    [validMentions, value],
+  );
+
+  const resize = useCallback((shrink = false) => {
+    const root = rootRef.current;
+    if (!root) return;
+    if (shrink) root.style.height = "auto";
+    const nextHeight = Math.min(root.scrollHeight, 220);
+    root.style.height = `${Math.max(24, nextHeight)}px`;
+  }, []);
+
+  const applySelection = useCallback(
+    (start: number, end: number) => {
+      const root = rootRef.current;
+      if (!root) return;
+      setDomSelection(root, start, end, mentionsById);
+    },
+    [mentionsById],
+  );
+
+  useImperativeHandle(
     ref,
-  ) {
-    const rootRef = useRef<HTMLDivElement>(null);
-    const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
-    const skipNextBeforeInputRef = useRef(false);
-    const validMentions = useMemo(() => sortedValidMentions(value, mentions), [mentions, value]);
-    const mentionsById = useMemo(
-      () => new Map(validMentions.map((span) => [span.spanId, span])),
-      [validMentions],
-    );
-    const parts = useMemo(() => buildRenderParts(value, validMentions), [validMentions, value]);
+    () => ({
+      focus: () => rootRef.current?.focus(),
+      setSelectionRange: (start, end) => {
+        pendingSelectionRef.current = { start, end };
+        applySelection(start, end);
+      },
+      getSelectionStart: () =>
+        rootRef.current
+          ? getSelectionIndex(rootRef.current, mentionsById)
+          : value.length,
+      getValue: () =>
+        rootRef.current
+          ? readEditable(rootRef.current, mentionsById).value
+          : value,
+      resize,
+    }),
+    [applySelection, mentionsById, resize, value.length],
+  );
 
-    const resize = useCallback((shrink = false) => {
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (root && typeof document !== "undefined" && !isComposingRef.current) {
+      renderComposerDom(root, parts);
+    }
+    resize();
+    if (isComposingRef.current) return;
+    const pending = pendingSelectionRef.current;
+    if (!pending) return;
+    pendingSelectionRef.current = null;
+    applySelection(pending.start, pending.end);
+  }, [applySelection, parts, resize]);
+
+  const emitDomChange = useCallback(
+    (shrink: boolean) => {
       const root = rootRef.current;
       if (!root) return;
-      if (shrink) root.style.height = "auto";
-      const nextHeight = Math.min(root.scrollHeight, 200);
-      root.style.height = `${Math.max(24, nextHeight)}px`;
-    }, []);
+      const snapshot = readEditable(root, mentionsById);
+      pendingSelectionRef.current = {
+        start: snapshot.cursor,
+        end: snapshot.cursor,
+      };
+      latestValueRef.current = snapshot.value;
+      reportDraftPresence(snapshot.value);
+      onChange(snapshot.value, snapshot.cursor, snapshot.mentions, shrink);
+    },
+    [mentionsById, onChange, reportDraftPresence],
+  );
 
-    const applySelection = useCallback(
-      (start: number, end: number) => {
-        const root = rootRef.current;
-        if (!root) return;
-        setDomSelection(root, start, end, mentionsById);
-      },
-      [mentionsById],
-    );
+  useEffect(() => {
+    reportDraftPresence(value);
+  }, [reportDraftPresence, value]);
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        focus: () => rootRef.current?.focus(),
-        setSelectionRange: (start, end) => {
-          pendingSelectionRef.current = { start, end };
-          applySelection(start, end);
-        },
-        getSelectionStart: () =>
-          rootRef.current ? getSelectionIndex(rootRef.current, mentionsById) : value.length,
-        resize,
-      }),
-      [applySelection, mentionsById, resize, value.length],
-    );
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof MutationObserver === "undefined") return;
 
-    useLayoutEffect(() => {
-      const root = rootRef.current;
-      if (root && typeof document !== "undefined") renderComposerDom(root, parts);
+    // Chromium/macOS IMEs can occasionally mutate contenteditable without a
+    // matching input/compositionend event. Observe the actual DOM as a final
+    // synchronization layer so visible text cannot leave the parent draft
+    // empty and the send button disabled.
+    const observer = new MutationObserver(() => {
+      const snapshot = readEditable(root, mentionsById);
+      if (snapshot.value === latestValueRef.current) return;
+      pendingSelectionRef.current = {
+        start: snapshot.cursor,
+        end: snapshot.cursor,
+      };
+      latestValueRef.current = snapshot.value;
+      reportDraftPresence(snapshot.value);
+      onChange(snapshot.value, snapshot.cursor, snapshot.mentions, false);
       resize();
-      const pending = pendingSelectionRef.current;
-      if (!pending) return;
-      pendingSelectionRef.current = null;
-      applySelection(pending.start, pending.end);
-    }, [applySelection, parts, resize]);
+    });
+    observer.observe(root, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+    return () => observer.disconnect();
+  }, [mentionsById, onChange, reportDraftPresence, resize]);
 
-    const emitDomChange = useCallback(
-      (shrink: boolean) => {
-        const root = rootRef.current;
-        if (!root) return;
-        const snapshot = readEditable(root, mentionsById);
-        pendingSelectionRef.current = { start: snapshot.cursor, end: snapshot.cursor };
-        onChange(snapshot.value, snapshot.cursor, snapshot.mentions, shrink);
-      },
-      [mentionsById, onChange],
+  const applyTextReplacement = useCallback(
+    (start: number, end: number, replacement: string) => {
+      const protectedSpans = [
+        ...validMentions,
+        ...parseMarkdownLinks(value, validMentions),
+      ];
+      const expandedStart = Math.min(
+        start,
+        ...protectedSpans
+          .filter((span) => span.start < end && span.end > start)
+          .map((span) => span.start),
+      );
+      const expandedEnd = Math.max(
+        end,
+        ...protectedSpans
+          .filter((span) => span.start < end && span.end > start)
+          .map((span) => span.end),
+      );
+      const next = replaceRange(
+        value,
+        validMentions,
+        expandedStart,
+        expandedEnd,
+        replacement,
+      );
+      pendingSelectionRef.current = { start: next.cursor, end: next.cursor };
+      latestValueRef.current = next.value;
+      reportDraftPresence(next.value);
+      onChange(
+        next.value,
+        next.cursor,
+        next.mentions,
+        next.value.length < value.length,
+      );
+    },
+    [onChange, reportDraftPresence, validMentions, value],
+  );
+
+  const getSelectionRange = useCallback(() => {
+    const root = rootRef.current;
+    const selection = window.getSelection();
+    if (!root || !selection || selection.rangeCount === 0) {
+      const cursor = root
+        ? getSelectionIndex(root, mentionsById)
+        : value.length;
+      return { start: cursor, end: cursor };
+    }
+    const anchor = getIndexForDomPosition(
+      root,
+      selection.anchorNode,
+      selection.anchorOffset,
+      mentionsById,
     );
-
-    const applyTextReplacement = useCallback(
-      (start: number, end: number, replacement: string) => {
-        const protectedSpans = [
-          ...validMentions,
-          ...parseMarkdownLinks(value, validMentions),
-        ];
-        const expandedStart = Math.min(
-          start,
-          ...protectedSpans
-            .filter((span) => span.start < end && span.end > start)
-            .map((span) => span.start),
-        );
-        const expandedEnd = Math.max(
-          end,
-          ...protectedSpans
-            .filter((span) => span.start < end && span.end > start)
-            .map((span) => span.end),
-        );
-        const next = replaceRange(value, validMentions, expandedStart, expandedEnd, replacement);
-        pendingSelectionRef.current = { start: next.cursor, end: next.cursor };
-        onChange(next.value, next.cursor, next.mentions, next.value.length < value.length);
-      },
-      [onChange, validMentions, value],
+    const focus = getIndexForDomPosition(
+      root,
+      selection.focusNode,
+      selection.focusOffset,
+      mentionsById,
     );
+    return { start: Math.min(anchor, focus), end: Math.max(anchor, focus) };
+  }, [mentionsById, value.length]);
 
-    const getSelectionRange = useCallback(() => {
-      const root = rootRef.current;
-      const selection = window.getSelection();
-      if (!root || !selection || selection.rangeCount === 0) {
-        const cursor = root ? getSelectionIndex(root, mentionsById) : value.length;
-        return { start: cursor, end: cursor };
+  const deleteSelectionRange = useCallback(
+    (direction: "backward" | "forward") => {
+      const range = getSelectionRange();
+      let start = range.start;
+      let end = range.end;
+      if (start === end) {
+        if (direction === "backward") {
+          if (start === 0) return;
+          start -= 1;
+        } else {
+          if (end >= value.length) return;
+          end += 1;
+        }
       }
-      const anchor = getIndexForDomPosition(
-        root,
-        selection.anchorNode,
-        selection.anchorOffset,
-        mentionsById,
-      );
-      const focus = getIndexForDomPosition(
-        root,
-        selection.focusNode,
-        selection.focusOffset,
-        mentionsById,
-      );
-      return { start: Math.min(anchor, focus), end: Math.max(anchor, focus) };
-    }, [mentionsById, value.length]);
+      applyTextReplacement(start, end, "");
+    },
+    [applyTextReplacement, getSelectionRange, value.length],
+  );
 
-    const deleteSelectionRange = useCallback(
-      (direction: "backward" | "forward") => {
-        const range = getSelectionRange();
-        let start = range.start;
-        let end = range.end;
-        if (start === end) {
-          if (direction === "backward") {
-            if (start === 0) return;
-            start -= 1;
-          } else {
-            if (end >= value.length) return;
-            end += 1;
-          }
-        }
-        applyTextReplacement(start, end, "");
-      },
-      [applyTextReplacement, getSelectionRange, value.length],
-    );
+  const markKeyboardEditHandled = useCallback(() => {
+    skipNextBeforeInputRef.current = true;
+    window.setTimeout(() => {
+      skipNextBeforeInputRef.current = false;
+    }, 0);
+  }, []);
 
-    const markKeyboardEditHandled = useCallback(() => {
-      skipNextBeforeInputRef.current = true;
-      window.setTimeout(() => {
+  const handleNativeBeforeInput = useCallback(
+    (nativeEvent: InputEvent) => {
+      if (isComposingRef.current || nativeEvent.isComposing) return;
+      if (skipNextBeforeInputRef.current) {
+        nativeEvent.preventDefault();
         skipNextBeforeInputRef.current = false;
-      }, 0);
-    }, []);
+        return;
+      }
 
-    const handleNativeBeforeInput = useCallback(
-      (nativeEvent: InputEvent) => {
-        if (nativeEvent.isComposing) return;
-        if (skipNextBeforeInputRef.current) {
-          nativeEvent.preventDefault();
-          skipNextBeforeInputRef.current = false;
-          return;
-        }
+      const inputType = nativeEvent.inputType;
 
-        const inputType = nativeEvent.inputType;
+      if (inputType === "insertText") {
+        const text = nativeEvent.data;
+        if (typeof text !== "string") return;
+        nativeEvent.preventDefault();
+        const range = getSelectionRange();
+        applyTextReplacement(range.start, range.end, text);
+        return;
+      }
 
-        if (inputType === "insertText") {
-          const text = nativeEvent.data;
-          if (typeof text !== "string") return;
-          nativeEvent.preventDefault();
-          const range = getSelectionRange();
-          applyTextReplacement(range.start, range.end, text);
-          return;
-        }
-
-        if (inputType === "insertParagraph" || inputType === "insertLineBreak") {
-          nativeEvent.preventDefault();
-          const range = getSelectionRange();
-          applyTextReplacement(range.start, range.end, "\n");
-          return;
-        }
-
-        if (inputType === "deleteContentBackward") {
-          nativeEvent.preventDefault();
-          deleteSelectionRange("backward");
-          return;
-        }
-
-        if (inputType === "deleteContentForward") {
-          nativeEvent.preventDefault();
-          deleteSelectionRange("forward");
-        }
-      },
-      [applyTextReplacement, deleteSelectionRange, getSelectionRange],
-    );
-
-    useLayoutEffect(() => {
-      const root = rootRef.current;
-      if (!root) return;
-      const listener = (event: Event) => handleNativeBeforeInput(event as InputEvent);
-      root.addEventListener("beforeinput", listener);
-      return () => root.removeEventListener("beforeinput", listener);
-    }, [handleNativeBeforeInput]);
-
-    const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      onKeyDown(event);
-      if (event.defaultPrevented) return;
-      if (event.nativeEvent.isComposing) return;
-      if (event.key === "Enter" && event.shiftKey) {
-        event.preventDefault();
-        markKeyboardEditHandled();
+      if (inputType === "insertParagraph" || inputType === "insertLineBreak") {
+        nativeEvent.preventDefault();
         const range = getSelectionRange();
         applyTextReplacement(range.start, range.end, "\n");
         return;
       }
 
-      if (event.key === "Backspace") {
-        event.preventDefault();
-        markKeyboardEditHandled();
+      if (inputType === "deleteContentBackward") {
+        nativeEvent.preventDefault();
         deleteSelectionRange("backward");
         return;
       }
 
-      if (event.key === "Delete") {
-        event.preventDefault();
-        markKeyboardEditHandled();
+      if (inputType === "deleteContentForward") {
+        nativeEvent.preventDefault();
         deleteSelectionRange("forward");
-        return;
       }
+    },
+    [applyTextReplacement, deleteSelectionRange, getSelectionRange],
+  );
 
-      const isPlainTextKey =
-        event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
-      if (!isPlainTextKey) return;
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const listener = (event: Event) =>
+      handleNativeBeforeInput(event as InputEvent);
+    root.addEventListener("beforeinput", listener);
+    return () => root.removeEventListener("beforeinput", listener);
+  }, [handleNativeBeforeInput]);
 
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (isComposingRef.current || isImeComposing(event)) return;
+    onKeyDown(event);
+    if (event.defaultPrevented) return;
+    if (event.key === "Enter" && event.shiftKey) {
       event.preventDefault();
       markKeyboardEditHandled();
       const range = getSelectionRange();
-      applyTextReplacement(range.start, range.end, event.key);
-    };
+      applyTextReplacement(range.start, range.end, "\n");
+      return;
+    }
 
-    const handlePaste = (event: ReactClipboardEvent<HTMLDivElement>) => {
-      void onPaste(event);
-      if (event.defaultPrevented) return;
-      const text = event.clipboardData.getData("text/plain");
-      if (!text) return;
+    if (event.key === "Backspace") {
       event.preventDefault();
-      const range = getSelectionRange();
-      applyTextReplacement(range.start, range.end, formatPastedWebLinkAsMarkdown(text) || text);
-    };
+      markKeyboardEditHandled();
+      deleteSelectionRange("backward");
+      return;
+    }
 
-    const handleCopy = (event: ReactClipboardEvent<HTMLDivElement>) => {
-      const range = getSelectionRange();
-      if (range.start === range.end) return;
-      event.clipboardData.setData("text/plain", value.slice(range.start, range.end));
+    if (event.key === "Delete") {
       event.preventDefault();
-    };
+      markKeyboardEditHandled();
+      deleteSelectionRange("forward");
+      return;
+    }
+  };
 
-    const handleCut = (event: ReactClipboardEvent<HTMLDivElement>) => {
-      const range = getSelectionRange();
-      if (range.start === range.end) return;
-      event.clipboardData.setData("text/plain", value.slice(range.start, range.end));
-      event.preventDefault();
-      applyTextReplacement(range.start, range.end, "");
-    };
+  const handleInput = () => {
+    // Keep the canonical draft in sync even while an IME composition is in
+    // progress. The layout effect already avoids rewriting the editable DOM
+    // during composition, so this does not interrupt the IME. Without this
+    // update, Chromium can leave committed-looking text in the editor while
+    // the parent still sees an empty value and disables the send button.
+    emitDomChange(false);
+    if (isComposingRef.current) resize();
+  };
 
-    const handleCursorChange = () => {
-      const root = rootRef.current;
-      if (!root) return;
-      onCursorChange(getSelectionIndex(root, mentionsById));
-    };
+  const handleCompositionStart = (
+    _event: ReactCompositionEvent<HTMLDivElement>,
+  ) => {
+    isComposingRef.current = true;
+    skipNextBeforeInputRef.current = false;
+    onCompositionChange?.(true);
+  };
 
-    return (
-      <div
-        ref={rootRef}
-        className={`prompt-composer-input ${className}`}
-        contentEditable
-        suppressContentEditableWarning
-        role="textbox"
-        aria-multiline="true"
-        aria-label={ariaLabel}
-        data-placeholder={placeholder || ""}
-        onInput={() => emitDomChange(false)}
-        onKeyDown={handleKeyDown}
-        onKeyUp={handleCursorChange}
-        onMouseUp={handleCursorChange}
-        onPaste={handlePaste}
-        onCopy={handleCopy}
-        onCut={handleCut}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        spellCheck
-      >
-        {typeof document === "undefined"
-          ? parts.map((part) =>
-              part.type === "text" ? (
-                <span key={part.key}>{part.text}</span>
-              ) : part.type === "mention" ? (
-                <span
-                  key={part.key}
-                  className="integration-mention-chip"
-                  contentEditable={false}
-                  data-integration-mention-id={part.span.spanId}
-                >
-                  <IntegrationMentionIcon
-                    iconKey={part.span.mention.iconKey}
-                    label={part.span.mention.label}
-                    size="xs"
-                  />
-                  <span className="integration-mention-chip-label">
-                    {part.span.mention.label}
-                  </span>
-                </span>
-              ) : (
-                <span
-                  key={part.key}
-                  className="composer-link-chip"
-                  contentEditable={false}
-                  data-composer-link-text={part.span.markdown}
-                  title={part.span.url}
-                >
-                  <img
-                    className="composer-link-favicon"
-                    src={getFaviconUrl(part.span.domain)}
-                    alt=""
-                    draggable={false}
-                  />
-                  <span className="composer-link-label">{part.span.label}</span>
-                </span>
-              ),
-            )
-          : null}
-      </div>
+  const handleCompositionEnd = (
+    _event: ReactCompositionEvent<HTMLDivElement>,
+  ) => {
+    isComposingRef.current = false;
+    skipNextBeforeInputRef.current = false;
+    window.requestAnimationFrame(() => {
+      emitDomChange(false);
+      onCompositionChange?.(false);
+    });
+  };
+
+  const handleBlur = () => {
+    // Some macOS input methods do not reliably deliver compositionend before
+    // focus moves to another control. Finalize the local composition state and
+    // flush the visible DOM so Enter/click-to-send cannot remain stuck.
+    if (isComposingRef.current) {
+      isComposingRef.current = false;
+      skipNextBeforeInputRef.current = false;
+      emitDomChange(false);
+      onCompositionChange?.(false);
+    }
+    onBlur?.();
+  };
+
+  const handlePaste = (event: ReactClipboardEvent<HTMLDivElement>) => {
+    void onPaste(event);
+    if (event.defaultPrevented) return;
+    const text = event.clipboardData.getData("text/plain");
+    if (!text) return;
+    event.preventDefault();
+    const range = getSelectionRange();
+    applyTextReplacement(
+      range.start,
+      range.end,
+      formatPastedWebLinkAsMarkdown(text) || text,
     );
-  },
-);
+  };
+
+  const handleCopy = (event: ReactClipboardEvent<HTMLDivElement>) => {
+    const range = getSelectionRange();
+    if (range.start === range.end) return;
+    event.clipboardData.setData(
+      "text/plain",
+      value.slice(range.start, range.end),
+    );
+    event.preventDefault();
+  };
+
+  const handleCut = (event: ReactClipboardEvent<HTMLDivElement>) => {
+    const range = getSelectionRange();
+    if (range.start === range.end) return;
+    event.clipboardData.setData(
+      "text/plain",
+      value.slice(range.start, range.end),
+    );
+    event.preventDefault();
+    applyTextReplacement(range.start, range.end, "");
+  };
+
+  const handleCursorChange = () => {
+    if (isComposingRef.current) return;
+    const root = rootRef.current;
+    if (!root) return;
+    onCursorChange(getSelectionIndex(root, mentionsById));
+  };
+
+  return (
+    <div
+      ref={rootRef}
+      className={`prompt-composer-input ${className}`}
+      contentEditable
+      suppressContentEditableWarning
+      role="textbox"
+      aria-multiline="true"
+      aria-label={ariaLabel}
+      data-placeholder={placeholder || ""}
+      onInput={handleInput}
+      onKeyDown={handleKeyDown}
+      onKeyUp={handleCursorChange}
+      onMouseUp={handleCursorChange}
+      onCompositionStart={handleCompositionStart}
+      onCompositionEnd={handleCompositionEnd}
+      onPaste={handlePaste}
+      onCopy={handleCopy}
+      onCut={handleCut}
+      onFocus={onFocus}
+      onBlur={handleBlur}
+      spellCheck={false}
+    >
+      {typeof document === "undefined"
+        ? parts.map((part) =>
+            part.type === "text" ? (
+              <span key={part.key}>{part.text}</span>
+            ) : part.type === "mention" ? (
+              <span
+                key={part.key}
+                className="integration-mention-chip"
+                contentEditable={false}
+                data-integration-mention-id={part.span.spanId}
+              >
+                <IntegrationMentionIcon
+                  iconKey={part.span.mention.iconKey}
+                  label={part.span.mention.label}
+                  size="xs"
+                />
+                <span className="integration-mention-chip-label">
+                  {part.span.mention.label}
+                </span>
+              </span>
+            ) : (
+              <span
+                key={part.key}
+                className="composer-link-chip"
+                contentEditable={false}
+                data-composer-link-text={part.span.markdown}
+                title={part.span.url}
+              >
+                <img
+                  className="composer-link-favicon"
+                  src={getFaviconUrl(part.span.domain)}
+                  alt=""
+                  draggable={false}
+                />
+                <span className="composer-link-label">{part.span.label}</span>
+              </span>
+            ),
+          )
+        : null}
+    </div>
+  );
+});

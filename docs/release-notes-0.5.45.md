@@ -45,7 +45,7 @@ Release `0.5.45` is a broad platform, workflow, and reliability release. It adds
   - `node scripts/smoke-desktop-artifacts.mjs --platform=mac --allow-unsigned --expected-version=0.5.45`
   - `git diff --check`
 - **Platform smoke status**:
-  - macOS arm64 DMG smoke passed for `CoWork-OS-0.5.45-arm64.dmg` with the unsigned fallback path.
+  - macOS arm64 DMG smoke passed for `NeoWorker-0.5.45-arm64.dmg` with the unsigned fallback path.
   - Windows installer packaging/smoke must run on Windows; local macOS packaging stops at the native `better-sqlite3` rebuild because `node-gyp` does not support cross-compiling that module from source.
   - Linux server packaging/smoke must run on Linux x64; the local packager intentionally refuses non-Linux hosts so bundled native modules match the target.
 

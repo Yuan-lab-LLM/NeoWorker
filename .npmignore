@@ -6,7 +6,7 @@
 .claude/
 
 # iOS companion project (contains Xcode user data)
-cowork-oss/
+neoworker/
 
 # Misc files not needed
 *.docx

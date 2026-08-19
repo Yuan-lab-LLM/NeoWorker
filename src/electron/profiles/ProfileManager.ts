@@ -11,8 +11,8 @@ import {
 import type { AppProfileSummary, ProfileExportResult } from "../../shared/types";
 
 const logger = createLogger("ProfileManager");
-const PROFILE_META_FILE = ".cowork-profile.json";
-const PROFILE_EXPORT_FILE = "cowork-profile-export.json";
+const PROFILE_META_FILE = ".neoworker-profile.json";
+const PROFILE_EXPORT_FILE = "neoworker-profile-export.json";
 
 type ProfileMetadata = {
   id: string;
@@ -144,7 +144,7 @@ export class ProfileManager {
     const destinationDir = path.resolve(destinationRoot);
     await fs.mkdir(destinationDir, { recursive: true, mode: 0o700 });
 
-    const baseName = `cowork-profile-${summary.id}`;
+    const baseName = `neoworker-profile-${summary.id}`;
     let bundlePath = path.join(destinationDir, baseName);
     let suffix = 1;
     while (fsSync.existsSync(bundlePath)) {

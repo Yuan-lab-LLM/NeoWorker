@@ -39,6 +39,7 @@ import {
   DEFAULT_COMMUNICATION_STYLE,
   DEFAULT_QUIRKS_V2,
   DEFAULT_CUSTOM_INSTRUCTIONS,
+  DEFAULT_ASSISTANT_NAME,
   TRAIT_DEFINITIONS,
   TRAIT_PRESETS,
   createTraitsFromPreset,
@@ -50,7 +51,22 @@ import { getUserDataDir } from "../utils/user-data-dir";
 
 const LEGACY_SETTINGS_FILE = "personality-settings.json";
 
-const DEFAULT_AGENT_NAME = "CoWork";
+const DEFAULT_AGENT_NAME = DEFAULT_ASSISTANT_NAME;
+const LEGACY_PRODUCT_AGENT_NAMES = new Set([
+  "cowork os",
+  "cowork-os",
+  "coworkos",
+  "cowork-oss",
+  "crewwork",
+  "quiverready",
+]);
+
+function isLegacyProductAgentName(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    LEGACY_PRODUCT_AGENT_NAMES.has(value.trim().toLowerCase())
+  );
+}
 
 const DEFAULT_SETTINGS: PersonalitySettings = {
   activePersonality: "professional",
@@ -84,10 +100,18 @@ function migrateV1ToV2(v1: PersonalitySettings): PersonalityConfigV2 {
   const style: CommunicationStyle = {
     ...DEFAULT_COMMUNICATION_STYLE,
     ...(v1.responseStyle && {
-      ...(v1.responseStyle.emojiUsage && { emojiUsage: v1.responseStyle.emojiUsage }),
-      ...(v1.responseStyle.responseLength && { responseLength: v1.responseStyle.responseLength }),
-      ...(v1.responseStyle.codeCommentStyle && { codeCommentStyle: v1.responseStyle.codeCommentStyle }),
-      ...(v1.responseStyle.explanationDepth && { explanationDepth: v1.responseStyle.explanationDepth }),
+      ...(v1.responseStyle.emojiUsage && {
+        emojiUsage: v1.responseStyle.emojiUsage,
+      }),
+      ...(v1.responseStyle.responseLength && {
+        responseLength: v1.responseStyle.responseLength,
+      }),
+      ...(v1.responseStyle.codeCommentStyle && {
+        codeCommentStyle: v1.responseStyle.codeCommentStyle,
+      }),
+      ...(v1.responseStyle.explanationDepth && {
+        explanationDepth: v1.responseStyle.explanationDepth,
+      }),
     }),
   };
   return {
@@ -107,7 +131,8 @@ function migrateV1ToV2(v1: PersonalitySettings): PersonalityConfigV2 {
     quirks: { ...DEFAULT_QUIRKS_V2, ...v1.quirks },
     relationship: v1.relationship,
     workStyle: v1.workStyle,
-    soulDocument: v1.activePersonality === "custom" && v1.customPrompt ? v1.customPrompt : undefined,
+    soulDocument:
+      v1.activePersonality === "custom" && v1.customPrompt ? v1.customPrompt : undefined,
     activePersonality: v1.activePersonality,
     customPrompt: v1.customPrompt,
     customName: v1.customName,
@@ -154,7 +179,9 @@ export class PersonalityManager {
     };
   }
 
-  private static configV2ToSettings(config: PersonalityConfigV2 | null): PersonalitySettings | null {
+  private static configV2ToSettings(
+    config: PersonalityConfigV2 | null,
+  ): PersonalitySettings | null {
     if (!config) return null;
     const presetId = config.activePersonality ?? "professional";
     return {
@@ -296,6 +323,11 @@ export class PersonalityManager {
             repository.save("personality", config);
             console.log("[PersonalityManager] Migrated V1 settings to V2");
           }
+          if (isLegacyProductAgentName(config.agentName)) {
+            config.agentName = DEFAULT_AGENT_NAME;
+            repository.save("personality", config);
+            console.log("[PersonalityManager] Migrated legacy assistant name to NeoWorker");
+          }
         }
       }
 
@@ -330,7 +362,10 @@ export class PersonalityManager {
       traits,
       style: { ...DEFAULT_COMMUNICATION_STYLE, ...stored.style },
       quirks: { ...DEFAULT_QUIRKS_V2, ...stored.quirks },
-      customInstructions: { ...DEFAULT_CUSTOM_INSTRUCTIONS, ...stored.customInstructions },
+      customInstructions: {
+        ...DEFAULT_CUSTOM_INSTRUCTIONS,
+        ...stored.customInstructions,
+      },
     };
   }
 
@@ -413,7 +448,10 @@ export class PersonalityManager {
         config.agentName = persona.suggestedName;
       }
       if (persona.sampleCatchphrase && !config.quirks?.catchphrase) {
-        config.quirks = { ...config.quirks, catchphrase: persona.sampleCatchphrase };
+        config.quirks = {
+          ...config.quirks,
+          catchphrase: persona.sampleCatchphrase,
+        };
       }
       if (persona.sampleSignOff && !config.quirks?.signOff) {
         config.quirks = { ...config.quirks, signOff: persona.sampleSignOff };
@@ -473,22 +511,31 @@ export class PersonalityManager {
     const enabled = rules.filter(
       (r) =>
         r.enabled &&
-        (!r.context?.length || !contextMode || r.context.includes(contextMode) || r.context.includes("all")),
+        (!r.context?.length ||
+          !contextMode ||
+          r.context.includes(contextMode) ||
+          r.context.includes("all")),
     );
     if (enabled.length === 0) return "";
     const lines = enabled.map((r) => `- ${r.type.toUpperCase()}: ${r.rule}`);
     return "BEHAVIORAL RULES:\n" + lines.join("\n");
   }
 
-  private static renderCustomInstructions(ci: { aboutUser?: string; responseGuidance?: string }): string {
+  private static renderCustomInstructions(ci: {
+    aboutUser?: string;
+    responseGuidance?: string;
+  }): string {
     if (!ci?.aboutUser?.trim() && !ci?.responseGuidance?.trim()) return "";
     const lines: string[] = ["CUSTOM INSTRUCTIONS:"];
     if (ci.aboutUser?.trim()) lines.push(`About the user: "${ci.aboutUser.trim()}"`);
-    if (ci.responseGuidance?.trim()) lines.push(`Response guidance: "${ci.responseGuidance.trim()}"`);
+    if (ci.responseGuidance?.trim())
+      lines.push(`Response guidance: "${ci.responseGuidance.trim()}"`);
     return lines.join("\n");
   }
 
-  private static renderTraitsPrompt(traits: { id: string; label: string; intensity: number }[]): string {
+  private static renderTraitsPrompt(
+    traits: { id: string; label: string; intensity: number }[],
+  ): string {
     const high: string[] = [];
     const low: string[] = [];
     for (const t of traits) {
@@ -565,7 +612,9 @@ export class PersonalityManager {
     return lines.length > 1 ? lines.join("\n") : "";
   }
 
-  private static renderExpertisePrompt(expertise: { domain: string; level: string; notes?: string }[]): string {
+  private static renderExpertisePrompt(
+    expertise: { domain: string; level: string; notes?: string }[],
+  ): string {
     if (!expertise?.length) return "";
     const lines = expertise.map(
       (e) => `- ${e.level} in ${e.domain}${e.notes ? ` (${e.notes})` : ""}`,
@@ -574,7 +623,10 @@ export class PersonalityManager {
   }
 
   private static renderContextOverride(
-    overrides: { mode: ContextMode; styleOverrides?: Partial<CommunicationStyle> }[],
+    overrides: {
+      mode: ContextMode;
+      styleOverrides?: Partial<CommunicationStyle>;
+    }[],
     mode: ContextMode,
   ): string {
     const o = overrides.find((x) => x.mode === mode);
@@ -725,13 +777,19 @@ export class PersonalityManager {
     const projectsWorkedOn = relationship?.projectsWorkedOn || [];
 
     let prompt = `YOUR IDENTITY:
-You are ${agentName}, the user's AI companion built into CoWork OS — a desktop AI companion app for macOS that is local-first, private, and extensible.
+You are ${agentName}, the user's AI companion built into NeoWorker — a desktop AI companion app for macOS that is local-first, private, and extensible.
 - When asked about your name or identity, say you are "${agentName}"
 - Do NOT claim to be Claude, ChatGPT, or any other AI assistant
 - You are a customizable assistant that users can personalize
 
+CURRENT PRODUCT BRAND:
+- The application, runtime, and built-in tools belong to NeoWorker.
+- Never describe the current product or runtime as "CoWork OS", "CoWork-OS", "CoWorkOS", "CrewWork", or "QuiverReady".
+- If a legacy product name appears in old conversation history or stored context, treat it as historical branding and use "NeoWorker" for the current product.
+- Treat .cowork, .quiverready, and .crewwork as migration-only private directories. Ignore them during workspace discovery, use .neoworker for current workspace memory, and never cite the legacy directory names in user-facing replies.
+
 WHAT YOU ARE:
-You are not just a chatbot — you are an always-ready companion that can actually DO things on the user's computer and across the internet. You live inside CoWork OS, which gives you real tools to take action, not just talk.
+You are not just a chatbot — you are an always-ready companion that can actually DO things on the user's computer and across the internet. You live inside NeoWorker, which gives you real tools to take action, not just talk.
 
 YOUR CAPABILITIES (what you can actually do):
 - Files & Code: Read, write, edit, search, and manage files in the workspace. Full glob/grep support.
@@ -758,8 +816,13 @@ COMPANION MINDSET:
 - The user's name is "${userName}"
 - You have completed ${tasksCompleted} tasks together`;
       if (projectsWorkedOn.length > 0) {
-        prompt += `\n- Projects worked on: ${projectsWorkedOn.slice(-5).join(", ")}`;
+        prompt += `\n- You have worked across ${projectsWorkedOn.length} project${projectsWorkedOn.length === 1 ? "" : "s"} together. Historical project names are intentionally omitted from active task context.`;
       }
+      prompt += `\n
+CONTEXT BOUNDARY RULES:
+- Historical projects and prior-task memories are not the active workspace or current task scope.
+- Never use historical project names, companies, industries, or prior-task topics to fill a missing required input.
+- Determine task scope only from the current user request and explicit active-workspace context. If a required input is missing, ask one focused question.`;
       prompt += `\n\nIMPORTANT NAME RULES:
 - ALWAYS address the user as "${userName}" — this is their confirmed preferred name.
 - Do NOT use or reference any other name you may find in file paths, filenames, OS username, git config, email addresses, workspace paths (e.g., "/Users/<os_username>/..."), or any other system identifier.
@@ -767,7 +830,7 @@ COMPANION MINDSET:
 - When asked "who am I?" or similar identity questions, respond with the USER's stored name ("${userName}") and your shared history — NOT system-derived info.`;
     } else {
       prompt += `\n\nUSER CONTEXT:
-- You do not have a confirmed name for the user stored in CoWork OS yet (relationship.userName is empty)
+- You do not have a confirmed name for the user stored in NeoWorker yet (relationship.userName is empty)
 - Do NOT guess or infer the user's name from system identifiers (e.g., workspace paths like "/Users/<username>/...", OS username, email addresses, git config values, hostnames)
 - When asked about the user (e.g., "who am I?" or "what do you know about me?"), be explicit that their name is not confirmed/stored yet
 - If you see a likely name in context, you MAY ask the user what they'd like to be called (do not assume)
@@ -1008,15 +1071,15 @@ COMPANION MINDSET:
    */
   static renderSoulDocument(config: PersonalityConfigV2): string {
     const lines: string[] = ["# SOUL", "## Personality"];
-    const traitStr = config.traits
-      .map((t) => `${t.label}: ${t.intensity}`)
-      .join(", ");
+    const traitStr = config.traits.map((t) => `${t.label}: ${t.intensity}`).join(", ");
     if (traitStr) lines.push(traitStr);
     lines.push("");
 
     if (config.rules?.length) {
       lines.push("## Rules");
-      config.rules.filter((r) => r.enabled).forEach((r) => lines.push(`- ${r.type.toUpperCase()}: ${r.rule}`));
+      config.rules
+        .filter((r) => r.enabled)
+        .forEach((r) => lines.push(`- ${r.type.toUpperCase()}: ${r.rule}`));
       lines.push("");
     }
 
@@ -1046,7 +1109,12 @@ COMPANION MINDSET:
     if (config.examples?.length) {
       lines.push("## Examples");
       config.examples.forEach((ex, i) => {
-        lines.push(`### Example ${i + 1}`, `**User:** ${ex.userMessage}`, `**Assistant:** ${ex.idealResponse}`, "");
+        lines.push(
+          `### Example ${i + 1}`,
+          `**User:** ${ex.userMessage}`,
+          `**Assistant:** ${ex.idealResponse}`,
+          "",
+        );
       });
     }
 
@@ -1098,19 +1166,26 @@ COMPANION MINDSET:
         }
         if (rules.length) result.rules = rules;
       } else if (head?.includes("About the User") && content) {
-        if (!result.customInstructions) result.customInstructions = { ...DEFAULT_CUSTOM_INSTRUCTIONS };
+        if (!result.customInstructions)
+          result.customInstructions = { ...DEFAULT_CUSTOM_INSTRUCTIONS };
         result.customInstructions.aboutUser = content;
       } else if (head?.includes("Response Guidance") && content) {
-        if (!result.customInstructions) result.customInstructions = { ...DEFAULT_CUSTOM_INSTRUCTIONS };
+        if (!result.customInstructions)
+          result.customInstructions = { ...DEFAULT_CUSTOM_INSTRUCTIONS };
         result.customInstructions.responseGuidance = content;
       } else if (head?.includes("Expertise") && content) {
-        const expertise: { id: string; domain: string; level: "familiar" | "proficient" | "expert"; notes?: string }[] = [];
+        const expertise: {
+          id: string;
+          domain: string;
+          level: "familiar" | "proficient" | "expert";
+          notes?: string;
+        }[] = [];
         const exRe = /-\s*(.+?)\s*\((\w+)\)(?:\s*:\s*(.+))?/g;
         const validLevels = ["familiar", "proficient", "expert"];
         let em;
         while ((em = exRe.exec(content))) {
           const level = validLevels.includes(em[2].toLowerCase())
-            ? em[2].toLowerCase() as "familiar" | "proficient" | "expert"
+            ? (em[2].toLowerCase() as "familiar" | "proficient" | "expert")
             : "proficient";
           expertise.push({
             id: `ex-${expertise.length}`,
@@ -1166,7 +1241,10 @@ COMPANION MINDSET:
       rules: imported.rules ?? existing.rules,
       style: { ...existing.style, ...imported.style },
       quirks: { ...existing.quirks, ...imported.quirks },
-      customInstructions: { ...existing.customInstructions, ...imported.customInstructions },
+      customInstructions: {
+        ...existing.customInstructions,
+        ...imported.customInstructions,
+      },
       expertise: imported.expertise ?? existing.expertise,
       examples: imported.examples ?? existing.examples,
       contextOverrides: imported.contextOverrides ?? existing.contextOverrides,
@@ -1187,7 +1265,10 @@ COMPANION MINDSET:
       rules: draft.rules ?? existing.rules,
       style: { ...existing.style, ...draft.style },
       quirks: { ...existing.quirks, ...draft.quirks },
-      customInstructions: { ...existing.customInstructions, ...draft.customInstructions },
+      customInstructions: {
+        ...existing.customInstructions,
+        ...draft.customInstructions,
+      },
       expertise: draft.expertise ?? existing.expertise,
       examples: draft.examples ?? existing.examples,
       contextOverrides: draft.contextOverrides ?? existing.contextOverrides,
@@ -1195,7 +1276,10 @@ COMPANION MINDSET:
     return this.buildPromptFromConfig(merged, contextMode);
   }
 
-  private static buildPromptFromConfig(config: PersonalityConfigV2, contextMode?: ContextMode): string {
+  private static buildPromptFromConfig(
+    config: PersonalityConfigV2,
+    contextMode?: ContextMode,
+  ): string {
     if (config.soulDocument?.trim()) {
       const base = config.soulDocument.trim();
       const persona =
@@ -1235,7 +1319,15 @@ COMPANION MINDSET:
   /**
    * Get trait presets for quick-start templates
    */
-  static getTraitPresets(): Record<string, { name: string; description: string; icon: string; traits: Record<string, number> }> {
+  static getTraitPresets(): Record<
+    string,
+    {
+      name: string;
+      description: string;
+      icon: string;
+      traits: Record<string, number>;
+    }
+  > {
     return { ...TRAIT_PRESETS };
   }
 
@@ -1271,11 +1363,20 @@ COMPANION MINDSET:
   /**
    * Set expertise for a domain
    */
-  static setExpertise(domain: string, level: "familiar" | "proficient" | "expert", notes?: string): void {
+  static setExpertise(
+    domain: string,
+    level: "familiar" | "proficient" | "expert",
+    notes?: string,
+  ): void {
     const config = this.loadConfigV2();
     config.expertise = config.expertise ?? [];
     const existing = config.expertise.find((e) => e.domain.toLowerCase() === domain.toLowerCase());
-    const entry = { id: existing?.id ?? `ex-${Date.now()}`, domain, level, notes };
+    const entry = {
+      id: existing?.id ?? `ex-${Date.now()}`,
+      domain,
+      level,
+      notes,
+    };
     if (existing) {
       Object.assign(existing, entry);
     } else {

@@ -1,0 +1,3 @@
+import { n as e, t } from "./egg-0Kzv-yKX-zbLUlt4G.js";
+t();
+export { e as default };

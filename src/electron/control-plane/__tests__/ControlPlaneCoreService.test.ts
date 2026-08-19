@@ -66,9 +66,9 @@ describeWithSqlite("ControlPlaneCoreService", () => {
   };
 
   beforeEach(async () => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-control-plane-"));
-    previousUserDataDir = process.env.COWORK_USER_DATA_DIR;
-    process.env.COWORK_USER_DATA_DIR = tmpDir;
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-control-plane-"));
+    previousUserDataDir = process.env.NEOWORKER_USER_DATA_DIR;
+    process.env.NEOWORKER_USER_DATA_DIR = tmpDir;
 
     const [
       { DatabaseManager },
@@ -92,11 +92,38 @@ describeWithSqlite("ControlPlaneCoreService", () => {
   afterEach(() => {
     manager?.close();
     if (previousUserDataDir === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = previousUserDataDir;
+      process.env.NEOWORKER_USER_DATA_DIR = previousUserDataDir;
     }
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("creates a project with its primary workspace atomically and preserves workspace invariants", () => {
+    const firstWorkspace = insertWorkspace("primary");
+    const secondWorkspace = insertWorkspace("secondary");
+    const { project, link } = service.createProjectWithWorkspace({
+      name: "Release project",
+      description: "Ship the release safely.",
+      workspaceId: firstWorkspace.id,
+    });
+
+    expect(link).toMatchObject({
+      projectId: project.id,
+      workspaceId: firstWorkspace.id,
+      isPrimary: true,
+    });
+    service.linkProjectWorkspace({
+      projectId: project.id,
+      workspaceId: secondWorkspace.id,
+    });
+    service.setPrimaryProjectWorkspace(project.id, secondWorkspace.id);
+
+    expect(service.unlinkProjectWorkspace(project.id, secondWorkspace.id)).toBe(true);
+    expect(service.listProjectWorkspaces(project.id)).toEqual([
+      expect.objectContaining({ workspaceId: firstWorkspace.id, isPrimary: true }),
+    ]);
+    expect(service.unlinkProjectWorkspace(project.id, firstWorkspace.id)).toBe(false);
   });
 
   it("seeds a default company and round-trips export/import with collision-safe renaming", () => {
@@ -211,7 +238,7 @@ describeWithSqlite("ControlPlaneCoreService", () => {
 
     const workspace = reloaded?.defaultWorkspaceId ? db.prepare("SELECT * FROM workspaces WHERE id = ?").get(reloaded.defaultWorkspaceId) as Any : null;
     expect(workspace?.path).toContain(path.join("company-workspaces", "workspace-co"));
-    expect(fs.existsSync(path.join(workspace.path, ".cowork"))).toBe(true);
+    expect(fs.existsSync(path.join(workspace.path, ".neoworker"))).toBe(true);
     expect(fs.existsSync(path.join(workspace.path, "projects"))).toBe(true);
 
     const project = service.createProject({

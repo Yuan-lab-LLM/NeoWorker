@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Download, CheckCircle, XCircle } from "lucide-react";
 import { transformReleaseNotesUrl } from "../utils/release-notes-markdown";
+import { translate, useLanguage } from "../i18n";
 
 interface VersionInfo {
   version: string;
@@ -24,7 +25,13 @@ interface UpdateInfo {
 }
 
 interface UpdateProgress {
-  phase: "checking" | "downloading" | "extracting" | "installing" | "complete" | "error";
+  phase:
+    | "checking"
+    | "downloading"
+    | "extracting"
+    | "installing"
+    | "complete"
+    | "error";
   percent?: number;
   message: string;
 }
@@ -46,6 +53,8 @@ function ReleaseNotesLink({
 }
 
 export function UpdateSettings() {
+  useLanguage();
+  const t = translate;
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [progress, setProgress] = useState<UpdateProgress | null>(null);
@@ -132,17 +141,31 @@ export function UpdateSettings() {
   };
 
   if (loading) {
-    return <div className="settings-loading">Loading version info...</div>;
+    return (
+      <div className="settings-loading">
+        {t("updates.loading", "Loading version info...")}
+      </div>
+    );
   }
 
   return (
     <div className="update-settings">
       <div className="settings-section">
-        <h3>Current Version</h3>
+        <h3>{t("updates.currentVersion", "Current Version")}</h3>
         <div className="version-info">
-          <div className="version-number">v{versionInfo?.version || "Unknown"}</div>
-          {versionInfo?.isDev && <span className="version-badge dev">Development Mode</span>}
-          {versionInfo?.isNpmGlobal && <span className="version-badge npm">Installed via npm</span>}
+          <div className="version-number">
+            v{versionInfo?.version || t("updates.unknown", "Unknown")}
+          </div>
+          {versionInfo?.isDev && (
+            <span className="version-badge dev">
+              {t("updates.developmentMode", "Development Mode")}
+            </span>
+          )}
+          {versionInfo?.isNpmGlobal && (
+            <span className="version-badge npm">
+              {t("updates.installedViaNpm", "Installed via npm")}
+            </span>
+          )}
           {versionInfo?.isGitRepo && (
             <div className="git-info">
               <span className="git-branch">{versionInfo.gitBranch}</span>
@@ -155,13 +178,19 @@ export function UpdateSettings() {
       </div>
 
       <div className="settings-section">
-        <h3>Check for Updates</h3>
+        <h3>{t("updates.check.title", "Check for Updates")}</h3>
         <p className="settings-description">
           {versionInfo?.isNpmGlobal
-            ? "Updates will be installed via npm."
+            ? t("updates.check.npm", "Updates will be installed via npm.")
             : versionInfo?.isGitRepo
-              ? "Updates will be pulled from GitHub and rebuilt automatically."
-              : "Updates will be downloaded and installed automatically."}
+              ? t(
+                  "updates.check.git",
+                  "Updates will be pulled from GitHub and rebuilt automatically.",
+                )
+              : t(
+                  "updates.check.auto",
+                  "Updates will be downloaded and installed automatically.",
+                )}
         </p>
 
         <div className="update-actions">
@@ -170,31 +199,41 @@ export function UpdateSettings() {
             onClick={handleCheckForUpdates}
             disabled={checking || updating}
           >
-            {checking ? "Checking..." : "Check for Updates"}
+            {checking
+              ? t("updates.checking", "Checking...")
+              : t("updates.check.action", "Check for Updates")}
           </button>
         </div>
 
         {updateInfo && (
-          <div className={`update-status ${updateInfo.available ? "available" : "up-to-date"}`}>
+          <div
+            className={`update-status ${updateInfo.available ? "available" : "up-to-date"}`}
+          >
             {updateInfo.available ? (
               <>
                 <div className="update-header">
                   <Download size={20} strokeWidth={2} />
-                  <span>Update Available!</span>
+                  <span>{t("updates.available", "Update Available!")}</span>
                 </div>
                 <div className="update-versions">
-                  <span className="current">Current: {updateInfo.currentVersion}</span>
+                  <span className="current">
+                    {t("updates.current", "Current")}:{" "}
+                    {updateInfo.currentVersion}
+                  </span>
                   <span className="arrow">→</span>
-                  <span className="latest">Latest: {updateInfo.latestVersion}</span>
+                  <span className="latest">
+                    {t("updates.latest", "Latest")}: {updateInfo.latestVersion}
+                  </span>
                 </div>
                 {updateInfo.publishedAt && (
                   <div className="update-date">
-                    Released: {new Date(updateInfo.publishedAt).toLocaleDateString()}
+                    {t("updates.released", "Released")}:{" "}
+                    {new Date(updateInfo.publishedAt).toLocaleDateString()}
                   </div>
                 )}
                 {updateInfo.releaseNotes && (
                   <div className="release-notes">
-                    <h4>Release Notes</h4>
+                    <h4>{t("updates.releaseNotes", "Release Notes")}</h4>
                     <div className="release-notes-content markdown-content">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
@@ -215,11 +254,11 @@ export function UpdateSettings() {
                     rel="noopener noreferrer"
                     className="release-link"
                   >
-                    View on GitHub →
+                    {t("updates.viewOnGithub", "View on GitHub")} →
                   </a>
                 )}
                 <div className="update-mode">
-                  Update method:{" "}
+                  {t("updates.method", "Update method")}:{" "}
                   <strong>
                     {updateInfo.updateMode === "npm"
                       ? "npm update"
@@ -232,7 +271,7 @@ export function UpdateSettings() {
             ) : (
               <div className="update-header up-to-date">
                 <CheckCircle size={20} strokeWidth={2} />
-                <span>You're up to date!</span>
+                <span>{t("updates.upToDate", "You're up to date!")}</span>
               </div>
             )}
           </div>
@@ -243,7 +282,10 @@ export function UpdateSettings() {
             <div className="progress-message">{progress.message}</div>
             {progress.percent !== undefined && (
               <div className="progress-bar">
-                <div className="progress-fill" style={{ width: `${progress.percent}%` }} />
+                <div
+                  className="progress-fill"
+                  style={{ width: `${progress.percent}%` }}
+                />
               </div>
             )}
           </div>
@@ -263,29 +305,38 @@ export function UpdateSettings() {
             disabled={updating}
           >
             {versionInfo?.isNpmGlobal
-              ? "Update Now (npm install)"
+              ? t("updates.updateNowNpm", "Update Now (npm install)")
               : versionInfo?.isGitRepo
-                ? "Update Now (Git Pull + Rebuild)"
-                : "Download & Install Update"}
+                ? t("updates.updateNowGit", "Update Now (Git Pull + Rebuild)")
+                : t("updates.downloadInstall", "Download & Install Update")}
           </button>
         )}
 
         {updateReady && (
-          <button className="button-primary update-button restart" onClick={handleInstallUpdate}>
-            Restart to Apply Update
+          <button
+            className="button-primary update-button restart"
+            onClick={handleInstallUpdate}
+          >
+            {t("updates.restart", "Restart to Apply Update")}
           </button>
         )}
       </div>
 
       <div className="settings-section">
-        <h3>Manual Update</h3>
+        <h3>{t("updates.manual.title", "Manual Update")}</h3>
         <p className="settings-description">
-          You can also manually update by running{" "}
-          {versionInfo?.isNpmGlobal ? "this command" : "these commands"} in the terminal:
+          {t(
+            versionInfo?.isNpmGlobal
+              ? "updates.manual.description.command"
+              : "updates.manual.description.commands",
+            versionInfo?.isNpmGlobal
+              ? "You can also manually update by running this command in the terminal:"
+              : "You can also manually update by running these commands in the terminal:",
+          )}
         </p>
         <div className="manual-update-commands">
           {versionInfo?.isNpmGlobal ? (
-            <code>npm update -g cowork-os</code>
+            <code>npm update -g neoworker</code>
           ) : (
             <code>
               git fetch origin{"\n"}
@@ -295,7 +346,12 @@ export function UpdateSettings() {
             </code>
           )}
         </div>
-        <p className="settings-hint">After updating, restart the application to apply changes.</p>
+        <p className="settings-hint">
+          {t(
+            "updates.manual.restartHint",
+            "After updating, restart the application to apply changes.",
+          )}
+        </p>
       </div>
     </div>
   );

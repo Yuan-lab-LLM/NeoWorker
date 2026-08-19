@@ -324,7 +324,7 @@ describe("DailyBriefingService", () => {
           {
             id: "focus-1",
             title: "Electron",
-            detail: "Electron — CoWork OS",
+            detail: "Electron — NeoWorker",
             source: "apps",
             score: 0.8,
             tags: ["focus"],

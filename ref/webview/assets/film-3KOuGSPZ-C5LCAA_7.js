@@ -1,0 +1,3 @@
+import { n as e, t } from "./film-3KOuGSPZ-CD-Cfa3M.js";
+e();
+export { t as default };

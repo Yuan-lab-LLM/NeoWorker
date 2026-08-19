@@ -37,7 +37,7 @@ describe("MemoryNudgeService", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-memory-nudge-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-memory-nudge-"));
     MemoryNudgeService.resetForTests();
     mocks.dreamingRun.mockResolvedValue({
       run: { id: "dream-1" },
@@ -72,7 +72,7 @@ describe("MemoryNudgeService", () => {
   });
 
   it("triggers Dreaming when hot memory needs compaction", async () => {
-    writeFile(path.join(tmpDir, ".cowork", "USER.md"), `${"A".repeat(1700)}\n`);
+    writeFile(path.join(tmpDir, ".neoworker", "USER.md"), `${"A".repeat(1700)}\n`);
 
     const result = await MemoryNudgeService.maybeRun({
       workspaceId: "ws1",
@@ -93,7 +93,7 @@ describe("MemoryNudgeService", () => {
         workspaceId: "ws1",
         workspacePath: tmpDir,
         triggerSource: "system",
-        instructions: expect.stringContaining(".cowork/USER.md"),
+        instructions: expect.stringContaining(".neoworker/USER.md"),
       }),
     );
   });

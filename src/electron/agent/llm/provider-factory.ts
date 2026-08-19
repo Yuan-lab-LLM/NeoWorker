@@ -57,6 +57,7 @@ import type {
   AgentConfig,
   AzureReasoningEffort,
   CustomProviderConfig,
+  LLMProviderModelRegistryEntry,
   LLMReasoningEffort,
   LlmProfile,
   LLMProviderFallbackConfig,
@@ -69,6 +70,13 @@ import { getSafeStorage } from "../../utils/safe-storage";
 import { createLogger } from "../../utils/logger";
 import { ModelCapabilityRegistry } from "./ModelCapabilityRegistry";
 import { normalizePromptCachingSettings } from "./prompt-cache";
+import {
+  getKimiEndpointCandidates,
+  normalizeKimiApiKey,
+  normalizeKimiBaseUrl,
+  selectPreferredKimiModel,
+  type KimiConnectionResult,
+} from "../../../shared/kimi";
 
 const LEGACY_SETTINGS_FILE = "llm-settings.json";
 const MASKED_VALUE = "***configured***";
@@ -696,6 +704,9 @@ function normalizeProviderConfig(config: LLMProviderConfig): LLMProviderConfig {
     kimiBaseUrl: normalizeOptionalString(config.kimiBaseUrl),
     piProvider: normalizeOptionalString(config.piProvider),
     piApiKey: normalizeSecret(config.piApiKey),
+    openaiCompatibleDisplayName: normalizeOptionalString(
+      config.openaiCompatibleDisplayName,
+    ),
     openaiCompatibleApiKey: normalizeSecret(config.openaiCompatibleApiKey),
     openaiCompatibleBaseUrl: normalizeOptionalString(
       config.openaiCompatibleBaseUrl,
@@ -993,6 +1004,7 @@ export interface LLMSettings {
     model?: string;
   } & ProviderRoutingSettings;
   openaiCompatible?: {
+    displayName?: string;
     apiKey?: string;
     baseUrl?: string;
     model?: string;
@@ -1002,6 +1014,7 @@ export interface LLMSettings {
     presets?: Record<string, MoaPreset>;
   } & ProviderRoutingSettings;
   customProviders?: Record<string, CustomProviderConfig>;
+  providerModelRegistry?: Record<string, LLMProviderModelRegistryEntry>;
   /** Text-to-image model selection. Default tried first; backup used on failure. */
   imageGeneration?: {
     defaultProvider?: "openai" | "openai-codex" | "azure" | "openrouter" | "gemini";
@@ -1422,6 +1435,297 @@ export class LLMProviderFactory {
     }
   }
 
+  /**
+   * Match the Settings > AI & Agents “Configured models” console. Runtime
+   * defaults (for example an AWS region or the local Ollama URL) are useful
+   * connection hints, but do not mean that the user added that provider.
+   */
+  private static hasProviderSavedCredential(
+    settings: LLMSettings,
+    providerType: LLMProviderType,
+  ): boolean {
+    const resolvedProviderType = resolveCustomProviderId(providerType);
+    const customEntry = getCustomProviderEntry(resolvedProviderType);
+    const hasText = (value?: string | null): boolean => Boolean(value?.trim());
+
+    if (customEntry) {
+      const config = getCustomProviderConfig(
+        settings.customProviders,
+        resolvedProviderType,
+      );
+      return Boolean(
+        hasText(config?.apiKey) ||
+          (hasText(config?.baseUrl) && hasText(config?.model)),
+      );
+    }
+
+    switch (resolvedProviderType) {
+      case "anthropic":
+        return Boolean(resolveAnthropicCredential(settings.anthropic));
+      case "openrouter":
+        return hasText(settings.openrouter?.apiKey);
+      case "openai":
+        return Boolean(
+          hasText(settings.openai?.apiKey) ||
+            hasText(settings.openai?.accessToken) ||
+            hasText(settings.openai?.refreshToken),
+        );
+      case "gemini":
+        return hasText(settings.gemini?.apiKey);
+      case "deepseek":
+        return hasText(settings.deepseek?.apiKey);
+      case "kimi":
+        return hasText(settings.kimi?.apiKey);
+      case "groq":
+        return hasText(settings.groq?.apiKey);
+      case "xai":
+      case "xai-oauth":
+        return Boolean(
+          hasText(settings.xai?.apiKey) ||
+            (hasText(settings.xai?.accessToken) &&
+              hasText(settings.xai?.refreshToken)),
+        );
+      case "azure":
+        return Boolean(
+          hasText(settings.azure?.apiKey) && hasText(settings.azure?.endpoint),
+        );
+      case "azure-anthropic":
+        return Boolean(
+          hasText(settings.azureAnthropic?.apiKey) &&
+            hasText(settings.azureAnthropic?.endpoint),
+        );
+      case "bedrock":
+        return Boolean(
+          (hasText(settings.bedrock?.accessKeyId) &&
+            hasText(settings.bedrock?.secretAccessKey)) ||
+            hasText(settings.bedrock?.profile),
+        );
+      case "ollama":
+        return Boolean(
+          hasText(settings.ollama?.baseUrl) && hasText(settings.ollama?.model),
+        );
+      case "pi":
+        return Boolean(
+          hasText(settings.pi?.apiKey) && hasText(settings.pi?.provider),
+        );
+      case "openai-compatible":
+        return Boolean(
+          hasText(settings.openaiCompatible?.baseUrl) &&
+            hasText(settings.openaiCompatible?.model),
+        );
+      case "moa":
+        return this.getEnabledMoaPresets(settings).some((preset) =>
+          this.isMoaPresetConfigured(settings, preset),
+        );
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * A provider belongs in the chat picker only after the user has selected at
+   * least one model for it. Credentials, default regions, and default local
+   * URLs alone do not make a provider visible in the model console.
+   */
+  private static hasConfiguredProviderModels(
+    settings: LLMSettings,
+    providerType: LLMProviderType,
+  ): boolean {
+    const resolvedProviderType = resolveCustomProviderId(providerType);
+    const registry = settings.providerModelRegistry?.[resolvedProviderType];
+    if (registry) {
+      return (registry.models || []).some(
+        (model) => model.trim() && registry.enabled?.[model] !== false,
+      );
+    }
+
+    const customEntry = getCustomProviderEntry(resolvedProviderType);
+    if (customEntry) {
+      return Boolean(
+        getCustomProviderConfig(settings.customProviders, resolvedProviderType)
+          ?.model?.trim(),
+      );
+    }
+
+    switch (resolvedProviderType) {
+      case "anthropic":
+        // `modelKey` is a legacy global field whose default is a Claude model.
+        // It is therefore not evidence that the user added Claude. Without an
+        // explicit registry entry, only keep a legacy Anthropic setup while it
+        // is still the selected provider. A credential or discovery cache can
+        // remain after Claude was removed and must not resurrect its menu.
+        return Boolean(
+          settings.providerType === "anthropic" && settings.modelKey?.trim(),
+        );
+      case "bedrock":
+        return Boolean(settings.bedrock?.model?.trim());
+      case "ollama":
+        return Boolean(settings.ollama?.model?.trim());
+      case "gemini":
+        return Boolean(settings.gemini?.model?.trim());
+      case "openrouter":
+        return Boolean(settings.openrouter?.model?.trim());
+      case "deepseek":
+        return Boolean(settings.deepseek?.model?.trim());
+      case "openai":
+        return Boolean(settings.openai?.model?.trim());
+      case "azure":
+        return Boolean(settings.azure?.deployment?.trim());
+      case "azure-anthropic":
+        return Boolean(settings.azureAnthropic?.deployment?.trim());
+      case "groq":
+        return Boolean(settings.groq?.model?.trim());
+      case "xai":
+      case "xai-oauth":
+        return Boolean(settings.xai?.model?.trim());
+      case "kimi":
+        return Boolean(settings.kimi?.model?.trim());
+      case "pi":
+        return Boolean(settings.pi?.model?.trim());
+      case "openai-compatible":
+        return Boolean(settings.openaiCompatible?.model?.trim());
+      case "moa":
+        return this.getEnabledMoaPresets(settings).some((preset) =>
+          this.isMoaPresetConfigured(settings, preset),
+        );
+      default:
+        return false;
+    }
+  }
+
+  private static getRegisteredProviderModelKeys(
+    settings: LLMSettings,
+    providerType: LLMProviderType,
+    currentModel: string,
+  ): string[] {
+    const registryKey = resolveCustomProviderId(providerType);
+    const registry = settings.providerModelRegistry?.[registryKey];
+    const deploymentModels =
+      registryKey === "azure"
+        ? [
+            settings.azure?.deployment,
+            ...(settings.azure?.deployments || []),
+          ]
+        : registryKey === "azure-anthropic"
+          ? [
+              settings.azureAnthropic?.deployment,
+              ...(settings.azureAnthropic?.deployments || []),
+            ]
+          : [];
+    const seen = new Set<string>();
+
+    return [
+      currentModel,
+      ...(registry?.models || []),
+      ...deploymentModels,
+    ].reduce<string[]>((models, value) => {
+      const model = value?.trim();
+      if (!model || seen.has(model)) return models;
+      seen.add(model);
+      models.push(model);
+      return models;
+    }, []);
+  }
+
+  /**
+   * Return exactly the configured, enabled models shown in the model settings
+   * console. This is the model selector/runtime source of truth.
+   */
+  static getSelectableProviderModelStatus(
+    settings: LLMSettings,
+    providerType: LLMProviderType,
+  ): {
+    currentModel: string;
+    models: CachedModelInfo[];
+  } {
+    const providerSettings = {
+      ...settings,
+      providerType,
+    };
+    const rawStatus = this.getProviderModelStatus(providerSettings);
+    const registryKey = resolveCustomProviderId(providerType);
+    const registry = settings.providerModelRegistry?.[registryKey];
+    const hasExplicitDeployments =
+      (registryKey === "azure" &&
+        Boolean(
+          settings.azure?.deployment ||
+            settings.azure?.deployments?.length,
+        )) ||
+      (registryKey === "azure-anthropic" &&
+        Boolean(
+          settings.azureAnthropic?.deployment ||
+            settings.azureAnthropic?.deployments?.length,
+        ));
+
+    // Kimi installations created before the configured-model registry already
+    // have one explicit model in `settings.kimi.model`. Do not turn the whole
+    // built-in discovery catalog into "configured" models in the chat picker.
+    // The settings console can still add more models and will then create the
+    // authoritative registry entry below.
+    if (!registry && !hasExplicitDeployments) {
+      if (registryKey === "kimi" && rawStatus.currentModel) {
+        const currentModel =
+          rawStatus.models.find(
+            (model) => model.key === rawStatus.currentModel,
+          ) || {
+            key: rawStatus.currentModel,
+            displayName: rawStatus.currentModel,
+            description: "Configured model",
+          };
+        return {
+          currentModel: rawStatus.currentModel,
+          models: [currentModel],
+        };
+      }
+      return rawStatus;
+    }
+
+    const enabledMap = registry?.enabled;
+    const configuredKeys = this.getRegisteredProviderModelKeys(
+      settings,
+      providerType,
+      rawStatus.currentModel,
+    );
+    const enabledKeys = configuredKeys.filter(
+      (modelKey) => enabledMap?.[modelKey] !== false,
+    );
+    const rawModelsByKey = new Map(
+      rawStatus.models.map((model) => [model.key, model]),
+    );
+    const models = enabledKeys.map(
+      (modelKey) =>
+        rawModelsByKey.get(modelKey) || {
+          key: modelKey,
+          displayName: modelKey,
+          description: "Configured model",
+        },
+    );
+    const currentModel = enabledKeys.includes(rawStatus.currentModel)
+      ? rawStatus.currentModel
+      : enabledKeys[0] || "";
+
+    return { currentModel, models };
+  }
+
+  private static getEffectiveProviderType(
+    settings: LLMSettings,
+  ): LLMProviderType {
+    const currentProvider = settings.providerType;
+    if (
+      this.isProviderConfigured(settings, currentProvider) &&
+      this.hasConfiguredProviderModels(settings, currentProvider) &&
+      this.getSelectableProviderModelStatus(settings, currentProvider).models
+        .length > 0
+    ) {
+      return currentProvider;
+    }
+
+    return (
+      this.getAvailableProviders().find((provider) => provider.configured)
+        ?.type || currentProvider
+    );
+  }
+
   private static getProviderRoutingSettingsNode(
     settings: LLMSettings,
     providerType: LLMProviderType,
@@ -1768,9 +2072,11 @@ export class LLMProviderFactory {
     },
   ): ResolvedTaskModelSelection {
     const settings = this.loadSettings();
-    const providerType = (options?.allowProviderOverride
-      ? taskAgentConfig?.providerType || settings.providerType
-      : settings.providerType) as LLMProviderType;
+    const hasExplicitProviderOverride =
+      options?.allowProviderOverride && Boolean(taskAgentConfig?.providerType);
+    const providerType = (hasExplicitProviderOverride
+      ? taskAgentConfig?.providerType
+      : this.getEffectiveProviderType(settings)) as LLMProviderType;
     const routing = this.getProviderRoutingSettings(settings, providerType);
     const warnings: string[] = [];
 
@@ -1834,11 +2140,28 @@ export class LLMProviderFactory {
     }
 
     if (!resolvedModelKey) {
-      resolvedModelKey = this.getProviderDefaultModelKey(
+      resolvedModelKey =
+        this.getSelectableProviderModelStatus(settings, providerType)
+          .currentModel ||
+        this.getProviderDefaultModelKey(settings, providerType);
+      modelSource = "provider_default";
+    }
+
+    if (modelSource !== "explicit_override") {
+      const selectableStatus = this.getSelectableProviderModelStatus(
         settings,
         providerType,
       );
-      modelSource = "provider_default";
+      if (
+        selectableStatus.models.length > 0 &&
+        !selectableStatus.models.some((model) => model.key === resolvedModelKey)
+      ) {
+        warnings.push(
+          `[LLMProviderFactory] Model "${resolvedModelKey}" is disabled for provider "${providerType}". Using "${selectableStatus.currentModel}".`,
+        );
+        resolvedModelKey = selectableStatus.currentModel;
+        modelSource = "provider_default";
+      }
     }
 
     if (providerType === "anthropic") {
@@ -1909,10 +2232,6 @@ export class LLMProviderFactory {
       requiresImageInput?: boolean;
     },
   ): ResolvedTaskModelSelection[] {
-    if (taskAgentConfig?.providerType || taskAgentConfig?.modelKey) {
-      return [primarySelection];
-    }
-
     const settings = this.loadSettings();
     const chain: ResolvedTaskModelSelection[] = [primarySelection];
     const seen = new Set<string>([
@@ -2397,6 +2716,9 @@ export class LLMProviderFactory {
       piApiKey:
         normalizeSecret(overrideConfig?.piApiKey) || settings.pi?.apiKey,
       // OpenAI-compatible config - from settings only
+      openaiCompatibleDisplayName:
+        overrideConfig?.openaiCompatibleDisplayName ||
+        settings.openaiCompatible?.displayName,
       openaiCompatibleApiKey:
         normalizeSecret(overrideConfig?.openaiCompatibleApiKey) ||
         settings.openaiCompatible?.apiKey,
@@ -2479,7 +2801,8 @@ export class LLMProviderFactory {
           : OpenAICompatibleProvider;
         provider = new ProviderClass({
           type: "openai-compatible",
-          providerName: "OpenAI-Compatible",
+          providerName:
+            config.openaiCompatibleDisplayName || "OpenAI-Compatible",
           apiKey: config.openaiCompatibleApiKey || "",
           baseUrl,
           defaultModel: config.model,
@@ -2582,7 +2905,7 @@ export class LLMProviderFactory {
 
     // For Kimi, use the specific model if provided or default
     if (providerType === "kimi") {
-      return kimiModel || "kimi-k2.5";
+      return kimiModel || "kimi-k3";
     }
 
     // For Pi, use the specific model from settings
@@ -2673,6 +2996,10 @@ export class LLMProviderFactory {
     configured: boolean;
   }> {
     const settings = this.loadSettings();
+    const openaiCompatibleDisplayName =
+      settings.openaiCompatible?.displayName?.trim() ||
+      settings.openaiCompatible?.model?.trim() ||
+      "OpenAI-Compatible";
 
     const builtIns = [
       {
@@ -2766,7 +3093,7 @@ export class LLMProviderFactory {
       },
       {
         type: "openai-compatible" as LLMProviderType,
-        name: "OpenAI-Compatible",
+        name: openaiCompatibleDisplayName,
         configured: !!(
           settings.openaiCompatible?.baseUrl && settings.openaiCompatible?.model
         ),
@@ -2787,7 +3114,14 @@ export class LLMProviderFactory {
       },
     );
 
-    return [...builtIns, ...customProviders];
+    return [...builtIns, ...customProviders].map((provider) => ({
+      ...provider,
+      configured:
+        this.hasProviderSavedCredential(settings, provider.type) &&
+        this.hasConfiguredProviderModels(settings, provider.type) &&
+        this.getSelectableProviderModelStatus(settings, provider.type).models
+          .length > 0,
+    }));
   }
 
   /**
@@ -2838,22 +3172,40 @@ export class LLMProviderFactory {
     };
   } {
     const settings = this.loadSettings();
-    const modelStatus = this.getProviderModelStatus(settings);
+    const providers = this.getAvailableProviders();
+    const configuredProvider =
+      providers.find(
+        (provider) =>
+          provider.type === settings.providerType && provider.configured,
+      ) || providers.find((provider) => provider.configured);
+    const providerCatalogAvailable = providers.length > 0;
+    const currentProvider = configuredProvider
+      ? configuredProvider.type
+      : providerCatalogAvailable
+        ? settings.providerType
+        : this.getEffectiveProviderType(settings);
+    // A saved default provider/model is only a routing preference. It must not
+    // be exposed to the UI as an available model until a provider has real
+    // credentials and at least one configured model.
+    const modelStatus =
+      providerCatalogAvailable && !configuredProvider
+        ? { currentModel: "", models: [] }
+        : this.getSelectableProviderModelStatus(settings, currentProvider);
     const routingSettings = this.getProviderRoutingSettings(
       settings,
-      settings.providerType,
+      currentProvider,
     );
     const currentModel = modelStatus.currentModel;
     return {
-      currentProvider: settings.providerType,
+      currentProvider,
       currentModel,
       currentReasoningEffort: routingSettings.reasoningEffort,
-      providers: this.getAvailableProviders(),
+      providers,
       models: modelStatus.models,
       routing: {
-        currentProvider: settings.providerType,
+        currentProvider,
         currentModel,
-        activeProvider: settings.providerType,
+        activeProvider: currentProvider,
         activeModel: currentModel,
         routeReason: routingSettings.profileRoutingEnabled
           ? "profile_routing"
@@ -3254,7 +3606,7 @@ export class LLMProviderFactory {
       }
 
       case "kimi": {
-        const currentModel = settings.kimi?.model || "kimi-k2.5";
+        const currentModel = settings.kimi?.model || "kimi-k3";
         const modelList =
           settings.cachedKimiModels && settings.cachedKimiModels.length > 0
             ? settings.cachedKimiModels
@@ -3293,16 +3645,32 @@ export class LLMProviderFactory {
 
       case "openai-compatible": {
         const currentModel = settings.openaiCompatible?.model || "";
+        const providerName =
+          settings.openaiCompatible?.displayName?.trim() ||
+          settings.openaiCompatible?.model?.trim() ||
+          "OpenAI-compatible";
+        const providerModelDescription = `${providerName} model`;
         const modelList =
           settings.cachedOpenAICompatibleModels &&
           settings.cachedOpenAICompatibleModels.length > 0
-            ? settings.cachedOpenAICompatibleModels
+            ? settings.cachedOpenAICompatibleModels.map((model) => ({
+                ...model,
+                // Cached entries from the old generic provider must not keep
+                // showing “OpenAI-Compatible model” after a user names the
+                // provider (for example, “积算平台”).
+                description:
+                  /^openai[-\s]?compatible model$/i.test(
+                    model.description?.trim() || "",
+                  )
+                    ? providerModelDescription
+                    : model.description || providerModelDescription,
+              }))
             : currentModel
               ? [
                   {
                     key: currentModel,
                     displayName: currentModel,
-                    description: "OpenAI-compatible model",
+                    description: providerModelDescription,
                   },
                 ]
               : [];
@@ -3562,8 +3930,15 @@ export class LLMProviderFactory {
    */
   static async testProvider(
     config: LLMProviderConfig,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<KimiConnectionResult> {
     try {
+      if (config.type === "kimi") {
+        return await this.connectKimi(
+          config.kimiApiKey,
+          config.kimiBaseUrl,
+          config.model,
+        );
+      }
       const provider = this.createProviderFromConfig(config);
       return await provider.testConnection();
     } catch (error: Any) {
@@ -4337,6 +4712,100 @@ export class LLMProviderFactory {
   }
 
   /**
+   * Connect Kimi without asking the user to choose between the China and
+   * international API endpoints. Official endpoints are tried automatically;
+   * an explicit custom endpoint remains opt-in and is never replaced.
+   */
+  static async connectKimi(
+    apiKey?: string,
+    baseUrl?: string,
+    preferredModel?: string,
+  ): Promise<KimiConnectionResult> {
+    const key = normalizeKimiApiKey(apiKey);
+    if (!key) {
+      return {
+        success: false,
+        errorCode: "missing_key",
+        error: "Paste your Kimi API key to continue.",
+      };
+    }
+
+    let sawAuthenticationFailure = false;
+    let sawNetworkFailure = false;
+    let sawEmptyModelList = false;
+
+    for (const candidate of getKimiEndpointCandidates(baseUrl)) {
+      const resolvedBaseUrl = normalizeKimiBaseUrl(candidate);
+      try {
+        const response = await fetch(`${resolvedBaseUrl}/models`, {
+          headers: { Authorization: `Bearer ${key}` },
+          signal: AbortSignal.timeout(15_000),
+        });
+
+        if (response.status === 401 || response.status === 403) {
+          sawAuthenticationFailure = true;
+          continue;
+        }
+        if (!response.ok) continue;
+
+        const payload = (await response.json().catch(() => ({}))) as {
+          data?: Array<{ id?: unknown }>;
+        };
+        const models = (payload.data || [])
+          .map((model) =>
+            typeof model.id === "string" && model.id.trim()
+              ? { id: model.id.trim(), name: model.id.trim() }
+              : null,
+          )
+          .filter(
+            (model): model is { id: string; name: string } => model !== null,
+          );
+
+        if (models.length === 0) {
+          sawEmptyModelList = true;
+          continue;
+        }
+
+        return {
+          success: true,
+          resolvedBaseUrl,
+          resolvedModel: selectPreferredKimiModel(models, preferredModel),
+          models,
+        };
+      } catch {
+        sawNetworkFailure = true;
+      }
+    }
+
+    if (sawAuthenticationFailure) {
+      return {
+        success: false,
+        errorCode: "invalid_key",
+        error: "This Kimi API key could not be verified.",
+      };
+    }
+    if (sawEmptyModelList) {
+      return {
+        success: false,
+        errorCode: "no_models",
+        error: "Kimi did not return any available models.",
+      };
+    }
+    if (sawNetworkFailure) {
+      return {
+        success: false,
+        errorCode: "network",
+        error: "NeoWorker could not reach Kimi.",
+      };
+    }
+    return {
+      success: false,
+      errorCode: "unknown",
+      error: "Kimi is temporarily unavailable.",
+    };
+  }
+
+  /**
    * Fetch available Kimi models from the API
    */
   static async getKimiModels(
@@ -4344,12 +4813,13 @@ export class LLMProviderFactory {
     baseUrl?: string,
   ): Promise<Array<{ id: string; name: string }>> {
     const settings = this.loadSettings();
-    const normalizedApiKey = apiKey?.trim() || undefined;
+    const normalizedApiKey = normalizeKimiApiKey(apiKey) || undefined;
     const key = normalizedApiKey || settings.kimi?.apiKey;
     const normalizedBaseUrl = baseUrl?.trim() || undefined;
     const resolvedBaseUrl = normalizedBaseUrl || settings.kimi?.baseUrl;
 
     const defaultModels = [
+      { id: "kimi-k3", name: "Kimi K3" },
       { id: "kimi-k2.5", name: "Kimi K2.5" },
       { id: "kimi-k2-0905-preview", name: "Kimi K2.5 Preview" },
       { id: "kimi-k2-turbo-preview", name: "Kimi K2 Turbo (Preview)" },
@@ -4361,25 +4831,13 @@ export class LLMProviderFactory {
       return defaultModels;
     }
 
-    try {
-      const provider = new KimiProvider({
-        type: "kimi",
-        model: "",
-        kimiApiKey: key,
-        kimiBaseUrl: resolvedBaseUrl,
-      });
-      return await provider.getAvailableModels();
-    } catch (error: Any) {
-      console.error("Failed to fetch Kimi models:", error);
-      return defaultModels;
-    }
+    const connection = await this.connectKimi(key, resolvedBaseUrl);
+    if (connection.success && connection.models) return connection.models;
+    throw new Error(connection.error || "Failed to connect to Kimi");
   }
 
   /**
    * Fetch available DeepSeek models from the API.
-   *
-   * Only deepseek-chat is exposed for agentic routes until the adapter supports
-   * DeepSeek thinking-mode reasoning_content replay across tool continuations.
    */
   static async getDeepSeekModels(
     apiKey?: string,
@@ -4405,9 +4863,14 @@ export class LLMProviderFactory {
         deepseekBaseUrl: resolvedBaseUrl,
       });
       const models = await provider.getAvailableModels();
-      const supported = new Set(defaultModels.map((model) => model.id));
-      const filtered = models.filter((model) => supported.has(model.id));
-      return filtered.length > 0 ? filtered : defaultModels;
+      const seen = new Set<string>();
+      const availableModels = models.filter((model) => {
+        const id = model.id?.trim();
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+      return availableModels.length > 0 ? availableModels : defaultModels;
     } catch (error: Any) {
       console.error("Failed to fetch DeepSeek models:", error);
       return defaultModels;

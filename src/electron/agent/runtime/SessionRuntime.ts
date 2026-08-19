@@ -33,7 +33,11 @@ import type {
   PromptCacheProviderFamily,
   StreamProgressCallback,
 } from "../llm";
-import { estimateTokens, estimateTotalTokens, type ContextManager } from "../context-manager";
+import {
+  estimateTokens,
+  estimateTotalTokens,
+  type ContextManager,
+} from "../context-manager";
 import { calculateCost } from "../llm/pricing";
 import { sanitizeToolCallHistory } from "../llm/openai-compatible";
 import {
@@ -42,6 +46,7 @@ import {
   isContextCapacityError,
 } from "../executor-helpers";
 import { requestLLMResponseWithAdaptiveBudget as requestLLMResponseWithAdaptiveBudgetUtil } from "../executor-llm-turn-utils";
+import { getExplicitArtifactToolNames } from "../executor-completion-utils";
 import { filterToolsByPolicy } from "../tool-policy-engine";
 import { DeferredToolCatalog } from "./DeferredToolCatalog";
 import { ToolSearchService } from "./ToolSearchService";
@@ -152,7 +157,11 @@ export interface SessionRuntimeSnapshotV2 {
     }>;
   };
   tooling: {
-    toolResultMemory: Array<{ tool: string; summary: string; timestamp: number }>;
+    toolResultMemory: Array<{
+      tool: string;
+      summary: string;
+      timestamp: number;
+    }>;
     webEvidenceMemory: WebEvidenceEntry[];
     toolUsageCounts: Array<[string, number]>;
     successfulToolUsageCounts: Array<[string, number]>;
@@ -202,13 +211,11 @@ export interface SessionRuntimeSnapshotV2 {
   };
   queues: {
     pendingFollowUps: TaskFollowUpInput[];
-    stepFeedbackSignal:
-      | {
-          stepId: string;
-          action: "retry" | "skip" | "stop" | "drift";
-          message?: string;
-        }
-      | null;
+    stepFeedbackSignal: {
+      stepId: string;
+      action: "retry" | "skip" | "stop" | "drift";
+      message?: string;
+    } | null;
   };
   skills: {
     pendingParameterCollection: PendingSkillParameterCollection | null;
@@ -267,7 +274,11 @@ export interface SessionRuntimeState {
   };
   tooling: {
     toolFailureTracker: ToolFailureTracker;
-    toolResultMemory: Array<{ tool: string; summary: string; timestamp: number }>;
+    toolResultMemory: Array<{
+      tool: string;
+      summary: string;
+      timestamp: number;
+    }>;
     webEvidenceMemory: WebEvidenceEntry[];
     toolUsageCounts: Map<string, number>;
     successfulToolUsageCounts: Map<string, number>;
@@ -276,15 +287,13 @@ export interface SessionRuntimeState {
     discoveredDeferredToolNames: Set<string>;
     availableToolsCacheKey: string | null;
     availableToolsCache: Any[] | null;
-    lastWebFetchFailure:
-      | {
-          timestamp: number;
-          tool: "web_fetch" | "http_request";
-          url?: string;
-          error?: string;
-          status?: number;
-        }
-      | null;
+    lastWebFetchFailure: {
+      timestamp: number;
+      tool: "web_fetch" | "http_request";
+      url?: string;
+      error?: string;
+      status?: number;
+    } | null;
   };
   files: {
     fileOperationTracker: FileOperationTracker;
@@ -329,13 +338,11 @@ export interface SessionRuntimeState {
   };
   queues: {
     pendingFollowUps: TaskFollowUpInput[];
-    stepFeedbackSignal:
-      | {
-          stepId: string;
-          action: "retry" | "skip" | "stop" | "drift";
-          message?: string;
-        }
-      | null;
+    stepFeedbackSignal: {
+      stepId: string;
+      action: "retry" | "skip" | "stop" | "drift";
+      message?: string;
+    } | null;
   };
   skills: {
     pendingParameterCollection: PendingSkillParameterCollection | null;
@@ -406,19 +413,29 @@ export interface SessionRuntimeDeps {
   sanitizeConversationHistory: (messages: LLMMessage[]) => LLMMessage[];
   pruneStaleToolErrors: (messages: LLMMessage[]) => void;
   consolidateConsecutiveUserMessages: (messages: LLMMessage[]) => void;
-  maybeInjectTurnBudgetSoftLanding: (messages: LLMMessage[], phase: string) => void;
+  maybeInjectTurnBudgetSoftLanding: (
+    messages: LLMMessage[],
+    phase: string,
+  ) => void;
   checkBudgets: () => void;
   buildUserProfileBlock: (maxLines: number) => string;
   upsertPinnedUserBlock: (messages: LLMMessage[], opts: Any) => void;
   removePinnedUserBlock: (messages: LLMMessage[], tag: string) => void;
   computeSharedContextKey: () => string;
   buildSharedContextBlock: () => string;
-  buildHybridMemoryRecallBlock: (workspaceId: string, query: string) => Promise<string>;
+  buildHybridMemoryRecallBlock: (
+    workspaceId: string,
+    query: string,
+  ) => Promise<string>;
   maybePreCompactionMemoryFlush: (opts: Any) => Promise<void>;
   buildCompactionSummaryBlock: (opts: Any) => Promise<string>;
   truncateSummaryBlock: (summary: string, maxTokens: number) => string;
   flushCompactionSummaryToMemory: (opts: Any) => Promise<void>;
-  extractPinnedBlockContent: (summary: string, openTag: string, closeTag: string) => string;
+  extractPinnedBlockContent: (
+    summary: string,
+    openTag: string,
+    closeTag: string,
+  ) => string;
   emitEvent: (type: string, payload: Any) => void;
   resolveLLMMaxTokens: (opts: {
     messages: LLMMessage[];
@@ -437,8 +454,15 @@ export interface SessionRuntimeDeps {
     hasTools: boolean,
     maxTokensBudget: number,
   ) => number;
-  callLLMWithRetry: (requestFn: (attempt: number) => Promise<Any>, operation: string) => Promise<Any>;
-  createMessageWithTimeout: (request: Any, timeoutMs: number, operation: string) => Promise<Any>;
+  callLLMWithRetry: (
+    requestFn: (attempt: number) => Promise<Any>,
+    operation: string,
+  ) => Promise<Any>;
+  createMessageWithTimeout: (
+    request: Any,
+    timeoutMs: number,
+    operation: string,
+  ) => Promise<Any>;
   log: (message: string) => void;
   getTaskEvents: () => TaskEvent[];
   getReplayEventType: (event: TaskEvent) => string;
@@ -465,7 +489,8 @@ export interface SessionRuntimeDeps {
   getMaxAutoContinuations: () => number;
   getMaxLifetimeTurns: () => number;
   getGlobalNoProgressCircuitBreaker: () => number;
-  getEffectiveExecutionMode: () => NonNullable<Task["agentConfig"]>["executionMode"] | undefined;
+  getEffectiveExecutionMode: () =>
+    NonNullable<Task["agentConfig"]>["executionMode"] | undefined;
   getWindowEventsSinceLastReset: () => Any[];
   getRenderedContextRatio: () => number;
   hasWindowMutationEvidence: (events: Any[]) => boolean;
@@ -494,7 +519,10 @@ export interface SessionRuntimeTextLoopInput {
   onStreamProgress?: StreamProgressCallback;
 }
 
-export interface SessionRuntimePreparedTurnInput extends Omit<TurnKernelInput, "mode"> {
+export interface SessionRuntimePreparedTurnInput extends Omit<
+  TurnKernelInput,
+  "mode"
+> {
   mode: "step" | "follow_up";
   policy: TurnKernelPolicy;
 }
@@ -509,20 +537,26 @@ export class SessionRuntime {
     readonly state: SessionRuntimeState,
   ) {}
 
-  createTaskList(items: SessionChecklistToolItemInput[]): SessionChecklistState {
+  createTaskList(
+    items: SessionChecklistToolItemInput[],
+  ): SessionChecklistState {
     if (this.state.checklist.items.length > 0) {
       const existingBySignature = new Map(
-        this.state.checklist.items.map((item) => [
-          `${item.title.toLowerCase()}\u0000${item.kind}`,
-          item.id,
-        ] as const),
+        this.state.checklist.items.map(
+          (item) =>
+            [`${item.title.toLowerCase()}\u0000${item.kind}`, item.id] as const,
+        ),
       );
       const mergedItems = (Array.isArray(items) ? items : []).map((item) => {
         const explicitId = String(item?.id || "").trim();
         if (explicitId) return item;
-        const title = String(item?.title || "").trim().toLowerCase();
+        const title = String(item?.title || "")
+          .trim()
+          .toLowerCase();
         const kind: SessionChecklistItem["kind"] =
-          item?.kind === "verification" || item?.kind === "other" || item?.kind === "implementation"
+          item?.kind === "verification" ||
+          item?.kind === "other" ||
+          item?.kind === "implementation"
             ? item.kind
             : "implementation";
         const existingId = existingBySignature.get(`${title}\u0000${kind}`);
@@ -533,9 +567,13 @@ export class SessionRuntime {
     return this.applyTaskListState(items, "task_list_created");
   }
 
-  updateTaskList(items: SessionChecklistToolItemInput[]): SessionChecklistState {
+  updateTaskList(
+    items: SessionChecklistToolItemInput[],
+  ): SessionChecklistState {
     if (this.state.checklist.items.length === 0) {
-      throw new Error("task_list_update failed: no session checklist exists yet.");
+      throw new Error(
+        "task_list_update failed: no session checklist exists yet.",
+      );
     }
     return this.applyTaskListState(items, "task_list_updated");
   }
@@ -550,7 +588,10 @@ export class SessionRuntime {
   }
 
   clearTaskListVerificationNudge(): void {
-    if (!this.state.checklist.verificationNudgeNeeded && !this.taskListVerificationReminderPending) {
+    if (
+      !this.state.checklist.verificationNudgeNeeded &&
+      !this.taskListVerificationReminderPending
+    ) {
       return;
     }
     this.state.checklist.verificationNudgeNeeded = false;
@@ -559,7 +600,9 @@ export class SessionRuntime {
     this.taskListVerificationReminderPending = false;
   }
 
-  runStepLoop(input: SessionRuntimePreparedTurnInput): Promise<TurnKernelOutcome> {
+  runStepLoop(
+    input: SessionRuntimePreparedTurnInput,
+  ): Promise<TurnKernelOutcome> {
     return new TurnKernel(
       {
         mode: "step",
@@ -574,7 +617,9 @@ export class SessionRuntime {
     ).run();
   }
 
-  runFollowUpLoop(input: SessionRuntimePreparedTurnInput): Promise<TurnKernelOutcome> {
+  runFollowUpLoop(
+    input: SessionRuntimePreparedTurnInput,
+  ): Promise<TurnKernelOutcome> {
     return new TurnKernel(
       {
         mode: "follow_up",
@@ -613,7 +658,9 @@ export class SessionRuntime {
                   ...messages,
                   {
                     role: "assistant" as const,
-                    content: [{ type: "text" as const, text: continuationPrefix }],
+                    content: [
+                      { type: "text" as const, text: continuationPrefix },
+                    ],
                   },
                 ]
               : messages;
@@ -635,7 +682,9 @@ export class SessionRuntime {
                   system: opts.systemPrompt,
                   messages: requestMessages,
                   ...promptCacheExtras,
-                  ...(opts.onStreamProgress ? { onStreamProgress: opts.onStreamProgress } : {}),
+                  ...(opts.onStreamProgress
+                    ? { onStreamProgress: opts.onStreamProgress }
+                    : {}),
                 },
                 120_000,
                 continuationPrefix.trim().length > 0
@@ -672,7 +721,9 @@ export class SessionRuntime {
             return { continueLoop: true, emptyResponseCount: 0 };
           }
 
-          assistantText = String(`${continuationPrefix}${text || ""}`).trim() || opts.emptyFallback;
+          assistantText =
+            String(`${continuationPrefix}${text || ""}`).trim() ||
+            opts.emptyFallback;
           messages = [
             ...messages,
             {
@@ -729,50 +780,64 @@ export class SessionRuntime {
     }
 
     const seenIds = new Set<string>();
-    const existingById = new Map(this.state.checklist.items.map((item) => [item.id, item] as const));
+    const existingById = new Map(
+      this.state.checklist.items.map((item) => [item.id, item] as const),
+    );
     let inProgressCount = 0;
     const now = Date.now();
 
-    return rawItems.map((rawItem, index) => {
-      const title = String(rawItem?.title || "").trim();
-      if (!title) {
-        throw new Error(`Checklist item ${index + 1} is missing a title.`);
-      }
+    return rawItems
+      .map((rawItem, index) => {
+        const title = String(rawItem?.title || "").trim();
+        if (!title) {
+          throw new Error(`Checklist item ${index + 1} is missing a title.`);
+        }
 
-      const status = String(rawItem?.status || "").trim() as SessionChecklistItem["status"];
-      if (!["pending", "in_progress", "completed", "blocked"].includes(status)) {
-        throw new Error(`Checklist item "${title}" has an invalid status.`);
-      }
-      if (status === "in_progress") {
-        inProgressCount += 1;
-      }
+        const status = String(
+          rawItem?.status || "",
+        ).trim() as SessionChecklistItem["status"];
+        if (
+          !["pending", "in_progress", "completed", "blocked"].includes(status)
+        ) {
+          throw new Error(`Checklist item "${title}" has an invalid status.`);
+        }
+        if (status === "in_progress") {
+          inProgressCount += 1;
+        }
 
-      const kind = (rawItem?.kind || "implementation") as SessionChecklistItem["kind"];
-      if (!["implementation", "verification", "other"].includes(kind)) {
-        throw new Error(`Checklist item "${title}" has an invalid kind.`);
-      }
+        const kind = (rawItem?.kind ||
+          "implementation") as SessionChecklistItem["kind"];
+        if (!["implementation", "verification", "other"].includes(kind)) {
+          throw new Error(`Checklist item "${title}" has an invalid kind.`);
+        }
 
-      const normalizedId = String(rawItem?.id || "").trim() || `task_item_${randomUUID()}`;
-      if (seenIds.has(normalizedId)) {
-        throw new Error(`Checklist contains duplicate item id "${normalizedId}".`);
-      }
-      seenIds.add(normalizedId);
+        const normalizedId =
+          String(rawItem?.id || "").trim() || `task_item_${randomUUID()}`;
+        if (seenIds.has(normalizedId)) {
+          throw new Error(
+            `Checklist contains duplicate item id "${normalizedId}".`,
+          );
+        }
+        seenIds.add(normalizedId);
 
-      const existing = existingById.get(normalizedId);
-      return {
-        id: normalizedId,
-        title,
-        kind,
-        status,
-        createdAt: existing?.createdAt ?? now,
-        updatedAt: now,
-      };
-    }).map((item, index, list) => {
-      if (index === list.length - 1 && inProgressCount > 1) {
-        throw new Error("Session checklist may contain at most one item with status in_progress.");
-      }
-      return item;
-    });
+        const existing = existingById.get(normalizedId);
+        return {
+          id: normalizedId,
+          title,
+          kind,
+          status,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        };
+      })
+      .map((item, index, list) => {
+        if (index === list.length - 1 && inProgressCount > 1) {
+          throw new Error(
+            "Session checklist may contain at most one item with status in_progress.",
+          );
+        }
+        return item;
+      });
   }
 
   private cloneTaskListState(): SessionChecklistState {
@@ -784,36 +849,48 @@ export class SessionRuntime {
     };
   }
 
-  private getTaskListStateFromPayload(payload: Any): SessionChecklistState | null {
+  private getTaskListStateFromPayload(
+    payload: Any,
+  ): SessionChecklistState | null {
     const checklist =
-      payload?.checklist && typeof payload.checklist === "object" ? payload.checklist : null;
+      payload?.checklist && typeof payload.checklist === "object"
+        ? payload.checklist
+        : null;
     if (!checklist || !Array.isArray(checklist.items)) {
       return null;
     }
 
     const items = checklist.items
       .map((item: Any) => this.normalizePersistedChecklistItem(item))
-      .filter((item: SessionChecklistItem | null): item is SessionChecklistItem => Boolean(item));
+      .filter(
+        (item: SessionChecklistItem | null): item is SessionChecklistItem =>
+          Boolean(item),
+      );
 
     return {
       items,
       updatedAt: Number(checklist.updatedAt || 0),
       verificationNudgeNeeded: checklist.verificationNudgeNeeded === true,
       nudgeReason:
-        typeof checklist.nudgeReason === "string" && checklist.nudgeReason.trim().length > 0
+        typeof checklist.nudgeReason === "string" &&
+        checklist.nudgeReason.trim().length > 0
           ? checklist.nudgeReason
           : null,
     };
   }
 
-  private normalizePersistedChecklistItem(item: Any): SessionChecklistItem | null {
+  private normalizePersistedChecklistItem(
+    item: Any,
+  ): SessionChecklistItem | null {
     const id = typeof item?.id === "string" ? item.id.trim() : "";
     const title = typeof item?.title === "string" ? item.title.trim() : "";
     const kind = typeof item?.kind === "string" ? item.kind : "";
     const status = typeof item?.status === "string" ? item.status : "";
     if (!id || !title) return null;
-    if (!["implementation", "verification", "other"].includes(kind)) return null;
-    if (!["pending", "in_progress", "completed", "blocked"].includes(status)) return null;
+    if (!["implementation", "verification", "other"].includes(kind))
+      return null;
+    if (!["pending", "in_progress", "completed", "blocked"].includes(status))
+      return null;
     return {
       id,
       title,
@@ -832,7 +909,8 @@ export class SessionRuntime {
       verificationNudgeNeeded: state.verificationNudgeNeeded === true,
       nudgeReason: state.nudgeReason ?? null,
     };
-    this.taskListVerificationReminderPending = this.state.checklist.verificationNudgeNeeded;
+    this.taskListVerificationReminderPending =
+      this.state.checklist.verificationNudgeNeeded;
   }
 
   private restoreTaskListStateFromEvents(events: TaskEvent[]): void {
@@ -867,7 +945,8 @@ export class SessionRuntime {
 
     const executionMode = this.deps.getEffectiveExecutionMode() || "execute";
     const coveredByExplicitVerification =
-      executionMode === "verified" || planHasVerificationStep(this.deps.getPlan());
+      executionMode === "verified" ||
+      planHasVerificationStep(this.deps.getPlan());
     if (coveredByExplicitVerification) {
       this.clearTaskListVerificationNudge();
       return;
@@ -919,7 +998,9 @@ export class SessionRuntime {
     const safeInput = Number.isFinite(inputTokens) ? inputTokens : 0;
     const safeOutput = Number.isFinite(outputTokens) ? outputTokens : 0;
     const safeCached = Number.isFinite(cachedTokens) ? cachedTokens : 0;
-    const safeCacheWrite = Number.isFinite(cacheWriteTokens) ? cacheWriteTokens : 0;
+    const safeCacheWrite = Number.isFinite(cacheWriteTokens)
+      ? cacheWriteTokens
+      : 0;
     const deltaCost = calculateCost(
       this.deps.getModelMetadata().modelId,
       safeInput,
@@ -938,7 +1019,13 @@ export class SessionRuntime {
       this.deps.updateTask({ ...this.projectTaskState() });
     }
 
-    if (safeInput > 0 || safeOutput > 0 || safeCached > 0 || safeCacheWrite > 0 || deltaCost > 0) {
+    if (
+      safeInput > 0 ||
+      safeOutput > 0 ||
+      safeCached > 0 ||
+      safeCacheWrite > 0 ||
+      deltaCost > 0
+    ) {
       const cumulativeInput = this.getCumulativeInputTokens();
       const cumulativeOutput = this.getCumulativeOutputTokens();
       const cumulativeCost = this.getCumulativeCost();
@@ -962,11 +1049,17 @@ export class SessionRuntime {
   }
 
   getCumulativeInputTokens(): number {
-    return this.state.usage.usageOffsetInputTokens + this.state.usage.totalInputTokens;
+    return (
+      this.state.usage.usageOffsetInputTokens +
+      this.state.usage.totalInputTokens
+    );
   }
 
   getCumulativeOutputTokens(): number {
-    return this.state.usage.usageOffsetOutputTokens + this.state.usage.totalOutputTokens;
+    return (
+      this.state.usage.usageOffsetOutputTokens +
+      this.state.usage.totalOutputTokens
+    );
   }
 
   getCumulativeCost(): number {
@@ -989,7 +1082,10 @@ export class SessionRuntime {
   }
 
   appendConversationHistory(message: LLMMessage): void {
-    this.updateConversationHistory([...this.state.transcript.conversationHistory, message]);
+    this.updateConversationHistory([
+      ...this.state.transcript.conversationHistory,
+      message,
+    ]);
   }
 
   queueFollowUp(
@@ -1020,16 +1116,21 @@ export class SessionRuntime {
     this.state.queues.stepFeedbackSignal = { stepId, action, message };
     if (action === "drift" && message) {
       const prefix =
-        stepId === "current" ? "[USER FEEDBACK]" : `[STEP FEEDBACK - Step "${stepId}"]`;
+        stepId === "current"
+          ? "[USER FEEDBACK]"
+          : `[STEP FEEDBACK - Step "${stepId}"]`;
       this.state.queues.pendingFollowUps.unshift({
         message: `${prefix}: ${message}`,
       });
     }
   }
 
-  consumeStepFeedback(currentStepId: string): SessionRuntimeState["queues"]["stepFeedbackSignal"] {
+  consumeStepFeedback(
+    currentStepId: string,
+  ): SessionRuntimeState["queues"]["stepFeedbackSignal"] {
     if (!this.state.queues.stepFeedbackSignal) return null;
-    if (this.state.queues.stepFeedbackSignal.stepId !== currentStepId) return null;
+    if (this.state.queues.stepFeedbackSignal.stepId !== currentStepId)
+      return null;
     const signal = this.state.queues.stepFeedbackSignal;
     this.state.queues.stepFeedbackSignal = null;
     return signal;
@@ -1054,7 +1155,9 @@ export class SessionRuntime {
   setPendingSkillParameterCollection(
     pending: PendingSkillParameterCollection | null,
   ): PendingSkillParameterCollection | null {
-    this.state.skills.pendingParameterCollection = pending ? { ...pending } : null;
+    this.state.skills.pendingParameterCollection = pending
+      ? { ...pending }
+      : null;
     return this.getPendingSkillParameterCollection();
   }
 
@@ -1111,12 +1214,15 @@ export class SessionRuntime {
     const restrictedTools = this.deps.getTaskToolRestrictions();
     const hasAllowlist = this.deps.hasTaskToolAllowlistConfigured();
     const allowedTools = this.deps.getTaskToolAllowlist();
-    const restrictedByTask = (name: string) => restrictedTools.has("*") || restrictedTools.has(name);
+    const restrictedByTask = (name: string) =>
+      restrictedTools.has("*") || restrictedTools.has(name);
     const blockedByAllowlist = (name: string) =>
       hasAllowlist && !allowedTools.has("*") && !allowedTools.has(name);
-    const disabledTools = this.state.tooling.toolFailureTracker.getDisabledTools();
+    const disabledTools =
+      this.state.tooling.toolFailureTracker.getDisabledTools();
     const cacheKey = JSON.stringify({
-      toolCatalogVersion: this.deps.getToolRegistry().getToolCatalogVersion?.() || null,
+      toolCatalogVersion:
+        this.deps.getToolRegistry().getToolCatalogVersion?.() || null,
       disabledTools,
       restrictedTools: [...restrictedTools].sort(),
       allowedTools: [...allowedTools].sort(),
@@ -1133,7 +1239,9 @@ export class SessionRuntime {
       taskPrompt: String(task.prompt || ""),
       lastUserMessage: String(this.state.transcript.lastUserMessage || ""),
       currentStepId: this.state.loop.currentStepId,
-      discoveredDeferredToolNames: Array.from(this.state.tooling.discoveredDeferredToolNames).sort(),
+      discoveredDeferredToolNames: Array.from(
+        this.state.tooling.discoveredDeferredToolNames,
+      ).sort(),
     });
     if (
       this.state.tooling.availableToolsCacheKey === renderedCacheKey &&
@@ -1152,14 +1260,20 @@ export class SessionRuntime {
       return legacyTools;
     }
     const baseTools =
-      typeof toolRegistry.getTools === "function" ? toolRegistry.getTools() : [];
+      typeof toolRegistry.getTools === "function"
+        ? toolRegistry.getTools()
+        : [];
     const deferredTools =
-      typeof toolRegistry.getDeferredTools === "function" ? toolRegistry.getDeferredTools() : [];
+      typeof toolRegistry.getDeferredTools === "function"
+        ? toolRegistry.getDeferredTools()
+        : [];
 
     this.deferredToolCatalog = new DeferredToolCatalog(baseTools);
     this.toolSearchService = new ToolSearchService(deferredTools);
     const deferredMatches = this.toolSearchService.search(
-      [task.title, task.prompt, this.state.transcript.lastUserMessage].filter(Boolean).join(" "),
+      [task.title, task.prompt, this.state.transcript.lastUserMessage]
+        .filter(Boolean)
+        .join(" "),
       8,
     );
     const deferredMatchNames = new Set([
@@ -1170,25 +1284,84 @@ export class SessionRuntime {
       .getAll()
       .filter(
         (entry) =>
-          !entry.deferred || entry.tool.runtime?.alwaysExpose || deferredMatchNames.has(entry.tool.name),
+          !entry.deferred ||
+          entry.tool.runtime?.alwaysExpose ||
+          deferredMatchNames.has(entry.tool.name),
       )
       .map((entry) => entry.tool);
+    const explicitArtifactToolNames = new Set(
+      getExplicitArtifactToolNames(
+        String(task.title || ""),
+        [task.prompt, this.state.transcript.lastUserMessage]
+          .filter(Boolean)
+          .join("\n"),
+      ),
+    );
+    const getExplicitArtifactCandidates = (): Any[] => {
+      if (explicitArtifactToolNames.size === 0) return [];
+      let candidates = baseTools
+        .filter((tool) =>
+          explicitArtifactToolNames.has(String(tool.name || "")),
+        )
+        .filter((tool) => !restrictedByTask(tool.name))
+        .filter((tool) => !blockedByAllowlist(tool.name))
+        .filter((tool) => !disabledTools.includes(tool.name));
+      if (!this.deps.isVisualCanvasTask()) {
+        candidates = candidates.filter(
+          (tool) => !this.deps.isCanvasTool(tool.name),
+        );
+      }
+      const policyFiltered = filterToolsByPolicy(
+        candidates,
+        this.deps.getToolPolicyContext(),
+      );
+      const modeFiltered = this.deps.applyWebSearchModeFilter(
+        policyFiltered.tools,
+      );
+      return this.deps.applyAgentPolicyToolFilter(modeFiltered);
+    };
+    const preserveExplicitArtifactTools = (tools: Any[]): Any[] => {
+      const merged = new Map<string, Any>();
+      for (const tool of tools) merged.set(String(tool.name || ""), tool);
+      for (const tool of getExplicitArtifactCandidates()) {
+        const name = String(tool.name || "");
+        if (name && !merged.has(name)) merged.set(name, tool);
+      }
+      return Array.from(merged.values());
+    };
     let finalTools: Any[];
 
-    if (disabledTools.length === 0 && restrictedTools.size === 0 && !hasAllowlist) {
+    if (
+      disabledTools.length === 0 &&
+      restrictedTools.size === 0 &&
+      !hasAllowlist
+    ) {
       let tools = allTools;
       if (!this.deps.isVisualCanvasTask()) {
         tools = tools.filter((tool) => !this.deps.isCanvasTool(tool.name));
       }
-      const policyFiltered = filterToolsByPolicy(tools, this.deps.getToolPolicyContext());
-      const modeFiltered = this.deps.applyWebSearchModeFilter(policyFiltered.tools);
-      const agentPolicyFiltered = this.deps.applyAgentPolicyToolFilter(modeFiltered);
-      finalTools = this.deps.applyAdaptiveToolAvailabilityFilter(
-        this.deps.applyStepScopedToolPolicy(this.deps.applyIntentFilter(agentPolicyFiltered)),
+      const policyFiltered = filterToolsByPolicy(
+        tools,
+        this.deps.getToolPolicyContext(),
+      );
+      const modeFiltered = this.deps.applyWebSearchModeFilter(
+        policyFiltered.tools,
+      );
+      const agentPolicyFiltered =
+        this.deps.applyAgentPolicyToolFilter(modeFiltered);
+      finalTools = preserveExplicitArtifactTools(
+        this.deps.applyAdaptiveToolAvailabilityFilter(
+          this.deps.applyStepScopedToolPolicy(
+            this.deps.applyIntentFilter(agentPolicyFiltered),
+          ),
+        ),
       );
       const renderedTools =
         typeof (toolRegistry as Any).renderToolsForContext === "function"
-          ? (toolRegistry as Any).renderToolsForContext(finalTools as LLMTool[], renderContext)
+          ? (toolRegistry as Any).renderToolsForContext(
+              finalTools as LLMTool[],
+              renderContext,
+            )
           : finalTools;
       this.state.tooling.availableToolsCacheKey = renderedCacheKey;
       this.state.tooling.availableToolsCache = renderedTools.slice();
@@ -1204,15 +1377,28 @@ export class SessionRuntime {
       filtered = filtered.filter((tool) => !this.deps.isCanvasTool(tool.name));
     }
 
-    const policyFiltered = filterToolsByPolicy(filtered, this.deps.getToolPolicyContext());
-    const modeFiltered = this.deps.applyWebSearchModeFilter(policyFiltered.tools);
-    const agentPolicyFiltered = this.deps.applyAgentPolicyToolFilter(modeFiltered);
-    finalTools = this.deps.applyAdaptiveToolAvailabilityFilter(
-      this.deps.applyStepScopedToolPolicy(this.deps.applyIntentFilter(agentPolicyFiltered)),
+    const policyFiltered = filterToolsByPolicy(
+      filtered,
+      this.deps.getToolPolicyContext(),
+    );
+    const modeFiltered = this.deps.applyWebSearchModeFilter(
+      policyFiltered.tools,
+    );
+    const agentPolicyFiltered =
+      this.deps.applyAgentPolicyToolFilter(modeFiltered);
+    finalTools = preserveExplicitArtifactTools(
+      this.deps.applyAdaptiveToolAvailabilityFilter(
+        this.deps.applyStepScopedToolPolicy(
+          this.deps.applyIntentFilter(agentPolicyFiltered),
+        ),
+      ),
     );
     const renderedTools =
       typeof (toolRegistry as Any).renderToolsForContext === "function"
-        ? (toolRegistry as Any).renderToolsForContext(finalTools as LLMTool[], renderContext)
+        ? (toolRegistry as Any).renderToolsForContext(
+            finalTools as LLMTool[],
+            renderContext,
+          )
         : finalTools;
     this.state.tooling.availableToolsCacheKey = renderedCacheKey;
     this.state.tooling.availableToolsCache = renderedTools.slice();
@@ -1224,6 +1410,7 @@ export class SessionRuntime {
     retryLabel: string;
     operation: string;
     forceNoTools?: boolean;
+    workloadProfileText?: string;
   }): Promise<{ response: Any; availableTools: Any[] }> {
     return requestLLMResponseWithAdaptiveBudgetUtil({
       ...opts,
@@ -1233,23 +1420,45 @@ export class SessionRuntime {
       systemPrompt: this.deps.getSystemPrompt(),
       getTaskMaxTokens: () => {
         const maxTokens = this.deps.getTask()?.agentConfig?.maxTokens;
-        return typeof maxTokens === "number" && Number.isFinite(maxTokens) && maxTokens > 0
+        return typeof maxTokens === "number" &&
+          Number.isFinite(maxTokens) &&
+          maxTokens > 0
           ? Math.floor(maxTokens)
           : null;
       },
       getContextManager: () => this.deps.getContextManager(),
       getAvailableTools: () => this.getAvailableTools(),
       applyRetryTokenCap: (baseMaxTokens, attempt, timeoutMs, hasTools) =>
-        this.deps.applyRetryTokenCap(baseMaxTokens, attempt, timeoutMs, hasTools ?? false),
+        this.deps.applyRetryTokenCap(
+          baseMaxTokens,
+          attempt,
+          timeoutMs,
+          hasTools ?? false,
+        ),
       getRetryTimeoutMs: (baseTimeoutMs, attempt, hasTools, maxTokensBudget) =>
-        this.deps.getRetryTimeoutMs(baseTimeoutMs, attempt, hasTools ?? false, maxTokensBudget ?? 0),
+        this.deps.getRetryTimeoutMs(
+          baseTimeoutMs,
+          attempt,
+          hasTools ?? false,
+          maxTokensBudget ?? 0,
+        ),
       callLLMWithRetry: (requestFn, operation) =>
         this.deps.callLLMWithRetry(requestFn, operation),
       createMessageWithTimeout: (request, timeoutMs, operation) =>
         this.deps.createMessageWithTimeout(request, timeoutMs, operation),
       buildPromptCacheRequestExtras: this.deps.buildPromptCacheRequestExtras,
-      updateTracking: (inputTokens, outputTokens, cachedTokens, cacheWriteTokens) =>
-        this.updateTracking(inputTokens, outputTokens, cachedTokens, cacheWriteTokens),
+      updateTracking: (
+        inputTokens,
+        outputTokens,
+        cachedTokens,
+        cacheWriteTokens,
+      ) =>
+        this.updateTracking(
+          inputTokens,
+          outputTokens,
+          cachedTokens,
+          cacheWriteTokens,
+        ),
       emitEvent: (type, payload) => this.deps.emitEvent(type, payload),
       log: (message) => this.deps.log(message),
     });
@@ -1323,10 +1532,11 @@ export class SessionRuntime {
       const query = opts.memoryQuery.slice(0, 2500);
       if (query !== lastTurnMemoryRecallQuery) {
         lastTurnMemoryRecallQuery = query;
-        lastTurnMemoryRecallBlock = await this.deps.buildHybridMemoryRecallBlock(
-          this.deps.getWorkspace().id,
-          query,
-        );
+        lastTurnMemoryRecallBlock =
+          await this.deps.buildHybridMemoryRecallBlock(
+            this.deps.getWorkspace().id,
+            query,
+          );
       }
 
       if (lastTurnMemoryRecallBlock) {
@@ -1366,7 +1576,10 @@ export class SessionRuntime {
 
     let didProactiveCompact = false;
     const contextManager = this.deps.getContextManager();
-    const ctxUtil = contextManager.getContextUtilization(messages, opts.systemPromptTokens);
+    const ctxUtil = contextManager.getContextUtilization(
+      messages,
+      opts.systemPromptTokens,
+    );
     if (ctxUtil.utilization >= 0.85) {
       const proactiveResult = contextManager.proactiveCompactWithMeta(
         messages,
@@ -1382,7 +1595,10 @@ export class SessionRuntime {
         didProactiveCompact = true;
         const postCompactTokens = estimateTotalTokens(messages);
         const slack = Math.max(0, ctxUtil.availableTokens - postCompactTokens);
-        const summaryBudget = Math.min(4000, Math.max(800, Math.floor(slack * 0.6)));
+        const summaryBudget = Math.min(
+          4000,
+          Math.max(800, Math.floor(slack * 0.6)),
+        );
 
         let summaryBlock = await this.deps.buildCompactionSummaryBlock({
           removedMessages: proactiveResult.meta.removedMessages.messages,
@@ -1392,13 +1608,17 @@ export class SessionRuntime {
 
         if (summaryBlock) {
           const summaryTokens = estimateTokens(summaryBlock);
-          const postInsertTokens = estimateTotalTokens(messages) + summaryTokens;
+          const postInsertTokens =
+            estimateTotalTokens(messages) + summaryTokens;
           if (postInsertTokens > ctxUtil.availableTokens * 0.95) {
             const maxSummaryTokens = Math.max(
               200,
               ctxUtil.availableTokens - estimateTotalTokens(messages) - 2000,
             );
-            summaryBlock = this.deps.truncateSummaryBlock(summaryBlock, maxSummaryTokens);
+            summaryBlock = this.deps.truncateSummaryBlock(
+              summaryBlock,
+              maxSummaryTokens,
+            );
           }
 
           this.deps.upsertPinnedUserBlock(messages, {
@@ -1437,17 +1657,25 @@ export class SessionRuntime {
     }
 
     if (!didProactiveCompact) {
-      const compaction = contextManager.compactMessagesWithMeta(messages, opts.systemPromptTokens);
+      const compaction = contextManager.compactMessagesWithMeta(
+        messages,
+        opts.systemPromptTokens,
+      );
       messages = compaction.messages;
 
       if (
         compaction.meta.removedMessages.didRemove &&
         compaction.meta.removedMessages.messages.length > 0
       ) {
-        const availableTokens = contextManager.getAvailableTokens(opts.systemPromptTokens);
+        const availableTokens = contextManager.getAvailableTokens(
+          opts.systemPromptTokens,
+        );
         const tokensNow = estimateTotalTokens(messages);
         const slack = Math.max(0, availableTokens - tokensNow);
-        const summaryBudget = Math.min(4000, Math.max(800, Math.floor(slack * 0.6)));
+        const summaryBudget = Math.min(
+          4000,
+          Math.max(800, Math.floor(slack * 0.6)),
+        );
 
         let summaryBlock = await this.deps.buildCompactionSummaryBlock({
           removedMessages: compaction.meta.removedMessages.messages,
@@ -1457,13 +1685,17 @@ export class SessionRuntime {
 
         if (summaryBlock) {
           const summaryTokens = estimateTokens(summaryBlock);
-          const postInsertTokens = estimateTotalTokens(messages) + summaryTokens;
+          const postInsertTokens =
+            estimateTotalTokens(messages) + summaryTokens;
           if (postInsertTokens > availableTokens * 0.95) {
             const maxSummaryTokens = Math.max(
               200,
               availableTokens - estimateTotalTokens(messages) - 2000,
             );
-            summaryBlock = this.deps.truncateSummaryBlock(summaryBlock, maxSummaryTokens);
+            summaryBlock = this.deps.truncateSummaryBlock(
+              summaryBlock,
+              maxSummaryTokens,
+            );
           }
 
           this.deps.upsertPinnedUserBlock(messages, {
@@ -1526,7 +1758,9 @@ export class SessionRuntime {
     }
 
     const attemptNumber = opts.attempt + 1;
-    const reason = String((opts.error as Any)?.message || opts.error || "context_capacity_error");
+    const reason = String(
+      (opts.error as Any)?.message || opts.error || "context_capacity_error",
+    );
     const exhausted = attemptNumber > opts.maxAttempts;
     if (exhausted) {
       this.deps.emitEvent("context_capacity_recovery_failed", {
@@ -1551,18 +1785,15 @@ export class SessionRuntime {
     });
 
     try {
-      const proactive = this.deps.getContextManager().proactiveCompactWithMeta(
-        opts.messages,
-        opts.systemPromptTokens,
-        0.35,
-      );
+      const proactive = this.deps
+        .getContextManager()
+        .proactiveCompactWithMeta(opts.messages, opts.systemPromptTokens, 0.35);
       let compactedMessages = proactive.messages;
       let removedMessages = proactive.meta.removedMessages.messages;
       if (!proactive.meta.removedMessages.didRemove) {
-        const fallback = this.deps.getContextManager().compactMessagesWithMeta(
-          compactedMessages,
-          opts.systemPromptTokens,
-        );
+        const fallback = this.deps
+          .getContextManager()
+          .compactMessagesWithMeta(compactedMessages, opts.systemPromptTokens);
         compactedMessages = fallback.messages;
         removedMessages = fallback.meta.removedMessages.messages;
       }
@@ -1615,14 +1846,19 @@ export class SessionRuntime {
     const windowEvents = this.deps.getWindowEventsSinceLastReset();
     const contextRatio = this.deps.getRenderedContextRatio();
     const noMutation = !this.deps.hasWindowMutationEvidence(windowEvents);
-    const toolUseStopStreak = this.deps.getWindowToolUseStopStreak(windowEvents);
+    const toolUseStopStreak =
+      this.deps.getWindowToolUseStopStreak(windowEvents);
     const shouldCompact =
       contextRatio >= this.deps.getCompactionThresholdRatio() ||
       (toolUseStopStreak >= 6 && noMutation);
     if (!shouldCompact) return;
 
-    const systemPromptTokens = estimateTokens(this.deps.getSystemPrompt() || "");
-    const tokensBefore = estimateTotalTokens(this.state.transcript.conversationHistory);
+    const systemPromptTokens = estimateTokens(
+      this.deps.getSystemPrompt() || "",
+    );
+    const tokensBefore = estimateTotalTokens(
+      this.state.transcript.conversationHistory,
+    );
     this.deps.emitEvent("context_compaction_started", {
       continuationWindow: this.state.loop.continuationWindow,
       contextRatio,
@@ -1635,7 +1871,10 @@ export class SessionRuntime {
     try {
       const compacted = this.deps
         .getContextManager()
-        .compactMessagesWithMeta(this.state.transcript.conversationHistory, systemPromptTokens);
+        .compactMessagesWithMeta(
+          this.state.transcript.conversationHistory,
+          systemPromptTokens,
+        );
       if (
         compacted.meta.removedMessages.didRemove &&
         compacted.meta.removedMessages.messages.length > 0
@@ -1657,7 +1896,9 @@ export class SessionRuntime {
         }
       }
       this.updateConversationHistory(compacted.messages);
-      const tokensAfter = estimateTotalTokens(this.state.transcript.conversationHistory);
+      const tokensAfter = estimateTotalTokens(
+        this.state.transcript.conversationHistory,
+      );
       this.state.loop.compactionCount += 1;
       this.state.loop.lastCompactionAt = Date.now();
       this.state.loop.lastCompactionTokensBefore = tokensBefore;
@@ -1684,7 +1925,9 @@ export class SessionRuntime {
     if (!this.deps.isWindowTurnLimitExceededError(error)) return false;
 
     while (true) {
-      const pendingSteps = this.deps.getPlan()?.steps?.filter((step) => step.status === "pending").length || 0;
+      const pendingSteps =
+        this.deps.getPlan()?.steps?.filter((step) => step.status === "pending")
+          .length || 0;
       const assessment = this.deps.assessContinuationWindow();
       const threshold = this.deps.getMinProgressScoreForAutoContinue();
       const continuationBudgetRemaining = Math.max(
@@ -1693,11 +1936,14 @@ export class SessionRuntime {
       );
       const reachedContinuationCap = continuationBudgetRemaining <= 0;
       const hasLoopRisk =
-        assessment.loopRiskIndex >= 0.7 || assessment.repeatedFingerprintCount >= 3;
+        assessment.loopRiskIndex >= 0.7 ||
+        assessment.repeatedFingerprintCount >= 3;
       const reachedLoopWarning =
-        assessment.repeatedFingerprintCount >= this.deps.getLoopWarningThreshold();
+        assessment.repeatedFingerprintCount >=
+        this.deps.getLoopWarningThreshold();
       const reachedLoopCritical =
-        assessment.repeatedFingerprintCount >= this.deps.getLoopCriticalThreshold();
+        assessment.repeatedFingerprintCount >=
+        this.deps.getLoopCriticalThreshold();
       const belowProgressThreshold =
         this.deps.getContinuationStrategy() === "adaptive_progress" &&
         assessment.progressScore < threshold;
@@ -1705,35 +1951,34 @@ export class SessionRuntime {
       const lifetimeCapHit =
         this.state.loop.lifetimeTurnCount >= this.deps.getMaxLifetimeTurns();
       this.state.loop.noProgressStreak =
-        assessment.progressScore <= 0 ? this.state.loop.noProgressStreak + 1 : 0;
+        assessment.progressScore <= 0
+          ? this.state.loop.noProgressStreak + 1
+          : 0;
       this.state.loop.lastLoopFingerprint =
         assessment.dominantFingerprint || this.state.loop.lastLoopFingerprint;
       const noProgressCircuitBreak =
-        this.state.loop.noProgressStreak >= this.deps.getGlobalNoProgressCircuitBreaker();
+        this.state.loop.noProgressStreak >=
+        this.deps.getGlobalNoProgressCircuitBreaker();
 
       let blockReason = "";
       if (lifetimeCapHit) {
-        blockReason =
-          `Lifetime turn limit reached (${this.state.loop.lifetimeTurnCount}/${this.deps.getMaxLifetimeTurns()}).`;
+        blockReason = `Lifetime turn limit reached (${this.state.loop.lifetimeTurnCount}/${this.deps.getMaxLifetimeTurns()}).`;
       } else if (noPendingSteps) {
         blockReason = "No pending plan steps remain to continue.";
       } else if (noProgressCircuitBreak) {
-        blockReason =
-          `No-progress circuit breaker reached (${this.state.loop.noProgressStreak}/${this.deps.getGlobalNoProgressCircuitBreaker()}).`;
+        blockReason = `No-progress circuit breaker reached (${this.state.loop.noProgressStreak}/${this.deps.getGlobalNoProgressCircuitBreaker()}).`;
       } else if (reachedContinuationCap) {
-        blockReason =
-          `Auto continuation limit reached (${this.state.loop.continuationCount}/${this.deps.getMaxAutoContinuations()}).`;
+        blockReason = `Auto continuation limit reached (${this.state.loop.continuationCount}/${this.deps.getMaxAutoContinuations()}).`;
       } else if (reachedLoopCritical) {
-        this.state.loop.blockedLoopFingerprintForWindow = this.deps.getSignatureFromLoopFingerprint(
-          assessment.dominantFingerprint,
-        );
-        blockReason =
-          `Loop fingerprint repeated too often (${assessment.repeatedFingerprintCount}/${this.deps.getLoopCriticalThreshold()}).`;
+        this.state.loop.blockedLoopFingerprintForWindow =
+          this.deps.getSignatureFromLoopFingerprint(
+            assessment.dominantFingerprint,
+          );
+        blockReason = `Loop fingerprint repeated too often (${assessment.repeatedFingerprintCount}/${this.deps.getLoopCriticalThreshold()}).`;
       } else if (hasLoopRisk) {
         blockReason = `Loop risk is high (${assessment.loopRiskIndex.toFixed(2)}). Try changing strategy or constraints.`;
       } else if (belowProgressThreshold) {
-        blockReason =
-          `Recent progress score (${assessment.progressScore.toFixed(2)}) is below threshold (${threshold.toFixed(2)}).`;
+        blockReason = `Recent progress score (${assessment.progressScore.toFixed(2)}) is below threshold (${threshold.toFixed(2)}).`;
       }
 
       this.deps.emitEvent("continuation_decision", {
@@ -1845,11 +2090,15 @@ export class SessionRuntime {
     }
   }
 
-  resetTurnBudgetWindow(opts: { mode: "manual" | "auto" | "follow_up"; reason: string }): void {
+  resetTurnBudgetWindow(opts: {
+    mode: "manual" | "auto" | "follow_up";
+    reason: string;
+  }): void {
     const preResetUsage = {
       inputTokens: this.getCumulativeInputTokens(),
       outputTokens: this.getCumulativeOutputTokens(),
-      totalTokens: this.getCumulativeInputTokens() + this.getCumulativeOutputTokens(),
+      totalTokens:
+        this.getCumulativeInputTokens() + this.getCumulativeOutputTokens(),
       cost: this.getCumulativeCost(),
     };
     this.deps.emitEvent("budget_reset_for_continuation", {
@@ -1907,9 +2156,12 @@ export class SessionRuntime {
         this.state.loop.continuationCount += 1;
         this.state.loop.continuationWindow += 1;
       }
-      const assessment = continuationAssessment ?? this.deps.assessContinuationWindow();
+      const assessment =
+        continuationAssessment ?? this.deps.assessContinuationWindow();
       this.state.loop.noProgressStreak =
-        assessment.progressScore <= 0 ? this.state.loop.noProgressStreak + 1 : 0;
+        assessment.progressScore <= 0
+          ? this.state.loop.noProgressStreak + 1
+          : 0;
       if (assessment.dominantFingerprint) {
         this.state.loop.lastLoopFingerprint = assessment.dominantFingerprint;
       }
@@ -1972,7 +2224,10 @@ export class SessionRuntime {
         "Continue execution from where you left off. Do not repeat already-completed steps.",
       );
       if (this.state.loop.pendingLoopStrategySwitchMessage) {
-        continuationLines.push("", this.state.loop.pendingLoopStrategySwitchMessage);
+        continuationLines.push(
+          "",
+          this.state.loop.pendingLoopStrategySwitchMessage,
+        );
         this.state.loop.pendingLoopStrategySwitchMessage = "";
       }
 
@@ -2076,10 +2331,13 @@ export class SessionRuntime {
         transcript: {
           lastUserMessage: this.state.transcript.lastUserMessage,
           lastAssistantOutput: this.state.transcript.lastAssistantOutput,
-          lastNonVerificationOutput: this.state.transcript.lastNonVerificationOutput,
+          lastNonVerificationOutput:
+            this.state.transcript.lastNonVerificationOutput,
           lastAssistantText: this.state.transcript.lastAssistantText,
-          explicitChatSummaryBlock: this.state.transcript.explicitChatSummaryBlock,
-          explicitChatSummaryCreatedAt: this.state.transcript.explicitChatSummaryCreatedAt,
+          explicitChatSummaryBlock:
+            this.state.transcript.explicitChatSummaryBlock,
+          explicitChatSummaryCreatedAt:
+            this.state.transcript.explicitChatSummaryCreatedAt,
           explicitChatSummarySourceMessageCount:
             this.state.transcript.explicitChatSummarySourceMessageCount,
           stepOutcomeSummaries: [...this.state.transcript.stepOutcomeSummaries],
@@ -2087,50 +2345,70 @@ export class SessionRuntime {
         tooling: {
           toolResultMemory: [...this.state.tooling.toolResultMemory],
           webEvidenceMemory: [...this.state.tooling.webEvidenceMemory],
-          toolUsageCounts: Array.from(this.state.tooling.toolUsageCounts.entries()),
+          toolUsageCounts: Array.from(
+            this.state.tooling.toolUsageCounts.entries(),
+          ),
           successfulToolUsageCounts: Array.from(
             this.state.tooling.successfulToolUsageCounts.entries(),
           ),
-          toolUsageEventsSinceDecay: this.state.tooling.toolUsageEventsSinceDecay,
+          toolUsageEventsSinceDecay:
+            this.state.tooling.toolUsageEventsSinceDecay,
           toolSelectionEpoch: this.state.tooling.toolSelectionEpoch,
           discoveredDeferredToolNames: Array.from(
             this.state.tooling.discoveredDeferredToolNames.values(),
           ),
         },
         files: {
-          filesReadTracker: Array.from(this.state.files.filesReadTracker.entries()),
+          filesReadTracker: Array.from(
+            this.state.files.filesReadTracker.entries(),
+          ),
         },
         loop: {
           ...this.state.loop,
         },
         recovery: {
           ...this.state.recovery,
-          recoveredFailureStepIds: Array.from(this.state.recovery.recoveredFailureStepIds.values()),
+          recoveredFailureStepIds: Array.from(
+            this.state.recovery.recoveredFailureStepIds.values(),
+          ),
         },
         queues: {
           pendingFollowUps: [...this.state.queues.pendingFollowUps],
           stepFeedbackSignal: this.state.queues.stepFeedbackSignal,
         },
         skills: {
-          pendingParameterCollection: this.state.skills.pendingParameterCollection
+          pendingParameterCollection: this.state.skills
+            .pendingParameterCollection
             ? { ...this.state.skills.pendingParameterCollection }
             : null,
-          primarySlashCommandHandled: this.state.skills.primarySlashCommandHandled,
+          primarySlashCommandHandled:
+            this.state.skills.primarySlashCommandHandled,
         },
         worker: {
-          dispatchedMentionedAgents: this.state.worker.dispatchedMentionedAgents,
-          verificationAgentState: { ...this.state.worker.verificationAgentState },
+          dispatchedMentionedAgents:
+            this.state.worker.dispatchedMentionedAgents,
+          verificationAgentState: {
+            ...this.state.worker.verificationAgentState,
+          },
         },
         permissions: {
           mode: this.state.permissions.mode,
           sessionRules: [...this.state.permissions.sessionRules],
-          temporaryGrants: Array.from(this.state.permissions.temporaryGrants.entries()),
-          denialTracking: Array.from(this.state.permissions.denialTracking.entries()),
+          temporaryGrants: Array.from(
+            this.state.permissions.temporaryGrants.entries(),
+          ),
+          denialTracking: Array.from(
+            this.state.permissions.denialTracking.entries(),
+          ),
           latestPromptContext: this.state.permissions.latestPromptContext,
-          recentSensitiveSources: [...this.state.permissions.recentSensitiveSources],
+          recentSensitiveSources: [
+            ...this.state.permissions.recentSensitiveSources,
+          ],
         },
         verification: {
-          verificationEvidenceEntries: [...this.state.verification.verificationEvidenceEntries],
+          verificationEvidenceEntries: [
+            ...this.state.verification.verificationEvidenceEntries,
+          ],
           nonBlockingVerificationFailedStepIds: Array.from(
             this.state.verification.nonBlockingVerificationFailedStepIds.values(),
           ),
@@ -2144,8 +2422,10 @@ export class SessionRuntime {
           stablePrefixHash: this.state.promptCache.stablePrefixHash,
           toolSchemaHash: this.state.promptCache.toolSchemaHash,
           promptCacheMode: this.state.promptCache.promptCacheMode,
-          promptCacheProviderFamily: this.state.promptCache.promptCacheProviderFamily,
-          promptCacheInvalidationReason: this.state.promptCache.promptCacheInvalidationReason,
+          promptCacheProviderFamily:
+            this.state.promptCache.promptCacheProviderFamily,
+          promptCacheInvalidationReason:
+            this.state.promptCache.promptCacheInvalidationReason,
         },
         timestamp: Date.now(),
         messageCount: serializedHistory.length,
@@ -2191,19 +2471,28 @@ export class SessionRuntime {
         const truncatedContent = msg.content.map((block: Any) => {
           if (block.type === "tool_result" && block.content) {
             const content =
-              typeof block.content === "string" ? block.content : JSON.stringify(block.content);
+              typeof block.content === "string"
+                ? block.content
+                : JSON.stringify(block.content);
             return {
               ...block,
               content:
                 content.length > MAX_TOOL_RESULT_LENGTH
-                  ? content.slice(0, MAX_TOOL_RESULT_LENGTH) + "\n[... truncated ...]"
+                  ? content.slice(0, MAX_TOOL_RESULT_LENGTH) +
+                    "\n[... truncated ...]"
                   : block.content,
             };
           }
-          if (block.type === "text" && block.text && block.text.length > MAX_CONTENT_LENGTH) {
+          if (
+            block.type === "text" &&
+            block.text &&
+            block.text.length > MAX_CONTENT_LENGTH
+          ) {
             return {
               ...block,
-              text: block.text.slice(0, MAX_CONTENT_LENGTH) + "\n[... truncated ...]",
+              text:
+                block.text.slice(0, MAX_CONTENT_LENGTH) +
+                "\n[... truncated ...]",
             };
           }
           if (block.type === "image") {
@@ -2223,22 +2512,40 @@ export class SessionRuntime {
 
   restoreFromEvents(events: TaskEvent[]): void {
     const checkpointPayload = this.deps.loadCheckpointPayload();
-    const snapshotEvents = events.filter((e) => this.deps.getReplayEventType(e) === "conversation_snapshot");
+    const snapshotEvents = events.filter(
+      (e) => this.deps.getReplayEventType(e) === "conversation_snapshot",
+    );
     const latestSnapshotPayload =
-      snapshotEvents.length > 0 ? snapshotEvents[snapshotEvents.length - 1]?.payload : null;
+      snapshotEvents.length > 0
+        ? snapshotEvents[snapshotEvents.length - 1]?.payload
+        : null;
 
     const v2Candidates: Array<{ payload: Any; sourceLabel: string }> = [];
-    if (checkpointPayload?.schema === "session_runtime_v2" && checkpointPayload?.version === 2) {
-      v2Candidates.push({ payload: checkpointPayload, sourceLabel: "checkpoint" });
+    if (
+      checkpointPayload?.schema === "session_runtime_v2" &&
+      checkpointPayload?.version === 2
+    ) {
+      v2Candidates.push({
+        payload: checkpointPayload,
+        sourceLabel: "checkpoint",
+      });
     }
     if (
       latestSnapshotPayload?.schema === "session_runtime_v2" &&
       latestSnapshotPayload?.version === 2
     ) {
-      v2Candidates.push({ payload: latestSnapshotPayload, sourceLabel: "snapshot" });
+      v2Candidates.push({
+        payload: latestSnapshotPayload,
+        sourceLabel: "snapshot",
+      });
     }
     for (const candidate of v2Candidates) {
-      if (this.restoreConversationFromPayload(candidate.payload, candidate.sourceLabel)) {
+      if (
+        this.restoreConversationFromPayload(
+          candidate.payload,
+          candidate.sourceLabel,
+        )
+      ) {
         this.restorePendingSkillStateFromEvents(events);
         this.restoreTaskListStateFromEvents(events);
         return;
@@ -2247,15 +2554,29 @@ export class SessionRuntime {
 
     const legacyCandidates: Array<{ payload: Any; sourceLabel: string }> = [];
     if (Array.isArray(checkpointPayload?.conversationHistory)) {
-      legacyCandidates.push({ payload: checkpointPayload, sourceLabel: "checkpoint" });
+      legacyCandidates.push({
+        payload: checkpointPayload,
+        sourceLabel: "checkpoint",
+      });
     }
     if (Array.isArray(latestSnapshotPayload?.conversationHistory)) {
-      legacyCandidates.push({ payload: latestSnapshotPayload, sourceLabel: "snapshot" });
+      legacyCandidates.push({
+        payload: latestSnapshotPayload,
+        sourceLabel: "snapshot",
+      });
     }
     for (const candidate of legacyCandidates) {
-      if (this.restoreConversationFromPayload(candidate.payload, candidate.sourceLabel)) {
+      if (
+        this.restoreConversationFromPayload(
+          candidate.payload,
+          candidate.sourceLabel,
+        )
+      ) {
         this.restorePendingSkillStateFromEvents(events);
-        if (this.state.usage.totalInputTokens === 0 && this.state.usage.totalOutputTokens === 0) {
+        if (
+          this.state.usage.totalInputTokens === 0 &&
+          this.state.usage.totalOutputTokens === 0
+        ) {
           this.restoreUsageTotalsFromEvents(events);
         }
         this.restoreTaskListStateFromEvents(events);
@@ -2306,18 +2627,25 @@ export class SessionRuntime {
               typeof event.payload.result === "string"
                 ? event.payload.result
                 : JSON.stringify(event.payload.result);
-            const truncated = result.length > 1000 ? result.slice(0, 1000) + "..." : result;
-            conversationParts.push(`[Tool result from ${event.payload.tool}: ${truncated}]`);
+            const truncated =
+              result.length > 1000 ? result.slice(0, 1000) + "..." : result;
+            conversationParts.push(
+              `[Tool result from ${event.payload.tool}: ${truncated}]`,
+            );
           }
           break;
         case "plan_created":
           if (event.payload?.plan?.description) {
-            conversationParts.push(`[Created plan: ${event.payload.plan.description}]`);
+            conversationParts.push(
+              `[Created plan: ${event.payload.plan.description}]`,
+            );
           }
           break;
         case "error":
           if (event.payload?.message || event.payload?.error) {
-            conversationParts.push(`[Error: ${event.payload.message || event.payload.error}]`);
+            conversationParts.push(
+              `[Error: ${event.payload.message || event.payload.error}]`,
+            );
           }
           break;
       }
@@ -2326,14 +2654,18 @@ export class SessionRuntime {
     if (conversationParts.length > 4) {
       let lastEventAssistantMessage: string | null = null;
       for (const event of events) {
-        if (this.deps.getReplayEventType(event) === "assistant_message" && event.payload?.message) {
+        if (
+          this.deps.getReplayEventType(event) === "assistant_message" &&
+          event.payload?.message
+        ) {
           const msg = String(event.payload.message).trim();
           if (msg) lastEventAssistantMessage = msg;
         }
       }
       if (lastEventAssistantMessage) {
         this.state.transcript.lastAssistantOutput = lastEventAssistantMessage;
-        this.state.transcript.lastNonVerificationOutput = lastEventAssistantMessage;
+        this.state.transcript.lastNonVerificationOutput =
+          lastEventAssistantMessage;
         this.state.transcript.lastAssistantText = lastEventAssistantMessage;
       }
 
@@ -2358,16 +2690,24 @@ export class SessionRuntime {
     this.restoreTaskListStateFromEvents(events);
   }
 
-  private restoreConversationFromPayload(payload: Any, _sourceLabel: string): boolean {
-    if (!payload?.conversationHistory || !Array.isArray(payload.conversationHistory)) {
+  private restoreConversationFromPayload(
+    payload: Any,
+    _sourceLabel: string,
+  ): boolean {
+    if (
+      !payload?.conversationHistory ||
+      !Array.isArray(payload.conversationHistory)
+    ) {
       return false;
     }
 
     try {
-      let restoredHistory: LLMMessage[] = payload.conversationHistory.map((msg: Any) => ({
-        role: msg.role as "user" | "assistant",
-        content: msg.content,
-      }));
+      let restoredHistory: LLMMessage[] = payload.conversationHistory.map(
+        (msg: Any) => ({
+          role: msg.role as "user" | "assistant",
+          content: msg.content,
+        }),
+      );
       restoredHistory = sanitizeToolCallHistory(restoredHistory);
 
       if (payload.trackerState) {
@@ -2398,7 +2738,10 @@ export class SessionRuntime {
               restoredHistory = [
                 {
                   role: "user",
-                  content: [{ type: "text" as const, text: planContext }, ...(firstMsg.content as LLMContent[])],
+                  content: [
+                    { type: "text" as const, text: planContext },
+                    ...(firstMsg.content as LLMContent[]),
+                  ],
                 },
                 ...restoredHistory.slice(1),
               ];
@@ -2413,8 +2756,10 @@ export class SessionRuntime {
         this.state.usage.usageOffsetInputTokens = 0;
         this.state.usage.usageOffsetOutputTokens = 0;
         this.state.usage.usageOffsetCost = 0;
-        this.state.usage.totalInputTokens = payload.usageTotals.inputTokens || 0;
-        this.state.usage.totalOutputTokens = payload.usageTotals.outputTokens || 0;
+        this.state.usage.totalInputTokens =
+          payload.usageTotals.inputTokens || 0;
+        this.state.usage.totalOutputTokens =
+          payload.usageTotals.outputTokens || 0;
         this.state.usage.totalCost = payload.usageTotals.cost || 0;
       }
 
@@ -2422,7 +2767,8 @@ export class SessionRuntime {
         this.restoreFromV2Payload(payload as SessionRuntimeSnapshotV2);
       } else {
         this.state.transcript.explicitChatSummaryBlock =
-          typeof payload.explicitChatSummaryBlock === "string" && payload.explicitChatSummaryBlock.trim()
+          typeof payload.explicitChatSummaryBlock === "string" &&
+          payload.explicitChatSummaryBlock.trim()
             ? payload.explicitChatSummaryBlock
             : null;
         this.state.transcript.explicitChatSummaryCreatedAt =
@@ -2461,55 +2807,82 @@ export class SessionRuntime {
   }
 
   private restoreFromV2Payload(payload: SessionRuntimeSnapshotV2): void {
-    this.state.transcript.lastUserMessage = payload.transcript.lastUserMessage || "";
-    this.state.transcript.lastAssistantOutput = payload.transcript.lastAssistantOutput;
+    this.state.transcript.lastUserMessage =
+      payload.transcript.lastUserMessage || "";
+    this.state.transcript.lastAssistantOutput =
+      payload.transcript.lastAssistantOutput;
     this.state.transcript.lastNonVerificationOutput =
       payload.transcript.lastNonVerificationOutput;
-    this.state.transcript.lastAssistantText = payload.transcript.lastAssistantText;
+    this.state.transcript.lastAssistantText =
+      payload.transcript.lastAssistantText;
     this.state.transcript.explicitChatSummaryBlock =
       payload.transcript.explicitChatSummaryBlock;
     this.state.transcript.explicitChatSummaryCreatedAt =
       payload.transcript.explicitChatSummaryCreatedAt;
     this.state.transcript.explicitChatSummarySourceMessageCount =
       payload.transcript.explicitChatSummarySourceMessageCount;
-    this.state.transcript.stepOutcomeSummaries = payload.transcript.stepOutcomeSummaries || [];
+    this.state.transcript.stepOutcomeSummaries =
+      payload.transcript.stepOutcomeSummaries || [];
 
-    this.state.tooling.toolResultMemory = payload.tooling.toolResultMemory || [];
-    this.state.tooling.webEvidenceMemory = payload.tooling.webEvidenceMemory || [];
-    this.state.tooling.toolUsageCounts = new Map(payload.tooling.toolUsageCounts || []);
+    this.state.tooling.toolResultMemory =
+      payload.tooling.toolResultMemory || [];
+    this.state.tooling.webEvidenceMemory =
+      payload.tooling.webEvidenceMemory || [];
+    this.state.tooling.toolUsageCounts = new Map(
+      payload.tooling.toolUsageCounts || [],
+    );
     this.state.tooling.successfulToolUsageCounts = new Map(
       payload.tooling.successfulToolUsageCounts || [],
     );
-    this.state.tooling.toolUsageEventsSinceDecay = payload.tooling.toolUsageEventsSinceDecay || 0;
-    this.state.tooling.toolSelectionEpoch = payload.tooling.toolSelectionEpoch || 0;
+    this.state.tooling.toolUsageEventsSinceDecay =
+      payload.tooling.toolUsageEventsSinceDecay || 0;
+    this.state.tooling.toolSelectionEpoch =
+      payload.tooling.toolSelectionEpoch || 0;
     this.state.tooling.discoveredDeferredToolNames = new Set(
       payload.tooling.discoveredDeferredToolNames || [],
     );
-    this.state.files.filesReadTracker = new Map(payload.files.filesReadTracker || []);
+    this.state.files.filesReadTracker = new Map(
+      payload.files.filesReadTracker || [],
+    );
 
     this.state.loop = { ...this.state.loop, ...payload.loop };
     this.state.recovery = {
       ...this.state.recovery,
       ...payload.recovery,
-      recoveredFailureStepIds: new Set(payload.recovery.recoveredFailureStepIds || []),
+      recoveredFailureStepIds: new Set(
+        payload.recovery.recoveredFailureStepIds || [],
+      ),
     };
     this.state.queues.pendingFollowUps = payload.queues.pendingFollowUps || [];
     this.state.queues.stepFeedbackSignal = payload.queues.stepFeedbackSignal;
-    this.state.skills.pendingParameterCollection = payload.skills?.pendingParameterCollection
+    this.state.skills.pendingParameterCollection = payload.skills
+      ?.pendingParameterCollection
       ? { ...payload.skills.pendingParameterCollection }
       : null;
     this.state.skills.primarySlashCommandHandled =
       payload.skills?.primarySlashCommandHandled === true;
-    this.state.worker.dispatchedMentionedAgents = payload.worker.dispatchedMentionedAgents;
-    this.state.worker.verificationAgentState = payload.worker.verificationAgentState || {};
-    this.state.permissions.mode = payload.permissions?.mode || this.state.permissions.mode;
-    this.state.permissions.sessionRules = Array.isArray(payload.permissions?.sessionRules)
+    this.state.worker.dispatchedMentionedAgents =
+      payload.worker.dispatchedMentionedAgents;
+    this.state.worker.verificationAgentState =
+      payload.worker.verificationAgentState || {};
+    this.state.permissions.mode =
+      payload.permissions?.mode || this.state.permissions.mode;
+    this.state.permissions.sessionRules = Array.isArray(
+      payload.permissions?.sessionRules,
+    )
       ? payload.permissions.sessionRules
       : [];
-    this.state.permissions.temporaryGrants = new Map(payload.permissions?.temporaryGrants || []);
-    this.state.permissions.denialTracking = new Map(payload.permissions?.denialTracking || []);
-    this.state.permissions.latestPromptContext = payload.permissions?.latestPromptContext || null;
-    this.state.permissions.recentSensitiveSources = Array.isArray(payload.permissions?.recentSensitiveSources)
+    this.state.permissions.temporaryGrants = new Map(
+      payload.permissions?.temporaryGrants || [],
+    );
+    this.state.permissions.denialTracking = new Map(
+      payload.permissions?.denialTracking || [],
+    );
+    this.state.permissions.latestPromptContext =
+      payload.permissions?.latestPromptContext || null;
+    this.state.permissions.recentSensitiveSources = Array.isArray(
+      payload.permissions?.recentSensitiveSources,
+    )
       ? payload.permissions.recentSensitiveSources
       : [];
     this.state.verification.verificationEvidenceEntries =
@@ -2520,10 +2893,14 @@ export class SessionRuntime {
     this.state.verification.blockingVerificationFailedStepIds = new Set(
       payload.verification.blockingVerificationFailedStepIds || [],
     );
-    this.state.promptCache.stableSystemBlocks = payload.promptCache?.stableSystemBlocks || [];
-    this.state.promptCache.stablePrefixHash = payload.promptCache?.stablePrefixHash || "";
-    this.state.promptCache.toolSchemaHash = payload.promptCache?.toolSchemaHash || "";
-    this.state.promptCache.promptCacheMode = payload.promptCache?.promptCacheMode || "disabled";
+    this.state.promptCache.stableSystemBlocks =
+      payload.promptCache?.stableSystemBlocks || [];
+    this.state.promptCache.stablePrefixHash =
+      payload.promptCache?.stablePrefixHash || "";
+    this.state.promptCache.toolSchemaHash =
+      payload.promptCache?.toolSchemaHash || "";
+    this.state.promptCache.promptCacheMode =
+      payload.promptCache?.promptCacheMode || "disabled";
     this.state.promptCache.promptCacheProviderFamily =
       payload.promptCache?.promptCacheProviderFamily || "unsupported";
     this.state.promptCache.promptCacheInvalidationReason =
@@ -2532,7 +2909,8 @@ export class SessionRuntime {
   }
 
   private restorePendingSkillStateFromEvents(events: TaskEvent[]): void {
-    let pending: PendingSkillParameterCollection | null = this.state.skills.pendingParameterCollection;
+    let pending: PendingSkillParameterCollection | null =
+      this.state.skills.pendingParameterCollection;
     let handled = this.state.skills.primarySlashCommandHandled;
     for (const event of events) {
       const type = this.deps.getReplayEventType(event);
@@ -2610,8 +2988,10 @@ export class SessionRuntime {
       lifetimeTurnsUsed: this.state.loop.lifetimeTurnCount,
       compactionCount: this.state.loop.compactionCount,
       lastCompactionAt: this.state.loop.lastCompactionAt || undefined,
-      lastCompactionTokensBefore: this.state.loop.lastCompactionTokensBefore || undefined,
-      lastCompactionTokensAfter: this.state.loop.lastCompactionTokensAfter || undefined,
+      lastCompactionTokensBefore:
+        this.state.loop.lastCompactionTokensBefore || undefined,
+      lastCompactionTokensAfter:
+        this.state.loop.lastCompactionTokensAfter || undefined,
       noProgressStreak: this.state.loop.noProgressStreak,
       lastLoopFingerprint: this.state.loop.lastLoopFingerprint || undefined,
     };
@@ -2622,10 +3002,12 @@ export class SessionRuntime {
       conversationHistory: this.state.transcript.conversationHistory,
       lastUserMessage: this.state.transcript.lastUserMessage,
       lastAssistantOutput: this.state.transcript.lastAssistantOutput,
-      lastNonVerificationOutput: this.state.transcript.lastNonVerificationOutput,
+      lastNonVerificationOutput:
+        this.state.transcript.lastNonVerificationOutput,
       lastAssistantText: this.state.transcript.lastAssistantText,
       explicitChatSummaryBlock: this.state.transcript.explicitChatSummaryBlock,
-      explicitChatSummaryCreatedAt: this.state.transcript.explicitChatSummaryCreatedAt,
+      explicitChatSummaryCreatedAt:
+        this.state.transcript.explicitChatSummaryCreatedAt,
       explicitChatSummarySourceMessageCount:
         this.state.transcript.explicitChatSummarySourceMessageCount,
     };
@@ -2659,14 +3041,17 @@ export class SessionRuntime {
     if (
       !this.state.permissions.sessionRules.some(
         (existing) =>
-          JSON.stringify({ effect: existing.effect, scope: existing.scope }) === fingerprint,
+          JSON.stringify({ effect: existing.effect, scope: existing.scope }) ===
+          fingerprint,
       )
     ) {
       this.state.permissions.sessionRules.push(normalized);
     }
   }
 
-  setLatestPermissionPromptContext(details: PermissionPromptDetails | null): void {
+  setLatestPermissionPromptContext(
+    details: PermissionPromptDetails | null,
+  ): void {
     this.state.permissions.latestPromptContext = details;
   }
 
@@ -2684,9 +3069,12 @@ export class SessionRuntime {
     const next = {
       ...source,
       path: normalizedPath,
-      recordedAt: typeof source.recordedAt === "number" ? source.recordedAt : Date.now(),
+      recordedAt:
+        typeof source.recordedAt === "number" ? source.recordedAt : Date.now(),
     };
-    const deduped = this.state.permissions.recentSensitiveSources.filter((item) => item.path !== next.path);
+    const deduped = this.state.permissions.recentSensitiveSources.filter(
+      (item) => item.path !== next.path,
+    );
     deduped.push(next);
     this.state.permissions.recentSensitiveSources = deduped.slice(-12);
   }
@@ -2698,7 +3086,9 @@ export class SessionRuntime {
   addTemporaryPermissionGrant(key: string, opts?: { ttlMs?: number }): void {
     const grantedAt = Date.now();
     const expiresAt =
-      typeof opts?.ttlMs === "number" && Number.isFinite(opts.ttlMs) && opts.ttlMs > 0
+      typeof opts?.ttlMs === "number" &&
+      Number.isFinite(opts.ttlMs) &&
+      opts.ttlMs > 0
         ? grantedAt + opts.ttlMs
         : undefined;
     this.state.permissions.temporaryGrants.set(String(key || ""), {
@@ -2721,7 +3111,9 @@ export class SessionRuntime {
     this.state.permissions.temporaryGrants.delete(String(key || ""));
   }
 
-  getPermissionDenialState(fingerprint: string): SessionRuntimePermissionDenialState {
+  getPermissionDenialState(
+    fingerprint: string,
+  ): SessionRuntimePermissionDenialState {
     return (
       this.state.permissions.denialTracking.get(String(fingerprint || "")) || {
         consecutiveDenials: 0,
@@ -2753,9 +3145,12 @@ export class SessionRuntime {
 
   getVerificationState(): SessionRuntimeVerificationState {
     return {
-      verificationEvidenceEntries: this.state.verification.verificationEvidenceEntries,
-      nonBlockingVerificationFailedStepIds: this.state.verification.nonBlockingVerificationFailedStepIds,
-      blockingVerificationFailedStepIds: this.state.verification.blockingVerificationFailedStepIds,
+      verificationEvidenceEntries:
+        this.state.verification.verificationEvidenceEntries,
+      nonBlockingVerificationFailedStepIds:
+        this.state.verification.nonBlockingVerificationFailedStepIds,
+      blockingVerificationFailedStepIds:
+        this.state.verification.blockingVerificationFailedStepIds,
       dispatchedMentionedAgents: this.state.worker.dispatchedMentionedAgents,
       verificationAgentState: this.state.worker.verificationAgentState,
     };
@@ -2764,7 +3159,8 @@ export class SessionRuntime {
   getRecoveryState(): SessionRuntimeRecoveryState {
     return {
       recoveryRequestActive: this.state.recovery.recoveryRequestActive,
-      lastRecoveryFailureSignature: this.state.recovery.lastRecoveryFailureSignature,
+      lastRecoveryFailureSignature:
+        this.state.recovery.lastRecoveryFailureSignature,
       recoveredFailureStepIds: this.state.recovery.recoveredFailureStepIds,
       lastRecoveryClass: this.state.recovery.lastRecoveryClass,
       lastToolDisabledScope: this.state.recovery.lastToolDisabledScope,
@@ -2847,7 +3243,8 @@ export class SessionRuntime {
   }
 
   setRetryReason(reason: string | null): void {
-    this.state.recovery.lastRetryReason = typeof reason === "string" ? reason : null;
+    this.state.recovery.lastRetryReason =
+      typeof reason === "string" ? reason : null;
   }
 
   resetRecoveryState(): void {
@@ -2859,7 +3256,10 @@ export class SessionRuntime {
     this.state.recovery.lastRetryReason = null;
   }
 
-  applyWorkspaceUpdate(workspace: Workspace, nextToolRegistry: ToolRegistry): void {
+  applyWorkspaceUpdate(
+    workspace: Workspace,
+    nextToolRegistry: ToolRegistry,
+  ): void {
     this.deps.setWorkspace(workspace);
     this.deps.setToolRegistry(nextToolRegistry);
     this.setToolDisabledScope(null);

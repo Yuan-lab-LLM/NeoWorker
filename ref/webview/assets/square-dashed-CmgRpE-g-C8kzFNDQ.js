@@ -1,0 +1,3 @@
+import { n as e, t } from "./square-dashed-CmgRpE-g-CzuEjiOk.js";
+e();
+export { t as default };

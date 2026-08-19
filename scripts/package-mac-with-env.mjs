@@ -54,8 +54,8 @@ function hasNotarizationCredentials() {
 }
 
 function configureSigningMode() {
-  if (isTrueEnv(process.env.COWORK_MAC_UNSIGNED) || !hasExplicitSigningIdentity()) {
-    process.env.COWORK_MAC_UNSIGNED = "1";
+  if (isTrueEnv(process.env.NEOWORKER_MAC_UNSIGNED) || !hasExplicitSigningIdentity()) {
+    process.env.NEOWORKER_MAC_UNSIGNED = "1";
     process.env.CSC_IDENTITY_AUTO_DISCOVERY = "false";
     log("Unsigned macOS packaging enabled with ad hoc app signing; Developer ID auto-discovery is disabled.");
     return;
@@ -144,7 +144,7 @@ if (verifyStatus !== 0) {
 
 log("Running macOS artifact smoke check …");
 const smokeArgs = ["scripts/smoke-desktop-artifacts.mjs", "--platform=mac"];
-if (process.env.COWORK_MAC_UNSIGNED === "1") {
+if (process.env.NEOWORKER_MAC_UNSIGNED === "1") {
   smokeArgs.push("--allow-unsigned");
 }
 const smokeStatus = run(process.execPath, smokeArgs);

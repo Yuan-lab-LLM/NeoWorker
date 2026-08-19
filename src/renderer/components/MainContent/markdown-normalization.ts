@@ -4,6 +4,8 @@ import {
   autolinkUrlsInBrackets,
 } from "../../utils/markdown-autolink";
 import { sanitizeToolCallTextFromAssistant } from "../../../shared/tool-call-text-sanitizer";
+import { normalizeLegacyProductBrand } from "../../../shared/legacy-product-brand";
+import { normalizeInternalToolNamesForDisplay } from "../../utils/internal-tool-display";
 import {
   normalizeInlineLists,
   normalizeInlineHeadings,
@@ -80,7 +82,8 @@ const FILE_EXTENSIONS = new Set([
   "7z",
 ]);
 
-const stripHttpScheme = (value: string): string => value.replace(/^https?:\/\//, "");
+const stripHttpScheme = (value: string): string =>
+  value.replace(/^https?:\/\//, "");
 const HTML_TAG_REGEX = /<[^>]*>/g;
 const X_LINK_HOSTS = new Set(["x.com", "twitter.com"]);
 
@@ -95,10 +98,16 @@ export const extractDomainFromUrl = (raw: string): string => {
   const trimmed = String(raw || "").trim();
   if (!trimmed) return "";
   try {
-    const parsed = new URL(trimmed.startsWith("http://") || trimmed.startsWith("https://") ? trimmed : `https://${trimmed}`);
+    const parsed = new URL(
+      trimmed.startsWith("http://") || trimmed.startsWith("https://")
+        ? trimmed
+        : `https://${trimmed}`,
+    );
     return parsed.hostname.replace(/^www\./i, "");
   } catch {
-    return stripHttpScheme(trimmed).split("/")[0].replace(/^www\./i, "");
+    return stripHttpScheme(trimmed)
+      .split("/")[0]
+      .replace(/^www\./i, "");
   }
 };
 
@@ -112,7 +121,9 @@ export function isXComLink(raw: string): boolean {
         ? trimmed
         : `https://${trimmed}`,
     );
-    const hostname = parsed.hostname.replace(/^(?:www\.|mobile\.)/i, "").toLowerCase();
+    const hostname = parsed.hostname
+      .replace(/^(?:www\.|mobile\.)/i, "")
+      .toLowerCase();
     return X_LINK_HOSTS.has(hostname);
   } catch {
     return false;
@@ -143,7 +154,8 @@ export const looksLikeLocalFilePath = (value: string): boolean => {
 
 const GLOB_TOKEN_REGEX = /(?<![`\\])\*\*\/\*[^\s,;()]+/g;
 const FENCED_CODE_BLOCK_REGEX = /(```[\s\S]*?```)/g;
-const JSON_PATH_PAYLOAD_LINE_REGEX = /^(\s*)\{\s*"path"\s*:\s*"((?:\\.|[^"\\])*)"\s*\}(\s*)$/;
+const JSON_PATH_PAYLOAD_LINE_REGEX =
+  /^(\s*)\{\s*"path"\s*:\s*"((?:\\.|[^"\\])*)"\s*\}(\s*)$/;
 const SOURCES_HEADING_REGEX = /(^|\n)(?:#{1,6}\s*)?sources\b[^\n]*(?:\n|$)/i;
 const SOURCE_ENTRY_INLINE_SPLIT_REGEX =
   /\s+(\[\d+\]\s*(?:(?:\[[^\]]+\]\([^)]+\))|https?:\/\/))/gi;
@@ -159,7 +171,10 @@ function protectGlobTokens(text: string): string {
   return text.replace(GLOB_TOKEN_REGEX, (token) => `\`${token}\``);
 }
 
-function transformOutsideFencedCodeBlocks(text: string, transform: (segment: string) => string): string {
+function transformOutsideFencedCodeBlocks(
+  text: string,
+  transform: (segment: string) => string,
+): string {
   return text
     .split(FENCED_CODE_BLOCK_REGEX)
     .map((segment, index) => (index % 2 === 1 ? segment : transform(segment)))
@@ -167,7 +182,10 @@ function transformOutsideFencedCodeBlocks(text: string, transform: (segment: str
 }
 
 function escapeMarkdownLinkText(text: string): string {
-  return text.replace(/\\/g, "\\\\").replace(/\[/g, "\\[").replace(/\]/g, "\\]");
+  return text
+    .replace(/\\/g, "\\\\")
+    .replace(/\[/g, "\\[")
+    .replace(/\]/g, "\\]");
 }
 
 function escapeMarkdownHref(href: string): string {
@@ -190,7 +208,8 @@ export function autolinkJsonPathPayloadLines(text: string): string {
           return line;
         }
         const normalizedPath = pathValue.trim();
-        if (!normalizedPath || !looksLikeLocalFilePath(normalizedPath)) return line;
+        if (!normalizedPath || !looksLikeLocalFilePath(normalizedPath))
+          return line;
 
         return `${leadingWhitespace}[${escapeMarkdownLinkText(normalizedPath)}](${escapeMarkdownHref(normalizedPath)})${trailingWhitespace}`;
       })
@@ -216,14 +235,17 @@ export function normalizeSourcesSection(text: string): string {
 
   if (headingLineEnd === -1) {
     // Content on same line as "Sources:" (e.g. "Sources: [1] ... | [2] ...")
-    const sourcesLabelEnd = headingMatch.match(/sources\b[:\s]*/i)?.[0]?.length ?? 0;
+    const sourcesLabelEnd =
+      headingMatch.match(/sources\b[:\s]*/i)?.[0]?.length ?? 0;
     sectionStart = heading.index + sourcesLabelEnd;
     sectionEnd = text.length;
   } else {
     sectionStart = headingLineEnd + 1;
     const remainder = text.slice(sectionStart);
     const nextHeading = /\n#{1,6}\s+\S/.exec(remainder);
-    sectionEnd = nextHeading ? sectionStart + nextHeading.index + 1 : text.length;
+    sectionEnd = nextHeading
+      ? sectionStart + nextHeading.index + 1
+      : text.length;
   }
 
   const sectionBody = text.slice(sectionStart, sectionEnd);
@@ -247,7 +269,9 @@ export function normalizeSourcesSection(text: string): string {
 }
 
 export function normalizeMarkdownForDisplay(text: string): string {
-  const sanitized = sanitizeToolCallTextFromAssistant(text).text;
+  const sanitized = sanitizeToolCallTextFromAssistant(
+    normalizeInternalToolNamesForDisplay(text),
+  ).text;
   const protected_ = protectGlobTokens(sanitized);
   const withJsonPaths = autolinkJsonPathPayloadLines(protected_);
   const withBareUrls = transformOutsideFencedCodeBlocks(withJsonPaths, (seg) =>
@@ -271,7 +295,7 @@ export function normalizeTimelineTitleMarkdownForDisplay(text: string): string {
 }
 
 export function cleanAssistantMessageForDisplay(message: string): string {
-  const sanitized = String(message || "")
+  const sanitized = normalizeLegacyProductBrand(String(message || ""))
     .replace(/\[\[speak\]\]([\s\S]*?)\[\[\/speak\]\]/gi, "$1")
     .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, "")
     .replace(/<tool_result>[\s\S]*?<\/tool_result>/gi, "")

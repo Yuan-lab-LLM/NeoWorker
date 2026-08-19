@@ -24,7 +24,7 @@ describe("AppleCalendarTools AppleScript generation", () => {
       expect(true).toBe(true);
       return;
     }
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-cal-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-cal-"));
 
     const { AppleCalendarTools } = await import("../apple-calendar-tools");
 

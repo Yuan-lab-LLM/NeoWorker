@@ -9,21 +9,21 @@ import {
   discoverUserDataDirs,
 } from "../local-control-plane-discovery";
 
-const OLD_USER_DATA_DIR = process.env.COWORK_USER_DATA_DIR;
+const OLD_USER_DATA_DIR = process.env.NEOWORKER_USER_DATA_DIR;
 
 describe("local control-plane discovery", () => {
   let tempDir: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-cli-discovery-"));
-    process.env.COWORK_USER_DATA_DIR = tempDir;
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-cli-discovery-"));
+    process.env.NEOWORKER_USER_DATA_DIR = tempDir;
   });
 
   afterEach(() => {
     if (OLD_USER_DATA_DIR === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = OLD_USER_DATA_DIR;
+      process.env.NEOWORKER_USER_DATA_DIR = OLD_USER_DATA_DIR;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
@@ -77,7 +77,7 @@ function writeControlPlaneSettings(userDataDir: string, settings: object): void 
 
 function writeSecureSettingsRow(userDataDir: string, encryptedData: string, rowChecksum: string): void {
   fs.mkdirSync(userDataDir, { recursive: true });
-  const dbPath = path.join(userDataDir, "cowork-os.db");
+  const dbPath = path.join(userDataDir, "neoworker.db");
   execFileSync("sqlite3", [
     dbPath,
     "CREATE TABLE secure_settings (id TEXT PRIMARY KEY, category TEXT NOT NULL, encrypted_data TEXT NOT NULL, checksum TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);",
@@ -90,8 +90,8 @@ function writeSecureSettingsRow(userDataDir: string, encryptedData: string, rowC
 
 function encryptAppSettings(userDataDir: string, data: string): string {
   const machineId = "test-machine-id";
-  fs.writeFileSync(path.join(userDataDir, ".cowork-machine-id"), machineId, "utf8");
-  const key = crypto.pbkdf2Sync("cowork-os-secure-settings-v1", machineId, 100000, 32, "sha512");
+  fs.writeFileSync(path.join(userDataDir, ".neoworker-machine-id"), machineId, "utf8");
+  const key = crypto.pbkdf2Sync("neoworker-secure-settings-v1", machineId, 100000, 32, "sha512");
   const iv = Buffer.alloc(16, 1);
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
   let encrypted = cipher.update(data, "utf8", "base64");

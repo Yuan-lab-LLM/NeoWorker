@@ -3,8 +3,15 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { ThemeIcon } from "./ThemeIcon";
-import { AlertTriangleIcon, CheckIcon, ClockIcon, InfoIcon, XIcon } from "./LineIcons";
+import {
+  AlertTriangleIcon,
+  CheckIcon,
+  ClockIcon,
+  InfoIcon,
+  XIcon,
+} from "./LineIcons";
 import { normalizeMarkdownForCollab } from "../utils/markdown-inline-lists";
+import { translate, useLanguage } from "../i18n";
 
 // Define types inline for the renderer
 interface AppNotification {
@@ -312,7 +319,10 @@ const Icons = {
   ),
 };
 
-const typeIcons: Record<string, { icon: React.ReactNode; bg: string; color: string }> = {
+const typeIcons: Record<
+  string,
+  { icon: React.ReactNode; bg: string; color: string }
+> = {
   task_completed: {
     icon: <ThemeIcon emoji="✅" icon={<CheckIcon size={14} />} />,
     bg: "rgba(34, 197, 94, 0.15)",
@@ -398,31 +408,73 @@ function formatRelativeTime(timestamp: number): string {
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
 
-  if (seconds < 60) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
+  if (seconds < 60) return translate("notifications.time.justNow", "Just now");
+  if (minutes < 60)
+    return translate("notifications.time.minutesAgo", "{count}m ago", {
+      count: minutes,
+    });
+  if (hours < 24)
+    return translate("notifications.time.hoursAgo", "{count}h ago", {
+      count: hours,
+    });
+  if (days < 7)
+    return translate("notifications.time.daysAgo", "{count}d ago", {
+      count: days,
+    });
   return new Date(timestamp).toLocaleDateString();
 }
 
 function stripLeadingEmoji(text: string): string {
-  return text.replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}][\uFE0F\uFE0E]?\s*/u, "");
+  return text.replace(
+    /^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}][\uFE0F\uFE0E]?\s*/u,
+    "",
+  );
 }
 
 /** Humanize technical reason/status strings for display */
 function humanizeStatus(value: string): string {
   const map: Record<string, string> = {
-    required_decision: "Decision required",
-    required_decision_followup: "Follow-up decision",
-    input_request: "Input needed",
-    user_action_required_disabled: "Action required",
-    user_action_required_tool: "Tool approval needed",
-    shell_permission_required: "Shell access needed",
-    workspace_mismatch: "Workspace confirmation",
-    workspace_required: "Workspace needed",
-    approval_requested: "Approval needed",
+    required_decision: translate(
+      "notifications.status.requiredDecision",
+      "Decision required",
+    ),
+    required_decision_followup: translate(
+      "notifications.status.followUpDecision",
+      "Follow-up decision",
+    ),
+    input_request: translate(
+      "notifications.status.inputNeeded",
+      "Input needed",
+    ),
+    user_action_required_disabled: translate(
+      "notifications.status.actionRequired",
+      "Action required",
+    ),
+    user_action_required_tool: translate(
+      "notifications.status.toolApprovalNeeded",
+      "Tool approval needed",
+    ),
+    shell_permission_required: translate(
+      "notifications.status.shellAccessNeeded",
+      "Shell access needed",
+    ),
+    workspace_mismatch: translate(
+      "notifications.status.workspaceConfirmation",
+      "Workspace confirmation",
+    ),
+    workspace_required: translate(
+      "notifications.status.workspaceNeeded",
+      "Workspace needed",
+    ),
+    approval_requested: translate(
+      "notifications.status.approvalNeeded",
+      "Approval needed",
+    ),
   };
-  return map[value] ?? value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return (
+    map[value] ??
+    value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+  );
 }
 
 /** Extract a cleaner display title: prefer task name, drop redundant attention prefixes */
@@ -430,7 +482,12 @@ function formatNotificationTitle(title: string): {
   primary: string;
   badge?: string;
 } {
-  const prefixes = ["Quick check-in · ", "Approval needed · ", "Input needed · ", "Action needed · "];
+  const prefixes = [
+    "Quick check-in · ",
+    "Approval needed · ",
+    "Input needed · ",
+    "Action needed · ",
+  ];
   let primary = stripLeadingEmoji(title);
   let badge: string | undefined;
 
@@ -448,7 +505,10 @@ function formatNotificationTitle(title: string): {
   return { primary, badge };
 }
 
-export function NotificationPanel({ onNotificationClick }: NotificationPanelProps) {
+export function NotificationPanel({
+  onNotificationClick,
+}: NotificationPanelProps) {
+  useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -473,28 +533,34 @@ export function NotificationPanel({ onNotificationClick }: NotificationPanelProp
 
   // Subscribe to notification events
   useEffect(() => {
-    const unsubscribe = window.electronAPI.onNotificationEvent((event: NotificationEvent) => {
-      if (event.type === "added" && event.notification) {
-        setNotifications((prev) => [event.notification!, ...prev]);
-        setUnreadCount((prev) => prev + 1);
-      } else if (event.type === "updated") {
-        if (event.notification) {
+    const unsubscribe = window.electronAPI.onNotificationEvent(
+      (event: NotificationEvent) => {
+        if (event.type === "added" && event.notification) {
+          setNotifications((prev) => [event.notification!, ...prev]);
+          setUnreadCount((prev) => prev + 1);
+        } else if (event.type === "updated") {
+          if (event.notification) {
+            setNotifications((prev) =>
+              prev.map((n) =>
+                n.id === event.notification!.id ? event.notification! : n,
+              ),
+            );
+          } else if (event.notifications) {
+            setNotifications(event.notifications);
+          }
+          // Recalculate unread count
+          window.electronAPI.getUnreadNotificationCount().then(setUnreadCount);
+        } else if (event.type === "removed" && event.notification) {
           setNotifications((prev) =>
-            prev.map((n) => (n.id === event.notification!.id ? event.notification! : n)),
+            prev.filter((n) => n.id !== event.notification!.id),
           );
-        } else if (event.notifications) {
-          setNotifications(event.notifications);
+          window.electronAPI.getUnreadNotificationCount().then(setUnreadCount);
+        } else if (event.type === "cleared") {
+          setNotifications([]);
+          setUnreadCount(0);
         }
-        // Recalculate unread count
-        window.electronAPI.getUnreadNotificationCount().then(setUnreadCount);
-      } else if (event.type === "removed" && event.notification) {
-        setNotifications((prev) => prev.filter((n) => n.id !== event.notification!.id));
-        window.electronAPI.getUnreadNotificationCount().then(setUnreadCount);
-      } else if (event.type === "cleared") {
-        setNotifications([]);
-        setUnreadCount(0);
-      }
-    });
+      },
+    );
     return unsubscribe;
   }, []);
 
@@ -559,31 +625,58 @@ export function NotificationPanel({ onNotificationClick }: NotificationPanelProp
         onClick={() => setIsOpen(!isOpen)}
         onMouseEnter={() => setIsHoveringButton(true)}
         onMouseLeave={() => setIsHoveringButton(false)}
-        title="Notifications — click to view past notifications and open tasks"
+        title={translate(
+          "notifications.tooltip",
+          "Notifications — click to view past notifications and open tasks",
+        )}
       >
-        <BellIcon color={isHoveringButton ? "#3b82f6" : unreadCount > 0 ? "#3b82f6" : "#6b7280"} />
+        <BellIcon
+          color={
+            isHoveringButton
+              ? "#3b82f6"
+              : unreadCount > 0
+                ? "#3b82f6"
+                : "#6b7280"
+          }
+        />
         {unreadCount > 0 && (
-          <span style={styles.badge}>{unreadCount > 99 ? "99+" : unreadCount}</span>
+          <span style={styles.badge}>
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
         )}
       </button>
 
       {isOpen && (
         <div style={styles.panel}>
           <div style={styles.header}>
-            <h3 style={styles.headerTitle}>Notifications</h3>
+            <h3 style={styles.headerTitle}>
+              {translate("notifications.title", "Notifications")}
+            </h3>
             <div style={styles.headerActions}>
               {unreadCount > 0 && (
                 <button
                   style={styles.headerBtn}
                   onClick={handleMarkAllRead}
-                  title="Mark all as read"
+                  title={translate(
+                    "notifications.markAllRead",
+                    "Mark all as read",
+                  )}
                 >
-                  {Icons.check} Mark all read
+                  {Icons.check}{" "}
+                  {translate(
+                    "notifications.markAllRead.short",
+                    "Mark all read",
+                  )}
                 </button>
               )}
               {notifications.length > 0 && (
-                <button style={styles.headerBtn} onClick={handleDeleteAll} title="Clear all">
-                  {Icons.trash} Clear all
+                <button
+                  style={styles.headerBtn}
+                  onClick={handleDeleteAll}
+                  title={translate("notifications.clearAll", "Clear all")}
+                >
+                  {Icons.trash}{" "}
+                  {translate("notifications.clearAll", "Clear all")}
                 </button>
               )}
             </div>
@@ -593,20 +686,26 @@ export function NotificationPanel({ onNotificationClick }: NotificationPanelProp
             {notifications.length === 0 ? (
               <div style={styles.emptyState}>
                 <div style={styles.emptyIcon}>{Icons.bell}</div>
-                <p style={styles.emptyText}>No notifications yet</p>
+                <p style={styles.emptyText}>
+                  {translate("notifications.empty", "No notifications yet")}
+                </p>
               </div>
             ) : (
               notifications.map((notification) => {
-                const typeConfig = typeIcons[notification.type] || typeIcons.info;
+                const typeConfig =
+                  typeIcons[notification.type] || typeIcons.info;
                 const isHovered = hoveredId === notification.id;
-                const { primary, badge } = formatNotificationTitle(notification.title);
+                const { primary, badge } = formatNotificationTitle(
+                  notification.title,
+                );
                 const isTechnicalReason =
                   /^[a-z][a-z0-9_]*$/.test(notification.message.trim()) &&
                   notification.message.includes("_");
                 const statusBadge = isTechnicalReason
                   ? humanizeStatus(notification.message)
                   : null;
-                const showMessage = !isTechnicalReason && notification.message.trim();
+                const showMessage =
+                  !isTechnicalReason && notification.message.trim();
                 const displayBadge = statusBadge ?? badge;
 
                 return (
@@ -614,7 +713,9 @@ export function NotificationPanel({ onNotificationClick }: NotificationPanelProp
                     key={notification.id}
                     style={{
                       ...styles.notificationItem,
-                      ...(!notification.read ? styles.notificationItemUnread : {}),
+                      ...(!notification.read
+                        ? styles.notificationItemUnread
+                        : {}),
                       backgroundColor: isHovered
                         ? "var(--color-bg-tertiary)"
                         : !notification.read
@@ -636,9 +737,14 @@ export function NotificationPanel({ onNotificationClick }: NotificationPanelProp
                     </div>
                     <div style={styles.notificationContent}>
                       {displayBadge && (
-                        <span style={styles.notificationBadge}>{displayBadge}</span>
+                        <span style={styles.notificationBadge}>
+                          {displayBadge}
+                        </span>
                       )}
-                      <NotificationMarkdownPreview text={primary} style={styles.notificationTitle} />
+                      <NotificationMarkdownPreview
+                        text={primary}
+                        style={styles.notificationTitle}
+                      />
                       {showMessage && (
                         <NotificationMarkdownPreview
                           text={notification.message}
@@ -656,7 +762,10 @@ export function NotificationPanel({ onNotificationClick }: NotificationPanelProp
                             handleNotificationClick(notification);
                           }}
                         >
-                          View & respond
+                          {translate(
+                            "notifications.viewRespond",
+                            "View & respond",
+                          )}
                         </button>
                       )}
                     </div>
@@ -667,7 +776,7 @@ export function NotificationPanel({ onNotificationClick }: NotificationPanelProp
                           opacity: isHovered ? 1 : 0,
                         }}
                         onClick={(e) => handleDelete(e, notification.id)}
-                        title="Delete"
+                        title={translate("common.delete", "Delete")}
                       >
                         {Icons.close}
                       </button>

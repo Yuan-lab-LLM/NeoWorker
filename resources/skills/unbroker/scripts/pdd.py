@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """unbroker - deterministic CLI helper.
 
-The CoWork agent orchestrates scanning and opt-out submission with available web,
+The NeoWorker agent orchestrates scanning and opt-out submission with available web,
 browser, scheduling, email, and multi-agent tools. THIS CLI owns the
 deterministic state: config, dossiers + consent, the broker DB, tier planning,
 the ledger + audit log, draft/template rendering, and reports.
 
-Run it through CoWork shell/run_command (it can read local PII files under the
+Run it through NeoWorker shell/run_command (it can read local PII files under the
 configured data directory); do NOT run it through a throwaway execute_code sandbox
 that scrubs env and redacts output.
 
@@ -61,7 +61,7 @@ def _require_subject(subject_id: str) -> dict:
 def cmd_setup(args) -> None:
     if getattr(args, "auto", False):
         # Autonomous path: detect capabilities and pick the most autonomous valid config without
-        # asking anyone. Read creds from the CoWork runtime .env too (the shell tool may not export
+        # asking anyone. Read creds from the NeoWorker runtime .env too (the shell tool may not export
         # them). Explicit flags still win below.
         cfg = config_mod.auto_configure(env=config_mod.dotenv_env())
     else:
@@ -152,7 +152,7 @@ def cmd_doctor(args) -> None:
         ("Verify-link poll (CLI IMAP)", caps["imap_read"],
          "`poll-verification` reads confirmation links itself", "set EMAIL_ADDRESS / EMAIL_PASSWORD (+ EMAIL_IMAP_HOST)"),
         ("Google Sheets tracker", caps["google_workspace"],
-         "shared status dashboard", "set up CoWork Google Workspace/Sheets"),
+         "shared status dashboard", "set up NeoWorker Google Workspace/Sheets"),
     ]
     for name, ok, enables, how in rows:
         L.append(f"  [{'ON ' if ok else 'off'}] {name:<28} {enables}")
@@ -188,9 +188,9 @@ def cmd_doctor(args) -> None:
                  "verify links via your logged-in webmail); or set EMAIL_* for SMTP/IMAP.")
     elif cfg["email_mode"] == "browser":
         L.append("  Email mode: browser (no password) - the agent sends opt-outs and opens verify "
-                 "links via the operator's logged-in webmail. This needs CoWork pointed at the "
+                 "links via the operator's logged-in webmail. This needs NeoWorker pointed at the "
                  "operator's OWN Chrome over CDP (launch with --remote-debugging-port=9222 "
-                 "--user-data-dir=~/.cowork/chrome-debug, signed into the webmail once); else it falls "
+                 "--user-data-dir=~/.neoworker/chrome-debug, signed into the webmail once); else it falls "
                  "back to drafts. Run `pdd.py cdp` to launch it (or `pdd.py cdp --print` for the command). "
                  "See methods.md 'Browser backends'.")
         cloud_scan = cfg.get("browser_backend") == "browserbase" or (
@@ -201,7 +201,7 @@ def cmd_doctor(args) -> None:
                      "and is itself Cloudflare/DataDome-gated on session-bound gates (e.g. PeopleConnect). "
                      "For Phase-2 email/verify, launch the operator's Chrome over CDP: `pdd.py cdp`.")
     if not crypto.is_engaged():
-        L.append("  Storage: dossiers are PLAINTEXT JSON (0600 under the CoWork runtime home unless PDD_DATA_DIR is set). "
+        L.append("  Storage: dossiers are PLAINTEXT JSON (0600 under the NeoWorker runtime home unless PDD_DATA_DIR is set). "
                  "Run `setup --encryption age` for at-rest encryption.")
     if not live:
         L.append("  Next: run `refresh-brokers` to load the full broker list.")
@@ -248,7 +248,7 @@ def cmd_cdp(args) -> None:
     """Launch (or detect) the operator's Chrome over CDP for Phase-2 browser + webmail work.
 
     A cloud browser cannot send the operator's webmail or clear session-bound gates; this points
-    CoWork at the operator's real Chrome on a dedicated debug profile (see methods.md).
+    NeoWorker at the operator's real Chrome on a dedicated debug profile (see methods.md).
     """
     import shlex
     import time
@@ -261,7 +261,7 @@ def cmd_cdp(args) -> None:
         _out({"running": True, "endpoint": f"127.0.0.1:{port}",
               "browser": live.get("Browser"),
               "webSocketDebuggerUrl": live.get("webSocketDebuggerUrl"),
-              "note": "a debuggable browser is already listening; point CoWork's browser tools at "
+              "note": "a debuggable browser is already listening; point NeoWorker's browser tools at "
                       f"127.0.0.1:{port} and make sure the operator's webmail is signed in in THAT browser."})
         return
 
@@ -293,7 +293,7 @@ def cmd_cdp(args) -> None:
     _out({"running": bool(live), "launched_pid": pid, "browser": browser,
           "profile": str(profile), "endpoint": f"127.0.0.1:{port}",
           "webSocketDebuggerUrl": (live or {}).get("webSocketDebuggerUrl"),
-          "next": ([f"point CoWork's browser tools at 127.0.0.1:{port} (CDP)",
+          "next": ([f"point NeoWorker's browser tools at 127.0.0.1:{port} (CDP)",
                     "in the launched browser, sign into the operator's webmail ONCE (dedicated debug profile)",
                     "then run email/verify flows in browser mode -- they use this logged-in session"]
                    if live else
@@ -487,7 +487,7 @@ def cmd_fanout(args) -> None:
         "batch_count": len(batches),
         "batches": batches,
         "instruction": (
-            "If should_fanout is true you MUST spawn ONE CoWork subagent per batch IN PARALLEL, "
+            "If should_fanout is true you MUST spawn ONE NeoWorker subagent per batch IN PARALLEL, "
             "passing each batch's `brief`; do not scan all brokers yourself sequentially. Wait for every "
             "report, consolidate, then proceed to opt-outs. If false, just scan the brokers inline."
         ),
@@ -753,7 +753,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help="launch/detect the operator's Chrome over CDP (Phase-2 browser + webmail)")
     s.add_argument("--port", type=int, default=cdp.DEFAULT_PORT, help="remote debugging port (default 9222)")
     s.add_argument("--profile",
-                   help="user-data-dir (default: CoWork runtime home/chrome-debug, a dedicated debug profile)")
+                   help="user-data-dir (default: NeoWorker runtime home/chrome-debug, a dedicated debug profile)")
     s.add_argument("--browser", help="path to (or PATH name of) a Chrome/Chromium/Brave/Edge binary")
     s.add_argument("--check", action="store_true",
                    help="only report whether a debug browser is live; do not launch")
@@ -813,7 +813,7 @@ def build_parser() -> argparse.ArgumentParser:
                         "(unscanned/found/indirect/blocked/in_progress/done), collapses ownership clusters")
     s.set_defaults(func=cmd_plan)
 
-    s = sub.add_parser("fanout", help="batch brokers into parallel CoWork subagents when available (large runs)")
+    s = sub.add_parser("fanout", help="batch brokers into parallel NeoWorker subagents when available (large runs)")
     s.add_argument("subject")
     s.add_argument("--priority", action="append", choices=["crucial", "high", "standard", "long_tail"])
     s.add_argument("--size", type=int, default=5, help="brokers per subagent batch (default 5; 8+ times out)")

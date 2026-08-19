@@ -8,7 +8,10 @@ import {
   useLayoutEffect,
 } from "react";
 import { GitFork } from "lucide-react";
-import type { QuotedAssistantMessage, IntegrationMentionSelection } from "../../../shared/types";
+import type {
+  QuotedAssistantMessage,
+  IntegrationMentionSelection,
+} from "../../../shared/types";
 import {
   COLLAPSED_USER_BUBBLE_MAX_HEIGHT,
   COLLAPSED_USER_BUBBLE_MIN_HEIGHT,
@@ -20,12 +23,17 @@ import {
   IntegrationMentionText,
   hasRenderableIntegrationMentions,
 } from "../IntegrationMentionText";
+import { translate, useLanguage } from "../../i18n";
 
 const LazyMarkdownRenderer = lazy(() =>
-  import("../MarkdownRenderer").then((module) => ({ default: module.MarkdownRenderer })),
+  import("../MarkdownRenderer").then((module) => ({
+    default: module.MarkdownRenderer,
+  })),
 );
 const LazyHighlightedCodePreview = lazy(() =>
-  import("../HighlightedCode").then((module) => ({ default: module.HighlightedCodePreview })),
+  import("../HighlightedCode").then((module) => ({
+    default: module.HighlightedCodePreview,
+  })),
 );
 
 export function DeferredMarkdown({
@@ -38,7 +46,9 @@ export function DeferredMarkdown({
   withBreaks?: boolean;
 }) {
   return (
-    <Suspense fallback={<span className="markdown-deferred-text">{children}</span>}>
+    <Suspense
+      fallback={<span className="markdown-deferred-text">{children}</span>}
+    >
       <LazyMarkdownRenderer components={components} withBreaks={withBreaks}>
         {children}
       </LazyMarkdownRenderer>
@@ -52,12 +62,17 @@ export function resolveSafeCollapsedBubbleHeight(
   minHeight = COLLAPSED_USER_BUBBLE_MIN_HEIGHT,
 ): number {
   const lastVisibleLineBottom = lineBottoms
-    .filter((bottom) => Number.isFinite(bottom) && bottom > 0 && bottom <= maxHeight)
+    .filter(
+      (bottom) => Number.isFinite(bottom) && bottom > 0 && bottom <= maxHeight,
+    )
     .at(-1);
 
   if (lastVisibleLineBottom == null) return maxHeight;
 
-  return Math.max(minHeight, Math.min(maxHeight, Math.floor(lastVisibleLineBottom)));
+  return Math.max(
+    minHeight,
+    Math.min(maxHeight, Math.floor(lastVisibleLineBottom)),
+  );
 }
 
 function collectTextLineBottoms(root: HTMLElement): number[] {
@@ -87,7 +102,13 @@ function getSafeCollapsedUserBubbleHeight(root: HTMLElement): number {
   return resolveSafeCollapsedBubbleHeight(collectTextLineBottoms(root));
 }
 
-export function HighlightedCodePreview({ code, language }: { code: string; language?: string }) {
+export function HighlightedCodePreview({
+  code,
+  language,
+}: {
+  code: string;
+  language?: string;
+}) {
   return (
     <Suspense
       fallback={
@@ -115,7 +136,10 @@ export function normalizeQuotedAssistantMarkdownPreview(
   return `${normalized.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
 }
 
-export function summarizeQuotedAssistantMessage(message: string, maxChars = MAX_QUOTED_ASSISTANT_PREVIEW_CHARS): string {
+export function summarizeQuotedAssistantMessage(
+  message: string,
+  maxChars = MAX_QUOTED_ASSISTANT_PREVIEW_CHARS,
+): string {
   const collapsed = message.replace(/\s+/g, " ").trim();
   if (collapsed.length <= maxChars) return collapsed;
   return `${collapsed.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
@@ -140,7 +164,13 @@ export function createQuotedAssistantMessage(
 }
 
 // Copy button for user messages
-export const MessageCopyButton = memo(function MessageCopyButton({ text }: { text: string }) {
+export const MessageCopyButton = memo(function MessageCopyButton({
+  text,
+}: {
+  text: string;
+}) {
+  useLanguage();
+  const t = translate;
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -157,7 +187,11 @@ export const MessageCopyButton = memo(function MessageCopyButton({ text }: { tex
     <button
       className={`message-copy-btn ${copied ? "copied" : ""}`}
       onClick={handleCopy}
-      title={copied ? "Copied!" : "Copy message"}
+      title={
+        copied
+          ? t("common.copiedBang", "Copied!")
+          : t("messageActions.copyMessage", "Copy message")
+      }
     >
       {copied ? (
         <svg
@@ -183,7 +217,9 @@ export const MessageCopyButton = memo(function MessageCopyButton({ text }: { tex
           <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
         </svg>
       )}
-      <span>{copied ? "Copied" : "Copy"}</span>
+      <span>
+        {copied ? t("common.copied", "Copied") : t("common.copy", "Copy")}
+      </span>
     </button>
   );
 });
@@ -193,8 +229,15 @@ export const MessageQuoteButton = memo(function MessageQuoteButton({
 }: {
   onQuote: () => void;
 }) {
+  useLanguage();
+  const t = translate;
   return (
-    <button type="button" className="message-quote-btn" onClick={onQuote} title="Quote this message">
+    <button
+      type="button"
+      className="message-quote-btn"
+      onClick={onQuote}
+      title={t("messageActions.quoteThis", "Quote this message")}
+    >
       <svg
         width="12"
         height="12"
@@ -208,7 +251,7 @@ export const MessageQuoteButton = memo(function MessageQuoteButton({
         <path d="M10 8L6 12l4 4" />
         <path d="M6 12h9a5 5 0 0 1 5 5v0" />
       </svg>
-      <span>Quote</span>
+      <span>{t("messageActions.quote", "Quote")}</span>
     </button>
   );
 });
@@ -218,68 +261,158 @@ export const MessageForkButton = memo(function MessageForkButton({
 }: {
   onFork: () => void;
 }) {
+  useLanguage();
+  const t = translate;
   return (
-    <button type="button" className="message-fork-btn" onClick={onFork} title="Fork from this message">
+    <button
+      type="button"
+      className="message-fork-btn"
+      onClick={onFork}
+      title={t("messageActions.forkFromThis", "Fork from this message")}
+    >
       <GitFork size={12} strokeWidth={2} aria-hidden="true" />
-      <span>Fork</span>
+      <span>{t("messageActions.fork", "Fork")}</span>
     </button>
   );
 });
 
+type CollapsibleUserBubbleActionRowArgs = {
+  needsCollapse: boolean;
+  collapsed: boolean;
+  expanded: boolean;
+  toggleExpanded: () => void;
+  defaultActions: React.ReactNode;
+};
+
 // Collapsible user message bubble - limits height and expands on click
-export function CollapsibleUserBubble({ children }: { children: React.ReactNode }) {
+export function CollapsibleUserBubble({
+  children,
+  actions,
+  renderActionRow,
+}: {
+  children: React.ReactNode;
+  actions?: React.ReactNode;
+  renderActionRow?: (
+    args: CollapsibleUserBubbleActionRowArgs,
+  ) => React.ReactNode;
+}) {
+  useLanguage();
+  const t = translate;
   const [expanded, setExpanded] = useState(false);
   const [needsCollapse, setNeedsCollapse] = useState(false);
-  const [collapsedHeight, setCollapsedHeight] = useState(COLLAPSED_USER_BUBBLE_MAX_HEIGHT);
+  const [collapsedHeight, setCollapsedHeight] = useState(
+    COLLAPSED_USER_BUBBLE_MAX_HEIGHT,
+  );
+  const bubbleRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const needsCollapseRef = useRef(false);
+  const collapsedHeightRef = useRef(COLLAPSED_USER_BUBBLE_MAX_HEIGHT);
+  const measureFrameRef = useRef<number | null>(null);
 
   const measure = useCallback(() => {
-    const node = contentRef.current;
-    if (!node) return;
+    const bubbleNode = bubbleRef.current;
+    if (!bubbleNode) return;
 
-    const shouldCollapse = node.scrollHeight > COLLAPSED_USER_BUBBLE_MAX_HEIGHT;
-    setNeedsCollapse(shouldCollapse);
-    setCollapsedHeight(
-      shouldCollapse ? getSafeCollapsedUserBubbleHeight(node) : COLLAPSED_USER_BUBBLE_MAX_HEIGHT,
-    );
+    const shouldCollapse =
+      bubbleNode.scrollHeight > COLLAPSED_USER_BUBBLE_MAX_HEIGHT;
+    const nextCollapsedHeight = shouldCollapse
+      ? getSafeCollapsedUserBubbleHeight(bubbleNode)
+      : COLLAPSED_USER_BUBBLE_MAX_HEIGHT;
+
+    if (needsCollapseRef.current !== shouldCollapse) {
+      needsCollapseRef.current = shouldCollapse;
+      setNeedsCollapse(shouldCollapse);
+    }
+    if (collapsedHeightRef.current !== nextCollapsedHeight) {
+      collapsedHeightRef.current = nextCollapsedHeight;
+      setCollapsedHeight(nextCollapsedHeight);
+    }
   }, []);
 
-  useLayoutEffect(() => {
-    measure();
+  const scheduleMeasure = useCallback(() => {
+    if (measureFrameRef.current !== null) {
+      window.cancelAnimationFrame(measureFrameRef.current);
+    }
+    measureFrameRef.current = window.requestAnimationFrame(() => {
+      measureFrameRef.current = null;
+      measure();
+    });
+  }, [measure]);
 
-    const node = contentRef.current;
-    if (!node) return undefined;
+  useLayoutEffect(() => {
+    scheduleMeasure();
+
+    const contentNode = contentRef.current;
+    if (!contentNode) return undefined;
 
     if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", measure);
-      return () => window.removeEventListener("resize", measure);
+      window.addEventListener("resize", scheduleMeasure);
+      return () => {
+        window.removeEventListener("resize", scheduleMeasure);
+        if (measureFrameRef.current !== null) {
+          window.cancelAnimationFrame(measureFrameRef.current);
+          measureFrameRef.current = null;
+        }
+      };
     }
 
-    const observer = new ResizeObserver(() => measure());
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [children, measure]);
+    const observer = new ResizeObserver(() => scheduleMeasure());
+    // Observe the unconstrained content rather than the bubble whose max-height
+    // changes after measuring. Observing the bubble itself causes a feedback loop.
+    observer.observe(contentNode);
+    return () => {
+      observer.disconnect();
+      if (measureFrameRef.current !== null) {
+        window.cancelAnimationFrame(measureFrameRef.current);
+        measureFrameRef.current = null;
+      }
+    };
+  }, [children, scheduleMeasure]);
 
   const collapsed = needsCollapse && !expanded;
+  const defaultActions = (
+    <>
+      {needsCollapse && (
+        <button
+          className="user-bubble-expand-btn"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {collapsed
+            ? t("common.showMore", "Show more")
+            : t("common.showLess", "Show less")}
+        </button>
+      )}
+      {actions}
+    </>
+  );
 
   return (
     <>
       <div
-        ref={contentRef}
+        ref={bubbleRef}
         className={`chat-bubble user-bubble markdown-content${!collapsed ? " expanded" : ""}`}
         style={collapsed ? { maxHeight: `${collapsedHeight}px` } : undefined}
         onClick={() => {
           if (collapsed) setExpanded(true);
         }}
       >
-        {children}
+        <div ref={contentRef} className="user-bubble-content">
+          {children}
+        </div>
         {collapsed && <div className="user-bubble-fade" />}
       </div>
-      {needsCollapse && (
-        <button className="user-bubble-expand-btn" onClick={() => setExpanded(!expanded)}>
-          {collapsed ? "Show more" : "Show less"}
-        </button>
-      )}
+      {(needsCollapse || actions) &&
+        (renderActionRow ? (
+          renderActionRow({
+            needsCollapse,
+            collapsed,
+            expanded,
+            toggleExpanded: () => setExpanded((value) => !value),
+            defaultActions,
+          })
+        ) : (
+          <div className="user-bubble-action-row">{defaultActions}</div>
+        ))}
     </>
   );
 }
@@ -320,6 +453,8 @@ export const MessageSpeakButton = memo(function MessageSpeakButton({
   text: string;
   voiceEnabled: boolean;
 }) {
+  useLanguage();
+  const t = translate;
   const [speaking, setSpeaking] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -399,7 +534,13 @@ export const MessageSpeakButton = memo(function MessageSpeakButton({
     <button
       className={`message-speak-btn ${speaking ? "speaking" : ""}`}
       onClick={handleClick}
-      title={speaking ? "Stop speaking" : loading ? "Loading..." : "Speak message"}
+      title={
+        speaking
+          ? t("messageActions.stopSpeaking", "Stop speaking")
+          : loading
+            ? t("common.loading", "Loading...")
+            : t("messageActions.speakMessage", "Speak message")
+      }
       disabled={loading}
     >
       {speaking ? (
@@ -423,7 +564,13 @@ export const MessageSpeakButton = memo(function MessageSpeakButton({
           strokeWidth="2"
           className="spin"
         >
-          <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            strokeDasharray="32"
+            strokeDashoffset="12"
+          />
         </svg>
       ) : (
         <svg
@@ -439,7 +586,13 @@ export const MessageSpeakButton = memo(function MessageSpeakButton({
           <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
         </svg>
       )}
-      <span>{speaking ? "Stop" : loading ? "Loading" : "Speak"}</span>
+      <span>
+        {speaking
+          ? t("common.stop", "Stop")
+          : loading
+            ? t("common.loadingShort", "Loading")
+            : t("messageActions.speak", "Speak")}
+      </span>
     </button>
   );
 });
@@ -476,7 +629,9 @@ export function UserMessageText({
   markdownComponents: Any;
 }) {
   if (hasRenderableIntegrationMentions(text, integrationMentions)) {
-    return <IntegrationMentionText text={text} mentions={integrationMentions} />;
+    return (
+      <IntegrationMentionText text={text} mentions={integrationMentions} />
+    );
   }
 
   return (
@@ -486,6 +641,12 @@ export function UserMessageText({
   );
 }
 
-export function getIntegrationMentionsSignature(mentions?: IntegrationMentionSelection[]): string {
-  return mentions?.map((mention) => `${mention.id}:${mention.label}:${mention.iconKey}`).join("|") ?? "";
+export function getIntegrationMentionsSignature(
+  mentions?: IntegrationMentionSelection[],
+): string {
+  return (
+    mentions
+      ?.map((mention) => `${mention.id}:${mention.label}:${mention.iconKey}`)
+      .join("|") ?? ""
+  );
 }

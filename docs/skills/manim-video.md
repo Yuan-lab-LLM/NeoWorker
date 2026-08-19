@@ -1,6 +1,6 @@
 # Manim Video Skill
 
-`manim-video` is a bundled CoWork OS skill for planning, scaffolding, and optionally rendering technical explainer videos with Manim Community Edition.
+`manim-video` is a bundled NeoWorker skill for planning, scaffolding, and optionally rendering technical explainer videos with Manim Community Edition.
 
 It is designed for:
 
@@ -22,7 +22,7 @@ It is not the right tool for:
 
 ## What The Skill Does
 
-Compared with a plain imported `SKILL.md`, CoWork’s bundled `manim-video` integration adds a stronger local workflow:
+Compared with a plain imported `SKILL.md`, NeoWorker’s bundled `manim-video` integration adds a stronger local workflow:
 
 - dependency preflight through `resources/skills/manim-video/scripts/setup.sh`
 - deterministic project scaffolding through `resources/skills/manim-video/scripts/bootstrap_project.py`
@@ -78,7 +78,7 @@ Use the manim-video skill to create a 75-second concept explainer for gradient d
 
 ## Invocation Model
 
-`manim-video` follows CoWork’s additive skill runtime.
+`manim-video` follows NeoWorker’s additive skill runtime.
 
 - The original task stays canonical.
 - The skill adds execution context and scoped directives.

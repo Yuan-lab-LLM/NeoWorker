@@ -4,7 +4,7 @@ import { createHash } from "crypto";
 import { buildWorkspaceKitSections, parseHeartbeatChecklist, renderHeartbeatPrompt } from "../context/kit-injection";
 import { getUserDataDir } from "../utils/user-data-dir";
 
-const KIT_DIRNAME = ".cowork";
+const KIT_DIRNAME = ".neoworker";
 const STATE_FILENAME = "heartbeat-maintenance-state.json";
 const checklistCache = new Map<string, { revisionHash: string; items: HeartbeatChecklistItem[] }>();
 

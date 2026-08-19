@@ -1,7 +1,7 @@
 {
-  "name": "@cowork-os/rhino-mcp",
+  "name": "@neoworker/rhino-mcp",
   "version": "0.1.0",
-  "description": "Rhino architectural modeling MCP connector for CoWork OS.",
+  "description": "Rhino architectural modeling MCP connector for NeoWorker.",
   "private": true,
   "type": "commonjs",
   "main": "dist/index.js",

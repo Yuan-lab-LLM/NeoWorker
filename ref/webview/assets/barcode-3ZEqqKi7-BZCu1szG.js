@@ -1,0 +1,3 @@
+import { n as e, t } from "./barcode-3ZEqqKi7-D7i4a09N.js";
+e();
+export { t as default };

@@ -9,7 +9,7 @@ let writeCount = 0;
 
 const MINIMAL_V2 = {
   version: 2,
-  agentName: "CoWork",
+  agentName: "NeoWorker",
   traits: [],
   rules: [],
   style: {},
@@ -93,7 +93,7 @@ describe("PersonalityManager", () => {
       expect(settings.activePersonality).toBe("professional");
       expect(settings.customPrompt).toBe("");
       expect(settings.customName).toBe("Custom Assistant");
-      expect(settings.agentName).toBe("CoWork");
+      expect(settings.agentName).toBe("NeoWorker");
     });
 
     it("should load existing settings", () => {
@@ -110,6 +110,22 @@ describe("PersonalityManager", () => {
       expect(settings.customPrompt).toBe("Be super helpful!");
       expect(settings.customName).toBe("My Bot");
     });
+
+    it.each(["CoWork OS", "CoWorkOS", "CrewWork", "QuiverReady"])(
+      "should migrate the legacy product agent name %s",
+      (legacyName) => {
+        mockStoredSettings = {
+          ...MINIMAL_V2,
+          agentName: legacyName,
+        };
+
+        PersonalityManager.clearCache();
+        const settings = PersonalityManager.loadSettings();
+
+        expect(settings.agentName).toBe("NeoWorker");
+        expect(mockStoredSettings.agentName).toBe("NeoWorker");
+      },
+    );
 
     it("should cache loaded settings", () => {
       mockStoredSettings = { activePersonality: "concise" };
@@ -317,7 +333,7 @@ describe("PersonalityManager", () => {
       expect(defaults.activePersonality).toBe("professional");
       expect(defaults.customPrompt).toBe("");
       expect(defaults.customName).toBe("Custom Assistant");
-      expect(defaults.agentName).toBe("CoWork");
+      expect(defaults.agentName).toBe("NeoWorker");
     });
 
     it("should return a new object each time", () => {
@@ -382,7 +398,9 @@ describe("PersonalityManager - personality prompt content", () => {
 
     const prompt = PersonalityManager.getPersonalityPrompt();
 
-    expect(prompt.toLowerCase()).toMatch(/technical|detailed|professional|straight to the point|assertive/);
+    expect(prompt.toLowerCase()).toMatch(
+      /technical|detailed|professional|straight to the point|assertive/,
+    );
   });
 
   it("casual personality should emphasize relaxed tone", () => {
@@ -408,7 +426,7 @@ describe("PersonalityManager - agent name", () => {
   describe("getAgentName", () => {
     it("should return default name when no name is set", () => {
       const name = PersonalityManager.getAgentName();
-      expect(name).toBe("CoWork");
+      expect(name).toBe("NeoWorker");
     });
 
     it("should return custom name when set", () => {
@@ -424,7 +442,7 @@ describe("PersonalityManager - agent name", () => {
       PersonalityManager.clearCache();
 
       const name = PersonalityManager.getAgentName();
-      expect(name).toBe("CoWork");
+      expect(name).toBe("NeoWorker");
     });
   });
 
@@ -448,13 +466,13 @@ describe("PersonalityManager - agent name", () => {
     it("should use default name for empty input", () => {
       PersonalityManager.setAgentName("");
 
-      expect(mockStoredSettings.agentName).toBe("CoWork");
+      expect(mockStoredSettings.agentName).toBe("NeoWorker");
     });
 
     it("should use default name for whitespace-only input", () => {
       PersonalityManager.setAgentName("   ");
 
-      expect(mockStoredSettings.agentName).toBe("CoWork");
+      expect(mockStoredSettings.agentName).toBe("NeoWorker");
     });
   });
 
@@ -463,9 +481,12 @@ describe("PersonalityManager - agent name", () => {
       const prompt = PersonalityManager.getIdentityPrompt();
 
       expect(prompt).toContain("YOUR IDENTITY:");
-      expect(prompt).toContain("You are CoWork");
-      expect(prompt).toContain("CoWork OS");
+      expect(prompt).toContain("You are NeoWorker");
+      expect(prompt).toContain("NeoWorker");
       expect(prompt).toContain("Do NOT claim to be Claude");
+      expect(prompt).toContain("CURRENT PRODUCT BRAND:");
+      expect(prompt).toContain('Never describe the current product or runtime as "CoWork OS"');
+      expect(prompt).toContain("Ignore them during workspace discovery, use .neoworker");
     });
 
     it("should return identity prompt with custom name", () => {
@@ -500,7 +521,9 @@ describe("PersonalityManager - agent name", () => {
       expect(prompt).toContain("USER CONTEXT");
       expect(prompt).toContain("Alice");
       expect(prompt).toContain("25 tasks");
-      expect(prompt).toContain("project-a");
+      expect(prompt).toContain("worked across 2 projects");
+      expect(prompt).not.toContain("project-a");
+      expect(prompt).toContain("Never use historical project names");
     });
 
     it('should include instructions for handling "who am I" when user name is set', () => {
@@ -884,7 +907,11 @@ describe("PersonalityManager - quirks", () => {
   describe("quirks prompt generation", () => {
     it("should include catchphrase in prompt", () => {
       mockStoredSettings = {
-        quirks: { catchphrase: "Consider it done!", signOff: "", analogyDomain: "none" },
+        quirks: {
+          catchphrase: "Consider it done!",
+          signOff: "",
+          analogyDomain: "none",
+        },
       };
       PersonalityManager.clearCache();
 
@@ -896,7 +923,11 @@ describe("PersonalityManager - quirks", () => {
 
     it("should include sign-off in prompt", () => {
       mockStoredSettings = {
-        quirks: { catchphrase: "", signOff: "Stay awesome!", analogyDomain: "none" },
+        quirks: {
+          catchphrase: "",
+          signOff: "Stay awesome!",
+          analogyDomain: "none",
+        },
       };
       PersonalityManager.clearCache();
 
@@ -963,7 +994,6 @@ describe("PersonalityManager - relationship", () => {
 
       expect((mockStoredSettings.relationship as Any)?.userName).toBe("Mary Jane Watson Parker");
     });
-
   });
 
   describe("getUserName", () => {
@@ -980,7 +1010,9 @@ describe("PersonalityManager - relationship", () => {
     });
 
     it("should keep explicit longer names loaded from storage", () => {
-      mockStoredSettings = { relationship: { userName: "Mary Jane Watson Parker" } };
+      mockStoredSettings = {
+        relationship: { userName: "Mary Jane Watson Parker" },
+      };
       PersonalityManager.clearCache();
 
       expect(PersonalityManager.getUserName()).toBe("Mary Jane Watson Parker");
@@ -1027,7 +1059,11 @@ describe("PersonalityManager - relationship", () => {
       // Set tasksCompleted to 9 and lastMilestoneCelebrated to 1 (already celebrated milestone 1)
       // After incrementing to 10, milestone 10 should be celebrated
       mockStoredSettings = {
-        relationship: { tasksCompleted: 9, lastMilestoneCelebrated: 1, projectsWorkedOn: [] },
+        relationship: {
+          tasksCompleted: 9,
+          lastMilestoneCelebrated: 1,
+          projectsWorkedOn: [],
+        },
       };
       PersonalityManager.clearCache();
 
@@ -1067,7 +1103,9 @@ describe("PersonalityManager - relationship", () => {
     });
 
     it("should return correct project count", () => {
-      mockStoredSettings = { relationship: { projectsWorkedOn: ["proj1", "proj2", "proj3"] } };
+      mockStoredSettings = {
+        relationship: { projectsWorkedOn: ["proj1", "proj2", "proj3"] },
+      };
       PersonalityManager.clearCache();
 
       const stats = PersonalityManager.getRelationshipStats();
@@ -1128,7 +1166,9 @@ describe("PersonalityManager - relationship", () => {
 
   describe("identity prompt with user name", () => {
     it("should include user name in identity prompt", () => {
-      mockStoredSettings = { relationship: { userName: "Frank", tasksCompleted: 10 } };
+      mockStoredSettings = {
+        relationship: { userName: "Frank", tasksCompleted: 10 },
+      };
       PersonalityManager.clearCache();
 
       const prompt = PersonalityManager.getIdentityPrompt();
@@ -1231,7 +1271,10 @@ describe("PersonalityManager - resetToDefaults", () => {
       examples: [],
       customInstructions: {},
       contextOverrides: [],
-      quirks: { catchphrase: "At your service.", signOff: "Will there be anything else?" },
+      quirks: {
+        catchphrase: "At your service.",
+        signOff: "Will there be anything else?",
+      },
       relationship: {},
     };
     PersonalityManager.clearCache();
@@ -1239,7 +1282,7 @@ describe("PersonalityManager - resetToDefaults", () => {
     PersonalityManager.resetToDefaults(false);
 
     expect(mockStoredSettings.activePersonality).toBe("professional");
-    expect(mockStoredSettings.agentName).toBe("CoWork");
+    expect(mockStoredSettings.agentName).toBe("NeoWorker");
     expect(mockStoredSettings.activePersona).toBe("companion");
   });
 
@@ -1274,7 +1317,7 @@ describe("PersonalityManager - resetToDefaults", () => {
   it("should not preserve relationship data when preserveRelationship is false", () => {
     mockStoredSettings = {
       version: 2,
-      agentName: "CoWork",
+      agentName: "NeoWorker",
       traits: [],
       rules: [],
       style: {},
@@ -1296,7 +1339,7 @@ describe("PersonalityManager - resetToDefaults", () => {
   it("should default to preserving relationship", () => {
     mockStoredSettings = {
       version: 2,
-      agentName: "CoWork",
+      agentName: "NeoWorker",
       traits: [],
       rules: [],
       style: {},
@@ -1316,7 +1359,19 @@ describe("PersonalityManager - resetToDefaults", () => {
   });
 
   it("should increment write count", () => {
-    mockStoredSettings = { version: 2, agentName: "CoWork", traits: [], rules: [], style: {}, expertise: [], examples: [], customInstructions: {}, contextOverrides: [], quirks: {}, relationship: {} };
+    mockStoredSettings = {
+      version: 2,
+      agentName: "NeoWorker",
+      traits: [],
+      rules: [],
+      style: {},
+      expertise: [],
+      examples: [],
+      customInstructions: {},
+      contextOverrides: [],
+      quirks: {},
+      relationship: {},
+    };
     PersonalityManager.clearCache();
 
     PersonalityManager.resetToDefaults();
@@ -1444,7 +1499,19 @@ describe("PersonalityManager - atomic writes", () => {
   });
 
   it("should persist settings via SecureSettingsRepository", () => {
-    mockStoredSettings = { version: 2, agentName: "CoWork", traits: [], rules: [], style: {}, expertise: [], examples: [], customInstructions: {}, contextOverrides: [], quirks: {}, relationship: {} };
+    mockStoredSettings = {
+      version: 2,
+      agentName: "NeoWorker",
+      traits: [],
+      rules: [],
+      style: {},
+      expertise: [],
+      examples: [],
+      customInstructions: {},
+      contextOverrides: [],
+      quirks: {},
+      relationship: {},
+    };
     PersonalityManager.clearCache();
 
     const settings = PersonalityManager.loadSettings();

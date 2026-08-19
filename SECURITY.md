@@ -11,7 +11,7 @@
 
 ## Reporting a Vulnerability
 
-We take security seriously at CoWork OS. If you discover a security vulnerability, please report it responsibly.
+We take security seriously at NeoWorker. If you discover a security vulnerability, please report it responsibly.
 
 ### How to Report
 
@@ -20,7 +20,7 @@ We take security seriously at CoWork OS. If you discover a security vulnerabilit
 Instead, please report them via one of the following methods:
 
 1. **GitHub Security Advisories**: Use the "Report a vulnerability" button in the Security tab of the repository
-2. **Email**: Send details to info@coworkosapp.com
+2. **Email**: Send details to info@neoworkerapp.com
 
 ### What to Include
 
@@ -112,7 +112,7 @@ Please include as much of the following information as possible:
 ## Scope
 
 This security policy applies to:
-- The CoWork OS application code
+- The NeoWorker application code
 - Build and distribution processes
 - Documentation
 
@@ -123,9 +123,9 @@ Out of scope:
 
 ## Recognition
 
-We appreciate security researchers who help keep CoWork OS safe. Contributors who report valid security issues will be:
+We appreciate security researchers who help keep NeoWorker safe. Contributors who report valid security issues will be:
 
 - Credited in security advisories (with permission)
 - Added to our security acknowledgments (if desired)
 
-Thank you for helping keep CoWork OS and its users safe!
+Thank you for helping keep NeoWorker and its users safe!

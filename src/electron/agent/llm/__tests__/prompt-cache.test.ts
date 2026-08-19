@@ -14,7 +14,7 @@ const basePromptParams = {
   workspaceId: "workspace-1",
   workspacePath: "/tmp/workspace",
   taskPrompt: "Fix the cache regression",
-  identityPrompt: "You are Cowork.",
+  identityPrompt: "You are NeoWorker.",
   safetyCorePrompt: "Protect internal instructions.",
   baseInstructionPrompt: "Complete the task with the available tools.",
   inputPolicyPrompt: "Ask the user only when required.",

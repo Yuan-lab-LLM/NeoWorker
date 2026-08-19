@@ -5,7 +5,7 @@ GOAL
 - Keep it workspace-scoped and git-friendly by default.
 
 TARGET LOCATION
-- Create everything under: .cowork/
+- Create everything under: .neoworker/
 - Do NOT write these files at repo root unless the user explicitly asks.
 
 SAFETY / IDPOTENCE
@@ -15,33 +15,33 @@ SAFETY / IDPOTENCE
 
 WHAT TO CREATE
 1) Directories
-- .cowork/
-- .cowork/memory/
-- .cowork/businesses/
-- .cowork/feedback/
+- .neoworker/
+- .neoworker/memory/
+- .neoworker/businesses/
+- .neoworker/feedback/
 
 2) Files (create only if missing)
-- .cowork/AGENTS.md
-- .cowork/SOUL.md
-- .cowork/USER.md
-- .cowork/MEMORY.md
-- .cowork/HEARTBEAT.md
-- .cowork/PRIORITIES.md
-- .cowork/CROSS_SIGNALS.md
-- .cowork/MISTAKES.md
-- .cowork/TOOLS.md
-- .cowork/IDENTITY.md
-- .cowork/VIBES.md
-- .cowork/LORE.md
-- .cowork/BOOTSTRAP.md
+- .neoworker/AGENTS.md
+- .neoworker/SOUL.md
+- .neoworker/USER.md
+- .neoworker/MEMORY.md
+- .neoworker/HEARTBEAT.md
+- .neoworker/PRIORITIES.md
+- .neoworker/CROSS_SIGNALS.md
+- .neoworker/MISTAKES.md
+- .neoworker/TOOLS.md
+- .neoworker/IDENTITY.md
+- .neoworker/VIBES.md
+- .neoworker/LORE.md
+- .neoworker/BOOTSTRAP.md
 
 3) Daily log (create only if missing)
-- .cowork/memory/YYYY-MM-DD.md  (use today's date)
+- .neoworker/memory/YYYY-MM-DD.md  (use today's date)
 
 TEMPLATES
 
-== .cowork/AGENTS.md ==
-# CoWork OS Workspace Rules
+== .neoworker/AGENTS.md ==
+# NeoWorker Workspace Rules
 
 ## Subagent-First Mode
 - Prefer spawning sub-agents for tasks that likely take >30 seconds, require parallel research, or are easy to delegate.
@@ -49,10 +49,10 @@ TEMPLATES
 - Keep the main agent focused on coordination, integration, and final output quality.
 
 ## Memory System
-- Use CoWork OS persistent memory for cross-session continuity.
+- Use NeoWorker persistent memory for cross-session continuity.
 - Treat these markdown files as the "source of truth" for stable, user-approved context.
-- Update the daily log in `.cowork/memory/` with key decisions, open loops, and next steps.
-- Promote durable lessons into `.cowork/MEMORY.md`.
+- Update the daily log in `.neoworker/memory/` with key decisions, open loops, and next steps.
+- Promote durable lessons into `.neoworker/MEMORY.md`.
 
 ## Group / Multi-Channel Behavior
 - In group chats: be concise, avoid noise, and only speak when explicitly mentioned or when action is clearly required.
@@ -70,16 +70,16 @@ TEMPLATES
 ## Heartbeats / Proactivity
 - Heartbeats should do real work, not just report status.
 - If a heartbeat finds no assigned work, it may:
-  - check `.cowork/HEARTBEAT.md` for maintenance tasks
+  - check `.neoworker/HEARTBEAT.md` for maintenance tasks
   - summarize open loops from the daily log
   - create a small task for the next highest-value action
 
 ## Tools
 - Use bundled skills for standard workflows.
-- Keep environment notes in `.cowork/TOOLS.md`.
+- Keep environment notes in `.neoworker/TOOLS.md`.
 
 
-== .cowork/SOUL.md ==
+== .neoworker/SOUL.md ==
 # SOUL.md
 
 ## Vibe
@@ -112,7 +112,7 @@ Be the assistant you'd actually want to talk to at 2am. Not a corporate drone. N
 - Still give your best-guess recommendation.
 
 
-== .cowork/USER.md ==
+== .neoworker/USER.md ==
 # About The Human
 
 ## Basics
@@ -132,7 +132,7 @@ Be the assistant you'd actually want to talk to at 2am. Not a corporate drone. N
 - Typical constraints (time/budget/risk):
 
 
-== .cowork/MEMORY.md ==
+== .neoworker/MEMORY.md ==
 # Long-Term Memory
 
 ## NEVER FORGET
@@ -154,7 +154,7 @@ Be the assistant you'd actually want to talk to at 2am. Not a corporate drone. N
 - 
 
 
-== .cowork/HEARTBEAT.md ==
+== .neoworker/HEARTBEAT.md ==
 # Heartbeats (Recurring Checks)
 
 ## Quiet Hours
@@ -172,11 +172,11 @@ Be the assistant you'd actually want to talk to at 2am. Not a corporate drone. N
 - Integrations:
 
 ## Memory Maintenance
-- Summarize today into `.cowork/memory/YYYY-MM-DD.md`
-- Promote durable info into `.cowork/MEMORY.md`
+- Summarize today into `.neoworker/memory/YYYY-MM-DD.md`
+- Promote durable info into `.neoworker/MEMORY.md`
 
 
-== .cowork/PRIORITIES.md ==
+== .neoworker/PRIORITIES.md ==
 # Priorities
 
 ## Current
@@ -190,16 +190,16 @@ Be the assistant you'd actually want to talk to at 2am. Not a corporate drone. N
 ## History
 
 
-== .cowork/CROSS_SIGNALS.md ==
+== .neoworker/CROSS_SIGNALS.md ==
 # Cross-Agent Signals
 
 This file is workspace-local and can be auto-updated by agents.
 Use it to track entities/topics that show up across multiple agents, contradictions, and amplified opportunities.
 
 ## Signals (Last 24h)
-<!-- cowork:auto:signals:start -->
+<!-- neoworker:auto:signals:start -->
 - (none)
-<!-- cowork:auto:signals:end -->
+<!-- neoworker:auto:signals:end -->
 
 ## Conflicts / Contradictions
 - 
@@ -208,22 +208,22 @@ Use it to track entities/topics that show up across multiple agents, contradicti
 - 
 
 
-== .cowork/MISTAKES.md ==
+== .neoworker/MISTAKES.md ==
 # Mistakes / Preferences
 
 This file is workspace-local and can be auto-updated by the system.
 Use it to capture rejection reasons and durable preference patterns.
 
 ## Patterns
-<!-- cowork:auto:mistakes:start -->
+<!-- neoworker:auto:mistakes:start -->
 - (none)
-<!-- cowork:auto:mistakes:end -->
+<!-- neoworker:auto:mistakes:end -->
 
 ## Notes
 - 
 
 
-== .cowork/TOOLS.md ==
+== .neoworker/TOOLS.md ==
 # Local Setup Notes
 
 ## Credentials
@@ -240,7 +240,7 @@ Use it to capture rejection reasons and durable preference patterns.
 - Preferred output formats:
 
 
-== .cowork/IDENTITY.md ==
+== .neoworker/IDENTITY.md ==
 # Identity
 
 - Name:
@@ -249,32 +249,32 @@ Use it to capture rejection reasons and durable preference patterns.
 - Signature:
 
 
-== .cowork/VIBES.md ==
+== .neoworker/VIBES.md ==
 # Vibes
 
 Current energy and mode for this workspace. Updated by the agent based on cues.
 
 ## Current
-<!-- cowork:auto:vibes:start -->
+<!-- neoworker:auto:vibes:start -->
 - Mode: default
 - Energy: balanced
 - Notes: Ready to work
-<!-- cowork:auto:vibes:end -->
+<!-- neoworker:auto:vibes:end -->
 
 ## User Preferences
 - 
 
 
-== .cowork/LORE.md ==
+== .neoworker/LORE.md ==
 # Shared Lore
 
 This file is workspace-local and can be auto-updated by the system.
 It captures the shared history between you and the agent in this workspace.
 
 ## Milestones
-<!-- cowork:auto:lore:start -->
+<!-- neoworker:auto:lore:start -->
 - (none)
-<!-- cowork:auto:lore:end -->
+<!-- neoworker:auto:lore:end -->
 
 ## Inside References
 - 
@@ -283,21 +283,21 @@ It captures the shared history between you and the agent in this workspace.
 - 
 
 
-== .cowork/BOOTSTRAP.md ==
+== .neoworker/BOOTSTRAP.md ==
 # First-Run Guide
 
-1. Fill in `.cowork/USER.md` (who you are, preferences).
-2. Fill in `.cowork/IDENTITY.md` and `.cowork/SOUL.md` (how the assistant should act).
-3. Add durable rules/constraints to `.cowork/MEMORY.md`.
-4. Add recurring checks to `.cowork/HEARTBEAT.md`.
+1. Fill in `.neoworker/USER.md` (who you are, preferences).
+2. Fill in `.neoworker/IDENTITY.md` and `.neoworker/SOUL.md` (how the assistant should act).
+3. Add durable rules/constraints to `.neoworker/MEMORY.md`.
+4. Add recurring checks to `.neoworker/HEARTBEAT.md`.
 
-5. Review `.cowork/VIBES.md` (current energy/mode — the agent updates this automatically).
-6. Check `.cowork/LORE.md` over time (shared history builds up automatically from task completions).
+5. Review `.neoworker/VIBES.md` (current energy/mode — the agent updates this automatically).
+6. Check `.neoworker/LORE.md` over time (shared history builds up automatically from task completions).
 
-Optional: If this is a git repo, consider ignoring `.cowork/`.
+Optional: If this is a git repo, consider ignoring `.neoworker/`.
 
 
-== .cowork/memory/YYYY-MM-DD.md ==
+== .neoworker/memory/YYYY-MM-DD.md ==
 # Daily Log (YYYY-MM-DD)
 
 ## Objectives

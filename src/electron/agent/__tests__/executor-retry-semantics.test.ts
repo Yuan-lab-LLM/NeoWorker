@@ -153,6 +153,49 @@ describe("TaskExecutor provider failover retry semantics", () => {
     expect(executor.ensureProviderFailoverSelectionsContext).toHaveBeenCalledWith(true);
   });
 
+  it("does not replay a timed-out request five times on the same model", async () => {
+    const executor = createRetryExecutor() as Any;
+    executor.llmCallSequence = 0;
+    executor.recordObservedOutputThroughput = vi.fn();
+    executor.provider = { type: "kimi", createMessage: vi.fn() };
+    executor.modelId = "kimi-k3";
+    executor.modelKey = "kimi-k3";
+    executor.providerFailoverIndex = 0;
+    executor.providerFailoverSelections = [
+      {
+        providerType: "kimi",
+        modelId: "kimi-k3",
+        modelKey: "kimi-k3",
+        llmProfileUsed: "cheap",
+        resolvedModelKey: "kimi-k3",
+        modelSource: "provider_default",
+        warnings: [],
+      },
+    ];
+    executor.lastRoutingState = { fallbackChain: [] };
+
+    const timeout = Object.assign(
+      new Error("Plan creation timed out after 120s"),
+      {
+        code: "NEOWORKER_LLM_TIMEOUT",
+        retryable: true,
+        retryKind: "request_timeout",
+      },
+    );
+    const requestFn = vi.fn().mockRejectedValue(timeout);
+
+    await expect(
+      executor.callLLMWithRetry(requestFn, "Plan creation"),
+    ).rejects.toThrow("timed out");
+
+    expect(requestFn).toHaveBeenCalledTimes(1);
+    expect(
+      executor.emitEvent.mock.calls.filter(
+        (call: Any[]) => call[0] === "llm_retry",
+      ),
+    ).toHaveLength(0);
+  });
+
   it("switches to the next configured provider when a retryable LLM error occurs", async () => {
     const executor = createRetryExecutor();
     executor.llmCallSequence = 0;
@@ -415,6 +458,87 @@ describe("TaskExecutor provider failover retry semantics", () => {
     expect(executor.provider.type).toBe("azure");
     expect(executor.providerFailoverIndex).toBe(0);
     expect(executor.applyResolvedProviderSelection).not.toHaveBeenCalled();
+  });
+
+  it("treats a bare fetch failure as an outage and fails over after one local retry", async () => {
+    const executor = createRetryExecutor() as Any;
+    executor.llmCallSequence = 0;
+    executor.providerRetryV2Enabled = true;
+    executor.recordObservedOutputThroughput = vi.fn();
+    executor.provider = { type: "deepseek", createMessage: vi.fn() };
+    executor.modelId = "deepseek-v4-flash";
+    executor.modelKey = "deepseek-v4-flash";
+    executor.llmProfileUsed = "cheap";
+    executor.resolvedModelKey = "deepseek-v4-flash";
+    executor.providerFailoverIndex = 0;
+    executor.providerFailoverSelections = [
+      {
+        providerType: "deepseek",
+        modelId: "deepseek-v4-flash",
+        modelKey: "deepseek-v4-flash",
+        llmProfileUsed: "cheap",
+        resolvedModelKey: "deepseek-v4-flash",
+        modelSource: "provider_default",
+        warnings: [],
+      },
+      {
+        providerType: "kimi",
+        modelId: "kimi-k3",
+        modelKey: "kimi-k3",
+        llmProfileUsed: "cheap",
+        resolvedModelKey: "kimi-k3",
+        modelSource: "provider_default",
+        warnings: [],
+      },
+    ];
+    executor.lastRoutingState = {
+      currentProvider: "deepseek",
+      currentModel: "deepseek-v4-flash",
+      activeProvider: "deepseek",
+      activeModel: "deepseek-v4-flash",
+      routeReason: "automatic_execution",
+      fallbackChain: [],
+      fallbackOccurred: false,
+      manualOverride: false,
+      updatedAt: Date.now(),
+    };
+    executor.emitRoutingState = vi.fn((overrides?: Any) => {
+      executor.lastRoutingState = {
+        ...executor.lastRoutingState,
+        activeProvider: executor.provider.type,
+        activeModel: executor.modelId,
+        routeReason: overrides?.routeReason || "automatic_execution",
+        fallbackChain: overrides?.fallbackChain || [],
+        fallbackOccurred: overrides?.fallbackOccurred ?? false,
+      };
+    });
+    executor.applyResolvedProviderSelection = vi.fn((selection: Any) => {
+      executor.provider = { type: selection.providerType, createMessage: vi.fn() };
+      executor.modelId = selection.modelId;
+      executor.modelKey = selection.modelKey;
+      executor.llmProfileUsed = selection.llmProfileUsed;
+      executor.resolvedModelKey = selection.resolvedModelKey;
+    });
+
+    const requestFn = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce({
+        content: [],
+        stopReason: "end_turn",
+        usage: { inputTokens: 10, outputTokens: 5 },
+      });
+
+    const response = await executor.callLLMWithRetry(
+      requestFn,
+      "DeepSeek fetch recovery",
+    );
+
+    expect(response.stopReason).toBe("end_turn");
+    expect(requestFn).toHaveBeenCalledTimes(3);
+    expect(executor.provider.type).toBe("kimi");
+    expect(executor.providerFailoverIndex).toBe(1);
   });
 
   it("uses the configured primary retry cooldown when failover activates", () => {

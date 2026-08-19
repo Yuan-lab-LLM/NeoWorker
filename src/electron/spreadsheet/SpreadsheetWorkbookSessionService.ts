@@ -35,6 +35,10 @@ type SessionRecord = {
   preview: SpreadsheetPreview;
   filePath: string;
   workspacePath: string;
+  fileSignature: {
+    mtimeMs: number;
+    size: number;
+  };
 };
 
 const DEFAULT_VIEWPORT_ROWS = 80;
@@ -176,7 +180,7 @@ function createWarnings(preview: SpreadsheetPreview, format: SpreadsheetWorkbook
       code: "compat-preview-backed-session",
       severity: "info",
       message:
-        "This workbook is using CoWork's compatibility session layer backed by the existing parser. Unsupported workbook parts may still be rewritten until OOXML patch-save lands.",
+        "This workbook is using NeoWorker's compatibility session layer backed by the existing parser. Unsupported workbook parts may still be rewritten until OOXML patch-save lands.",
     },
   ];
 
@@ -185,7 +189,7 @@ function createWarnings(preview: SpreadsheetPreview, format: SpreadsheetWorkbook
       code: "compat-macro-read-only",
       severity: "warning",
       message:
-        "Macro-enabled workbooks are read-only in CoWork's spreadsheet session layer until package-preserving XLSM save is available.",
+        "Macro-enabled workbooks are read-only in NeoWorker's spreadsheet session layer until package-preserving XLSM save is available.",
     });
   }
 
@@ -268,6 +272,7 @@ export class SpreadsheetWorkbookSessionService {
       input.filePath,
       input.workspacePath,
     );
+    const openedFileStats = await fs.stat(safePath.filePath);
     const format = normalizeFormat(safePath.filePath);
     const preview =
       format === "csv" || format === "tsv"
@@ -308,6 +313,10 @@ export class SpreadsheetWorkbookSessionService {
       preview,
       filePath: safePath.filePath,
       workspacePath: safePath.workspacePath,
+      fileSignature: {
+        mtimeMs: openedFileStats.mtimeMs,
+        size: openedFileStats.size,
+      },
     });
     this.trimSessions();
 
@@ -343,7 +352,7 @@ export class SpreadsheetWorkbookSessionService {
     try {
       const record = this.getRecord(sessionId);
       if (!record.session.capabilities.canEditCells) {
-        throw new Error("This spreadsheet is read-only in CoWork");
+        throw new Error("This spreadsheet is read-only in NeoWorker");
       }
       if (patches.length > MAX_PATCHES_PER_APPLY) {
         throw new Error("Too many spreadsheet changes in one save");
@@ -382,7 +391,7 @@ export class SpreadsheetWorkbookSessionService {
     try {
       const record = this.getRecord(sessionId);
       if (!record.session.capabilities.canEditCells) {
-        throw new Error("This spreadsheet is read-only in CoWork");
+        throw new Error("This spreadsheet is read-only in NeoWorker");
       }
       const safePath = await resolveWorkbookPathWithinWorkspace(
         record.filePath,
@@ -391,6 +400,17 @@ export class SpreadsheetWorkbookSessionService {
       record.filePath = safePath.filePath;
       record.workspacePath = safePath.workspacePath;
       record.session.filePath = safePath.filePath;
+      const currentStats = await fs.stat(record.filePath);
+      if (
+        currentStats.mtimeMs !== record.fileSignature.mtimeMs ||
+        currentStats.size !== record.fileSignature.size
+      ) {
+        return {
+          success: false,
+          conflict: true,
+          error: "Spreadsheet file changed outside NeoWorker after it was opened",
+        };
+      }
       const savedPreview =
         record.session.format === "csv" || record.session.format === "tsv"
           ? await writeDelimitedSpreadsheetPreviewToFile(
@@ -402,6 +422,10 @@ export class SpreadsheetWorkbookSessionService {
       record.preview = savedPreview;
       this.refreshSessionFromPreview(record);
       const stats = await fs.stat(record.filePath);
+      record.fileSignature = {
+        mtimeMs: stats.mtimeMs,
+        size: stats.size,
+      };
       return {
         success: true,
         session: record.session,

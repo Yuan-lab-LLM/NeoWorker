@@ -311,7 +311,7 @@ function normalizeManagedRemoteDevice(device: ManagedDevice): ManagedDevice {
           autoReconnect: true,
           reconnectIntervalMs: 5000,
           maxReconnectAttempts: 10,
-          deviceName: "CoWork Remote Client",
+          deviceName: "NeoWorker Remote Client",
           ...device.config,
         }
       : undefined,
@@ -404,7 +404,7 @@ function listStoredManagedDevices(): ManagedDevice[] {
         legacyId,
         normalizeManagedRemoteDevice({
           id: legacyId,
-          name: settings.remote.deviceName || "CoWork Remote Client",
+          name: settings.remote.deviceName || "NeoWorker Remote Client",
           role: "remote",
           purpose: "general",
           transport: inferManagedTransport(settings.remote),
@@ -484,8 +484,8 @@ async function getManagedRemoteNodeInfo(device: ManagedDevice): Promise<NodeInfo
     displayName: device.name || "Remote Device",
     platform: toNodePlatform(runtime.platform || device.platform),
     version:
-      typeof runtime.coworkVersion === "string"
-        ? runtime.coworkVersion
+      typeof runtime.neoworkerVersion === "string"
+        ? runtime.neoworkerVersion
         : device.version || "unknown",
     deviceId: status.clientId,
     modelIdentifier: hostname,
@@ -620,7 +620,7 @@ async function getLocalConfigSnapshot(): Promise<Any> {
         arch: process.arch,
         node: process.version,
         electron: process.versions.electron,
-        coworkVersion: typeof app.getVersion === "function" ? app.getVersion() : undefined,
+        neoworkerVersion: typeof app.getVersion === "function" ? app.getVersion() : undefined,
         headless: isHeadlessMode(),
         cwd: process.cwd(),
         userDataDir: getUserDataDir(),
@@ -659,7 +659,7 @@ async function getLocalConfigSnapshot(): Promise<Any> {
       arch: process.arch,
       node: process.version,
       electron: process.versions.electron,
-      coworkVersion: typeof app.getVersion === "function" ? app.getVersion() : undefined,
+      neoworkerVersion: typeof app.getVersion === "function" ? app.getVersion() : undefined,
       headless: isHeadlessMode(),
       cwd: process.cwd(),
       userDataDir: getUserDataDir(),
@@ -1175,8 +1175,8 @@ async function buildRemoteManagedDeviceSummary(device: ManagedDevice): Promise<M
     connectedAt: status.connectedAt || device.connectedAt,
     lastSeenAt: status.lastActivityAt || status.connectedAt || device.lastSeenAt,
     version:
-      typeof configSnapshot?.runtime?.coworkVersion === "string"
-        ? configSnapshot.runtime.coworkVersion
+      typeof configSnapshot?.runtime?.neoworkerVersion === "string"
+        ? configSnapshot.runtime.neoworkerVersion
         : device.version,
     platform: toNodePlatform(configSnapshot?.runtime?.platform || device.platform),
     activeRunCount: active,
@@ -1419,11 +1419,17 @@ async function routeLocalDeviceProxyRequest(method: string, params?: unknown): P
         message,
         images,
         quotedAssistantMessage,
+        activeArtifactContext,
+        executionMode,
+        taskDomain,
         permissionMode,
         shellAccess,
         integrationMentions,
       } = sanitizeTaskMessageParams(params);
       await controlPlaneDeps.agentDaemon.sendMessage(taskId, message, images, quotedAssistantMessage, {
+        ...(activeArtifactContext ? { activeArtifactContext } : {}),
+        ...(executionMode ? { executionMode } : {}),
+        ...(taskDomain ? { taskDomain } : {}),
         ...(permissionMode ? { permissionMode } : {}),
         ...(shellAccess !== undefined ? { shellAccess } : {}),
         ...(integrationMentions !== undefined ? { integrationMentions } : {}),
@@ -1810,7 +1816,7 @@ export function sanitizeManagedEnvironmentCreateParams(params: unknown): Any {
   return validateInput(
     z.object({
       name: z.string().trim().min(1).max(200),
-      kind: z.literal("cowork_local").default("cowork_local"),
+      kind: z.literal("neoworker_local").default("neoworker_local"),
       config: ManagedEnvironmentConfigSchema,
     }).strict(),
     params,
@@ -2507,7 +2513,7 @@ function registerACPMethodsOnServer(
       const node = snapshot.nodes[0];
       return {
         status: node.status,
-        coworkTaskId: node.taskId,
+        neoworkerTaskId: node.taskId,
         remoteTaskId: node.remoteTaskId,
         result: node.output || node.summary,
         error: node.error,
@@ -2518,7 +2524,7 @@ function registerACPMethodsOnServer(
       if (!node) return undefined;
       return {
         status: node.status,
-        coworkTaskId: node.taskId,
+        neoworkerTaskId: node.taskId,
         remoteTaskId: node.remoteTaskId,
         result: node.output || node.summary,
         error: node.error,
@@ -3231,11 +3237,17 @@ function registerTaskAndWorkspaceMethods(
       message,
       images,
       quotedAssistantMessage,
+      activeArtifactContext,
+      executionMode,
+      taskDomain,
       permissionMode,
       shellAccess,
       integrationMentions,
     } = sanitizeTaskMessageParams(params);
     await agentDaemon.sendMessage(taskId, message, images, quotedAssistantMessage, {
+      ...(activeArtifactContext ? { activeArtifactContext } : {}),
+      ...(executionMode ? { executionMode } : {}),
+      ...(taskDomain ? { taskDomain } : {}),
       ...(permissionMode ? { permissionMode } : {}),
       ...(shellAccess !== undefined ? { shellAccess } : {}),
       ...(integrationMentions !== undefined ? { integrationMentions } : {}),
@@ -3580,7 +3592,7 @@ function registerTaskAndWorkspaceMethods(
       arch: process.arch,
       node: process.version,
       electron: process.versions.electron,
-      coworkVersion: typeof app.getVersion === "function" ? app.getVersion() : undefined,
+      neoworkerVersion: typeof app.getVersion === "function" ? app.getVersion() : undefined,
       headless: isHeadlessMode(),
       cwd: process.cwd(),
       userDataDir: getUserDataDir(),
@@ -3601,12 +3613,12 @@ function registerTaskAndWorkspaceMethods(
     }
     if (allWorkspaces.length === 0) {
       warnings.push(
-        "No workspaces configured. Set COWORK_BOOTSTRAP_WORKSPACE_PATH on startup or create one via workspace.create.",
+        "No workspaces configured. Set NEOWORKER_BOOTSTRAP_WORKSPACE_PATH on startup or create one via workspace.create.",
       );
     }
     if (!anyLlmConfigured) {
       warnings.push(
-        "No LLM provider credentials configured. Configure one via Control Plane (LLM Setup / llm.configure), or use COWORK_IMPORT_ENV_SETTINGS=1 with provider env vars and restart.",
+        "No LLM provider credentials configured. Configure one via Control Plane (LLM Setup / llm.configure), or use NEOWORKER_IMPORT_ENV_SETTINGS=1 with provider env vars and restart.",
       );
     } else if (!currentProviderConfigured) {
       warnings.push(
@@ -3615,7 +3627,7 @@ function registerTaskAndWorkspaceMethods(
     }
     if (!envImport.enabled && !anyLlmConfigured) {
       warnings.push(
-        "Tip: enable env import with COWORK_IMPORT_ENV_SETTINGS=1 (or --import-env-settings) so provider env vars are persisted into Secure Settings at boot.",
+        "Tip: enable env import with NEOWORKER_IMPORT_ENV_SETTINGS=1 (or --import-env-settings) so provider env vars are persisted into Secure Settings at boot.",
       );
     }
     if (!searchStatus.isConfigured) {
@@ -4134,7 +4146,7 @@ export function setupControlPlaneHandlers(
               status: "disconnected",
             }),
             id: targetDeviceId,
-            name: existing?.name || remoteConfig.deviceName || "CoWork Remote Client",
+            name: existing?.name || remoteConfig.deviceName || "NeoWorker Remote Client",
             transport: inferManagedTransport(remoteConfig),
             taskNodeId: `remote-gateway:${targetDeviceId}`,
             config: remoteConfig,
@@ -4242,7 +4254,7 @@ export function setupControlPlaneHandlers(
             status: "disconnected",
           }),
           id: targetDeviceId,
-          name: config.deviceName || targetDevice?.name || "CoWork Remote Client",
+          name: config.deviceName || targetDevice?.name || "NeoWorker Remote Client",
           transport: inferManagedTransport(config),
           taskNodeId: `remote-gateway:${targetDeviceId}`,
           config,

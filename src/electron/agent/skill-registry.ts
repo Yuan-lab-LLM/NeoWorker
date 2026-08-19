@@ -32,7 +32,7 @@ import { assertNetworkPolicyAllowed } from "../security/network-policy";
 // When pointing to a GitHub raw URL with a catalog.json, the static catalog mode is used.
 const DEFAULT_REGISTRY_URL =
   process.env.SKILLHUB_REGISTRY ||
-  "https://raw.githubusercontent.com/CoWork-OS/CoWork-OS/main/registry";
+  "https://raw.githubusercontent.com/NeoWorker/NeoWorker/main/registry";
 const SKILLS_FOLDER_NAME = "skills";
 const execFileAsync = promisify(execFile);
 

@@ -1,6 +1,6 @@
 import type { JSONRPCRequest, JSONRPCResponse } from "../mcp/types";
 
-export type SecureMcpTunnelTargetType = "cowork-host" | "http";
+export type SecureMcpTunnelTargetType = "neoworker-host" | "http";
 export type SecureMcpTunnelConnectionState =
   | "stopped"
   | "connecting"
@@ -23,7 +23,7 @@ export interface SecureMcpTunnelConfig {
   relayUrl: string;
   targetType: SecureMcpTunnelTargetType;
   targetUrl?: string;
-  coworkHostPort?: number;
+  neoworkerHostPort?: number;
   policy: SecureMcpTunnelPolicy;
   clientToken?: string;
   callerToken?: string;
@@ -131,7 +131,7 @@ export interface SecureMcpTunnelCreateInput {
   relayUrl: string;
   targetType: SecureMcpTunnelTargetType;
   targetUrl?: string;
-  coworkHostPort?: number;
+  neoworkerHostPort?: number;
   clientToken?: string;
   callerToken?: string;
   policy?: Partial<SecureMcpTunnelPolicy>;

@@ -22,21 +22,43 @@ describe("TaskStrategyService deriveLlmProfile", () => {
   });
 
   it("returns strong for strict artifact-length execution tasks", () => {
+    const strategy = TaskStrategyService.derive(makeRoute({ intent: "execution" }), undefined, {
+      title: "Create DOCX",
+      prompt:
+        "Create an exact 1000 characters long word document (.docx) and verify the final character count.",
+    });
+    expect(strategy.llmProfileHint).toBe("strong");
+  });
+
+  it("promotes a Chinese HTML creation request out of chat semantics", () => {
     const strategy = TaskStrategyService.derive(
-      makeRoute({ intent: "execution" }),
+      makeRoute({
+        intent: "chat",
+        conversationMode: "chat",
+        domain: "code",
+        complexity: "low",
+      }),
       undefined,
       {
-        title: "Create DOCX",
+        title: "钱学森弹道动画",
         prompt:
-          "Create an exact 1000 characters long word document (.docx) and verify the final character count.",
+          "请制作 3D 模拟动画，内容以 HTML 形式展现运行，并使用 Three.js。",
       },
     );
-    expect(strategy.llmProfileHint).toBe("strong");
+
+    expect(strategy.executionMode).toBe("execute");
+    expect(strategy.conversationMode).toBe("task");
+    expect(strategy.snapshot.conversationMode).toBe("task");
+    expect(strategy.snapshot.taskIntent).toBe("execution");
   });
 
   it("keeps simple image generation to one quality pass", () => {
     const strategy = TaskStrategyService.derive(
-      makeRoute({ intent: "execution", signals: ["image-creation-intent"], domain: "media" }),
+      makeRoute({
+        intent: "execution",
+        signals: ["image-creation-intent"],
+        domain: "media",
+      }),
       undefined,
       {
         title: "Create image",
@@ -49,7 +71,11 @@ describe("TaskStrategyService deriveLlmProfile", () => {
 
   it("keeps infographic image generation to one quality pass", () => {
     const strategy = TaskStrategyService.derive(
-      makeRoute({ intent: "execution", signals: ["image-creation-intent"], domain: "media" }),
+      makeRoute({
+        intent: "execution",
+        signals: ["image-creation-intent"],
+        domain: "media",
+      }),
       undefined,
       {
         title: "Create infographic",
@@ -62,11 +88,15 @@ describe("TaskStrategyService deriveLlmProfile", () => {
 
   it("keeps app avatar image generation to one quality pass", () => {
     const strategy = TaskStrategyService.derive(
-      makeRoute({ intent: "execution", signals: ["image-creation-intent"], domain: "media" }),
+      makeRoute({
+        intent: "execution",
+        signals: ["image-creation-intent"],
+        domain: "media",
+      }),
       undefined,
       {
         title: "Create avatar",
-        prompt: "generate an image of a cool avatar of a snow leopard for cowork os app",
+        prompt: "generate an image of a cool avatar of a snow leopard for neoworker os app",
       },
     );
 
@@ -75,11 +105,15 @@ describe("TaskStrategyService deriveLlmProfile", () => {
 
   it("keeps grounded infographic image generation to one quality pass", () => {
     const strategy = TaskStrategyService.derive(
-      makeRoute({ intent: "execution", signals: ["image-creation-intent"], domain: "media" }),
+      makeRoute({
+        intent: "execution",
+        signals: ["image-creation-intent"],
+        domain: "media",
+      }),
       undefined,
       {
         title: "Create infographic",
-        prompt: "create an infographic about cowork os",
+        prompt: "create an infographic about neoworker os",
       },
     );
 
@@ -95,9 +129,14 @@ describe("TaskStrategyService getRelevantToolSet", () => {
     expect(advice.has("request_user_input")).toBe(true);
   });
 
-  it("keeps tool_search available for chat intent so deferred MCP tools remain discoverable", () => {
+  it("keeps chat lightweight while allowing read-only local and web lookups", () => {
     const chat = TaskStrategyService.getRelevantToolSet("chat");
     expect(chat.has("tool_search")).toBe(true);
+    expect(chat.has("read_file")).toBe(true);
+    expect(chat.has("web_search")).toBe(true);
+    expect(chat.has("web_fetch")).toBe(true);
+    expect(chat.has("http_request")).toBe(true);
+    expect(chat.has("write_file")).toBe(false);
   });
 });
 
@@ -171,7 +210,7 @@ describe("TaskStrategyService decoratePrompt", () => {
   });
 
   it("keeps direct image guidance when strategy context is already present", () => {
-    const rawPrompt = 'generate an image of a cool avatar of a snow leopard for "cowork os" app';
+    const rawPrompt = 'generate an image of a cool avatar of a snow leopard for "neoworker os" app';
     const decoratedPrompt = `${rawPrompt}
 
 [AGENT_STRATEGY_CONTEXT_V1]
@@ -200,10 +239,10 @@ image_generation_contract:
     });
     const strategy = TaskStrategyService.derive(route, undefined, {
       title: "Create infographic",
-      prompt: "create an infographic about cowork os",
+      prompt: "create an infographic about neoworker os",
     });
     const prompt = TaskStrategyService.decoratePrompt(
-      "create an infographic about cowork os",
+      "create an infographic about neoworker os",
       route,
       strategy,
       "",
@@ -212,6 +251,47 @@ image_generation_contract:
     expect(prompt).toContain("gather only the information needed");
     expect(prompt).toContain("call generate_image once");
     expect(prompt).not.toContain("Do not search files");
+  });
+
+  it("blocks execution when a template defers a required input", () => {
+    const route = makeRoute({ intent: "execution", domain: "research" });
+    const strategy = TaskStrategyService.derive(route);
+    const prompt = TaskStrategyService.decoratePrompt(
+      "Use the competitive-research skill. I'll describe the market. Research the top competitors.",
+      route,
+      strategy,
+      "Recent history:\n- Completed task: Agricultural genomics review",
+    );
+
+    expect(prompt).toContain("required_input_contract:");
+    expect(prompt).toContain("ask exactly one focused question");
+    expect(prompt).toContain("Never infer them from user profile");
+  });
+
+  it("recognizes Chinese templates that defer required input", () => {
+    const route = makeRoute({ intent: "execution", domain: "research" });
+    const strategy = TaskStrategyService.derive(route);
+    const prompt = TaskStrategyService.decoratePrompt(
+      "使用 competitive-research 技能。我会描述市场。请研究前 3-5 个竞品。",
+      route,
+      strategy,
+      "",
+    );
+
+    expect(prompt).toContain("required_input_contract:");
+  });
+
+  it("does not add a missing-input contract when the market is explicit", () => {
+    const route = makeRoute({ intent: "execution", domain: "research" });
+    const strategy = TaskStrategyService.derive(route);
+    const prompt = TaskStrategyService.decoratePrompt(
+      "Research EPAI, Dify, HiAgent, and ADP as enterprise AI agent platforms.",
+      route,
+      strategy,
+      "",
+    );
+
+    expect(prompt).not.toContain("required_input_contract:");
   });
 });
 
@@ -230,7 +310,9 @@ describe("TaskStrategyService applyToAgentConfig", () => {
 
   it("downshifts stale execute mode for advice intent", () => {
     const route = makeRoute({ intent: "advice" });
-    const strategy = TaskStrategyService.derive(route, { executionMode: "execute" });
+    const strategy = TaskStrategyService.derive(route, {
+      executionMode: "execute",
+    });
     expect(strategy.executionMode).toBe("plan");
 
     const config = TaskStrategyService.applyToAgentConfig({ executionMode: "execute" }, strategy);
@@ -239,7 +321,9 @@ describe("TaskStrategyService applyToAgentConfig", () => {
 
   it("keeps execute mode for chat intent so chat-like tasks still use the task pipeline", () => {
     const route = makeRoute({ intent: "chat" });
-    const strategy = TaskStrategyService.derive(route, { executionMode: "execute" });
+    const strategy = TaskStrategyService.derive(route, {
+      executionMode: "execute",
+    });
     expect(strategy.executionMode).toBe("execute");
 
     const config = TaskStrategyService.applyToAgentConfig({ executionMode: "execute" }, strategy);
@@ -249,7 +333,9 @@ describe("TaskStrategyService applyToAgentConfig", () => {
 
   it("preserves explicit non-execute override for execution intent", () => {
     const route = makeRoute({ intent: "execution" });
-    const strategy = TaskStrategyService.derive(route, { executionMode: "plan" });
+    const strategy = TaskStrategyService.derive(route, {
+      executionMode: "plan",
+    });
     expect(strategy.executionMode).toBe("plan");
 
     const config = TaskStrategyService.applyToAgentConfig({ executionMode: "plan" }, strategy);
@@ -455,10 +541,12 @@ describe("TaskStrategyService applyToAgentConfig", () => {
 
   it("includes debug_contract when strategy execution mode is debug", () => {
     const route = makeRoute({ intent: "execution" });
-    const strategy = TaskStrategyService.derive(route, { executionMode: "debug" });
+    const strategy = TaskStrategyService.derive(route, {
+      executionMode: "debug",
+    });
     expect(strategy.executionMode).toBe("debug");
     const decorated = TaskStrategyService.decoratePrompt("Find the race", route, strategy, "");
     expect(decorated).toContain("debug_contract:");
-    expect(decorated).toContain("cowork-debug");
+    expect(decorated).toContain("neoworker-debug");
   });
 });

@@ -2,6 +2,7 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -14,8 +15,72 @@ import {
 } from "../spreadsheet-preview";
 
 describe("spreadsheet preview extraction", () => {
+  it("previews valid OfficeCLI workbooks with explicitly prefixed OOXML elements", async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "neoworker-xlsx-prefixed-ooxml-"),
+    );
+    const outPath = path.join(tmpDir, "officecli-prefixed.xlsx");
+    const workbook = new ExcelJS.Workbook();
+    const summary = workbook.addWorksheet("分析摘要");
+    summary.getCell("A1").value = "项目";
+    summary.getCell("B1").value = "数值";
+    summary.getCell("A2").value = "收盘";
+    summary.getCell("B2").value = 78.8;
+    workbook.addWorksheet("近一周日线数据").getCell("A1").value = "日期";
+    await workbook.xlsx.writeFile(outPath);
+
+    const zip = await JSZip.loadAsync(await fs.readFile(outPath));
+    const prefixElements = (xml: string, prefix: string) =>
+      xml.replace(
+        /<(\/?)([A-Za-z_][\w.-]*)(?=[\s/>])/g,
+        (_match, slash: string, tag: string) => `<${slash}${prefix}:${tag}`,
+      );
+    for (const entryName of Object.keys(zip.files)) {
+      const entry = zip.file(entryName);
+      if (!entry || !/\.xml$/i.test(entryName)) continue;
+      let xml = await entry.async("string");
+      if (
+        entryName === "xl/workbook.xml" ||
+        entryName === "xl/styles.xml" ||
+        entryName.startsWith("xl/worksheets/") ||
+        entryName === "xl/sharedStrings.xml"
+      ) {
+        xml = prefixElements(
+          xml.replace(
+            'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',
+            'xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',
+          ),
+          "x",
+        );
+        zip.file(entryName, xml);
+      } else if (entryName === "docProps/app.xml") {
+        xml = prefixElements(
+          xml.replace(
+            'xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"',
+            'xmlns:ap="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"',
+          ),
+          "ap",
+        );
+        zip.file(entryName, xml);
+      }
+    }
+    await fs.writeFile(
+      outPath,
+      await zip.generateAsync({ type: "nodebuffer" }),
+    );
+
+    const preview = await buildSpreadsheetPreviewFromFile(outPath);
+
+    expect(preview.sheetCount).toBe(2);
+    expect(preview.sheets.map((sheet) => sheet.name)).toEqual([
+      "分析摘要",
+      "近一周日线数据",
+    ]);
+    expect(preview.sheets[0].rows[1][1].value).toBe("78.8");
+  });
+
   it("extracts sheets, formulas, empty cells, styles, and bounds", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-xlsx-preview-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-xlsx-preview-"));
     const outPath = path.join(tmpDir, "preview.xlsx");
     const workbook = new ExcelJS.Workbook();
 
@@ -69,7 +134,7 @@ describe("spreadsheet preview extraction", () => {
   });
 
   it("writes edited preview values back to the workbook", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-xlsx-edit-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-xlsx-edit-"));
     const outPath = path.join(tmpDir, "editable.xlsx");
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Sheet1");
@@ -98,7 +163,7 @@ describe("spreadsheet preview extraction", () => {
   });
 
   it("marks xlsx previews as truncated when source bounds exceed the preview window", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-xlsx-large-preview-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-xlsx-large-preview-"));
     const outPath = path.join(tmpDir, "large.xlsx");
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Large");
@@ -114,7 +179,7 @@ describe("spreadsheet preview extraction", () => {
   });
 
   it("extracts and writes CSV previews with quoted cells", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-csv-preview-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-csv-preview-"));
     const outPath = path.join(tmpDir, "people.csv");
     const preview = buildDelimitedSpreadsheetPreview('Name,Notes\n"Alice, A.","Line 1\nLine 2"\nBruno,Ready', {
       delimiter: ",",
@@ -134,7 +199,7 @@ describe("spreadsheet preview extraction", () => {
   });
 
   it("preserves CSV rows outside the editable preview window", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-csv-large-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-csv-large-"));
     const outPath = path.join(tmpDir, "large.csv");
     const lines = Array.from({ length: 2005 }, (_, index) => `row-${index + 1},value-${index + 1}`);
     await fs.writeFile(outPath, lines.join("\n"), "utf-8");
@@ -156,7 +221,7 @@ describe("spreadsheet preview extraction", () => {
   });
 
   it("appends added CSV rows after hidden source rows", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-csv-append-large-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-csv-append-large-"));
     const outPath = path.join(tmpDir, "large.csv");
     const lines = Array.from({ length: 2005 }, (_, index) => `row-${index + 1},value-${index + 1}`);
     await fs.writeFile(outPath, lines.join("\n"), "utf-8");

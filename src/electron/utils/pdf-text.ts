@@ -53,7 +53,7 @@ function countMatches(value: string, pattern: RegExp): number {
   return [...value.matchAll(pattern)].length;
 }
 
-function isSuspiciousPdfText(text: string): boolean {
+export function isSuspiciousPdfText(text: string): boolean {
   const normalized = normalizeWhitespace(text);
   if (!normalized) return true;
 
@@ -62,6 +62,24 @@ function isSuspiciousPdfText(text: string): boolean {
   if (visibleLength >= 120 && replacementChars / visibleLength >= 0.02) {
     return true;
   }
+
+  // Common WinAnsi/Latin-1 mojibake produced when a PDF generator writes CJK
+  // text through Helvetica instead of embedding a Unicode-capable font.
+  // A valid Western-language PDF may contain one of these characters, but a
+  // dense cluster of them is a strong signal that the text layer is corrupt.
+  const mojibakeChars = countMatches(
+    normalized,
+    /[ÿÞþÆæŒœŠšŽžŸ™‰‹›¬¥¤¦¨´¸¿¡]/gu,
+  );
+  if (
+    (mojibakeChars >= 6 && mojibakeChars / visibleLength >= 0.012) ||
+    mojibakeChars >= 18
+  ) {
+    return true;
+  }
+
+  const controlLikePunctuation = countMatches(normalized, /[¬Þÿ][^\s]{0,4}/gu);
+  if (controlLikePunctuation >= 4) return true;
 
   const contentChars = countMatches(normalized, /[\p{L}\p{N}]/gu);
   if (visibleLength >= 160 && contentChars / visibleLength < 0.45) {
@@ -219,7 +237,7 @@ export async function extractPdfText(
     parsedTextSuspicious && normalizeWhitespace(reviewText)
       ? { text: normalizeWhitespace(reviewText), source: "fallback" as const }
       : choosePreferredText(parsedText, reviewText);
-  if (chosen.text) {
+  if (chosen.text && !isSuspiciousPdfText(chosen.text)) {
     const usingFallback = chosen.source === "fallback";
     return {
       text: chosen.text,
@@ -253,6 +271,9 @@ export async function extractPdfText(
     usedFallback: true,
     previewLimited: reviewPreviewLimited,
     extractionStatus: "empty",
-    extractionNote: "no extractable PDF text found; OCR or alternate extraction may be required",
+    extractionNote:
+      parsedTextSuspicious || isSuspiciousPdfText(reviewText)
+        ? "PDF text layer appears corrupted or mojibake; the file must be regenerated with an embedded Unicode font"
+        : "no extractable PDF text found; OCR or alternate extraction may be required",
   };
 }

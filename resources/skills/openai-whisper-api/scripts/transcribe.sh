@@ -83,12 +83,12 @@ if [[ -z "$OUT" ]]; then
 fi
 
 API_KEY="${OPENAI_API_KEY:-}"
-if [[ -z "$API_KEY" && -f "$HOME/.CoWork-OSS/CoWork-OSS.json" ]] && command -v node >/dev/null 2>&1; then
-  API_KEY="$(node -e 'const fs=require("fs");try{const j=JSON.parse(fs.readFileSync(process.env.HOME+"/.CoWork-OSS/CoWork-OSS.json","utf8"));const k=(j.skills&&j.skills["openai-whisper-api"]&&j.skills["openai-whisper-api"].apiKey)||(j.skills&&j.skills.entries&&j.skills.entries["openai-whisper-api"]&&j.skills.entries["openai-whisper-api"].apiKey)||"";process.stdout.write(k)}catch{process.stdout.write("")}' )"
+if [[ -z "$API_KEY" && -f "$HOME/.NeoWorker/NeoWorker.json" ]] && command -v node >/dev/null 2>&1; then
+  API_KEY="$(node -e 'const fs=require("fs");try{const j=JSON.parse(fs.readFileSync(process.env.HOME+"/.NeoWorker/NeoWorker.json","utf8"));const k=(j.skills&&j.skills["openai-whisper-api"]&&j.skills["openai-whisper-api"].apiKey)||(j.skills&&j.skills.entries&&j.skills.entries["openai-whisper-api"]&&j.skills.entries["openai-whisper-api"].apiKey)||"";process.stdout.write(k)}catch{process.stdout.write("")}' )"
 fi
 
 if [[ -z "$API_KEY" ]]; then
-  echo "OPENAI_API_KEY is required (or set skills.openai-whisper-api.apiKey in ~/.CoWork-OSS/CoWork-OSS.json)." >&2
+  echo "OPENAI_API_KEY is required (or set skills.openai-whisper-api.apiKey in ~/.NeoWorker/NeoWorker.json)." >&2
   exit 1
 fi
 

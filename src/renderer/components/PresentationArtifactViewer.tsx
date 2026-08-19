@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
-  ChevronDown,
   Copy,
   ExternalLink,
   FolderOpen,
@@ -22,10 +21,19 @@ import type {
 } from "../../shared/types";
 import { getPresentationFormatLabel } from "../../shared/presentation-formats";
 import { useVoiceInput } from "../hooks/useVoiceInput";
+import { translate, useLanguage } from "../i18n";
 import { ModelDropdown } from "./MainContent";
-import type { SpreadsheetTurnContext } from "./SpreadsheetArtifactViewer";
+import { ArtifactFileTypeIcon } from "./ArtifactFileTypeIcon";
+import { ArtifactDownloadButton } from "./ArtifactDownloadButton";
+import {
+  ArtifactTurnProgressPanel,
+  type SpreadsheetTurnContext,
+} from "./ArtifactTurnProgressPanel";
 import { PresentationArtifactCard } from "./PresentationArtifactCard";
-import { PresentationViewer, type PresentationPreview } from "./PresentationViewer";
+import {
+  PresentationViewer,
+  type PresentationPreview,
+} from "./PresentationViewer";
 import "./artifact-viewers.css";
 
 type PresentationArtifactViewerMode = "sidebar" | "fullscreen";
@@ -45,7 +53,10 @@ type PresentationArtifactViewerProps = {
   onClose: () => void;
   onFullscreen: () => void;
   onExitFullscreen: () => void;
-  onSendMessage?: (message: string, images?: ImageAttachment[]) => Promise<void>;
+  onSendMessage?: (
+    message: string,
+    images?: ImageAttachment[],
+  ) => Promise<void>;
   selectedModelLabel?: string;
   selectedModel?: string;
   selectedProvider?: LLMProviderType;
@@ -75,7 +86,9 @@ function getPresentationViewerCacheKey(args: {
   return `${args.workspacePath}::${args.filePath}::${args.refreshKey ?? ""}`;
 }
 
-function presentationPreviewNeedsRender(preview: PresentationPreview | null | undefined): boolean {
+function presentationPreviewNeedsRender(
+  preview: PresentationPreview | null | undefined,
+): boolean {
   return preview?.renderStatus === "rendering";
 }
 
@@ -109,9 +122,20 @@ function buildPresentationText(preview: PresentationPreview | null): string {
   if (!preview) return "";
   return preview.slides
     .map((slide) => {
-      const lines = [`Slide ${slide.index}${slide.title ? `: ${slide.title}` : ""}`];
+      const lines = [
+        translate("artifactViewer.presentation.slideLabel", "Slide {index}", {
+          index: slide.index,
+        }) + (slide.title ? `: ${slide.title}` : ""),
+      ];
       if (slide.text) lines.push(slide.text);
-      if (slide.notes) lines.push("Speaker notes:", slide.notes);
+      if (slide.notes)
+        lines.push(
+          translate(
+            "artifactViewer.presentation.speakerNotes",
+            "Speaker notes:",
+          ),
+          slide.notes,
+        );
       return lines.join("\n");
     })
     .join("\n\n");
@@ -137,6 +161,8 @@ export function PresentationArtifactViewer({
   turnContext,
   refreshKey,
 }: PresentationArtifactViewerProps) {
+  useLanguage();
+  const t = translate;
   const [loading, setLoading] = useState(true);
   const [renderingImages, setRenderingImages] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,28 +175,39 @@ export function PresentationArtifactViewer({
   >([]);
   const [attachmentError, setAttachmentError] = useState("");
   const [voiceNotice, setVoiceNotice] = useState("");
-  const [turnContextExpanded, setTurnContextExpanded] = useState(false);
   const copyTimerRef = useRef<number | null>(null);
   const fileName = fileData?.fileName || getFileName(filePath);
   const formatLabel = getPresentationFormatLabel(fileName);
   const fullscreenLabel =
-    mode === "fullscreen" ? "Exit full screen" : "Open presentation in full screen";
+    mode === "fullscreen"
+      ? t("artifactViewer.exitFullscreen", "Exit full screen")
+      : t(
+          "artifactViewer.presentation.openFullscreen",
+          "Open presentation in full screen",
+        );
   const voiceInput = useVoiceInput({
     onTranscript: (text) => {
       setVoiceNotice("");
-      setFullscreenMessage((current) => current ? `${current} ${text}` : text);
+      setFullscreenMessage((current) =>
+        current ? `${current} ${text}` : text,
+      );
     },
     onError: (message) => setVoiceNotice(message),
     onNotConfigured: () => {
-      setVoiceNotice("Voice input is not configured.");
+      setVoiceNotice(
+        t("common.voiceInputNotConfigured", "Voice input is not configured."),
+      );
       onOpenSettings?.("voice");
     },
   });
 
   const cacheKey = useMemo(
-    () => getPresentationViewerCacheKey({ filePath, workspacePath, refreshKey }),
+    () =>
+      getPresentationViewerCacheKey({ filePath, workspacePath, refreshKey }),
     [filePath, workspacePath, refreshKey],
   );
+  const canReuseCachedViewerData =
+    refreshKey !== null && refreshKey !== undefined;
 
   useEffect(() => {
     let cancelled = false;
@@ -178,17 +215,25 @@ export function PresentationArtifactViewer({
     setCopyMessage("");
 
     const applyViewerData = (data: ViewerData) => {
-      presentationViewerDataCache.set(cacheKey, data);
+      if (canReuseCachedViewerData) {
+        presentationViewerDataCache.set(cacheKey, data);
+      }
       setFileData(data);
     };
 
     const loadFullPreview = () => {
       setRenderingImages(true);
       window.electronAPI
-        .readFileForViewer(filePath, workspacePath, { presentationRenderMode: "full" })
+        .readFileForViewer(filePath, workspacePath, {
+          presentationRenderMode: "full",
+        })
         .then((result) => {
           if (cancelled) return;
-          if (result.success && result.data?.fileType === "pptx" && result.data.presentationPreview) {
+          if (
+            result.success &&
+            result.data?.fileType === "pptx" &&
+            result.data.presentationPreview
+          ) {
             applyViewerData(result.data);
           }
         })
@@ -200,7 +245,9 @@ export function PresentationArtifactViewer({
         });
     };
 
-    const cached = presentationViewerDataCache.get(cacheKey);
+    const cached = canReuseCachedViewerData
+      ? presentationViewerDataCache.get(cacheKey)
+      : undefined;
     if (cached?.fileType === "pptx" && cached.presentationPreview) {
       setLoading(false);
       applyViewerData(cached);
@@ -215,55 +262,107 @@ export function PresentationArtifactViewer({
     }
 
     setLoading(true);
-    setRenderingImages(false);
+    setRenderingImages(true);
     setFileData(null);
 
-    window.electronAPI
-      .readFileForViewer(filePath, workspacePath, { presentationRenderMode: "fast" })
-      .then((result) => {
-        if (cancelled) return;
-        if (!result.success || !result.data) {
-          setError(result.error || "Failed to load presentation");
-          return;
-        }
-        if (result.data.fileType !== "pptx" || !result.data.presentationPreview) {
-          setError("In-app preview is only available for PowerPoint presentations.");
-          return;
-        }
-        applyViewerData(result.data);
-        setLoading(false);
-        if (presentationPreviewNeedsRender(result.data.presentationPreview)) {
-          loadFullPreview();
-        }
+    let bestPreviewQuality = 0;
+    let lastLoadError = t(
+      "artifactViewer.presentation.loadFailed",
+      "Failed to load presentation",
+    );
+
+    const validateViewerResult = (result: FileViewerResult): ViewerData => {
+      if (!result.success || !result.data) {
+        throw new Error(result.error || lastLoadError);
+      }
+      if (result.data.fileType !== "pptx" || !result.data.presentationPreview) {
+        throw new Error(
+          t(
+            "artifactViewer.presentation.powerPointOnly",
+            "In-app preview is only available for PowerPoint presentations.",
+          ),
+        );
+      }
+      return result.data;
+    };
+
+    const applyBestViewerData = (data: ViewerData) => {
+      if (cancelled || !data.presentationPreview) return;
+      const status = data.presentationPreview.renderStatus;
+      const quality = status === "rendered" || status === "cached" ? 2 : 1;
+      if (quality < bestPreviewQuality) return;
+      bestPreviewQuality = quality;
+      applyViewerData(data);
+      setLoading(false);
+    };
+
+    // Start the high-fidelity renderer immediately. The fast request runs in
+    // parallel only to provide metadata while the slide images are generated.
+    // The main-process service deduplicates extraction and render work.
+    const fullRequest = window.electronAPI
+      .readFileForViewer(filePath, workspacePath, {
+        presentationRenderMode: "full",
+      })
+      .then(validateViewerResult)
+      .then((data) => {
+        applyBestViewerData(data);
+        return data;
       })
       .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load presentation");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        lastLoadError = err instanceof Error ? err.message : lastLoadError;
+        throw err;
       });
+
+    const fastRequest = window.electronAPI
+      .readFileForViewer(filePath, workspacePath, {
+        presentationRenderMode: "fast",
+      })
+      .then(validateViewerResult)
+      .then((data) => {
+        applyBestViewerData(data);
+        return data;
+      })
+      .catch((err: unknown) => {
+        lastLoadError = err instanceof Error ? err.message : lastLoadError;
+        throw err;
+      });
+
+    void Promise.allSettled([fastRequest, fullRequest]).then((results) => {
+      if (cancelled) return;
+      setRenderingImages(false);
+      setLoading(false);
+      if (results.every((result) => result.status === "rejected")) {
+        setError(lastLoadError);
+      }
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [cacheKey, filePath, workspacePath]);
+  }, [cacheKey, canReuseCachedViewerData, filePath, workspacePath]);
 
   useEffect(() => {
     if (!copyMessage) return;
-    if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
+    if (copyTimerRef.current !== null)
+      window.clearTimeout(copyTimerRef.current);
     copyTimerRef.current = window.setTimeout(() => setCopyMessage(""), 2200);
     return () => {
-      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
+      if (copyTimerRef.current !== null)
+        window.clearTimeout(copyTimerRef.current);
     };
   }, [copyMessage]);
 
-  const preview = useMemo(() => fileData?.presentationPreview || null, [fileData]);
+  const preview = useMemo(
+    () => fileData?.presentationPreview || null,
+    [fileData],
+  );
   const slideCount = preview?.slideCount ?? 0;
   const renderNotice =
     renderingImages || preview?.renderStatus === "rendering"
-      ? "Rendering slide previews..."
+      ? t(
+          "artifactViewer.presentation.rendering",
+          "Rendering slide previews...",
+        )
       : "";
 
   const handleCopyText = async () => {
@@ -271,9 +370,9 @@ export function PresentationArtifactViewer({
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
-      setCopyMessage("Copied");
+      setCopyMessage(t("common.copied", "Copied"));
     } catch {
-      setCopyMessage("Copy failed");
+      setCopyMessage(t("common.copyFailed", "Copy failed"));
     }
   };
 
@@ -298,7 +397,12 @@ export function PresentationArtifactViewer({
         })),
       ]);
     } catch {
-      setAttachmentError("Failed to add attachments. Please try again.");
+      setAttachmentError(
+        t(
+          "common.attachments.addFailed",
+          "Failed to add attachments. Please try again.",
+        ),
+      );
     }
   }, [workspacePath]);
 
@@ -308,41 +412,57 @@ export function PresentationArtifactViewer({
     );
   }, []);
 
-  const buildMessageWithAttachments = useCallback(async (message: string) => {
-    if (fullscreenAttachments.length === 0) {
-      return { message, images: undefined as ImageAttachment[] | undefined };
-    }
+  const buildMessageWithAttachments = useCallback(
+    async (message: string) => {
+      if (fullscreenAttachments.length === 0) {
+        return { message, images: undefined as ImageAttachment[] | undefined };
+      }
 
-    const importedAttachments = workspaceId
-      ? await window.electronAPI.importFilesToWorkspace({
-          workspaceId,
-          files: fullscreenAttachments.map((attachment) => attachment.path),
-        })
-      : [];
-    const attachmentLines =
-      importedAttachments.length > 0
-        ? importedAttachments.map(
-            (attachment) => `- ${attachment.fileName} (${attachment.relativePath})`,
-          )
-        : fullscreenAttachments.map((attachment) => `- ${attachment.name} (${attachment.path})`);
-    const base = message || "Please review the attached files.";
-    const images = fullscreenAttachments
-      .filter(isImageAttachment)
-      .map((attachment) => ({
-        filePath: attachment.path,
-        mimeType: attachment.mimeType as ImageAttachment["mimeType"],
-        filename: attachment.name,
-        sizeBytes: attachment.size,
-      }));
-    return {
-      message: `${base}\n\nAttached files:\n${attachmentLines.join("\n")}`,
-      images: images.length > 0 ? images : undefined,
-    };
-  }, [fullscreenAttachments, workspaceId]);
+      const importedAttachments = workspaceId
+        ? await window.electronAPI.importFilesToWorkspace({
+            workspaceId,
+            files: fullscreenAttachments.map((attachment) => attachment.path),
+          })
+        : [];
+      const attachmentLines =
+        importedAttachments.length > 0
+          ? importedAttachments.map(
+              (attachment) =>
+                `- ${attachment.fileName} (${attachment.relativePath})`,
+            )
+          : fullscreenAttachments.map(
+              (attachment) => `- ${attachment.name} (${attachment.path})`,
+            );
+      const base =
+        message ||
+        t(
+          "common.attachments.reviewAttached",
+          "Please review the attached files.",
+        );
+      const images = fullscreenAttachments
+        .filter(isImageAttachment)
+        .map((attachment) => ({
+          filePath: attachment.path,
+          mimeType: attachment.mimeType as ImageAttachment["mimeType"],
+          filename: attachment.name,
+          sizeBytes: attachment.size,
+        }));
+      return {
+        message: `${base}\n\n${t("common.attachments.attachedFiles", "Attached files:")}\n${attachmentLines.join("\n")}`,
+        images: images.length > 0 ? images : undefined,
+      };
+    },
+    [fullscreenAttachments, workspaceId],
+  );
 
   const handleFullscreenSend = async () => {
     const message = fullscreenMessage.trim();
-    if ((!message && fullscreenAttachments.length === 0) || !onSendMessage || fullscreenSending) return;
+    if (
+      (!message && fullscreenAttachments.length === 0) ||
+      !onSendMessage ||
+      fullscreenSending
+    )
+      return;
     const previousMessage = fullscreenMessage;
     const previousAttachments = fullscreenAttachments;
     setFullscreenSending(true);
@@ -355,16 +475,41 @@ export function PresentationArtifactViewer({
     } catch {
       setFullscreenMessage(previousMessage);
       setFullscreenAttachments(previousAttachments);
-      setAttachmentError("Failed to send message. Please try again.");
+      setAttachmentError(
+        t(
+          "common.sendFailedRetry",
+          "Failed to send message. Please try again.",
+        ),
+      );
     } finally {
       setFullscreenSending(false);
     }
   };
 
   const renderBody = () => {
-    if (loading && !preview) return <div className="presentation-artifact-state">Loading presentation...</div>;
-    if (error) return <div className="presentation-artifact-state presentation-artifact-error">{error}</div>;
-    if (!preview) return <div className="presentation-artifact-state">No presentation preview available.</div>;
+    if (loading && !preview) {
+      return (
+        <div className="presentation-artifact-state">
+          {t("artifactViewer.presentation.loading", "Loading presentation...")}
+        </div>
+      );
+    }
+    if (error)
+      return (
+        <div className="presentation-artifact-state presentation-artifact-error">
+          {error}
+        </div>
+      );
+    if (!preview) {
+      return (
+        <div className="presentation-artifact-state">
+          {t(
+            "artifactViewer.presentation.noPreview",
+            "No presentation preview available.",
+          )}
+        </div>
+      );
+    }
     return (
       <PresentationViewer
         fileName={fileName}
@@ -379,12 +524,78 @@ export function PresentationArtifactViewer({
   };
 
   return (
-    <section className={`presentation-artifact-viewer presentation-artifact-viewer-${mode}`}>
+    <section
+      className={`presentation-artifact-viewer presentation-artifact-viewer-${mode}`}
+    >
       <div className="presentation-artifact-viewer-tabbar">
         <div className="presentation-artifact-viewer-tab">
-          <span className="presentation-viewer-file-icon">P</span>
-          <span className="presentation-artifact-viewer-tab-title">{fileName}</span>
+          <ArtifactFileTypeIcon
+            filePath={filePath}
+            className="presentation-viewer-file-icon"
+          />
+          <div className="presentation-artifact-viewer-tab-copy">
+            <span className="presentation-artifact-viewer-tab-title">
+              {fileName}
+            </span>
+            <span className="presentation-artifact-viewer-tab-meta">
+              {formatLabel}
+              {slideCount ? (
+                <span>
+                  {t("fileViewer.meta.slides", "{count} slides", {
+                    count: slideCount,
+                  })}
+                </span>
+              ) : null}
+            </span>
+          </div>
         </div>
+        <button
+          type="button"
+          className="presentation-artifact-viewer-tool-btn"
+          onClick={() => void handleCopyText()}
+          disabled={!preview}
+          title={t(
+            "artifactViewer.presentation.copyText",
+            "Copy slide text and notes",
+          )}
+        >
+          <Copy size={14} />
+          <span className="presentation-artifact-viewer-tool-label">
+            {t("common.copy", "Copy")}
+          </span>
+        </button>
+        <button
+          type="button"
+          className="presentation-artifact-viewer-tool-btn"
+          onClick={handleOpenExternal}
+          title={t("artifactViewer.openExternally", "Open externally")}
+        >
+          <ExternalLink size={14} />
+          <span className="presentation-artifact-viewer-tool-label">
+            {t("common.open", "Open")}
+          </span>
+        </button>
+        <button
+          type="button"
+          className="presentation-artifact-viewer-tool-btn"
+          onClick={handleShowInFinder}
+          title={t("common.openInFolder", "Open in folder")}
+        >
+          <FolderOpen size={14} />
+          <span className="presentation-artifact-viewer-tool-label">
+            {t("common.folder", "Folder")}
+          </span>
+        </button>
+        <ArtifactDownloadButton
+          filePath={filePath}
+          workspacePath={workspacePath}
+          className="presentation-artifact-viewer-download-btn"
+        />
+        {(copyMessage || renderNotice) && (
+          <div className="presentation-artifact-viewer-message">
+            {copyMessage || renderNotice}
+          </div>
+        )}
         <button
           type="button"
           className="presentation-artifact-viewer-header-fullscreen"
@@ -392,54 +603,20 @@ export function PresentationArtifactViewer({
           title={fullscreenLabel}
           aria-label={fullscreenLabel}
         >
-          {mode === "fullscreen" ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          {mode === "fullscreen" ? (
+            <Minimize2 size={16} />
+          ) : (
+            <Maximize2 size={16} />
+          )}
         </button>
         <button
           type="button"
           className="presentation-artifact-viewer-close"
           onClick={onClose}
-          title="Close presentation"
+          title={t("artifactViewer.presentation.close", "Close presentation")}
         >
           <X size={17} />
         </button>
-      </div>
-
-      <div className="presentation-artifact-viewer-titlebar">
-        <div className="presentation-artifact-viewer-format">
-          {formatLabel}
-          {slideCount ? <span>{slideCount} slide{slideCount === 1 ? "" : "s"}</span> : null}
-        </div>
-        <button
-          type="button"
-          className="presentation-artifact-viewer-tool-btn"
-          onClick={() => void handleCopyText()}
-          disabled={!preview}
-          title="Copy slide text and notes"
-        >
-          <Copy size={14} />
-          Copy
-        </button>
-        <button
-          type="button"
-          className="presentation-artifact-viewer-tool-btn"
-          onClick={handleOpenExternal}
-          title="Open externally"
-        >
-          <ExternalLink size={14} />
-          Open
-        </button>
-        <button
-          type="button"
-          className="presentation-artifact-viewer-tool-btn"
-          onClick={handleShowInFinder}
-          title="Open in folder"
-        >
-          <FolderOpen size={14} />
-          Folder
-        </button>
-        {(copyMessage || renderNotice) && (
-          <div className="presentation-artifact-viewer-message">{copyMessage || renderNotice}</div>
-        )}
       </div>
 
       <div className="presentation-artifact-viewer-content">{renderBody()}</div>
@@ -447,71 +624,46 @@ export function PresentationArtifactViewer({
       {mode === "fullscreen" && onSendMessage && (
         <div className="spreadsheet-viewer-fullscreen-controls">
           {turnContext && (
-            <div
-              className={`spreadsheet-viewer-turn-frame ${
-                turnContextExpanded ? "expanded" : "collapsed"
-              }`}
-            >
-              <button
-                type="button"
-                className="spreadsheet-viewer-turn-header"
-                onClick={() => setTurnContextExpanded((current) => !current)}
-                aria-expanded={turnContextExpanded}
-              >
-                <span>{turnContext.statusLabel}</span>
-                <ChevronDown size={18} aria-hidden="true" />
-              </button>
-              {turnContextExpanded && (
-                <div className="spreadsheet-viewer-turn-body">
-                  <p>{turnContext.summary}</p>
-                  {turnContext.secondaryText && (
-                    <p className="spreadsheet-viewer-turn-secondary">
-                      {turnContext.secondaryText}
-                    </p>
-                  )}
-                  {turnContext.events && turnContext.events.length > 0 && (
-                    <div className="spreadsheet-viewer-turn-events">
-                      {turnContext.events.map((event) => (
-                        <div
-                          key={event.id}
-                          className={`spreadsheet-viewer-turn-event kind-${event.kind} ${
-                            event.tone ? `tone-${event.tone}` : ""
-                          }`}
-                        >
-                          <span className="spreadsheet-viewer-turn-event-text">
-                            {event.text}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <PresentationArtifactCard
-                    filePath={turnContext.artifactPath}
-                    workspacePath={workspacePath}
-                    onOpenViewer={onExitFullscreen}
-                  />
-                </div>
-              )}
-            </div>
+            <ArtifactTurnProgressPanel turnContext={turnContext}>
+              <PresentationArtifactCard
+                filePath={turnContext.artifactPath}
+                workspacePath={workspacePath}
+                onOpenViewer={onExitFullscreen}
+              />
+            </ArtifactTurnProgressPanel>
           )}
           <div className="spreadsheet-viewer-composer">
-            {(fullscreenAttachments.length > 0 || attachmentError || voiceNotice) && (
+            {(fullscreenAttachments.length > 0 ||
+              attachmentError ||
+              voiceNotice) && (
               <div className="attachment-panel spreadsheet-viewer-attachment-panel">
-                {attachmentError && <div className="attachment-error">{attachmentError}</div>}
-                {voiceNotice && <div className="attachment-error">{voiceNotice}</div>}
+                {attachmentError && (
+                  <div className="attachment-error">{attachmentError}</div>
+                )}
+                {voiceNotice && (
+                  <div className="attachment-error">{voiceNotice}</div>
+                )}
                 {fullscreenAttachments.length > 0 && (
                   <div className="attachment-list">
                     {fullscreenAttachments.map((attachment) => (
                       <div className="attachment-chip" key={attachment.id}>
-                        <span className="attachment-name" title={attachment.name}>
+                        <span
+                          className="attachment-name"
+                          title={attachment.name}
+                        >
                           {attachment.name}
                         </span>
-                        <span className="attachment-size">{formatAttachmentSize(attachment.size)}</span>
+                        <span className="attachment-size">
+                          {formatAttachmentSize(attachment.size)}
+                        </span>
                         <button
                           type="button"
                           className="attachment-remove"
                           onClick={() => removeAttachment(attachment.id)}
-                          title="Remove attachment"
+                          title={t(
+                            "common.attachments.remove",
+                            "Remove attachment",
+                          )}
                           disabled={fullscreenSending}
                         >
                           <X size={12} aria-hidden="true" />
@@ -527,8 +679,11 @@ export function PresentationArtifactViewer({
                 <button
                   type="button"
                   className="attachment-btn attachment-btn-left"
-                  title="Attach files"
-                  aria-label="Attach files"
+                  title={t("common.attachments.attachFiles", "Attach files")}
+                  aria-label={t(
+                    "common.attachments.attachFiles",
+                    "Attach files",
+                  )}
                   onClick={() => void handleAttachFiles()}
                   disabled={fullscreenSending}
                 >
@@ -537,10 +692,15 @@ export function PresentationArtifactViewer({
                 <div className="mention-autocomplete-wrapper">
                   <textarea
                     className="input-field input-textarea"
-                    placeholder="Ask for follow-up changes"
+                    placeholder={t(
+                      "artifactViewer.presentation.editPlaceholder",
+                      "Describe how you want to change this presentation",
+                    )}
                     value={fullscreenMessage}
                     rows={1}
-                    onChange={(event) => setFullscreenMessage(event.target.value)}
+                    onChange={(event) =>
+                      setFullscreenMessage(event.target.value)
+                    }
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
@@ -566,17 +726,26 @@ export function PresentationArtifactViewer({
                       align="right"
                     />
                   ) : selectedModelLabel ? (
-                    <span className="spreadsheet-viewer-composer-model">{selectedModelLabel}</span>
+                    <span className="spreadsheet-viewer-composer-model">
+                      {selectedModelLabel}
+                    </span>
                   ) : null}
                   <button
                     type="button"
                     className={`voice-input-btn ${voiceInput.state}`}
                     onClick={() => void voiceInput.toggleRecording()}
-                    disabled={voiceInput.state === "processing" || fullscreenSending}
-                    title="Voice input"
+                    disabled={
+                      voiceInput.state === "processing" || fullscreenSending
+                    }
+                    title={t("common.voiceInput", "Voice input")}
                   >
                     {voiceInput.state === "recording" ? (
-                      <Square size={12} fill="currentColor" strokeWidth={0} aria-hidden="true" />
+                      <Square
+                        size={12}
+                        fill="currentColor"
+                        strokeWidth={0}
+                        aria-hidden="true"
+                      />
                     ) : (
                       <Mic size={16} aria-hidden="true" />
                     )}
@@ -586,10 +755,11 @@ export function PresentationArtifactViewer({
                     className="lets-go-btn lets-go-btn-sm"
                     onClick={() => void handleFullscreenSend()}
                     disabled={
-                      (!fullscreenMessage.trim() && fullscreenAttachments.length === 0) ||
+                      (!fullscreenMessage.trim() &&
+                        fullscreenAttachments.length === 0) ||
                       fullscreenSending
                     }
-                    title="Send message"
+                    title={t("common.sendMessage", "Send message")}
                   >
                     <ArrowUp size={16} aria-hidden="true" />
                   </button>
@@ -597,15 +767,21 @@ export function PresentationArtifactViewer({
               </div>
             </div>
             <div className="input-below-actions spreadsheet-viewer-composer-actions">
-              <span className="input-status-workspace">Work in a folder</span>
+              <span className="input-status-workspace">
+                {t("artifactViewer.workInFolder", "Work in a folder")}
+              </span>
               <span className="shell-toggle shell-toggle-inline enabled">
                 Shell
                 <span className="goal-mode-switch-track on">
                   <span className="goal-mode-switch-thumb" />
                 </span>
               </span>
-              <span className="input-status-mode">Execute</span>
-              <span className="input-status-mode">Auto</span>
+              <span className="input-status-mode">
+                {t("composer.mode.execute", "Execute")}
+              </span>
+              <span className="input-status-mode">
+                {t("composer.mode.auto", "Auto")}
+              </span>
             </div>
           </div>
         </div>

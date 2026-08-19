@@ -1946,7 +1946,7 @@ const handlers: Record<string, (args: Record<string, any>) => Promise<any>> = {
     const presentationId = requireNonEmptyString(args.presentationId, 'presentationId');
     const pageObjectId = requireNonEmptyString(args.pageObjectId, 'pageObjectId');
     const text = requireNonEmptyString(args.text, 'text');
-    const objectId = args.objectId ? String(args.objectId) : randomObjectId('cowork_textbox');
+    const objectId = args.objectId ? String(args.objectId) : randomObjectId('neoworker_textbox');
     const unit = args.unit || 'PT';
     const x = numberOrDefault(args.x, 72);
     const y = numberOrDefault(args.y, 72);

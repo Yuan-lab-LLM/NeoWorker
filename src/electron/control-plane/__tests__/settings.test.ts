@@ -141,7 +141,7 @@ describe("ControlPlaneSettingsManager", () => {
         host: "0.0.0.0",
         token: "test-token",
         trustProxy: true,
-        allowedOrigins: ["https://cowork.example.com"],
+        allowedOrigins: ["https://neoworker.example.com"],
         tailscale: {
           mode: "serve",
           resetOnExit: false,
@@ -156,7 +156,7 @@ describe("ControlPlaneSettingsManager", () => {
       expect(settings.token).toBe("test-token");
       expect(settings.nodeToken).toHaveLength(64);
       expect(settings.trustProxy).toBe(true);
-      expect(settings.allowedOrigins).toEqual(["https://cowork.example.com"]);
+      expect(settings.allowedOrigins).toEqual(["https://neoworker.example.com"]);
       expect(settings.tailscale.mode).toBe("serve");
       expect(settings.tailscale.resetOnExit).toBe(false);
     });
@@ -516,7 +516,7 @@ describe("DEFAULT_REMOTE_GATEWAY_CONFIG", () => {
   it("should have expected default values", () => {
     expect(DEFAULT_REMOTE_GATEWAY_CONFIG.url).toBe("ws://127.0.0.1:18789");
     expect(DEFAULT_REMOTE_GATEWAY_CONFIG.token).toBe("");
-    expect(DEFAULT_REMOTE_GATEWAY_CONFIG.deviceName).toBe("CoWork Remote Client");
+    expect(DEFAULT_REMOTE_GATEWAY_CONFIG.deviceName).toBe("NeoWorker Remote Client");
     expect(DEFAULT_REMOTE_GATEWAY_CONFIG.autoReconnect).toBe(true);
     expect(DEFAULT_REMOTE_GATEWAY_CONFIG.reconnectIntervalMs).toBe(5000);
     expect(DEFAULT_REMOTE_GATEWAY_CONFIG.maxReconnectAttempts).toBe(10);

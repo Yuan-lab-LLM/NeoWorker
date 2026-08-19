@@ -9,7 +9,7 @@ import { writeEditableDocumentBlocksToDocxFile } from "../document-writer";
 
 describe("document writer", () => {
   it("writes editable document blocks back to DOCX", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-docx-write-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-docx-write-"));
     const outPath = path.join(tmpDir, "edited.docx");
 
     await writeEditableDocumentBlocksToDocxFile(outPath, [
@@ -36,7 +36,7 @@ describe("document writer", () => {
   });
 
   it("preserves existing DOCX package parts when editing parsed blocks", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-docx-preserve-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-docx-preserve-"));
     const outPath = path.join(tmpDir, "existing.docx");
 
     await writeEditableDocumentBlocksToDocxFile(outPath, [
@@ -66,7 +66,7 @@ describe("document writer", () => {
   });
 
   it("preserves existing DOCX text runs when saving unchanged formatted text", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-docx-runs-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-docx-runs-"));
     const outPath = path.join(tmpDir, "formatted.docx");
 
     await writeEditableDocumentBlocksToDocxFile(outPath, [
@@ -94,7 +94,7 @@ describe("document writer", () => {
   });
 
   it("inserts new DOCX blocks at their edited position", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-docx-insert-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-docx-insert-"));
     const outPath = path.join(tmpDir, "insert.docx");
 
     await writeEditableDocumentBlocksToDocxFile(outPath, [

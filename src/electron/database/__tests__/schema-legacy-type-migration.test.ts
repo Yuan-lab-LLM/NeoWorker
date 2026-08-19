@@ -24,11 +24,11 @@ describeWithSqlite("DatabaseManager legacy_type migration", () => {
   let previousUserDataDir: string | undefined;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-schema-legacy-type-"));
-    previousUserDataDir = process.env.COWORK_USER_DATA_DIR;
-    process.env.COWORK_USER_DATA_DIR = tmpDir;
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-schema-legacy-type-"));
+    previousUserDataDir = process.env.NEOWORKER_USER_DATA_DIR;
+    process.env.NEOWORKER_USER_DATA_DIR = tmpDir;
 
-    const dbPath = path.join(tmpDir, "cowork-os.db");
+    const dbPath = path.join(tmpDir, "neoworker.db");
     const db = new Database(dbPath);
     db.exec(`
       CREATE TABLE task_events (
@@ -44,9 +44,9 @@ describeWithSqlite("DatabaseManager legacy_type migration", () => {
 
   afterEach(() => {
     if (previousUserDataDir === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = previousUserDataDir;
+      process.env.NEOWORKER_USER_DATA_DIR = previousUserDataDir;
     }
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -81,7 +81,7 @@ describeWithSqlite("DatabaseManager legacy_type migration", () => {
   });
 
   it("defers oversized task event payload cleanup until post-startup maintenance", async () => {
-    const dbPath = path.join(tmpDir, "cowork-os.db");
+    const dbPath = path.join(tmpDir, "neoworker.db");
     const oversizedPayload = JSON.stringify({
       message: "x".repeat(300_000),
       nested: { value: "y".repeat(300_000) },

@@ -1,0 +1,3 @@
+import { n as e, t } from "./magnet-Cv3aGb6d-B8vF02CB.js";
+t();
+export { e as default };

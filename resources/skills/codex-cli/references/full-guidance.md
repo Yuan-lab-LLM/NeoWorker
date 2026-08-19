@@ -101,7 +101,7 @@ The child task prompt should contain the EXACT bash commands to run. See pattern
 
 ### PTY Auto-Allocated
 
-Codex is an interactive terminal app. CoWork OS **automatically wraps `codex` commands with PTY allocation** — no special syntax needed. Just use `run_command` normally:
+Codex is an interactive terminal app. NeoWorker **automatically wraps `codex` commands with PTY allocation** — no special syntax needed. Just use `run_command` normally:
 
 ```bash
 codex exec 'Your prompt'
@@ -239,7 +239,7 @@ cd /tmp/fix-ISSUE_ID-codex && codex exec --full-auto 'Fix issue #ISSUE_ID: DESCR
 
 ```bash
 cd /path/to/repo && codex exec --full-auto 'Your task'
-# The agent runs in the child task — monitor via CoWork OS UI
+# The agent runs in the child task — monitor via NeoWorker UI
 ```
 
 ---
@@ -260,9 +260,9 @@ Use `web_fetch` to retrieve these if needed.
 
 ## Rules
 
-1. **PTY is auto-allocated** — CoWork OS wraps `codex` commands with PTY automatically
+1. **PTY is auto-allocated** — NeoWorker wraps `codex` commands with PTY automatically
 2. **Always spawn as child task** via `spawn_agent` — ensures dedicated UI frame
-3. **Never run in CoWork OS's own project directory**
+3. **Never run in NeoWorker's own project directory**
 4. **Respect user's tool choice** — don't substitute with Claude Code
 5. **Don't kill sessions for being slow** — monitor with `process:log`
 6. **Use `--full-auto` for building/fixing**, vanilla `codex exec` for reviewing

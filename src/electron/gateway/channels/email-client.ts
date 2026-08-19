@@ -1163,7 +1163,7 @@ export class EmailClient extends EventEmitter {
         : "";
       const fromAddress = sanitizeHeaderValue(this.options.email);
       const attachments = (options.attachments || []).filter((attachment) => attachment.content?.length);
-      const boundary = `cowork-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const boundary = `neoworker-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const headers = [
         `From: ${displayName ? `"${displayName}" ` : ""}<${fromAddress}>`,
         `To: ${toAddresses.join(", ")}`,

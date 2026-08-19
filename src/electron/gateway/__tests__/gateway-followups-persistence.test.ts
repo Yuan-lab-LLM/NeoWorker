@@ -27,7 +27,7 @@ vi.mock("better-sqlite3", () => {
 // Mock electron APIs used by gateway modules
 vi.mock("electron", () => ({
   app: {
-    getPath: vi.fn().mockReturnValue("/tmp/test-cowork"),
+    getPath: vi.fn().mockReturnValue("/tmp/test-neoworker"),
   },
   BrowserWindow: {
     getAllWindows: vi.fn().mockReturnValue([]),
@@ -91,9 +91,9 @@ describe("ChannelGateway follow-up listeners", () => {
     await tick();
     await tick();
 
-    expect(router.flushStreamingUpdateForTask).toHaveBeenCalledWith("t1");
+    expect(router.flushStreamingUpdateForTask).toHaveBeenCalledWith("t1", "Follow-up response");
     expect(router.finalizeDraftStreamForTask).toHaveBeenCalledWith("t1", "Follow-up response");
-    expect(router.sendArtifacts).toHaveBeenCalledWith("t1");
+    expect(router.sendArtifacts).toHaveBeenCalledWith("t1", "Follow-up response");
     // assistant_message should be the only call to sendTaskUpdate (no extra confirmation)
     expect(router.sendTaskUpdate).toHaveBeenCalledTimes(1);
   });
@@ -117,7 +117,7 @@ describe("ChannelGateway follow-up listeners", () => {
     expect(router.flushStreamingUpdateForTask).not.toHaveBeenCalled();
     expect(router.finalizeDraftStreamForTask).not.toHaveBeenCalled();
     expect(router.sendTaskUpdate).toHaveBeenCalledTimes(1);
-    expect(router.sendArtifacts).toHaveBeenCalledWith("t2");
+    expect(router.sendArtifacts).toHaveBeenCalledWith("t2", undefined);
   });
 
   it("flushes + finalizes partial output on follow-up failure, then sends a failure message", async () => {

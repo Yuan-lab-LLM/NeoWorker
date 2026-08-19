@@ -13,7 +13,7 @@ describe("cron workspace context helpers", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-cron-workspace-context-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-cron-workspace-context-"));
   });
 
   afterEach(() => {
@@ -47,7 +47,7 @@ describe("cron workspace context helpers", () => {
       targetAfterPrune: 50,
     });
     expect(fs.existsSync(first.path)).toBe(true);
-    expect(first.relativePath.startsWith(".cowork/scheduled-runs/run-")).toBe(true);
+    expect(first.relativePath.startsWith(".neoworker/scheduled-runs/run-")).toBe(true);
 
     const staleDir = path.join(first.runsRoot, "run-old-stale");
     fs.mkdirSync(staleDir, { recursive: true });

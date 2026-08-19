@@ -1,13 +1,9 @@
 # LLM Providers & Costs (BYOK)
 
-CoWork OS is **free and open source**. To run tasks, configure your own model credentials or use local models.
+NeoWorker is **free and open source**. To run tasks, configure your own model credentials or use local models.
 
 > **First-run recommendation**: Start with **Sign in with ChatGPT** if you already have a ChatGPT subscription, or use a detected local Ollama model if one is installed. API-key providers, including OpenRouter, Claude, Gemini, Groq, and OpenAI API, are available in **Settings > AI & Models**. The onboarding provider picker marks OpenRouter, Gemini, and Groq with **Free** where a free usage path is available. You can explore the app without AI, but running tasks requires one connected and tested model route.
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-10.webp" alt="LLM provider settings" width="700">
-  <br><em>Provider settings centralize built-in models, compatible gateways, authentication, and fallback routing.</em>
-</p>
 
 ## Built-in Providers
 
@@ -57,13 +53,13 @@ CoWork OS is **free and open source**. To run tasks, configure your own model cr
 | OpenAI-Compatible (Custom) | API key + base URL in Settings | Provider billing |
 | Anthropic-Compatible (Custom) | API key + base URL in Settings | Provider billing |
 
-**Your usage is billed directly by your provider.** CoWork OS does not proxy or resell model access.
+**Your usage is billed directly by your provider.** NeoWorker does not proxy or resell model access.
 
 ---
 
 ## Ordered LLM Fallback Chains
 
-CoWork OS can route a task through an explicit provider/model fallback chain instead of relying on a single primary provider.
+NeoWorker can route a task through an explicit provider/model fallback chain instead of relying on a single primary provider.
 
 Configure this in **Settings > AI & Models**:
 
@@ -73,7 +69,7 @@ Configure this in **Settings > AI & Models**:
 
 Fallback chains are used when a provider is unavailable, rate-limited, rejected by policy, or lacks the required capability for the task. Runtime surfaces in the app and Mission Control show the active provider, routing reason, and whether a fallback occurred.
 
-For LLM chains, retryable provider failures such as `429` rate limits and transient upstream errors move execution to the next configured provider/model in the ordered list. Once a fallback route is active, CoWork OS preserves that working route briefly so retries do not immediately bounce back to the primary provider.
+For LLM chains, retryable provider failures such as `429` rate limits and transient upstream errors move execution to the next configured provider/model in the ordered list. Once a fallback route is active, NeoWorker preserves that working route briefly so retries do not immediately bounce back to the primary provider.
 
 You can control when the primary route is tried again in **Settings > AI & Models > Provider Failover > Retry primary after (seconds)**:
 
@@ -110,14 +106,14 @@ See [Mixture of Agents](mixture-of-agents.md) for preset design, runtime behavio
 
 ## Prompt Caching
 
-CoWork OS enables prompt caching by default in `auto` mode for supported model routes. The cacheable prefix is built from session-scoped prompt sections, while volatile turn context stays outside the stable prefix so follow-ups and routed turns can keep reusing the same provider-side foundation.
+NeoWorker enables prompt caching by default in `auto` mode for supported model routes. The cacheable prefix is built from session-scoped prompt sections, while volatile turn context stays outside the stable prefix so follow-ups and routed turns can keep reusing the same provider-side foundation.
 
 ### Strategy by provider family
 
-- **Claude API / Azure Anthropic / Anthropic-compatible**: CoWork sends structured `systemBlocks` and prefers Anthropic automatic caching. If a route rejects automatic cache control, the session downgrades to explicit Anthropic breakpoints.
-- **OpenRouter Claude**: CoWork uses explicit cache breakpoints over the stable system prefix plus the last 3 non-system messages, with a maximum of 4 total breakpoints.
-- **OpenAI / Azure OpenAI**: CoWork derives a deterministic stable-prefix cache key and sends it through OpenAI-style prompt-cache fields. This keeps GPT routes such as `gpt-5.4` and `gpt-5.4-mini` aligned under the same stable-prefix strategy.
-- **OpenRouter GPT-style routes**: CoWork participates in the same stable-prefix partitioning and cache-epoch tracking, but without Anthropic-specific markers.
+- **Claude API / Azure Anthropic / Anthropic-compatible**: NeoWorker sends structured `systemBlocks` and prefers Anthropic automatic caching. If a route rejects automatic cache control, the session downgrades to explicit Anthropic breakpoints.
+- **OpenRouter Claude**: NeoWorker uses explicit cache breakpoints over the stable system prefix plus the last 3 non-system messages, with a maximum of 4 total breakpoints.
+- **OpenAI / Azure OpenAI**: NeoWorker derives a deterministic stable-prefix cache key and sends it through OpenAI-style prompt-cache fields. This keeps GPT routes such as `gpt-5.4` and `gpt-5.4-mini` aligned under the same stable-prefix strategy.
+- **OpenRouter GPT-style routes**: NeoWorker participates in the same stable-prefix partitioning and cache-epoch tracking, but without Anthropic-specific markers.
 
 ### What stays cacheable
 
@@ -129,19 +125,19 @@ Cacheable prefix material comes from stable session-scoped sections such as:
 - role, personality, and guidelines
 - tool policy and rendered tool schema
 
-Dynamic turn-scoped material such as current time, layered memory sections (`<cowork_hot_memory>`, `<cowork_structured_memory>`), and turn guidance is intentionally kept outside the stable prefix. Session transcript recall, verbatim quote recall, archive recall, and topic-pack recall are tool-driven, so they only enter the active turn after explicit `search_sessions`, `search_quotes`, `search_memories`, or `memory_topics_load` use.
+Dynamic turn-scoped material such as current time, layered memory sections (`<neoworker_hot_memory>`, `<neoworker_structured_memory>`), and turn guidance is intentionally kept outside the stable prefix. Session transcript recall, verbatim quote recall, archive recall, and topic-pack recall are tool-driven, so they only enter the active turn after explicit `search_sessions`, `search_quotes`, `search_memories`, or `memory_topics_load` use.
 
 ### Defaults and overrides
 
 - Default mode: `auto`
 - Default TTL: `5m`
 - Optional long TTL: `1h`
-- Advanced disable: set `promptCaching.mode` to `off` in saved LLM settings or launch with `COWORK_PROMPT_CACHE_MODE=off`
-- Advanced TTL override: `COWORK_PROMPT_CACHE_TTL=5m|1h`
+- Advanced disable: set `promptCaching.mode` to `off` in saved LLM settings or launch with `NEOWORKER_PROMPT_CACHE_MODE=off`
+- Advanced TTL override: `NEOWORKER_PROMPT_CACHE_TTL=5m|1h`
 
 ### Telemetry
 
-When an upstream provider reports prompt-cache usage, CoWork records:
+When an upstream provider reports prompt-cache usage, NeoWorker records:
 
 - `cachedTokens`: tokens served from the provider cache
 - `cacheWriteTokens`: tokens spent creating or extending the cache entry, when available
@@ -152,7 +148,7 @@ These values flow into Usage Insights and cost accounting.
 
 ## Adaptive Output Budgeting
 
-When `COWORK_LLM_OUTPUT_POLICY=adaptive` is enabled, CoWork OS applies a shared output-budget policy for agentic execution turns across the main provider families instead of relying on provider defaults.
+When `NEOWORKER_LLM_OUTPUT_POLICY=adaptive` is enabled, NeoWorker applies a shared output-budget policy for agentic execution turns across the main provider families instead of relying on provider defaults.
 
 ### What it covers
 
@@ -181,13 +177,13 @@ Internal defaults are:
 Budget selection is resolved in this order:
 
 1. task-level `agentConfig.maxTokens`, when present
-2. `COWORK_LLM_MAX_OUTPUT_TOKENS`
+2. `NEOWORKER_LLM_MAX_OUTPUT_TOKENS`
 3. adaptive family defaults
 4. final clamping by known hard caps and context headroom
 
 ### Transport fields by provider shape
 
-CoWork maps the chosen budget into the provider-appropriate request field:
+NeoWorker maps the chosen budget into the provider-appropriate request field:
 
 - `max_tokens` for Anthropic-style, OpenRouter-style, and most compatible chat-completions routes
 - `max_completion_tokens` for newer OpenAI-style reasoning/chat-completions routes
@@ -199,9 +195,9 @@ This mapping is resolved centrally so execution behavior stays consistent even w
 
 If an execution turn hits the output limit:
 
-1. CoWork retries the same request once with a larger budget
-2. if the retried response still truncates but contains visible partial output, CoWork falls back to a continuation prompt
-3. if the retried response contains only reasoning or no usable answer text, CoWork stops retrying continuations and surfaces targeted guidance instead
+1. NeoWorker retries the same request once with a larger budget
+2. if the retried response still truncates but contains visible partial output, NeoWorker falls back to a continuation prompt
+3. if the retried response contains only reasoning or no usable answer text, NeoWorker stops retrying continuations and surfaces targeted guidance instead
 
 This avoids wasting turns on repeated truncation loops that produce no visible answer.
 
@@ -209,12 +205,12 @@ This avoids wasting turns on repeated truncation loops that produce no visible a
 
 This rollout is currently controlled by environment flags rather than UI settings:
 
-- `COWORK_LLM_OUTPUT_POLICY=legacy|adaptive`
-- `COWORK_LLM_MAX_OUTPUT_TOKENS`
-- `COWORK_LLM_AGENTIC_INITIAL_MAX_TOKENS`
-- `COWORK_LLM_AGENTIC_ESCALATED_MAX_TOKENS`
+- `NEOWORKER_LLM_OUTPUT_POLICY=legacy|adaptive`
+- `NEOWORKER_LLM_MAX_OUTPUT_TOKENS`
+- `NEOWORKER_LLM_AGENTIC_INITIAL_MAX_TOKENS`
+- `NEOWORKER_LLM_AGENTIC_ESCALATED_MAX_TOKENS`
 
-`COWORK_LLM_OUTPUT_POLICY` defaults to `legacy` unless explicitly set. `COWORK_LLM_TOOL_RESPONSE_MAX_TOKENS` remains available for legacy compatibility but is no longer the primary behavior in adaptive mode.
+`NEOWORKER_LLM_OUTPUT_POLICY` defaults to `legacy` unless explicitly set. `NEOWORKER_LLM_TOOL_RESPONSE_MAX_TOKENS` remains available for legacy compatibility but is no longer the primary behavior in adaptive mode.
 
 ---
 
@@ -260,7 +256,7 @@ ollama serve
 
 ## HuggingFace Local AI (`hf-agents` + `llama.cpp`)
 
-Run compatible local models through CoWork's HuggingFace Local AI provider.
+Run compatible local models through NeoWorker's HuggingFace Local AI provider.
 
 ### Setup
 
@@ -314,20 +310,20 @@ When one of those models is selected, **Settings > AI & Models > OpenRouter** sh
 - The score is sent through OpenRouter's `pareto-router` plugin only for `openrouter/pareto-code` and `openrouter/pareto-code:nitro`.
 - In headless or VPS installs, pass the same value through Control Plane as `settings.paretoMinCodingScore`, for example `{"providerType":"openrouter","model":"openrouter/pareto-code","settings":{"paretoMinCodingScore":0.8}}`.
 - The response `model` field can report the concrete underlying model that handled the request, so usage and cost records may show a Claude, GPT, Gemini, DeepSeek, or other routed model rather than the router id.
-- The fallback local catalog lists both Pareto models with OpenRouter's documented `200,000` token context. When the live OpenRouter model catalog returns metadata, CoWork keeps the live catalog value instead of overriding it.
+- The fallback local catalog lists both Pareto models with OpenRouter's documented `200,000` token context. When the live OpenRouter model catalog returns metadata, NeoWorker keeps the live catalog value instead of overriding it.
 
 The Pareto Router itself adds no extra fee. Billing follows whichever underlying OpenRouter model handles the request, so cost can vary by tier and availability.
 
 Reference: [OpenRouter Pareto Router docs](https://openrouter.ai/docs/guides/routing/routers/pareto-router) and [Pareto Code Router model page](https://openrouter.ai/openrouter/pareto-code).
 
-CoWork OS also sends OpenRouter app attribution headers by default so usage is associated with the app in OpenRouter analytics and rankings. The current defaults are:
+NeoWorker also sends OpenRouter app attribution headers by default so usage is associated with the app in OpenRouter analytics and rankings. The current defaults are:
 
-- `HTTP-Referer: https://github.com/CoWork-OS/CoWork-OS`
-- `X-OpenRouter-Title: CoWork OS`
-- `X-Title: CoWork OS`
+- `HTTP-Referer: https://github.com/NeoWorker/NeoWorker`
+- `X-OpenRouter-Title: NeoWorker`
+- `X-Title: NeoWorker`
 - `X-OpenRouter-Categories: personal-agent,programming-app`
 
-The category pairing is intentional: CoWork OS is positioned primarily as a personal AI agent, with programming workflows as a secondary fit.
+The category pairing is intentional: NeoWorker is positioned primarily as a personal AI agent, with programming workflows as a secondary fit.
 
 For prompt caching, OpenRouter Claude routes use explicit Anthropic-style cache breakpoints, while GPT-style OpenRouter routes participate in the shared stable-prefix prompt-cache pipeline.
 
@@ -342,7 +338,7 @@ For prompt caching, OpenRouter Claude routes use explicit Anthropic-style cache 
 
 ## xAI / Grok
 
-CoWork OS supports Grok through either direct xAI API billing or a browser OAuth login that uses your active SuperGrok subscription.
+NeoWorker supports Grok through either direct xAI API billing or a browser OAuth login that uses your active SuperGrok subscription.
 
 ### Option 1: SuperGrok Subscription
 
@@ -355,7 +351,7 @@ Use this when you already have a Grok/SuperGrok subscription and do not want to 
 5. Keep the default model `grok-4.3`, or select another listed Grok chat model.
 6. Click **Test Connection**, then save settings.
 
-CoWork stores the OAuth tokens in encrypted LLM settings for the current profile and refreshes the access token before model calls. Logging out from the same panel clears the stored xAI OAuth tokens without removing an xAI API key.
+NeoWorker stores the OAuth tokens in encrypted LLM settings for the current profile and refreshes the access token before model calls. Logging out from the same panel clears the stored xAI OAuth tokens without removing an xAI API key.
 
 ### Option 2: xAI API Key
 
@@ -383,7 +379,7 @@ The OAuth route uses xAI's Responses-style endpoint at `https://api.x.ai/v1`, ma
 ### Troubleshooting
 
 - If the browser sign-in times out, start **Sign in with Grok** again. The loopback authorization window is intentionally finite.
-- If the callback port is busy, CoWork falls back to an ephemeral local port automatically.
+- If the callback port is busy, NeoWorker falls back to an ephemeral local port automatically.
 - If token refresh fails because the xAI session was revoked, disconnect the Grok account in Settings and sign in again.
 - If a model call fails with a subscription or entitlement error, confirm the signed-in xAI account has an active SuperGrok subscription.
 

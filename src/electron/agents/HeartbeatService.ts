@@ -9,7 +9,6 @@ import {
   HeartbeatResult,
   HeartbeatSignal,
   HeartbeatSignalFamily,
-  HeartbeatSignalSource,
   HeartbeatStatus,
   ProactiveSuggestion,
   ProactiveTaskDefinition,
@@ -279,6 +278,7 @@ export class HeartbeatService extends EventEmitter {
     this.runRepo.reconcileInterruptedAgentRuns();
     this.reconcileLegacyMigratedRuns();
     for (const agent of this.deps.agentRoleRepo.findHeartbeatEnabled()) {
+      this.reconcileDispatchedPendingMentions(agent);
       this.scheduleHeartbeat(agent);
     }
   }
@@ -489,7 +489,7 @@ export class HeartbeatService extends EventEmitter {
 
     const dueChecklistItems = this.getDueChecklistItems(agent);
     const pulseSignals = this.signalStore.listAgentSignals(agent.id);
-    const pulseMentions = this.deps.mentionRepo.getPendingForAgent(agent.id);
+    const pulseMentions = this.getActionablePendingMentions(agent);
     const pulseTasks = this.deps.getTasksForAgent(agent.id);
     const workspaceId = this.resolveWorkspaceId(
       agent,
@@ -501,6 +501,12 @@ export class HeartbeatService extends EventEmitter {
     const scopedChecklistItems = workspaceId
       ? dueChecklistItems.filter((item) => !item.workspaceId || item.workspaceId === workspaceId)
       : [];
+    const scopedPulseMentions = workspaceId
+      ? pulseMentions.filter((mention) => mention.workspaceId === workspaceId)
+      : pulseMentions;
+    const scopedPulseTasks = workspaceId
+      ? pulseTasks.filter((task) => task.workspaceId === workspaceId)
+      : pulseTasks;
     const pulseRun = this.runRepo.create({
       agentRoleId: agent.id,
       workspaceId,
@@ -547,8 +553,8 @@ export class HeartbeatService extends EventEmitter {
       this.running.add(agent.id);
       this.deps.agentRoleRepo.updateHeartbeatStatus(agent.id, "running");
       try {
-        const pendingMentions = pulseMentions.length;
-        const assignedTasks = pulseTasks.length;
+        const pendingMentions = scopedPulseMentions.length;
+        const assignedTasks = scopedPulseTasks.length;
         const relevantActivities = workspaceId
           ? this.deps.activityRepo.list({ workspaceId, agentRoleId: agent.id, limit: 10 }).length
           : 0;
@@ -790,13 +796,20 @@ export class HeartbeatService extends EventEmitter {
           return result;
         }
 
+        const dispatchEvidenceRefs = Array.from(
+          new Set([
+            ...decision.evidenceRefs,
+            ...scopedPulseMentions.map((mention) => `mention:${mention.id}`),
+            ...scopedPulseTasks.map((task) => `task:${task.id}`),
+          ]),
+        );
         const dispatchRun = this.runRepo.create({
           agentRoleId: agent.id,
           workspaceId,
           runType: "dispatch",
           dispatchKind: decision.dispatchKind,
           reason: decision.reason,
-          evidenceRefs: decision.evidenceRefs,
+          evidenceRefs: dispatchEvidenceRefs,
           status: "running",
         });
         this.emitHeartbeatEvent({
@@ -830,7 +843,7 @@ export class HeartbeatService extends EventEmitter {
             workspaceId,
             reason: decision.reason,
             signalSummaries: pulseSignals.map(buildSignalSummary).slice(0, 8),
-            evidenceRefs: decision.evidenceRefs,
+            evidenceRefs: dispatchEvidenceRefs,
             dueChecklistItems: scopedChecklistItems,
             dueProactiveTasks,
             dispatchKind: decision.dispatchKind,
@@ -846,7 +859,7 @@ export class HeartbeatService extends EventEmitter {
             status: "failed",
             summary: decision.reason,
             error: message,
-            evidenceRefs: decision.evidenceRefs,
+            evidenceRefs: dispatchEvidenceRefs,
           });
           throw error;
         }
@@ -860,7 +873,7 @@ export class HeartbeatService extends EventEmitter {
           summary: decision.reason,
           error: dispatchResult.error,
           taskId: dispatchResult.taskCreated,
-          evidenceRefs: decision.evidenceRefs,
+          evidenceRefs: dispatchEvidenceRefs,
         });
         if (dispatchResult.taskCreated) {
           this.runRepo.attachTask(dispatchRun.id, dispatchResult.taskCreated);
@@ -869,6 +882,18 @@ export class HeartbeatService extends EventEmitter {
           }
         }
         if (dispatchResult.status !== "error") {
+          const acknowledgedMentionIds: string[] = [];
+          for (const mention of scopedPulseMentions) {
+            const acknowledged = this.deps.mentionRepo.acknowledge(mention.id);
+            if (acknowledged?.status !== "pending") {
+              acknowledgedMentionIds.push(mention.id);
+            }
+          }
+          if (acknowledgedMentionIds.length > 0) {
+            this.runRepo.recordEvent(dispatchRun.id, "dispatch.sources_consumed", {
+              mentionIds: acknowledgedMentionIds,
+            });
+          }
           this.markMaintenanceCompleted(agent, scopedChecklistItems, dueProactiveTasks, decision.kind);
           this.signalStore.removeSignals(
             agent.id,
@@ -1183,6 +1208,40 @@ export class HeartbeatService extends EventEmitter {
       return agent.lastPulseAt + intervalMs;
     }
     return Date.now() + Math.max(5_000, staggerMs || 5_000);
+  }
+
+  private getActionablePendingMentions(agent: AgentRole): AgentMention[] {
+    this.reconcileDispatchedPendingMentions(agent);
+    return this.deps.mentionRepo.getPendingForAgent(agent.id);
+  }
+
+  private reconcileDispatchedPendingMentions(agent: AgentRole): number {
+    const pendingMentions = this.deps.mentionRepo.getPendingForAgent(agent.id);
+    if (pendingMentions.length === 0) return 0;
+
+    const oldestPendingAt = Math.min(...pendingMentions.map((mention) => mention.createdAt));
+    const dispatches = this.runRepo
+      .listRecentDispatches(agent.id, oldestPendingAt)
+      .filter((run) => run.status === "completed");
+    if (dispatches.length === 0) return 0;
+
+    const handledEvidenceRefs = new Set(
+      dispatches.flatMap((run) => run.evidenceRefs || []),
+    );
+    let reconciled = 0;
+    for (const mention of pendingMentions) {
+      const explicitlyHandled = handledEvidenceRefs.has(`mention:${mention.id}`);
+      const handledByLegacyDispatch = dispatches.some(
+        (run) =>
+          run.createdAt >= mention.createdAt &&
+          run.reason?.startsWith("Pending work detected") &&
+          (!run.workspaceId || run.workspaceId === mention.workspaceId),
+      );
+      if (!explicitlyHandled && !handledByLegacyDispatch) continue;
+      const acknowledged = this.deps.mentionRepo.acknowledge(mention.id);
+      if (acknowledged?.status !== "pending") reconciled += 1;
+    }
+    return reconciled;
   }
 
   private reconcileLegacyMigratedRuns(): void {

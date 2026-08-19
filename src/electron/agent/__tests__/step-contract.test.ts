@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   descriptionHasChecklistReportCue,
+  descriptionHasCopyIntent,
   descriptionHasDiscoveryIntent,
   descriptionHasReadOnlyIntent,
   descriptionHasStrongWriteIntent,
@@ -54,7 +55,7 @@ describe("step-contract write intent", () => {
   it("treats lock/define/set style artifact directives as write intent", () => {
     expect(
       descriptionHasWriteIntent(
-        "Lock requirements in /tmp/linux/coworkos/requirements.md with distro defaults.",
+        "Lock requirements in /tmp/linux/neoworker/requirements.md with distro defaults.",
       ),
     ).toBe(true);
   });
@@ -93,6 +94,27 @@ describe("step-contract write intent", () => {
       ),
     ).toBe(true);
   });
+
+  it("recognizes Chinese HTML artifact generation as a write step", () => {
+    const description =
+      "报告撰写与HTML生成：按摘要、六大板块和来源清单组织内容，生成自包含HTML文件。";
+
+    expect(descriptionHasStrongWriteIntent(description)).toBe(true);
+    expect(descriptionHasWriteIntent(description)).toBe(true);
+  });
+
+  it("recognizes copying or saving an artifact as a new version as write intent", () => {
+    for (const description of [
+      "Copy the source workbook to a new version.",
+      "Save the spreadsheet as a new version.",
+      "复制源文件为新版本（AI软件部门版）",
+      "将工作簿另存为新版本",
+    ]) {
+      expect(descriptionHasCopyIntent(description)).toBe(true);
+      expect(descriptionHasStrongWriteIntent(description)).toBe(true);
+      expect(descriptionHasWriteIntent(description)).toBe(true);
+    }
+  });
 });
 
 describe("step-contract read-only intent", () => {
@@ -104,5 +126,13 @@ describe("step-contract read-only intent", () => {
     expect(descriptionHasDiscoveryIntent(description)).toBe(true);
     expect(descriptionHasWriteIntent(description)).toBe(false);
     expect(extractArtifactPathCandidates(description)).toEqual(["README.md"]);
+  });
+
+  it("recognizes Chinese research steps as read-only discovery", () => {
+    const description = "信息收集：搜索近期动态，抓取并核实权威来源。";
+
+    expect(descriptionHasReadOnlyIntent(description)).toBe(true);
+    expect(descriptionHasDiscoveryIntent(description)).toBe(true);
+    expect(descriptionHasWriteIntent(description)).toBe(false);
   });
 });

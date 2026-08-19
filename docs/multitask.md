@@ -16,11 +16,11 @@ Examples:
 /multitask 6 audit the repo for performance issues and propose patches
 ```
 
-The lane count defaults to `4` and is clamped to `2-8`. If the command has no request after it, CoWork shows a validation error and does not create a task.
+The lane count defaults to `4` and is clamped to `2-8`. If the command has no request after it, NeoWorker shows a validation error and does not create a task.
 
 ## Runtime Behavior
 
-When a desktop composer prompt starts with `/multitask`, CoWork:
+When a desktop composer prompt starts with `/multitask`, NeoWorker:
 
 - strips the `/multitask` prefix before saving the task prompt
 - creates a normal task with collaborative multitask metadata
@@ -37,8 +37,8 @@ The task appears in the same task timeline and sidebar surfaces as other collabo
 Lane assignment is best-effort and bounded:
 
 1. Explicit bullet or numbered lists in the prompt become lane definitions first.
-2. If no explicit lanes are present, CoWork asks the configured default LLM for JSON lane specs.
-3. If that side LLM call fails or returns invalid output, CoWork falls back to deterministic lanes such as context/scope, implementation, risk review, and verification.
+2. If no explicit lanes are present, NeoWorker asks the configured default LLM for JSON lane specs.
+3. If that side LLM call fails or returns invalid output, NeoWorker falls back to deterministic lanes such as context/scope, implementation, risk review, and verification.
 
 Each child prompt receives the root task context plus its lane title/details and is instructed to work only inside that lane, report files changed, and call out risks or blockers.
 
@@ -46,7 +46,7 @@ Each child prompt receives the root task context plus its lane title/details and
 
 For coding requests, `/multitask` is safest with **Git Worktree Isolation** enabled. Existing worktree settings still apply to each child task, so parallel lanes can receive separate branches/worktrees when the workspace supports it.
 
-If a prompt looks code-related and worktree isolation is unavailable, CoWork logs a non-blocking warning on the root task instead of failing the run.
+If a prompt looks code-related and worktree isolation is unavailable, NeoWorker logs a non-blocking warning on the root task instead of failing the run.
 
 ## Scope
 

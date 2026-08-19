@@ -26,7 +26,7 @@ describe("preferred-name utils", () => {
   });
 
   it("sanitizes inferred names safely", () => {
-    expect(sanitizeInferredPreferredName("building a cowork assistant")).toBeUndefined();
+    expect(sanitizeInferredPreferredName("building a neoworker assistant")).toBeUndefined();
     expect(sanitizeInferredPreferredName("Alice")).toBe("Alice");
   });
 

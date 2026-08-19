@@ -90,7 +90,7 @@ function spawnNpm(args, opts = {}) {
 
 function run(cmd, args, opts = {}) {
   const pretty = [cmd, ...(args || [])].join(" ");
-  console.log(`\n[cowork] $ ${pretty}`);
+  console.log(`\n[neoworker] $ ${pretty}`);
   const runner = cmd === NPM_CMD ? spawnNpm : spawnSync;
   const res = runner(cmd === NPM_CMD ? args : cmd, cmd === NPM_CMD ? {
     stdio: "inherit",
@@ -105,7 +105,7 @@ function run(cmd, args, opts = {}) {
 }
 
 function runNpm(args, opts = {}) {
-  console.log(`\n[cowork] $ npm ${args.join(" ")}`);
+  console.log(`\n[neoworker] $ npm ${args.join(" ")}`);
   return spawnNpm(args, {
     stdio: "inherit",
     env: opts.env || process.env,
@@ -124,7 +124,7 @@ function formatSpawnError(err) {
 function computeJobs() {
   // Users should be able to run README commands without tweaking env vars.
   // Default to 1 job on macOS for reliability (reduces peak memory).
-  const raw = process.env.COWORK_SETUP_JOBS;
+  const raw = process.env.NEOWORKER_SETUP_JOBS;
   if (raw != null && String(raw).trim() !== "") {
     const parsed = Number.parseInt(String(raw), 10);
     if (Number.isFinite(parsed) && parsed >= 1) return parsed;
@@ -267,7 +267,7 @@ function testNativeModulesInElectron(env) {
 
 function shouldTryWindowsArm64X64Fallback() {
   if (!(process.platform === "win32" && process.arch === "arm64")) return false;
-  const raw = String(process.env.COWORK_SETUP_SKIP_X64_FALLBACK || "")
+  const raw = String(process.env.NEOWORKER_SETUP_SKIP_X64_FALLBACK || "")
     .trim()
     .toLowerCase();
   return raw !== "1" && raw !== "true" && raw !== "yes";
@@ -284,7 +284,7 @@ function tryWindowsArm64X64Fallback(
   if (!electronInstallScript || !electronVersion) return null;
 
   console.log(
-    "[cowork] Windows ARM64 detected; trying x64 Electron + native module fallback (emulation mode)."
+    "[neoworker] Windows ARM64 detected; trying x64 Electron + native module fallback (emulation mode)."
   );
 
   // Force Electron's installer to fetch x64 binaries, then rebuild better-sqlite3 for x64 Electron ABI.
@@ -297,7 +297,7 @@ function tryWindowsArm64X64Fallback(
   const x64ElectronEnv = makeElectronTargetEnv(env, electronVersion, "x64");
   if (!electronRebuildCli || !fs.existsSync(electronRebuildCli)) {
     console.log(
-      "[cowork] @electron/rebuild is not installed; cannot run x64 fallback rebuild."
+      "[neoworker] @electron/rebuild is not installed; cannot run x64 fallback rebuild."
     );
     return { status: 1, signal: null };
   }
@@ -313,11 +313,11 @@ function tryWindowsArm64X64Fallback(
   const testRes = testNativeModulesInElectron(x64ElectronEnv);
   if (testRes.status === 0) {
     console.log(
-      "[cowork] native modules load in Electron after x64 electron-rebuild fallback."
+      "[neoworker] native modules load in Electron after x64 electron-rebuild fallback."
     );
   } else {
     console.log(
-      "[cowork] x64 electron-rebuild fallback completed, but native modules still did not load."
+      "[neoworker] x64 electron-rebuild fallback completed, but native modules still did not load."
     );
   }
 
@@ -332,11 +332,11 @@ function ensureBetterSqlite3(env, installRootDir) {
   }
 
   console.log(
-    `[cowork] better-sqlite3 is missing; installing ${BETTER_SQLITE3_VERSION}...`
+    `[neoworker] better-sqlite3 is missing; installing ${BETTER_SQLITE3_VERSION}...`
   );
 
   if (installRootDir !== process.cwd()) {
-    console.log(`[cowork] Installing better-sqlite3 from root ${installRootDir}`);
+    console.log(`[neoworker] Installing better-sqlite3 from root ${installRootDir}`);
   }
 
   return runNpm(
@@ -359,21 +359,21 @@ function fail(res, context) {
   const sig = res.signal ? ` (signal ${res.signal})` : "";
   const code =
     res.status == null ? "" : ` (exit ${String(res.status).trim()})`;
-  console.error(`\n[cowork] ${context} failed${sig}${code}.`);
+  console.error(`\n[neoworker] ${context} failed${sig}${code}.`);
   const spawnError = formatSpawnError(res.error);
   if (spawnError) {
-    console.error(`[cowork] Subprocess error: ${spawnError}`);
+    console.error(`[neoworker] Subprocess error: ${spawnError}`);
   }
   if (isKilledByOS(res)) {
     console.error(
-      "[cowork] The OS terminated the process (usually memory pressure). " +
+      "[neoworker] The OS terminated the process (usually memory pressure). " +
         "Setup will retry automatically; if it still fails after retries, " +
         "close other apps and re-run `npm run setup`."
     );
   }
   if (process.platform === "win32") {
     console.error(
-      "[cowork] On Windows, inspect npm logs in %LocalAppData%\\npm-cache\\_logs\\ for detailed native build errors."
+      "[neoworker] On Windows, inspect npm logs in %LocalAppData%\\npm-cache\\_logs\\ for detailed native build errors."
     );
   }
   // If a child process was SIGKILL'd, `spawnSync` will surface it as `signal`
@@ -387,7 +387,7 @@ function checkPrereqs() {
     const res = spawnSync("xcode-select", ["-p"], { encoding: "utf8" });
     if (res.status !== 0) {
       console.error(
-        "\n[cowork] Xcode Command Line Tools not found.\n" +
+        "\n[neoworker] Xcode Command Line Tools not found.\n" +
           "Install them with:\n" +
           "  xcode-select --install\n"
       );
@@ -407,7 +407,7 @@ function checkPrereqs() {
         npmRes.stdout.trim() !== "undefined";
       if (!hasMsvs) {
         console.warn(
-          "\n[cowork] Warning: Visual Studio C++ Build Tools were not detected.\n" +
+          "\n[neoworker] Warning: Visual Studio C++ Build Tools were not detected.\n" +
             "Native module compilation (better-sqlite3) may fail without them.\n" +
             "Install Visual Studio Build Tools 2022 with:\n" +
             "  - Desktop development with C++\n" +
@@ -428,14 +428,14 @@ function checkPrereqs() {
       : spawnSync("python", ["--version"], { encoding: "utf8" });
     if (pythonRes.status !== 0) {
       console.warn(
-        "\n[cowork] Warning: Python 3 was not detected (`py -3` / `python`).\n" +
+        "\n[neoworker] Warning: Python 3 was not detected (`py -3` / `python`).\n" +
           "node-gyp requires Python 3 for native module builds.\n"
       );
     }
 
     if (process.arch === "arm64" && (nodeMajorVersion() ?? 0) >= 24) {
       console.log(
-        "[cowork] Windows ARM64 + Node 24 detected. If native ARM64 rebuild fails,\n" +
+        "[neoworker] Windows ARM64 + Node 24 detected. If native ARM64 rebuild fails,\n" +
           "setup will auto-try x64 Electron emulation for better compatibility."
       );
     }
@@ -444,18 +444,18 @@ function checkPrereqs() {
 
 function main() {
   console.log(
-    `[cowork] Native setup (${process.platform}/${process.arch}) using Node ${process.version}`
+    `[neoworker] Native setup (${process.platform}/${process.arch}) using Node ${process.version}`
   );
 
   checkPrereqs();
 
   const userSpecifiedJobs =
-    process.env.COWORK_SETUP_JOBS != null &&
-    String(process.env.COWORK_SETUP_JOBS).trim() !== "";
+    process.env.NEOWORKER_SETUP_JOBS != null &&
+    String(process.env.NEOWORKER_SETUP_JOBS).trim() !== "";
 
   let jobs = computeJobs();
   console.log(
-    `[cowork] Using jobs=${jobs} (set COWORK_SETUP_JOBS=N to override)`
+    `[neoworker] Using jobs=${jobs} (set NEOWORKER_SETUP_JOBS=N to override)`
   );
 
   const attempt = (attemptJobs) => {
@@ -467,14 +467,14 @@ function main() {
 
     if (!electronInstallScript) {
       console.error(
-        "[cowork] Electron install script not found. Ensure the `electron` dependency is installed."
+        "[neoworker] Electron install script not found. Ensure the `electron` dependency is installed."
       );
       return { status: 1, signal: null };
     }
 
     // 1) Ensure Electron binary exists (postinstall is often skipped due to ignore-scripts=true).
     if (electronBinary && fs.existsSync(electronBinary)) {
-      console.log("[cowork] Electron binary already present; skipping electron/install.js.");
+      console.log("[neoworker] Electron binary already present; skipping electron/install.js.");
     } else {
       const installRes = run(process.execPath, [electronInstallScript], { env });
       if (installRes.status !== 0) return installRes;
@@ -488,7 +488,7 @@ function main() {
     const electronAbi = getElectronModulesAbi(env);
 
     console.log(
-      `[cowork] Electron: version=${electronVersion ?? "?"} modules=${
+      `[neoworker] Electron: version=${electronVersion ?? "?"} modules=${
         electronAbi ?? "?"
       }`
     );
@@ -497,7 +497,7 @@ function main() {
     if (electronVersion) {
       if (!electronRebuildCli || !fs.existsSync(electronRebuildCli)) {
         console.log(
-          "[cowork] @electron/rebuild is not installed; trying fallback paths."
+          "[neoworker] @electron/rebuild is not installed; trying fallback paths."
         );
       } else {
         const rebuildElectronRes = runElectronRebuild(
@@ -508,17 +508,17 @@ function main() {
         );
         if (rebuildElectronRes.status !== 0) {
           console.log(
-            "[cowork] Electron rebuild failed; trying fallback paths."
+            "[neoworker] Electron rebuild failed; trying fallback paths."
           );
         } else {
           const testRes = testNativeModulesInElectron(env);
           if (testRes.status === 0) {
-            console.log("[cowork] native modules load in Electron.");
+            console.log("[neoworker] native modules load in Electron.");
             return testRes;
           }
 
           console.log(
-            "[cowork] native modules did not load after Electron rebuild; " +
+            "[neoworker] native modules did not load after Electron rebuild; " +
               "trying fallback paths."
           );
         }
@@ -534,19 +534,19 @@ function main() {
       if (winArmFallbackRes) {
         if (winArmFallbackRes.status === 0) return winArmFallbackRes;
         console.log(
-          "[cowork] Windows ARM64 x64 fallback did not fully recover; trying current-arch electron-rebuild fallback."
+          "[neoworker] Windows ARM64 x64 fallback did not fully recover; trying current-arch electron-rebuild fallback."
         );
       }
     } else {
       console.log(
-        "[cowork] Could not determine Electron version; falling back to electron-rebuild."
+        "[neoworker] Could not determine Electron version; falling back to electron-rebuild."
       );
     }
 
     // 3) Fallback: electron-rebuild.
     if (!electronRebuildCli || !fs.existsSync(electronRebuildCli)) {
       console.log(
-        "[cowork] @electron/rebuild is not installed; skipping fallback rebuild."
+        "[neoworker] @electron/rebuild is not installed; skipping fallback rebuild."
       );
       return testNativeModulesInElectron(env);
     }
@@ -556,18 +556,18 @@ function main() {
 
     const testRes = testNativeModulesInElectron(env);
     if (testRes.status === 0) {
-      console.log("[cowork] native modules load in Electron.");
+      console.log("[neoworker] native modules load in Electron.");
       return testRes;
     }
 
-    console.log("[cowork] native modules did not load after electron-rebuild.");
+    console.log("[neoworker] native modules did not load after electron-rebuild.");
     return testRes;
   };
 
   let res = attempt(jobs);
   if (res.status !== 0 && isKilledByOS(res) && !userSpecifiedJobs && jobs > 1) {
     console.log(
-      `\n[cowork] Detected SIGKILL; retrying once with jobs=1 to reduce memory...`
+      `\n[neoworker] Detected SIGKILL; retrying once with jobs=1 to reduce memory...`
     );
     jobs = 1;
     res = attempt(jobs);
@@ -575,7 +575,7 @@ function main() {
 
   if (res.status !== 0) fail(res, "Native setup");
 
-  console.log("\n[cowork] Native setup complete.");
+  console.log("\n[neoworker] Native setup complete.");
 }
 
 main();

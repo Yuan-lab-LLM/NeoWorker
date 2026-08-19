@@ -241,7 +241,7 @@ function scoreEvidenceUsefulness(evidence: SubconsciousEvidence[]): number {
   return clamp(strongest + densityBonus, 0, 1);
 }
 
-const COWORK_OS_REPO_IDENTITY = "CoWork-OS/CoWork-OS";
+const NEOWORKER_OS_REPO_IDENTITY = "NeoWorker/NeoWorker";
 
 interface CodeWorkspaceTargetCandidate {
   workspace: Workspace;
@@ -254,13 +254,13 @@ interface CodeWorkspaceTargetCandidate {
 
 function normalizeRepoIdentity(value?: string | null): string | undefined {
   if (!value) return undefined;
-  return value.toLowerCase() === COWORK_OS_REPO_IDENTITY.toLowerCase()
-    ? COWORK_OS_REPO_IDENTITY
+  return value.toLowerCase() === NEOWORKER_OS_REPO_IDENTITY.toLowerCase()
+    ? NEOWORKER_OS_REPO_IDENTITY
     : value;
 }
 
-function isCoworkRepoIdentity(value?: string | null): boolean {
-  return value?.toLowerCase() === COWORK_OS_REPO_IDENTITY.toLowerCase();
+function isNeoWorkerRepoIdentity(value?: string | null): boolean {
+  return value?.toLowerCase() === NEOWORKER_OS_REPO_IDENTITY.toLowerCase();
 }
 
 function buildCodeTargetKey(candidate: Pick<CodeWorkspaceTargetCandidate, "repoRoot" | "repoIdentity">): string {
@@ -325,19 +325,25 @@ export class SubconsciousLoopService {
     this.deps.coreLearningPipelineService?.processTrace(traceId);
   }
 
-  async start(agentDaemon: AgentDaemon): Promise<void> {
+  async start(
+    agentDaemon: AgentDaemon,
+    options: { refreshTargets?: boolean } = {},
+  ): Promise<void> {
     if (this.started) return;
     this.started = true;
     this.agentDaemon = agentDaemon;
     this.migrationService.runOnce();
     this.normalizeLegacyOutcomeVocabulary();
     this.pruneSessionOnlyState();
-    await this.refreshTargets();
+    if (options.refreshTargets !== false) {
+      await this.refreshTargets();
+    }
     logger.info("Service started", {
       enabled: this.getSettings().enabled,
       autoRun: this.getSettings().autoRun,
       cadenceMinutes: this.getSettings().cadenceMinutes,
       targetCount: this.targetRepo.list().length,
+      startupRefreshSkipped: options.refreshTargets === false,
     });
   }
 
@@ -921,12 +927,12 @@ export class SubconsciousLoopService {
     this.latestEvidenceByTarget.clear();
     for (const workspace of this.workspaceRepo.findAll()) {
       if (!workspace.path) continue;
-      await fs.rm(path.join(workspace.path, ".cowork", "subconscious"), {
+      await fs.rm(path.join(workspace.path, ".neoworker", "subconscious"), {
         recursive: true,
         force: true,
       }).catch(() => undefined);
     }
-    await fs.rm(path.join(this.resolveGlobalRoot(), ".cowork", "subconscious"), {
+    await fs.rm(path.join(this.resolveGlobalRoot(), ".neoworker", "subconscious"), {
       recursive: true,
       force: true,
     }).catch(() => undefined);
@@ -1423,8 +1429,8 @@ export class SubconsciousLoopService {
     candidates: CodeWorkspaceTargetCandidate[],
   ): CodeWorkspaceTargetCandidate {
     return [...candidates].sort((a, b) => {
-      if (isCoworkRepoIdentity(a.repoIdentity) !== isCoworkRepoIdentity(b.repoIdentity)) {
-        return isCoworkRepoIdentity(a.repoIdentity) ? -1 : 1;
+      if (isNeoWorkerRepoIdentity(a.repoIdentity) !== isNeoWorkerRepoIdentity(b.repoIdentity)) {
+        return isNeoWorkerRepoIdentity(a.repoIdentity) ? -1 : 1;
       }
       const aAtRoot = a.workspaceAtRepoRoot;
       const bAtRoot = b.workspaceAtRepoRoot;
@@ -1483,8 +1489,8 @@ export class SubconsciousLoopService {
       const primary = this.choosePrimaryCodeWorkspace(candidates);
       const canonicalRepoRoot = primary.workspaceAtRepoRoot ? primary.workspace.path : primary.repoRoot;
       const targetKey = buildCodeTargetKey(primary);
-      const label = isCoworkRepoIdentity(primary.repoIdentity)
-        ? "CoWork OS source code"
+      const label = isNeoWorkerRepoIdentity(primary.repoIdentity)
+        ? "NeoWorker source code"
         : primary.repoIdentity
           ? `${primary.repoIdentity} source code`
           : `${primary.workspace.name} source code`;
@@ -1683,7 +1689,7 @@ export class SubconsciousLoopService {
         .prepare(
           `SELECT workspace_id, path, updated_at
            FROM memory_markdown_files
-           WHERE path LIKE '%.cowork/%' OR path LIKE '%playbook%'
+           WHERE path LIKE '%.neoworker/%' OR path LIKE '%playbook%'
            ORDER BY updated_at DESC
            LIMIT 100`,
         )

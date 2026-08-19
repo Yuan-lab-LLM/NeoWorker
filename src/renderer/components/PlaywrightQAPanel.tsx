@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
+import { translate, useLanguage } from "../i18n";
 
 type Any = any;
 
@@ -96,8 +97,18 @@ interface PlaywrightQAPanelProps {
 }
 
 const SEVERITY_CONFIG = {
-  critical: { color: "#ef4444", bg: "#ef444420", icon: XCircle, label: "Critical" },
-  major: { color: "#f59e0b", bg: "#f59e0b20", icon: AlertTriangle, label: "Major" },
+  critical: {
+    color: "#ef4444",
+    bg: "#ef444420",
+    icon: XCircle,
+    label: "Critical",
+  },
+  major: {
+    color: "#f59e0b",
+    bg: "#f59e0b20",
+    icon: AlertTriangle,
+    label: "Major",
+  },
   minor: { color: "#3b82f6", bg: "#3b82f620", icon: Info, label: "Minor" },
   info: { color: "#6b7280", bg: "#6b728020", icon: Info, label: "Info" },
 } as const;
@@ -125,7 +136,12 @@ const STATUS_LABELS: Record<string, string> = {
   failed: "Failed",
 };
 
-export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProps) {
+export function PlaywrightQAPanel({
+  taskId,
+  workspaceId,
+}: PlaywrightQAPanelProps) {
+  useLanguage();
+  const t = translate;
   const [runs, setRuns] = useState<QARun[]>([]);
   const [selectedRun, setSelectedRun] = useState<QARun | null>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -319,8 +335,13 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <Camera size={18} style={{ color: "var(--accent-primary, #8b5cf6)" }} />
-          <span style={{ fontSize: "15px", fontWeight: 600 }}>Visual QA</span>
+          <Camera
+            size={18}
+            style={{ color: "var(--accent-primary, #8b5cf6)" }}
+          />
+          <span style={{ fontSize: "15px", fontWeight: 600 }}>
+            {t("playwrightQa.title", "Visual QA")}
+          </span>
           {selectedRun && (
             <span
               style={{
@@ -341,7 +362,10 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
                       : "#3b82f6",
               }}
             >
-              {STATUS_LABELS[selectedRun.status] || selectedRun.status}
+              {t(
+                `playwrightQa.status.${selectedRun.status}`,
+                STATUS_LABELS[selectedRun.status] || selectedRun.status,
+              )}
             </span>
           )}
         </div>
@@ -353,7 +377,7 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
               background: "transparent",
               color: "var(--text-secondary, #a1a1aa)",
             }}
-            title="Refresh"
+            title={t("common.refresh", "Refresh")}
           >
             <RefreshCw size={14} />
           </button>
@@ -367,7 +391,7 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
               }}
             >
               <Square size={14} />
-              Stop
+              {t("common.stop", "Stop")}
             </button>
           ) : (
             <button
@@ -381,7 +405,7 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
               }}
             >
               <Play size={14} />
-              Run QA
+              {t("playwrightQa.runQa", "Run QA")}
             </button>
           )}
         </div>
@@ -398,7 +422,7 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
               display: "block",
             }}
           >
-            Target URL
+            {t("playwrightQa.targetUrl", "Target URL")}
           </label>
           <input
             style={inputStyle}
@@ -416,7 +440,7 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
               display: "block",
             }}
           >
-            Server Command (optional)
+            {t("playwrightQa.serverCommand", "Server Command (optional)")}
           </label>
           <input
             style={inputStyle}
@@ -458,7 +482,7 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
 
           {/* Checks */}
           <SectionHeader
-            title="Checks"
+            title={t("playwrightQa.checks", "Checks")}
             count={selectedRun.checks.length}
             expanded={expandedSections.has("checks")}
             onToggle={() => toggleSection("checks")}
@@ -466,7 +490,10 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
           {expandedSections.has("checks") && (
             <div style={{ marginBottom: "12px" }}>
               {selectedRun.checks.map((check) => (
-                <div key={check.type} style={{ ...cardStyle, padding: "8px 12px" }}>
+                <div
+                  key={check.type}
+                  style={{ ...cardStyle, padding: "8px 12px" }}
+                >
                   <div
                     style={{
                       display: "flex",
@@ -482,14 +509,18 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
                       <XCircle size={14} style={{ color: "#ef4444" }} />
                     )}
                     {CHECK_ICONS[check.type] || <Info size={14} />}
-                    <span style={{ flex: 1, fontWeight: 500 }}>{check.label}</span>
+                    <span style={{ flex: 1, fontWeight: 500 }}>
+                      {check.label}
+                    </span>
                     <span
                       style={{
                         fontSize: "11px",
                         color: "var(--text-secondary, #a1a1aa)",
                       }}
                     >
-                      {check.issues.length} issue{check.issues.length !== 1 ? "s" : ""}
+                      {t("playwrightQa.issueCount", "{count} issues", {
+                        count: check.issues.length,
+                      })}
                       {" | "}
                       {Math.round(check.durationMs / 1000)}s
                     </span>
@@ -499,13 +530,14 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
                       <ChevronRight size={14} />
                     )}
                   </div>
-                  {expandedChecks.has(check.type) && check.issues.length > 0 && (
-                    <div style={{ marginTop: "8px", paddingLeft: "22px" }}>
-                      {check.issues.map((issue) => (
-                        <IssueRow key={issue.id} issue={issue} />
-                      ))}
-                    </div>
-                  )}
+                  {expandedChecks.has(check.type) &&
+                    check.issues.length > 0 && (
+                      <div style={{ marginTop: "8px", paddingLeft: "22px" }}>
+                        {check.issues.map((issue) => (
+                          <IssueRow key={issue.id} issue={issue} />
+                        ))}
+                      </div>
+                    )}
                 </div>
               ))}
             </div>
@@ -515,7 +547,7 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
           {selectedRun.issues.length > 0 && (
             <>
               <SectionHeader
-                title="All Issues"
+                title={t("playwrightQa.allIssues", "All Issues")}
                 count={selectedRun.issues.length}
                 expanded={expandedSections.has("issues")}
                 onToggle={() => toggleSection("issues")}
@@ -534,7 +566,7 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
           {selectedRun.interactionLog.length > 0 && (
             <>
               <SectionHeader
-                title="Interaction Log"
+                title={t("playwrightQa.interactionLog", "Interaction Log")}
                 count={selectedRun.interactionLog.length}
                 expanded={expandedSections.has("interactions")}
                 onToggle={() => toggleSection("interactions")}
@@ -593,7 +625,7 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
           {runs.length > 1 && (
             <>
               <SectionHeader
-                title="History"
+                title={t("playwrightQa.history", "History")}
                 count={runs.length}
                 expanded={expandedSections.has("history")}
                 onToggle={() => toggleSection("history")}
@@ -633,7 +665,9 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
                           color: "var(--text-secondary, #a1a1aa)",
                         }}
                       >
-                        {run.issues.length} issue{run.issues.length !== 1 ? "s" : ""}
+                        {t("playwrightQa.issueCount", "{count} issues", {
+                          count: run.issues.length,
+                        })}
                         {" | "}
                         {Math.round(run.durationMs / 1000)}s
                       </span>
@@ -664,10 +698,13 @@ export function PlaywrightQAPanel({ taskId, workspaceId }: PlaywrightQAPanelProp
             }}
           />
           <div style={{ fontSize: "13px", marginBottom: "4px" }}>
-            No QA runs yet
+            {t("playwrightQa.empty.title", "No QA runs yet")}
           </div>
           <div style={{ fontSize: "11px" }}>
-            Run automated Playwright tests to catch visual and functional bugs.
+            {t(
+              "playwrightQa.empty.description",
+              "Run automated Playwright tests to catch visual and functional bugs.",
+            )}
           </div>
         </div>
       )}
@@ -721,6 +758,8 @@ function SectionHeader({
 }
 
 function IssueRow({ issue }: { issue: QAIssue }) {
+  useLanguage();
+  const t = translate;
   const config = SEVERITY_CONFIG[issue.severity] || SEVERITY_CONFIG.info;
   const Icon = config.icon;
 
@@ -736,7 +775,10 @@ function IssueRow({ issue }: { issue: QAIssue }) {
         background: config.bg,
       }}
     >
-      <Icon size={14} style={{ color: config.color, marginTop: "1px", flexShrink: 0 }} />
+      <Icon
+        size={14}
+        style={{ color: config.color, marginTop: "1px", flexShrink: 0 }}
+      />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
@@ -771,7 +813,8 @@ function IssueRow({ issue }: { issue: QAIssue }) {
             }}
           >
             <CheckCircle size={10} />
-            Fixed{issue.fixDescription ? `: ${issue.fixDescription}` : ""}
+            {t("playwrightQa.fixed", "Fixed")}
+            {issue.fixDescription ? `: ${issue.fixDescription}` : ""}
           </div>
         )}
       </div>
@@ -784,7 +827,7 @@ function IssueRow({ issue }: { issue: QAIssue }) {
           flexShrink: 0,
         }}
       >
-        {config.label}
+        {t(`playwrightQa.severity.${issue.severity}`, config.label)}
       </span>
     </div>
   );

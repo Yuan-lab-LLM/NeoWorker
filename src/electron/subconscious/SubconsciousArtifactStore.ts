@@ -69,11 +69,11 @@ export class SubconsciousArtifactStore {
   ) {}
 
   getBrainRoot(): string {
-    return path.join(this.resolveGlobalRoot(), ".cowork", "subconscious", "brain");
+    return path.join(this.resolveGlobalRoot(), ".neoworker", "subconscious", "brain");
   }
 
   getJournalRoot(): string {
-    return path.join(this.resolveGlobalRoot(), ".cowork", "subconscious", "journal");
+    return path.join(this.resolveGlobalRoot(), ".neoworker", "subconscious", "journal");
   }
 
   getTargetRoot(target: SubconsciousTargetRef): string {
@@ -83,7 +83,7 @@ export class SubconsciousArtifactStore {
       this.resolveGlobalRoot();
     return path.join(
       workspacePath,
-      ".cowork",
+      ".neoworker",
       "subconscious",
       "targets",
       sanitizeKey(target.key),

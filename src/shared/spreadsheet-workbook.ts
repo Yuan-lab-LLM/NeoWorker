@@ -169,6 +169,8 @@ export interface SpreadsheetApplyPatchesResult {
 export interface SpreadsheetSaveWorkbookResult {
   success: boolean;
   error?: string;
+  /** True when the source file changed after this editing session was opened. */
+  conflict?: boolean;
   session?: SpreadsheetWorkbookSession;
   viewport?: SpreadsheetViewport;
   preview?: SpreadsheetPreview;

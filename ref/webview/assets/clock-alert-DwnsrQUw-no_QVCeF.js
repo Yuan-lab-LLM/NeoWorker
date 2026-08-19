@@ -1,0 +1,3 @@
+import { n as e, t } from "./clock-alert-DwnsrQUw-DNE-63qA.js";
+e();
+export { t as default };

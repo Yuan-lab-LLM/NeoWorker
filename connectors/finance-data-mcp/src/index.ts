@@ -91,7 +91,7 @@ const PROVIDERS: Record<ProviderId, ProviderConfig> = {
 function getProviderFromArgs(): ProviderConfig {
   const providerArgIndex = process.argv.findIndex((arg) => arg === "--provider");
   const fromArgs = providerArgIndex >= 0 ? process.argv[providerArgIndex + 1] : undefined;
-  const providerId = (fromArgs || process.env.COWORK_FINANCE_PROVIDER || "").toLowerCase() as ProviderId;
+  const providerId = (fromArgs || process.env.NEOWORKER_FINANCE_PROVIDER || "").toLowerCase() as ProviderId;
   const provider = PROVIDERS[providerId];
   if (!provider) {
     throw new Error(
@@ -140,7 +140,7 @@ class FinanceDataClient {
   private endpoint(tool: string): string {
     const override = envValue(this.provider, `${tool.toUpperCase()}_PATH`);
     if (override) return override.startsWith("/") ? override : `/${override}`;
-    return `/cowork/${tool.replace(/^get_/, "")}`;
+    return `/neoworker/${tool.replace(/^get_/, "")}`;
   }
 
   private async request(tool: string, params: Record<string, any>): Promise<any> {
@@ -158,7 +158,7 @@ class FinanceDataClient {
       headers: {
         ...this.authHeaders(),
         Accept: "application/json",
-        "User-Agent": `CoWork-FinanceData/${this.provider.id}`,
+        "User-Agent": `NeoWorker-FinanceData/${this.provider.id}`,
       },
     });
     const text = await res.text();

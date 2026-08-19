@@ -52,7 +52,9 @@ describe("task-trace-debugger utils", () => {
         makeEvent({
           id: "evt-1",
           type: "assistant_message",
-          payload: { message: "Let me search more broadly for reference files." },
+          payload: {
+            message: "Let me search more broadly for reference files.",
+          },
         }),
       ],
     );
@@ -97,13 +99,16 @@ describe("task-trace-debugger utils", () => {
   });
 
   it("falls back to transcript rows derived from raw events when semantic rows are unavailable", () => {
-    const rows = buildTaskTraceTranscriptRows([], [
-      makeEvent({
-        id: "evt-user",
-        type: "user_message",
-        payload: { message: "Rules: Do not create a PR." },
-      }),
-    ]);
+    const rows = buildTaskTraceTranscriptRows(
+      [],
+      [
+        makeEvent({
+          id: "evt-user",
+          type: "user_message",
+          payload: { message: "Rules: Do not create a PR." },
+        }),
+      ],
+    );
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
@@ -131,10 +136,18 @@ describe("task-trace-debugger utils", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].badges.map((badge) => badge.label)).toEqual(
-      expect.arrayContaining(["Llm Usage", "Completed", "seq 12", "in 220", "out 45"]),
+      expect.arrayContaining([
+        "Llm Usage",
+        "Completed",
+        "seq 12",
+        "in 220",
+        "out 45",
+      ]),
     );
     expect(rows[0].inspector.fields).toEqual(
-      expect.arrayContaining([expect.objectContaining({ label: "Sequence", value: "12" })]),
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Sequence", value: "12" }),
+      ]),
     );
   });
 
@@ -160,7 +173,13 @@ describe("task-trace-debugger utils", () => {
   it("serializes transcript rows as readable text and debug rows as JSON", () => {
     const transcriptRows = buildTaskTraceTranscriptRows(
       [makeUiEvent({ summary: "Uploaded the file" })],
-      [makeEvent({ id: "evt-1", type: "assistant_message", payload: { message: "Upload complete" } })],
+      [
+        makeEvent({
+          id: "evt-1",
+          type: "assistant_message",
+          payload: { message: "Upload complete" },
+        }),
+      ],
     );
     const debugRows = buildTaskTraceDebugRows([
       makeEvent({
@@ -170,8 +189,12 @@ describe("task-trace-debugger utils", () => {
       }),
     ]);
 
-    expect(serializeTaskTraceRows(transcriptRows, "transcript")).toContain("Uploaded the file");
-    expect(serializeTaskTraceRows(debugRows, "debug")).toContain("\"rawEventIds\": [");
+    expect(serializeTaskTraceRows(transcriptRows, "transcript")).toContain(
+      "Uploaded the file",
+    );
+    expect(serializeTaskTraceRows(debugRows, "debug")).toContain(
+      '"rawEventIds": [',
+    );
   });
 
   it("removes leading glob stars from trace markdown display", () => {

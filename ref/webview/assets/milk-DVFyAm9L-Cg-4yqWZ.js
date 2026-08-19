@@ -1,0 +1,3 @@
+import { n as e, t } from "./milk-DVFyAm9L-mncasoS4.js";
+t();
+export { e as default };

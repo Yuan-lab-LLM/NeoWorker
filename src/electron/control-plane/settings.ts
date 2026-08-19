@@ -103,7 +103,7 @@ export const DEFAULT_CONTROL_PLANE_SETTINGS: ControlPlaneSettings = {
 export const DEFAULT_REMOTE_GATEWAY_CONFIG: RemoteGatewayConfig = {
   url: "ws://127.0.0.1:18789",
   token: "",
-  deviceName: "CoWork Remote Client",
+  deviceName: "NeoWorker Remote Client",
   autoReconnect: true,
   reconnectIntervalMs: 5000,
   maxReconnectAttempts: 10,

@@ -27,7 +27,7 @@ import { OnboardingProfileService } from "../OnboardingProfileService";
 
 function buildProfile(overrides: Partial<OnboardingProfileData> = {}): OnboardingProfileData {
   return {
-    assistantName: "CoWork",
+    assistantName: "NeoWorker",
     assistantTraits: ["adaptive"],
     userName: "Mesut",
     userContext: "I run product and coordinate shipping.",
@@ -52,7 +52,7 @@ describe("OnboardingProfileService", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-onboarding-profile-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-onboarding-profile-"));
     userProfileServiceMock.getProfile.mockReset();
     userProfileServiceMock.deleteFact.mockReset();
     userProfileServiceMock.addFact.mockReset();
@@ -122,9 +122,9 @@ describe("OnboardingProfileService", () => {
         "# Priorities",
         "",
         "## Onboarding Priorities",
-        "<!-- cowork:auto:onboarding-priorities:start -->",
+        "<!-- neoworker:auto:onboarding-priorities:start -->",
         "1. Old priority",
-        "<!-- cowork:auto:onboarding-priorities:end -->",
+        "<!-- neoworker:auto:onboarding-priorities:end -->",
         "",
       ].join("\n"),
       "utf8",
@@ -135,9 +135,9 @@ describe("OnboardingProfileService", () => {
         "# Local Setup Notes",
         "",
         "## Onboarding Tool Stack",
-        "<!-- cowork:auto:onboarding-tools:start -->",
+        "<!-- neoworker:auto:onboarding-tools:start -->",
         "- Core tools: Slack, Linear",
-        "<!-- cowork:auto:onboarding-tools:end -->",
+        "<!-- neoworker:auto:onboarding-tools:end -->",
         "",
       ].join("\n"),
       "utf8",

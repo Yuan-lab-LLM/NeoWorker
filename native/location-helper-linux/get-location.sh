@@ -61,7 +61,7 @@ gdbus call --system \
   --dest org.freedesktop.GeoClue2 \
   --object-path "$CLIENT_PATH" \
   --method org.freedesktop.DBus.Properties.Set \
-  org.freedesktop.GeoClue2.Client DesktopId "<'cowork-os'>" 2>/dev/null || true
+  org.freedesktop.GeoClue2.Client DesktopId "<'neoworker'>" 2>/dev/null || true
 
 if [[ "$ACCURACY" == "coarse" ]]; then
   ACCURACY_LEVEL=4

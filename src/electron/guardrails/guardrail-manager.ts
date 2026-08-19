@@ -20,7 +20,7 @@ const LEGACY_SETTINGS_FILE = "guardrail-settings.json";
 const DEFAULT_SETTINGS: GuardrailSettings = {
   // Token Budget
   maxTokensPerTask: 100000,
-  tokenBudgetEnabled: true,
+  tokenBudgetEnabled: false,
 
   // Cost Budget
   maxCostPerTask: 1.0,
@@ -36,7 +36,7 @@ const DEFAULT_SETTINGS: GuardrailSettings = {
 
   // File Size
   maxFileSizeMB: 50,
-  fileSizeLimitEnabled: true,
+  fileSizeLimitEnabled: false,
 
   // Network Domains
   enforceAllowedDomains: false,
@@ -49,11 +49,10 @@ const DEFAULT_SETTINGS: GuardrailSettings = {
   webSearchAllowedDomains: [],
   webSearchBlockedDomains: [],
 
-  // Iterations — raised from 50 → 100.
-  // Complex multi-repo operations and deep-research tasks routinely exceeded 50
-  // without being stuck: each file edit + verify + lint cycle costs ~3 iterations.
+  // Iterations — unlimited by default. Users can opt into a hard ceiling when
+  // they need predictable per-task usage; loop/no-progress protections remain.
   maxIterationsPerTask: 100,
-  iterationLimitEnabled: true,
+  iterationLimitEnabled: false,
 
   // Execution continuation.
   // autoContinuations: raised 3 → 5; large tasks often need more than 3 segments.

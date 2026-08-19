@@ -1,0 +1,3 @@
+import { n as e, t } from "./philippine-peso-ZnAxuFkC-C40ElwsM.js";
+e();
+export { t as default };

@@ -3,6 +3,7 @@ export type WebPagePreview = {
   previewMode: "sandboxed_iframe";
   title?: string;
   htmlContent?: string;
+  previewUrl?: string;
   sourcePath: string;
   baseDir: string;
   projectRoot?: string;

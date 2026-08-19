@@ -7,7 +7,7 @@ import { CuratedMemoryService } from "../CuratedMemoryService";
 const createdDirs: string[] = [];
 
 async function createWorkspace(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-curated-memory-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-curated-memory-"));
   createdDirs.push(dir);
   return dir;
 }
@@ -63,7 +63,7 @@ describe("CuratedMemoryService", () => {
     });
 
     expect(result.success).toBe(true);
-    const userMd = await fs.readFile(path.join(workspacePath, ".cowork", "USER.md"), "utf8");
+    const userMd = await fs.readFile(path.join(workspacePath, ".neoworker", "USER.md"), "utf8");
     expect(userMd).toContain("Auto Curated Memory");
     expect(userMd).toContain("Prefers concise answers");
   });

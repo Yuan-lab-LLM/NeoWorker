@@ -5,18 +5,18 @@ const { execFileSync } = require('child_process');
 const crypto = require('crypto');
 
 const DB_PATH =
-  process.env.COWORK_DB_PATH ||
-  path.join(os.homedir(), 'Library', 'Application Support', 'cowork-os', 'cowork-os.db');
-const HOOKS_ORIGIN = process.env.COWORK_HOOKS_ORIGIN || 'http://127.0.0.1:9877';
-const HOOKS_TOKEN = process.env.COWORK_HOOKS_TOKEN || 'qa-token';
-const SQLITE_BUSY_TIMEOUT_MS = Number(process.env.COWORK_SQLITE_BUSY_TIMEOUT_MS) || 15000;
+  process.env.NEOWORKER_DB_PATH ||
+  path.join(os.homedir(), 'Library', 'Application Support', 'neoworker', 'neoworker.db');
+const HOOKS_ORIGIN = process.env.NEOWORKER_HOOKS_ORIGIN || 'http://127.0.0.1:9877';
+const HOOKS_TOKEN = process.env.NEOWORKER_HOOKS_TOKEN || 'qa-token';
+const SQLITE_BUSY_TIMEOUT_MS = Number(process.env.NEOWORKER_SQLITE_BUSY_TIMEOUT_MS) || 15000;
 
 function parseArgs(argv) {
   const args = {
     suite: 'reliability-regressions',
     mode: 'deterministic',
     timeoutMs: 6 * 60 * 1000,
-    allowEmpty: process.env.COWORK_EVAL_ALLOW_EMPTY === '1',
+    allowEmpty: process.env.NEOWORKER_EVAL_ALLOW_EMPTY === '1',
   };
 
   for (let i = 2; i < argv.length; i += 1) {

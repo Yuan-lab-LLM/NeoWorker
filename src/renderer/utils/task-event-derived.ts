@@ -9,7 +9,10 @@ import type {
   Workspace,
 } from "../../shared/types";
 import { isVerificationStepDescription } from "../../shared/plan-utils";
-import { buildParallelGroupProjection, type ParallelGroupProjectionResult } from "../components/timeline/parallel-group-projection";
+import {
+  buildParallelGroupProjection,
+  type ParallelGroupProjectionResult,
+} from "../components/timeline/parallel-group-projection";
 import {
   deriveTaskOutputSummaryFromEvents,
   hasTaskOutputs,
@@ -28,6 +31,11 @@ import {
   classifyLiveTaskEvent,
   getLiveTaskEventCoalesceFingerprint,
 } from "./live-task-event-policy";
+import { isUserVisibleTaskArtifactPath } from "./task-artifact-visibility";
+import {
+  isCanonicalTaskArtifactOutputPath,
+  normalizeArtifactPathForWorkspace,
+} from "./artifact-path-identity";
 
 export type RendererEventVisibility = "live" | "inspect-only" | "debug-only";
 
@@ -84,7 +92,15 @@ export interface SharedTaskEventUiState {
   inspectOnlyEvents: TaskEvent[];
   debugOnlyEvents: TaskEvent[];
   parallelGroupProjection: ParallelGroupProjectionResult;
-  parallelGroupsByAnchorEventId: Map<string, ParallelGroupProjectionResult["groupsByAnchorEventId"] extends Map<string, infer T> ? T : never>;
+  parallelGroupsByAnchorEventId: Map<
+    string,
+    ParallelGroupProjectionResult["groupsByAnchorEventId"] extends Map<
+      string,
+      infer T
+    >
+      ? T
+      : never
+  >;
   suppressedParallelEventIds: Set<string>;
   toolCallPairing: ToolCallPairing;
   baseTimelineItems: BaseTimelineItem[];
@@ -118,16 +134,23 @@ function appendCommandOutputTail(current: string, chunk: string): string {
   return `[... earlier output truncated ...]\n\n${next.slice(-MAX_COMMAND_OUTPUT_SESSION_CHARS)}`;
 }
 
-function limitCommandOutputSessions(sessions: CommandOutputSession[]): CommandOutputSession[] {
+function limitCommandOutputSessions(
+  sessions: CommandOutputSession[],
+): CommandOutputSession[] {
   if (sessions.length <= MAX_COMMAND_OUTPUT_SESSIONS) return sessions;
   const running = sessions.filter((session) => session.isRunning);
   const runningToKeep = running.slice(-MAX_COMMAND_OUTPUT_SESSIONS);
-  const completedBudget = Math.max(0, MAX_COMMAND_OUTPUT_SESSIONS - runningToKeep.length);
+  const completedBudget = Math.max(
+    0,
+    MAX_COMMAND_OUTPUT_SESSIONS - runningToKeep.length,
+  );
   const recentCompleted =
     completedBudget > 0
       ? sessions.filter((session) => !session.isRunning).slice(-completedBudget)
       : [];
-  return [...recentCompleted, ...runningToKeep].sort((a, b) => a.startTimestamp - b.startTimestamp);
+  return [...recentCompleted, ...runningToKeep].sort(
+    (a, b) => a.startTimestamp - b.startTimestamp,
+  );
 }
 const LIVE_COALESCE_WINDOW_MS = 10_000;
 const LIVE_PROJECTION_FORCE_VISIBLE_TYPES = new Set([
@@ -163,25 +186,90 @@ function isLiveAnchorEvent(event: TaskEvent): boolean {
 function liveAnchorKey(event: TaskEvent): string | null {
   const effectiveType = getEffectiveTaskEventType(event);
   if (effectiveType === "user_message") return "latest-user";
-  if (effectiveType === "assistant_message" && event.payload?.internal !== true) {
+  if (
+    effectiveType === "assistant_message" &&
+    event.payload?.internal !== true
+  ) {
     return "latest-assistant";
   }
   if (effectiveType === "approval_requested") return "latest-approval";
   if (effectiveType === "input_request_created") return "latest-input";
-  if (effectiveType === "task_completed" || effectiveType === "task_cancelled") return "terminal";
-  if (effectiveType === "error" || effectiveType === "timeline_error" || event.type === "timeline_error") {
+  if (effectiveType === "task_completed" || effectiveType === "task_cancelled")
+    return "terminal";
+  if (
+    effectiveType === "error" ||
+    effectiveType === "timeline_error" ||
+    event.type === "timeline_error"
+  ) {
     return "latest-error";
   }
-  if (effectiveType === "artifact_created" || event.type === "timeline_artifact_emitted") {
+  if (
+    effectiveType === "artifact_created" ||
+    event.type === "timeline_artifact_emitted"
+  ) {
     return "latest-artifact";
   }
   return null;
 }
 
-function selectLiveProjectionRawEvents(events: TaskEvent[], liveWindowSize: number): TaskEvent[] {
+function getLivePlanStateEventIds(events: TaskEvent[]): Set<string> {
+  const keepIds = new Set<string>();
+  let latestPlanIndex = -1;
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    if (getEffectiveTaskEventType(events[index]) === "plan_created") {
+      latestPlanIndex = index;
+      break;
+    }
+  }
+  if (latestPlanIndex < 0) return keepIds;
+
+  const planEvent = events[latestPlanIndex];
+  if (planEvent.id) keepIds.add(planEvent.id);
+  const planPayload = asObject(planEvent.payload);
+  const plan = asObject(planPayload.plan);
+  const rawSteps = Array.isArray(plan.steps) ? plan.steps : [];
+  const planStepIds = new Set(
+    rawSteps
+      .map((step) => asObject(step).id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0),
+  );
+  if (planStepIds.size === 0) return keepIds;
+
+  // A long-running task can push the plan outside the bounded live window.
+  // Retain the latest lifecycle event for each current-plan step so footer
+  // progress stays mounted and accurate without retaining the full history.
+  const latestLifecycleEventByStepId = new Map<string, TaskEvent>();
+  for (let index = latestPlanIndex + 1; index < events.length; index += 1) {
+    const event = events[index];
+    const effectiveType = getEffectiveTaskEventType(event);
+    if (
+      effectiveType !== "step_started" &&
+      effectiveType !== "step_completed" &&
+      effectiveType !== "step_failed" &&
+      effectiveType !== "step_skipped"
+    ) {
+      continue;
+    }
+    const payload = asObject(event.payload);
+    const step = asObject(payload.step);
+    const stepId = step.id ?? payload.stepId ?? event.stepId;
+    if (typeof stepId === "string" && planStepIds.has(stepId)) {
+      latestLifecycleEventByStepId.set(stepId, event);
+    }
+  }
+  for (const event of latestLifecycleEventByStepId.values()) {
+    if (event.id) keepIds.add(event.id);
+  }
+  return keepIds;
+}
+
+function selectLiveProjectionRawEvents(
+  events: TaskEvent[],
+  liveWindowSize: number,
+): TaskEvent[] {
   if (events.length <= liveWindowSize) return events;
 
-  const keepIds = new Set<string>();
+  const keepIds = getLivePlanStateEventIds(events);
   const anchorSeen = new Set<string>();
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
@@ -238,17 +326,24 @@ function asObject(value: unknown): Record<string, unknown> {
 
 function getAssistantStepDescription(event: TaskEvent): string {
   const payload = asObject(event.payload);
-  if (typeof payload.stepDescription === "string") return payload.stepDescription;
+  if (typeof payload.stepDescription === "string")
+    return payload.stepDescription;
   const step = asObject(payload.step);
   return typeof step.description === "string" ? step.description : "";
 }
 
-function shouldRevealInternalAssistantMessageInVerbose(event: TaskEvent): boolean {
+function shouldRevealInternalAssistantMessageInVerbose(
+  event: TaskEvent,
+): boolean {
   const payload = asObject(event.payload);
-  if (getEffectiveTaskEventType(event) !== "assistant_message" || payload.internal !== true) {
+  if (
+    getEffectiveTaskEventType(event) !== "assistant_message" ||
+    payload.internal !== true
+  ) {
     return false;
   }
-  const message = typeof payload.message === "string" ? payload.message.trim() : "";
+  const message =
+    typeof payload.message === "string" ? payload.message.trim() : "";
   const stepDescription = getAssistantStepDescription(event);
   if (!message) return false;
   if (hasAssistantMediaDirective(message)) return true;
@@ -277,14 +372,20 @@ function isVerificationNoiseEvent(event: TaskEvent): boolean {
     );
   }
 
-  return effectiveType === "verification_started" || effectiveType === "verification_passed";
+  return (
+    effectiveType === "verification_started" ||
+    effectiveType === "verification_passed"
+  );
 }
 
 function classifyTaskEventForRenderer(
   event: TaskEvent,
   params: { taskStatus?: TaskStatus; verboseSteps?: boolean },
 ): RendererEventVisibility {
-  if (event.type === "command_output" || event.type === "timeline_command_output") {
+  if (
+    event.type === "command_output" ||
+    event.type === "timeline_command_output"
+  ) {
     return "inspect-only";
   }
 
@@ -294,7 +395,10 @@ function classifyTaskEventForRenderer(
     return "live";
   }
 
-  if (shouldShowTaskEventInSummaryMode(event, params.taskStatus) && !isVerificationNoiseEvent(event)) {
+  if (
+    shouldShowTaskEventInSummaryMode(event, params.taskStatus) &&
+    !isVerificationNoiseEvent(event)
+  ) {
     return "live";
   }
 
@@ -305,16 +409,24 @@ function getCompletionSummaryText(event: TaskEvent): string {
   if (getEffectiveTaskEventType(event) !== "task_completed") return "";
   const payload = asObject(event.payload);
   const resultSummary =
-    typeof payload.resultSummary === "string" ? payload.resultSummary.trim() : "";
+    typeof payload.resultSummary === "string"
+      ? payload.resultSummary.trim()
+      : "";
   const semanticSummary =
-    typeof payload.semanticSummary === "string" ? payload.semanticSummary.trim() : "";
+    typeof payload.semanticSummary === "string"
+      ? payload.semanticSummary.trim()
+      : "";
   const verificationVerdict =
-    typeof payload.verificationVerdict === "string" ? payload.verificationVerdict.trim() : "";
+    typeof payload.verificationVerdict === "string"
+      ? payload.verificationVerdict.trim()
+      : "";
   const verificationReport =
-    typeof payload.verificationReport === "string" ? payload.verificationReport.trim() : "";
-  const summary = [resultSummary, semanticSummary]
-    .filter((value) => value.length > 0)
-    .join("\n\n");
+    typeof payload.verificationReport === "string"
+      ? payload.verificationReport.trim()
+      : "";
+  // A semantic summary describes internal execution and may be a tool-batch
+  // label. It must not be appended to the user-facing completion response.
+  const summary = resultSummary || semanticSummary;
   if (!verificationVerdict && !verificationReport) return summary;
   const verification = [
     verificationVerdict ? `Verification: ${verificationVerdict}` : "",
@@ -322,11 +434,35 @@ function getCompletionSummaryText(event: TaskEvent): string {
   ]
     .filter((value) => value.length > 0)
     .join("\n");
-  return [summary, verification].filter((value) => value.length > 0).join("\n\n");
+  return [summary, verification]
+    .filter((value) => value.length > 0)
+    .join("\n\n");
 }
 
 function derivePlanSteps(events: TaskEvent[]): PlanStep[] {
-  const planEvent = events.find((event) => getEffectiveTaskEventType(event) === "plan_created");
+  // Plans can be revised while a task is running. Step lifecycle events emitted after a
+  // revision reference the latest plan's IDs, so projecting the original plan leaves the
+  // footer progress stuck on its first pending item after the task has completed.
+  // A follow-up message also starts a new execution turn. Until that turn emits its own
+  // plan, the composer must not fall back to the completed plan from the previous turn.
+  let latestUserMessageIndex = -1;
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    if (getEffectiveTaskEventType(events[index]) === "user_message") {
+      latestUserMessageIndex = index;
+      break;
+    }
+  }
+
+  let planEventIndex = -1;
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    if (getEffectiveTaskEventType(events[index]) === "plan_created") {
+      planEventIndex = index;
+      break;
+    }
+  }
+  if (planEventIndex < latestUserMessageIndex) return [];
+
+  const planEvent = planEventIndex >= 0 ? events[planEventIndex] : undefined;
   const planPayload = asObject(planEvent?.payload);
   const plan = asObject(planPayload.plan);
   const rawSteps = Array.isArray(plan.steps) ? plan.steps : [];
@@ -334,11 +470,16 @@ function derivePlanSteps(events: TaskEvent[]): PlanStep[] {
     .filter((step): step is PlanStep => !!step && typeof step === "object")
     .map((step) => ({ ...(step as PlanStep) }));
 
-  for (const event of events) {
+  // Only lifecycle events after the latest plan revision belong to these
+  // steps. Plan IDs are often reused ("1", "2", ...), so replaying older
+  // lifecycle events can otherwise mark a newly revised step as completed.
+  for (let index = planEventIndex + 1; index < events.length; index += 1) {
+    const event = events[index];
     const effectiveType = getEffectiveTaskEventType(event);
     const payload = asObject(event.payload);
     const stepPayload = asObject(payload.step);
-    const stepId = typeof stepPayload.id === "string" ? stepPayload.id : "";
+    const rawStepId = stepPayload.id ?? payload.stepId ?? event.stepId;
+    const stepId = typeof rawStepId === "string" ? rawStepId : "";
     if (!stepId) continue;
     const step = steps.find((candidate) => candidate.id === stepId);
     if (!step) continue;
@@ -356,12 +497,18 @@ function derivePlanSteps(events: TaskEvent[]): PlanStep[] {
   }
 
   return steps.filter(
-    (step) => !isVerificationStepDescription(step.description) || step.status === "failed",
+    (step) =>
+      !isVerificationStepDescription(step.description) ||
+      step.status === "failed",
   );
 }
 
-function deriveChecklistState(events: TaskEvent[]): SessionChecklistState | null {
-  const normalizeChecklistState = (payload: unknown): SessionChecklistState | null => {
+function deriveChecklistState(
+  events: TaskEvent[],
+): SessionChecklistState | null {
+  const normalizeChecklistState = (
+    payload: unknown,
+  ): SessionChecklistState | null => {
     const payloadObject = asObject(payload);
     const checklist = asObject(payloadObject.checklist);
     const rawItems = Array.isArray(checklist.items) ? checklist.items : [];
@@ -386,8 +533,10 @@ function deriveChecklistState(events: TaskEvent[]): SessionChecklistState | null
           title: typeof itemObject.title === "string" ? itemObject.title : "",
           kind,
           status,
-          createdAt: typeof itemObject.createdAt === "number" ? itemObject.createdAt : 0,
-          updatedAt: typeof itemObject.updatedAt === "number" ? itemObject.updatedAt : 0,
+          createdAt:
+            typeof itemObject.createdAt === "number" ? itemObject.createdAt : 0,
+          updatedAt:
+            typeof itemObject.updatedAt === "number" ? itemObject.updatedAt : 0,
         };
       })
       .filter((item) => Boolean(item.id && item.title));
@@ -396,10 +545,12 @@ function deriveChecklistState(events: TaskEvent[]): SessionChecklistState | null
 
     return {
       items,
-      updatedAt: typeof checklist.updatedAt === "number" ? checklist.updatedAt : 0,
+      updatedAt:
+        typeof checklist.updatedAt === "number" ? checklist.updatedAt : 0,
       verificationNudgeNeeded: checklist.verificationNudgeNeeded === true,
       nudgeReason:
-        typeof checklist.nudgeReason === "string" && checklist.nudgeReason.trim().length > 0
+        typeof checklist.nudgeReason === "string" &&
+        checklist.nudgeReason.trim().length > 0
           ? checklist.nudgeReason
           : null,
     };
@@ -421,17 +572,17 @@ function deriveChecklistState(events: TaskEvent[]): SessionChecklistState | null
   return null;
 }
 
-function normalizeWorkspacePathKey(workspacePath: string | undefined, candidate: string): string {
-  const normalized = candidate.replace(/\\/g, "/");
-  if (!workspacePath) return normalized;
-  const base = workspacePath.replace(/\\/g, "/").replace(/\/$/, "");
-  if (normalized.startsWith(`${base}/`)) {
-    return normalized.slice(base.length + 1);
-  }
-  return normalized;
+function normalizeWorkspacePathKey(
+  workspacePath: string | undefined,
+  candidate: string,
+): string {
+  return normalizeArtifactPathForWorkspace(candidate, workspacePath);
 }
 
-function deriveOutputSummary(task: Task | null | undefined, events: TaskEvent[]): TaskOutputSummary | null {
+function deriveOutputSummary(
+  task: Task | null | undefined,
+  events: TaskEvent[],
+): TaskOutputSummary | null {
   const latestCompletionEvent = [...events]
     .reverse()
     .find((event) => getEffectiveTaskEventType(event) === "task_completed");
@@ -452,6 +603,7 @@ function deriveFiles(
 ): FileInfo[] {
   const fileMap = new Map<string, FileInfo>();
   const directoryPaths = new Set<string>();
+  const copiedSourcePaths = new Set<string>();
 
   for (const event of events) {
     const effectiveType = getEffectiveTaskEventType(event);
@@ -462,25 +614,66 @@ function deriveFiles(
         directoryPaths.add(key);
         continue;
       }
-      fileMap.set(key, { path: key, action: "created", timestamp: event.timestamp });
+      if (!isUserVisibleTaskArtifactPath(key)) continue;
+      fileMap.set(key, {
+        path: key,
+        action: "created",
+        timestamp: event.timestamp,
+      });
+      if (typeof payload.copiedFrom === "string") {
+        const sourceKey = normalizeWorkspacePathKey(
+          workspace?.path,
+          payload.copiedFrom,
+        );
+        if (sourceKey && sourceKey !== key) {
+          copiedSourcePaths.add(sourceKey);
+          fileMap.delete(sourceKey);
+        }
+      }
       continue;
     }
 
     if (effectiveType === "file_modified") {
-      const rawPath =
+      const destinationPath =
         typeof payload.path === "string"
           ? payload.path
-          : typeof payload.from === "string"
-            ? payload.from
-            : "";
-      if (!rawPath) continue;
-      const key = normalizeWorkspacePathKey(workspace?.path, rawPath);
-      fileMap.set(key, { path: key, action: "modified", timestamp: event.timestamp });
+          : typeof payload.to === "string"
+            ? payload.to
+            : typeof payload.from === "string"
+              ? payload.from
+              : "";
+      if (!destinationPath) continue;
+      const key = normalizeWorkspacePathKey(workspace?.path, destinationPath);
+      if (!isUserVisibleTaskArtifactPath(key)) continue;
+
+      if (typeof payload.from === "string" && typeof payload.to === "string") {
+        const sourceKey = normalizeWorkspacePathKey(
+          workspace?.path,
+          payload.from,
+        );
+        if (sourceKey !== key && isUserVisibleTaskArtifactPath(sourceKey)) {
+          fileMap.set(sourceKey, {
+            path: sourceKey,
+            action: "deleted",
+            timestamp: event.timestamp,
+          });
+        }
+      }
+      fileMap.set(key, {
+        path: key,
+        action: "modified",
+        timestamp: event.timestamp,
+      });
       continue;
     }
 
-    if ((effectiveType === "file_deleted" || effectiveType === "artifact_created") && typeof payload.path === "string") {
+    if (
+      (effectiveType === "file_deleted" ||
+        effectiveType === "artifact_created") &&
+      typeof payload.path === "string"
+    ) {
       const key = normalizeWorkspacePathKey(workspace?.path, payload.path);
+      if (!isUserVisibleTaskArtifactPath(key)) continue;
       fileMap.set(key, {
         path: key,
         action: effectiveType === "file_deleted" ? "deleted" : "created",
@@ -497,6 +690,8 @@ function deriveFiles(
         : outputSummary.modifiedFallback || [];
     completionOutputPaths.forEach((outputPath, index) => {
       const key = normalizeWorkspacePathKey(workspace?.path, outputPath);
+      if (!isUserVisibleTaskArtifactPath(key)) return;
+      if (copiedSourcePaths.has(key)) return;
       if (fileMap.has(key)) return;
       if (directoryPaths.has(key)) return;
       fileMap.set(key, {
@@ -507,9 +702,68 @@ function deriveFiles(
     });
   }
 
+  const canonicalOutputNames = new Set(
+    [...fileMap.values()]
+      .filter((file) => isCanonicalTaskArtifactOutputPath(file.path))
+      .map((file) =>
+        file.path.replace(/\\/g, "/").split("/").pop()?.toLowerCase(),
+      )
+      .filter((name): name is string => Boolean(name)),
+  );
+
   return [...fileMap.values()]
     .filter((file) => !file.path.endsWith("/") && !file.path.endsWith("\\"))
+    .filter((file) => {
+      const name = file.path
+        .replace(/\\/g, "/")
+        .split("/")
+        .pop()
+        ?.toLowerCase();
+      return (
+        !name ||
+        !canonicalOutputNames.has(name) ||
+        isCanonicalTaskArtifactOutputPath(file.path)
+      );
+    })
     .sort((a, b) => b.timestamp - a.timestamp);
+}
+
+function reconcileOutputSummaryWithPublishedFiles(
+  outputSummary: TaskOutputSummary | null,
+  files: FileInfo[],
+  workspacePath?: string,
+): TaskOutputSummary | null {
+  if (!outputSummary) return null;
+
+  const publishedFiles = files.filter((file) => file.action !== "deleted");
+  const created = publishedFiles
+    .filter((file) => file.action === "created")
+    .map((file) => file.path);
+  const modifiedFallback = publishedFiles
+    .filter((file) => file.action === "modified")
+    .map((file) => file.path);
+  const primaryKey = outputSummary.primaryOutputPath
+    ? normalizeWorkspacePathKey(workspacePath, outputSummary.primaryOutputPath)
+    : "";
+  const primaryOutputPath =
+    publishedFiles.find((file) => file.path === primaryKey)?.path ||
+    publishedFiles[0]?.path;
+  const folders = [
+    ...new Set(
+      publishedFiles
+        .map((file) => file.path.replace(/\\/g, "/"))
+        .map((filePath) => filePath.slice(0, filePath.lastIndexOf("/")))
+        .filter(Boolean),
+    ),
+  ];
+
+  return {
+    created,
+    ...(modifiedFallback.length > 0 ? { modifiedFallback } : {}),
+    ...(primaryOutputPath ? { primaryOutputPath } : {}),
+    outputCount: publishedFiles.length,
+    folders,
+  };
 }
 
 function deriveToolUsage(events: TaskEvent[]): ToolUsage[] {
@@ -517,7 +771,10 @@ function deriveToolUsage(events: TaskEvent[]): ToolUsage[] {
 
   for (const event of events) {
     const payload = asObject(event.payload);
-    if (getEffectiveTaskEventType(event) !== "tool_call" || typeof payload.tool !== "string") {
+    if (
+      getEffectiveTaskEventType(event) !== "tool_call" ||
+      typeof payload.tool !== "string"
+    ) {
       continue;
     }
     const existing = toolMap.get(payload.tool);
@@ -556,14 +813,19 @@ function deriveUsedToolNames(events: TaskEvent[]): Set<string> {
   const names = new Set<string>();
   for (const event of events) {
     const payload = asObject(event.payload);
-    if (getEffectiveTaskEventType(event) === "tool_call" && typeof payload.tool === "string") {
+    if (
+      getEffectiveTaskEventType(event) === "tool_call" &&
+      typeof payload.tool === "string"
+    ) {
       names.add(payload.tool);
     }
   }
   return names;
 }
 
-function deriveCommandOutputSessions(events: TaskEvent[]): CommandOutputSession[] {
+function deriveCommandOutputSessions(
+  events: TaskEvent[],
+): CommandOutputSession[] {
   const commandOutputEvents = events.filter(
     (event) => getEffectiveTaskEventType(event) === "command_output",
   );
@@ -582,9 +844,12 @@ function deriveCommandOutputSessions(events: TaskEvent[]): CommandOutputSession[
   for (const event of commandOutputEvents) {
     const payload = asObject(event.payload);
     const payloadType = typeof payload.type === "string" ? payload.type : "";
-    const payloadCommand = typeof payload.command === "string" ? payload.command : "";
-    const payloadOutput = typeof payload.output === "string" ? payload.output : "";
-    const payloadCwd = typeof payload.cwd === "string" ? payload.cwd : undefined;
+    const payloadCommand =
+      typeof payload.command === "string" ? payload.command : "";
+    const payloadOutput =
+      typeof payload.output === "string" ? payload.output : "";
+    const payloadCwd =
+      typeof payload.cwd === "string" ? payload.cwd : undefined;
 
     if (payloadType === "start") {
       finalizeCurrentSession();
@@ -621,13 +886,17 @@ function deriveCommandOutputSessions(events: TaskEvent[]): CommandOutputSession[
       payloadType === "stdin" ||
       payloadType === "error"
     ) {
-      currentSession.output = appendCommandOutputTail(currentSession.output, payloadOutput);
+      currentSession.output = appendCommandOutputTail(
+        currentSession.output,
+        payloadOutput,
+      );
       continue;
     }
 
     if (payloadType === "end") {
       currentSession.isRunning = false;
-      currentSession.exitCode = typeof payload.exitCode === "number" ? payload.exitCode : null;
+      currentSession.exitCode =
+        typeof payload.exitCode === "number" ? payload.exitCode : null;
       finalizeCurrentSession();
     }
   }
@@ -682,20 +951,12 @@ function deriveToolCallPairing(
   return { completions, claimedResultIds };
 }
 
-function deriveBaseTimelineItems(filteredEvents: TaskEvent[]): BaseTimelineItem[] {
+function deriveBaseTimelineItems(
+  filteredEvents: TaskEvent[],
+): BaseTimelineItem[] {
   const eventItems: BaseTimelineItem[] = [];
   let currentBlock: TaskEvent[] = [];
   let currentBlockIndices: number[] = [];
-  const lastCompletionSummaryByTask = new Map<string, { summary: string; timestamp: number }>();
-
-  for (const event of filteredEvents) {
-    const summary = getCompletionSummaryText(event);
-    if (!summary) continue;
-    lastCompletionSummaryByTask.set(event.taskId, {
-      summary,
-      timestamp: event.timestamp,
-    });
-  }
 
   const flushBlock = () => {
     if (currentBlock.length === 0) return;
@@ -724,29 +985,100 @@ function deriveBaseTimelineItems(filteredEvents: TaskEvent[]): BaseTimelineItem[
       effectiveType === "user_message" ||
       effectiveType === "assistant_message" ||
       effectiveType === "follow_up_completed" ||
-      (effectiveType === "task_completed" && getCompletionSummaryText(event).length > 0) ||
+      (effectiveType === "task_completed" &&
+        getCompletionSummaryText(event).length > 0) ||
       effectiveType === "artifact_created" ||
       effectiveType === "diagram_created" ||
       event.type === "timeline_artifact_emitted"
     );
   };
 
+  // A completed turn persists both the assistant reply and its completion
+  // summary. Only suppress the reply when its *own* following completion has
+  // the same text. Looking at the last completion for the entire task breaks
+  // multi-turn chats and makes earlier replies appear twice.
+  const isReplyDuplicatedByFollowingCompletion = (
+    eventIndex: number,
+  ): boolean => {
+    const event = filteredEvents[eventIndex];
+    if (getEffectiveTaskEventType(event) !== "assistant_message") return false;
+    const payload = asObject(event.payload);
+    const message =
+      typeof payload.message === "string" ? payload.message.trim() : "";
+    if (!message) return false;
+
+    for (
+      let index = eventIndex + 1;
+      index < filteredEvents.length;
+      index += 1
+    ) {
+      const candidate = filteredEvents[index];
+      const candidateType = getEffectiveTaskEventType(candidate);
+      if (
+        candidateType === "user_message" ||
+        candidateType === "assistant_message"
+      ) {
+        return false;
+      }
+      if (candidateType === "task_completed") {
+        return getCompletionSummaryText(candidate).trim() === message;
+      }
+    }
+
+    return false;
+  };
+
+  /**
+   * Timeline v2 stores turn-level narration ("I am checking…", "Now generating
+   * the PDF…") as assistant_message updates. They are execution progress, not
+   * separate chat replies. When a later assistant message exists in the same
+   * user turn, keep only the last turn-level message in the transcript.
+   *
+   * Numbered/revised plan-step results are intentionally left alone because
+   * they can contain distinct deliverables that should remain visible.
+   */
+  const isSupersededTurnProgressReply = (eventIndex: number): boolean => {
+    const event = filteredEvents[eventIndex];
+    if (
+      event.type !== "timeline_step_updated" ||
+      getEffectiveTaskEventType(event) !== "assistant_message"
+    ) {
+      return false;
+    }
+
+    const payload = asObject(event.payload);
+    const stepId =
+      typeof payload.stepId === "string"
+        ? payload.stepId.trim()
+        : typeof event.stepId === "string"
+          ? event.stepId.trim()
+          : "";
+    if (!stepId.startsWith("turn:") || payload.internal === true) return false;
+
+    for (
+      let index = eventIndex + 1;
+      index < filteredEvents.length;
+      index += 1
+    ) {
+      const candidate = filteredEvents[index];
+      const candidateType = getEffectiveTaskEventType(candidate);
+      if (candidateType === "user_message") return false;
+      if (
+        candidateType === "assistant_message" &&
+        candidate.payload?.internal !== true
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
   for (let index = 0; index < filteredEvents.length; index += 1) {
     const event = filteredEvents[index];
     if (isBoundaryEvent(event)) {
-      if (getEffectiveTaskEventType(event) === "assistant_message") {
-        const payload = asObject(event.payload);
-        const message = typeof payload.message === "string" ? payload.message.trim() : "";
-        const completion = lastCompletionSummaryByTask.get(event.taskId);
-        if (
-          message &&
-          completion &&
-          completion.summary === message &&
-          event.timestamp <= completion.timestamp
-        ) {
-          continue;
-        }
-      }
+      if (isSupersededTurnProgressReply(index)) continue;
+      if (isReplyDuplicatedByFollowingCompletion(index)) continue;
       flushBlock();
       eventItems.push({
         kind: "event",
@@ -785,12 +1117,17 @@ export function deriveSharedTaskEventUiState(
     projectionMode === "live"
       ? selectLiveProjectionRawEvents(
           params.rawEvents,
-          Math.max(1, params.liveWindowSize ?? DEFAULT_LIVE_PROJECTION_WINDOW_SIZE),
+          Math.max(
+            1,
+            params.liveWindowSize ?? DEFAULT_LIVE_PROJECTION_WINDOW_SIZE,
+          ),
         )
       : params.rawEvents;
   const normalizedEvents = normalizeEventsForTimelineUi(rawEvents);
   const candidateEvents = params.verboseSteps
-    ? filterVerboseTimelineNoise(normalizedEvents)
+    ? filterVerboseTimelineNoise(normalizedEvents, {
+        taskStatus: params.task?.status,
+      })
     : filterAdjacentDuplicateTimelineFailures(normalizedEvents);
 
   const liveEvents: TaskEvent[] = [];
@@ -803,7 +1140,10 @@ export function deriveSharedTaskEventUiState(
       : candidateEvents;
 
   for (const event of projectedEvents) {
-    if (params.task?.status === "cancelled" && isLlmRequestCancelledEvent(event)) {
+    if (
+      params.task?.status === "cancelled" &&
+      isLlmRequestCancelledEvent(event)
+    ) {
       debugOnlyEvents.push(event);
       continue;
     }
@@ -827,19 +1167,40 @@ export function deriveSharedTaskEventUiState(
   }
 
   const dedupedLiveEvents = filterAdjacentDuplicateTimelineFailures(liveEvents);
-  const parallelGroupProjection = buildParallelGroupProjection(normalizedEvents);
+  const parallelGroupProjection =
+    buildParallelGroupProjection(normalizedEvents);
   const suppressedParallelEventIds = parallelGroupProjection.suppressedEventIds;
-  const toolCallPairing = deriveToolCallPairing(dedupedLiveEvents, suppressedParallelEventIds);
+  const toolCallPairing = deriveToolCallPairing(
+    dedupedLiveEvents,
+    suppressedParallelEventIds,
+  );
   const baseTimelineItems = deriveBaseTimelineItems(dedupedLiveEvents);
   const commandOutputSessions = deriveCommandOutputSessions(normalizedEvents);
-  const planSteps = derivePlanSteps(normalizedEvents);
+  // Timeline rendering is windowed for performance, but plan progress is
+  // state and must be folded from the full renderer event history.
+  const planSteps = derivePlanSteps(params.rawEvents);
   const checklistState = deriveChecklistState(normalizedEvents);
-  const outputSummary = deriveOutputSummary(params.task, normalizedEvents);
-  const files = deriveFiles(normalizedEvents, params.workspace, outputSummary);
+  const derivedOutputSummary = deriveOutputSummary(
+    params.task,
+    normalizedEvents,
+  );
+  const files = deriveFiles(
+    normalizedEvents,
+    params.workspace,
+    derivedOutputSummary,
+  );
+  const outputSummary = reconcileOutputSummaryWithPublishedFiles(
+    derivedOutputSummary,
+    files,
+    params.workspace?.path,
+  );
   const toolUsage = deriveToolUsage(normalizedEvents);
   const referencedFiles = deriveReferencedFiles(normalizedEvents);
   const usedToolNames = deriveUsedToolNames(normalizedEvents);
-  const latestVisibleTaskEvent = getLatestVisibleTaskEvent(baseTimelineItems, dedupedLiveEvents);
+  const latestVisibleTaskEvent = getLatestVisibleTaskEvent(
+    baseTimelineItems,
+    dedupedLiveEvents,
+  );
 
   return {
     projectionMode,
@@ -850,7 +1211,8 @@ export function deriveSharedTaskEventUiState(
     inspectOnlyEvents,
     debugOnlyEvents,
     parallelGroupProjection,
-    parallelGroupsByAnchorEventId: parallelGroupProjection.groupsByAnchorEventId,
+    parallelGroupsByAnchorEventId:
+      parallelGroupProjection.groupsByAnchorEventId,
     suppressedParallelEventIds,
     toolCallPairing,
     baseTimelineItems,

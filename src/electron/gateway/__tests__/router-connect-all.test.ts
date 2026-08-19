@@ -16,7 +16,7 @@ vi.mock("better-sqlite3", () => {
 
 vi.mock("electron", () => ({
   app: {
-    getPath: vi.fn().mockReturnValue("/tmp/test-cowork"),
+    getPath: vi.fn().mockReturnValue("/tmp/test-neoworker"),
   },
   BrowserWindow: {
     getAllWindows: vi.fn().mockReturnValue([]),

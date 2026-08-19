@@ -9,6 +9,12 @@ description: "Triage Inbox Agent Today lanes, search mailbox evidence, prepare m
 
 Triage Inbox Agent Today lanes, search mailbox evidence, prepare manual or AI-assisted replies, and suggest cleanup automations with strict confirmation gates.
 
+## Prerequisite
+
+- A real mailbox connection is required through Gmail, AgentMail, or the Email channel.
+- If no mailbox is connected, stop immediately and ask the user to connect one in Settings.
+- Never inspect workspace files, task history, or unrelated local artifacts as a substitute for mailbox data.
+
 ## Routing
 
 - Use when: Use when the user asks to triage Inbox Agent, review Today lanes, search mailbox evidence, draft or manually prepare replies/forwards, and suggest cleanup automations with strict confirmation gates.

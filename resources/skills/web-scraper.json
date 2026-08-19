@@ -22,7 +22,7 @@
   "enabled": true,
   "metadata": {
     "version": "1.0.0",
-    "author": "cowork-os",
+    "author": "neoworker",
     "routing": {
       "useWhen": "Use when the user wants to scrape content from websites, especially sites with anti-bot protection, dynamic content, or structured data that needs extraction.",
       "dontUseWhen": "Don't use for simple URL fetching where web_fetch works fine. Don't use for internal files or local content.",

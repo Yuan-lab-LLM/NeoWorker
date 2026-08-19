@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { XSettingsData, XMentionTriggerStatus } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 interface XStatusView {
   installed: boolean;
@@ -10,12 +11,17 @@ interface XStatusView {
 }
 
 export function XSettings() {
+  useLanguage();
+  const t = translate;
   const [settings, setSettings] = useState<XSettingsData | null>(null);
   const [cookieSourcesInput, setCookieSourcesInput] = useState("");
   const [allowlistInput, setAllowlistInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
   const [testResult, setTestResult] = useState<{
     success: boolean;
     error?: string;
@@ -39,7 +45,9 @@ export function XSettings() {
       const loaded = await window.electronAPI.getXSettings();
       setSettings(loaded);
       setCookieSourcesInput((loaded.cookieSource || []).join(", "));
-      setAllowlistInput((loaded.mentionTrigger?.allowedAuthors || []).join(", "));
+      setAllowlistInput(
+        (loaded.mentionTrigger?.allowedAuthors || []).join(", "),
+      );
     } catch (error) {
       console.error("Failed to load X settings:", error);
     }
@@ -76,11 +84,22 @@ export function XSettings() {
 
       await window.electronAPI.saveXSettings(payload);
       setSettings(payload);
-      setSaveMessage({ ok: true, text: "Settings saved. Mention polling triggered." });
+      setSaveMessage({
+        ok: true,
+        text: t(
+          "xSettings.save.success",
+          "Settings saved. Mention polling triggered.",
+        ),
+      });
       await refreshStatus();
     } catch (error: Any) {
       console.error("Failed to save X settings:", error);
-      setSaveMessage({ ok: false, text: error?.message || "Failed to save settings." });
+      setSaveMessage({
+        ok: false,
+        text:
+          error?.message ||
+          t("xSettings.save.failed", "Failed to save settings."),
+      });
     } finally {
       setSaving(false);
     }
@@ -106,14 +125,23 @@ export function XSettings() {
       setTestResult(result);
       await refreshStatus();
     } catch (error: Any) {
-      setTestResult({ success: false, error: error.message || "Failed to test connection" });
+      setTestResult({
+        success: false,
+        error:
+          error.message ||
+          t("cloudStorage.error.testConnection", "Failed to test connection"),
+      });
     } finally {
       setTesting(false);
     }
   };
 
   if (!settings) {
-    return <div className="settings-loading">Loading X settings...</div>;
+    return (
+      <div className="settings-loading">
+        {t("xSettings.loading", "Loading X settings...")}
+      </div>
+    );
   }
 
   return (
@@ -121,47 +149,72 @@ export function XSettings() {
       <div className="settings-section">
         <div className="settings-section-header">
           <div className="settings-title-with-badge">
-            <h3>Connect X (Twitter)</h3>
+            <h3>{t("xSettings.title", "Connect X (Twitter)")}</h3>
             {status && (
               <span
                 className={`x-status-badge ${!status.installed ? "missing" : status.connected ? "connected" : "installed"}`}
                 title={
                   !status.installed
-                    ? "Bird CLI not installed"
+                    ? t(
+                        "xSettings.status.cliNotInstalled",
+                        "Bird CLI not installed",
+                      )
                     : status.connected
-                      ? "Connected to X"
-                      : "Bird CLI installed"
+                      ? t("xSettings.status.connectedToX", "Connected to X")
+                      : t("xSettings.status.cliInstalled", "Bird CLI installed")
                 }
               >
-                {!status.installed ? "Missing CLI" : status.connected ? "Connected" : "Installed"}
+                {!status.installed
+                  ? t("xSettings.status.missingCli", "Missing CLI")
+                  : status.connected
+                    ? t("cloudStorage.status.connected", "Connected")
+                    : t("xSettings.status.installed", "Installed")}
               </span>
             )}
             {statusLoading && !status && (
-              <span className="x-status-badge installed">Checking…</span>
+              <span className="x-status-badge installed">
+                {t("cloudStorage.status.checkingEllipsis", "Checking…")}
+              </span>
             )}
           </div>
-          <button className="btn-secondary btn-sm" onClick={refreshStatus} disabled={statusLoading}>
-            {statusLoading ? "Checking..." : "Refresh Status"}
+          <button
+            className="btn-secondary btn-sm"
+            onClick={refreshStatus}
+            disabled={statusLoading}
+          >
+            {statusLoading
+              ? t("cloudStorage.status.checking", "Checking...")
+              : t("cloudStorage.status.refresh", "Refresh Status")}
           </button>
         </div>
         <p className="settings-description">
-          Connect CoWork OS to X using Bird CLI. Mention triggers can create tasks from allowlisted
-          authors using your configurable command prefix.
+          {t(
+            "xSettings.description",
+            "Connect NeoWorker to X using Bird CLI. Mention triggers can create tasks from allowlisted authors using your configurable command prefix.",
+          )}
         </p>
-        {status?.error && <p className="settings-hint">Status check: {status.error}</p>}
+        {status?.error && (
+          <p className="settings-hint">
+            {t("cloudStorage.status.checkResult", "Status check: {error}", {
+              error: status.error,
+            })}
+          </p>
+        )}
         <div className="settings-actions">
           <button
             className="btn-secondary btn-sm"
             onClick={() => window.electronAPI.openExternal("https://x.com")}
           >
-            Open X.com
+            {t("xSettings.openX", "Open X.com")}
           </button>
         </div>
       </div>
 
       <div className="settings-section">
         <div className="settings-field">
-          <label>Enable Integration</label>
+          <label>
+            {t("cloudStorage.enableIntegration", "Enable Integration")}
+          </label>
           <label className="settings-toggle">
             <input
               type="checkbox"
@@ -173,7 +226,9 @@ export function XSettings() {
         </div>
 
         <div className="settings-field">
-          <label>Enable Mention Trigger</label>
+          <label>
+            {t("xSettings.mention.enable", "Enable Mention Trigger")}
+          </label>
           <label className="settings-toggle">
             <input
               type="checkbox"
@@ -192,7 +247,9 @@ export function XSettings() {
         </div>
 
         <div className="settings-field">
-          <label>Command Prefix</label>
+          <label>
+            {t("xSettings.mention.commandPrefix", "Command Prefix")}
+          </label>
           <input
             type="text"
             className="settings-input"
@@ -207,12 +264,24 @@ export function XSettings() {
               })
             }
           />
-          <p className="settings-hint">Case-insensitive, customizable trigger prefix.</p>
-          <p className="settings-hint">Changes apply after you click “Save Settings”.</p>
+          <p className="settings-hint">
+            {t(
+              "xSettings.mention.prefixHint",
+              "Case-insensitive, customizable trigger prefix.",
+            )}
+          </p>
+          <p className="settings-hint">
+            {t(
+              "xSettings.mention.saveHint",
+              "Changes apply after you click “Save Settings”.",
+            )}
+          </p>
         </div>
 
         <div className="settings-field">
-          <label>Allowed Authors</label>
+          <label>
+            {t("xSettings.mention.allowedAuthors", "Allowed Authors")}
+          </label>
           <input
             type="text"
             className="settings-input"
@@ -221,12 +290,17 @@ export function XSettings() {
             onChange={(e) => setAllowlistInput(e.target.value)}
           />
           <p className="settings-hint">
-            Comma-separated handles that are allowed to trigger tasks.
+            {t(
+              "xSettings.mention.allowedAuthorsHint",
+              "Comma-separated handles that are allowed to trigger tasks.",
+            )}
           </p>
         </div>
 
         <div className="settings-field">
-          <label>Poll Interval (sec)</label>
+          <label>
+            {t("xSettings.mention.pollInterval", "Poll Interval (sec)")}
+          </label>
           <input
             type="number"
             className="settings-input"
@@ -242,11 +316,16 @@ export function XSettings() {
               })
             }
           />
-          <p className="settings-hint">Recommended: 120-300 seconds for normal use.</p>
+          <p className="settings-hint">
+            {t(
+              "xSettings.mention.pollHint",
+              "Recommended: 120-300 seconds for normal use.",
+            )}
+          </p>
         </div>
 
         <div className="settings-field">
-          <label>Fetch Count</label>
+          <label>{t("xSettings.mention.fetchCount", "Fetch Count")}</label>
           <input
             type="number"
             className="settings-input"
@@ -265,7 +344,9 @@ export function XSettings() {
         </div>
 
         <div className="settings-field">
-          <label>Workspace Mode</label>
+          <label>
+            {t("xSettings.mention.workspaceMode", "Workspace Mode")}
+          </label>
           <input
             type="text"
             className="settings-input"
@@ -275,23 +356,37 @@ export function XSettings() {
         </div>
 
         <div className="settings-field">
-          <label>Auth Method</label>
+          <label>{t("xSettings.auth.method", "Auth Method")}</label>
           <select
             className="settings-select"
             value={settings.authMethod}
             onChange={(e) =>
-              updateSettings({ authMethod: e.target.value as XSettingsData["authMethod"] })
+              updateSettings({
+                authMethod: e.target.value as XSettingsData["authMethod"],
+              })
             }
           >
-            <option value="browser">Browser Cookies (Recommended)</option>
-            <option value="manual">Manual Cookies (auth_token + ct0)</option>
+            <option value="browser">
+              {t(
+                "xSettings.auth.browserCookies",
+                "Browser Cookies (Recommended)",
+              )}
+            </option>
+            <option value="manual">
+              {t(
+                "xSettings.auth.manualCookies",
+                "Manual Cookies (auth_token + ct0)",
+              )}
+            </option>
           </select>
         </div>
 
         {settings.authMethod === "browser" ? (
           <>
             <div className="settings-field">
-              <label>Cookie Sources</label>
+              <label>
+                {t("xSettings.auth.cookieSources", "Cookie Sources")}
+              </label>
               <input
                 type="text"
                 className="settings-input"
@@ -300,40 +395,68 @@ export function XSettings() {
                 onChange={(e) => setCookieSourcesInput(e.target.value)}
               />
               <p className="settings-hint">
-                Comma-separated browser sources used for cookie extraction.
+                {t(
+                  "xSettings.auth.cookieSourcesHint",
+                  "Comma-separated browser sources used for cookie extraction.",
+                )}
               </p>
             </div>
 
             <div className="settings-field">
-              <label>Chrome/Arc Profile Name (optional)</label>
+              <label>
+                {t(
+                  "xSettings.auth.chromeProfileName",
+                  "Chrome/Arc Profile Name (optional)",
+                )}
+              </label>
               <input
                 type="text"
                 className="settings-input"
-                placeholder="Default"
+                placeholder={t("common.default", "Default")}
                 value={settings.chromeProfile || ""}
-                onChange={(e) => updateSettings({ chromeProfile: e.target.value || undefined })}
+                onChange={(e) =>
+                  updateSettings({ chromeProfile: e.target.value || undefined })
+                }
               />
             </div>
 
             <div className="settings-field">
-              <label>Chrome/Arc Profile Dir (optional)</label>
+              <label>
+                {t(
+                  "xSettings.auth.chromeProfileDir",
+                  "Chrome/Arc Profile Dir (optional)",
+                )}
+              </label>
               <input
                 type="text"
                 className="settings-input"
                 placeholder="/path/to/Browser/Profile"
                 value={settings.chromeProfileDir || ""}
-                onChange={(e) => updateSettings({ chromeProfileDir: e.target.value || undefined })}
+                onChange={(e) =>
+                  updateSettings({
+                    chromeProfileDir: e.target.value || undefined,
+                  })
+                }
               />
             </div>
 
             <div className="settings-field">
-              <label>Firefox Profile (optional)</label>
+              <label>
+                {t(
+                  "xSettings.auth.firefoxProfile",
+                  "Firefox Profile (optional)",
+                )}
+              </label>
               <input
                 type="text"
                 className="settings-input"
                 placeholder="default-release"
                 value={settings.firefoxProfile || ""}
-                onChange={(e) => updateSettings({ firefoxProfile: e.target.value || undefined })}
+                onChange={(e) =>
+                  updateSettings({
+                    firefoxProfile: e.target.value || undefined,
+                  })
+                }
               />
             </div>
           </>
@@ -346,7 +469,9 @@ export function XSettings() {
                 className="settings-input"
                 placeholder="auth_token cookie"
                 value={settings.authToken || ""}
-                onChange={(e) => updateSettings({ authToken: e.target.value || undefined })}
+                onChange={(e) =>
+                  updateSettings({ authToken: e.target.value || undefined })
+                }
               />
             </div>
 
@@ -357,45 +482,55 @@ export function XSettings() {
                 className="settings-input"
                 placeholder="ct0 cookie"
                 value={settings.ct0 || ""}
-                onChange={(e) => updateSettings({ ct0: e.target.value || undefined })}
+                onChange={(e) =>
+                  updateSettings({ ct0: e.target.value || undefined })
+                }
               />
             </div>
           </>
         )}
 
         <div className="settings-field">
-          <label>Timeout (ms)</label>
+          <label>{t("cloudStorage.timeoutMs", "Timeout (ms)")}</label>
           <input
             type="number"
             className="settings-input"
             min={1000}
             max={120000}
             value={settings.timeoutMs ?? 20000}
-            onChange={(e) => updateSettings({ timeoutMs: Number(e.target.value) })}
+            onChange={(e) =>
+              updateSettings({ timeoutMs: Number(e.target.value) })
+            }
           />
         </div>
 
         <div className="settings-field">
-          <label>Cookie Timeout (ms)</label>
+          <label>
+            {t("xSettings.auth.cookieTimeout", "Cookie Timeout (ms)")}
+          </label>
           <input
             type="number"
             className="settings-input"
             min={1000}
             max={120000}
             value={settings.cookieTimeoutMs ?? 20000}
-            onChange={(e) => updateSettings({ cookieTimeoutMs: Number(e.target.value) })}
+            onChange={(e) =>
+              updateSettings({ cookieTimeoutMs: Number(e.target.value) })
+            }
           />
         </div>
 
         <div className="settings-field">
-          <label>Quote Depth</label>
+          <label>{t("xSettings.quoteDepth", "Quote Depth")}</label>
           <input
             type="number"
             className="settings-input"
             min={0}
             max={5}
             value={settings.quoteDepth ?? 1}
-            onChange={(e) => updateSettings({ quoteDepth: Number(e.target.value) })}
+            onChange={(e) =>
+              updateSettings({ quoteDepth: Number(e.target.value) })
+            }
           />
         </div>
 
@@ -405,24 +540,48 @@ export function XSettings() {
             onClick={handleTestConnection}
             disabled={testing}
           >
-            {testing ? "Testing..." : "Test Connection"}
+            {testing
+              ? t("common.testing", "Testing...")
+              : t("cloudStorage.testConnection", "Test Connection")}
           </button>
-          <button className="btn-primary btn-sm" onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Save Settings"}
+          <button
+            className="btn-primary btn-sm"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving
+              ? t("common.saving", "Saving...")
+              : t("cloudStorage.saveSettings", "Save Settings")}
           </button>
         </div>
         {saveMessage && (
-          <div className={`test-result ${saveMessage.ok ? "success" : "error"}`}>
+          <div
+            className={`test-result ${saveMessage.ok ? "success" : "error"}`}
+          >
             <span>{saveMessage.text}</span>
           </div>
         )}
 
         {testResult && (
-          <div className={`test-result ${testResult.success ? "success" : "error"}`}>
+          <div
+            className={`test-result ${testResult.success ? "success" : "error"}`}
+          >
             {testResult.success ? (
-              <span>Connected{testResult.username ? ` as @${testResult.username}` : ""}</span>
+              <span>
+                {testResult.username
+                  ? t(
+                      "xSettings.test.connectedAs",
+                      "Connected as @{username}",
+                      { username: testResult.username },
+                    )
+                  : t("cloudStorage.status.connected", "Connected")}
+              </span>
             ) : (
-              <span>Connection failed: {testResult.error}</span>
+              <span>
+                {t("cloudStorage.test.failed", "Connection failed: {error}", {
+                  error: testResult.error || "",
+                })}
+              </span>
             )}
           </div>
         )}
@@ -430,57 +589,100 @@ export function XSettings() {
 
       {status?.mentionTriggerStatus && (
         <div className="settings-section">
-          <h4>Mention Trigger Runtime</h4>
+          <h4>{t("xSettings.runtime.title", "Mention Trigger Runtime")}</h4>
           <p className="settings-hint">
-            Mode: <code>{status.mentionTriggerStatus.mode}</code> · Running:{" "}
-            <code>{status.mentionTriggerStatus.running ? "yes" : "no"}</code>
+            {t("xSettings.runtime.mode", "Mode:")}{" "}
+            <code>{status.mentionTriggerStatus.mode}</code> ·{" "}
+            {t("xSettings.runtime.running", "Running:")}{" "}
+            <code>
+              {status.mentionTriggerStatus.running
+                ? t("common.yes", "yes")
+                : t("common.no", "no")}
+            </code>
           </p>
           <p className="settings-hint">
-            Accepted: <code>{status.mentionTriggerStatus.acceptedCount}</code> · Ignored:{" "}
+            {t("xSettings.runtime.accepted", "Accepted:")}{" "}
+            <code>{status.mentionTriggerStatus.acceptedCount}</code> ·{" "}
+            {t("xSettings.runtime.ignored", "Ignored:")}{" "}
             <code>{status.mentionTriggerStatus.ignoredCount}</code>
           </p>
           <p className="settings-hint">
-            Last poll:{" "}
+            {t("xSettings.runtime.lastPoll", "Last poll:")}{" "}
             {status.mentionTriggerStatus.lastPollAt
-              ? new Date(status.mentionTriggerStatus.lastPollAt).toLocaleString()
-              : "n/a"}
+              ? new Date(
+                  status.mentionTriggerStatus.lastPollAt,
+                ).toLocaleString()
+              : t("common.notAvailableShort", "n/a")}
           </p>
           <p className="settings-hint">
-            Last success:{" "}
+            {t("xSettings.runtime.lastSuccess", "Last success:")}{" "}
             {status.mentionTriggerStatus.lastSuccessAt
-              ? new Date(status.mentionTriggerStatus.lastSuccessAt).toLocaleString()
-              : "n/a"}
+              ? new Date(
+                  status.mentionTriggerStatus.lastSuccessAt,
+                ).toLocaleString()
+              : t("common.notAvailableShort", "n/a")}
           </p>
           <p className="settings-hint">
-            Last task id: <code>{status.mentionTriggerStatus.lastTaskId || "n/a"}</code>
+            {t("xSettings.runtime.lastTaskId", "Last task id:")}{" "}
+            <code>
+              {status.mentionTriggerStatus.lastTaskId ||
+                t("common.notAvailableShort", "n/a")}
+            </code>
           </p>
           {status.mentionTriggerStatus.lastError && (
-            <p className="settings-hint">Last error: {status.mentionTriggerStatus.lastError}</p>
+            <p className="settings-hint">
+              {t("xSettings.runtime.lastError", "Last error: {error}", {
+                error: status.mentionTriggerStatus.lastError,
+              })}
+            </p>
           )}
         </div>
       )}
 
       <div className="settings-section">
-        <h4>Login Help</h4>
+        <h4>{t("xSettings.loginHelp.title", "Login Help")}</h4>
         <ol className="settings-hint">
-          <li>Install the Bird CLI.</li>
-          <li>Log in to X.com in your browser.</li>
-          <li>Choose cookie sources and optional profile info, then click “Test Connection”.</li>
+          <li>
+            {t("xSettings.loginHelp.installCli", "Install the Bird CLI.")}
+          </li>
+          <li>
+            {t(
+              "xSettings.loginHelp.loginBrowser",
+              "Log in to X.com in your browser.",
+            )}
+          </li>
+          <li>
+            {t(
+              "xSettings.loginHelp.chooseCookies",
+              "Choose cookie sources and optional profile info, then click “Test Connection”.",
+            )}
+          </li>
         </ol>
         <p className="settings-hint">
-          Common cookie sources: <code>chrome</code>, <code>arc</code>, <code>brave</code>,{" "}
+          {t(
+            "xSettings.loginHelp.commonCookieSources",
+            "Common cookie sources:",
+          )}{" "}
+          <code>chrome</code>, <code>arc</code>, <code>brave</code>,{" "}
           <code>edge</code>, <code>firefox</code>.
         </p>
         <p className="settings-hint">
-          Manual auth is supported using the <code>auth_token</code> and <code>ct0</code> cookies.
+          {t(
+            "xSettings.loginHelp.manualAuthPrefix",
+            "Manual auth is supported using the",
+          )}{" "}
+          <code>auth_token</code> {t("common.and", "and")} <code>ct0</code>{" "}
+          {t("xSettings.loginHelp.manualAuthSuffix", "cookies.")}
         </p>
       </div>
 
       <div className="settings-section">
-        <h4>CLI Requirements</h4>
+        <h4>{t("xSettings.cli.title", "CLI Requirements")}</h4>
         <p className="settings-description">
-          Install the Bird CLI for X access. If posting is blocked, try using the browser tool
-          instead.
+          {t(
+            "xSettings.cli.description",
+            "Install the Bird CLI for X access. If posting is blocked, try using the browser tool instead.",
+          )}
         </p>
         <pre className="settings-info-box">{`brew install steipete/tap/bird\n# or\nnpm install -g @steipete/bird`}</pre>
       </div>

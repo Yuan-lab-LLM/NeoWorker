@@ -130,12 +130,12 @@ describeWithSqlite("AgentCompaniesService", () => {
   let service: import("../AgentCompaniesService").AgentCompaniesService;
 
   beforeEach(async () => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-agent-companies-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-agent-companies-"));
     packageDir = path.join(tmpDir, "fixture-package");
     writePackageFixture(packageDir);
 
-    previousUserDataDir = process.env.COWORK_USER_DATA_DIR;
-    process.env.COWORK_USER_DATA_DIR = tmpDir;
+    previousUserDataDir = process.env.NEOWORKER_USER_DATA_DIR;
+    process.env.NEOWORKER_USER_DATA_DIR = tmpDir;
 
     const [
       { DatabaseManager },
@@ -159,9 +159,9 @@ describeWithSqlite("AgentCompaniesService", () => {
   afterEach(() => {
     manager?.close();
     if (previousUserDataDir === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = previousUserDataDir;
+      process.env.NEOWORKER_USER_DATA_DIR = previousUserDataDir;
     }
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -193,7 +193,7 @@ describeWithSqlite("AgentCompaniesService", () => {
     );
   });
 
-  it("imports a package into Cowork runtime and updates the same runtime entities on re-import", () => {
+  it("imports a package into NeoWorker runtime and updates the same runtime entities on re-import", () => {
     const request = {
       source: {
         sourceKind: "local" as const,

@@ -207,7 +207,7 @@ export function buildDiscordSlashCommands(): DiscordSlashCommandDefinition[] {
       .addStringOption((option) =>
         option
           .setName("code")
-          .setDescription("The pairing code from CoWork OS app")
+          .setDescription("The pairing code from NeoWorker app")
           .setRequired(true),
       ),
   );

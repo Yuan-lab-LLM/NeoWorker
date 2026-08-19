@@ -1,6 +1,6 @@
 # Salesforce MCP Connector (MVP)
 
-This connector exposes Salesforce APIs to CoWork OS through MCP tools.
+This connector exposes Salesforce APIs to NeoWorker through MCP tools.
 
 ## Requirements
 
@@ -28,7 +28,7 @@ npm run build
 npm start
 ```
 
-## Add to CoWork MCP Settings
+## Add to NeoWorker MCP Settings
 
 - **Command**: `node`
 - **Args**: `/absolute/path/to/connectors/salesforce-mcp/dist/index.js`

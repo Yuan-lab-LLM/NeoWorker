@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
+import { Download, LogIn } from "lucide-react";
 import type { AppProfileSummary } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 export function ProfileSettings() {
+  useLanguage();
   const [profiles, setProfiles] = useState<AppProfileSummary[]>([]);
   const [newProfileName, setNewProfileName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -15,7 +18,10 @@ export function ProfileSettings() {
       const nextProfiles = await window.electronAPI.listProfiles();
       setProfiles(nextProfiles);
     } catch (loadError: Any) {
-      setError(loadError?.message || "Failed to load profiles.");
+      setError(
+        loadError?.message ||
+          translate("profileSettings.error.load", "Failed to load profiles."),
+      );
     }
   };
 
@@ -32,10 +38,24 @@ export function ProfileSettings() {
     try {
       const created = await window.electronAPI.createProfile(trimmed);
       setNewProfileName("");
-      setStatus(`Created profile "${created.label}".`);
+      setStatus(
+        translate(
+          "profileSettings.status.created",
+          `Created profile "${created.label}".`,
+          {
+            profile: created.label,
+          },
+        ),
+      );
       await loadProfiles();
     } catch (createError: Any) {
-      setError(createError?.message || "Failed to create profile.");
+      setError(
+        createError?.message ||
+          translate(
+            "profileSettings.error.create",
+            "Failed to create profile.",
+          ),
+      );
     } finally {
       setBusy(false);
     }
@@ -45,18 +65,33 @@ export function ProfileSettings() {
     if (!window.electronAPI?.switchProfile) return;
     setBusy(true);
     setError(null);
-    setStatus(`Switching to profile "${profileId}" and restarting...`);
+    setStatus(
+      translate(
+        "profileSettings.status.switching",
+        `Switching to profile "${profileId}" and restarting...`,
+        {
+          profile: profileId,
+        },
+      ),
+    );
     try {
       await window.electronAPI.switchProfile(profileId);
     } catch (switchError: Any) {
-      setError(switchError?.message || "Failed to switch profile.");
+      setError(
+        switchError?.message ||
+          translate(
+            "profileSettings.error.switch",
+            "Failed to switch profile.",
+          ),
+      );
       setStatus(null);
       setBusy(false);
     }
   };
 
   const handleExport = async (profileId: string) => {
-    if (!window.electronAPI?.selectFolder || !window.electronAPI?.exportProfile) return;
+    if (!window.electronAPI?.selectFolder || !window.electronAPI?.exportProfile)
+      return;
     setBusy(true);
     setError(null);
     setStatus(null);
@@ -66,17 +101,36 @@ export function ProfileSettings() {
         setBusy(false);
         return;
       }
-      const result = await window.electronAPI.exportProfile(profileId, destinationRoot);
-      setStatus(`Exported "${result.profile.label}" to ${result.bundlePath}.`);
+      const result = await window.electronAPI.exportProfile(
+        profileId,
+        destinationRoot,
+      );
+      setStatus(
+        translate(
+          "profileSettings.status.exported",
+          `Exported "${result.profile.label}" to ${result.bundlePath}.`,
+          {
+            profile: result.profile.label,
+            path: result.bundlePath,
+          },
+        ),
+      );
     } catch (exportError: Any) {
-      setError(exportError?.message || "Failed to export profile.");
+      setError(
+        exportError?.message ||
+          translate(
+            "profileSettings.error.export",
+            "Failed to export profile.",
+          ),
+      );
     } finally {
       setBusy(false);
     }
   };
 
   const handleImport = async () => {
-    if (!window.electronAPI?.selectFolder || !window.electronAPI?.importProfile) return;
+    if (!window.electronAPI?.selectFolder || !window.electronAPI?.importProfile)
+      return;
     setBusy(true);
     setError(null);
     setStatus(null);
@@ -91,10 +145,24 @@ export function ProfileSettings() {
         importProfileName.trim() || undefined,
       );
       setImportProfileName("");
-      setStatus(`Imported profile "${imported.label}".`);
+      setStatus(
+        translate(
+          "profileSettings.status.imported",
+          `Imported profile "${imported.label}".`,
+          {
+            profile: imported.label,
+          },
+        ),
+      );
       await loadProfiles();
     } catch (importError: Any) {
-      setError(importError?.message || "Failed to import profile.");
+      setError(
+        importError?.message ||
+          translate(
+            "profileSettings.error.import",
+            "Failed to import profile.",
+          ),
+      );
     } finally {
       setBusy(false);
     }
@@ -103,83 +171,133 @@ export function ProfileSettings() {
   const activeProfile = profiles.find((profile) => profile.isActive) ?? null;
 
   return (
-    <div className="settings-section">
-      <p className="settings-description">
-        Profiles keep CoWork data isolated by user data directory. Switching restarts the app into
-        the selected profile.
+    <div className="settings-section profile-settings">
+      <p className="settings-description profile-settings-intro">
+        {translate(
+          "profileSettings.description",
+          "Profiles keep NeoWorker data isolated by user data directory. Switching restarts the app into the selected profile.",
+        )}
       </p>
 
-      <div className="settings-card" style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div className="settings-card profile-settings-active-card">
+        <div className="profile-settings-card-header">
           <div>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>
-              Active profile: {activeProfile?.label || "default"}
+            <div className="profile-settings-card-title">
+              {translate(
+                "profileSettings.activeProfile",
+                "Active profile: {profile}",
+                {
+                  profile: activeProfile?.label || "default",
+                },
+              )}
             </div>
-            <div className="settings-description" style={{ marginBottom: 0 }}>
-              {activeProfile?.userDataDir || "Using the default data directory."}
+            <div className="settings-description profile-settings-card-path">
+              {activeProfile?.userDataDir ||
+                translate(
+                  "profileSettings.defaultDirectory",
+                  "Using the default data directory.",
+                )}
             </div>
           </div>
-          <span className="settings-badge">{activeProfile?.id || "default"}</span>
+          <span className="settings-badge">
+            {activeProfile?.id || "default"}
+          </span>
         </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 12,
-          marginBottom: 16,
-        }}
-      >
+      <div className="profile-settings-list">
         {profiles.map((profile) => (
           <div
             key={profile.id}
             className={`settings-card ${profile.isActive ? "is-selected" : ""}`}
-            style={{ display: "flex", flexDirection: "column", gap: 12 }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "start" }}>
+            <div className="profile-settings-card-header">
               <div>
-                <div style={{ fontWeight: 600 }}>{profile.label}</div>
-                <div className="settings-description" style={{ marginBottom: 0 }}>
+                <div className="profile-settings-card-title">
+                  {profile.label}
+                </div>
+                <div className="settings-description profile-settings-card-path">
                   {profile.userDataDir}
                 </div>
               </div>
-              <span className="settings-badge">{profile.isDefault ? "Default" : profile.id}</span>
+              <span className="settings-badge">
+                {profile.isDefault
+                  ? translate("profileSettings.default", "Default")
+                  : profile.id}
+              </span>
             </div>
-            <button
-              type="button"
-              className={profile.isActive ? "button-secondary" : "button-primary"}
-              onClick={() => void handleSwitch(profile.id)}
-              disabled={busy || profile.isActive}
-            >
-              {profile.isActive ? "Current Profile" : "Switch Profile"}
-            </button>
-            <button
-              type="button"
-              className="button-secondary"
-              onClick={() => void handleExport(profile.id)}
-              disabled={busy}
-            >
-              Export
-            </button>
+            <div className="profile-settings-actions">
+              <div className="profile-settings-action-row">
+                <span className="profile-settings-action-label">
+                  <LogIn size={16} aria-hidden="true" />
+                  {profile.isActive
+                    ? translate(
+                        "profileSettings.currentProfile",
+                        "Current Profile",
+                      )
+                    : translate(
+                        "profileSettings.switchProfile",
+                        "Switch Profile",
+                      )}
+                </span>
+                <button
+                  type="button"
+                  className={
+                    profile.isActive ? "button-secondary" : "button-primary"
+                  }
+                  onClick={() => void handleSwitch(profile.id)}
+                  disabled={busy || profile.isActive}
+                >
+                  {profile.isActive
+                    ? translate(
+                        "profileSettings.currentProfile",
+                        "Current Profile",
+                      )
+                    : translate(
+                        "profileSettings.switchProfile",
+                        "Switch Profile",
+                      )}
+                </button>
+              </div>
+              <div className="profile-settings-action-row">
+                <span className="profile-settings-action-label">
+                  <Download size={16} aria-hidden="true" />
+                  {translate("profileSettings.export", "Export")}
+                </span>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => void handleExport(profile.id)}
+                  disabled={busy}
+                >
+                  {translate("profileSettings.export", "Export")}
+                </button>
+              </div>
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="settings-card">
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>Create profile</div>
+      <div className="profile-settings-form">
+        <div className="profile-settings-form-title">
+          {translate("profileSettings.create.title", "Create profile")}
+        </div>
         <p className="settings-description">
-          Enter a label like `work`, `personal`, or a project/team name. The storage path is created
-          automatically.
+          {translate(
+            "profileSettings.create.description",
+            "Enter a label like `work`, `personal`, or a project/team name. The storage path is created automatically.",
+          )}
         </p>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div className="profile-settings-form-controls">
           <input
             type="text"
             value={newProfileName}
             onChange={(event) => setNewProfileName(event.target.value)}
-            placeholder="New profile name"
+            placeholder={translate(
+              "profileSettings.create.placeholder",
+              "New profile name",
+            )}
             disabled={busy}
-            style={{ flex: "1 1 240px" }}
           />
           <button
             type="button"
@@ -187,38 +305,49 @@ export function ProfileSettings() {
             onClick={() => void handleCreate()}
             disabled={busy || newProfileName.trim().length === 0}
           >
-            Create
+            {translate("profileSettings.create.action", "Create")}
           </button>
         </div>
         {status ? (
-          <p className="settings-description" style={{ marginTop: 12, marginBottom: 0 }}>
+          <p className="settings-description profile-settings-feedback">
             {status}
           </p>
         ) : null}
         {error ? (
-          <p className="settings-description" style={{ marginTop: 12, marginBottom: 0, color: "var(--color-danger)" }}>
+          <p className="settings-description profile-settings-feedback profile-settings-feedback-error">
             {error}
           </p>
         ) : null}
       </div>
 
-      <div className="settings-card" style={{ marginTop: 16 }}>
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>Import profile</div>
+      <div className="profile-settings-form">
+        <div className="profile-settings-form-title">
+          {translate("profileSettings.import.title", "Import profile")}
+        </div>
         <p className="settings-description">
-          Pick a previously exported profile folder. Leave the name blank to reuse the imported
-          profile label.
+          {translate(
+            "profileSettings.import.description",
+            "Pick a previously exported profile folder. Leave the name blank to reuse the imported profile label.",
+          )}
         </p>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div className="profile-settings-form-controls">
           <input
             type="text"
             value={importProfileName}
             onChange={(event) => setImportProfileName(event.target.value)}
-            placeholder="Optional profile name override"
+            placeholder={translate(
+              "profileSettings.import.placeholder",
+              "Optional profile name override",
+            )}
             disabled={busy}
-            style={{ flex: "1 1 240px" }}
           />
-          <button type="button" className="button-secondary" onClick={() => void handleImport()} disabled={busy}>
-            Import
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => void handleImport()}
+            disabled={busy}
+          >
+            {translate("profileSettings.import.action", "Import")}
           </button>
         </div>
       </div>

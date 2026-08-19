@@ -1,5 +1,11 @@
 import type { AgentCapability } from "../../electron/preload";
+import { translate, useLanguage } from "../i18n";
 import { resolveTwinIcon } from "../utils/twin-icons";
+import {
+  getLocalizedAgentCapability,
+  getLocalizedAgentRoleText,
+  getLocalizedAutonomyLabel,
+} from "../utils/localized-agent-roles";
 
 interface PersonaTemplateData {
   id: string;
@@ -24,32 +30,24 @@ interface PersonaTemplateData {
 
 export type { PersonaTemplateData };
 
-const CAPABILITY_LABELS: Record<string, string> = {
-  code: "Code",
-  review: "Review",
-  research: "Research",
-  test: "Test",
-  document: "Document",
-  plan: "Plan",
-  design: "Design",
-  analyze: "Analyze",
-  ops: "DevOps",
-  security: "Security",
-  write: "Write",
-  communicate: "Communicate",
-  market: "Marketing",
-  manage: "Manage",
-  product: "Product",
-};
-
 interface PersonaTemplateCardProps {
   template: PersonaTemplateData;
   onActivate: (template: PersonaTemplateData) => void;
 }
 
-export function PersonaTemplateCard({ template, onActivate }: PersonaTemplateCardProps) {
+export function PersonaTemplateCard({
+  template,
+  onActivate,
+}: PersonaTemplateCardProps) {
+  useLanguage();
+  const t = translate;
   const capabilities = template.role?.capabilities ?? [];
   const skills = template.skills ?? [];
+  const localizedTemplate = getLocalizedAgentRoleText({
+    name: template.id,
+    displayName: template.name,
+    description: template.description,
+  });
 
   return (
     <div className="pt-card" onClick={() => onActivate(template)}>
@@ -60,25 +58,36 @@ export function PersonaTemplateCard({ template, onActivate }: PersonaTemplateCar
             return <Icon size={18} strokeWidth={2} />;
           })()}
         </span>
-        <span className="pt-card-name">{template.name}</span>
+        <span className="pt-card-name">{localizedTemplate.name}</span>
       </div>
 
-      <p className="pt-card-description">{template.description}</p>
+      <p className="pt-card-description">{localizedTemplate.description}</p>
 
       <div className="pt-card-tags">
         {capabilities.slice(0, 4).map((cap) => (
           <span key={cap} className="pt-tag">
-            {CAPABILITY_LABELS[cap] || cap}
+            {getLocalizedAgentCapability(cap)}
           </span>
         ))}
-        {capabilities.length > 4 && <span className="pt-tag">+{capabilities.length - 4}</span>}
+        {capabilities.length > 4 && (
+          <span className="pt-tag">+{capabilities.length - 4}</span>
+        )}
       </div>
 
       <div className="pt-card-footer">
         <span className="pt-card-meta">
-          Persona preset &middot; {skills.length} skills &middot; {template.role.autonomyLevel}
+          {t(
+            "personaTemplates.presetMeta",
+            "Persona preset · {count} skills · {level}",
+            {
+              count: skills.length,
+              level: getLocalizedAutonomyLabel(template.role.autonomyLevel),
+            },
+          )}
         </span>
-        <span className="pt-card-action">Activate &rarr;</span>
+        <span className="pt-card-action">
+          {t("personaTemplates.activateAction", "Activate ->")}
+        </span>
       </div>
     </div>
   );

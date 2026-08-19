@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import type { TaskEvent } from "../../../../shared/types";
+import { applyPersistedLanguage } from "../../../i18n";
 import { ActionBlock, buildActionBlockSummary } from "../ActionBlock";
 
 function toolEvent(id: string, tool: string, timestamp: number): TaskEvent {
@@ -16,7 +17,12 @@ function toolEvent(id: string, tool: string, timestamp: number): TaskEvent {
   } as TaskEvent;
 }
 
-function event(id: string, type: string, timestamp: number, payload: Record<string, unknown> = {}): TaskEvent {
+function event(
+  id: string,
+  type: string,
+  timestamp: number,
+  payload: Record<string, unknown> = {},
+): TaskEvent {
   return {
     id,
     taskId: "task-1",
@@ -28,6 +34,10 @@ function event(id: string, type: string, timestamp: number, payload: Record<stri
 }
 
 describe("buildActionBlockSummary", () => {
+  beforeEach(() => {
+    applyPersistedLanguage("en");
+  });
+
   it("uses a command icon for file reads with command activity", () => {
     const summary = buildActionBlockSummary([
       toolEvent("read", "read_file", 1000),
@@ -94,24 +104,32 @@ describe("buildActionBlockSummary", () => {
     expect(summary.summary).toBe("2 web lookups");
   });
 
+  it("does not count long idle gaps as execution time", () => {
+    const summary = buildActionBlockSummary([
+      toolEvent("search-1", "web_search", 1_000),
+      toolEvent("search-2", "web_search", 2_000),
+      toolEvent("search-3", "web_search", 90 * 60 * 1_000),
+      toolEvent("search-4", "web_search", 90 * 60 * 1_000 + 2_000),
+    ]);
+
+    expect(summary.durationMs).toBe(3_000);
+  });
+
   it("renders generation blocks with a sparkles glyph instead of the generic work circle", () => {
     const html = renderToStaticMarkup(
-      createElement(
-        ActionBlock,
-        {
-          blockId: "generate-block",
-          summary: "1 step",
-          iconKind: "generate",
-          stepCount: 1,
-          toolCallCount: 0,
-          durationMs: 0,
-          outputTokens: 0,
-          isActive: false,
-          expanded: false,
-          onToggle: () => {},
-          children: createElement("span", null, "generate"),
-        },
-      ),
+      createElement(ActionBlock, {
+        blockId: "generate-block",
+        summary: "1 step",
+        iconKind: "generate",
+        stepCount: 1,
+        toolCallCount: 0,
+        durationMs: 0,
+        outputTokens: 0,
+        isActive: false,
+        expanded: false,
+        onToggle: () => {},
+        children: createElement("span", null, "generate"),
+      }),
     );
 
     expect(html).toContain("lucide-sparkles");
@@ -120,22 +138,19 @@ describe("buildActionBlockSummary", () => {
 
   it("renders generic work blocks with activity glyph instead of circle-dot", () => {
     const html = renderToStaticMarkup(
-      createElement(
-        ActionBlock,
-        {
-          blockId: "work-block",
-          summary: "Working...",
-          iconKind: "work",
-          stepCount: 1,
-          toolCallCount: 0,
-          durationMs: 0,
-          outputTokens: 0,
-          isActive: true,
-          expanded: true,
-          onToggle: () => {},
-          children: createElement("span", null, "Working..."),
-        },
-      ),
+      createElement(ActionBlock, {
+        blockId: "work-block",
+        summary: "Working...",
+        iconKind: "work",
+        stepCount: 1,
+        toolCallCount: 0,
+        durationMs: 0,
+        outputTokens: 0,
+        isActive: true,
+        expanded: true,
+        onToggle: () => {},
+        children: createElement("span", null, "Working..."),
+      }),
     );
 
     expect(html).toContain("lucide-activity");

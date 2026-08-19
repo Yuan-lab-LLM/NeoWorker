@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChannelData, ChannelUserData, SecurityMode } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 interface ImessageSettingsProps {
   onStatusChange?: (connected: boolean) => void;
@@ -9,12 +10,17 @@ type DmPolicy = "open" | "allowlist" | "pairing" | "disabled";
 type GroupPolicy = "open" | "allowlist" | "disabled";
 
 export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
+  useLanguage();
+  const t = translate;
   const [channel, setChannel] = useState<ChannelData | null>(null);
   const [users, setUsers] = useState<ChannelUserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    error?: string;
+  } | null>(null);
 
   // Form state
   const [channelName, setChannelName] = useState("iMessage");
@@ -38,7 +44,9 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
     try {
       setLoading(true);
       const channels = await window.electronAPI.getGatewayChannels();
-      const imessageChannel = channels.find((c: ChannelData) => c.type === "imessage");
+      const imessageChannel = channels.find(
+        (c: ChannelData) => c.type === "imessage",
+      );
 
       if (imessageChannel) {
         setChannel(imessageChannel);
@@ -50,17 +58,28 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
         if (imessageChannel.config) {
           setCliPath((imessageChannel.config.cliPath as string) || "");
           setDbPath((imessageChannel.config.dbPath as string) || "");
-          setDmPolicy((imessageChannel.config.dmPolicy as DmPolicy) || "pairing");
-          setGroupPolicy((imessageChannel.config.groupPolicy as GroupPolicy) || "allowlist");
-          const contacts = (imessageChannel.config.allowedContacts as string[]) || [];
+          setDmPolicy(
+            (imessageChannel.config.dmPolicy as DmPolicy) || "pairing",
+          );
+          setGroupPolicy(
+            (imessageChannel.config.groupPolicy as GroupPolicy) || "allowlist",
+          );
+          const contacts =
+            (imessageChannel.config.allowedContacts as string[]) || [];
           setAllowedContacts(contacts.join(", "));
           setAmbientMode(Boolean(imessageChannel.config.ambientMode));
-          setSilentUnauthorized(Boolean(imessageChannel.config.silentUnauthorized));
-          setCaptureSelfMessages(Boolean(imessageChannel.config.captureSelfMessages));
+          setSilentUnauthorized(
+            Boolean(imessageChannel.config.silentUnauthorized),
+          );
+          setCaptureSelfMessages(
+            Boolean(imessageChannel.config.captureSelfMessages),
+          );
         }
 
         // Load users for this channel
-        const channelUsers = await window.electronAPI.getGatewayUsers(imessageChannel.id);
+        const channelUsers = await window.electronAPI.getGatewayUsers(
+          imessageChannel.id,
+        );
         setUsers(channelUsers);
       }
     } catch (error) {
@@ -156,7 +175,14 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
   const handleRemoveChannel = async () => {
     if (!channel) return;
 
-    if (!confirm("Are you sure you want to remove the iMessage channel?")) {
+    if (
+      !confirm(
+        t(
+          "imessage.confirm.remove",
+          "Are you sure you want to remove the iMessage channel?",
+        ),
+      )
+    ) {
       return;
     }
 
@@ -206,7 +232,10 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
     if (!channel) return;
 
     try {
-      const code = await window.electronAPI.generateGatewayPairing(channel.id, "");
+      const code = await window.electronAPI.generateGatewayPairing(
+        channel.id,
+        "",
+      );
       setPairingCode(code);
     } catch (error: Any) {
       console.error("Failed to generate pairing code:", error);
@@ -229,14 +258,23 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
       <div className="imessage-settings">
         <div className="settings-section">
           <h3>iMessage</h3>
-          <div className="settings-warning">iMessage integration is only available on macOS.</div>
+          <div className="settings-warning">
+            {t(
+              "imessage.macOnly",
+              "iMessage integration is only available on macOS.",
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
   if (loading) {
-    return <div className="settings-loading">Loading iMessage settings...</div>;
+    return (
+      <div className="settings-loading">
+        {t("imessage.loading", "Loading iMessage settings...")}
+      </div>
+    );
   }
 
   // No channel configured yet
@@ -244,46 +282,76 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
     return (
       <div className="imessage-settings">
         <div className="settings-section">
-          <h3>Connect iMessage</h3>
+          <h3>{t("imessage.connect.title", "Connect iMessage")}</h3>
           <p className="settings-description">
-            Connect iMessage to receive and send messages. Requires the imsg CLI tool and macOS
-            permissions.
+            {t(
+              "imessage.connect.description",
+              "Connect iMessage to receive and send messages. Requires the imsg CLI tool and macOS permissions.",
+            )}
           </p>
 
           <div className="settings-callout info">
-            <strong>Setup Instructions:</strong>
+            <strong>
+              {t("channels.setupInstructions", "Setup Instructions")}:
+            </strong>
             <ol style={{ margin: "8px 0 0 0", paddingLeft: "20px" }}>
               <li style={{ marginBottom: "8px" }}>
-                <strong>Install imsg CLI:</strong>
+                <strong>
+                  {t("imessage.setup.installCli", "Install imsg CLI")}:
+                </strong>
                 <br />
                 <code style={{ display: "inline-block", marginTop: "4px" }}>
                   brew install steipete/tap/imsg
                 </code>
               </li>
               <li style={{ marginBottom: "8px" }}>
-                <strong>Grant Full Disk Access:</strong>
+                <strong>
+                  {t("imessage.setup.fullDiskAccess", "Grant Full Disk Access")}
+                  :
+                </strong>
                 <br />
                 <span style={{ fontSize: "13px" }}>
-                  imsg needs Full Disk Access to read the Messages database.
+                  {t(
+                    "imessage.setup.fullDiskHint",
+                    "imsg needs Full Disk Access to read the Messages database.",
+                  )}
                   <br />
-                  Open <strong>System Settings → Privacy & Security → Full Disk Access</strong>
+                  {t("imessage.setup.open", "Open")}{" "}
+                  <strong>
+                    {t(
+                      "imessage.setup.fullDiskPath",
+                      "System Settings → Privacy & Security → Full Disk Access",
+                    )}
+                  </strong>
                   <br />
-                  Enable access for your <strong>Terminal</strong> application (or CoWork OS if
-                  running as app)
+                  {t(
+                    "imessage.setup.enableAccessPrefix",
+                    "Enable access for your",
+                  )}{" "}
+                  <strong>Terminal</strong>{" "}
+                  {t(
+                    "imessage.setup.enableAccessSuffix",
+                    "application (or NeoWorker if running as app)",
+                  )}
                 </span>
               </li>
               <li style={{ marginBottom: "8px" }}>
-                <strong>Sign into Messages:</strong>
+                <strong>
+                  {t("imessage.setup.signIn", "Sign into Messages")}:
+                </strong>
                 <br />
                 <span style={{ fontSize: "13px" }}>
-                  Open the Messages app and sign in with your Apple ID
+                  {t(
+                    "imessage.setup.openMessages",
+                    "Open the Messages app and sign in with your Apple ID",
+                  )}
                 </span>
               </li>
             </ol>
           </div>
 
           <div className="settings-field">
-            <label>Channel Name</label>
+            <label>{t("channels.channelName", "Channel Name")}</label>
             <input
               type="text"
               className="settings-input"
@@ -294,53 +362,88 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
           </div>
 
           <div className="settings-field">
-            <label>Security Mode</label>
+            <label>{t("channels.securityMode", "Security Mode")}</label>
             <select
               className="settings-select"
               value={securityMode}
               onChange={(e) => setSecurityMode(e.target.value as SecurityMode)}
             >
-              <option value="open">Open (anyone can message)</option>
-              <option value="allowlist">Allowlist (specific contacts only)</option>
-              <option value="pairing">Pairing (require code to connect)</option>
+              <option value="open">
+                {t("channels.security.openAny", "Open (anyone can message)")}
+              </option>
+              <option value="allowlist">
+                {t(
+                  "imessage.security.allowlistContacts",
+                  "Allowlist (specific contacts only)",
+                )}
+              </option>
+              <option value="pairing">
+                {t(
+                  "channels.security.pairingRequired",
+                  "Pairing (require code to connect)",
+                )}
+              </option>
             </select>
-            <p className="settings-hint">Controls who can interact with your bot via iMessage</p>
+            <p className="settings-hint">
+              {t(
+                "imessage.security.hint",
+                "Controls who can interact with your bot via iMessage",
+              )}
+            </p>
           </div>
 
           <div className="settings-field">
-            <label>DM Policy</label>
+            <label>{t("channels.dmPolicy", "DM Policy")}</label>
             <select
               className="settings-select"
               value={dmPolicy}
               onChange={(e) => setDmPolicy(e.target.value as DmPolicy)}
             >
-              <option value="open">Open</option>
-              <option value="allowlist">Allowlist</option>
-              <option value="pairing">Pairing (default)</option>
-              <option value="disabled">Disabled</option>
+              <option value="open">
+                {t("channels.security.open", "Open")}
+              </option>
+              <option value="allowlist">
+                {t("channels.security.allowlist", "Allowlist")}
+              </option>
+              <option value="pairing">
+                {t("channels.security.pairingDefault", "Pairing (default)")}
+              </option>
+              <option value="disabled">
+                {t("common.disabled", "Disabled")}
+              </option>
             </select>
-            <p className="settings-hint">How to handle direct messages</p>
+            <p className="settings-hint">
+              {t("channels.dmPolicy.hint", "How to handle direct messages")}
+            </p>
           </div>
 
           <div className="settings-field">
-            <label>Group Policy</label>
+            <label>{t("channels.groupPolicy", "Group Policy")}</label>
             <select
               className="settings-select"
               value={groupPolicy}
               onChange={(e) => setGroupPolicy(e.target.value as GroupPolicy)}
             >
-              <option value="open">Open</option>
-              <option value="allowlist">Allowlist (default)</option>
-              <option value="disabled">Disabled</option>
+              <option value="open">
+                {t("channels.security.open", "Open")}
+              </option>
+              <option value="allowlist">
+                {t("channels.security.allowlistDefault", "Allowlist (default)")}
+              </option>
+              <option value="disabled">
+                {t("common.disabled", "Disabled")}
+              </option>
             </select>
-            <p className="settings-hint">How to handle group messages</p>
+            <p className="settings-hint">
+              {t("channels.groupPolicy.hint", "How to handle group messages")}
+            </p>
           </div>
 
           {(securityMode === "allowlist" ||
             dmPolicy === "allowlist" ||
             groupPolicy === "allowlist") && (
             <div className="settings-field">
-              <label>Allowed Contacts</label>
+              <label>{t("imessage.allowedContacts", "Allowed Contacts")}</label>
               <input
                 type="text"
                 className="settings-input"
@@ -349,13 +452,16 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
                 onChange={(e) => setAllowedContacts(e.target.value)}
               />
               <p className="settings-hint">
-                Comma-separated phone numbers (E.164) or email addresses
+                {t(
+                  "imessage.allowedContactsHint",
+                  "Comma-separated phone numbers (E.164) or email addresses",
+                )}
               </p>
             </div>
           )}
 
           <div className="settings-field">
-            <label>CLI Path (optional)</label>
+            <label>{t("imessage.cliPath", "CLI Path (optional)")}</label>
             <input
               type="text"
               className="settings-input"
@@ -363,11 +469,16 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
               value={cliPath}
               onChange={(e) => setCliPath(e.target.value)}
             />
-            <p className="settings-hint">Path to the imsg CLI. Leave empty to use default.</p>
+            <p className="settings-hint">
+              {t(
+                "imessage.cliPathHint",
+                "Path to the imsg CLI. Leave empty to use default.",
+              )}
+            </p>
           </div>
 
           <div className="settings-field">
-            <label>Database Path (optional)</label>
+            <label>{t("imessage.dbPath", "Database Path (optional)")}</label>
             <input
               type="text"
               className="settings-input"
@@ -376,13 +487,18 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
               onChange={(e) => setDbPath(e.target.value)}
             />
             <p className="settings-hint">
-              Path to Messages database. Leave empty for default location.
+              {t(
+                "imessage.dbPathHint",
+                "Path to Messages database. Leave empty for default location.",
+              )}
             </p>
           </div>
 
           <div className="settings-field">
             <div className="settings-checkbox-label">
-              <span>Ambient Mode (Log-Only)</span>
+              <span>
+                {t("imessage.ambientMode", "Ambient Mode (Log-Only)")}
+              </span>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -393,14 +509,18 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
               </label>
             </div>
             <p className="settings-hint">
-              When enabled, iMessage messages are ingested into the local log but only commands
-              (messages starting with "/") are processed.
+              {t(
+                "imessage.ambientModeHint",
+                'When enabled, iMessage messages are ingested into the local log but only commands (messages starting with "/") are processed.',
+              )}
             </p>
           </div>
 
           <div className="settings-field">
             <div className="settings-checkbox-label">
-              <span>Capture Self Messages</span>
+              <span>
+                {t("imessage.captureSelfMessages", "Capture Self Messages")}
+              </span>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -411,14 +531,18 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
               </label>
             </div>
             <p className="settings-hint">
-              Ingest messages sent by the local Messages account into the log (as outgoing_user) for
-              better follow-up extraction.
+              {t(
+                "imessage.captureSelfMessagesHint",
+                "Ingest messages sent by the local Messages account into the log (as outgoing_user) for better follow-up extraction.",
+              )}
             </p>
           </div>
 
           <div className="settings-field">
             <div className="settings-checkbox-label">
-              <span>Silent Unauthorized</span>
+              <span>
+                {t("channels.silentUnauthorized", "Silent Unauthorized")}
+              </span>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -429,14 +553,23 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
               </label>
             </div>
             <p className="settings-hint">
-              Do not send "pairing required" or "unauthorized" replies (useful for ambient
-              ingestion).
+              {t(
+                "channels.silentUnauthorizedHint",
+                'Do not send "pairing required" or "unauthorized" replies (useful for ambient ingestion).',
+              )}
             </p>
           </div>
 
           {testResult && (
-            <div className={`settings-callout ${testResult.success ? "success" : "error"}`}>
-              {testResult.success ? "Connection successful!" : testResult.error}
+            <div
+              className={`settings-callout ${testResult.success ? "success" : "error"}`}
+            >
+              {testResult.success
+                ? t(
+                    "channels.connectionSuccessfulPlain",
+                    "Connection successful!",
+                  )
+                : testResult.error}
             </div>
           )}
 
@@ -445,7 +578,9 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
             onClick={handleAddChannel}
             disabled={saving || !channelName.trim()}
           >
-            {saving ? "Connecting..." : "Connect iMessage"}
+            {saving
+              ? t("channels.connecting", "Connecting...")
+              : t("imessage.connect.action", "Connect iMessage")}
           </button>
         </div>
       </div>
@@ -457,24 +592,33 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
     <div className="imessage-settings">
       <div className="settings-section">
         <h3>iMessage</h3>
-        <p className="settings-description">Manage your iMessage connection and access settings.</p>
+        <p className="settings-description">
+          {t(
+            "imessage.manage.description",
+            "Manage your iMessage connection and access settings.",
+          )}
+        </p>
 
         <div className="settings-status">
           <div className="status-row">
-            <span className="status-label">Status:</span>
+            <span className="status-label">
+              {t("common.status", "Status")}:
+            </span>
             <span className={`status-value status-${channel.status}`}>
               {channel.status === "connected"
-                ? "Connected"
+                ? t("channels.status.connected", "Connected")
                 : channel.status === "connecting"
-                  ? "Connecting..."
+                  ? t("channels.status.connecting", "Connecting...")
                   : channel.status === "error"
-                    ? "Error"
-                    : "Disconnected"}
+                    ? t("channels.status.error", "Error")
+                    : t("channels.status.disconnected", "Disconnected")}
             </span>
           </div>
           {channel.botUsername && (
             <div className="status-row">
-              <span className="status-label">Account:</span>
+              <span className="status-label">
+                {t("imessage.account", "Account")}:
+              </span>
               <span className="status-value">{channel.botUsername}</span>
             </div>
           )}
@@ -486,7 +630,11 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
             onClick={handleToggleEnabled}
             disabled={saving}
           >
-            {saving ? "Updating..." : channel.enabled ? "Disable" : "Enable"}
+            {saving
+              ? t("channels.updating", "Updating...")
+              : channel.enabled
+                ? t("channels.disable", "Disable")
+                : t("channels.enable", "Enable")}
           </button>
 
           <button
@@ -494,7 +642,9 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
             onClick={handleTestConnection}
             disabled={testing || !channel.enabled}
           >
-            {testing ? "Testing..." : "Test Connection"}
+            {testing
+              ? t("channels.testing", "Testing...")
+              : t("channels.testConnection", "Test Connection")}
           </button>
 
           <button
@@ -502,46 +652,73 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
             onClick={handleRemoveChannel}
             disabled={saving}
           >
-            Remove Channel
+            {t("channels.removeChannel", "Remove Channel")}
           </button>
         </div>
 
         {testResult && (
-          <div className={`settings-callout ${testResult.success ? "success" : "error"}`}>
-            {testResult.success ? "Connection test successful!" : testResult.error}
+          <div
+            className={`settings-callout ${testResult.success ? "success" : "error"}`}
+          >
+            {testResult.success
+              ? t(
+                  "channels.connectionTestSuccessful",
+                  "Connection test successful!",
+                )
+              : testResult.error}
           </div>
         )}
       </div>
 
       <div className="settings-section">
-        <h4>Security Settings</h4>
+        <h4>{t("channels.securitySettings", "Security Settings")}</h4>
 
         <div className="settings-field">
-          <label>Security Mode</label>
+          <label>{t("channels.securityMode", "Security Mode")}</label>
           <select
             className="settings-select"
             value={securityMode}
-            onChange={(e) => handleUpdateSecurityMode(e.target.value as SecurityMode)}
+            onChange={(e) =>
+              handleUpdateSecurityMode(e.target.value as SecurityMode)
+            }
           >
-            <option value="open">Open (anyone can message)</option>
-            <option value="allowlist">Allowlist (specific contacts only)</option>
-            <option value="pairing">Pairing (require code to connect)</option>
+            <option value="open">
+              {t("channels.security.openAny", "Open (anyone can message)")}
+            </option>
+            <option value="allowlist">
+              {t(
+                "imessage.security.allowlistContacts",
+                "Allowlist (specific contacts only)",
+              )}
+            </option>
+            <option value="pairing">
+              {t(
+                "channels.security.pairingRequired",
+                "Pairing (require code to connect)",
+              )}
+            </option>
           </select>
         </div>
 
         {securityMode === "pairing" && (
           <div className="settings-field">
-            <label>Pairing Code</label>
+            <label>{t("channels.security.pairingCode", "Pairing Code")}</label>
             {pairingCode ? (
               <div className="pairing-code">
                 <code>{pairingCode}</code>
                 <p className="settings-hint">
-                  Share this code with users who want to connect. It expires in 5 minutes.
+                  {t(
+                    "channels.pairing.shareCodeHint",
+                    "Share this code with users who want to connect. It expires in 5 minutes.",
+                  )}
                 </p>
               </div>
             ) : (
-              <button className="settings-button" onClick={handleGeneratePairingCode}>
-                Generate Pairing Code
+              <button
+                className="settings-button"
+                onClick={handleGeneratePairingCode}
+              >
+                {t("channels.pairing.generateTitle", "Generate Pairing Code")}
               </button>
             )}
           </div>
@@ -549,11 +726,11 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
       </div>
 
       <div className="settings-section">
-        <h4>Ambient Inbox</h4>
+        <h4>{t("imessage.ambientInbox", "Ambient Inbox")}</h4>
 
         <div className="settings-field">
           <div className="settings-checkbox-label">
-            <span>Ambient Mode (Log-Only)</span>
+            <span>{t("imessage.ambientMode", "Ambient Mode (Log-Only)")}</span>
             <label className="settings-toggle">
               <input
                 type="checkbox"
@@ -567,14 +744,18 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
             </label>
           </div>
           <p className="settings-hint">
-            Ingest messages into the local log, but only process explicit commands (messages
-            starting with "/").
+            {t(
+              "imessage.ambientInboxHint",
+              'Ingest messages into the local log, but only process explicit commands (messages starting with "/").',
+            )}
           </p>
         </div>
 
         <div className="settings-field">
           <div className="settings-checkbox-label">
-            <span>Capture Self Messages</span>
+            <span>
+              {t("imessage.captureSelfMessages", "Capture Self Messages")}
+            </span>
             <label className="settings-toggle">
               <input
                 type="checkbox"
@@ -588,14 +769,18 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
             </label>
           </div>
           <p className="settings-hint">
-            Ingest messages sent by the local Messages account (direction=outgoing_user). These are
-            log-only to avoid loops.
+            {t(
+              "imessage.captureSelfMessagesManageHint",
+              "Ingest messages sent by the local Messages account (direction=outgoing_user). These are log-only to avoid loops.",
+            )}
           </p>
         </div>
 
         <div className="settings-field">
           <div className="settings-checkbox-label">
-            <span>Silent Unauthorized</span>
+            <span>
+              {t("channels.silentUnauthorized", "Silent Unauthorized")}
+            </span>
             <label className="settings-toggle">
               <input
                 type="checkbox"
@@ -608,13 +793,18 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
               <span className="toggle-slider" />
             </label>
           </div>
-          <p className="settings-hint">Do not send "pairing required" / "unauthorized" replies.</p>
+          <p className="settings-hint">
+            {t(
+              "channels.silentUnauthorizedShortHint",
+              'Do not send "pairing required" / "unauthorized" replies.',
+            )}
+          </p>
         </div>
       </div>
 
       {users.length > 0 && (
         <div className="settings-section">
-          <h4>Authorized Users</h4>
+          <h4>{t("channels.authorizedUsers", "Authorized Users")}</h4>
           <div className="users-list">
             {users.map((user) => (
               <div key={user.id} className="user-item">
@@ -626,7 +816,7 @@ export function ImessageSettings({ onStatusChange }: ImessageSettingsProps) {
                   className="settings-button small danger"
                   onClick={() => handleRevokeAccess(user.channelUserId)}
                 >
-                  Revoke
+                  {t("channels.revoke", "Revoke")}
                 </button>
               </div>
             ))}

@@ -1,6 +1,6 @@
 """Stdlib fetch helper for simple url_pattern brokers (osint-style).
 
-For JS-rendered or anti-bot pages the agent should use CoWork web extraction,
+For JS-rendered or anti-bot pages the agent should use NeoWorker web extraction,
 browser automation, or stealth-capable browser/scraping tools where available.
 This helper only covers plain static pages and is intentionally network-light so
 it can be mocked in tests.

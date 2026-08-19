@@ -1,6 +1,6 @@
 # Context Compaction
 
-CoWork OS automatically manages conversation context to prevent token overflow during long-running tasks. When the context window fills up, the system generates a comprehensive structured summary of earlier work — preserving user messages, decisions, file changes, errors, and pending tasks — so the agent can continue seamlessly without losing critical context.
+NeoWorker automatically manages conversation context to prevent token overflow during long-running tasks. When the context window fills up, the system generates a comprehensive structured summary of earlier work — preserving user messages, decisions, file changes, errors, and pending tasks — so the agent can continue seamlessly without losing critical context.
 
 ## How It Works
 
@@ -45,7 +45,7 @@ The summary LLM call is allocated up to **6,144 output tokens** (~24 KB of struc
 
 ### Chat Mode History Strategy
 
-Explicit chat sessions use a different history strategy from task execution. Instead of letting the task pipeline grow with every follow-up, CoWork OS compacts long chat sessions into a cached summary plus a recent-message window, then reuses that summary on later turns.
+Explicit chat sessions use a different history strategy from task execution. Instead of letting the task pipeline grow with every follow-up, NeoWorker compacts long chat sessions into a cached summary plus a recent-message window, then reuses that summary on later turns.
 
 This keeps follow-up questions in the same conversation thread while still preserving enough older context for ChatGPT-style back-and-forth.
 
@@ -99,7 +99,7 @@ When compaction occurs, the task timeline shows a **"Session context compacted"*
 
 ### Overflow Guard
 
-After the summary is generated, CoWork OS checks whether inserting it would push context back above 95% utilization. If so, the summary is progressively truncated while preserving the handoff preamble and tag structure.
+After the summary is generated, NeoWorker checks whether inserting it would push context back above 95% utilization. If so, the summary is progressively truncated while preserving the handoff preamble and tag structure.
 
 ### Reactive Fallback
 
@@ -107,7 +107,7 @@ If a single message pushes context past 100% without triggering the 90% proactiv
 
 ### Memory Persistence
 
-Every compaction summary is flushed to the MemoryService and (if available) the workspace `.cowork/` daily log. This provides durable backup even if the in-context summary is later dropped by a subsequent compaction.
+Every compaction summary is flushed to the MemoryService and (if available) the workspace `.neoworker/` daily log. This provides durable backup even if the in-context summary is later dropped by a subsequent compaction.
 
 When **Durable Runtime Context** is enabled, compaction summaries are also recorded in the durable
 runtime-context tables with links back to the source messages they summarize. Overlapping summaries
@@ -117,7 +117,7 @@ summaries later in the same active task with `context_grep` and expand source li
 
 ### Pinned Messages
 
-The compaction summary is stored as a **pinned message** with the `<cowork_compaction_summary>` tag. Pinned messages survive future compaction rounds — they are never removed by the message-removal strategy.
+The compaction summary is stored as a **pinned message** with the `<neoworker_compaction_summary>` tag. Pinned messages survive future compaction rounds — they are never removed by the message-removal strategy.
 
 ## Task Runtime Snapshots
 
@@ -169,7 +169,7 @@ Compaction behavior is controlled by constants in `src/electron/agent/executor-h
 
 ## Comparison with Other Tools
 
-| Feature | CoWork OS | Codex CLI | Higher-threshold CLI |
+| Feature | NeoWorker | Codex CLI | Higher-threshold CLI |
 |---|---|---|---|
 | Trigger threshold | 90% | 90% | ~95% |
 | Summary budget | 6,144 tokens | Unlimited | Undisclosed (~3-5K observed) |
@@ -202,7 +202,7 @@ Compaction behavior is controlled by constants in `src/electron/agent/executor-h
 3. **Proactive compaction** — At 90% utilization, `proactiveCompactWithMeta()` compacts to 55%
 4. **Summary generation** — `buildCompactionSummaryBlock()` calls the LLM with the structured prompt
 5. **Overflow guard** — Ensures summary + remaining messages stay below 95%
-6. **Pinned insertion** — Summary upserted as a pinned `<cowork_compaction_summary>` user message
+6. **Pinned insertion** — Summary upserted as a pinned `<neoworker_compaction_summary>` user message
 7. **Memory flush** — Summary stored in MemoryService for cross-session recall
 8. **Durable context write** — If enabled, source messages and summary rows are stored in task-scoped durable runtime context
 9. **UI event** — `context_summarized` event emitted for timeline rendering

@@ -1,0 +1,3 @@
+import { n as e, t } from "./tally-3-DNIOQTNm-DA4vsmCg.js";
+t();
+export { e as default };

@@ -1,13 +1,28 @@
 import type { ApprovalRequest } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 function formatAccessLevel(level: unknown): string {
-  if (level === "full_control") return "Full control (click, type, keys)";
-  if (level === "click_only") return "Click only (no typing)";
-  if (level === "view_only") return "View only (screenshot & hover)";
-  return String(level ?? "unknown");
+  if (level === "full_control")
+    return translate(
+      "computerUseApproval.access.fullControl",
+      "Full control (click, type, keys)",
+    );
+  if (level === "click_only")
+    return translate(
+      "computerUseApproval.access.clickOnly",
+      "Click only (no typing)",
+    );
+  if (level === "view_only")
+    return translate(
+      "computerUseApproval.access.viewOnly",
+      "View only (screenshot & hover)",
+    );
+  return String(level ?? translate("common.unknown", "unknown"));
 }
 
-export function isComputerUseAppGrantApproval(approval: ApprovalRequest): boolean {
+export function isComputerUseAppGrantApproval(
+  approval: ApprovalRequest,
+): boolean {
   return (
     approval.type === "computer_use" &&
     approval.details &&
@@ -27,10 +42,15 @@ export function ComputerUseApprovalDialog({
   onAllowSession,
   onDeny,
 }: ComputerUseApprovalDialogProps) {
+  useLanguage();
+  const t = translate;
   if (!isComputerUseAppGrantApproval(approval)) {
     return null;
   }
-  const details = approval.details && typeof approval.details === "object" ? approval.details : {};
+  const details =
+    approval.details && typeof approval.details === "object"
+      ? approval.details
+      : {};
   const d = details as {
     appName?: string;
     bundleId?: string;
@@ -48,13 +68,15 @@ export function ComputerUseApprovalDialog({
         </div>
 
         <div className="session-approval-body">
-          <h3 className="session-approval-title">Computer use — app access</h3>
+          <h3 className="session-approval-title">
+            {t("computerUseApproval.title", "Computer use — app access")}
+          </h3>
           <p className="session-approval-prompt">{approval.description}</p>
 
           <dl className="session-approval-details">
             {d.appName ? (
               <>
-                <dt>App</dt>
+                <dt>{t("computerUseApproval.app", "App")}</dt>
                 <dd>{d.appName}</dd>
               </>
             ) : null}
@@ -68,40 +90,59 @@ export function ComputerUseApprovalDialog({
             ) : null}
             {d.requestedLevel ? (
               <>
-                <dt>Requested access</dt>
+                <dt>
+                  {t("computerUseApproval.requestedAccess", "Requested access")}
+                </dt>
                 <dd>{formatAccessLevel(d.requestedLevel)}</dd>
               </>
             ) : null}
             {d.riskClass ? (
               <>
-                <dt>Category</dt>
+                <dt>{t("computerUseApproval.category", "Category")}</dt>
                 <dd>{d.riskClass.replace(/_/g, " ")}</dd>
               </>
             ) : null}
             {d.reason ? (
               <>
-                <dt>Why</dt>
+                <dt>{t("computerUseApproval.why", "Why")}</dt>
                 <dd>{d.reason}</dd>
               </>
             ) : null}
           </dl>
 
           {d.sentinelWarning ? (
-            <p className="session-approval-sentinel-warning">{d.sentinelWarning}</p>
+            <p className="session-approval-sentinel-warning">
+              {d.sentinelWarning}
+            </p>
           ) : null}
 
           <p className="session-approval-footer-hint session-approval-footer-hint--center">
-            Grants apply only for this computer-use session. Press <kbd className="session-approval-kbd">Esc</kbd>{" "}
-            during control to stop.
+            {t(
+              "computerUseApproval.sessionGrantPrefix",
+              "Grants apply only for this computer-use session. Press",
+            )}{" "}
+            <kbd className="session-approval-kbd">Esc</kbd>{" "}
+            {t(
+              "computerUseApproval.sessionGrantSuffix",
+              "during control to stop.",
+            )}
           </p>
         </div>
 
         <div className="session-approval-actions">
-          <button type="button" className="session-approval-btn-deny" onClick={onDeny}>
-            Deny
+          <button
+            type="button"
+            className="session-approval-btn-deny"
+            onClick={onDeny}
+          >
+            {t("common.deny", "Deny")}
           </button>
-          <button type="button" className="session-approval-btn-allow" onClick={onAllowSession}>
-            Allow for this session
+          <button
+            type="button"
+            className="session-approval-btn-allow"
+            onClick={onAllowSession}
+          >
+            {t("computerUseApproval.allowSession", "Allow for this session")}
           </button>
         </div>
       </div>

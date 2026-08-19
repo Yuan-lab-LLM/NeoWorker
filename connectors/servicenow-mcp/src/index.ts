@@ -156,7 +156,7 @@ class ServiceNowClient {
       headers: {
         Authorization: this.getAuthHeader(),
         'Content-Type': 'application/json',
-        'User-Agent': 'CoWork-ServiceNow-Connector/0.1.0',
+        'User-Agent': 'NeoWorker-ServiceNow-Connector/0.1.0',
       },
       body: body ? JSON.stringify(body) : undefined,
     });

@@ -16,20 +16,23 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { FocusedCard } from "./main-content-types";
+import { isProductIntegrationVisible } from "../../utils/product-availability";
 import {
   LLM_WIKI_GUI_PROMPT,
   LLM_WIKI_EXPLORE_GUI_PROMPT,
 } from "../../../shared/starter-missions";
 
-export const EXECUTION_MODE_ORDER: ExecutionMode[] = ["chat", "execute", "plan", "analyze", "debug", "verified"];
+export const EXECUTION_MODE_ORDER: ExecutionMode[] = [
+  "chat",
+  "execute",
+  "plan",
+  "analyze",
+];
 export const TASK_DOMAIN_ORDER: TaskDomain[] = [
   "auto",
   "code",
   "research",
-  "operations",
   "writing",
-  "general",
-  "media",
 ];
 export const EXECUTION_MODE_LABEL: Record<ExecutionMode, string> = {
   chat: "Chat",
@@ -40,10 +43,10 @@ export const EXECUTION_MODE_LABEL: Record<ExecutionMode, string> = {
   verified: "Verified",
 };
 export const EXECUTION_MODE_HINT: Record<ExecutionMode, string> = {
-  chat: "Direct chat, no tools",
+  chat: "Direct answers with read-only lookups",
   execute: "Full task execution with tools",
-  plan: "Planning mode, no mutating tools",
-  analyze: "Read-only analysis mode",
+  plan: "Build a plan using read-only evidence",
+  analyze: "Analyze with read-only search and inspection",
   debug: "Evidence-first debugging: instrument, reproduce, fix, clean up",
   verified: "Execute with verification after each step",
 };
@@ -83,6 +86,12 @@ export const TASK_DOMAIN_ICON: Record<TaskDomain, LucideIcon> = {
   media: Film,
 };
 
+export const COMPOSER_MODE_ICON = {
+  auto: Sparkles,
+  execute: Play,
+  research: BookOpen,
+} as const;
+
 export const FOCUSED_CARD_POOL: FocusedCard[] = [
   // --- Task starters ---
   {
@@ -106,7 +115,8 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
     desc: "Deep-dive into any subject and get a summary",
     action: {
       type: "prompt",
-      prompt: "I need help researching a topic. Let me tell you what I'm looking into.",
+      prompt:
+        "I need help researching a topic. Let me tell you what I'm looking into.",
     },
     category: "task",
   },
@@ -144,7 +154,8 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
     desc: "Code, automate, or create from scratch",
     action: {
       type: "prompt",
-      prompt: "I need help building or coding something. Let me describe the project.",
+      prompt:
+        "I need help building or coding something. Let me describe the project.",
     },
     category: "task",
   },
@@ -156,7 +167,8 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
     desc: "Think out loud, brainstorm, or ask me anything",
     action: {
       type: "prompt",
-      prompt: "Let's just chat. I have something on my mind I'd like to talk through.",
+      prompt:
+        "Let's just chat. I have something on my mind I'd like to talk through.",
     },
     category: "task",
   },
@@ -168,7 +180,8 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
     desc: "Create agendas, talking points, and notes",
     action: {
       type: "prompt",
-      prompt: "Help me prepare for a meeting. I need an agenda and talking points.",
+      prompt:
+        "Help me prepare for a meeting. I need an agenda and talking points.",
     },
     category: "task",
   },
@@ -180,7 +193,8 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
     desc: "Word docs, PDFs, presentations, or spreadsheets",
     action: {
       type: "prompt",
-      prompt: "I need to create a document. Let me describe the format and content I need.",
+      prompt:
+        "I need to create a document. Let me describe the format and content I need.",
     },
     category: "task",
   },
@@ -216,7 +230,8 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
     desc: "Find bugs, explain code, or suggest improvements",
     action: {
       type: "prompt",
-      prompt: "I have some code I need help with. Let me share it and explain the issue.",
+      prompt:
+        "I have some code I need help with. Let me share it and explain the issue.",
     },
     category: "task",
   },
@@ -228,7 +243,8 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
     desc: "Translate text between any languages",
     action: {
       type: "prompt",
-      prompt: "I need something translated. Let me share the text and the target language.",
+      prompt:
+        "I need something translated. Let me share the text and the target language.",
     },
     category: "task",
   },
@@ -326,33 +342,6 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
 
   // --- Setup & integration suggestions ---
   {
-    id: "setup-whatsapp",
-    emoji: "📱",
-    iconName: "message",
-    title: "Connect WhatsApp",
-    desc: "Chat with your AI from WhatsApp",
-    action: { type: "settings", tab: "whatsapp" },
-    category: "setup",
-  },
-  {
-    id: "setup-telegram",
-    emoji: "✈️",
-    iconName: "message",
-    title: "Connect Telegram",
-    desc: "Send tasks from Telegram anytime",
-    action: { type: "settings", tab: "telegram" },
-    category: "setup",
-  },
-  {
-    id: "setup-slack",
-    emoji: "💼",
-    iconName: "message",
-    title: "Connect Slack",
-    desc: "Bring your AI into your team workspace",
-    action: { type: "settings", tab: "slack" },
-    category: "setup",
-  },
-  {
     id: "setup-google-workspace",
     emoji: "📎",
     iconName: "folder",
@@ -368,15 +357,6 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
     title: "Enable web search",
     desc: "Let tasks fetch live information",
     action: { type: "settings", tab: "search" },
-    category: "setup",
-  },
-  {
-    id: "setup-more-channels",
-    emoji: "💬",
-    iconName: "message",
-    title: "Connect more channels",
-    desc: "Add Teams, email, Signal, or Google Chat",
-    action: { type: "settings", tab: "morechannels" },
     category: "setup",
   },
   {
@@ -425,16 +405,6 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
     category: "setup",
   },
   {
-    id: "setup-guardrails",
-    emoji: "🛡️",
-    iconName: "shield",
-    title: "Set safety limits",
-    desc: "Control what your AI can and cannot do",
-    action: { type: "settings", tab: "system" },
-    category: "setup",
-  },
-
-  {
     id: "competitors",
     emoji: "🏁",
     iconName: "search",
@@ -452,7 +422,7 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
     emoji: "🧠",
     iconName: "book",
     title: "Build a research vault",
-    desc: "Create a persistent Obsidian-friendly knowledge base",
+    desc: "Build a durable research library in the current workspace",
     action: {
       type: "prompt",
       prompt: LLM_WIKI_GUI_PROMPT,
@@ -493,7 +463,10 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
     iconName: "book",
     title: "I remember things",
     desc: "I learn your preferences over time",
-    action: { type: "prompt", prompt: "What do you remember about me and my preferences?" },
+    action: {
+      type: "prompt",
+      prompt: "What do you remember about me and my preferences?",
+    },
     category: "discover",
   },
   {
@@ -514,7 +487,10 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
     iconName: "folder",
     title: "I can read your files",
     desc: "Drop files here or point me to a folder",
-    action: { type: "prompt", prompt: "Show me what files are in my current workspace." },
+    action: {
+      type: "prompt",
+      prompt: "Show me what files are in my current workspace.",
+    },
     category: "discover",
   },
   {
@@ -583,7 +559,7 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
     emoji: "🗂️",
     iconName: "book",
     title: "I can grow a vault",
-    desc: "Save research, sources, and durable notes",
+    desc: "Organize existing sources and surface new research directions",
     action: {
       type: "prompt",
       prompt: LLM_WIKI_EXPLORE_GUI_PROMPT,
@@ -595,13 +571,100 @@ export const FOCUSED_CARD_POOL: FocusedCard[] = [
     emoji: "🔄",
     iconName: "sliders",
     title: "Switch AI models",
-    desc: "Use Claude, GPT, Gemini, or local models",
+    desc: "Use Kimi, GLM, DeepSeek, and more",
     action: { type: "settings", tab: "llm" },
     category: "discover",
   },
 ];
 
 export const CARDS_TO_SHOW = 3;
+
+const INITIAL_RELEASE_HIDDEN_CARD_IDS = new Set([
+  // Implemented for compatibility, but unavailable in the current product surface.
+  "setup-voice",
+  "transcribe-audio",
+  "setup-skills",
+  "setup-schedule",
+  "discover-automations",
+]);
+
+export function isFocusedCardVisibleForCurrentProduct(
+  card: FocusedCard,
+): boolean {
+  if (card.action.type !== "settings") return true;
+  if (card.action.tab === "morechannels") return false;
+  return isProductIntegrationVisible(card.action.tab);
+}
+
+export const INITIAL_RELEASE_FOCUSED_CARD_POOL = FOCUSED_CARD_POOL.filter(
+  (card) =>
+    !INITIAL_RELEASE_HIDDEN_CARD_IDS.has(card.id) &&
+    isFocusedCardVisibleForCurrentProduct(card),
+);
+
+const RESEARCH_VAULT_CARD_IDS = new Set(["research-vault", "discover-vault"]);
+
+/**
+ * The research vault has one entry point with two lifecycle states. Keep the
+ * setup card before a vault exists and the expansion card afterwards, but
+ * never advertise both choices at the same time.
+ */
+export function getFocusedCardPoolForVaultState(
+  vaultExists: boolean | null,
+  pool: FocusedCard[] = INITIAL_RELEASE_FOCUSED_CARD_POOL,
+): FocusedCard[] {
+  const activeVaultCardId =
+    vaultExists === true ? "discover-vault" : "research-vault";
+
+  return pool.filter(
+    (card) =>
+      !RESEARCH_VAULT_CARD_IDS.has(card.id) || card.id === activeVaultCardId,
+  );
+}
+
+export const DEFAULT_FOCUSED_CARD_IDS = [
+  "research-vault",
+  "discover-vault",
+  "document",
+] as const;
+
+export function getDefaultFocusedCards(
+  pool: FocusedCard[] = INITIAL_RELEASE_FOCUSED_CARD_POOL,
+): FocusedCard[] {
+  return DEFAULT_FOCUSED_CARD_IDS.flatMap((id) => {
+    const card = pool.find((candidate) => candidate.id === id);
+    return card ? [card] : [];
+  });
+}
+
+/**
+ * Fast Refresh can preserve pre-filter state objects after the product channel
+ * list changes. Reconcile again at render time so a removed channel can never
+ * remain visible until the next full Electron restart.
+ */
+export function reconcileFocusedCards(
+  currentCards: FocusedCard[],
+  pool: FocusedCard[] = INITIAL_RELEASE_FOCUSED_CARD_POOL,
+  count: number = CARDS_TO_SHOW,
+): FocusedCard[] {
+  const allowedIds = new Set(pool.map((card) => card.id));
+  const nextCards = currentCards
+    .filter(
+      (card) =>
+        allowedIds.has(card.id) && isFocusedCardVisibleForCurrentProduct(card),
+    )
+    .slice(0, count);
+  const usedIds = new Set(nextCards.map((card) => card.id));
+
+  for (const card of pool) {
+    if (nextCards.length >= count) break;
+    if (usedIds.has(card.id)) continue;
+    nextCards.push(card);
+    usedIds.add(card.id);
+  }
+
+  return nextCards;
+}
 
 export function shuffleArray<T>(arr: T[]): T[] {
   const shuffled = [...arr];
@@ -612,12 +675,17 @@ export function shuffleArray<T>(arr: T[]): T[] {
   return shuffled;
 }
 
-export function pickFocusedCards(pool: FocusedCard[], count: number): FocusedCard[] {
+export function pickFocusedCards(
+  pool: FocusedCard[],
+  count: number,
+): FocusedCard[] {
   // Ensure a good mix while respecting the requested card count.
   const tasks = shuffleArray(pool.filter((c) => c.category === "task"));
   const setup = shuffleArray(pool.filter((c) => c.category === "setup"));
   const discover = shuffleArray(pool.filter((c) => c.category === "discover"));
-  const categoryPicks = [tasks[0], setup[0], discover[0]].filter(Boolean) as FocusedCard[];
+  const categoryPicks = [tasks[0], setup[0], discover[0]].filter(
+    Boolean,
+  ) as FocusedCard[];
   const picked = categoryPicks.slice(0, count);
   // Fill remaining from the rest
   const usedIds = new Set(picked.map((c) => c.id));
@@ -625,4 +693,15 @@ export function pickFocusedCards(pool: FocusedCard[], count: number): FocusedCar
   picked.push(...remaining.slice(0, count - picked.length));
   // Shuffle final order so categories aren't grouped
   return shuffleArray(picked);
+}
+
+export function pickNextFocusedCards(
+  pool: FocusedCard[],
+  currentCards: FocusedCard[],
+  count: number,
+): FocusedCard[] {
+  const currentIds = new Set(currentCards.map((card) => card.id));
+  const unseenCards = pool.filter((card) => !currentIds.has(card.id));
+  const nextPool = unseenCards.length >= count ? unseenCards : pool;
+  return pickFocusedCards(nextPool, count);
 }

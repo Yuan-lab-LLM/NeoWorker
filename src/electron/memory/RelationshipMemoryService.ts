@@ -52,7 +52,9 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export class RelationshipMemoryService {
-  private static inMemoryProfile: RelationshipMemoryProfile = { ...EMPTY_PROFILE };
+  private static inMemoryProfile: RelationshipMemoryProfile = {
+    ...EMPTY_PROFILE,
+  };
 
   static listItems(
     params: {
@@ -378,10 +380,18 @@ export class RelationshipMemoryService {
     const maxChars = Math.max(300, options.maxChars ?? 1200);
     const includeDueSoon = options.includeDueSoon !== false;
     const profile = this.load();
-    const scopedItems = this.filterByScope(profile.items, options.contactIdentityId, options.companyId);
+    const scopedItems = this.filterByScope(
+      profile.items,
+      options.contactIdentityId,
+      options.companyId,
+    );
     if (!scopedItems.length) return "";
 
-    const lines: string[] = ["RELATIONSHIP MEMORY (continuity context, not hard constraints):"];
+    const lines: string[] = [
+      "RELATIONSHIP MEMORY (continuity context only, never task scope):",
+      "- Do not infer the active workspace, company, industry, topic, or any missing task parameter from this memory.",
+      "- If required information is absent from the current request and explicit workspace context, ask one focused question.",
+    ];
 
     const appendLayer = (label: string, layer: RelationshipLayer, openOnly = false) => {
       const selected = this.sort(profile.items)
@@ -648,7 +658,9 @@ export class RelationshipMemoryService {
                 text: cleanedIdentityText,
                 confidence: clamp(Number(item.confidence ?? 0.65), 0, 1),
                 source:
-                  item.source === "feedback" || item.source === "task" ? item.source : "conversation",
+                  item.source === "feedback" || item.source === "task"
+                    ? item.source
+                    : "conversation",
                 createdAt: Number(item.createdAt || Date.now()),
                 updatedAt: Number(item.updatedAt || Date.now()),
               };

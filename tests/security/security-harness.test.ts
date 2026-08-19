@@ -11,14 +11,14 @@ describe("security harness", () => {
   let tempDir: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-security-harness-"));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-security-harness-"));
   });
 
   afterEach(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("targets changed files that touch high-risk CoWork boundaries", () => {
+  it("targets changed files that touch high-risk NeoWorker boundaries", () => {
     expect(harness.classifyHighRiskFile("src/electron/security/policy-manager.ts")).toMatchObject({
       highRisk: true,
       reasons: ["tool-policy"],

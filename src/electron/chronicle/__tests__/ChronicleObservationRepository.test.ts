@@ -45,7 +45,7 @@ describe("ChronicleObservationRepository", () => {
     if (!record) {
       throw new Error("Expected Chronicle observation to persist");
     }
-    expect(record.imagePath).toContain(path.join(".cowork", "chronicle", "assets"));
+    expect(record.imagePath).toContain(path.join(".neoworker", "chronicle", "assets"));
     expect(fs.existsSync(record.imagePath)).toBe(true);
 
     const results = ChronicleObservationRepository.searchSync(workspacePath, "draft", 5);

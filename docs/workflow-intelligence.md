@@ -1,6 +1,6 @@
 # Workflow Intelligence
 
-Workflow Intelligence is the user-facing concept for CoWork OS's always-on learning and next-action system.
+Workflow Intelligence is the user-facing concept for NeoWorker's always-on learning and next-action system.
 
 It replaces the older product framing around `Subconscious` with a clearer model:
 
@@ -56,7 +56,7 @@ Every user-facing suggestion should carry enough context to be trusted or reject
 - **Why now**: the timing reason
 - **Source evidence**: recent signals or modules that led to the suggestion
 - **Confidence**: a lightweight score for ranking and triage
-- **Suggested action**: the prompt/action CoWork can start from
+- **Suggested action**: the prompt/action NeoWorker can start from
 - **Controls**: act, edit, snooze, dismiss
 
 The welcome screen can show these as **Next actions** under the message box when the optional home widget is enabled. The same suggestion objects can also appear in the automation inbox and Suggestions panel.
@@ -128,7 +128,7 @@ Auto-created tasks are allowed only when all of these are true:
 - policy allows the executor
 - either the target is trusted or similar suggestions were repeatedly accepted
 
-This keeps CoWork useful before it becomes autonomous and avoids surprising task creation from weak signals.
+This keeps NeoWorker useful before it becomes autonomous and avoids surprising task creation from weak signals.
 
 ## Product Surfaces
 
@@ -147,7 +147,7 @@ Reflection internals remain inspectable for power users, but suggestions are the
 
 Current implementation details still use legacy names in some places:
 
-- `.cowork/subconscious/` artifact folders
+- `.neoworker/subconscious/` artifact folders
 - `SubconsciousLoopService` logs
 - `subconscious_*` SQLite tables
 - IPC names such as `runSubconsciousNow`
@@ -157,7 +157,7 @@ Those names are compatibility details. New documentation, labels, and product co
 The artifact contract remains useful for debugging:
 
 ```text
-.cowork/subconscious/
+.neoworker/subconscious/
   brain/state.json
   brain/dreams/*.json
   journal/YYYY-MM-DD.jsonl

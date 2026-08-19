@@ -3,7 +3,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Task } from "../../shared/types";
+import { type Task } from "../../shared/types";
 import { capitalizeSidebarSessionTitle } from "../utils/sidebar-title";
 import {
   buildSidebarVirtualRows,
@@ -12,12 +12,15 @@ import {
   filterTaskTreeBySearch,
   flattenVisibleTaskRows,
   formatRelativeShort,
+  getLatestUserSidebarTaskId,
   getSidebarDateGroup,
   getSidebarSessionTitle,
   isActiveSessionStatus,
   isAutomatedSession,
   isAwaitingSessionStatus,
+  isTeamSession,
   normalizeSidebarSessionSearch,
+  resolveSidebarSessionCategoryTrees,
   shouldShowTaskInSidebarSessions,
   shouldShowRootTaskInSidebar,
   type TaskTreeNode,
@@ -51,8 +54,15 @@ describe("compareTasksByPinAndRecency", () => {
       createTask({ id: "pinned-new", createdAt: 4, pinned: true }),
     ];
 
-    const sorted = tasks.sort(compareTasksByPinAndRecency).map((task) => task.id);
-    expect(sorted).toEqual(["pinned-new", "pinned-old", "unpinned-new", "unpinned-old"]);
+    const sorted = tasks
+      .sort(compareTasksByPinAndRecency)
+      .map((task) => task.id);
+    expect(sorted).toEqual([
+      "pinned-new",
+      "pinned-old",
+      "unpinned-new",
+      "unpinned-old",
+    ]);
   });
 
   it("sorts by latest activity within pinned groups", () => {
@@ -61,7 +71,9 @@ describe("compareTasksByPinAndRecency", () => {
       createTask({ id: "older-recently-active", createdAt: 10, updatedAt: 30 }),
     ];
 
-    const sorted = tasks.sort(compareTasksByPinAndRecency).map((task) => task.id);
+    const sorted = tasks
+      .sort(compareTasksByPinAndRecency)
+      .map((task) => task.id);
     expect(sorted).toEqual(["older-recently-active", "newer-created"]);
   });
 });
@@ -78,13 +90,104 @@ describe("formatRelativeShort", () => {
   });
 });
 
+describe("isTeamSession", () => {
+  it("recognizes one-click collaborative team conversations", () => {
+    expect(
+      isTeamSession(createTask({ agentConfig: { collaborativeMode: true } })),
+    ).toBe(true);
+  });
+
+  it("does not classify ordinary or automated conversations as teams", () => {
+    expect(isTeamSession(createTask({}))).toBe(false);
+    expect(isTeamSession(createTask({ source: "cron" }))).toBe(false);
+  });
+});
+
 describe("getSidebarDateGroup", () => {
   it("labels pinned sessions separately from date groups", () => {
     const now = new Date("2026-04-24T12:00:00.000Z");
     const createdAt = new Date("2026-03-24T12:00:00.000Z").getTime();
 
-    expect(getSidebarDateGroup({ createdAt, pinned: true }, now)).toBe("Pinned");
-    expect(getSidebarDateGroup({ createdAt, pinned: false }, now)).toBe("Earlier");
+    expect(
+      getSidebarDateGroup(
+        { createdAt, updatedAt: createdAt, pinned: true },
+        now,
+      ),
+    ).toBe("Pinned");
+    expect(
+      getSidebarDateGroup(
+        { createdAt, updatedAt: createdAt, pinned: false },
+        now,
+      ),
+    ).toBe("Earlier");
+  });
+});
+
+describe("resolveSidebarSessionCategoryTrees", () => {
+  const manualNode: TaskTreeNode = {
+    task: createTask({ id: "manual" }),
+    children: [],
+  };
+  const teamNode: TaskTreeNode = {
+    task: createTask({ id: "team", agentConfig: { collaborativeMode: true } }),
+    children: [],
+  };
+  const automatedNode: TaskTreeNode = {
+    task: createTask({ id: "automated", source: "cron" }),
+    children: [],
+  };
+
+  it("treats failure as a status by keeping all normal sessions in the all category", () => {
+    const failedNode: TaskTreeNode = {
+      task: createTask({ id: "failed", status: "failed" }),
+      children: [],
+    };
+    const result = resolveSidebarSessionCategoryTrees(
+      [manualNode, teamNode, failedNode],
+      [automatedNode],
+      "all",
+    );
+
+    expect(result.user.map((node) => node.task.id)).toEqual([
+      "manual",
+      "team",
+      "failed",
+    ]);
+    expect(result.automated).toEqual([]);
+  });
+
+  it("reveals automated sessions while searching without crowding the default list", () => {
+    const result = resolveSidebarSessionCategoryTrees(
+      [manualNode],
+      [automatedNode],
+      "all",
+      true,
+    );
+
+    expect(result.user.map((node) => node.task.id)).toEqual(["manual"]);
+    expect(result.automated.map((node) => node.task.id)).toEqual([
+      "automated",
+    ]);
+  });
+
+  it("separates team and automated sessions into mutually exclusive categories", () => {
+    const team = resolveSidebarSessionCategoryTrees(
+      [manualNode, teamNode],
+      [automatedNode],
+      "team",
+    );
+    const automated = resolveSidebarSessionCategoryTrees(
+      [manualNode, teamNode],
+      [automatedNode],
+      "automated",
+    );
+
+    expect(team.user.map((node) => node.task.id)).toEqual(["team"]);
+    expect(team.automated).toEqual([]);
+    expect(automated.user).toEqual([]);
+    expect(automated.automated.map((node) => node.task.id)).toEqual([
+      "automated",
+    ]);
   });
 });
 
@@ -117,6 +220,17 @@ describe("shouldShowRootTaskInSidebar", () => {
     expect(visible).toBe(true);
   });
 
+  it("keeps a forced latest or selected failed session visible", () => {
+    const visible = shouldShowRootTaskInSidebar(
+      createTask({ id: "latest-failed", status: "failed" }),
+      "focused",
+      false,
+      false,
+      true,
+    );
+    expect(visible).toBe(true);
+  });
+
   it("shows non-failed roots in focused mode", () => {
     const task = createTask({ status: "completed" });
     const visible = shouldShowRootTaskInSidebar(task, "focused", false);
@@ -130,10 +244,40 @@ describe("shouldShowRootTaskInSidebar", () => {
   });
 });
 
+describe("getLatestUserSidebarTaskId", () => {
+  it("returns the most recently active manual root even when it failed", () => {
+    const tasks = [
+      createTask({
+        id: "older-completed",
+        status: "completed",
+        updatedAt: 100,
+      }),
+      createTask({ id: "latest-failed", status: "failed", updatedAt: 300 }),
+      createTask({ id: "automated-newer", source: "cron", updatedAt: 500 }),
+      createTask({
+        id: "child-newer",
+        parentTaskId: "older-completed",
+        updatedAt: 600,
+      }),
+      createTask({
+        id: "remote-newer",
+        targetNodeId: "node-1",
+        updatedAt: 700,
+      }),
+    ];
+
+    expect(getLatestUserSidebarTaskId(tasks)).toBe("latest-failed");
+  });
+});
+
 describe("countHiddenFailedSessions", () => {
   it("ignores remote-device shadow tasks", () => {
     const tasks = [
-      createTask({ id: "remote-failed", status: "failed", targetNodeId: "node-1" }),
+      createTask({
+        id: "remote-failed",
+        status: "failed",
+        targetNodeId: "node-1",
+      }),
       createTask({ id: "local-failed", status: "failed" }),
     ];
 
@@ -184,6 +328,19 @@ describe("countHiddenFailedSessions", () => {
     const count = countHiddenFailedSessions(tasks, "full");
     expect(count).toBe(0);
   });
+
+  it("does not count a force-visible failed session as hidden", () => {
+    const tasks = [
+      createTask({ id: "latest-failed", status: "failed" }),
+      createTask({ id: "older-failed", status: "failed" }),
+    ];
+    const count = countHiddenFailedSessions(
+      tasks,
+      "focused",
+      new Set(["latest-failed"]),
+    );
+    expect(count).toBe(1);
+  });
 });
 
 describe("flattenVisibleTaskRows", () => {
@@ -192,19 +349,37 @@ describe("flattenVisibleTaskRows", () => {
       {
         task: createTask({ id: "root-1" }),
         children: [
-          { task: createTask({ id: "child-1", parentTaskId: "root-1" }), children: [] },
-          { task: createTask({ id: "child-2", parentTaskId: "root-1" }), children: [] },
+          {
+            task: createTask({ id: "child-1", parentTaskId: "root-1" }),
+            children: [],
+          },
+          {
+            task: createTask({ id: "child-2", parentTaskId: "root-1" }),
+            children: [],
+          },
         ],
       },
       {
         task: createTask({ id: "root-2" }),
-        children: [{ task: createTask({ id: "child-3", parentTaskId: "root-2" }), children: [] }],
+        children: [
+          {
+            task: createTask({ id: "child-3", parentTaskId: "root-2" }),
+            children: [],
+          },
+        ],
       },
     ];
 
     const rows = flattenVisibleTaskRows(tree, new Set());
 
-    expect(rows.map((row) => [row.node.task.id, row.depth, row.rootIndex, row.isLast])).toEqual([
+    expect(
+      rows.map((row) => [
+        row.node.task.id,
+        row.depth,
+        row.rootIndex,
+        row.isLast,
+      ]),
+    ).toEqual([
       ["root-1", 0, 0, false],
       ["child-1", 1, 0, false],
       ["child-2", 1, 0, true],
@@ -217,7 +392,12 @@ describe("flattenVisibleTaskRows", () => {
     const tree = [
       {
         task: createTask({ id: "root-1" }),
-        children: [{ task: createTask({ id: "child-1", parentTaskId: "root-1" }), children: [] }],
+        children: [
+          {
+            task: createTask({ id: "child-1", parentTaskId: "root-1" }),
+            children: [],
+          },
+        ],
       },
     ];
 
@@ -235,7 +415,16 @@ describe("buildSidebarVirtualRows", () => {
     const tree = [
       {
         task: createTask({ id: "pinned-root", pinned: true, createdAt: older }),
-        children: [{ task: createTask({ id: "pinned-child", parentTaskId: "pinned-root", createdAt: today }), children: [] }],
+        children: [
+          {
+            task: createTask({
+              id: "pinned-child",
+              parentTaskId: "pinned-root",
+              createdAt: today,
+            }),
+            children: [],
+          },
+        ],
       },
       {
         task: createTask({ id: "today-root", createdAt: today }),
@@ -244,7 +433,10 @@ describe("buildSidebarVirtualRows", () => {
     ];
     const taskRows = flattenVisibleTaskRows(tree, new Set());
 
-    const rows = buildSidebarVirtualRows(taskRows, { showDateHeaders: true, now });
+    const rows = buildSidebarVirtualRows(taskRows, {
+      showDateHeaders: true,
+      now,
+    });
 
     expect(
       rows.map((row) =>
@@ -277,13 +469,17 @@ describe("buildSidebarVirtualRows", () => {
 
 describe("normalizeSidebarSessionSearch", () => {
   it("normalizes case and repeated whitespace", () => {
-    expect(normalizeSidebarSessionSearch("  Draft   Launch Plan  ")).toBe("draft launch plan");
+    expect(normalizeSidebarSessionSearch("  Draft   Launch Plan  ")).toBe(
+      "draft launch plan",
+    );
   });
 });
 
 describe("capitalizeSidebarSessionTitle", () => {
   it("capitalizes a lower-case session title", () => {
-    expect(capitalizeSidebarSessionTitle("create a sample spreadsheet")).toBe("Create a sample spreadsheet");
+    expect(capitalizeSidebarSessionTitle("create a sample spreadsheet")).toBe(
+      "Create a sample spreadsheet",
+    );
   });
 
   it("keeps already-capitalized and acronym-leading titles unchanged", () => {
@@ -294,7 +490,10 @@ describe("capitalizeSidebarSessionTitle", () => {
 describe("getSidebarSessionTitle", () => {
   it("uses a meaningful task title when present", () => {
     const title = getSidebarSessionTitle({
-      task: createTask({ title: "Draft launch plan", prompt: "Fallback prompt" }),
+      task: createTask({
+        title: "Draft launch plan",
+        prompt: "Fallback prompt",
+      }),
     });
 
     expect(title).toBe("Draft launch plan");
@@ -316,7 +515,8 @@ describe("getSidebarSessionTitle", () => {
     const title = getSidebarSessionTitle({
       task: createTask({
         title: "New Session",
-        rawPrompt: "System context\n\nUser request:\nCreate a customer follow-up checklist",
+        rawPrompt:
+          "System context\n\nUser request:\nCreate a customer follow-up checklist",
       }),
     });
 
@@ -325,7 +525,10 @@ describe("getSidebarSessionTitle", () => {
 
   it("capitalizes lower-case sidebar titles for display", () => {
     const title = getSidebarSessionTitle({
-      task: createTask({ title: "go to llmwizard.com and test", prompt: "Fallback prompt" }),
+      task: createTask({
+        title: "go to llmwizard.com and test",
+        prompt: "Fallback prompt",
+      }),
     });
 
     expect(title).toBe("Go to llmwizard.com and test");
@@ -335,11 +538,14 @@ describe("getSidebarSessionTitle", () => {
     const title = getSidebarSessionTitle({
       task: createTask({
         title: "/litigation-legal-demand-intake unpaid invoices acme logistics",
-        prompt: "/litigation-legal-demand-intake unpaid invoices acme logistics",
+        prompt:
+          "/litigation-legal-demand-intake unpaid invoices acme logistics",
       }),
     });
 
-    expect(title).toBe("Litigation Demand Intake: unpaid invoices acme logistics");
+    expect(title).toBe(
+      "Litigation Demand Intake: unpaid invoices acme logistics",
+    );
   });
 
   it("falls back to slash prompt context for older truncated slash titles", () => {
@@ -375,12 +581,12 @@ describe("filterTaskTreeBySearch", () => {
       },
     ];
 
-    expect(filterTaskTreeBySearch(tree, "release notes").map((node) => node.task.id)).toEqual([
-      "launch-root",
-    ]);
-    expect(filterTaskTreeBySearch(tree, "billing-root").map((node) => node.task.id)).toEqual([
-      "billing-root",
-    ]);
+    expect(
+      filterTaskTreeBySearch(tree, "release notes").map((node) => node.task.id),
+    ).toEqual(["launch-root"]);
+    expect(
+      filterTaskTreeBySearch(tree, "billing-root").map((node) => node.task.id),
+    ).toEqual(["billing-root"]);
   });
 
   it("keeps the ancestor path when only a descendant matches", () => {
@@ -412,17 +618,25 @@ describe("filterTaskTreeBySearch", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].task.id).toBe("root");
-    expect(result[0].children.map((node) => node.task.id)).toEqual(["child-match"]);
+    expect(result[0].children.map((node) => node.task.id)).toEqual([
+      "child-match",
+    ]);
   });
 });
 
 describe("shouldShowTaskInSidebarSessions", () => {
   it("hides remote-device shadow tasks from the sidebar", () => {
-    expect(shouldShowTaskInSidebarSessions(createTask({ targetNodeId: "node-1" }))).toBe(false);
+    expect(
+      shouldShowTaskInSidebarSessions(createTask({ targetNodeId: "node-1" })),
+    ).toBe(false);
   });
 
   it("hides agent-panel test backing tasks from the sidebar", () => {
-    expect(shouldShowTaskInSidebarSessions(createTask({ source: "managed_agent_panel" }))).toBe(false);
+    expect(
+      shouldShowTaskInSidebarSessions(
+        createTask({ source: "managed_agent_panel" }),
+      ),
+    ).toBe(false);
   });
 
   it("keeps local tasks visible in the sidebar", () => {
@@ -433,20 +647,36 @@ describe("shouldShowTaskInSidebarSessions", () => {
 describe("isAutomatedSession", () => {
   it("treats scheduled and self-improvement tasks as automated", () => {
     expect(isAutomatedSession(createTask({ source: "cron" }))).toBe(true);
-    expect(isAutomatedSession(createTask({ source: "improvement" }))).toBe(true);
-    expect(isAutomatedSession(createTask({ source: "subconscious" }))).toBe(true);
+    expect(isAutomatedSession(createTask({ source: "improvement" }))).toBe(
+      true,
+    );
+    expect(isAutomatedSession(createTask({ source: "subconscious" }))).toBe(
+      true,
+    );
   });
 
   it("keeps webhook and generic api tasks out of the automated bucket", () => {
     expect(isAutomatedSession(createTask({ source: "hook" }))).toBe(false);
     expect(isAutomatedSession(createTask({ source: "api" }))).toBe(false);
-    expect(isAutomatedSession(createTask({ source: "managed_agent_panel" }))).toBe(false);
+    expect(
+      isAutomatedSession(createTask({ source: "managed_agent_panel" })),
+    ).toBe(false);
   });
 
   it("treats company and heartbeat api tasks as automated", () => {
-    expect(isAutomatedSession(createTask({ source: "api", companyId: "company-123" }))).toBe(true);
-    expect(isAutomatedSession(createTask({ source: "api", issueId: "issue-123" }))).toBe(true);
-    expect(isAutomatedSession(createTask({ source: "api", heartbeatRunId: "run-123" }))).toBe(true);
+    expect(
+      isAutomatedSession(
+        createTask({ source: "api", companyId: "company-123" }),
+      ),
+    ).toBe(true);
+    expect(
+      isAutomatedSession(createTask({ source: "api", issueId: "issue-123" })),
+    ).toBe(true);
+    expect(
+      isAutomatedSession(
+        createTask({ source: "api", heartbeatRunId: "run-123" }),
+      ),
+    ).toBe(true);
   });
 
   it("keeps explicit manual tasks out of the automated bucket even when attached to a run", () => {
@@ -462,19 +692,48 @@ describe("isAutomatedSession", () => {
   });
 
   it("still treats legacy heartbeat tasks without an explicit manual source as automated", () => {
-    expect(isAutomatedSession(createTask({ heartbeatRunId: "run-123" }))).toBe(true);
+    expect(isAutomatedSession(createTask({ heartbeatRunId: "run-123" }))).toBe(
+      true,
+    );
   });
 
   it("treats explicit Heartbeat titled tasks as automated even when linkage fields are missing", () => {
-    expect(isAutomatedSession(createTask({ source: "api", title: "Heartbeat: CoWork OS Ops Lead" }))).toBe(true);
-    expect(isAutomatedSession(createTask({ title: "Heartbeat: cowork os inc Company Planner" }))).toBe(true);
+    expect(
+      isAutomatedSession(
+        createTask({ source: "api", title: "Heartbeat: NeoWorker Ops Lead" }),
+      ),
+    ).toBe(true);
+    expect(
+      isAutomatedSession(
+        createTask({ title: "Heartbeat: neoworker os inc Company Planner" }),
+      ),
+    ).toBe(true);
   });
 
   it("treats chief-of-staff autonomy task titles as automated", () => {
-    expect(isAutomatedSession(createTask({ source: "hook", title: "Chief of Staff briefing" }))).toBe(true);
-    expect(isAutomatedSession(createTask({ source: "hook", title: "Routine prep: active pipeline" }))).toBe(true);
-    expect(isAutomatedSession(createTask({ source: "hook", title: "Follow up: launch checklist" }))).toBe(true);
-    expect(isAutomatedSession(createTask({ source: "hook", title: "Organize work session: onboarding redesign" }))).toBe(true);
+    expect(
+      isAutomatedSession(
+        createTask({ source: "hook", title: "Chief of Staff briefing" }),
+      ),
+    ).toBe(true);
+    expect(
+      isAutomatedSession(
+        createTask({ source: "hook", title: "Routine prep: active pipeline" }),
+      ),
+    ).toBe(true);
+    expect(
+      isAutomatedSession(
+        createTask({ source: "hook", title: "Follow up: launch checklist" }),
+      ),
+    ).toBe(true);
+    expect(
+      isAutomatedSession(
+        createTask({
+          source: "hook",
+          title: "Organize work session: onboarding redesign",
+        }),
+      ),
+    ).toBe(true);
   });
 });
 

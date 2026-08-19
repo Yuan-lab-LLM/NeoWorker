@@ -48,7 +48,7 @@ describe("timeline payload sanitizer", () => {
       })),
     }) as Record<string, unknown>;
 
-    expect(sanitized.__coworkPayloadTruncated).toBe(true);
+    expect(sanitized.__neoworkerPayloadTruncated).toBe(true);
     expect(sanitized.tool).toBe("run_command");
     expect(Buffer.byteLength(JSON.stringify(sanitized), "utf8")).toBeLessThanOrEqual(256 * 1024);
   });

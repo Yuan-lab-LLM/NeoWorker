@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 
 export const SCHEDULED_WORKSPACES_DIR_NAME = "scheduled-workspaces";
-export const SCHEDULED_RUNS_RELATIVE_DIR = path.join(".cowork", "scheduled-runs");
+export const SCHEDULED_RUNS_RELATIVE_DIR = path.join(".neoworker", "scheduled-runs");
 
 const MAX_SLUG_LENGTH = 48;
 const DEFAULT_KEEP_RECENT = 40;

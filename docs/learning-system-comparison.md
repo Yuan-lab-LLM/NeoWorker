@@ -1,15 +1,15 @@
 ---
 title: "Reflective Learning Systems"
-description: How CoWork OS positions Workflow Intelligence and its reflective learning stack against adjacent agent ecosystems.
+description: How NeoWorker positions Workflow Intelligence and its reflective learning stack against adjacent agent ecosystems.
 ---
 
 # Reflective Learning Systems
 
-This page focuses on the learning-system shape that matters for CoWork OS today: durable local memory, explicit reflective artifacts, target-scoped backlog, and executor dispatch.
+This page focuses on the learning-system shape that matters for NeoWorker today: durable local memory, explicit reflective artifacts, target-scoped backlog, and executor dispatch.
 
-## CoWork OS Positioning
+## NeoWorker Positioning
 
-CoWork OS combines two layers:
+NeoWorker combines two layers:
 
 - a durable learning substrate for memory, feedback, playbooks, profiles, and relationship context
 - `Workflow Intelligence`, which turns fresh evidence into hypotheses, critique, a winning recommendation, Dreaming memory-curation candidates, reviewable suggestions, and durable memory candidates
@@ -18,7 +18,7 @@ That gives the product a stronger operating shape than a one-shot "improve yours
 
 ## What The Reflective Layer Adds
 
-| Area | CoWork OS |
+| Area | NeoWorker |
 |---|---|
 | Durable evidence | Workspace artifacts plus indexed SQLite summaries |
 | Stable workflow identity | Workflow-intelligence targets across workspace, mailbox, schedule, trigger, briefing, and code targets |

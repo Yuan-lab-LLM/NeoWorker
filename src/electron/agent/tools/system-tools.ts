@@ -15,6 +15,7 @@ import { QuoteRecallService } from "../../memory/QuoteRecallService";
 import { DurableContextService } from "../../memory/DurableContextService";
 import { MemoryFeaturesManager } from "../../settings/memory-features-manager";
 import { getUserDataDir } from "../../utils/user-data-dir";
+import { resolveVersionedOutputPath } from "../../utils/versioned-output-path";
 import {
   checkProjectAccess,
   getProjectIdFromWorkspaceRelPath,
@@ -73,7 +74,7 @@ function getCurrentLocationFailureMessage(error: unknown): string {
     return [
       "Native desktop geolocation timed out.",
       "Do not retry get_current_location in this task; ask the user for a typed address, venue, or nearby landmark.",
-      "Check operating system Location Services permissions for CoWork OS.",
+      "Check operating system Location Services permissions for NeoWorker.",
     ].join(" ");
   }
   if (/desktop geolocation is not configured|macos core location helper is not built|location_not_configured/i.test(rawMessage)) {
@@ -208,7 +209,7 @@ function buildQuoteRecallTool(description: string): LLMTool {
         },
         includeWorkspaceNotes: {
           type: "boolean",
-          description: "Whether to include indexed workspace markdown notes from `.cowork/`.",
+          description: "Whether to include indexed workspace markdown notes from `.neoworker/`.",
         },
       },
       required: ["query"],
@@ -564,11 +565,12 @@ export class SystemTools {
     height: number;
   }> {
     const filename = options?.filename || `screenshot-${Date.now()}.png`;
-    const outputPath = path.join(this.workspace.path, filename);
+    const outputPath = resolveVersionedOutputPath(path.join(this.workspace.path, filename));
+    const outputFilename = path.basename(outputPath);
 
     this.daemon.logEvent(this.taskId, "tool_call", {
       tool: "take_screenshot",
-      filename,
+      filename: outputFilename,
     });
 
     try {
@@ -604,14 +606,14 @@ export class SystemTools {
       this.daemon.logEvent(this.taskId, "tool_result", {
         tool: "take_screenshot",
         success: true,
-        path: filename,
+        path: outputFilename,
         width: size.width,
         height: size.height,
       });
 
       return {
         success: true,
-        path: filename,
+        path: outputFilename,
         width: size.width,
         height: size.height,
       };
@@ -968,7 +970,7 @@ export class SystemTools {
     const candidates = before.filter((record) => !ownPids.has(record.pid));
     const skipped = before
       .filter((record) => ownPids.has(record.pid))
-      .map((record) => ({ ...record, reason: "refusing_to_signal_cowork_process" }));
+      .map((record) => ({ ...record, reason: "refusing_to_signal_neoworker_process" }));
 
     const approved = await this.daemon.requestApproval(
       this.taskId,
@@ -1089,7 +1091,7 @@ export class SystemTools {
       if (agent.label && labelSet.has(agent.label)) return true;
       return query ? agent.matches : false;
     });
-    const disabledDirectory = path.join(os.homedir(), "Library", "LaunchAgents.disabled-by-cowork");
+    const disabledDirectory = path.join(os.homedir(), "Library", "LaunchAgents.disabled-by-neoworker");
 
     const approved = dryRun
       ? true
@@ -1468,7 +1470,7 @@ export class SystemTools {
 
   /**
    * Search workspace memories (including imported ChatGPT conversations)
-   * and workspace markdown files (.cowork/ kit files).
+   * and workspace markdown files (.neoworker/ kit files).
    */
   async searchMemories(input: {
     query: string;
@@ -1500,11 +1502,11 @@ export class SystemTools {
       const dbResults =
         lane === "kit" ? [] : await MemoryService.searchAsync(this.workspace.id, input.query, limit);
 
-      // Also search workspace markdown (.cowork/ kit files)
+      // Also search workspace markdown (.neoworker/ kit files)
       let mdResults: typeof dbResults = [];
       if (lane !== "archive") {
         try {
-          const kitRoot = path.join(this.workspace.path, ".cowork");
+          const kitRoot = path.join(this.workspace.path, ".neoworker");
           if (fsSync.existsSync(kitRoot) && fsSync.statSync(kitRoot).isDirectory()) {
             mdResults = MemoryService.searchWorkspaceMarkdown(
               this.workspace.id,
@@ -2123,7 +2125,7 @@ export class SystemTools {
     const topicMemoryTools: LLMTool[] = enableTopicMemory
       ? [
           buildTopicMemoryTool(
-            "Load topical memory packs from `.cowork/memory/topics` for the current query. " +
+            "Load topical memory packs from `.neoworker/memory/topics` for the current query. " +
               "Use this when the task is topical and you want a small focused memory pack instead of broad recall.",
           ),
         ]
@@ -2155,7 +2157,7 @@ export class SystemTools {
         ]
       : [];
     const conciseTopicMemoryTools: LLMTool[] = enableTopicMemory
-      ? [buildTopicMemoryTool("Load topical memory packs from `.cowork/memory/topics` for the current query.")]
+      ? [buildTopicMemoryTool("Load topical memory packs from `.neoworker/memory/topics` for the current query.")]
       : [];
     const conciseDurableContextTools: LLMTool[] = enableDurableContext
       ? [
@@ -2519,7 +2521,7 @@ export class SystemTools {
       {
         name: "disable_macos_launch_agents",
         description:
-          "Unload and move matching user LaunchAgent plists into ~/Library/LaunchAgents.disabled-by-cowork. " +
+          "Unload and move matching user LaunchAgent plists into ~/Library/LaunchAgents.disabled-by-neoworker. " +
           "Use to remediate apps that relaunch after quitting; run with dryRun first when unsure.",
         input_schema: {
           type: "object",
@@ -2563,7 +2565,7 @@ export class SystemTools {
       {
         name: "search_memories",
         description:
-          "Search the workspace memory database AND workspace knowledge files (.cowork/) " +
+          "Search the workspace memory database AND workspace knowledge files (.neoworker/) " +
           "for past observations, decisions, insights, and errors from previous sessions " +
           "and imported conversations (e.g. ChatGPT history). " +
           "Use this proactively when starting a task to check for relevant prior context, " +

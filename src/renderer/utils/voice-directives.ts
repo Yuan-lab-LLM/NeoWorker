@@ -62,7 +62,9 @@ export function parseVoiceDirectives(message: string): VoiceDirective {
   displayText = message.replace(speakPattern, "$2").trim();
 
   // If no explicit directives, the speak text is the full message
-  const speakText = hasDirective ? speakTexts.join(" ") : stripMarkdownForSpeech(message);
+  const speakText = hasDirective
+    ? speakTexts.join(" ")
+    : stripMarkdownForSpeech(message);
 
   return {
     speakText,

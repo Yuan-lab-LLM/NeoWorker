@@ -18,7 +18,12 @@ const mailIcon: IconNode[] = [
 ];
 
 const messageIcon: IconNode[] = [
-  { tag: "path", attrs: { d: "M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" } },
+  {
+    tag: "path",
+    attrs: {
+      d: "M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z",
+    },
+  },
 ];
 
 const ICON_META: Record<string, IntegrationIconMeta> = {
@@ -50,7 +55,12 @@ const ICON_META: Record<string, IntegrationIconMeta> = {
     bg: "#e8f0fe",
     fg: "#1a73e8",
     nodes: [
-      { tag: "path", attrs: { d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" } },
+      {
+        tag: "path",
+        attrs: {
+          d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z",
+        },
+      },
       { tag: "polyline", attrs: { points: "14 2 14 8 20 8" } },
       { tag: "line", attrs: { x1: 8, y1: 13, x2: 16, y2: 13 } },
       { tag: "line", attrs: { x1: 8, y1: 17, x2: 14, y2: 17 } },
@@ -89,7 +99,12 @@ const ICON_META: Record<string, IntegrationIconMeta> = {
       { tag: "path", attrs: { d: "M8 10h8" } },
     ],
   },
-  "google-chat": { glyph: "C", bg: "#e6f4ea", fg: "#188038", nodes: messageIcon },
+  "google-chat": {
+    glyph: "C",
+    bg: "#e6f4ea",
+    fg: "#188038",
+    nodes: messageIcon,
+  },
   slack: {
     glyph: "#",
     bg: "#f3e8ff",
@@ -120,7 +135,19 @@ const ICON_META: Record<string, IntegrationIconMeta> = {
       { tag: "path", attrs: { d: "M12 13v8" } },
     ],
   },
-  onedrive: { glyph: "O", bg: "#e0f2fe", fg: "#0369a1", nodes: [{ tag: "path", attrs: { d: "M17 18H8a5 5 0 1 1 1.7-9.7A6 6 0 0 1 21 11a4 4 0 0 1-4 7z" } }] },
+  onedrive: {
+    glyph: "O",
+    bg: "#e0f2fe",
+    fg: "#0369a1",
+    nodes: [
+      {
+        tag: "path",
+        attrs: {
+          d: "M17 18H8a5 5 0 1 1 1.7-9.7A6 6 0 0 1 21 11a4 4 0 0 1-4 7z",
+        },
+      },
+    ],
+  },
   sharepoint: {
     glyph: "S",
     bg: "#ccfbf1",
@@ -153,7 +180,10 @@ const ICON_META: Record<string, IntegrationIconMeta> = {
     nodes: [
       { tag: "path", attrs: { d: "M22 12h-6l-2 3h-4l-2-3H2" } },
       { tag: "path", attrs: { d: "M5 12V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7" } },
-      { tag: "path", attrs: { d: "M5 12v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" } },
+      {
+        tag: "path",
+        attrs: { d: "M5 12v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" },
+      },
     ],
   },
   discord: {
@@ -161,42 +191,87 @@ const ICON_META: Record<string, IntegrationIconMeta> = {
     bg: "#eef2ff",
     fg: "#5865f2",
     nodes: [
-      { tag: "path", attrs: { d: "M8 7a14 14 0 0 1 8 0l2 9a9 9 0 0 1-4 2l-1-2h-2l-1 2a9 9 0 0 1-4-2z" } },
+      {
+        tag: "path",
+        attrs: {
+          d: "M8 7a14 14 0 0 1 8 0l2 9a9 9 0 0 1-4 2l-1-2h-2l-1 2a9 9 0 0 1-4-2z",
+        },
+      },
       { tag: "circle", attrs: { cx: 10, cy: 12, r: 1 } },
       { tag: "circle", attrs: { cx: 14, cy: 12, r: 1 } },
     ],
   },
-  teams: { glyph: "T", bg: "#eef2ff", fg: "#6264a7", nodes: [
-    { tag: "circle", attrs: { cx: 9, cy: 8, r: 3 } },
-    { tag: "circle", attrs: { cx: 17, cy: 9, r: 2 } },
-    { tag: "path", attrs: { d: "M4 20a5 5 0 0 1 10 0" } },
-    { tag: "path", attrs: { d: "M14 17a4 4 0 0 1 6 3" } },
-  ] },
-  telegram: { glyph: "T", bg: "#e0f2fe", fg: "#229ed9", nodes: [{ tag: "path", attrs: { d: "m22 2-7 20-4-9-9-4z" } }, { tag: "path", attrs: { d: "M22 2 11 13" } }] },
-  whatsapp: { glyph: "W", bg: "#dcfce7", fg: "#128c7e", nodes: [
-    { tag: "path", attrs: { d: "M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3 21l1.9-5.4A8.5 8.5 0 1 1 21 11.5z" } },
-    { tag: "path", attrs: { d: "M9 8c1 4 3 6 7 7" } },
-  ] },
-  signal: { glyph: "S", bg: "#dbeafe", fg: "#3a76f0", nodes: [
-    ...messageIcon,
-    { tag: "path", attrs: { d: "M9 12h6" } },
-  ] },
+  teams: {
+    glyph: "T",
+    bg: "#eef2ff",
+    fg: "#6264a7",
+    nodes: [
+      { tag: "circle", attrs: { cx: 9, cy: 8, r: 3 } },
+      { tag: "circle", attrs: { cx: 17, cy: 9, r: 2 } },
+      { tag: "path", attrs: { d: "M4 20a5 5 0 0 1 10 0" } },
+      { tag: "path", attrs: { d: "M14 17a4 4 0 0 1 6 3" } },
+    ],
+  },
+  telegram: {
+    glyph: "T",
+    bg: "#e0f2fe",
+    fg: "#229ed9",
+    nodes: [
+      { tag: "path", attrs: { d: "m22 2-7 20-4-9-9-4z" } },
+      { tag: "path", attrs: { d: "M22 2 11 13" } },
+    ],
+  },
+  whatsapp: {
+    glyph: "W",
+    bg: "#dcfce7",
+    fg: "#128c7e",
+    nodes: [
+      {
+        tag: "path",
+        attrs: {
+          d: "M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3 21l1.9-5.4A8.5 8.5 0 1 1 21 11.5z",
+        },
+      },
+      { tag: "path", attrs: { d: "M9 8c1 4 3 6 7 7" } },
+    ],
+  },
+  signal: {
+    glyph: "S",
+    bg: "#dbeafe",
+    fg: "#3a76f0",
+    nodes: [...messageIcon, { tag: "path", attrs: { d: "M9 12h6" } }],
+  },
   imessage: { glyph: "i", bg: "#dcfce7", fg: "#22c55e", nodes: messageIcon },
   email: { glyph: "@", bg: "#f1f5f9", fg: "#475569", nodes: mailIcon },
-  browser: { glyph: "B", bg: "#dbeafe", fg: "#1d4ed8", nodes: [
-    { tag: "circle", attrs: { cx: 12, cy: 12, r: 9 } },
-    { tag: "path", attrs: { d: "M3 12h18" } },
-    { tag: "path", attrs: { d: "M12 3a14 14 0 0 1 0 18" } },
-    { tag: "path", attrs: { d: "M12 3a14 14 0 0 0 0 18" } },
-  ] },
-  x: { glyph: "X", bg: "#f4f4f5", fg: "#111827", nodes: [
-    { tag: "line", attrs: { x1: 6, y1: 6, x2: 18, y2: 18 } },
-    { tag: "line", attrs: { x1: 18, y1: 6, x2: 6, y2: 18 } },
-  ] },
-  mcp: { glyph: "M", bg: "#ede9fe", fg: "#6d28d9", nodes: [
-    { tag: "rect", attrs: { x: 4, y: 4, width: 16, height: 16, rx: 2 } },
-    { tag: "path", attrs: { d: "M8 12h8M12 8v8" } },
-  ] },
+  browser: {
+    glyph: "B",
+    bg: "#dbeafe",
+    fg: "#1d4ed8",
+    nodes: [
+      { tag: "circle", attrs: { cx: 12, cy: 12, r: 9 } },
+      { tag: "path", attrs: { d: "M3 12h18" } },
+      { tag: "path", attrs: { d: "M12 3a14 14 0 0 1 0 18" } },
+      { tag: "path", attrs: { d: "M12 3a14 14 0 0 0 0 18" } },
+    ],
+  },
+  x: {
+    glyph: "X",
+    bg: "#f4f4f5",
+    fg: "#111827",
+    nodes: [
+      { tag: "line", attrs: { x1: 6, y1: 6, x2: 18, y2: 18 } },
+      { tag: "line", attrs: { x1: 18, y1: 6, x2: 6, y2: 18 } },
+    ],
+  },
+  mcp: {
+    glyph: "M",
+    bg: "#ede9fe",
+    fg: "#6d28d9",
+    nodes: [
+      { tag: "rect", attrs: { x: 4, y: 4, width: 16, height: 16, rx: 2 } },
+      { tag: "path", attrs: { d: "M8 12h8M12 8v8" } },
+    ],
+  },
 };
 
 function fallbackGlyph(label: string): string {
@@ -205,7 +280,10 @@ function fallbackGlyph(label: string): string {
   return trimmed.slice(0, 1).toUpperCase();
 }
 
-export function getIntegrationMentionIconMeta(iconKey: string | undefined, label: string) {
+export function getIntegrationMentionIconMeta(
+  iconKey: string | undefined,
+  label: string,
+) {
   const meta = (iconKey && ICON_META[iconKey]) || ICON_META.mcp;
   return {
     glyph: meta.glyph || fallbackGlyph(label),
@@ -228,7 +306,9 @@ function SvgIcon({ nodes }: { nodes: IconNode[] }) {
       aria-hidden="true"
       focusable="false"
     >
-      {nodes.map((node, index) => createElement(node.tag, { key: index, ...node.attrs }))}
+      {nodes.map((node, index) =>
+        createElement(node.tag, { key: index, ...node.attrs }),
+      )}
     </svg>
   );
 }
@@ -246,7 +326,10 @@ function appendSvgIcon(target: HTMLElement, nodes: IconNode[]) {
   svg.setAttribute("focusable", "false");
 
   for (const node of nodes) {
-    const child = document.createElementNS("http://www.w3.org/2000/svg", node.tag);
+    const child = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      node.tag,
+    );
     Object.entries(node.attrs).forEach(([key, value]) => {
       child.setAttribute(key, String(value));
     });

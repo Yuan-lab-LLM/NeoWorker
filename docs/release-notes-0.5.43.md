@@ -14,7 +14,7 @@ Release `0.5.43` ships the Ask Inbox sidebar workflow, richer composer routing, 
 
 - **macOS DMG smoke tests**: release packaging now validates updater metadata, mounts the versioned DMG, checks the embedded `.app` bundle version, and verifies the app executable.
 - **Windows installer smoke tests**: the Windows workflow now uses the shared smoke runner to validate updater metadata, install the versioned `.exe` silently, check the installed app version, launch it briefly, and uninstall it.
-- **Linux server smoke tests**: the release workflow continues to build the Linux x64 server tarball, verify its checksum, and boot-smoke `coworkd-node` against `/health` before publishing artifacts.
+- **Linux server smoke tests**: the release workflow continues to build the Linux x64 server tarball, verify its checksum, and boot-smoke `neoworkerd-node` against `/health` before publishing artifacts.
 
 ## Fixes
 

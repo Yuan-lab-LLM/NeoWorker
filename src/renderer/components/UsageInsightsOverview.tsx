@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { translate, useLanguage } from "../i18n";
 
 interface RequestDayRow {
   dateKey: string;
@@ -18,10 +19,22 @@ interface OverviewProps {
 
 type HeatmapMode = "daily" | "weekly" | "cumulative";
 
-const HEATMAP_MODES: Array<{ value: HeatmapMode; label: string }> = [
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "cumulative", label: "Cumulative" },
+const HEATMAP_MODES: Array<{
+  value: HeatmapMode;
+  labelKey: string;
+  label: string;
+}> = [
+  { value: "daily", labelKey: "usageInsights.heatmap.daily", label: "Daily" },
+  {
+    value: "weekly",
+    labelKey: "usageInsights.heatmap.weekly",
+    label: "Weekly",
+  },
+  {
+    value: "cumulative",
+    labelKey: "usageInsights.heatmap.cumulative",
+    label: "Cumulative",
+  },
 ];
 
 const MIN_HEATMAP_MONTHS = 12;
@@ -30,12 +43,36 @@ const MIN_HEATMAP_MONTHS = 12;
 const MOBY_DICK_TOKENS = 270_000;
 
 // A few well-known works to cycle through for a fun comparison.
-const BOOK_COMPARISONS: Array<{ name: string; tokens: number }> = [
-  { name: "Moby-Dick", tokens: 270_000 },
-  { name: "the Harry Potter series", tokens: 1_400_000 },
-  { name: "the Lord of the Rings trilogy", tokens: 620_000 },
-  { name: "War and Peace", tokens: 780_000 },
-  { name: "the complete works of Shakespeare", tokens: 1_100_000 },
+const BOOK_COMPARISONS: Array<{
+  nameKey: string;
+  fallbackName: string;
+  tokens: number;
+}> = [
+  {
+    nameKey: "usageInsights.book.mobyDick",
+    fallbackName: "Moby-Dick",
+    tokens: 270_000,
+  },
+  {
+    nameKey: "usageInsights.book.harryPotter",
+    fallbackName: "the Harry Potter series",
+    tokens: 1_400_000,
+  },
+  {
+    nameKey: "usageInsights.book.lordOfTheRings",
+    fallbackName: "the Lord of the Rings trilogy",
+    tokens: 620_000,
+  },
+  {
+    nameKey: "usageInsights.book.warAndPeace",
+    fallbackName: "War and Peace",
+    tokens: 780_000,
+  },
+  {
+    nameKey: "usageInsights.book.shakespeare",
+    fallbackName: "the complete works of Shakespeare",
+    tokens: 1_100_000,
+  },
 ];
 
 function formatBigNumber(n: number): string {
@@ -51,9 +88,18 @@ function formatShortDuration(ms: number | null): string {
   const days = Math.floor(totalMinutes / 1440);
   const hours = Math.floor((totalMinutes % 1440) / 60);
   const minutes = totalMinutes % 60;
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
+  if (days > 0)
+    return translate("usageInsights.duration.daysHours", "{days}d {hours}h", {
+      days,
+      hours,
+    });
+  if (hours > 0)
+    return translate(
+      "usageInsights.duration.hoursMinutes",
+      "{hours}h {minutes}m",
+      { hours, minutes },
+    );
+  return translate("usageInsights.duration.minutes", "{minutes}m", { minutes });
 }
 
 function parseDateKey(dateKey: string): Date | null {
@@ -97,7 +143,9 @@ function buildHeatmap(
     byDate.set(row.dateKey, tokenCount(row));
   }
 
-  const sorted = [...requestsByDay].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+  const sorted = [...requestsByDay].sort((a, b) =>
+    a.dateKey.localeCompare(b.dateKey),
+  );
   const firstDataDate = parseDateKey(sorted[0].dateKey);
   const lastDataDate = parseDateKey(sorted[sorted.length - 1].dateKey);
   if (!firstDataDate || !lastDataDate) return { weeks: [], max: 0, months: [] };
@@ -238,37 +286,80 @@ function computeStreaks(requestsByDay: RequestDayRow[]): {
 function pickBookComparison(totalTokens: number): string | null {
   if (totalTokens <= 0) return null;
   // Pick the book whose multiple lands closest to an impressive-but-readable number.
-  let best: { name: string; multiple: number } | null = null;
+  let best: { nameKey: string; fallbackName: string; multiple: number } | null =
+    null;
   for (const book of BOOK_COMPARISONS) {
     const multiple = totalTokens / book.tokens;
     if (multiple < 0.1) continue;
-    if (!best || Math.abs(Math.log10(multiple) - 0.7) < Math.abs(Math.log10(best.multiple) - 0.7)) {
-      best = { name: book.name, multiple };
+    if (
+      !best ||
+      Math.abs(Math.log10(multiple) - 0.7) <
+        Math.abs(Math.log10(best.multiple) - 0.7)
+    ) {
+      best = {
+        nameKey: book.nameKey,
+        fallbackName: book.fallbackName,
+        multiple,
+      };
     }
   }
   if (!best) {
     const multiple = totalTokens / MOBY_DICK_TOKENS;
-    best = { name: "Moby-Dick", multiple };
+    best = {
+      nameKey: "usageInsights.book.mobyDick",
+      fallbackName: "Moby-Dick",
+      multiple,
+    };
   }
   const mult = best.multiple;
   const rendered =
     mult >= 10 ? `~${Math.round(mult)}\u00D7` : `~${mult.toFixed(1)}\u00D7`;
-  return `You've used ${rendered} more tokens than ${best.name}.`;
+  return translate(
+    "usageInsights.bookComparison",
+    "You've used {multiple} more tokens than {book}.",
+    {
+      multiple: rendered,
+      book: translate(best.nameKey, best.fallbackName),
+    },
+  );
 }
 
 function heatmapTitle(cell: HeatmapCell, mode: HeatmapMode): string {
   const value = formatBigNumber(cell.count);
   const raw = formatBigNumber(cell.rawCount);
   if (mode === "weekly") {
-    return `${cell.dateKey}: ${raw} tokens, ${value} for the week`;
+    return translate(
+      "usageInsights.heatmap.tooltip.weekly",
+      "{date}: {raw} tokens, {value} for the week",
+      {
+        date: cell.dateKey,
+        raw,
+        value,
+      },
+    );
   }
   if (mode === "cumulative") {
-    return `${cell.dateKey}: ${value} cumulative tokens`;
+    return translate(
+      "usageInsights.heatmap.tooltip.cumulative",
+      "{date}: {value} cumulative tokens",
+      {
+        date: cell.dateKey,
+        value,
+      },
+    );
   }
-  return `${cell.dateKey}: ${value} tokens`;
+  return translate(
+    "usageInsights.heatmap.tooltip.daily",
+    "{date}: {value} tokens",
+    {
+      date: cell.dateKey,
+      value,
+    },
+  );
 }
 
 export function UsageInsightsOverview(props: OverviewProps) {
+  useLanguage();
   const { totalTokens, avgTaskTimeMs, requestsByDay, periodLabel } = props;
   const [heatmapMode, setHeatmapMode] = useState<HeatmapMode>("cumulative");
   const heatmapScrollRef = useRef<HTMLDivElement>(null);
@@ -289,31 +380,77 @@ export function UsageInsightsOverview(props: OverviewProps) {
     scrollEl.scrollLeft = scrollEl.scrollWidth;
   }, [heatmapMode, weeks.length]);
 
-  const comparison = useMemo(() => pickBookComparison(totalTokens), [totalTokens]);
+  const comparison = useMemo(
+    () => pickBookComparison(totalTokens),
+    [totalTokens],
+  );
 
   const peakTokens = useMemo(
-    () => requestsByDay.reduce((peak, row) => Math.max(peak, tokenCount(row)), 0),
+    () =>
+      requestsByDay.reduce((peak, row) => Math.max(peak, tokenCount(row)), 0),
     [requestsByDay],
   );
 
   return (
     <div className="insights-overview">
       <div className="insights-overview-stats">
-        <StatCard label="Total tokens" value={formatBigNumber(totalTokens)} />
-        <StatCard label="Peak tokens" value={formatBigNumber(peakTokens)} />
-        <StatCard label="Avg task" value={formatShortDuration(avgTaskTimeMs)} />
-        <StatCard label="Current streak" value={`${currentStreak} days`} />
-        <StatCard label="Longest streak" value={`${longestStreak} days`} />
+        <StatCard
+          label={translate("usageInsights.stats.totalTokens", "Total tokens")}
+          value={formatBigNumber(totalTokens)}
+        />
+        <StatCard
+          label={translate("usageInsights.stats.peakTokens", "Peak tokens")}
+          value={formatBigNumber(peakTokens)}
+        />
+        <StatCard
+          label={translate("usageInsights.stats.avgTask", "Avg task")}
+          value={formatShortDuration(avgTaskTimeMs)}
+        />
+        <StatCard
+          label={translate(
+            "usageInsights.stats.currentStreak",
+            "Current streak",
+          )}
+          value={translate("usageInsights.days", "{count} days", {
+            count: currentStreak,
+          })}
+        />
+        <StatCard
+          label={translate(
+            "usageInsights.stats.longestStreak",
+            "Longest streak",
+          )}
+          value={translate("usageInsights.days", "{count} days", {
+            count: longestStreak,
+          })}
+        />
       </div>
 
       {weeks.length > 0 && (
-        <div className="insights-token-activity" aria-label="Token activity heatmap">
+        <div
+          className="insights-token-activity"
+          aria-label={translate(
+            "usageInsights.heatmap.aria",
+            "Token activity heatmap",
+          )}
+        >
           <div className="insights-token-activity-header">
             <div className="insights-token-activity-title">
-              <h3>Token activity</h3>
-              <span className="insights-token-activity-range">{periodLabel}</span>
+              <h3>
+                {translate("usageInsights.heatmap.title", "Token activity")}
+              </h3>
+              <span className="insights-token-activity-range">
+                {periodLabel}
+              </span>
             </div>
-            <div className="insights-token-activity-tabs" role="tablist" aria-label="Token activity view">
+            <div
+              className="insights-token-activity-tabs"
+              role="tablist"
+              aria-label={translate(
+                "usageInsights.heatmap.viewAria",
+                "Token activity view",
+              )}
+            >
               {HEATMAP_MODES.map((mode) => (
                 <button
                   key={mode.value}
@@ -323,7 +460,7 @@ export function UsageInsightsOverview(props: OverviewProps) {
                   className={`insights-token-activity-tab${heatmapMode === mode.value ? " active" : ""}`}
                   onClick={() => setHeatmapMode(mode.value)}
                 >
-                  {mode.label}
+                  {translate(mode.labelKey, mode.label)}
                 </button>
               ))}
             </div>
@@ -350,7 +487,9 @@ export function UsageInsightsOverview(props: OverviewProps) {
                 {months.map((month) => (
                   <span
                     key={`${month.label}-${month.start}`}
-                    style={{ gridColumn: `${month.start} / span ${month.span}` }}
+                    style={{
+                      gridColumn: `${month.start} / span ${month.span}`,
+                    }}
                   >
                     {month.label}
                   </span>
@@ -361,7 +500,9 @@ export function UsageInsightsOverview(props: OverviewProps) {
         </div>
       )}
 
-      {comparison && <div className="insights-overview-caption">{comparison}</div>}
+      {comparison && (
+        <div className="insights-overview-caption">{comparison}</div>
+      )}
     </div>
   );
 }
@@ -378,7 +519,9 @@ function StatCard({
   return (
     <div className="insights-overview-stat">
       <div className="insights-overview-stat-label">{label}</div>
-      <div className={`insights-overview-stat-value${valueClass ? ` ${valueClass}` : ""}`}>
+      <div
+        className={`insights-overview-stat-value${valueClass ? ` ${valueClass}` : ""}`}
+      >
         {value}
       </div>
     </div>

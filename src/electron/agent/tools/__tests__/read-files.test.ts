@@ -29,7 +29,7 @@ describe("readFilesByPatterns", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-read-files-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-read-files-"));
     workspace = {
       id: "w1",
       name: "Test",
@@ -283,7 +283,7 @@ describe("readFilesByPatterns", () => {
       path.join(tmpDir, "package.json"),
       JSON.stringify(
         {
-          name: "cowork-os",
+          name: "neoworker",
           version: "0.5.46",
           scripts: {
             dev: "node scripts/dev_with_logs.mjs",
@@ -303,11 +303,11 @@ describe("readFilesByPatterns", () => {
 
     const markerOnlyManifest = JSON.stringify(
       {
-        name: "cowork",
+        name: "neoworker",
         private: true,
         version: "0.0.0",
-        coworkBuildHealth: {
-          routine: "CoWork OS Build Health Watcher",
+        neoworkerBuildHealth: {
+          routine: "NeoWorker Build Health Watcher",
           step: "package.json",
         },
       },
@@ -329,7 +329,7 @@ describe("readFilesByPatterns", () => {
       path.join(tmpDir, "package.json"),
       JSON.stringify(
         {
-          name: "cowork-os",
+          name: "neoworker",
           version: "0.5.46",
           scripts: {
             dev: "node scripts/dev_with_logs.mjs",
@@ -349,7 +349,7 @@ describe("readFilesByPatterns", () => {
 
     const updatedManifest = JSON.stringify(
       {
-        name: "cowork-os",
+        name: "neoworker",
         version: "0.5.47",
         scripts: {
           dev: "node scripts/dev_with_logs.mjs",
@@ -361,8 +361,8 @@ describe("readFilesByPatterns", () => {
         devDependencies: {
           vite: "^7.0.0",
         },
-        coworkBuildHealth: {
-          routine: "CoWork OS Build Health Watcher",
+        neoworkerBuildHealth: {
+          routine: "NeoWorker Build Health Watcher",
         },
       },
       null,
@@ -382,12 +382,12 @@ describe("readFilesByPatterns", () => {
       path.join(tmpDir, "package-lock.json"),
       JSON.stringify(
         {
-          name: "cowork-os",
+          name: "neoworker",
           version: "0.5.46",
           lockfileVersion: 3,
           packages: {
             "": {
-              name: "cowork-os",
+              name: "neoworker",
               version: "0.5.46",
             },
           },
@@ -400,7 +400,7 @@ describe("readFilesByPatterns", () => {
     const markerOnlyLockfile = JSON.stringify(
       {
         artifact: "package-lock.json",
-        routine: "CoWork OS Build Health Watcher",
+        routine: "NeoWorker Build Health Watcher",
       },
       null,
       2,
@@ -411,7 +411,7 @@ describe("readFilesByPatterns", () => {
     );
 
     const packageLock = JSON.parse(fs.readFileSync(path.join(tmpDir, "package-lock.json"), "utf-8"));
-    expect(packageLock.packages[""].name).toBe("cowork-os");
+    expect(packageLock.packages[""].name).toBe("neoworker");
   });
 
   it("reports the stuck phase when write_file times out internally", async () => {
@@ -424,7 +424,7 @@ describe("readFilesByPatterns", () => {
     ).rejects.toThrow(/write_file timed out during enforce symlink safe access/i);
   });
 
-  it("redirects new automated task outputs into the managed .cowork zone", async () => {
+  it("redirects new automated task outputs into the managed .neoworker zone", async () => {
     const daemon = {
       logEvent: vi.fn(),
       requestApproval: vi.fn(),
@@ -439,12 +439,12 @@ describe("readFilesByPatterns", () => {
     const out = await automatedFileTools.writeFile("editor-startup-checklist.md", "checklist");
 
     expect(out.success).toBe(true);
-    expect(out.path).toBe(".cowork/automated-outputs/task-auto/editor-startup-checklist.md");
+    expect(out.path).toBe(".neoworker/automated-outputs/task-auto/editor-startup-checklist.md");
     expect(
       fs.readFileSync(
         path.join(
           tmpDir,
-          ".cowork",
+          ".neoworker",
           "automated-outputs",
           "task-auto",
           "editor-startup-checklist.md",
@@ -455,8 +455,8 @@ describe("readFilesByPatterns", () => {
     expect(fs.existsSync(path.join(tmpDir, "editor-startup-checklist.md"))).toBe(false);
   });
 
-  it("adds CoWork scratch paths to the local git exclude file instead of .gitignore", () => {
-    const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-read-files-git-"));
+  it("adds NeoWorker scratch paths to the local git exclude file instead of .gitignore", () => {
+    const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-read-files-git-"));
     try {
       fs.mkdirSync(path.join(repoDir, ".git", "info"), { recursive: true });
       fs.writeFileSync(path.join(repoDir, ".git", "info", "exclude"), "# existing excludes\n", "utf-8");
@@ -473,8 +473,8 @@ describe("readFilesByPatterns", () => {
       new FileTools(gitWorkspace, daemon, "task-git");
 
       const exclude = fs.readFileSync(path.join(repoDir, ".git", "info", "exclude"), "utf-8");
-      expect(exclude).toContain(".cowork/tmp/");
-      expect(exclude).toContain(".cowork/automated-outputs/");
+      expect(exclude).toContain(".neoworker/tmp/");
+      expect(exclude).toContain(".neoworker/automated-outputs/");
       expect(fs.existsSync(path.join(repoDir, ".gitignore"))).toBe(false);
     } finally {
       fs.rmSync(repoDir, { recursive: true, force: true });
@@ -508,6 +508,23 @@ describe("readFilesByPatterns", () => {
     const out = await fileTools.readFile("Docs/SPEC.md");
     expect(out.content).toContain("# Spec");
     expect(out.path).toBe("docs/spec.md");
+  });
+
+  it("recovers a bundled skill path when the skills segment is omitted", async () => {
+    const resourcesRoot = path.join(tmpDir, "NeoWorker.app", "Contents", "Resources");
+    const actualSkillPath = path.join(
+      resourcesRoot,
+      "skills",
+      "presentation-studio",
+      "SKILL.md",
+    );
+    writeFile(actualSkillPath, "# Presentation Studio\n");
+    const compactedPath = path.join(resourcesRoot, "presentation-studio", "SKILL.md");
+
+    const out = await fileTools.readFile(compactedPath);
+
+    expect(out.content).toContain("# Presentation Studio");
+    expect(out.path).toBe("NeoWorker.app/Contents/Resources/skills/presentation-studio/SKILL.md");
   });
 
   it("expands tilde paths before enforcing workspace boundaries for directory listings", async () => {
@@ -587,7 +604,7 @@ describe("readFilesByPatterns", () => {
     } as Any;
     const scopedFileTools = new FileTools(workspaceScoped, daemon, "task-3");
 
-    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-outside-read-"));
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-outside-read-"));
     try {
       const outsideFile = path.join(outsideDir, "secret.txt");
       fs.writeFileSync(outsideFile, "top-secret", "utf-8");
@@ -622,7 +639,7 @@ describe("readFilesByPatterns", () => {
     } as Any;
     const scopedFileTools = new FileTools(workspaceScoped, daemon, "task-4");
 
-    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-outside-write-"));
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-outside-write-"));
     try {
       const outsideFile = path.join(outsideDir, "target.txt");
       fs.writeFileSync(outsideFile, "old", "utf-8");

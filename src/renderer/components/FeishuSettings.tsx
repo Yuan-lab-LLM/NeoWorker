@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Bot } from "lucide-react";
 import {
   ChannelData,
   ChannelUserData,
@@ -8,12 +9,16 @@ import {
 } from "../../shared/types";
 import { ContextPolicySettings } from "./ContextPolicySettings";
 import { PairingCodeDisplay } from "./PairingCodeDisplay";
+import { GuidedChannelSetup } from "./GuidedChannelSetup";
+import { translate, useLanguage } from "../i18n";
 
 interface FeishuSettingsProps {
   onStatusChange?: (connected: boolean) => void;
 }
 
 export function FeishuSettings({ onStatusChange }: FeishuSettingsProps) {
+  useLanguage();
+  const t = translate;
   const [channel, setChannel] = useState<ChannelData | null>(null);
   const [users, setUsers] = useState<ChannelUserData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,16 +40,18 @@ export function FeishuSettings({ onStatusChange }: FeishuSettingsProps) {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [pairingExpiresAt, setPairingExpiresAt] = useState<number>(0);
   const [generatingCode, setGeneratingCode] = useState(false);
-  const [contextPolicies, setContextPolicies] = useState<Record<ContextType, ContextPolicy>>(
-    {} as Record<ContextType, ContextPolicy>,
-  );
+  const [contextPolicies, setContextPolicies] = useState<
+    Record<ContextType, ContextPolicy>
+  >({} as Record<ContextType, ContextPolicy>);
   const [savingPolicy, setSavingPolicy] = useState(false);
 
   const loadChannel = useCallback(async () => {
     try {
       setLoading(true);
       const channels = await window.electronAPI.getGatewayChannels();
-      const existing = channels.find((entry: ChannelData) => entry.type === "feishu");
+      const existing = channels.find(
+        (entry: ChannelData) => entry.type === "feishu",
+      );
       if (!existing) {
         setChannel(null);
         setUsers([]);
@@ -63,7 +70,10 @@ export function FeishuSettings({ onStatusChange }: FeishuSettingsProps) {
       ]);
       setUsers(channelUsers);
 
-      const policyMap: Record<ContextType, ContextPolicy> = {} as Record<ContextType, ContextPolicy>;
+      const policyMap: Record<ContextType, ContextPolicy> = {} as Record<
+        ContextType,
+        ContextPolicy
+      >;
       for (const policy of policies) {
         policyMap[policy.contextType as ContextType] = policy;
       }
@@ -89,7 +99,16 @@ export function FeishuSettings({ onStatusChange }: FeishuSettingsProps) {
   }, [channel?.id, loadChannel]);
 
   const handleAddChannel = async () => {
-    if (!appId.trim() || !appSecret.trim()) return;
+    if (!appId.trim() || !appSecret.trim()) {
+      setTestResult({
+        success: false,
+        error: t(
+          "feishu.guided.requiredError",
+          "Enter the App ID and App Secret before connecting.",
+        ),
+      });
+      return;
+    }
     try {
       setSaving(true);
       setTestResult(null);
@@ -149,7 +168,15 @@ export function FeishuSettings({ onStatusChange }: FeishuSettingsProps) {
 
   const handleRemoveChannel = async () => {
     if (!channel) return;
-    if (!confirm("Are you sure you want to remove the Feishu / Lark channel?")) return;
+    if (
+      !confirm(
+        t(
+          "feishu.confirm.remove",
+          "Are you sure you want to remove the Feishu / Lark channel?",
+        ),
+      )
+    )
+      return;
     try {
       setSaving(true);
       await window.electronAPI.removeGatewayChannel(channel.id);
@@ -166,7 +193,10 @@ export function FeishuSettings({ onStatusChange }: FeishuSettingsProps) {
   const handleUpdateSecurityMode = async (mode: SecurityMode) => {
     if (!channel) return;
     try {
-      await window.electronAPI.updateGatewayChannel({ id: channel.id, securityMode: mode });
+      await window.electronAPI.updateGatewayChannel({
+        id: channel.id,
+        securityMode: mode,
+      });
       setSecurityMode(mode);
       setChannel({ ...channel, securityMode: mode });
     } catch (error) {
@@ -178,7 +208,10 @@ export function FeishuSettings({ onStatusChange }: FeishuSettingsProps) {
     if (!channel) return;
     try {
       setGeneratingCode(true);
-      const code = await window.electronAPI.generateGatewayPairing(channel.id, "");
+      const code = await window.electronAPI.generateGatewayPairing(
+        channel.id,
+        "",
+      );
       setPairingCode(code);
       setPairingExpiresAt(Date.now() + 5 * 60 * 1000);
     } catch (error) {
@@ -188,14 +221,21 @@ export function FeishuSettings({ onStatusChange }: FeishuSettingsProps) {
     }
   };
 
-  const handlePolicyChange = async (contextType: ContextType, updates: Partial<ContextPolicy>) => {
+  const handlePolicyChange = async (
+    contextType: ContextType,
+    updates: Partial<ContextPolicy>,
+  ) => {
     if (!channel) return;
     try {
       setSavingPolicy(true);
-      const updated = await window.electronAPI.updateContextPolicy(channel.id, contextType, {
-        securityMode: updates.securityMode,
-        toolRestrictions: updates.toolRestrictions,
-      });
+      const updated = await window.electronAPI.updateContextPolicy(
+        channel.id,
+        contextType,
+        {
+          securityMode: updates.securityMode,
+          toolRestrictions: updates.toolRestrictions,
+        },
+      );
       setContextPolicies((prev) => ({ ...prev, [contextType]: updated }));
     } catch (error) {
       console.error("Failed to update Feishu context policy:", error);
@@ -215,97 +255,189 @@ export function FeishuSettings({ onStatusChange }: FeishuSettingsProps) {
   };
 
   if (loading) {
-    return <div className="settings-loading">Loading Feishu / Lark settings...</div>;
+    return (
+      <div className="settings-loading">
+        {t("feishu.loading", "Loading Feishu / Lark settings...")}
+      </div>
+    );
   }
 
   if (!channel) {
     return (
-      <div className="googlechat-settings">
-        <div className="settings-section">
-          <h3>Connect Feishu / Lark Bot</h3>
-          <p className="settings-description">
-            Use a custom app with event subscriptions enabled. CoWork will host the callback
-            webhook locally and send replies through the IM API.
-          </p>
-
+      <div className="googlechat-settings guided-channel-host">
+        <GuidedChannelSetup
+          accent="#3370ff"
+          brand={t("feishu.guided.brand", "Feishu / Lark")}
+          brandIcon={<Bot size={19} />}
+          title={t("feishu.guided.title", "Bring NeoWorker into Feishu")}
+          description={t(
+            "feishu.guided.description",
+            "Start with the two application credentials. Callback security and local server settings stay out of the way unless you need them.",
+          )}
+          steps={[
+            {
+              title: t(
+                "feishu.guided.step.create",
+                "Create an internal application",
+              ),
+              description: t(
+                "feishu.guided.step.createDescription",
+                "Create an enterprise self-built app in Feishu Open Platform.",
+              ),
+            },
+            {
+              title: t("feishu.guided.step.bot", "Enable the Bot capability"),
+              description: t(
+                "feishu.guided.step.botDescription",
+                "Add the Bot capability and subscribe to message events.",
+              ),
+            },
+            {
+              title: t(
+                "feishu.guided.step.credentials",
+                "Copy the credentials",
+              ),
+              description: t(
+                "feishu.guided.step.credentialsDescription",
+                "Find App ID and App Secret under Credentials and Basic Info.",
+              ),
+            },
+          ]}
+          portalLabel={t(
+            "feishu.guided.openPortal",
+            "Open Feishu Open Platform",
+          )}
+          onOpenPortal={() =>
+            window.electronAPI.openExternal(
+              "https://open.feishu.cn/app?lang=zh-CN",
+            )
+          }
+          formTitle={t(
+            "feishu.guided.formTitle",
+            "Paste two application credentials",
+          )}
+          formDescription={t(
+            "feishu.guided.formDescription",
+            "NeoWorker uses these values to verify the application and send replies.",
+          )}
+          securityMode={securityMode}
+          onSecurityModeChange={setSecurityMode}
+          advanced={
+            <>
+              <div className="settings-field">
+                <label>{t("channels.botName", "Bot name")}</label>
+                <input
+                  className="settings-input"
+                  value={channelName}
+                  onChange={(event) => setChannelName(event.target.value)}
+                />
+              </div>
+              <div className="settings-field">
+                <label>
+                  {t(
+                    "feishu.field.verificationTokenOptional",
+                    "Verification Token (optional)",
+                  )}
+                </label>
+                <input
+                  className="settings-input"
+                  value={verificationToken}
+                  onChange={(event) => setVerificationToken(event.target.value)}
+                />
+              </div>
+              <div className="settings-field">
+                <label>
+                  {t(
+                    "feishu.field.encryptKeyOptional",
+                    "Encrypt Key (optional)",
+                  )}
+                </label>
+                <input
+                  type="password"
+                  className="settings-input"
+                  value={encryptKey}
+                  onChange={(event) => setEncryptKey(event.target.value)}
+                />
+                <p className="settings-hint">
+                  {t(
+                    "feishu.hint.encryptKey",
+                    "If set, NeoWorker validates Feishu signatures and decrypts callback bodies.",
+                  )}
+                </p>
+              </div>
+              <div className="settings-field">
+                <label>{t("channels.webhookPort", "Webhook port")}</label>
+                <input
+                  type="number"
+                  className="settings-input"
+                  value={webhookPort}
+                  onChange={(event) => setWebhookPort(event.target.value)}
+                />
+              </div>
+              <div className="settings-field guided-channel-field-full">
+                <label>{t("channels.webhookPath", "Webhook path")}</label>
+                <input
+                  className="settings-input"
+                  value={webhookPath}
+                  onChange={(event) => setWebhookPath(event.target.value)}
+                />
+              </div>
+            </>
+          }
+          submitLabel={t("feishu.guided.connect", "Verify and connect")}
+          busyLabel={t("feishu.guided.connecting", "Verifying...")}
+          onSubmit={handleAddChannel}
+          submitting={saving}
+          disabled={!appId.trim() || !appSecret.trim()}
+          footerNote={t(
+            "feishu.guided.footerNote",
+            "After connecting, finish the event callback address in Feishu Open Platform.",
+          )}
+          result={
+            testResult
+              ? {
+                  success: testResult.success,
+                  message: testResult.success
+                    ? t(
+                        "channels.connectionSuccessfulPlain",
+                        "Connection successful",
+                      )
+                    : testResult.error,
+                }
+              : null
+          }
+        >
           <div className="settings-field">
-            <label>Bot Name</label>
-            <input className="settings-input" value={channelName} onChange={(e) => setChannelName(e.target.value)} />
+            <label>{t("feishu.field.appId", "App ID")} *</label>
+            <input
+              className="settings-input"
+              value={appId}
+              placeholder="cli_xxxxxxxxxxxxxxxx"
+              autoComplete="off"
+              onChange={(event) => setAppId(event.target.value)}
+            />
+            <p className="settings-hint">
+              {t(
+                "feishu.guided.appIdHint",
+                "Credentials and Basic Info > App ID",
+              )}
+            </p>
           </div>
-
           <div className="settings-field">
-            <label>App ID</label>
-            <input className="settings-input" value={appId} onChange={(e) => setAppId(e.target.value)} />
-          </div>
-
-          <div className="settings-field">
-            <label>App Secret</label>
+            <label>{t("feishu.field.appSecret", "App Secret")} *</label>
             <input
               type="password"
               className="settings-input"
               value={appSecret}
-              onChange={(e) => setAppSecret(e.target.value)}
+              autoComplete="new-password"
+              placeholder={t(
+                "feishu.guided.secretPlaceholder",
+                "Paste App Secret",
+              )}
+              onChange={(event) => setAppSecret(event.target.value)}
             />
           </div>
-
-          <div className="settings-field">
-            <label>Verification Token (Optional)</label>
-            <input
-              className="settings-input"
-              value={verificationToken}
-              onChange={(e) => setVerificationToken(e.target.value)}
-            />
-          </div>
-
-          <div className="settings-field">
-            <label>Encrypt Key (Optional)</label>
-            <input
-              type="password"
-              className="settings-input"
-              value={encryptKey}
-              onChange={(e) => setEncryptKey(e.target.value)}
-            />
-            <p className="settings-hint">If set, CoWork validates Feishu signatures and decrypts callback bodies.</p>
-          </div>
-
-          <div className="settings-field">
-            <label>Webhook Port</label>
-            <input
-              type="number"
-              className="settings-input"
-              value={webhookPort}
-              onChange={(e) => setWebhookPort(e.target.value)}
-            />
-          </div>
-
-          <div className="settings-field">
-            <label>Webhook Path</label>
-            <input className="settings-input" value={webhookPath} onChange={(e) => setWebhookPath(e.target.value)} />
-          </div>
-
-          <div className="settings-field">
-            <label>Security Mode</label>
-            <select
-              className="settings-select"
-              value={securityMode}
-              onChange={(e) => setSecurityMode(e.target.value as SecurityMode)}
-            >
-              <option value="pairing">Pairing code required</option>
-              <option value="allowlist">Allowlist only</option>
-              <option value="open">Open access</option>
-            </select>
-          </div>
-
-          <button className="settings-button settings-button-primary" onClick={handleAddChannel} disabled={saving}>
-            {saving ? "Connecting..." : "Add Feishu / Lark Channel"}
-          </button>
-
-          {testResult && (
-            <div className={`settings-status ${testResult.success ? "success" : "error"}`}>
-              {testResult.success ? `Connected as ${testResult.botUsername || "bot"}` : testResult.error}
-            </div>
-          )}
-        </div>
+        </GuidedChannelSetup>
       </div>
     );
   }
@@ -313,48 +445,90 @@ export function FeishuSettings({ onStatusChange }: FeishuSettingsProps) {
   return (
     <div className="googlechat-settings">
       <div className="settings-section">
-        <h3>Feishu / Lark Channel</h3>
+        <h3>{t("feishu.channel.title", "Feishu / Lark Channel")}</h3>
         <div className="settings-status-row">
-          <span className={`settings-badge status-${channel.status}`}>{channel.status}</span>
+          <span className={`settings-badge status-${channel.status}`}>
+            {t(`channels.status.${channel.status}`, channel.status)}
+          </span>
           <span className="settings-muted">{channel.name}</span>
         </div>
         <div className="settings-actions">
-          <button className="settings-button" onClick={handleTestConnection} disabled={testing}>
-            {testing ? "Testing..." : "Test connection"}
+          <button
+            className="settings-button"
+            onClick={handleTestConnection}
+            disabled={testing}
+          >
+            {testing
+              ? t("channels.testing", "Testing...")
+              : t("channels.testConnection", "Test connection")}
           </button>
-          <button className="settings-button" onClick={handleToggleEnabled} disabled={saving}>
-            {channel.enabled ? "Disable" : "Enable"}
+          <button
+            className="settings-button"
+            onClick={handleToggleEnabled}
+            disabled={saving}
+          >
+            {channel.enabled
+              ? t("channels.disable", "Disable")
+              : t("channels.enable", "Enable")}
           </button>
-          <button className="settings-button settings-button-danger" onClick={handleRemoveChannel} disabled={saving}>
-            Remove
+          <button
+            className="settings-button settings-button-danger"
+            onClick={handleRemoveChannel}
+            disabled={saving}
+          >
+            {t("channels.remove", "Remove")}
           </button>
         </div>
         {testResult && (
-          <div className={`settings-status ${testResult.success ? "success" : "error"}`}>
-            {testResult.success ? `Connected as ${testResult.botUsername || "bot"}` : testResult.error}
+          <div
+            className={`settings-status ${testResult.success ? "success" : "error"}`}
+          >
+            {testResult.success
+              ? t("channels.connectedAs", "Connected as {name}").replace(
+                  "{name}",
+                  testResult.botUsername || "bot",
+                )
+              : testResult.error}
           </div>
         )}
       </div>
 
       <div className="settings-section">
-        <h3>Access Control</h3>
+        <h3>{t("channels.accessControl", "Access Control")}</h3>
         <div className="settings-field">
-          <label>Security Mode</label>
+          <label>{t("channels.securityMode", "Security Mode")}</label>
           <select
             className="settings-select"
             value={securityMode}
-            onChange={(e) => handleUpdateSecurityMode(e.target.value as SecurityMode)}
+            onChange={(e) =>
+              handleUpdateSecurityMode(e.target.value as SecurityMode)
+            }
           >
-            <option value="pairing">Pairing code required</option>
-            <option value="allowlist">Allowlist only</option>
-            <option value="open">Open access</option>
+            <option value="pairing">
+              {t(
+                "channels.security.pairingRequiredShort",
+                "Pairing code required",
+              )}
+            </option>
+            <option value="allowlist">
+              {t("channels.security.allowlistOnly", "Allowlist only")}
+            </option>
+            <option value="open">
+              {t("channels.security.openAccess", "Open access")}
+            </option>
           </select>
         </div>
 
         {securityMode === "pairing" && (
           <div className="settings-field">
-            <button className="settings-button" onClick={handleGeneratePairingCode} disabled={generatingCode}>
-              {generatingCode ? "Generating..." : "Generate pairing code"}
+            <button
+              className="settings-button"
+              onClick={handleGeneratePairingCode}
+              disabled={generatingCode}
+            >
+              {generatingCode
+                ? t("channels.pairing.generating", "Generating...")
+                : t("channels.pairing.generateTitle", "Generate pairing code")}
             </button>
             {pairingCode && (
               <PairingCodeDisplay
@@ -369,7 +543,7 @@ export function FeishuSettings({ onStatusChange }: FeishuSettingsProps) {
       </div>
 
       <div className="settings-section">
-        <h3>Context Policies</h3>
+        <h3>{t("channels.contextPolicies", "Context Policies")}</h3>
         <ContextPolicySettings
           channelId={channel.id}
           channelType="feishu"
@@ -383,9 +557,11 @@ export function FeishuSettings({ onStatusChange }: FeishuSettingsProps) {
       </div>
 
       <div className="settings-section">
-        <h3>Authorized Users</h3>
+        <h3>{t("channels.authorizedUsers", "Authorized Users")}</h3>
         {users.length === 0 ? (
-          <p className="settings-description">No paired users yet.</p>
+          <p className="settings-description">
+            {t("channels.noPairedUsers", "No paired users yet.")}
+          </p>
         ) : (
           <div className="settings-list">
             {users.map((user) => (
@@ -394,8 +570,11 @@ export function FeishuSettings({ onStatusChange }: FeishuSettingsProps) {
                   <strong>{user.displayName || user.channelUserId}</strong>
                   <div className="settings-hint">{user.channelUserId}</div>
                 </div>
-                <button className="settings-button settings-button-danger" onClick={() => handleRevokeAccess(user.channelUserId)}>
-                  Revoke
+                <button
+                  className="settings-button settings-button-danger"
+                  onClick={() => handleRevokeAccess(user.channelUserId)}
+                >
+                  {t("channels.revoke", "Revoke")}
                 </button>
               </div>
             ))}

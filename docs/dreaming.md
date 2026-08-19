@@ -1,6 +1,6 @@
 # Dreaming
 
-Dreaming is CoWork OS's background memory-curation phase.
+Dreaming is NeoWorker's background memory-curation phase.
 
 It is part of Workflow Intelligence, but it has a narrower job than Reflection:
 

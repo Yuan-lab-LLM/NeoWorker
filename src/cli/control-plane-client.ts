@@ -55,7 +55,7 @@ export class ControlPlaneClient {
     await waitForOpen(ws, this.timeoutMs);
     await this.request("connect", {
       token: this.options.token,
-      deviceName: this.options.deviceName ?? "cowork-cli",
+      deviceName: this.options.deviceName ?? "neoworker-cli",
     });
   }
 

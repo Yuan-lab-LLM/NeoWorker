@@ -1,6 +1,6 @@
 # Kami Skill
 
-`kami` is a bundled CoWork OS skill for typesetting polished editorial documents with the Kami design system.
+`kami` is a bundled NeoWorker skill for typesetting polished editorial documents with the Kami design system.
 
 It is designed for:
 
@@ -21,7 +21,7 @@ It is not the right tool for:
 
 ## What The Skill Does
 
-Compared with importing the upstream `SKILL.md` directly, CoWork's bundled `kami` integration adds a stronger local workflow:
+Compared with importing the upstream `SKILL.md` directly, NeoWorker's bundled `kami` integration adds a stronger local workflow:
 
 - dependency preflight through `resources/skills/kami/scripts/setup.sh`
 - deterministic project scaffolding through `resources/skills/kami/scripts/bootstrap_project.py`
@@ -31,7 +31,7 @@ Compared with importing the upstream `SKILL.md` directly, CoWork's bundled `kami
 - browser-based slide PDF rendering when a local Chromium-family browser is available
 - explicit artifact reporting for assumptions, blockers, and output paths
 
-The bundle keeps Kami's editorial design language while adapting it to CoWork's local-file runtime.
+The bundle keeps Kami's editorial design language while adapting it to NeoWorker's local-file runtime.
 
 ## How To Use It
 
@@ -61,7 +61,7 @@ Good requests usually include:
 
 ## Invocation Model
 
-`kami` follows CoWork's additive skill runtime.
+`kami` follows NeoWorker's additive skill runtime.
 
 - The original task stays canonical.
 - The skill adds scoped execution context and file expectations.
@@ -117,7 +117,7 @@ The skill checks for:
 - bundled `playwright` plus a local Chromium-family browser for slide PDF export
 - `pdffonts` when available for PDF font inspection
 
-Rendered PPTX previews in the CoWork file viewer are separate from Kami's export pipeline. Opening `output.pptx` in CoWork always shows extracted slide text and speaker notes immediately; visual slide thumbnails load from cache or render in the background through the Codex presentation runtime, with local `soffice` and `pdftoppm` as fallback converters.
+Rendered PPTX previews in the NeoWorker file viewer are separate from Kami's export pipeline. Opening `output.pptx` in NeoWorker always shows extracted slide text and speaker notes immediately; visual slide thumbnails load from cache or render in the background through the Codex presentation runtime, with local `soffice` and `pdftoppm` as fallback converters.
 
 You can run the same preflight manually:
 

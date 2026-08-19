@@ -4,6 +4,7 @@ import {
   PersonaId,
   EmojiUsage,
   PersonalityQuirks,
+  DEFAULT_ASSISTANT_NAME,
   DEFAULT_QUIRKS,
   DEFAULT_RESPONSE_STYLE,
 } from "../../shared/types";
@@ -15,6 +16,7 @@ import {
   type UiCopyKey,
   type AgentMessageContext,
 } from "../utils/agentMessages";
+import { useLanguage } from "../i18n";
 
 /**
  * Agent context returned by the hook
@@ -36,7 +38,10 @@ export interface AgentContext {
   // Helper methods
   getMessage: (key: MessageKey, detail?: string) => string;
   getPlaceholder: () => string;
-  getUiCopy: (key: UiCopyKey, replacements?: Record<string, string | number>) => string;
+  getUiCopy: (
+    key: UiCopyKey,
+    replacements?: Record<string, string | number>,
+  ) => string;
   formatWithNames: (template: string) => string;
 
   // Refresh settings
@@ -47,7 +52,8 @@ export interface AgentContext {
  * Hook that provides unified access to agent personality context
  */
 export function useAgentContext(): AgentContext {
-  const [agentName, setAgentName] = useState("CoWork");
+  const language = useLanguage();
+  const [agentName, setAgentName] = useState(DEFAULT_ASSISTANT_NAME);
   const [userName, setUserName] = useState<string | undefined>(undefined);
   const [personality, setPersonality] = useState<PersonalityId>("professional");
   const [persona, setPersona] = useState<PersonaId | undefined>(undefined);
@@ -67,7 +73,10 @@ export function useAgentContext(): AgentContext {
       ]);
 
       // Agent name priority: personalitySettings > appearanceSettings > default
-      const name = personalitySettings.agentName || appearanceSettings.assistantName || "CoWork";
+      const name =
+        personalitySettings.agentName ||
+        appearanceSettings.assistantName ||
+        DEFAULT_ASSISTANT_NAME;
       setAgentName(name);
 
       // User name from relationship
@@ -77,7 +86,8 @@ export function useAgentContext(): AgentContext {
       setPersonality(personalitySettings.activePersonality || "professional");
       setPersona(personalitySettings.activePersona);
       setEmojiUsage(
-        personalitySettings.responseStyle?.emojiUsage || DEFAULT_RESPONSE_STYLE.emojiUsage,
+        personalitySettings.responseStyle?.emojiUsage ||
+          DEFAULT_RESPONSE_STYLE.emojiUsage,
       );
       setQuirks(personalitySettings.quirks || DEFAULT_QUIRKS);
     } catch (error) {
@@ -106,20 +116,21 @@ export function useAgentContext(): AgentContext {
 
   // getMessage helper
   const getMessageFn = useCallback(
-    (key: MessageKey, detail?: string) => getMessage(key, messageContext, detail),
-    [messageContext],
+    (key: MessageKey, detail?: string) =>
+      getMessage(key, messageContext, detail),
+    [messageContext, language],
   );
 
   const getUiCopyFn = useCallback(
     (key: UiCopyKey, replacements?: Record<string, string | number>) =>
       getUiCopy(key, messageContext, replacements),
-    [messageContext],
+    [messageContext, language],
   );
 
   // getPlaceholder helper
   const getPlaceholderFn = useCallback(
     () => getRandomPlaceholder(messageContext),
-    [messageContext],
+    [messageContext, language],
   );
 
   // formatWithNames helper - replaces {agentName} and {userName} in templates

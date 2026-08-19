@@ -1,0 +1,3 @@
+import { n as e, t } from "./shield-plus-DwHFVmkj-xkX4u2CW.js";
+e();
+export { t as default };

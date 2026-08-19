@@ -1,0 +1,3 @@
+import { n as e, t } from "./file-terminal-CwAYT0KT-DJYAoeQU.js";
+t();
+export { e as default };

@@ -3,13 +3,12 @@ import { useOnboardingFlow, SCRIPT } from "../../hooks/useOnboardingFlow";
 import { useVoiceInput } from "../../hooks/useVoiceInput";
 import { AwakeningOrb } from "./AwakeningOrb";
 import { TypewriterText } from "./TypewriterText";
-import type { LLMProviderType } from "../../../shared/types";
+import {
+  DEFAULT_ASSISTANT_NAME,
+  type LLMProviderType,
+} from "../../../shared/types";
 import { STARTER_MISSIONS } from "../../../shared/starter-missions";
 import {
-  buildOnboardingWorkspaceSummary,
-  getPriorityTitles,
-  getResolvedResponseStyleLabel,
-  getTimeDrainTitles,
   ONBOARDING_ASSISTANT_TRAITS,
   ONBOARDING_PRIORITIES,
   ONBOARDING_RESPONSE_STYLES,
@@ -19,11 +18,15 @@ import {
   type OnboardingResponseStyleId,
   type OnboardingTimeDrainId,
 } from "../../../shared/onboarding";
+import { translate, useLanguage } from "../../i18n";
 
 interface OnboardingProps {
   onComplete: (dontShowAgain: boolean) => void;
   workspaceId?: string | null;
 }
+
+type OnboardingOptionNamespace =
+  "assistantTrait" | "timeDrain" | "priority" | "responseStyle";
 
 interface OnboardingAmbientAudio {
   context: AudioContext;
@@ -80,14 +83,17 @@ const PROVIDER_URLS: Record<string, string> = {
   groq: "https://console.groq.com/keys",
   xai: "https://console.x.ai/",
   deepseek: "https://platform.deepseek.com/api_keys",
-  kimi: "https://platform.moonshot.ai/",
+  kimi: "https://platform.kimi.com/console/api-keys",
   "nano-gpt": "https://nano-gpt.com/api",
 };
 
 const CAPABILITY_PILLARS = [
-  "Natural conversation",
-  "Real task execution",
-  "Shared memory over time",
+  {
+    key: "onboarding.capability.conversation",
+    fallback: "Natural conversation",
+  },
+  { key: "onboarding.capability.execution", fallback: "Real task execution" },
+  { key: "onboarding.capability.memory", fallback: "Shared memory over time" },
 ];
 
 const AMBIENT_CHORDS: number[][] = [
@@ -101,7 +107,11 @@ const FILTER_TARGETS = [1250, 980, 1420, 1080];
 
 const midiToFrequency = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
 
-const createReverbImpulse = (context: AudioContext, duration = 4.2, decay = 2.8): AudioBuffer => {
+const createReverbImpulse = (
+  context: AudioContext,
+  duration = 4.2,
+  decay = 2.8,
+): AudioBuffer => {
   const length = Math.floor(context.sampleRate * duration);
   const impulse = context.createBuffer(2, length, context.sampleRate);
 
@@ -117,7 +127,10 @@ const createReverbImpulse = (context: AudioContext, duration = 4.2, decay = 2.8)
   return impulse;
 };
 
-const createNoiseBuffer = (context: AudioContext, duration = 3.5): AudioBuffer => {
+const createNoiseBuffer = (
+  context: AudioContext,
+  duration = 3.5,
+): AudioBuffer => {
   const length = Math.floor(context.sampleRate * duration);
   const buffer = context.createBuffer(1, length, context.sampleRate);
   const data = buffer.getChannelData(0);
@@ -144,7 +157,7 @@ interface OnboardingUiDraft {
   confidenceResponse: string;
 }
 
-const ONBOARDING_UI_DRAFT_KEY = "cowork:onboarding:ui:v1";
+const ONBOARDING_UI_DRAFT_KEY = "neoworker:onboarding:ui:v1";
 
 const clearOnboardingUiDraft = (): void => {
   if (typeof window === "undefined") return;
@@ -167,26 +180,53 @@ const buildConfidenceResponse = (
     memoryEnabled: boolean;
   },
 ): string => {
-  const name = data.assistantName || "CoWork";
+  const name = data.assistantName || DEFAULT_ASSISTANT_NAME;
   const styleLine =
     data.workStyle === "planner"
-      ? "I will break it into clear steps and keep progress visible."
-      : "I will move quickly and adapt as context changes.";
+      ? translate(
+          "onboarding.confidence.structured",
+          "I will break it into clear steps and keep progress visible.",
+        )
+      : translate(
+          "onboarding.confidence.adaptive",
+          "I will move quickly and adapt as context changes.",
+        );
   const memoryLine = data.memoryEnabled
-    ? "I will remember useful preferences and context for next time."
-    : "I will keep memory off until you enable it in Settings > Memory.";
+    ? translate(
+        "onboarding.confidence.memoryOn",
+        "I will remember useful preferences and context for next time.",
+      )
+    : translate(
+        "onboarding.confidence.memoryOff",
+        "I will keep memory off until you enable it in Settings > Memory.",
+      );
 
-  return `${name}: Great prompt: "${prompt}". ${styleLine} ${memoryLine}`;
+  return translate(
+    "onboarding.confidence.response",
+    '{name}: Great prompt: "{prompt}". {style} {memory}',
+    {
+      name,
+      prompt,
+      style: styleLine,
+      memory: memoryLine,
+    },
+  );
 };
 
 export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
+  const language = useLanguage();
+  const t = translate;
   const uiDraftRef = useRef<OnboardingUiDraft | null>(null);
-  const [inputValue, setInputValue] = useState(uiDraftRef.current?.inputValue ?? "");
+  const [inputValue, setInputValue] = useState(
+    uiDraftRef.current?.inputValue ?? "",
+  );
   const [inputMode, setInputMode] = useState<"voice" | "keyboard">(
     uiDraftRef.current?.inputMode ?? "keyboard",
   );
   const [voiceError, setVoiceError] = useState<string | null>(null);
-  const [musicEnabled, setMusicEnabled] = useState(uiDraftRef.current?.musicEnabled ?? true);
+  const [musicEnabled, setMusicEnabled] = useState(
+    uiDraftRef.current?.musicEnabled ?? true,
+  );
   const [showControlHints, setShowControlHints] = useState(
     uiDraftRef.current?.showControlHints ?? true,
   );
@@ -197,7 +237,9 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
     uiDraftRef.current?.confidenceResponse ?? "",
   );
   const [themeMode, setThemeMode] = useState<"light" | "dark">(() =>
-    document.documentElement.classList.contains("theme-light") ? "light" : "dark",
+    document.documentElement.classList.contains("theme-light")
+      ? "light"
+      : "dark",
   );
   const [profileNameDraft, setProfileNameDraft] = useState("");
   const [profileContextDraft, setProfileContextDraft] = useState("");
@@ -222,10 +264,21 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
     },
     onError: (error) => {
       // Keep voice mode active and show a recoverable error instead of forcing keyboard mode.
-      setVoiceError(error || "Could not transcribe audio. Please try again.");
+      setVoiceError(
+        error ||
+          t(
+            "onboarding.voice.transcribeError",
+            "Could not transcribe audio. Please try again.",
+          ),
+      );
     },
     onNotConfigured: () => {
-      setVoiceError("Voice transcription is not configured on this device.");
+      setVoiceError(
+        t(
+          "onboarding.voice.notConfigured",
+          "Voice transcription is not configured on this device.",
+        ),
+      );
       setInputMode("keyboard");
     },
     transcriptionMode: "local_preferred",
@@ -370,7 +423,8 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
 
     const AudioContextCtor =
       window.AudioContext ||
-      (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      (window as Window & { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
     if (!AudioContextCtor) return;
 
     const context = new AudioContextCtor();
@@ -496,7 +550,11 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
 
       const root = chord[0] - 24;
       droneOscillator.frequency.cancelScheduledValues(now);
-      droneOscillator.frequency.setTargetAtTime(midiToFrequency(root), now, 5.2);
+      droneOscillator.frequency.setTargetAtTime(
+        midiToFrequency(root),
+        now,
+        5.2,
+      );
 
       padFilter.frequency.cancelScheduledValues(now);
       padFilter.frequency.setTargetAtTime(FILTER_TARGETS[index], now, 4.2);
@@ -523,7 +581,8 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
       if (!active) return;
 
       const chord = AMBIENT_CHORDS[active.currentChordIndex];
-      const shimmerMidi = chord[1 + Math.floor(Math.random() * (chord.length - 1))] + 12;
+      const shimmerMidi =
+        chord[1 + Math.floor(Math.random() * (chord.length - 1))] + 12;
       const now = active.context.currentTime;
 
       const shimmerOsc = active.context.createOscillator();
@@ -601,14 +660,21 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
   // Start ambient soundtrack during onboarding and stop it when exiting.
   useEffect(() => {
     const shouldPlayMusic =
-      musicEnabled && onboarding.state !== "dormant" && onboarding.state !== "transitioning";
+      musicEnabled &&
+      onboarding.state !== "dormant" &&
+      onboarding.state !== "transitioning";
 
     if (shouldPlayMusic) {
       void ensureAmbientMusicPlaying();
     } else {
       stopAmbientMusic();
     }
-  }, [musicEnabled, onboarding.state, ensureAmbientMusicPlaying, stopAmbientMusic]);
+  }, [
+    musicEnabled,
+    onboarding.state,
+    ensureAmbientMusicPlaying,
+    stopAmbientMusic,
+  ]);
 
   // Ensure audio starts once user interacts (for autoplay-restricted environments).
   useEffect(() => {
@@ -662,7 +728,9 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
       if (window.electronAPI?.saveAppearanceSettings) {
         void window.electronAPI
           .saveAppearanceSettings({ themeMode: nextMode })
-          .catch((error) => console.error("Failed to save onboarding theme preference:", error));
+          .catch((error) =>
+            console.error("Failed to save onboarding theme preference:", error),
+          );
       }
 
       return nextMode;
@@ -763,15 +831,30 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
       voiceError.toLowerCase().includes("service-not-allowed"));
   const isSpeechServiceUnavailableError =
     !!voiceError &&
-    (voiceError.toLowerCase().includes("speech recognition service is unavailable") ||
-      voiceError.toLowerCase().includes("system speech recognition is unavailable") ||
+    (voiceError
+      .toLowerCase()
+      .includes("speech recognition service is unavailable") ||
+      voiceError
+        .toLowerCase()
+        .includes("system speech recognition is unavailable") ||
       voiceError.toLowerCase().includes("speech recognition error: network"));
 
-  const getOpenSettingsErrorMessage = (error: unknown, fallback: string): string => {
-    const raw = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const getOpenSettingsErrorMessage = (
+    error: unknown,
+    fallback: string,
+  ): string => {
+    const raw =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "";
 
     if (raw.includes("No handler registered for 'system:openSettings'")) {
-      return "Please restart the app once, then try opening settings again.";
+      return t(
+        "onboarding.voice.restartForSettings",
+        "Please restart the app once, then try opening settings again.",
+      );
     }
 
     return fallback;
@@ -788,7 +871,10 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
 
     if (!maybeOpenSystemSettings) {
       setVoiceError(
-        "Could not open System Settings automatically. Open Privacy & Security > Microphone.",
+        t(
+          "onboarding.voice.openSettingsFailed",
+          "Could not open System Settings automatically. Open Privacy & Security > Microphone.",
+        ),
       );
       return;
     }
@@ -799,7 +885,10 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
           setVoiceError(
             getOpenSettingsErrorMessage(
               result?.error,
-              "Could not open System Settings automatically. Open Privacy & Security > Microphone.",
+              t(
+                "onboarding.voice.openSettingsFailed",
+                "Could not open System Settings automatically. Open Privacy & Security > Microphone.",
+              ),
             ),
           );
         }
@@ -808,7 +897,10 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
         setVoiceError(
           getOpenSettingsErrorMessage(
             error,
-            "Could not open System Settings automatically. Open Privacy & Security > Microphone.",
+            t(
+              "onboarding.voice.openSettingsFailed",
+              "Could not open System Settings automatically. Open Privacy & Security > Microphone.",
+            ),
           ),
         );
       });
@@ -818,14 +910,23 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
     if (isMicrophonePermissionError) {
       return (
         <div className="onboarding-voice-help" role="note">
-          <p>In System Settings, enable microphone access for CoWork OS.</p>
           <p>
-            If CoWork OS is not listed and you launched from `npm run dev`, enable Terminal/Electron
-            access instead.
+            {t(
+              "onboarding.voice.help.enableMic",
+              "In System Settings, enable microphone access for NeoWorker.",
+            )}
           </p>
           <p>
-            Then return here and tap the mic again. If you just changed permission, restart the app
-            once.
+            {t(
+              "onboarding.voice.help.devTerminal",
+              "If NeoWorker is not listed and you launched from `npm run dev`, enable Terminal/Electron access instead.",
+            )}
+          </p>
+          <p>
+            {t(
+              "onboarding.voice.help.retryAfterPermission",
+              "Then return here and tap the mic again. If you just changed permission, restart the app once.",
+            )}
           </p>
         </div>
       );
@@ -834,13 +935,23 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
     if (isSpeechServiceUnavailableError) {
       return (
         <div className="onboarding-voice-help" role="note">
-          <p>Open Privacy & Security {">"} Microphone and ensure CoWork OS is enabled.</p>
           <p>
-            If CoWork OS is not listed and you launched from `npm run dev`, enable Terminal/Electron
-            access instead.
+            {t(
+              "onboarding.voice.help.openPrivacy",
+              "Open Privacy & Security > Microphone and ensure NeoWorker is enabled.",
+            )}
           </p>
           <p>
-            If it is already enabled, check Keyboard {">"} Dictation and confirm Dictation is on.
+            {t(
+              "onboarding.voice.help.devTerminal",
+              "If NeoWorker is not listed and you launched from `npm run dev`, enable Terminal/Electron access instead.",
+            )}
+          </p>
+          <p>
+            {t(
+              "onboarding.voice.help.dictation",
+              "If it is already enabled, check Keyboard > Dictation and confirm Dictation is on.",
+            )}
           </p>
         </div>
       );
@@ -858,39 +969,52 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
     return "breathing";
   };
 
-  const toggleAssistantTrait = useCallback((traitId: OnboardingAssistantTraitId) => {
-    const selected = onboarding.data.assistantTraits.includes(traitId);
-    const next = selected
-      ? onboarding.data.assistantTraits.filter((item) => item !== traitId)
-      : [...onboarding.data.assistantTraits, traitId];
-    onboarding.updateData({
-      assistantTraits: next.length > 0 ? next : ["adaptive"],
-    });
-  }, [onboarding]);
+  const toggleAssistantTrait = useCallback(
+    (traitId: OnboardingAssistantTraitId) => {
+      const selected = onboarding.data.assistantTraits.includes(traitId);
+      const next = selected
+        ? onboarding.data.assistantTraits.filter((item) => item !== traitId)
+        : [...onboarding.data.assistantTraits, traitId];
+      onboarding.updateData({
+        assistantTraits: next.length > 0 ? next : ["adaptive"],
+      });
+    },
+    [onboarding],
+  );
 
-  const toggleTimeDrain = useCallback((timeDrainId: OnboardingTimeDrainId) => {
-    const selected = onboarding.data.timeDrains.includes(timeDrainId);
-    onboarding.updateData({
-      timeDrains: selected
-        ? onboarding.data.timeDrains.filter((item) => item !== timeDrainId)
-        : [...onboarding.data.timeDrains, timeDrainId],
-    });
-  }, [onboarding]);
+  const toggleTimeDrain = useCallback(
+    (timeDrainId: OnboardingTimeDrainId) => {
+      const selected = onboarding.data.timeDrains.includes(timeDrainId);
+      onboarding.updateData({
+        timeDrains: selected
+          ? onboarding.data.timeDrains.filter((item) => item !== timeDrainId)
+          : [...onboarding.data.timeDrains, timeDrainId],
+      });
+    },
+    [onboarding],
+  );
 
-  const togglePriority = useCallback((priorityId: OnboardingPriorityId) => {
-    const selected = onboarding.data.priorities.includes(priorityId);
-    onboarding.updateData({
-      priorities: selected
-        ? onboarding.data.priorities.filter((item) => item !== priorityId)
-        : [...onboarding.data.priorities, priorityId],
-    });
-  }, [onboarding]);
+  const togglePriority = useCallback(
+    (priorityId: OnboardingPriorityId) => {
+      const selected = onboarding.data.priorities.includes(priorityId);
+      onboarding.updateData({
+        priorities: selected
+          ? onboarding.data.priorities.filter((item) => item !== priorityId)
+          : [...onboarding.data.priorities, priorityId],
+      });
+    },
+    [onboarding],
+  );
 
-  const selectResponseStyle = useCallback((styleId: OnboardingResponseStyleId) => {
-    onboarding.updateData({ responseStyle: styleId });
-  }, [onboarding]);
+  const selectResponseStyle = useCallback(
+    (styleId: OnboardingResponseStyleId) => {
+      onboarding.updateData({ responseStyle: styleId });
+    },
+    [onboarding],
+  );
 
   const renderSelectionCards = <T extends string>(
+    namespace: OnboardingOptionNamespace,
     options: Array<{ id: T; title: string; description: string }>,
     selectedIds: T[],
     onToggle: (id: T) => void,
@@ -906,10 +1030,22 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
             type="button"
           >
             <div className="onboarding-selection-card-header">
-              <span className="onboarding-selection-card-title">{option.title}</span>
-              <span className="onboarding-selection-card-check">{selected ? "✓" : ""}</span>
+              <span className="onboarding-selection-card-title">
+                {t(
+                  `onboarding.option.${namespace}.${option.id}.title`,
+                  option.title,
+                )}
+              </span>
+              <span className="onboarding-selection-card-check">
+                {selected ? "✓" : ""}
+              </span>
             </div>
-            <span className="onboarding-selection-card-desc">{option.description}</span>
+            <span className="onboarding-selection-card-desc">
+              {t(
+                `onboarding.option.${namespace}.${option.id}.description`,
+                option.description,
+              )}
+            </span>
           </button>
         );
       })}
@@ -919,6 +1055,7 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
   const renderAssistantTraitStep = () => (
     <div className="onboarding-step-panel">
       {renderSelectionCards(
+        "assistantTrait",
         ONBOARDING_ASSISTANT_TRAITS,
         onboarding.data.assistantTraits,
         toggleAssistantTrait,
@@ -926,9 +1063,11 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
       <div className="onboarding-actions">
         <button
           className="onboarding-btn onboarding-btn-primary"
-          onClick={() => onboarding.submitAssistantTraits(onboarding.data.assistantTraits)}
+          onClick={() =>
+            onboarding.submitAssistantTraits(onboarding.data.assistantTraits)
+          }
         >
-          Continue
+          {t("common.continue", "Continue")}
         </button>
       </div>
     </div>
@@ -937,19 +1076,29 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
   const renderUserProfileStep = () => (
     <div className="onboarding-step-panel onboarding-form-panel">
       <div className="onboarding-form-group">
-        <label className="onboarding-form-label">Your name</label>
+        <label className="onboarding-form-label">
+          {t("onboarding.form.yourName", "Your name")}
+        </label>
         <input
           className="onboarding-input"
-          placeholder="What should CoWork call you?"
+          placeholder={t(
+            "onboarding.form.namePlaceholder",
+            "What should NeoWorker call you?",
+          )}
           value={profileNameDraft}
           onChange={(e) => setProfileNameDraft(e.target.value)}
         />
       </div>
       <div className="onboarding-form-group">
-        <label className="onboarding-form-label">Work context (optional)</label>
+        <label className="onboarding-form-label">
+          {t("onboarding.form.workContext", "Work context (optional)")}
+        </label>
         <textarea
           className="onboarding-textarea"
-          placeholder="Describe your work, current focus, or what usually needs help."
+          placeholder={t(
+            "onboarding.form.workContextPlaceholder",
+            "Describe your work, current focus, or what usually needs help.",
+          )}
           value={profileContextDraft}
           onChange={(e) => setProfileContextDraft(e.target.value)}
           rows={5}
@@ -958,10 +1107,12 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
       <div className="onboarding-actions">
         <button
           className="onboarding-btn onboarding-btn-primary"
-          onClick={() => onboarding.submitUserProfile(profileNameDraft, profileContextDraft)}
+          onClick={() =>
+            onboarding.submitUserProfile(profileNameDraft, profileContextDraft)
+          }
           disabled={!profileNameDraft.trim()}
         >
-          Continue
+          {t("common.continue", "Continue")}
         </button>
       </div>
     </div>
@@ -971,13 +1122,23 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
     const showOther = onboarding.data.timeDrains.includes("other");
     return (
       <div className="onboarding-step-panel">
-        {renderSelectionCards(ONBOARDING_TIME_DRAINS, onboarding.data.timeDrains, toggleTimeDrain)}
+        {renderSelectionCards(
+          "timeDrain",
+          ONBOARDING_TIME_DRAINS,
+          onboarding.data.timeDrains,
+          toggleTimeDrain,
+        )}
         {showOther && (
           <div className="onboarding-form-group">
-            <label className="onboarding-form-label">Other time drain</label>
+            <label className="onboarding-form-label">
+              {t("onboarding.form.otherTimeDrain", "Other time drain")}
+            </label>
             <input
               className="onboarding-input"
-              placeholder="Describe the extra drag on your time"
+              placeholder={t(
+                "onboarding.form.otherTimeDrainPlaceholder",
+                "Describe the extra drag on your time",
+              )}
               value={timeDrainsOtherDraft}
               onChange={(e) => setTimeDrainsOtherDraft(e.target.value)}
             />
@@ -986,13 +1147,18 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
         <div className="onboarding-actions">
           <button
             className="onboarding-btn onboarding-btn-primary"
-            onClick={() => onboarding.submitTimeDrains(onboarding.data.timeDrains, timeDrainsOtherDraft)}
+            onClick={() =>
+              onboarding.submitTimeDrains(
+                onboarding.data.timeDrains,
+                timeDrainsOtherDraft,
+              )
+            }
             disabled={
               onboarding.data.timeDrains.length === 0 ||
               (showOther && !timeDrainsOtherDraft.trim())
             }
           >
-            Continue
+            {t("common.continue", "Continue")}
           </button>
         </div>
       </div>
@@ -1003,13 +1169,23 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
     const showOther = onboarding.data.priorities.includes("other");
     return (
       <div className="onboarding-step-panel">
-        {renderSelectionCards(ONBOARDING_PRIORITIES, onboarding.data.priorities, togglePriority)}
+        {renderSelectionCards(
+          "priority",
+          ONBOARDING_PRIORITIES,
+          onboarding.data.priorities,
+          togglePriority,
+        )}
         {showOther && (
           <div className="onboarding-form-group">
-            <label className="onboarding-form-label">Other priority</label>
+            <label className="onboarding-form-label">
+              {t("onboarding.form.otherPriority", "Other priority")}
+            </label>
             <input
               className="onboarding-input"
-              placeholder="Describe another way CoWork should help first"
+              placeholder={t(
+                "onboarding.form.otherPriorityPlaceholder",
+                "Describe another way NeoWorker should help first",
+              )}
               value={prioritiesOtherDraft}
               onChange={(e) => setPrioritiesOtherDraft(e.target.value)}
             />
@@ -1018,13 +1194,18 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
         <div className="onboarding-actions">
           <button
             className="onboarding-btn onboarding-btn-primary"
-            onClick={() => onboarding.submitPriorities(onboarding.data.priorities, prioritiesOtherDraft)}
+            onClick={() =>
+              onboarding.submitPriorities(
+                onboarding.data.priorities,
+                prioritiesOtherDraft,
+              )
+            }
             disabled={
               onboarding.data.priorities.length === 0 ||
               (showOther && !prioritiesOtherDraft.trim())
             }
           >
-            Continue
+            {t("common.continue", "Continue")}
           </button>
         </div>
       </div>
@@ -1034,10 +1215,15 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
   const renderToolsStep = () => (
     <div className="onboarding-step-panel onboarding-form-panel">
       <div className="onboarding-form-group">
-        <label className="onboarding-form-label">Core apps and tools</label>
+        <label className="onboarding-form-label">
+          {t("onboarding.form.coreTools", "Core apps and tools")}
+        </label>
         <textarea
           className="onboarding-textarea"
-          placeholder="Gmail, Notion, Google Calendar, GitHub, YouTube Studio..."
+          placeholder={t(
+            "onboarding.form.coreToolsPlaceholder",
+            "Gmail, Notion, Google Calendar, GitHub, YouTube Studio...",
+          )}
           value={workflowToolsDraft}
           onChange={(e) => setWorkflowToolsDraft(e.target.value)}
           rows={4}
@@ -1049,7 +1235,7 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
           onClick={() => onboarding.submitWorkflowTools(workflowToolsDraft)}
           disabled={!workflowToolsDraft.trim()}
         >
-          Continue
+          {t("common.continue", "Continue")}
         </button>
         <button
           className="onboarding-btn onboarding-btn-secondary"
@@ -1058,7 +1244,7 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
             onboarding.submitWorkflowTools("");
           }}
         >
-          Skip
+          {t("onboarding.nav.skip", "Skip onboarding")}
         </button>
       </div>
     </div>
@@ -1069,16 +1255,25 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
     return (
       <div className="onboarding-step-panel">
         {renderSelectionCards(
+          "responseStyle",
           ONBOARDING_RESPONSE_STYLES,
           [selected],
           (styleId) => selectResponseStyle(styleId),
         )}
         {selected === "custom" && (
           <div className="onboarding-form-group">
-            <label className="onboarding-form-label">Custom response style</label>
+            <label className="onboarding-form-label">
+              {t(
+                "onboarding.form.customResponseStyle",
+                "Custom response style",
+              )}
+            </label>
             <input
               className="onboarding-input"
-              placeholder="Describe how you want responses to feel"
+              placeholder={t(
+                "onboarding.form.customResponseStylePlaceholder",
+                "Describe how you want responses to feel",
+              )}
               value={responseStyleCustomDraft}
               onChange={(e) => setResponseStyleCustomDraft(e.target.value)}
             />
@@ -1087,10 +1282,12 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
         <div className="onboarding-actions">
           <button
             className="onboarding-btn onboarding-btn-primary"
-            onClick={() => onboarding.submitResponseStyle(selected, responseStyleCustomDraft)}
+            onClick={() =>
+              onboarding.submitResponseStyle(selected, responseStyleCustomDraft)
+            }
             disabled={selected === "custom" && !responseStyleCustomDraft.trim()}
           >
-            Continue
+            {t("common.continue", "Continue")}
           </button>
         </div>
       </div>
@@ -1100,10 +1297,18 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
   const renderAdditionalGuidanceStep = () => (
     <div className="onboarding-step-panel onboarding-form-panel">
       <div className="onboarding-form-group">
-        <label className="onboarding-form-label">Anything else to always keep in mind?</label>
+        <label className="onboarding-form-label">
+          {t(
+            "onboarding.form.additionalGuidance",
+            "Anything else to always keep in mind?",
+          )}
+        </label>
         <textarea
           className="onboarding-textarea"
-          placeholder="Share durable preferences, friction points, or hard rules. Leave blank to skip."
+          placeholder={t(
+            "onboarding.form.additionalGuidancePlaceholder",
+            "Share durable preferences, friction points, or hard rules. Leave blank to skip.",
+          )}
           value={additionalGuidanceDraft}
           onChange={(e) => setAdditionalGuidanceDraft(e.target.value)}
           rows={4}
@@ -1112,9 +1317,11 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
       <div className="onboarding-actions">
         <button
           className="onboarding-btn onboarding-btn-primary"
-          onClick={() => onboarding.submitAdditionalGuidance(additionalGuidanceDraft)}
+          onClick={() =>
+            onboarding.submitAdditionalGuidance(additionalGuidanceDraft)
+          }
         >
-          Continue
+          {t("common.continue", "Continue")}
         </button>
       </div>
     </div>
@@ -1128,14 +1335,14 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
         type="button"
         onClick={() => onboarding.submitWorkStyle("planner")}
       >
-        Structured planning
+        {t("onboarding.workStyle.structured", "Structured planning")}
       </button>
       <button
         className="onboarding-btn onboarding-btn-secondary"
         type="button"
         onClick={() => onboarding.submitWorkStyle("flexible")}
       >
-        Adaptive execution
+        {t("onboarding.workStyle.adaptive", "Adaptive execution")}
       </button>
     </div>
   );
@@ -1147,14 +1354,14 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
         type="button"
         onClick={() => onboarding.submitVoicePreference(true)}
       >
-        Enable voice replies
+        {t("onboarding.voice.enableReplies", "Enable voice replies")}
       </button>
       <button
         className="onboarding-btn onboarding-btn-secondary"
         type="button"
         onClick={() => onboarding.submitVoicePreference(false)}
       >
-        Not now
+        {t("common.notNow", "Not now")}
       </button>
       <div
         style={{
@@ -1165,18 +1372,26 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
           textAlign: "center",
         }}
       >
-        You can change this later in Settings {">"} Voice.
+        {t(
+          "onboarding.voice.changeLater",
+          "You can change this later in Settings > Voice.",
+        )}
       </div>
     </div>
   );
 
   const renderCapabilityPillars = () => (
-    <div className="onboarding-capability-strip" aria-label="Core capabilities">
-      <div className="onboarding-capability-label">How I work with you</div>
+    <div
+      className="onboarding-capability-strip"
+      aria-label={t("onboarding.capability.aria", "Core capabilities")}
+    >
+      <div className="onboarding-capability-label">
+        {t("onboarding.capability.label", "How I work with you")}
+      </div>
       <div className="onboarding-capability-pills">
         {CAPABILITY_PILLARS.map((item) => (
-          <span key={item} className="onboarding-capability-pill">
-            {item}
+          <span key={item.key} className="onboarding-capability-pill">
+            {t(item.key, item.fallback)}
           </span>
         ))}
       </div>
@@ -1186,7 +1401,7 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
           className="onboarding-btn-primary onboarding-intro-continue"
           onClick={onboarding.continueFromIntro}
         >
-          Continue
+          {t("common.continue", "Continue")}
         </button>
       )}
     </div>
@@ -1198,33 +1413,59 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
 
   const renderMemoryTrustStep = () => (
     <div className="onboarding-memory-trust">
-      <p className="onboarding-memory-trust-copy">Choose what I remember:</p>
+      <p className="onboarding-memory-trust-copy">
+        {t("onboarding.memoryTrust.title", "Choose what I remember:")}
+      </p>
       <ul className="onboarding-memory-trust-list">
-        <li>Memory on keeps useful preferences and recurring context from our chats.</li>
         <li>
-          Memory off means no memory storage at all until you re-enable it in Settings {">"} Memory.
+          {t(
+            "onboarding.memoryTrust.onDescription",
+            "Memory on keeps useful preferences and recurring context from our chats.",
+          )}
         </li>
-        <li>You can review, edit, or delete memory anytime in Settings {">"} Memory.</li>
+        <li>
+          {t(
+            "onboarding.memoryTrust.offDescription",
+            "Memory off means no memory storage at all until you re-enable it in Settings > Memory.",
+          )}
+        </li>
+        <li>
+          {t(
+            "onboarding.memoryTrust.reviewDescription",
+            "You can review, edit, or delete memory anytime in Settings > Memory.",
+          )}
+        </li>
       </ul>
       <button
         className={`onboarding-memory-toggle ${onboarding.data.memoryEnabled ? "enabled" : ""}`}
         role="switch"
         aria-checked={onboarding.data.memoryEnabled}
-        onClick={() => onboarding.setMemoryTrustChoice(!onboarding.data.memoryEnabled)}
+        onClick={() =>
+          onboarding.setMemoryTrustChoice(!onboarding.data.memoryEnabled)
+        }
       >
         <span className="onboarding-memory-toggle-track">
           <span className="onboarding-memory-toggle-knob" />
         </span>
         <span className="onboarding-memory-toggle-label">
-          {onboarding.data.memoryEnabled ? "Memory on" : "Memory off"}
+          {onboarding.data.memoryEnabled
+            ? t("onboarding.memoryTrust.memoryOn", "Memory on")
+            : t("onboarding.memoryTrust.memoryOff", "Memory off")}
         </span>
       </button>
       <div className="onboarding-actions" style={{ marginTop: 20 }}>
         <button
           className="onboarding-btn onboarding-btn-primary"
-          onClick={() => onboarding.submitMemoryTrust(onboarding.data.memoryEnabled)}
+          onClick={() =>
+            onboarding.submitMemoryTrust(onboarding.data.memoryEnabled)
+          }
         >
-          {onboarding.data.memoryEnabled ? "Continue with memory on" : "Continue with memory off"}
+          {onboarding.data.memoryEnabled
+            ? t("onboarding.memoryTrust.continueOn", "Continue with memory on")
+            : t(
+                "onboarding.memoryTrust.continueOff",
+                "Continue with memory off",
+              )}
         </button>
       </div>
     </div>
@@ -1251,45 +1492,147 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
             className="onboarding-btn onboarding-btn-secondary onboarding-btn-sm"
             onClick={onboarding.changeWorkStyle}
           >
-            Change
+            {t("common.change", "Change")}
           </button>
           <span className="onboarding-countdown">
-            Continuing in {onboarding.styleCountdown}s...
+            {t("onboarding.style.continuingIn", "Continuing in {seconds}s...", {
+              seconds: onboarding.styleCountdown,
+            })}
           </span>
         </div>
       </div>
     );
   };
 
+  const localizedOptionTitle = <T extends string>(
+    namespace: OnboardingOptionNamespace,
+    options: Array<{ id: T; title: string }>,
+    id: T,
+  ): string => {
+    const option = options.find((item) => item.id === id);
+    return t(`onboarding.option.${namespace}.${id}.title`, option?.title || id);
+  };
+
+  const localizedSelectedTitles = <T extends string>(
+    namespace: OnboardingOptionNamespace,
+    options: Array<{ id: T; title: string }>,
+    selectedIds: T[],
+    otherId?: T,
+    otherText?: string,
+  ): string[] => {
+    const uniqueIds = Array.from(new Set(selectedIds));
+    const labels = uniqueIds
+      .filter((id) => id !== otherId)
+      .map((id) => localizedOptionTitle(namespace, options, id))
+      .filter((label) => label.trim().length > 0);
+
+    if (otherId && uniqueIds.includes(otherId) && otherText?.trim()) {
+      labels.push(otherText.trim());
+    }
+
+    return labels;
+  };
+
+  const joinLocalizedList = (items: string[]): string =>
+    items.join(language === "zh-CN" ? "、" : ", ");
+
+  const getLocalizedAssistantStyleSummary = (): string => {
+    const traits = localizedSelectedTitles(
+      "assistantTrait",
+      ONBOARDING_ASSISTANT_TRAITS,
+      onboarding.data.assistantTraits,
+    );
+    if (traits.length === 0) {
+      return t(
+        "onboarding.recap.assistantStyle.default",
+        "Direct, capable, and adaptive to the work.",
+      );
+    }
+    if (traits.length === 1) {
+      return t("onboarding.recap.assistantStyle.one", "{first}.", {
+        first: traits[0],
+      });
+    }
+    if (traits.length === 2) {
+      return t("onboarding.recap.assistantStyle.two", "{first} and {second}.", {
+        first: traits[0],
+        second: traits[1],
+      });
+    }
+    return t("onboarding.recap.assistantStyle.many", "{items}, and {last}.", {
+      items: joinLocalizedList(traits.slice(0, -1)),
+      last: traits[traits.length - 1],
+    });
+  };
+
+  const getLocalizedResponseStyleLabel = (): string => {
+    if (onboarding.data.responseStyle === "custom") {
+      return (
+        onboarding.data.responseStyleCustom.trim() ||
+        t("onboarding.option.responseStyle.custom.title", "Something else")
+      );
+    }
+    if (!onboarding.data.responseStyle) {
+      return t("onboarding.recap.notSet", "Not set yet");
+    }
+    return localizedOptionTitle(
+      "responseStyle",
+      ONBOARDING_RESPONSE_STYLES,
+      onboarding.data.responseStyle,
+    );
+  };
+
   const renderPersonalizedRecap = () => {
-    const workspaceSummary = buildOnboardingWorkspaceSummary(onboarding.data);
     const providerName = onboarding.data.selectedProvider
       ? onboarding.data.selectedProvider === "openai" && !onboarding.data.apiKey
         ? "ChatGPT"
-        : PROVIDERS.find((provider) => provider.id === onboarding.data.selectedProvider)?.name ||
-          onboarding.data.selectedProvider
+        : PROVIDERS.find(
+            (provider) => provider.id === onboarding.data.selectedProvider,
+          )?.name || onboarding.data.selectedProvider
       : "Not configured yet";
     const workStyleLabel =
       onboarding.data.workStyle === "planner"
-        ? "Structured planning"
+        ? t("onboarding.recap.workStyle.structured", "Structured planning")
         : onboarding.data.workStyle === "flexible"
-          ? "Adaptive execution"
-          : "Not set yet";
-    const memoryLabel = onboarding.data.memoryEnabled ? "On" : "Off";
+          ? t("onboarding.recap.workStyle.adaptive", "Adaptive execution")
+          : t("onboarding.recap.notSet", "Not set yet");
+    const localizedProviderName =
+      providerName === "Not configured yet"
+        ? t("onboarding.recap.notConfigured", "Not configured yet")
+        : providerName;
+    const memoryLabel = onboarding.data.memoryEnabled
+      ? t("onboarding.recap.on", "On")
+      : t("onboarding.recap.off", "Off");
     const voiceLabel =
       onboarding.data.voiceEnabled === null
-        ? "Not set yet"
+        ? t("onboarding.recap.notSet", "Not set yet")
         : onboarding.data.voiceEnabled
-          ? "Enabled"
-          : "Disabled";
-    const timeDrains = getTimeDrainTitles(onboarding.data);
-    const priorities = getPriorityTitles(onboarding.data);
+          ? t("common.enabled", "Enabled")
+          : t("common.disabled", "Disabled");
+    const assistantStyleSummary = getLocalizedAssistantStyleSummary();
+    const responseStyleLabel = getLocalizedResponseStyleLabel();
+    const timeDrains = localizedSelectedTitles(
+      "timeDrain",
+      ONBOARDING_TIME_DRAINS,
+      onboarding.data.timeDrains,
+      "other",
+      onboarding.data.timeDrainsOther,
+    );
+    const priorities = localizedSelectedTitles(
+      "priority",
+      ONBOARDING_PRIORITIES,
+      onboarding.data.priorities,
+      "other",
+      onboarding.data.prioritiesOther,
+    );
     const hasWorkContext = Boolean(
-      onboarding.data.userContext.trim() || onboarding.data.workflowTools.trim(),
+      onboarding.data.userContext.trim() ||
+      onboarding.data.workflowTools.trim(),
     );
     const hasFocusMap = timeDrains.length > 0 || priorities.length > 0;
     const hasResponseGuidance = Boolean(
-      onboarding.data.responseStyle !== "depends" || onboarding.data.additionalGuidance.trim(),
+      onboarding.data.responseStyle !== "depends" ||
+      onboarding.data.additionalGuidance.trim(),
     );
     const hasOperatingMode = Boolean(
       onboarding.data.workStyle || onboarding.data.voiceEnabled !== null,
@@ -1312,87 +1655,165 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
       <div className="onboarding-recap">
         <div className="onboarding-recap-hero">
           <div className="onboarding-recap-header">
-            <span className="onboarding-recap-eyebrow">Ready to start</span>
+            <span className="onboarding-recap-eyebrow">
+              {t("onboarding.recap.eyebrow", "Ready to start")}
+            </span>
             <h2>
-              {providerName === "ChatGPT" ? "ChatGPT is connected." : "Your setup is ready."}
+              {providerName === "ChatGPT"
+                ? t(
+                    "onboarding.recap.chatgptConnected",
+                    "ChatGPT is connected.",
+                  )
+                : t("onboarding.recap.setupReady", "Your setup is ready.")}
             </h2>
-            <p>Review the essentials, tune anything that feels off, then start working.</p>
+            <p>
+              {t(
+                "onboarding.recap.subtitle",
+                "Review the essentials, tune anything that feels off, then start working.",
+              )}
+            </p>
           </div>
-          <div className="onboarding-recap-provider-badge" aria-label={`Provider: ${providerName}`}>
+          <div
+            className="onboarding-recap-provider-badge"
+            aria-label={t(
+              "onboarding.recap.providerAria",
+              "Provider: {provider}",
+              {
+                provider: localizedProviderName,
+              },
+            )}
+          >
             <span aria-hidden="true" />
-            {providerName}
+            {localizedProviderName}
           </div>
         </div>
 
         <div className="onboarding-recap-scroll" tabIndex={0}>
-          <div className="onboarding-recap-status-grid" aria-label="Setup status">
+          <div
+            className="onboarding-recap-status-grid"
+            aria-label={t("onboarding.recap.setupStatus", "Setup status")}
+          >
             <div className="onboarding-recap-status-item">
-              <span>Assistant</span>
-              <strong>{onboarding.data.assistantName || "CoWork"}</strong>
+              <span>{t("onboarding.recap.assistant", "Assistant")}</span>
+              <strong>
+                {onboarding.data.assistantName || DEFAULT_ASSISTANT_NAME}
+              </strong>
             </div>
             <div className="onboarding-recap-status-item">
-              <span>Memory</span>
+              <span>{t("onboarding.recap.memory", "Memory")}</span>
               <strong>{memoryLabel}</strong>
             </div>
             <div className="onboarding-recap-status-item">
-              <span>Mode</span>
+              <span>{t("onboarding.recap.mode", "Mode")}</span>
               <strong>{workStyleLabel}</strong>
             </div>
           </div>
 
-          <div className="onboarding-recap-card-grid" aria-label="Onboarding setup recap">
+          <div
+            className="onboarding-recap-card-grid"
+            aria-label={t(
+              "onboarding.recap.gridAria",
+              "Onboarding setup recap",
+            )}
+          >
             <section className="onboarding-recap-card onboarding-recap-card-featured">
               <div className="onboarding-recap-card-copy">
-                <span className="onboarding-recap-row-label">Assistant</span>
-                <strong>{onboarding.data.assistantName || "CoWork"}</strong>
-                <p>{workspaceSummary.assistantStyle}</p>
+                <span className="onboarding-recap-row-label">
+                  {t("onboarding.recap.assistant", "Assistant")}
+                </span>
+                <strong>
+                  {onboarding.data.assistantName || DEFAULT_ASSISTANT_NAME}
+                </strong>
+                <p>{assistantStyleSummary}</p>
               </div>
               <div className="onboarding-recap-edit-actions">
-                {renderEditButton("Name", "name")}
-                {renderEditButton("Traits", "assistant_traits")}
+                {renderEditButton(
+                  t("onboarding.recap.edit.name", "Name"),
+                  "name",
+                )}
+                {renderEditButton(
+                  t("onboarding.recap.edit.traits", "Traits"),
+                  "assistant_traits",
+                )}
               </div>
             </section>
 
             <section className="onboarding-recap-card">
               <div className="onboarding-recap-card-copy">
-                <span className="onboarding-recap-row-label">AI provider</span>
-                <strong>{providerName}</strong>
+                <span className="onboarding-recap-row-label">
+                  {t("onboarding.recap.aiProvider", "AI provider")}
+                </span>
+                <strong>{localizedProviderName}</strong>
                 <p>
                   {onboarding.data.selectedProvider
-                    ? "Ready for reasoning and task execution."
-                    : "You can add a provider later in Settings."}
+                    ? t(
+                        "onboarding.recap.providerReady",
+                        "Ready for reasoning and task execution.",
+                      )
+                    : t(
+                        "onboarding.recap.providerLater",
+                        "You can add a provider later in Settings.",
+                      )}
                 </p>
               </div>
               <div className="onboarding-recap-edit-actions">
-                {renderEditButton("Change", "model")}
+                {renderEditButton(
+                  t("onboarding.recap.edit.change", "Change"),
+                  "model",
+                )}
               </div>
             </section>
 
             <section className="onboarding-recap-card">
               <div className="onboarding-recap-card-copy">
-                <span className="onboarding-recap-row-label">Memory</span>
+                <span className="onboarding-recap-row-label">
+                  {t("onboarding.recap.memory", "Memory")}
+                </span>
                 <strong>{memoryLabel}</strong>
                 <p>
                   {onboarding.data.memoryEnabled
-                    ? "Preferences and context can carry across conversations."
-                    : "No memory will be stored until you turn it on."}
+                    ? t(
+                        "onboarding.recap.memoryOnDesc",
+                        "Preferences and context can carry across conversations.",
+                      )
+                    : t(
+                        "onboarding.recap.memoryOffDesc",
+                        "No memory will be stored until you turn it on.",
+                      )}
                 </p>
               </div>
               <div className="onboarding-recap-edit-actions">
-                {renderEditButton("Change", "memory")}
+                {renderEditButton(
+                  t("onboarding.recap.edit.change", "Change"),
+                  "memory",
+                )}
               </div>
             </section>
 
             {hasWorkContext && (
               <section className="onboarding-recap-card">
                 <div className="onboarding-recap-card-copy">
-                  <span className="onboarding-recap-row-label">Work context</span>
-                  <strong>{onboarding.data.userName || "User"}</strong>
-                  <p>{onboarding.data.userContext || onboarding.data.workflowTools}</p>
+                  <span className="onboarding-recap-row-label">
+                    {t("onboarding.recap.workContext", "Work context")}
+                  </span>
+                  <strong>
+                    {onboarding.data.userName ||
+                      t("onboarding.recap.userFallback", "User")}
+                  </strong>
+                  <p>
+                    {onboarding.data.userContext ||
+                      onboarding.data.workflowTools}
+                  </p>
                 </div>
                 <div className="onboarding-recap-edit-actions">
-                  {renderEditButton("Profile", "user_profile")}
-                  {renderEditButton("Tools", "tools")}
+                  {renderEditButton(
+                    t("onboarding.recap.edit.profile", "Profile"),
+                    "user_profile",
+                  )}
+                  {renderEditButton(
+                    t("onboarding.recap.edit.tools", "Tools"),
+                    "tools",
+                  )}
                 </div>
               </section>
             )}
@@ -1400,17 +1821,35 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
             {hasFocusMap && (
               <section className="onboarding-recap-card">
                 <div className="onboarding-recap-card-copy">
-                  <span className="onboarding-recap-row-label">Focus</span>
-                  <strong>{priorities.join(", ") || "Priorities"}</strong>
+                  <span className="onboarding-recap-row-label">
+                    {t("onboarding.recap.focus", "Focus")}
+                  </span>
+                  <strong>
+                    {priorities.join(", ") ||
+                      t("onboarding.recap.priorities", "Priorities")}
+                  </strong>
                   <p>
                     {timeDrains.length > 0
-                      ? `Time drains: ${timeDrains.join(", ")}`
-                      : "Priorities are ready."}
+                      ? t(
+                          "onboarding.recap.timeDrains",
+                          "Time drains: {items}",
+                          { items: timeDrains.join(", ") },
+                        )
+                      : t(
+                          "onboarding.recap.prioritiesReady",
+                          "Priorities are ready.",
+                        )}
                   </p>
                 </div>
                 <div className="onboarding-recap-edit-actions">
-                  {renderEditButton("Drains", "time_drains")}
-                  {renderEditButton("Priorities", "priorities")}
+                  {renderEditButton(
+                    t("onboarding.recap.edit.drains", "Drains"),
+                    "time_drains",
+                  )}
+                  {renderEditButton(
+                    t("onboarding.recap.edit.priorities", "Priorities"),
+                    "priorities",
+                  )}
                 </div>
               </section>
             )}
@@ -1418,16 +1857,26 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
             {(hasResponseGuidance || hasOperatingMode) && (
               <section className="onboarding-recap-card">
                 <div className="onboarding-recap-card-copy">
-                  <span className="onboarding-recap-row-label">Working style</span>
+                  <span className="onboarding-recap-row-label">
+                    {t("onboarding.recap.workingStyle", "Working style")}
+                  </span>
                   <strong>
-                    {hasResponseGuidance
-                      ? getResolvedResponseStyleLabel(onboarding.data)
-                      : workStyleLabel}
+                    {hasResponseGuidance ? responseStyleLabel : workStyleLabel}
                   </strong>
                   <p>
                     {[
-                      hasOperatingMode ? `Work style: ${workStyleLabel}` : null,
-                      onboarding.data.voiceEnabled !== null ? `Voice: ${voiceLabel}` : null,
+                      hasOperatingMode
+                        ? t(
+                            "onboarding.recap.workStyleLine",
+                            "Work style: {style}",
+                            { style: workStyleLabel },
+                          )
+                        : null,
+                      onboarding.data.voiceEnabled !== null
+                        ? t("onboarding.recap.voiceLine", "Voice: {voice}", {
+                            voice: voiceLabel,
+                          })
+                        : null,
                       onboarding.data.additionalGuidance.trim() || null,
                     ]
                       .filter(Boolean)
@@ -1435,24 +1884,59 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
                   </p>
                 </div>
                 <div className="onboarding-recap-edit-actions">
-                  {renderEditButton("Style", "response_style")}
-                  {renderEditButton("Voice", "voice")}
+                  {renderEditButton(
+                    t("onboarding.recap.edit.style", "Style"),
+                    "response_style",
+                  )}
+                  {renderEditButton(
+                    t("onboarding.recap.edit.voice", "Voice"),
+                    "voice",
+                  )}
                 </div>
               </section>
             )}
           </div>
 
-          {(!hasWorkContext || !hasFocusMap || !hasResponseGuidance || !hasOperatingMode) && (
+          {(!hasWorkContext ||
+            !hasFocusMap ||
+            !hasResponseGuidance ||
+            !hasOperatingMode) && (
             <div className="onboarding-recap-optional">
               <div>
-                <span className="onboarding-recap-row-label">Optional personalization</span>
-                <p>Add more context now, or start with ChatGPT and fill this in later.</p>
+                <span className="onboarding-recap-row-label">
+                  {t(
+                    "onboarding.recap.optionalTitle",
+                    "Optional personalization",
+                  )}
+                </span>
+                <p>
+                  {t(
+                    "onboarding.recap.optionalDesc",
+                    "Add more context now, or start with ChatGPT and fill this in later.",
+                  )}
+                </p>
               </div>
               <div className="onboarding-recap-edit-actions">
-                {!hasWorkContext && renderEditButton("Add profile", "user_profile")}
-                {!hasFocusMap && renderEditButton("Add priorities", "priorities")}
-                {!hasResponseGuidance && renderEditButton("Set style", "response_style")}
-                {!hasOperatingMode && renderEditButton("Work mode", "style")}
+                {!hasWorkContext &&
+                  renderEditButton(
+                    t("onboarding.recap.edit.addProfile", "Add profile"),
+                    "user_profile",
+                  )}
+                {!hasFocusMap &&
+                  renderEditButton(
+                    t("onboarding.recap.edit.addPriorities", "Add priorities"),
+                    "priorities",
+                  )}
+                {!hasResponseGuidance &&
+                  renderEditButton(
+                    t("onboarding.recap.edit.setStyle", "Set style"),
+                    "response_style",
+                  )}
+                {!hasOperatingMode &&
+                  renderEditButton(
+                    t("onboarding.recap.edit.workMode", "Work mode"),
+                    "style",
+                  )}
               </div>
             </div>
           )}
@@ -1463,7 +1947,7 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
             className="onboarding-btn onboarding-btn-primary"
             onClick={handleContinueFromRecap}
           >
-            Looks good
+            {t("onboarding.recap.looksGood", "Looks good")}
           </button>
         </div>
       </div>
@@ -1473,7 +1957,10 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
   const renderFinalTryPrompt = () => (
     <div className="onboarding-final-try">
       <p className="onboarding-final-try-copy">
-        Try one prompt now and I&apos;ll respond instantly.
+        {t(
+          "onboarding.finalTry.copy",
+          "Try one prompt now and I'll respond instantly.",
+        )}
       </p>
 
       <div className="onboarding-final-try-suggestions">
@@ -1494,7 +1981,7 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
       <div className="onboarding-final-try-input-row">
         <input
           className="onboarding-input onboarding-final-try-input"
-          placeholder="Try me now..."
+          placeholder={t("onboarding.finalTry.placeholder", "Try me now...")}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -1507,8 +1994,8 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
             }`}
             onClick={handleVoiceClick}
             disabled={voiceInput.state === "processing"}
-            aria-label="Use voice input"
-            title="Use voice input"
+            aria-label={t("onboarding.finalTry.useVoice", "Use voice input")}
+            title={t("onboarding.finalTry.useVoice", "Use voice input")}
           >
             {voiceInput.state === "processing" ? (
               <svg
@@ -1520,7 +2007,13 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
                 stroke="currentColor"
                 strokeWidth="2"
               >
-                <circle cx="12" cy="12" r="10" strokeDasharray="31.4" strokeDashoffset="10" />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  strokeDasharray="31.4"
+                  strokeDashoffset="10"
+                />
               </svg>
             ) : (
               <svg
@@ -1542,7 +2035,10 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
       </div>
 
       {voiceError && (
-        <div className="onboarding-voice-error onboarding-final-try-voice-error" role="alert">
+        <div
+          className="onboarding-voice-error onboarding-final-try-voice-error"
+          role="alert"
+        >
           {voiceError}
         </div>
       )}
@@ -1553,32 +2049,33 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
           onClick={handleConfidencePromptSubmit}
           disabled={!inputValue.trim()}
         >
-          Try it
+          {t("onboarding.finalTry.tryIt", "Try it")}
         </button>
         <button
           className="onboarding-btn onboarding-btn-secondary"
           onClick={onboarding.completeOnboarding}
         >
-          Enter CoWork
+          {t("onboarding.finalTry.enterNeoWorker", "Enter NeoWorker")}
         </button>
       </div>
 
       {confidenceResponse && (
         <div className="onboarding-final-try-response">
           <div className="onboarding-final-try-response-title">
-            {onboarding.data.assistantName || "CoWork"}
+            {onboarding.data.assistantName || DEFAULT_ASSISTANT_NAME}
           </div>
           <p>{confidenceResponse}</p>
           {confidencePrompt && (
             <div className="onboarding-final-try-prompt">
-              Prompt: <span>{confidencePrompt}</span>
+              {t("onboarding.finalTry.promptLabel", "Prompt:")}{" "}
+              <span>{confidencePrompt}</span>
             </div>
           )}
           <button
             className="onboarding-btn onboarding-btn-primary onboarding-final-try-enter-btn"
             onClick={onboarding.completeOnboarding}
           >
-            Start in workspace
+            {t("onboarding.finalTry.startInWorkspace", "Start in workspace")}
           </button>
         </div>
       )}
@@ -1606,20 +2103,25 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
         </div>
         <p className="onboarding-ollama-detection-model">{modelName}</p>
         <p className="onboarding-ollama-detection-note">
-          Local model — no API key needed, completely private.
+          {t(
+            "onboarding.ollama.localNote",
+            "Local model — no API key needed, completely private.",
+          )}
         </p>
         <div className="onboarding-actions" style={{ marginTop: 20 }}>
           <button
             className="onboarding-btn onboarding-btn-primary"
             onClick={() => onboarding.acceptOllamaDetection()}
           >
-            Use {modelName}
+            {t("onboarding.ollama.useModel", "Use {model}", {
+              model: modelName,
+            })}
           </button>
           <button
             className="onboarding-btn onboarding-btn-secondary"
             onClick={() => onboarding.declineOllamaDetection()}
           >
-            Choose another provider
+            {t("onboarding.ollama.chooseAnother", "Choose another provider")}
           </button>
         </div>
       </div>
@@ -1628,7 +2130,9 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
 
   // Render provider selection
   const renderProviders = () => (
-    <div className={`onboarding-setup-section ${onboarding.showProviders ? "visible" : ""}`}>
+    <div
+      className={`onboarding-setup-section ${onboarding.showProviders ? "visible" : ""}`}
+    >
       <div className="onboarding-ai-primary-grid">
         <button
           type="button"
@@ -1637,10 +2141,15 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
           disabled={onboarding.chatGptSignInLoading}
         >
           <span className="onboarding-ai-primary-title">
-            {onboarding.chatGptSignInLoading ? "Opening ChatGPT..." : "Sign in with ChatGPT"}
+            {onboarding.chatGptSignInLoading
+              ? t("onboarding.provider.openingChatGpt", "Opening ChatGPT...")
+              : t("onboarding.provider.signInChatGpt", "Sign in with ChatGPT")}
           </span>
           <span className="onboarding-ai-primary-copy">
-            Easiest if you already use ChatGPT. No API key required.
+            {t(
+              "onboarding.provider.chatGptDescription",
+              "Easiest if you already use ChatGPT. No API key required.",
+            )}
           </span>
         </button>
         {onboarding.data.detectedOllamaModel ? (
@@ -1649,9 +2158,17 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
             className="onboarding-ai-primary-card"
             onClick={() => onboarding.acceptOllamaDetection()}
           >
-            <span className="onboarding-ai-primary-title">Use local Ollama</span>
+            <span className="onboarding-ai-primary-title">
+              {t("onboarding.provider.useLocalOllama", "Use local Ollama")}
+            </span>
             <span className="onboarding-ai-primary-copy">
-              Found {onboarding.data.detectedOllamaModel} on this computer. Runs privately.
+              {t(
+                "onboarding.provider.ollamaFound",
+                "Found {model} on this computer. Runs privately.",
+                {
+                  model: onboarding.data.detectedOllamaModel,
+                },
+              )}
             </span>
           </button>
         ) : (
@@ -1660,9 +2177,14 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
             className="onboarding-ai-primary-card muted"
             disabled
           >
-            <span className="onboarding-ai-primary-title">Use local Ollama</span>
+            <span className="onboarding-ai-primary-title">
+              {t("onboarding.provider.useLocalOllama", "Use local Ollama")}
+            </span>
             <span className="onboarding-ai-primary-copy">
-              No local model detected. Install Ollama and pull a model, then run setup again.
+              {t(
+                "onboarding.provider.noOllama",
+                "No local model detected. Install Ollama and pull a model, then run setup again.",
+              )}
             </span>
           </button>
         )}
@@ -1672,7 +2194,12 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
           <span>{onboarding.chatGptSignInError}</span>
         </div>
       )}
-      <div className="onboarding-provider-heading">Use an API key or advanced provider</div>
+      <div className="onboarding-provider-heading">
+        {t(
+          "onboarding.provider.advancedHeading",
+          "Use an API key or advanced provider",
+        )}
+      </div>
       <div className="onboarding-provider-pills">
         {PROVIDERS.map((provider) => (
           <button
@@ -1683,7 +2210,11 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
             onClick={() => onboarding.selectProvider(provider.id)}
           >
             <span className="onboarding-provider-name">{provider.name}</span>
-            {provider.badge && <span className="onboarding-provider-badge">{provider.badge}</span>}
+            {provider.badge && (
+              <span className="onboarding-provider-badge">
+                {provider.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -1692,7 +2223,7 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
           className="onboarding-btn onboarding-btn-secondary"
           onClick={onboarding.skipLLMSetup}
         >
-          Explore without AI
+          {t("onboarding.provider.exploreWithoutAi", "Explore without AI")}
         </button>
       </div>
     </div>
@@ -1704,10 +2235,12 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
     const url = provider ? PROVIDER_URLS[provider] : null;
 
     return (
-      <div className={`onboarding-api-input-section ${onboarding.showApiInput ? "visible" : ""}`}>
+      <div
+        className={`onboarding-api-input-section ${onboarding.showApiInput ? "visible" : ""}`}
+      >
         {url && (
           <p className="onboarding-api-hint">
-            Get your key from{" "}
+            {t("onboarding.provider.getKeyFrom", "Get your key from")}{" "}
             <a href={url} target="_blank" rel="noopener noreferrer">
               {provider === "anthropic"
                 ? "Anthropic"
@@ -1731,7 +2264,10 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
           <input
             type="password"
             className="onboarding-input"
-            placeholder="Paste your API key"
+            placeholder={t(
+              "onboarding.provider.apiKeyPlaceholder",
+              "Paste your API key",
+            )}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -1743,13 +2279,13 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
               onClick={handleInputSubmit}
               disabled={!inputValue.trim()}
             >
-              Connect
+              {t("common.connect", "Connect")}
             </button>
             <button
               className="onboarding-btn onboarding-btn-secondary"
               onClick={onboarding.skipLLMSetup}
             >
-              Skip
+              {t("common.skip", "Skip")}
             </button>
           </div>
         </div>
@@ -1767,7 +2303,10 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
               <line x1="15" y1="9" x2="9" y2="15" />
               <line x1="9" y1="9" x2="15" y2="15" />
             </svg>
-            <span>{onboarding.testResult.error || "Connection failed"}</span>
+            <span>
+              {onboarding.testResult.error ||
+                t("onboarding.provider.connectionFailed", "Connection failed")}
+            </span>
           </div>
         )}
       </div>
@@ -1800,10 +2339,21 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
                 stroke="currentColor"
                 strokeWidth="2"
               >
-                <circle cx="12" cy="12" r="10" strokeDasharray="31.4" strokeDashoffset="10" />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  strokeDasharray="31.4"
+                  strokeDashoffset="10"
+                />
               </svg>
             ) : voiceInput.state === "recording" ? (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
                 <rect x="6" y="6" width="12" height="12" rx="2" />
               </svg>
             ) : (
@@ -1823,7 +2373,13 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
             )}
           </button>
           {inputValue && (
-            <div style={{ marginTop: 16, color: "var(--onboarding-warm-white)", fontSize: "1rem" }}>
+            <div
+              style={{
+                marginTop: 16,
+                color: "var(--onboarding-warm-white)",
+                fontSize: "1rem",
+              }}
+            >
               "{inputValue}"
             </div>
           )}
@@ -1833,7 +2389,7 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
               onClick={handleInputSubmit}
               style={{ marginTop: 16 }}
             >
-              That's my choice
+              {t("onboarding.name.thatsMyChoice", "That's my choice")}
             </button>
           )}
           {voiceError && (
@@ -1847,7 +2403,10 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
               className="onboarding-btn onboarding-btn-secondary onboarding-btn-sm onboarding-voice-fix-btn"
               onClick={openMicrophoneSettings}
             >
-              Open Microphone Settings
+              {t(
+                "onboarding.voice.openMicrophoneSettings",
+                "Open Microphone Settings",
+              )}
             </button>
           )}
           {isSpeechServiceUnavailableError && (
@@ -1855,18 +2414,27 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
               className="onboarding-btn onboarding-btn-secondary onboarding-btn-sm onboarding-voice-fix-btn"
               onClick={openMicrophoneSettings}
             >
-              Open Microphone Settings
+              {t(
+                "onboarding.voice.openMicrophoneSettings",
+                "Open Microphone Settings",
+              )}
             </button>
           )}
-          <button className="onboarding-mode-toggle" onClick={() => setInputMode("keyboard")}>
-            Type instead
+          <button
+            className="onboarding-mode-toggle"
+            onClick={() => setInputMode("keyboard")}
+          >
+            {t("onboarding.name.typeInstead", "Type instead")}
           </button>
         </>
       ) : (
         <>
           <input
             className="onboarding-input"
-            placeholder="Enter a name (or press Enter to skip)"
+            placeholder={t(
+              "onboarding.name.placeholder",
+              "Enter a name (or press Enter to skip)",
+            )}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -1877,7 +2445,9 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
             onClick={handleInputSubmit}
             style={{ marginTop: 16 }}
           >
-            {inputValue.trim() ? "Continue" : "Skip"}
+            {inputValue.trim()
+              ? t("common.continue", "Continue")
+              : t("common.skip", "Skip")}
           </button>
           {voiceInput.isConfigured && (
             <button
@@ -1887,7 +2457,7 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
                 setInputMode("voice");
               }}
             >
-              Use voice
+              {t("onboarding.name.useVoice", "Use voice")}
             </button>
           )}
         </>
@@ -1908,8 +2478,11 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
         <button
           className="onboarding-back-btn"
           onClick={onboarding.goBack}
-          aria-label="Go back to previous onboarding step"
-          title="Back"
+          aria-label={t(
+            "onboarding.nav.backAria",
+            "Go back to previous onboarding step",
+          )}
+          title={t("common.back", "Back")}
         >
           <svg
             width="16"
@@ -1928,19 +2501,27 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
         <button
           className="onboarding-skip-btn"
           onClick={onboarding.exitOnboarding}
-          aria-label="Skip onboarding"
-          title="Skip onboarding"
+          aria-label={t("onboarding.nav.skipAria", "Skip onboarding")}
+          title={t("onboarding.nav.skipAria", "Skip onboarding")}
           type="button"
         >
-          Skip onboarding
+          {t("onboarding.nav.skip", "Skip onboarding")}
         </button>
 
         <div className="onboarding-control-btn-wrap">
           <button
             className="onboarding-theme-btn"
             onClick={toggleThemeMode}
-            aria-label={themeMode === "light" ? "Switch to dark mode" : "Switch to light mode"}
-            title={themeMode === "light" ? "Switch to dark mode" : "Switch to light mode"}
+            aria-label={
+              themeMode === "light"
+                ? t("onboarding.theme.switchDark", "Switch to dark mode")
+                : t("onboarding.theme.switchLight", "Switch to light mode")
+            }
+            title={
+              themeMode === "light"
+                ? t("onboarding.theme.switchDark", "Switch to dark mode")
+                : t("onboarding.theme.switchLight", "Switch to light mode")
+            }
           >
             {themeMode === "light" ? (
               <svg
@@ -1975,7 +2556,9 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
             )}
           </button>
           {showControlHints && onboarding.state === "greeting" && (
-            <span className="onboarding-control-once-hint">Theme</span>
+            <span className="onboarding-control-once-hint">
+              {t("onboarding.theme.label", "Theme")}
+            </span>
           )}
         </div>
 
@@ -1983,8 +2566,16 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
           <button
             className={`onboarding-music-btn ${musicEnabled ? "active" : ""}`}
             onClick={toggleMusicEnabled}
-            aria-label={musicEnabled ? "Mute background music" : "Enable background music"}
-            title={musicEnabled ? "Mute background music" : "Enable background music"}
+            aria-label={
+              musicEnabled
+                ? t("onboarding.music.mute", "Mute background music")
+                : t("onboarding.music.enable", "Enable background music")
+            }
+            title={
+              musicEnabled
+                ? t("onboarding.music.mute", "Mute background music")
+                : t("onboarding.music.enable", "Enable background music")
+            }
           >
             {musicEnabled ? (
               <svg
@@ -2015,52 +2606,63 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
             )}
           </button>
           {showControlHints && onboarding.state === "greeting" && (
-            <span className="onboarding-control-once-hint">Music</span>
+            <span className="onboarding-control-once-hint">
+              {t("onboarding.music.label", "Music")}
+            </span>
           )}
         </div>
       </div>
 
       {/* Main content */}
-      <div className={`onboarding-content ${isCompactRecapStep ? "onboarding-content-compact" : ""}`}>
+      <div
+        className={`onboarding-content ${isCompactRecapStep ? "onboarding-content-compact" : ""}`}
+      >
         {/* Orb */}
         <AwakeningOrb
           state={getOrbState()}
-          audioLevel={voiceInput.state === "recording" ? voiceInput.audioLevel : 0}
+          audioLevel={
+            voiceInput.state === "recording" ? voiceInput.audioLevel : 0
+          }
         />
 
         {/* Text */}
-        {onboarding.currentText && onboarding.state !== "dormant" && onboarding.state !== "recap" && (
-          <TypewriterText
-            text={onboarding.currentText}
-            speed={40}
-            onComplete={onboarding.onTextComplete}
-            showCursor={
-              onboarding.state !== "ask_name" &&
-              onboarding.state !== "ask_assistant_traits" &&
-              onboarding.state !== "ask_user_profile" &&
-              onboarding.state !== "ask_time_drains" &&
-              onboarding.state !== "ask_priorities" &&
-              onboarding.state !== "ask_tools" &&
-              onboarding.state !== "ask_response_style" &&
-              onboarding.state !== "ask_additional_guidance" &&
-              onboarding.state !== "ask_voice" &&
-              onboarding.state !== "ask_work_style" &&
-              onboarding.state !== "ask_memory_trust" &&
-              onboarding.state !== "ollama_detected" &&
-              onboarding.state !== "llm_setup" &&
-              onboarding.state !== "llm_api_key" &&
-              onboarding.state !== "final_try"
-            }
-          />
-        )}
+        {onboarding.currentText &&
+          onboarding.state !== "dormant" &&
+          onboarding.state !== "recap" && (
+            <TypewriterText
+              text={onboarding.currentText}
+              speed={40}
+              onComplete={onboarding.onTextComplete}
+              showCursor={
+                onboarding.state !== "ask_name" &&
+                onboarding.state !== "ask_assistant_traits" &&
+                onboarding.state !== "ask_user_profile" &&
+                onboarding.state !== "ask_time_drains" &&
+                onboarding.state !== "ask_priorities" &&
+                onboarding.state !== "ask_tools" &&
+                onboarding.state !== "ask_response_style" &&
+                onboarding.state !== "ask_additional_guidance" &&
+                onboarding.state !== "ask_voice" &&
+                onboarding.state !== "ask_work_style" &&
+                onboarding.state !== "ask_memory_trust" &&
+                onboarding.state !== "ollama_detected" &&
+                onboarding.state !== "llm_setup" &&
+                onboarding.state !== "llm_api_key" &&
+                onboarding.state !== "final_try"
+              }
+            />
+          )}
 
         {/* Product positioning cue (intro only) */}
         {showCapabilityPillarsOnce && renderCapabilityPillars()}
 
         {/* Name input */}
-        {onboarding.showInput && onboarding.state === "ask_name" && renderNameInput()}
+        {onboarding.showInput &&
+          onboarding.state === "ask_name" &&
+          renderNameInput()}
 
-        {onboarding.state === "ask_assistant_traits" && renderAssistantTraitStep()}
+        {onboarding.state === "ask_assistant_traits" &&
+          renderAssistantTraitStep()}
 
         {onboarding.state === "ask_user_profile" && renderUserProfileStep()}
 
@@ -2072,13 +2674,18 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
 
         {onboarding.state === "ask_response_style" && renderResponseStyleStep()}
 
-        {onboarding.state === "ask_additional_guidance" && renderAdditionalGuidanceStep()}
+        {onboarding.state === "ask_additional_guidance" &&
+          renderAdditionalGuidanceStep()}
 
         {/* Voice suggestion */}
-        {onboarding.showVoiceOptions && onboarding.state === "ask_voice" && renderVoiceOptions()}
+        {onboarding.showVoiceOptions &&
+          onboarding.state === "ask_voice" &&
+          renderVoiceOptions()}
 
         {/* Work style buttons */}
-        {onboarding.showInput && onboarding.state === "ask_work_style" && renderWorkStyleButtons()}
+        {onboarding.showInput &&
+          onboarding.state === "ask_work_style" &&
+          renderWorkStyleButtons()}
 
         {/* Style implications with countdown */}
         {onboarding.showStyleImplications && renderStyleImplications()}
@@ -2113,7 +2720,13 @@ export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
               stroke="currentColor"
               strokeWidth="2"
             >
-              <circle cx="12" cy="12" r="10" strokeDasharray="31.4" strokeDashoffset="10" />
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+                strokeDasharray="31.4"
+                strokeDashoffset="10"
+              />
             </svg>
           </div>
         )}

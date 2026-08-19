@@ -59,7 +59,7 @@ vi.mock("../../../settings/personality-manager", () => ({
     saveSettings: vi.fn(),
     setUserName: vi.fn(),
     getUserName: vi.fn(),
-    getAgentName: vi.fn().mockReturnValue("CoWork"),
+    getAgentName: vi.fn().mockReturnValue("NeoWorker"),
     setActivePersona: vi.fn(),
     setResponseStyle: vi.fn(),
     setQuirks: vi.fn(),
@@ -496,10 +496,10 @@ describe("ToolRegistry child task control tools", () => {
   });
 
   it("spawn_agent enforces active child fanout limit", async () => {
-    const prevLimit = process.env.COWORK_SUBAGENT_MAX_ACTIVE_PER_PARENT;
-    const prevPhaseC = process.env.COWORK_GUARDRAIL_PHASE_C;
-    process.env.COWORK_SUBAGENT_MAX_ACTIVE_PER_PARENT = "1";
-    process.env.COWORK_GUARDRAIL_PHASE_C = "true";
+    const prevLimit = process.env.NEOWORKER_SUBAGENT_MAX_ACTIVE_PER_PARENT;
+    const prevPhaseC = process.env.NEOWORKER_GUARDRAIL_PHASE_C;
+    process.env.NEOWORKER_SUBAGENT_MAX_ACTIVE_PER_PARENT = "1";
+    process.env.NEOWORKER_GUARDRAIL_PHASE_C = "true";
 
     try {
       const daemon = {
@@ -540,16 +540,16 @@ describe("ToolRegistry child task control tools", () => {
       expect(result.error).toBe("FANOUT_LIMIT_REACHED");
       expect(daemon.createChildTask).not.toHaveBeenCalled();
     } finally {
-      process.env.COWORK_SUBAGENT_MAX_ACTIVE_PER_PARENT = prevLimit;
-      process.env.COWORK_GUARDRAIL_PHASE_C = prevPhaseC;
+      process.env.NEOWORKER_SUBAGENT_MAX_ACTIVE_PER_PARENT = prevLimit;
+      process.env.NEOWORKER_GUARDRAIL_PHASE_C = prevPhaseC;
     }
   });
 
   it("spawn_agent ignores paused children when enforcing fanout limit", async () => {
-    const prevLimit = process.env.COWORK_SUBAGENT_MAX_ACTIVE_PER_PARENT;
-    const prevPhaseC = process.env.COWORK_GUARDRAIL_PHASE_C;
-    process.env.COWORK_SUBAGENT_MAX_ACTIVE_PER_PARENT = "1";
-    process.env.COWORK_GUARDRAIL_PHASE_C = "true";
+    const prevLimit = process.env.NEOWORKER_SUBAGENT_MAX_ACTIVE_PER_PARENT;
+    const prevPhaseC = process.env.NEOWORKER_GUARDRAIL_PHASE_C;
+    process.env.NEOWORKER_SUBAGENT_MAX_ACTIVE_PER_PARENT = "1";
+    process.env.NEOWORKER_GUARDRAIL_PHASE_C = "true";
 
     try {
       const daemon = {
@@ -600,16 +600,16 @@ describe("ToolRegistry child task control tools", () => {
       expect(result.success).toBe(true);
       expect(daemon.createChildTask).toHaveBeenCalledTimes(1);
     } finally {
-      process.env.COWORK_SUBAGENT_MAX_ACTIVE_PER_PARENT = prevLimit;
-      process.env.COWORK_GUARDRAIL_PHASE_C = prevPhaseC;
+      process.env.NEOWORKER_SUBAGENT_MAX_ACTIVE_PER_PARENT = prevLimit;
+      process.env.NEOWORKER_GUARDRAIL_PHASE_C = prevPhaseC;
     }
   });
 
   it("spawn_agent applies extraction contract and scoped allowed tools for HTML extraction tasks", async () => {
-    const prevLimit = process.env.COWORK_SUBAGENT_MAX_ACTIVE_PER_PARENT;
-    const prevPhaseC = process.env.COWORK_GUARDRAIL_PHASE_C;
-    process.env.COWORK_SUBAGENT_MAX_ACTIVE_PER_PARENT = "3";
-    process.env.COWORK_GUARDRAIL_PHASE_C = "true";
+    const prevLimit = process.env.NEOWORKER_SUBAGENT_MAX_ACTIVE_PER_PARENT;
+    const prevPhaseC = process.env.NEOWORKER_GUARDRAIL_PHASE_C;
+    process.env.NEOWORKER_SUBAGENT_MAX_ACTIVE_PER_PARENT = "3";
+    process.env.NEOWORKER_GUARDRAIL_PHASE_C = "true";
 
     try {
       const daemon = {
@@ -653,16 +653,16 @@ describe("ToolRegistry child task control tools", () => {
       expect(call.agentConfig.allowedTools).toContain("read_file");
       expect(call.agentConfig.toolRestrictions).toContain("spawn_agent");
     } finally {
-      process.env.COWORK_SUBAGENT_MAX_ACTIVE_PER_PARENT = prevLimit;
-      process.env.COWORK_GUARDRAIL_PHASE_C = prevPhaseC;
+      process.env.NEOWORKER_SUBAGENT_MAX_ACTIVE_PER_PARENT = prevLimit;
+      process.env.NEOWORKER_GUARDRAIL_PHASE_C = prevPhaseC;
     }
   });
 
   it("spawn_agent applies extraction contract for page-source prompts without explicit .html", async () => {
-    const prevLimit = process.env.COWORK_SUBAGENT_MAX_ACTIVE_PER_PARENT;
-    const prevPhaseC = process.env.COWORK_GUARDRAIL_PHASE_C;
-    process.env.COWORK_SUBAGENT_MAX_ACTIVE_PER_PARENT = "3";
-    process.env.COWORK_GUARDRAIL_PHASE_C = "true";
+    const prevLimit = process.env.NEOWORKER_SUBAGENT_MAX_ACTIVE_PER_PARENT;
+    const prevPhaseC = process.env.NEOWORKER_GUARDRAIL_PHASE_C;
+    process.env.NEOWORKER_SUBAGENT_MAX_ACTIVE_PER_PARENT = "3";
+    process.env.NEOWORKER_GUARDRAIL_PHASE_C = "true";
 
     try {
       const daemon = {
@@ -704,8 +704,8 @@ describe("ToolRegistry child task control tools", () => {
       expect(Array.isArray(call.agentConfig?.allowedTools)).toBe(true);
       expect(call.agentConfig.toolRestrictions).toContain("spawn_agent");
     } finally {
-      process.env.COWORK_SUBAGENT_MAX_ACTIVE_PER_PARENT = prevLimit;
-      process.env.COWORK_GUARDRAIL_PHASE_C = prevPhaseC;
+      process.env.NEOWORKER_SUBAGENT_MAX_ACTIVE_PER_PARENT = prevLimit;
+      process.env.NEOWORKER_GUARDRAIL_PHASE_C = prevPhaseC;
     }
   });
 

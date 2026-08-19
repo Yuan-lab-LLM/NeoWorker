@@ -10,7 +10,7 @@ import { MemoryWriteGate, type MemoryWriteOrigin } from "./MemoryWriteGate";
 
 const STORAGE_KEY = "supermemory";
 const DEFAULT_BASE_URL = "https://api.supermemory.ai";
-const DEFAULT_CONTAINER_TEMPLATE = "cowork:{workspaceId}";
+const DEFAULT_CONTAINER_TEMPLATE = "neoworker:{workspaceId}";
 const FAILURE_WINDOW_MS = 5 * 60 * 1000;
 const CIRCUIT_BREAKER_COOLDOWN_MS = 10 * 60 * 1000;
 const MAX_FAILURES_BEFORE_OPEN = 3;
@@ -190,7 +190,7 @@ export class SupermemoryService {
         "/v4/profile",
         {
           method: "POST",
-          body: JSON.stringify({ containerTag: "cowork:healthcheck" }),
+          body: JSON.stringify({ containerTag: "neoworker:healthcheck" }),
         },
         { timeoutMs: 8_000, ignoreCircuitBreaker: true },
       );
@@ -451,7 +451,7 @@ export class SupermemoryService {
           content: args.content,
           containerTag,
           metadata: {
-            source: "cowork_memory",
+            source: "neoworker_memory",
             workspaceId: args.workspace.id,
             workspaceName: args.workspace.name,
             taskId: args.taskId,
@@ -599,7 +599,7 @@ export class SupermemoryService {
       .replace(/-+/g, "-")
       .replace(/^-+|-+$/g, "")
       .slice(0, 100);
-    return safe || "cowork-workspace";
+    return safe || "neoworker-workspace";
   }
 
   private static isAllowedContainerTagOverride(

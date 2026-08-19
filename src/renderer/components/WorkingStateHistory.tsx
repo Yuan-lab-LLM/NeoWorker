@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { AgentWorkingStateData, WorkingStateType } from "../../electron/preload";
+import {
+  AgentWorkingStateData,
+  WorkingStateType,
+} from "../../electron/preload";
 import { useAgentContext } from "../hooks/useAgentContext";
+import { translate, useLanguage } from "../i18n";
 import { ThemeIcon } from "./ThemeIcon";
 import { ChartIcon, ClipboardIcon, EditIcon, TargetIcon } from "./LineIcons";
 
@@ -11,14 +15,33 @@ interface WorkingStateHistoryProps {
   onClose: () => void;
 }
 
-const STATE_TYPE_LABELS: Record<WorkingStateType, { label: string; icon: React.ReactNode }> = {
-  context: { label: "Context", icon: <ThemeIcon emoji="📋" icon={<ClipboardIcon size={14} />} /> },
-  progress: { label: "Progress", icon: <ThemeIcon emoji="📊" icon={<ChartIcon size={14} />} /> },
-  notes: { label: "Notes", icon: <ThemeIcon emoji="📝" icon={<EditIcon size={14} />} /> },
-  plan: { label: "Plan", icon: <ThemeIcon emoji="🎯" icon={<TargetIcon size={14} />} /> },
+const STATE_TYPE_CONFIG: Record<
+  WorkingStateType,
+  { labelKey: string; label: string; icon: React.ReactNode }
+> = {
+  context: {
+    labelKey: "workingState.type.context",
+    label: "Context",
+    icon: <ThemeIcon emoji="📋" icon={<ClipboardIcon size={14} />} />,
+  },
+  progress: {
+    labelKey: "workingState.type.progress",
+    label: "Progress",
+    icon: <ThemeIcon emoji="📊" icon={<ChartIcon size={14} />} />,
+  },
+  notes: {
+    labelKey: "workingState.type.notes",
+    label: "Notes",
+    icon: <ThemeIcon emoji="📝" icon={<EditIcon size={14} />} />,
+  },
+  plan: {
+    labelKey: "workingState.type.plan",
+    label: "Plan",
+    icon: <ThemeIcon emoji="🎯" icon={<TargetIcon size={14} />} />,
+  },
 };
 
-function formatDate(timestamp: number): string {
+function formatDate(timestamp: number, t: typeof translate): string {
   const date = new Date(timestamp);
   const now = new Date();
   const isToday = date.toDateString() === now.toDateString();
@@ -29,13 +52,13 @@ function formatDate(timestamp: number): string {
   });
 
   if (isToday) {
-    return `Today at ${time}`;
+    return t("date.todayAt", "Today at {time}", { time });
   }
 
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   if (date.toDateString() === yesterday.toDateString()) {
-    return `Yesterday at ${time}`;
+    return t("date.yesterdayAt", "Yesterday at {time}", { time });
   }
 
   return date.toLocaleDateString(undefined, {
@@ -52,6 +75,8 @@ export function WorkingStateHistory({
   onRestore,
   onClose,
 }: WorkingStateHistoryProps) {
+  useLanguage();
+  const t = translate;
   const [history, setHistory] = useState<AgentWorkingStateData[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<string | null>(null);
@@ -94,7 +119,8 @@ export function WorkingStateHistory({
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm(agentContext.getUiCopy("workingStateHistoryDeleteConfirm"))) return;
+    if (!confirm(agentContext.getUiCopy("workingStateHistoryDeleteConfirm")))
+      return;
 
     try {
       await window.electronAPI.deleteWorkingState(id);
@@ -104,7 +130,9 @@ export function WorkingStateHistory({
     }
   };
 
-  const filteredHistory = filterType ? history.filter((h) => h.stateType === filterType) : history;
+  const filteredHistory = filterType
+    ? history.filter((h) => h.stateType === filterType)
+    : history;
 
   // Group by date
   const groupedHistory: Record<string, AgentWorkingStateData[]> = {};
@@ -141,13 +169,23 @@ export function WorkingStateHistory({
         <div className="history-filters">
           <select
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value as WorkingStateType | "")}
+            onChange={(e) =>
+              setFilterType(e.target.value as WorkingStateType | "")
+            }
           >
-            <option value="">{agentContext.getUiCopy("workingStateHistoryAllTypes")}</option>
-            <option value="context">Context</option>
-            <option value="progress">Progress</option>
-            <option value="notes">Notes</option>
-            <option value="plan">Plan</option>
+            <option value="">
+              {agentContext.getUiCopy("workingStateHistoryAllTypes")}
+            </option>
+            <option value="context">
+              {t("workingState.type.context", "Context")}
+            </option>
+            <option value="progress">
+              {t("workingState.type.progress", "Progress")}
+            </option>
+            <option value="notes">
+              {t("workingState.type.notes", "Notes")}
+            </option>
+            <option value="plan">{t("workingState.type.plan", "Plan")}</option>
           </select>
           <span className="history-count">
             {agentContext.getUiCopy("workingStateHistoryEntries", {
@@ -172,7 +210,7 @@ export function WorkingStateHistory({
                   })}
                 </div>
                 {items.map((item) => {
-                  const config = STATE_TYPE_LABELS[item.stateType];
+                  const config = STATE_TYPE_CONFIG[item.stateType];
                   const isExpanded = expandedId === item.id;
 
                   return (
@@ -182,19 +220,29 @@ export function WorkingStateHistory({
                     >
                       <div
                         className="item-header"
-                        onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                        onClick={() =>
+                          setExpandedId(isExpanded ? null : item.id)
+                        }
                       >
                         <div className="item-info">
                           <span className="item-icon">{config.icon}</span>
-                          <span className="item-type">{config.label}</span>
-                          <span className="item-time">{formatDate(item.updatedAt)}</span>
+                          <span className="item-type">
+                            {t(config.labelKey, config.label)}
+                          </span>
+                          <span className="item-time">
+                            {formatDate(item.updatedAt, t)}
+                          </span>
                           {item.isCurrent && (
                             <span className="current-badge">
-                              {agentContext.getUiCopy("workingStateHistoryCurrent")}
+                              {agentContext.getUiCopy(
+                                "workingStateHistoryCurrent",
+                              )}
                             </span>
                           )}
                         </div>
-                        <span className="expand-icon">{isExpanded ? "▼" : "▶"}</span>
+                        <span className="expand-icon">
+                          {isExpanded ? "▼" : "▶"}
+                        </span>
                       </div>
 
                       {isExpanded && (
@@ -204,18 +252,21 @@ export function WorkingStateHistory({
                               ? item.content.slice(0, 500) + "..."
                               : item.content}
                           </div>
-                          {item.fileReferences && item.fileReferences.length > 0 && (
-                            <div className="file-refs">
-                              <span className="refs-label">
-                                {agentContext.getUiCopy("workingStateHistoryFilesLabel")}
-                              </span>
-                              {item.fileReferences.map((file, idx) => (
-                                <span key={idx} className="file-ref">
-                                  {file}
+                          {item.fileReferences &&
+                            item.fileReferences.length > 0 && (
+                              <div className="file-refs">
+                                <span className="refs-label">
+                                  {agentContext.getUiCopy(
+                                    "workingStateHistoryFilesLabel",
+                                  )}
                                 </span>
-                              ))}
-                            </div>
-                          )}
+                                {item.fileReferences.map((file, idx) => (
+                                  <span key={idx} className="file-ref">
+                                    {file}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           <div className="item-actions">
                             {!item.isCurrent && (
                               <button
@@ -224,12 +275,21 @@ export function WorkingStateHistory({
                                 disabled={restoring === item.id}
                               >
                                 {restoring === item.id
-                                  ? agentContext.getUiCopy("workingStateHistoryRestoring")
-                                  : agentContext.getUiCopy("workingStateHistoryRestore")}
+                                  ? agentContext.getUiCopy(
+                                      "workingStateHistoryRestoring",
+                                    )
+                                  : agentContext.getUiCopy(
+                                      "workingStateHistoryRestore",
+                                    )}
                               </button>
                             )}
-                            <button className="delete-btn" onClick={() => handleDelete(item.id)}>
-                              {agentContext.getUiCopy("workingStateHistoryDelete")}
+                            <button
+                              className="delete-btn"
+                              onClick={() => handleDelete(item.id)}
+                            >
+                              {agentContext.getUiCopy(
+                                "workingStateHistoryDelete",
+                              )}
                             </button>
                           </div>
                         </div>

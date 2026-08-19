@@ -1,6 +1,6 @@
 # Video Attachments
 
-CoWork can accept uploaded videos in task and follow-up prompts, extract representative still frames, pass those frames to image-capable models, and show the extracted screenshots in the task timeline.
+NeoWorker can accept uploaded videos in task and follow-up prompts, extract representative still frames, pass those frames to image-capable models, and show the extracted screenshots in the task timeline.
 
 This feature is for analyzing a user-provided video. It is separate from video generation, YouTube transcript ingestion, Browser Workbench screenshots, and the `manim-video` skill.
 
@@ -12,14 +12,14 @@ Attach a local `.mp4`, `.mov`, or `.webm` file to a task and ask a visual questi
 Inspect this video and summarize the UI states, visible errors, and final outcome.
 ```
 
-When the task starts, CoWork:
+When the task starts, NeoWorker:
 
 1. Copies the uploaded video into the workspace upload area.
 2. Extracts up to 10 representative frames with `ffmpeg`.
 3. Builds a 5x2 contact sheet plus a representative full frame.
 4. Sends the extracted images to the active image-capable model as visual input.
 5. Emits the contact sheet and representative frame as image artifacts in the task timeline.
-6. Stores generated previews under `.cowork/video-frames/...` so the renderer can open them with the same workspace-contained file preview path as other artifacts.
+6. Stores generated previews under `.neoworker/video-frames/...` so the renderer can open them with the same workspace-contained file preview path as other artifacts.
 
 The timeline should show the extracted screenshots inline, similar to generated image artifacts. The model also receives a prompt note telling it to use the attached extracted frames as primary visual evidence instead of probing the original video with shell, glob, or file tools unless the user explicitly asks for deeper media forensics.
 
@@ -37,7 +37,7 @@ The current upload validation limit is 500 MB per video. Image attachment limits
 
 ## Model Requirements
 
-Video attachment analysis depends on image input support because CoWork samples the video into still frames before calling the model.
+Video attachment analysis depends on image input support because NeoWorker samples the video into still frames before calling the model.
 
 If the active provider does not support image input, the task returns a user-facing message asking the user to switch to an image-capable model/provider and resend the video. The video is not silently analyzed through text-only fallback.
 
@@ -51,17 +51,17 @@ The extracted preview images are emitted as normal image artifacts:
 Artifact paths are workspace-relative when possible, for example:
 
 ```text
-.cowork/video-frames/screen-recording-abc123/contact_sheet.jpg
-.cowork/video-frames/screen-recording-abc123/frame_010.jpg
+.neoworker/video-frames/screen-recording-abc123/contact_sheet.jpg
+.neoworker/video-frames/screen-recording-abc123/frame_010.jpg
 ```
 
 The renderer already treats `artifact_created` / `timeline_artifact_emitted` image events as inline image previews, so video screenshots use the existing artifact preview path instead of a separate video-only UI.
 
-CoWork deduplicates these preview artifact events inside the executor. This prevents plan creation and step execution from showing duplicate screenshots when both phases build the same prompt content.
+NeoWorker deduplicates these preview artifact events inside the executor. This prevents plan creation and step execution from showing duplicate screenshots when both phases build the same prompt content.
 
 ## Failure Behavior
 
-If `ffmpeg` or `ffprobe` cannot extract frames, CoWork logs a concise skipped-extraction message and continues with a note that the video is available on disk. The agent should not repeatedly run blind shell/glob discovery against the upload path unless the user asks for deeper local media inspection.
+If `ffmpeg` or `ffprobe` cannot extract frames, NeoWorker logs a concise skipped-extraction message and continues with a note that the video is available on disk. The agent should not repeatedly run blind shell/glob discovery against the upload path unless the user asks for deeper local media inspection.
 
 Dev-log classification also treats command-start lines containing options such as `ffprobe -v error` as normal command text rather than application errors. Actual failed commands still appear through tool result status and structured task events.
 
@@ -86,7 +86,7 @@ git diff --check
 Manual smoke test:
 
 1. Start a new task with an attached `.mp4`, `.mov`, or `.webm`.
-2. Ask CoWork to inspect the video.
+2. Ask NeoWorker to inspect the video.
 3. Confirm the task timeline shows a contact sheet and representative frame.
 4. Confirm the agent answer references visible evidence from those frames.
 5. Confirm the task does not produce a run-command/glob failure storm for basic video inspection.

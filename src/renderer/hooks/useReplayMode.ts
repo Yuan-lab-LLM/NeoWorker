@@ -21,14 +21,29 @@ export interface ReplayControls {
 }
 
 function isTerminalTask(task: Task | undefined): boolean {
-  return task?.status === "completed" || task?.status === "failed" || task?.status === "cancelled";
+  return (
+    task?.status === "completed" ||
+    task?.status === "failed" ||
+    task?.status === "cancelled"
+  );
 }
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-export function useReplayMode(events: TaskEvent[], task: Task | undefined): ReplayControls {
+export function getReplayStartIndex(events: TaskEvent[]): number {
+  // Never enter replay with an empty projection when events are available.
+  // The zero-event frame briefly strips the task view of all derived state and
+  // can leave a large session rendering as an empty window while React rebuilds
+  // the timeline. The first event is the real beginning of the replay.
+  return events.length > 0 ? 1 : 0;
+}
+
+export function useReplayMode(
+  events: TaskEvent[],
+  task: Task | undefined,
+): ReplayControls {
   const [isReplayMode, setIsReplayMode] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [areControlsVisible, setAreControlsVisible] = useState(true);
@@ -59,6 +74,9 @@ export function useReplayMode(events: TaskEvent[], task: Task | undefined): Repl
     setIsPlaying(false);
     setAreControlsVisible(true);
     setReplayIndex(0);
+    isReplayModeRef.current = false;
+    isPlayingRef.current = false;
+    replayIndexRef.current = 0;
   }, [taskId]);
 
   // Advance replay index on a timer
@@ -84,7 +102,8 @@ export function useReplayMode(events: TaskEvent[], task: Task | undefined): Repl
       const prev = currentEvents[currentIndex - 1];
       const curr = currentEvents[currentIndex];
       const rawDelay =
-        typeof prev?.timestamp === "number" && typeof curr?.timestamp === "number"
+        typeof prev?.timestamp === "number" &&
+        typeof curr?.timestamp === "number"
           ? curr.timestamp - prev.timestamp
           : 200;
       delay = clamp(rawDelay / speedRef.current, 50, 2000);
@@ -92,7 +111,7 @@ export function useReplayMode(events: TaskEvent[], task: Task | undefined): Repl
 
     timerRef.current = setTimeout(() => {
       setReplayIndex((prev) => {
-        const next = prev + 1;
+        const next = Math.min(prev + 1, eventsRef.current.length);
         replayIndexRef.current = next;
         if (isPlayingRef.current && next < eventsRef.current.length) {
           scheduleNext();
@@ -128,11 +147,14 @@ export function useReplayMode(events: TaskEvent[], task: Task | undefined): Repl
 
   const startReplay = useCallback(() => {
     if (!isTerminalTask(task)) return;
-    setReplayIndex(0);
-    replayIndexRef.current = 0;
+    const initialIndex = getReplayStartIndex(eventsRef.current);
+    if (initialIndex === 0) return;
+    setReplayIndex(initialIndex);
+    replayIndexRef.current = initialIndex;
     setIsReplayMode(true);
     setIsPlaying(true);
     setAreControlsVisible(true);
+    isReplayModeRef.current = true;
     isPlayingRef.current = true;
   }, [task]);
 
@@ -153,8 +175,9 @@ export function useReplayMode(events: TaskEvent[], task: Task | undefined): Repl
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    setReplayIndex(0);
-    replayIndexRef.current = 0;
+    const initialIndex = getReplayStartIndex(eventsRef.current);
+    setReplayIndex(initialIndex);
+    replayIndexRef.current = initialIndex;
     setIsPlaying(false);
     isPlayingRef.current = false;
   }, []);

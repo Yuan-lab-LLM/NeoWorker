@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { translate, useLanguage } from "../i18n";
 
 interface PairingCodeDisplayProps {
   /** The pairing code to display */
@@ -40,6 +41,8 @@ export function PairingCodeDisplay({
   isRegenerating = false,
   className = "",
 }: PairingCodeDisplayProps) {
+  useLanguage();
+  const t = translate;
   const [copied, setCopied] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
 
@@ -88,7 +91,11 @@ export function PairingCodeDisplay({
             className="copy-button"
             onClick={handleCopy}
             disabled={isExpired}
-            title={copied ? "Copied!" : "Copy to clipboard"}
+            title={
+              copied
+                ? t("common.copiedBang", "Copied!")
+                : t("pairing.copyToClipboard", "Copy to clipboard")
+            }
           >
             {copied ? <CheckIcon /> : <CopyIcon />}
           </button>
@@ -98,25 +105,35 @@ export function PairingCodeDisplay({
       {/* Timer and Status */}
       <div className="code-status">
         {isExpired ? (
-          <span className="status-expired">Code expired</span>
+          <span className="status-expired">
+            {t("pairing.codeExpired", "Code expired")}
+          </span>
         ) : (
           <span className={`status-timer ${isExpiringSoon ? "warning" : ""}`}>
-            Expires in {formatTime(secondsRemaining)}
+            {t("pairing.expiresIn", "Expires in {time}", {
+              time: formatTime(secondsRemaining),
+            })}
           </span>
         )}
       </div>
 
       {/* Regenerate Button */}
-      <button className="regenerate-button" onClick={onRegenerate} disabled={isRegenerating}>
+      <button
+        className="regenerate-button"
+        onClick={onRegenerate}
+        disabled={isRegenerating}
+      >
         {isRegenerating ? (
           <>
             <SpinnerIcon />
-            Generating...
+            {t("common.generating", "Generating...")}
           </>
         ) : (
           <>
             <RefreshIcon />
-            {isExpired ? "Generate New Code" : "Regenerate"}
+            {isExpired
+              ? t("pairing.generateNewCode", "Generate New Code")
+              : t("pairing.regenerate", "Regenerate")}
           </>
         )}
       </button>
@@ -124,8 +141,10 @@ export function PairingCodeDisplay({
       {/* Instructions */}
       <div className="pairing-instructions">
         <p>
-          Share this code with the user who wants to connect. They should send this code as a
-          message to pair their account.
+          {t(
+            "pairing.instructions",
+            "Share this code with the user who wants to connect. They should send this code as a message to pair their account.",
+          )}
         </p>
       </div>
 

@@ -1,6 +1,6 @@
 # iMessage User Guide
 
-iMessage is best for macOS users who want native Apple Messages access to CoWork from their personal devices.
+iMessage is best for macOS users who want native Apple Messages access to NeoWorker from their personal devices.
 
 ## Best For
 
@@ -32,7 +32,7 @@ Use `/stop` to cancel and `/new` before switching topics.
 - Use a dedicated Apple ID for the bot Mac.
 - Keep the bot Mac online and signed in to Messages.
 - Use direct messages for approvals and sensitive work.
-- Use CoWork desktop for large files and long generated outputs.
+- Use NeoWorker desktop for large files and long generated outputs.
 - Keep prompts concise when working from mobile.
 
 ## Watch-Outs

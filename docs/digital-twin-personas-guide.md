@@ -1,6 +1,6 @@
 # Digital Twin Personas: Comprehensive Guide
 
-Digital Twin Personas are role presets for CoWork agents. A twin gives you a strong starting point for persona, prompt, skills, and cognitive-offload focus, without automatically enrolling that role into the always-on runtime.
+Digital Twin Personas are role presets for NeoWorker agents. A twin gives you a strong starting point for persona, prompt, skills, and cognitive-offload focus, without automatically enrolling that role into the always-on runtime.
 
 This guide covers what twins are for, how they relate to the new core automation model, the built-in persona families, and how to design custom templates that stay aligned with the hard split between:
 
@@ -280,7 +280,7 @@ To add a persona for any job function:
 
 1. Create a JSON file following the `PersonaTemplate` schema.
 2. Place it in `resources/persona-templates/`.
-3. Restart CoWork OS.
+3. Restart NeoWorker.
 
 ### Template Shape
 
@@ -366,7 +366,7 @@ Yes. An activated twin is a standard `AgentRole`. Edit prompt, skills, personali
 Activation alone is cheap because it creates a role preset. Ongoing cost comes from actual task execution and, if attached, from the separate core automation runtime.
 
 **Can I use local models for twins?**  
-Yes. A twin is still just a role-backed CoWork agent, so it can use the configured provider/model stack.
+Yes. A twin is still just a role-backed NeoWorker agent, so it can use the configured provider/model stack.
 
 **Can twins be purely reactive?**  
 Yes. That is now the default. A twin stays reactive unless you explicitly attach an automation profile.

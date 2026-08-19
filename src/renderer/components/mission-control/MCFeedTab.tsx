@@ -1,42 +1,97 @@
-import type { MissionControlCategory, MissionControlSeverity } from "../../../shared/types";
+import type {
+  MissionControlCategory,
+  MissionControlSeverity,
+} from "../../../shared/types";
+import { translate, useLanguage } from "../../i18n";
 import type { MissionControlData } from "./useMissionControlData";
 
 interface MCFeedTabProps {
   data: MissionControlData;
 }
 
-const CATEGORY_FILTERS: Array<{ id: "all" | MissionControlCategory; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "attention", label: "Attention" },
-  { id: "work", label: "Work" },
-  { id: "reviews", label: "Reviews" },
-  { id: "learnings", label: "Learnings" },
-  { id: "awareness", label: "Awareness" },
-  { id: "evidence", label: "Evidence" },
+const CATEGORY_FILTERS: Array<{
+  id: "all" | MissionControlCategory;
+  key: string;
+  label: string;
+}> = [
+  { id: "all", key: "common.all", label: "All" },
+  {
+    id: "attention",
+    key: "missionControl.category.attention",
+    label: "Attention",
+  },
+  { id: "work", key: "missionControl.category.work", label: "Work" },
+  { id: "reviews", key: "missionControl.category.reviews", label: "Reviews" },
+  {
+    id: "learnings",
+    key: "missionControl.category.learnings",
+    label: "Learnings",
+  },
+  {
+    id: "awareness",
+    key: "missionControl.category.awareness",
+    label: "Awareness",
+  },
+  {
+    id: "evidence",
+    key: "missionControl.category.evidence",
+    label: "Evidence",
+  },
 ];
 
-const SEVERITY_FILTERS: Array<{ id: "all" | MissionControlSeverity; label: string }> = [
-  { id: "all", label: "Any status" },
-  { id: "action_needed", label: "Action needed" },
-  { id: "monitor_only", label: "Monitor only" },
-  { id: "successful", label: "Successful" },
-  { id: "failed", label: "Failed" },
+const SEVERITY_FILTERS: Array<{
+  id: "all" | MissionControlSeverity;
+  key: string;
+  label: string;
+}> = [
+  { id: "all", key: "missionControl.feed.anyStatus", label: "Any status" },
+  {
+    id: "action_needed",
+    key: "missionControl.severity.actionNeeded",
+    label: "Action needed",
+  },
+  {
+    id: "monitor_only",
+    key: "missionControl.severity.monitorOnly",
+    label: "Monitor only",
+  },
+  {
+    id: "successful",
+    key: "missionControl.severity.successful",
+    label: "Successful",
+  },
+  { id: "failed", key: "missionControl.severity.failed", label: "Failed" },
 ];
 
-const CATEGORY_LABELS: Record<MissionControlCategory, string> = {
-  attention: "Attention",
-  work: "Work",
-  reviews: "Reviews",
-  learnings: "Learnings",
-  awareness: "Awareness",
-  evidence: "Evidence",
+const CATEGORY_LABELS: Record<
+  MissionControlCategory,
+  { key: string; label: string }
+> = {
+  attention: { key: "missionControl.category.attention", label: "Attention" },
+  work: { key: "missionControl.category.work", label: "Work" },
+  reviews: { key: "missionControl.category.reviews", label: "Reviews" },
+  learnings: { key: "missionControl.category.learnings", label: "Learnings" },
+  awareness: { key: "missionControl.category.awareness", label: "Awareness" },
+  evidence: { key: "missionControl.category.evidence", label: "Evidence" },
 };
 
-const SEVERITY_LABELS: Record<MissionControlSeverity, string> = {
-  action_needed: "Action needed",
-  monitor_only: "Monitor only",
-  successful: "Successful",
-  failed: "Failed",
+const SEVERITY_LABELS: Record<
+  MissionControlSeverity,
+  { key: string; label: string }
+> = {
+  action_needed: {
+    key: "missionControl.severity.actionNeeded",
+    label: "Action needed",
+  },
+  monitor_only: {
+    key: "missionControl.severity.monitorOnly",
+    label: "Monitor only",
+  },
+  successful: {
+    key: "missionControl.severity.successful",
+    label: "Successful",
+  },
+  failed: { key: "missionControl.severity.failed", label: "Failed" },
 };
 
 function severityTone(severity: MissionControlSeverity): string {
@@ -47,6 +102,8 @@ function severityTone(severity: MissionControlSeverity): string {
 }
 
 export function MCFeedTab({ data }: MCFeedTabProps) {
+  useLanguage();
+  const t = translate;
   const {
     missionControlItems,
     missionControlEvidence,
@@ -78,7 +135,7 @@ export function MCFeedTab({ data }: MCFeedTabProps) {
                 className={`mc-v2-filter-btn ${feedFilter === filter.id ? "active" : ""}`}
                 onClick={() => setFeedFilter(filter.id)}
               >
-                {filter.label}
+                {t(filter.key, filter.label)}
               </button>
             ))}
           </div>
@@ -89,7 +146,7 @@ export function MCFeedTab({ data }: MCFeedTabProps) {
                 className={`mc-v2-filter-btn ${feedSeverityFilter === filter.id ? "active" : ""}`}
                 onClick={() => setFeedSeverityFilter(filter.id)}
               >
-                {filter.label}
+                {t(filter.key, filter.label)}
               </button>
             ))}
           </div>
@@ -97,7 +154,7 @@ export function MCFeedTab({ data }: MCFeedTabProps) {
         <div className="mc-v2-feed-agent-chips">
           {everydayAgentFocus && (
             <button className="mc-v2-agent-chip active" type="button" disabled>
-              Everyday Agent
+              {t("missionControl.feed.everydayAgent", "Everyday Agent")}
             </button>
           )}
           {activeAgents.map((agent) => (
@@ -105,7 +162,9 @@ export function MCFeedTab({ data }: MCFeedTabProps) {
               key={agent.id}
               className={`mc-v2-agent-chip ${selectedAgent === agent.id ? "active" : ""}`}
               style={{ borderColor: agent.color }}
-              onClick={() => setSelectedAgent(selectedAgent === agent.id ? null : agent.id)}
+              onClick={() =>
+                setSelectedAgent(selectedAgent === agent.id ? null : agent.id)
+              }
             >
               {agent.displayName.split(" ")[0]}
             </button>
@@ -115,25 +174,49 @@ export function MCFeedTab({ data }: MCFeedTabProps) {
 
       <div className="mc-v2-feed-list">
         {missionControlItems.length === 0 ? (
-          <div className="mc-v2-empty">No grouped Mission Control items yet.</div>
+          <div className="mc-v2-empty">
+            {t(
+              "missionControl.feed.empty",
+              "No grouped Mission Control items yet.",
+            )}
+          </div>
         ) : (
           missionControlItems.map((item) => {
             const expanded = Boolean(expandedMissionControlItems[item.id]);
             const evidence = missionControlEvidence[item.id] || [];
             return (
-              <article key={item.id} className={`mc-v2-feed-item mc-v2-intel-item ${severityTone(item.severity)}`}>
+              <article
+                key={item.id}
+                className={`mc-v2-feed-item mc-v2-intel-item ${severityTone(item.severity)}`}
+              >
                 <div className="mc-v2-feed-item-header">
                   <div className="mc-v2-feed-item-meta">
-                    <span className={`mc-v2-status-pill ${severityTone(item.severity)}`}>
-                      {SEVERITY_LABELS[item.severity]}
+                    <span
+                      className={`mc-v2-status-pill ${severityTone(item.severity)}`}
+                    >
+                      {t(
+                        SEVERITY_LABELS[item.severity].key,
+                        SEVERITY_LABELS[item.severity].label,
+                      )}
                     </span>
-                    <span className="mc-v2-brief-kicker">{CATEGORY_LABELS[item.category]}</span>
-                    {item.agentName && <span className="mc-v2-feed-agent">{item.agentName}</span>}
+                    <span className="mc-v2-brief-kicker">
+                      {t(
+                        CATEGORY_LABELS[item.category].key,
+                        CATEGORY_LABELS[item.category].label,
+                      )}
+                    </span>
+                    {item.agentName && (
+                      <span className="mc-v2-feed-agent">{item.agentName}</span>
+                    )}
                     {isAllWorkspacesSelected && item.workspaceName ? (
-                      <span className="mc-v2-workspace-tag">{item.workspaceName}</span>
+                      <span className="mc-v2-workspace-tag">
+                        {item.workspaceName}
+                      </span>
                     ) : null}
                   </div>
-                  <span className="mc-v2-feed-time">{formatRelativeTime(item.timestamp)}</span>
+                  <span className="mc-v2-feed-time">
+                    {formatRelativeTime(item.timestamp)}
+                  </span>
                 </div>
 
                 <div className="mc-v2-intel-body">
@@ -149,19 +232,38 @@ export function MCFeedTab({ data }: MCFeedTabProps) {
 
                 <div className="mc-v2-intel-actions">
                   {item.taskId && (
-                    <button className="mc-v2-inline-action" onClick={() => setDetailPanel({ kind: "task", taskId: item.taskId! })}>
-                      Open task
+                    <button
+                      className="mc-v2-inline-action"
+                      onClick={() =>
+                        setDetailPanel({ kind: "task", taskId: item.taskId! })
+                      }
+                    >
+                      {t("missionControl.feed.openTask", "Open task")}
                     </button>
                   )}
-                  <button className="mc-v2-inline-action" onClick={() => toggleMissionControlEvidence(item.id)}>
-                    {expanded ? "Hide evidence" : `Show evidence (${item.evidenceCount})`}
+                  <button
+                    className="mc-v2-inline-action"
+                    onClick={() => toggleMissionControlEvidence(item.id)}
+                  >
+                    {expanded
+                      ? t("missionControl.feed.hideEvidence", "Hide evidence")
+                      : t(
+                          "missionControl.feed.showEvidence",
+                          "Show evidence ({count})",
+                          { count: item.evidenceCount },
+                        )}
                   </button>
                 </div>
 
                 {expanded && (
                   <div className="mc-v2-evidence-list">
                     {evidence.length === 0 ? (
-                      <div className="mc-v2-empty mc-v2-empty-compact">No evidence rows loaded.</div>
+                      <div className="mc-v2-empty mc-v2-empty-compact">
+                        {t(
+                          "missionControl.feed.noEvidenceRows",
+                          "No evidence rows loaded.",
+                        )}
+                      </div>
                     ) : (
                       evidence.map((entry) => (
                         <div key={entry.id} className="mc-v2-evidence-row">

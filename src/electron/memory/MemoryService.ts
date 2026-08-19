@@ -82,7 +82,7 @@ const COMPRESSION_RETRY_BASE_DELAY_MS = 5_000;
 const MAX_COMPRESSION_RETRIES = 3;
 const MAX_TEXT_IMPORT_ENTRIES = 3000;
 const MAX_TEXT_IMPORT_ENTRY_CHARS = 12000;
-const PROMPT_RECALL_IGNORE_MARKER = "[cowork:prompt_recall=ignore]";
+const PROMPT_RECALL_IGNORE_MARKER = "[neoworker:prompt_recall=ignore]";
 const HEARTBEAT_BATCH_WINDOW_MS = 5 * 60 * 1000;
 const LOCAL_SUMMARY_MAX_CHARS = 220;
 const logger = createLogger("MemoryService");
@@ -239,7 +239,7 @@ export class MemoryService {
 
   /**
    * Search indexed markdown within a workspace path (best-effort).
-   * Intended for retrieving durable workspace notes such as `.cowork/` memory files.
+   * Intended for retrieving durable workspace notes such as `.neoworker/` memory files.
    */
   static searchWorkspaceMarkdown(
     workspaceId: string,

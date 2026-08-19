@@ -12,6 +12,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import type { Workspace } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 interface BriefingSection {
   type: string;
@@ -56,28 +57,23 @@ const STATUS_COLORS: Record<string, string> = {
 
 function StatusDot({ status }: { status?: string }) {
   const color = STATUS_COLORS[status || "info"] || STATUS_COLORS.info;
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        width: 6,
-        height: 6,
-        borderRadius: "50%",
-        background: color,
-        marginRight: 6,
-        flexShrink: 0,
-      }}
-    />
-  );
+  return <span className="briefing-status-dot" style={{ background: color }} />;
 }
 
-export const BriefingPanel: React.FC<{ workspaceId?: string }> = ({ workspaceId }) => {
+export const BriefingPanel: React.FC<{ workspaceId?: string }> = ({
+  workspaceId,
+}) => {
+  useLanguage();
+  const t = translate;
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [loading, setLoading] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set(),
+  );
   const [error, setError] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>(ALL_WORKSPACES_ID);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] =
+    useState<string>(ALL_WORKSPACES_ID);
   const [workspacesLoading, setWorkspacesLoading] = useState(true);
 
   const loadWorkspaces = useCallback(async () => {
@@ -85,13 +81,18 @@ export const BriefingPanel: React.FC<{ workspaceId?: string }> = ({ workspaceId 
       setWorkspacesLoading(true);
       const loaded = await (window as Any).electronAPI.listWorkspaces();
       const nonTemp: Workspace[] = (loaded || []).filter(
-        (workspace: Workspace) => !workspace.id.startsWith("__temp_workspace__"),
+        (workspace: Workspace) =>
+          !workspace.id.startsWith("__temp_workspace__"),
       );
       setWorkspaces(nonTemp);
       setSelectedWorkspaceId((prev) => {
         if (prev === ALL_WORKSPACES_ID) return ALL_WORKSPACES_ID;
-        if (prev && nonTemp.some((workspace) => workspace.id === prev)) return prev;
-        if (workspaceId && nonTemp.some((workspace) => workspace.id === workspaceId)) {
+        if (prev && nonTemp.some((workspace) => workspace.id === prev))
+          return prev;
+        if (
+          workspaceId &&
+          nonTemp.some((workspace) => workspace.id === workspaceId)
+        ) {
           return workspaceId;
         }
         return ALL_WORKSPACES_ID;
@@ -112,11 +113,15 @@ export const BriefingPanel: React.FC<{ workspaceId?: string }> = ({ workspaceId 
   const loadBriefing = useCallback(async () => {
     if (!effectiveWorkspaceId) return;
     try {
-      const latest = await (window as Any).electronAPI.getLatestBriefing(effectiveWorkspaceId);
+      const latest = await (window as Any).electronAPI.getLatestBriefing(
+        effectiveWorkspaceId,
+      );
       if (latest) {
         setBriefing(latest);
         // Auto-expand all sections
-        setExpandedSections(new Set(latest.sections.map((s: BriefingSection) => s.type)));
+        setExpandedSections(
+          new Set(latest.sections.map((s: BriefingSection) => s.type)),
+        );
       }
     } catch {
       // Not available yet
@@ -137,10 +142,15 @@ export const BriefingPanel: React.FC<{ workspaceId?: string }> = ({ workspaceId 
       );
       if (result) {
         setBriefing(result);
-        setExpandedSections(new Set(result.sections.map((s: BriefingSection) => s.type)));
+        setExpandedSections(
+          new Set(result.sections.map((s: BriefingSection) => s.type)),
+        );
       }
     } catch (e: Any) {
-      setError(e?.message || "Failed to generate briefing");
+      setError(
+        e?.message ||
+          t("briefing.error.generate", "Failed to generate briefing"),
+      );
     } finally {
       setLoading(false);
     }
@@ -156,71 +166,51 @@ export const BriefingPanel: React.FC<{ workspaceId?: string }> = ({ workspaceId 
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* Header */}
-      <div
-        style={{
-          padding: "12px 16px",
-          borderBottom: "1px solid var(--color-border)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Sun size={16} style={{ color: "var(--color-accent)" }} />
-          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text)" }}>
-            Daily Briefing
+    <div className="automation-page briefing-page">
+      <div className="automation-page-toolbar briefing-page-toolbar">
+        <div className="briefing-page-title">
+          <span className="briefing-page-title-icon">
+            <Sun size={17} />
           </span>
+          <div>
+            <h3>{t("briefing.title", "Daily Briefing")}</h3>
+            <p>
+              {t(
+                "briefing.subtitle",
+                "Summarize what needs your attention today and create a briefing that you can work on immediately.",
+              )}
+            </p>
+          </div>
         </div>
         <button
           onClick={generateBriefing}
           disabled={loading || !effectiveWorkspaceId}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "4px 10px",
-            borderRadius: 4,
-            border: "1px solid var(--color-border)",
-            background: "var(--color-accent)",
-            color: "hsl(0 0% 10%)",
-            cursor: loading || !effectiveWorkspaceId ? "not-allowed" : "pointer",
-            fontSize: 12,
-            opacity: loading || !effectiveWorkspaceId ? 0.65 : 1,
-          }}
+          className="button-primary briefing-generate-button"
         >
-          <RefreshCw size={12} className={loading ? "spinning" : ""} />
-          {loading ? "Generating..." : "Generate Now"}
+          <RefreshCw size={14} className={loading ? "spinning" : ""} />
+          {loading
+            ? t("briefing.generating", "Generating...")
+            : t("briefing.generateNow", "Generate Now")}
         </button>
       </div>
 
-      <div style={{ padding: "10px 16px 0", maxWidth: 320 }}>
-        <label
-          style={{
-            display: "block",
-            marginBottom: 4,
-            fontSize: 11,
-            color: "var(--color-text-secondary)",
-          }}
-        >
-          Workspace
+      <div className="briefing-scope">
+        <label className="briefing-scope-label">
+          {t("briefing.workspace", "Workspace")}
         </label>
         {workspacesLoading ? (
-          <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>Loading workspaces...</div>
+          <div className="briefing-scope-loading">
+            {t("briefing.loadingWorkspaces", "Loading workspaces...")}
+          </div>
         ) : workspaces.length > 0 ? (
           <select
             value={effectiveWorkspaceId}
             onChange={(event) => setSelectedWorkspaceId(event.target.value)}
             className="briefing-workspace-select"
-            style={{
-              width: "100%",
-              padding: "6px 8px",
-              borderRadius: 6,
-              fontSize: 12,
-            }}
           >
-            <option value={ALL_WORKSPACES_ID}>All Workspaces</option>
+            <option value={ALL_WORKSPACES_ID}>
+              {t("briefing.allWorkspaces", "All Workspaces")}
+            </option>
             {workspaces.map((workspace) => (
               <option key={workspace.id} value={workspace.id}>
                 {workspace.name}
@@ -228,148 +218,96 @@ export const BriefingPanel: React.FC<{ workspaceId?: string }> = ({ workspaceId 
             ))}
           </select>
         ) : (
-          <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-            No workspace found. Create or select a workspace first.
+          <div className="briefing-scope-loading">
+            {t(
+              "briefing.noWorkspace",
+              "No workspace found. Create or select a workspace first.",
+            )}
           </div>
         )}
       </div>
 
-      {/* Content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
-        {error && (
-          <div
-            style={{
-              margin: "8px 16px",
-              padding: "8px 12px",
-              borderRadius: 6,
-              background: "rgba(239, 68, 68, 0.1)",
-              color: "#ef4444",
-              fontSize: 12,
-            }}
-          >
-            {error}
-          </div>
-        )}
+      <div className="briefing-content">
+        {error && <div className="briefing-error">{error}</div>}
 
         {!briefing && !loading && (
-          <div
-            style={{
-              textAlign: "center",
-              padding: 32,
-              color: "var(--color-text-secondary)",
-              fontSize: 13,
-            }}
-          >
-            <Sun size={32} style={{ opacity: 0.4, marginBottom: 12, color: "var(--color-text-muted)" }} />
-            <div style={{ color: "var(--color-text)" }}>No briefing yet</div>
-            <div style={{ fontSize: 11, marginTop: 4, color: "var(--color-text-muted)" }}>
+          <div className="briefing-empty-state">
+            <span className="briefing-empty-icon">
+              <Sun size={23} />
+            </span>
+            <strong>{t("briefing.empty.title", "No briefing yet")}</strong>
+            <p>
               {effectiveWorkspaceId
-                ? 'Click "Generate Now" to create your daily briefing'
-                : "Select a workspace to create a daily briefing"}
-            </div>
+                ? t(
+                    "briefing.empty.generateHint",
+                    'Click "Generate Now" to create your daily briefing',
+                  )
+                : t(
+                    "briefing.empty.selectWorkspace",
+                    "Select a workspace to create a daily briefing",
+                  )}
+            </p>
           </div>
         )}
 
         {briefing && (
           <>
-            <div
-              style={{
-                padding: "4px 16px 8px",
-                fontSize: 11,
-                color: "var(--color-text-muted)",
-              }}
-            >
-              Generated {new Date(briefing.generatedAt).toLocaleString()}
+            <div className="briefing-generated-at">
+              {t("briefing.generated", "Generated")}{" "}
+              {new Date(briefing.generatedAt).toLocaleString()}
             </div>
-
-            {briefing.sections
-              .filter((s) => s.enabled !== false)
-              .map((section) => (
-                <div key={section.type} style={{ marginBottom: 2 }}>
-                  {/* Section header */}
-                  <button
-                    onClick={() => toggleSection(section.type)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      width: "100%",
-                      padding: "6px 16px",
-                      border: "none",
-                      background: "none",
-                      color: "var(--color-text)",
-                      cursor: "pointer",
-                      fontSize: 13,
-                      fontWeight: 500,
-                      textAlign: "left",
-                    }}
-                  >
-                    {expandedSections.has(section.type) ? (
-                      <ChevronDown size={12} />
-                    ) : (
-                      <ChevronRight size={12} />
-                    )}
-                    {SECTION_ICONS[section.type] || <Sun size={14} />}
-                    {section.title}
-                    <span
-                      style={{
-                        marginLeft: "auto",
-                        fontSize: 11,
-                        color: "var(--color-text-muted)",
-                      }}
+            <div className="briefing-sections">
+              {briefing.sections
+                .filter((section) => section.enabled !== false)
+                .map((section) => (
+                  <section key={section.type} className="briefing-section">
+                    <button
+                      onClick={() => toggleSection(section.type)}
+                      className="briefing-section-toggle"
                     >
-                      {section.items.length}
-                    </span>
-                  </button>
-
-                  {/* Section items */}
-                  {expandedSections.has(section.type) && (
-                    <div style={{ padding: "0 16px 8px 36px" }}>
-                      {section.items.length === 0 ? (
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "var(--color-text-muted)",
-                            fontStyle: "italic",
-                          }}
-                        >
-                          Nothing to report
-                        </div>
+                      {expandedSections.has(section.type) ? (
+                        <ChevronDown size={14} />
                       ) : (
-                        section.items.map((item, idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              display: "flex",
-                              alignItems: "flex-start",
-                              gap: 4,
-                              padding: "3px 0",
-                              fontSize: 12,
-                              color: "var(--color-text-secondary)",
-                            }}
-                          >
-                            <StatusDot status={item.status} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ color: "var(--color-text)" }}>{item.label}</div>
-                              {item.detail && (
-                                <div
-                                  style={{
-                                    fontSize: 11,
-                                    color: "var(--color-text-muted)",
-                                    marginTop: 1,
-                                  }}
-                                >
-                                  {item.detail}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))
+                        <ChevronRight size={14} />
                       )}
-                    </div>
-                  )}
-                </div>
-              ))}
+                      <span className="briefing-section-icon">
+                        {SECTION_ICONS[section.type] || <Sun size={15} />}
+                      </span>
+                      <span className="briefing-section-title">
+                        {t(`briefing.section.${section.type}`, section.title)}
+                      </span>
+                      <span className="briefing-section-count">
+                        {section.items.length}
+                      </span>
+                    </button>
+                    {expandedSections.has(section.type) && (
+                      <div className="briefing-section-items">
+                        {section.items.length === 0 ? (
+                          <div className="briefing-nothing-to-report">
+                            {t("briefing.nothingToReport", "Nothing to report")}
+                          </div>
+                        ) : (
+                          section.items.map((item, idx) => (
+                            <div key={idx} className="briefing-item">
+                              <StatusDot status={item.status} />
+                              <div className="briefing-item-copy">
+                                <div className="briefing-item-label">
+                                  {item.label}
+                                </div>
+                                {item.detail && (
+                                  <div className="briefing-item-detail">
+                                    {item.detail}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </section>
+                ))}
+            </div>
           </>
         )}
       </div>

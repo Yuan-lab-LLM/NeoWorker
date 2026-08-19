@@ -10,14 +10,14 @@
 
     <application
         android:allowBackup="true"
-        android:label="CoWork Companion"
+        android:label="NeoWorker Companion"
         android:supportsRtl="true"
         android:theme="@style/Theme.Material3.DayNight">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="CoWork Companion">
+            android:label="NeoWorker Companion">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

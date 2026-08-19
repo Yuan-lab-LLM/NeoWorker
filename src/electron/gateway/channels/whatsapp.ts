@@ -316,7 +316,7 @@ export class WhatsAppAdapter implements ChannelAdapter {
         version,
         logger: logger as Any,
         // Note: printQRInTerminal is deprecated - QR codes are handled via connection.update event
-        browser: ["CoWork-OS", "Desktop", "1.0.0"],
+        browser: ["NeoWorker", "Desktop", "1.0.0"],
         syncFullHistory: false,
         markOnlineOnConnect: false,
       });
@@ -1864,7 +1864,7 @@ export class WhatsAppAdapter implements ChannelAdapter {
   }
 
   /**
-   * Extract mention-like tokens from text (e.g. '@1415...', '@cowork').
+   * Extract mention-like tokens from text (e.g. '@1415...', '@neoworker').
    */
   private extractMentionTokensFromText(text: string): string[] {
     return (

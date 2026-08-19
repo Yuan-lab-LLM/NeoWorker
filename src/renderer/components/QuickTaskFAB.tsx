@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { translate, useLanguage } from "../i18n";
 
 interface QuickTaskFABProps {
   onCreateTask: (prompt: string) => void;
@@ -6,6 +7,8 @@ interface QuickTaskFABProps {
 }
 
 export function QuickTaskFAB({ onCreateTask, disabled }: QuickTaskFABProps) {
+  useLanguage();
+  const t = translate;
   const [isOpen, setIsOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -42,12 +45,16 @@ export function QuickTaskFAB({ onCreateTask, disabled }: QuickTaskFABProps) {
             ref={inputRef}
             type="text"
             className="quick-task-input"
-            placeholder="What should we do?"
+            placeholder={t("quickTask.placeholder", "What should we do?")}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={handleKeyDown}
           />
-          <button className="quick-task-submit" onClick={handleSubmit} disabled={!prompt.trim()}>
+          <button
+            className="quick-task-submit"
+            onClick={handleSubmit}
+            disabled={!prompt.trim()}
+          >
             +
           </button>
         </div>
@@ -56,7 +63,7 @@ export function QuickTaskFAB({ onCreateTask, disabled }: QuickTaskFABProps) {
         className={`quick-task-fab ${isOpen ? "open" : ""}`}
         onClick={() => setIsOpen(!isOpen)}
         disabled={disabled}
-        title="Quick start"
+        title={t("quickTask.title", "Quick start")}
       >
         <span className="fab-icon">{isOpen ? "x" : "+"}</span>
       </button>

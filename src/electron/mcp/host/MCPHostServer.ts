@@ -1,8 +1,8 @@
 /**
- * MCPHostServer - Exposes CoWork's tools as an MCP server
+ * MCPHostServer - Exposes NeoWorker's tools as an MCP server
  *
  * This allows external clients (like Claude Code, other AI agents, or MCP clients)
- * to connect to CoWork and use its tools via the MCP protocol over stdio.
+ * to connect to NeoWorker and use its tools via the MCP protocol over stdio.
  */
 
 import { EventEmitter } from "events";
@@ -31,7 +31,7 @@ const PROTOCOL_VERSION = "2024-11-05";
 
 // Server info
 const SERVER_INFO: MCPServerInfo = {
-  name: "CoWork-OS",
+  name: "NeoWorker",
   version: "1.0.0",
   protocolVersion: PROTOCOL_VERSION,
   capabilities: {

@@ -276,8 +276,8 @@ export const DEFAULT_HOOKS_MAX_BODY_BYTES = 256 * 1024; // 256KB
 export const DEFAULT_HOOKS_PORT = 9877;
 
 export const DEFAULT_GMAIL_LABEL = "INBOX";
-export const DEFAULT_GMAIL_TOPIC = "cowork-gmail-watch";
-export const DEFAULT_GMAIL_SUBSCRIPTION = "cowork-gmail-watch-push";
+export const DEFAULT_GMAIL_TOPIC = "neoworker-gmail-watch";
+export const DEFAULT_GMAIL_SUBSCRIPTION = "neoworker-gmail-watch-push";
 export const DEFAULT_GMAIL_SERVE_BIND = "127.0.0.1";
 export const DEFAULT_GMAIL_SERVE_PORT = 8788;
 export const DEFAULT_GMAIL_SERVE_PATH = "/gmail-pubsub";

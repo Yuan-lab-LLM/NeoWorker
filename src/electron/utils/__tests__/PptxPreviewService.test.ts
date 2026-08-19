@@ -9,7 +9,9 @@ const PNG_BYTES = Buffer.from("presentation-preview");
 let tempRoot = "";
 
 beforeEach(async () => {
-  tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-pptx-preview-test-"));
+  tempRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "neoworker-pptx-preview-test-"),
+  );
 });
 
 afterEach(async () => {
@@ -25,12 +27,24 @@ async function createDeck(filePath: string): Promise<void> {
 
   const first = pptx.addSlide();
   first.addText("Intro", { x: 0.6, y: 0.7, w: 6, h: 0.5, fontSize: 28 });
-  first.addText("Opening slide", { x: 0.6, y: 1.4, w: 6, h: 0.5, fontSize: 18 });
+  first.addText("Opening slide", {
+    x: 0.6,
+    y: 1.4,
+    w: 6,
+    h: 0.5,
+    fontSize: 18,
+  });
   first.addNotes("Presenter note A");
 
   const second = pptx.addSlide();
   second.addText("Findings", { x: 0.6, y: 0.7, w: 6, h: 0.5, fontSize: 28 });
-  second.addText("First point\nSecond point", { x: 0.6, y: 1.4, w: 6, h: 1.5, fontSize: 18 });
+  second.addText("First point\nSecond point", {
+    x: 0.6,
+    y: 1.4,
+    w: 6,
+    h: 1.5,
+    fontSize: 18,
+  });
   second.addNotes("Presenter note B");
 
   await pptx.writeFile({ fileName: filePath });
@@ -225,7 +239,7 @@ describe("PptxPreviewService", () => {
 
     expect(fast.renderStatus).toBe("cached");
     expect(fast.slides[0].imageDataUrl).toContain("data:image/png;base64,");
-    expect(calls).toEqual(["artifact-tool"]);
+    expect(calls).toEqual(["soffice", "artifact-tool"]);
   });
 
   it("shares concurrent full render work for the same deck", async () => {
@@ -249,16 +263,24 @@ describe("PptxPreviewService", () => {
     });
 
     const [first, second] = await Promise.all([
-      service.buildPreview({ filePath: deckPath, workspaceRoot: workspace, renderMode: "full" }),
-      service.buildPreview({ filePath: deckPath, workspaceRoot: workspace, renderMode: "full" }),
+      service.buildPreview({
+        filePath: deckPath,
+        workspaceRoot: workspace,
+        renderMode: "full",
+      }),
+      service.buildPreview({
+        filePath: deckPath,
+        workspaceRoot: workspace,
+        renderMode: "full",
+      }),
     ]);
 
     expect(first.renderStatus).toBe("rendered");
     expect(second.renderStatus).toBe("rendered");
-    expect(calls).toEqual(["artifact-tool"]);
+    expect(calls).toEqual(["soffice", "artifact-tool"]);
   });
 
-  it("prefers the Codex presentation renderer when available", async () => {
+  it("prefers the faster LibreOffice renderer when available", async () => {
     const workspace = path.join(tempRoot, "workspace");
     await fs.mkdir(workspace, { recursive: true });
     const deckPath = path.join(workspace, "deck.pptx");
@@ -272,8 +294,18 @@ describe("PptxPreviewService", () => {
         await fs.writeFile(path.join(outputDir, "slide-1.png"), PNG_BYTES);
         await fs.writeFile(path.join(outputDir, "slide-2.png"), PNG_BYTES);
       },
-      commandRunner: async (command) => {
+      commandRunner: async (command, args) => {
         calls.push(command);
+        if (command === "soffice") {
+          const outDir = String(args[args.indexOf("--outdir") + 1]);
+          await fs.writeFile(path.join(outDir, "deck.pdf"), "%PDF");
+          return;
+        }
+        if (command === "pdftoppm") {
+          const outputPrefix = String(args[args.length - 1]);
+          await fs.writeFile(`${outputPrefix}-1.png`, PNG_BYTES);
+          await fs.writeFile(`${outputPrefix}-2.png`, PNG_BYTES);
+        }
       },
     });
 
@@ -284,7 +316,51 @@ describe("PptxPreviewService", () => {
 
     expect(preview.renderStatus).toBe("rendered");
     expect(preview.slides[0].imageDataUrl).toContain("data:image/png;base64,");
-    expect(calls).toEqual(["artifact-tool"]);
+    expect(calls).toEqual(["soffice", "pdftoppm"]);
+  });
+
+  it("gives LibreOffice a private profile and a CJK-aware fontconfig", async () => {
+    const workspace = path.join(tempRoot, "workspace");
+    await fs.mkdir(workspace, { recursive: true });
+    const deckPath = path.join(workspace, "中文预览.pptx");
+    await createDeck(deckPath);
+    let sofficeArgs: string[] = [];
+    let sofficeEnvironment: NodeJS.ProcessEnv | undefined;
+
+    const service = new PptxPreviewService({
+      cacheRoot: path.join(tempRoot, "cache"),
+      artifactToolRunner: null,
+      commandRunner: async (command, args, options) => {
+        if (command === "soffice") {
+          sofficeArgs = args;
+          sofficeEnvironment = options.env;
+          const outDir = String(args[args.indexOf("--outdir") + 1]);
+          await fs.writeFile(path.join(outDir, "中文预览.pdf"), "%PDF");
+          return;
+        }
+        if (command === "pdftoppm") {
+          const outputPrefix = String(args[args.length - 1]);
+          await fs.writeFile(`${outputPrefix}-1.png`, PNG_BYTES);
+          await fs.writeFile(`${outputPrefix}-2.png`, PNG_BYTES);
+        }
+      },
+    });
+
+    await service.buildPreview({
+      filePath: deckPath,
+      workspaceRoot: workspace,
+      renderMode: "full",
+    });
+
+    expect(sofficeArgs[0]).toMatch(/^-env:UserInstallation=file:\/\//);
+    expect(sofficeEnvironment?.FONTCONFIG_FILE).toContain("fonts.conf");
+    const fontconfig = await fs.readFile(
+      String(sofficeEnvironment?.FONTCONFIG_FILE),
+      "utf-8",
+    );
+    expect(fontconfig).toContain("PingFang SC");
+    expect(fontconfig).toContain("Hiragino Sans GB");
+    expect(fontconfig).toContain("Microsoft YaHei");
   });
 
   it("falls back to text-only preview when converters fail", async () => {
@@ -330,6 +406,32 @@ describe("PptxPreviewService", () => {
         workspaceRoot: workspace,
       }),
     ).rejects.toThrow(/outside the workspace/);
+  });
+
+  it("allows a PPTX from the workspace's controlled durable mirror", async () => {
+    const workspace = path.join(tempRoot, "workspace");
+    const durableRoot = path.join(tempRoot, "durable", "workspace-identity");
+    await fs.mkdir(workspace, { recursive: true });
+    await fs.mkdir(durableRoot, { recursive: true });
+    const deckPath = path.join(durableRoot, "artifacts", "deck.pptx");
+    await fs.mkdir(path.dirname(deckPath), { recursive: true });
+    await createDeck(deckPath);
+
+    const service = new PptxPreviewService({
+      cacheRoot: path.join(tempRoot, "cache"),
+      artifactToolRunner: null,
+      commandRunner: async () => {
+        throw new Error("soffice missing");
+      },
+    });
+
+    await expect(
+      service.buildPreview({
+        filePath: deckPath,
+        workspaceRoot: workspace,
+        allowedRoots: [durableRoot],
+      }),
+    ).resolves.toMatchObject({ slideCount: 2 });
   });
 
   it("rejects symlinked PPTX files that resolve outside the workspace", async () => {

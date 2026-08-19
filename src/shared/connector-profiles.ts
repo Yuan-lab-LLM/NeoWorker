@@ -54,7 +54,7 @@ export const CONNECTOR_PROFILES: Record<string, ConnectorProfile> = {
   vercel: {
     tagline: "Analyze, debug, and manage projects and deployments",
     longDescription:
-      "The Vercel connector lets you inspect deployments, view build logs, manage environment variables, and troubleshoot production issues. Connect your Vercel account to manage projects directly from CoWork.",
+      "The Vercel connector lets you inspect deployments, view build logs, manage environment variables, and troubleshoot production issues. Connect your Vercel account to manage projects directly from NeoWorker.",
     keyFeatures: [
       {
         title: "List and inspect deployments",
@@ -794,7 +794,7 @@ export const CONNECTOR_PROFILES: Record<string, ConnectorProfile> = {
   tldraw: {
     tagline: "Let Claude sketch, draw, and diagram with you",
     longDescription:
-      "Manage local tldraw canvas files (.tldr) from CoWork. The agent can read, write, search, and create diagrams that sync with tldraw desktop or VS Code.",
+      "Manage local tldraw canvas files (.tldr) from NeoWorker. The agent can read, write, search, and create diagrams that sync with tldraw desktop or VS Code.",
     keyFeatures: [
       {
         title: "Read and write canvases",

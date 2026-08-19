@@ -32,7 +32,10 @@ export function isPretextEnabled(): boolean {
  * Build a CSS font shorthand string from the computed styles of an element.
  * Falls back to document.documentElement when no element is provided.
  */
-export function getResolvedFont(el?: HTMLElement): { fontFamily: string; fontSize: number } {
+export function getResolvedFont(el?: HTMLElement): {
+  fontFamily: string;
+  fontSize: number;
+} {
   const target = el ?? document.documentElement;
   const computed = getComputedStyle(target);
   return {
@@ -42,7 +45,10 @@ export function getResolvedFont(el?: HTMLElement): { fontFamily: string; fontSiz
 }
 
 /** Convert our resolved font to the CSS font shorthand string that pretext expects. */
-function toCssFontString(font: { fontFamily: string; fontSize: number }): string {
+function toCssFontString(font: {
+  fontFamily: string;
+  fontSize: number;
+}): string {
   return `${font.fontSize}px ${font.fontFamily}`;
 }
 

@@ -1,6 +1,6 @@
 # Supervisor Mode on Discord
 
-CoWork OS can run a strict Discord-native supervisor loop between two CoWork agents plus a human operator.
+NeoWorker can run a strict Discord-native supervisor loop between two NeoWorker agents plus a human operator.
 
 ## What It Does
 
@@ -10,7 +10,7 @@ CoWork OS can run a strict Discord-native supervisor loop between two CoWork age
 
 ## Protocol
 
-CoWork uses four markers:
+NeoWorker uses four markers:
 
 - `[CW_STATUS_REQUEST]`
 - `[CW_REVIEW_REQUEST]`
@@ -38,11 +38,11 @@ Rules:
    - supervisor agent role
    - human escalation channel or user
 5. Save the Discord settings.
-6. Add review and escalation policy to `.cowork/SUPERVISOR.md`.
+6. Add review and escalation policy to `.neoworker/SUPERVISOR.md`.
 
 ## Workspace Contract
 
-When supervisor mode is enabled, CoWork reads `.cowork/SUPERVISOR.md` alongside the rest of the workspace kit. Use it to define:
+When supervisor mode is enabled, NeoWorker reads `.neoworker/SUPERVISOR.md` alongside the rest of the workspace kit. Use it to define:
 
 - freshness windows
 - evidence requirements
@@ -54,7 +54,7 @@ Do not store credentials or Discord IDs in this file.
 
 ## Mission Control
 
-Supervisor exchanges appear in the activity stream as `Supervisor Exchange` events. Escalated exchanges can be resolved from CoWork, and the resolution can optionally be mirrored back to Discord.
+Supervisor exchanges appear in the activity stream as `Supervisor Exchange` events. Escalated exchanges can be resolved from NeoWorker, and the resolution can optionally be mirrored back to Discord.
 
 ## When To Use This
 
@@ -64,4 +64,4 @@ Use Discord supervisor mode when you want:
 - a machine-readable termination contract
 - human escalation only when judgment is required
 
-Use Heartbeat v3 and Mission Control alone when the work is internal to CoWork and does not require a Discord-native coordination lane.
+Use Heartbeat v3 and Mission Control alone when the work is internal to NeoWorker and does not require a Discord-native coordination lane.

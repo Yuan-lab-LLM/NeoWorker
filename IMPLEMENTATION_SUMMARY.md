@@ -1,4 +1,4 @@
-# CoWork OS Implementation Summary
+# NeoWorker Implementation Summary
 
 ## What You Have Now
 
@@ -16,7 +16,7 @@ A **fully functional macOS desktop application** for agentic task automation wit
 
 ```
 +---------------------------------------------------------------+
-|                    COWORK-OSS APPLICATION                      |
+|                    NEOWORKER-OSS APPLICATION                      |
 +---------------------------------------------------------------+
 |                                                                 |
 |  +-----------------------------------------------------------+ |
@@ -282,7 +282,7 @@ SQLite with 6 tables:
 Full MCP support for extensibility:
 
 - **MCP Client** (`client/`): Connect to external MCP servers
-- **MCP Host** (`host/`): Expose CoWork's tools as an MCP server
+- **MCP Host** (`host/`): Expose NeoWorker's tools as an MCP server
 - **MCP Registry** (`registry/`): Browse and install servers with one click
 - **Transports**: stdio, SSE, and WebSocket support
 
@@ -292,7 +292,7 @@ Full MCP support for extensibility:
 
 User-defined reusable workflows:
 
-- Skills stored as YAML in `~/Library/Application Support/cowork-os/skills/`
+- Skills stored as YAML in `~/Library/Application Support/neoworker/skills/`
 - Custom prompts and tool configurations
 - Priority-based sorting
 - Parameter input modal for skills with variables
@@ -390,7 +390,7 @@ Run multiple tasks concurrently:
 ## File Structure
 
 ```
-cowork-os/
+neoworker/
 ├── package.json
 ├── tsconfig.json
 ├── tsconfig.electron.json
@@ -525,8 +525,8 @@ cowork-os/
 
 ```bash
 # Clone and install
-git clone https://github.com/CoWork-OS/CoWork-OS.git
-cd CoWork-OS
+git clone https://github.com/NeoWorker/NeoWorker.git
+cd NeoWorker
 npm install
 
 # Run in development mode
@@ -656,7 +656,7 @@ npm run type-check       # Check TypeScript types
 2. **No Network Controls**: Can make API calls freely
 3. **No Resource Limits**: Can consume unlimited memory/CPU
 
-## Comparison to Original Cowork Concept
+## Comparison to Original NeoWorker Concept
 
 | Feature | Target | Current | Status |
 |---------|--------|---------|--------|
@@ -686,7 +686,7 @@ npm run type-check       # Check TypeScript types
 
 ## Summary
 
-CoWork OS is a production-ready agentic task automation app with:
+NeoWorker is a production-ready agentic task automation app with:
 
 - **5 LLM providers** (cloud and local)
 - **5 search providers** with fallback (including DuckDuckGo free built-in)

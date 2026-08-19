@@ -1,8 +1,8 @@
 import { LLMProvider, LLMProviderConfig, LLMRequest, LLMResponse } from "./types";
 import { OpenAICompatibleProvider } from "./openai-compatible-provider";
 
-const KIMI_BASE_URL = "https://api.moonshot.ai/v1";
-const DEFAULT_KIMI_MODEL = "kimi-k2.5";
+const KIMI_BASE_URL = "https://api.moonshot.cn/v1";
+const DEFAULT_KIMI_MODEL = "kimi-k3";
 
 export class KimiProvider implements LLMProvider {
   readonly type = "kimi" as const;

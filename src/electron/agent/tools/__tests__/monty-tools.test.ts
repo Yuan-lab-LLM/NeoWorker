@@ -14,7 +14,7 @@ vi.mock("electron", () => ({
     showItemInFolder: vi.fn(),
   },
   app: {
-    getPath: vi.fn().mockReturnValue("/tmp/test-cowork"),
+    getPath: vi.fn().mockReturnValue("/tmp/test-neoworker"),
   },
 }));
 
@@ -52,7 +52,7 @@ describe("MontyTools", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-monty-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-monty-"));
     const workspace = mkWorkspace(tmpDir);
     const fileTools = new FileTools(workspace, mockDaemon as Any, "task-1");
     tools = new MontyTools(workspace, mockDaemon as Any, "task-1", fileTools);
@@ -111,8 +111,8 @@ describe("MontyTools", () => {
     expect(all.values).toEqual([{ a: 1, b: 2 }, { c: 3 }]);
   });
 
-  it("monty_list_transforms and monty_run_transform work with .cowork/transforms", async () => {
-    const transformsDir = path.join(tmpDir, ".cowork", "transforms");
+  it("monty_list_transforms and monty_run_transform work with .neoworker/transforms", async () => {
+    const transformsDir = path.join(tmpDir, ".neoworker", "transforms");
     await fs.mkdir(transformsDir, { recursive: true });
     await fs.writeFile(
       path.join(transformsDir, "double.monty"),
@@ -134,7 +134,7 @@ describe("MontyTools", () => {
   });
 
   it("monty_transform_file reads input, runs transform, and writes output without returning file content", async () => {
-    const transformsDir = path.join(tmpDir, ".cowork", "transforms");
+    const transformsDir = path.join(tmpDir, ".neoworker", "transforms");
     await fs.mkdir(transformsDir, { recursive: true });
     await fs.writeFile(
       path.join(transformsDir, "upper.monty"),

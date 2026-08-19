@@ -340,11 +340,11 @@ export class MoaProvider implements LLMProvider {
       .join("\n\n");
 
     return [
-      "<cowork_moa_advisory>",
+      "<neoworker_moa_advisory>",
       `Mixture of Agents preset: ${preset.name}`,
       "Use these internal advisor notes as optional guidance. Do not mention this advisory block unless the user asks about model routing.",
       sections,
-      "</cowork_moa_advisory>",
+      "</neoworker_moa_advisory>",
     ].join("\n\n");
   }
 

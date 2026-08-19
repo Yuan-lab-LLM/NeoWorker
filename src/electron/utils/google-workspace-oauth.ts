@@ -146,7 +146,7 @@ async function startOAuthCallbackServer(timeoutMs = DEFAULT_TIMEOUT_MS): Promise
       res.writeHead(200, { "Content-Type": "text/html" });
       res.end(`<!DOCTYPE html><html><body style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', system-ui, sans-serif; padding: 24px;">
         <h2>Authorization complete</h2>
-        <p>You can close this window and return to CoWork OS.</p>
+        <p>You can close this window and return to NeoWorker.</p>
       </body></html>`);
 
       clearTimeout(timeout);

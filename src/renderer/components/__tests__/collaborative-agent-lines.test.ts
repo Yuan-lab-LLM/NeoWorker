@@ -64,47 +64,103 @@ function renderLines(childTask: Task, childEvents: TaskEvent[]): string {
 }
 
 describe("CollaborativeAgentLines", () => {
-  it("shows completed for a finished subagent instead of a later DELIVER stage start", () => {
-    const markup = renderLines(makeTask({ status: "completed", completedAt: 1740841080000 }), [
-      makeEvent("step_completed", 1740841020000, { description: "Collect evidence" }),
-      makeEvent(
-        "timeline_group_started",
-        1740841080000,
-        { stage: "DELIVER", message: "Starting DELIVER" },
-        { groupId: "stage:deliver" },
-      ),
-    ]);
+  it("renders an accessible collapse control above the expert list", () => {
+    const markup = renderLines(
+      makeTask({ title: "Anansi (builder)", status: "executing" }),
+      [],
+    );
 
-    expect(markup).toContain("Completed");
+    expect(markup).toContain('aria-expanded="true"');
+    expect(markup).toContain('aria-label="折叠"');
+    expect(markup).toContain('class="collab-lines-toggle"');
+    expect(markup).toMatch(/aria-controls="[^"]+"/);
+  });
+
+  it("shows completed for a finished subagent instead of a later DELIVER stage start", () => {
+    const markup = renderLines(
+      makeTask({ status: "completed", completedAt: 1740841080000 }),
+      [
+        makeEvent("step_completed", 1740841020000, {
+          description: "Collect evidence",
+        }),
+        makeEvent(
+          "timeline_group_started",
+          1740841080000,
+          { stage: "DELIVER", message: "Starting DELIVER" },
+          { groupId: "stage:deliver" },
+        ),
+      ],
+    );
+
+    expect(markup).toContain("1 个完成");
     expect(markup).not.toContain("Starting DELIVER");
   });
 
   it("surfaces failed terminal subagent status with the latest failure label", () => {
-    const markup = renderLines(makeTask({ status: "failed", error: "Network lookup failed" }), [
-      makeEvent("step_failed", 1740841020000, { description: "Fetch upstream release" }),
-      makeEvent(
-        "timeline_group_started",
-        1740841080000,
-        { stage: "DELIVER", message: "Starting DELIVER" },
-        { groupId: "stage:deliver" },
-      ),
-    ]);
+    const markup = renderLines(
+      makeTask({ status: "failed", error: "Network lookup failed" }),
+      [
+        makeEvent("step_failed", 1740841020000, {
+          description: "Fetch upstream release",
+        }),
+        makeEvent(
+          "timeline_group_started",
+          1740841080000,
+          { stage: "DELIVER", message: "Starting DELIVER" },
+          { groupId: "stage:deliver" },
+        ),
+      ],
+    );
 
-    expect(markup).toContain("Failed: Fetch upstream release");
+    expect(markup).toContain("失败：Fetch upstream release");
     expect(markup).not.toContain("Starting DELIVER");
   });
 
   it("shows warnings for partial-success subagents", () => {
     const markup = renderLines(
-      makeTask({ status: "completed", terminalStatus: "partial_success", completedAt: 1740841080000 }),
+      makeTask({
+        status: "completed",
+        terminalStatus: "partial_success",
+        completedAt: 1740841080000,
+      }),
       [
-        makeEvent("step_failed", 1740841020000, { description: "Optional changelog lookup" }),
-        makeEvent("task_completed", 1740841080000, { terminalStatus: "partial_success" }),
+        makeEvent("step_failed", 1740841020000, {
+          description: "Optional changelog lookup",
+        }),
+        makeEvent("task_completed", 1740841080000, {
+          terminalStatus: "partial_success",
+        }),
       ],
     );
 
-    expect(markup).toContain("Needs review");
+    expect(markup).toContain("部分完成");
+    expect(markup).toContain("查看问题");
+    expect(markup).not.toContain("需要审核");
   });
+
+  it.each([
+    ["needs_user_action", "需要你处理"],
+    ["awaiting_approval", "等待批准"],
+    ["resume_available", "可继续"],
+  ] as const)(
+    "shows %s with its real action state",
+    (terminalStatus, label) => {
+      const markup = renderLines(
+        makeTask({ status: "completed", terminalStatus }),
+        [],
+      );
+
+      expect(markup).toContain(label);
+      expect(markup).toContain(
+        terminalStatus === "needs_user_action"
+          ? "去处理"
+          : terminalStatus === "awaiting_approval"
+            ? "去批准"
+            : "继续",
+      );
+      expect(markup).not.toContain("需要审核");
+    },
+  );
 
   it("shows per-agent terminal chips and aggregate counts", () => {
     const markup = render(
@@ -125,7 +181,12 @@ describe("CollaborativeAgentLines", () => {
           }),
         ],
         childEvents: [
-          makeEvent("step_failed", 1740841020000, { description: "Run verification" }, { taskId: "child-2" }),
+          makeEvent(
+            "step_failed",
+            1740841020000,
+            { description: "Run verification" },
+            { taskId: "child-2" },
+          ),
         ],
         onOpenAgent: () => undefined,
         onWrapUp: () => undefined,
@@ -133,10 +194,32 @@ describe("CollaborativeAgentLines", () => {
       }),
     );
 
-    expect(markup).toContain("1 done · 1 failed");
-    expect(markup).toContain("Done");
-    expect(markup).toContain("Failed");
+    expect(markup).toContain("1 个完成 · 1 个失败");
+    expect(markup).toContain(">完成<");
+    expect(markup).toContain(">失败<");
     expect(markup).not.toContain("failures need review");
-    expect(markup).toContain("Wrap Up");
+    expect(markup).toContain("收尾");
+  });
+
+  it("localizes built-in finance agent names", () => {
+    const markup = renderLines(
+      makeTask({ title: "Research/Data Reader", status: "completed" }),
+      [],
+    );
+
+    expect(markup).toContain("研究/数据读取员");
+    expect(markup).not.toContain(">Research/Data Reader<");
+  });
+
+  it("shows generated callsigns as clear Chinese expert roles", () => {
+    const markup = renderLines(
+      makeTask({ title: "Anansi (builder)", status: "executing" }),
+      [],
+    );
+
+    expect(markup).toContain("方案构建专家");
+    expect(markup).toContain("负责实现方案、搭建产出并完成交付");
+    expect(markup).toContain("Anansi");
+    expect(markup).not.toContain("(builder)");
   });
 });

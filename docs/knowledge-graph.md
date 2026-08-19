@@ -1,6 +1,6 @@
 # Knowledge Graph System
 
-CoWork OS includes a built-in knowledge graph that provides structured entity and relationship memory for the agent. Unlike flat-text memory, the knowledge graph stores typed entities, directed relationships, timestamped observations, and optional temporal validity windows in a normalized SQLite schema with full-text search.
+NeoWorker includes a built-in knowledge graph that provides structured entity and relationship memory for the agent. Unlike flat-text memory, the knowledge graph stores typed entities, directed relationships, timestamped observations, and optional temporal validity windows in a normalized SQLite schema with full-text search.
 
 ## Architecture
 
@@ -179,7 +179,7 @@ These auto-extracted entities appear with `confidence=0.85` and decay over time 
 
 ## Comparison with ClawHub Ontology
 
-| Capability | ClawHub Ontology | CoWork OS Knowledge Graph |
+| Capability | ClawHub Ontology | NeoWorker Knowledge Graph |
 |------------|-----------------|--------------------------|
 | **Storage** | Flat JSON file | SQLite with 4 normalized tables |
 | **Search** | Linear scan | FTS5 full-text search with BM25 ranking |

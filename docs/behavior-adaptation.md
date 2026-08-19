@@ -1,6 +1,6 @@
 # Behavior Adaptation
 
-CoWork OS can gradually adjust how it communicates — learning from observed messages and feedback, and adapting delivery style per channel. These are **opt-in behavior controls**, not safety guardrails.
+NeoWorker can gradually adjust how it communicates — learning from observed messages and feedback, and adapting delivery style per channel. These are **opt-in behavior controls**, not safety guardrails.
 
 ---
 

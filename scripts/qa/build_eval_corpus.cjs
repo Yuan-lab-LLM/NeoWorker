@@ -4,9 +4,9 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const DB_PATH =
-  process.env.COWORK_DB_PATH ||
-  path.join(os.homedir(), 'Library', 'Application Support', 'cowork-os', 'cowork-os.db');
-const SQLITE_BUSY_TIMEOUT_MS = Number(process.env.COWORK_SQLITE_BUSY_TIMEOUT_MS) || 15000;
+  process.env.NEOWORKER_DB_PATH ||
+  path.join(os.homedir(), 'Library', 'Application Support', 'neoworker', 'neoworker.db');
+const SQLITE_BUSY_TIMEOUT_MS = Number(process.env.NEOWORKER_SQLITE_BUSY_TIMEOUT_MS) || 15000;
 
 function parseArgs(argv) {
   const args = {

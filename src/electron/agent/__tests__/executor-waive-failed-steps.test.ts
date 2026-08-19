@@ -180,6 +180,37 @@ describe("TaskExecutor getWaivableFailedStepIdsAtCompletion", () => {
 });
 
 describe("TaskExecutor verification terminal status mapping", () => {
+  it("does not count intermediate markdown as substantive output for a requested PPTX", () => {
+    const executor = Object.create(TaskExecutor.prototype) as Any;
+    executor.task = {
+      id: "task-1",
+      title: "生成工商银行分析报告，PPT 格式",
+      prompt: "生成工商银行分析报告，PPT 格式",
+      rawPrompt: "生成工商银行分析报告，PPT 格式",
+      status: "executing",
+      createdAt: Date.now(),
+    };
+    executor.plan = {
+      description: "Build deck",
+      steps: [{ id: "1", description: "Research", status: "completed" }],
+    };
+    executor.buildTaskOutputSummary = vi.fn().mockReturnValue({
+      created: ["design-system.md"],
+      primaryOutputPath: "design-system.md",
+      outputCount: 1,
+      folders: ["."],
+    });
+    executor.bestKnownOutcome = undefined;
+    executor.hasExecutionEvidence = vi.fn().mockReturnValue(true);
+
+    const result = (TaskExecutor as Any).prototype.hasSubstantivePartialSuccessEvidence.call(
+      executor,
+      "研究内容已经完成，但还没有生成最终文件。",
+    );
+
+    expect(result).toBe(false);
+  });
+
   it("maps pending_user_action verification outcomes to needs_user_action", () => {
     const executor = Object.create(TaskExecutor.prototype) as Any;
     executor.verificationOutcomeV2Enabled = true;

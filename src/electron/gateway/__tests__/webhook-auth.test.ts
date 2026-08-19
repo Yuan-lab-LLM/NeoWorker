@@ -46,7 +46,7 @@ describe("gateway webhook authentication", () => {
     expect((client as Any).verifyWebhookRequest({ headers: {} })).toBe(false);
     expect(
       (client as Any).verifyWebhookRequest({
-        headers: { "x-cowork-webhook-secret": "webhook-secret" },
+        headers: { "x-neoworker-webhook-secret": "webhook-secret" },
       }),
     ).toBe(true);
   });

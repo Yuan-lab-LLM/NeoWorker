@@ -1,12 +1,12 @@
-# Getting Started with CoWork OS
+# Getting Started with NeoWorker
 
 ## Quick Start
 
 ### Step 1: Install Dependencies
 
 ```bash
-git clone https://github.com/CoWork-OS/CoWork-OS.git
-cd CoWork-OS
+git clone https://github.com/NeoWorker/NeoWorker.git
+cd NeoWorker
 npm run setup
 ```
 
@@ -47,18 +47,18 @@ This will:
 
 1. **Select a Workspace**
    - Click "Select Folder"
-   - Choose a folder you want CoWork OS to work in
+   - Choose a folder you want NeoWorker to work in
    - This will be your workspace (e.g., `~/Documents/test-workspace`)
 
 2. **Initialize the Workspace Kit (Optional, Recommended)**
    - Open **Settings** > **Memory Hub**
    - Under **Workspace Kit**, click **Initialize**
-   - This creates a `.cowork/` directory in your workspace for durable context, prompt injection, and project scaffolding
+   - This creates a `.neoworker/` directory in your workspace for durable context, prompt injection, and project scaffolding
    - The root kit can include shared workspace files such as `AGENTS.md`, `USER.md`, `MEMORY.md`, `TOOLS.md`, `IDENTITY.md`, `RULES.md`, `SOUL.md`, `VIBES.md`, and `LORE.md`
-   - `BOOTSTRAP.md` is a one-time onboarding checklist; once you complete onboarding, removing it marks onboarding complete and CoWork OS tracks that state in `.cowork/workspace-state.json`
+   - `BOOTSTRAP.md` is a one-time onboarding checklist; once you complete onboarding, removing it marks onboarding complete and NeoWorker tracks that state in `.neoworker/workspace-state.json`
    - `HEARTBEAT.md` is reserved for recurring heartbeat-only checks rather than general task context
-   - Project-specific context lives under `.cowork/projects/<projectId>/`, where `CONTEXT.md` captures project notes and `ACCESS.md` captures project access boundaries
-   - Changes to tracked kit files keep revision snapshots under `.cowork/**/.history/`
+   - Project-specific context lives under `.neoworker/projects/<projectId>/`, where `CONTEXT.md` captures project notes and `ACCESS.md` captures project access boundaries
+   - Changes to tracked kit files keep revision snapshots under `.neoworker/**/.history/`
    - You can validate kit health, freshness, and secret/missing-file warnings locally with `npm run kit:lint`
 
 3. **Create a Task**
@@ -367,26 +367,26 @@ src/
 **Main Process (Backend)**:
 - Use `console.log()` - shows in terminal
 - Check logs:
-  - macOS: `~/Library/Application Support/cowork-os/`
-  - Windows: `%APPDATA%\\cowork-os\\`
+  - macOS: `~/Library/Application Support/neoworker/`
+  - Windows: `%APPDATA%\\neoworker\\`
 
 ### Database
 
 SQLite database location:
-- macOS: `~/Library/Application Support/cowork-os/cowork-os.db`
-- Windows: `%APPDATA%\\cowork-os\\cowork-os.db`
+- macOS: `~/Library/Application Support/neoworker/neoworker.db`
+- Windows: `%APPDATA%\\neoworker\\neoworker.db`
 
 View it with any SQLite browser or:
 ```bash
 # macOS
-sqlite3 ~/Library/Application\ Support/cowork-os/cowork-os.db
+sqlite3 ~/Library/Application\ Support/neoworker/neoworker.db
 .tables
 SELECT * FROM tasks;
 ```
 
 ```powershell
 # Windows (PowerShell)
-sqlite3 "$env:APPDATA\cowork-os\cowork-os.db"
+sqlite3 "$env:APPDATA\neoworker\neoworker.db"
 .tables
 SELECT * FROM tasks;
 ```
@@ -421,7 +421,7 @@ npm run dev
 ### Issue: "Permission denied" for workspace
 
 **Solution**: Choose a folder you have write access to, like:
-- `~/Documents/cowork-test`
+- `~/Documents/neoworker-test`
 - `~/Downloads/test`
 
 Don't use system folders like `/System` or `/Applications`.
@@ -478,4 +478,4 @@ Don't use system folders like `/System` or `/Applications`.
 - Check console output for errors
 - Review the task timeline for clues
 - Read error messages in the UI
-- Report issues at [GitHub Issues](https://github.com/CoWork-OS/CoWork-OS/issues)
+- Report issues at [GitHub Issues](https://github.com/NeoWorker/NeoWorker/issues)

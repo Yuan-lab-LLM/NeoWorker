@@ -1,16 +1,16 @@
 # Structured Memory Observations
 
-Structured memory observations are the inspectable metadata layer for CoWork OS archive memory.
+Structured memory observations are the inspectable metadata layer for NeoWorker archive memory.
 They keep the existing local-first `memories` table authoritative, then add a sidecar index that
 makes memory easier to search, audit, redact, suppress, and expand only when the agent needs full
 detail.
 
-The design was inspired by `claude-mem`-style observation cards, but implemented as a CoWork-native
+The design was inspired by `claude-mem`-style observation cards, but implemented as a NeoWorker-native
 SQLite sidecar rather than a new external memory store.
 
 ## Current Concept
 
-CoWork memory now has four complementary shapes:
+NeoWorker memory now has four complementary shapes:
 
 - **Curated hot memory**: short, prompt-visible facts and rules managed through curated memory.
 - **Archive memory**: durable local memory rows stored in `memories`.

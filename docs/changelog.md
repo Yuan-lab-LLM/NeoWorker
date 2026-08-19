@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to CoWork OS will be documented in this file.
+All notable changes to NeoWorker will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Release notes for 0.5.49**: see [Release Notes 0.5.49](release-notes-0.5.49.md).
-- **CLI local runner**: added the `cowork` npm binary, CLI source/build coverage, local Control Plane discovery, terminal UI helpers, direct-run support, and package inclusion for `tsconfig.cli.json`.
+- **CLI local runner**: added the `neoworker` npm binary, CLI source/build coverage, local Control Plane discovery, terminal UI helpers, direct-run support, and package inclusion for `tsconfig.cli.json`.
 - **Browser Use Cloud stealth backend**: Browser V2 can explicitly route `browser_navigate` through Browser Use Cloud with `browser_provider: "browser-use-cloud"`, using `BROWSER_USE_API_KEY` or encrypted `browser-use` settings, Browser Use API v3 session creation, CDP attach, optional proxy/profile/timeout/recording/screen controls, stale-session retry, and remote-session stop handling.
 - **Codex Security workflows**: added repository, diff, and deep security scan workflows, workspace-local scan artifact orchestration, report validation/render helpers, and the bundled Codex Security plugin pack with skills, references, scripts, and assets.
 - **Automation outcomes**: scheduled/automated runs can now record actionable, informational, low-value, and failed outcomes, with Mission Control surfacing outcome summaries and recent run details.
@@ -52,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Documentation refresh**: refreshed README and docs for CLI usage, security scans, Browser Use Cloud, setup, troubleshooting, security, plugin packs, project status, and public adoption signals.
 
 ### Fixed
-- **Security and auth hardening**: hardened webhook and MCP host auth, authenticated CoWork host tunnel forwarding, blocked cross-host Scrapling redirects, restricted `open_url` to web schemes, and tightened web fetch/scraping guardrails.
+- **Security and auth hardening**: hardened webhook and MCP host auth, authenticated NeoWorker host tunnel forwarding, blocked cross-host Scrapling redirects, restricted `open_url` to web schemes, and tightened web fetch/scraping guardrails.
 - **Executor completion guardrails**: strengthened completion contract handling, file mutation verification, command requirements, and frontend browser-preview guidance.
 - **Automation permissions**: automated tasks now default to `dont_ask` permission behavior.
 - **Database migrations**: repaired pinned activity schema migration behavior and added legacy/schema migration coverage.
@@ -119,10 +119,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Release notes for 0.5.44**: see [Release Notes 0.5.44](release-notes-0.5.44.md).
 - **Browser V2 documentation**: added the canonical Browser V2 architecture guide covering the visible Browser Workbench default, `BrowserSessionManager`, Electron-workbench / Playwright-local / external-CDP backends, accessibility snapshot refs, diagnostics, downloads/uploads, real-browser consent, safety invariants, and verification flow. Refreshed README, Features, Architecture, Development, Getting Started, Troubleshooting, Use Cases, Web Page Artifacts, Showcase, Status, and docs home to reflect Browser V2 as the new browser concept. See [Browser V2 Architecture](browser-v2-architecture.md) and [Browser Workbench](browser-workbench.md).
-- **Gateway usage docs**: documented remote command routing, active-task behavior, `/new` and `/new temp` sessions, `/stop` cancellation, skill slash invocation, shared channel delivery, editable WhatsApp progress, scheduled channel output delivery, per-channel feature guides, dedicated per-channel user guide pages, and end-user best practices for using CoWork from messaging channels. See [Channel User Guides](channel-user-guides.md), [Dedicated Channel Guides](channel-guides/), [Gateway User Guide](gateway-user-guide.md), and [Gateway Message Lifecycle](gateway-message-lifecycle.md).
+- **Gateway usage docs**: documented remote command routing, active-task behavior, `/new` and `/new temp` sessions, `/stop` cancellation, skill slash invocation, shared channel delivery, editable WhatsApp progress, scheduled channel output delivery, per-channel feature guides, dedicated per-channel user guide pages, and end-user best practices for using NeoWorker from messaging channels. See [Channel User Guides](channel-user-guides.md), [Dedicated Channel Guides](channel-guides/), [Gateway User Guide](gateway-user-guide.md), and [Gateway Message Lifecycle](gateway-message-lifecycle.md).
 - **Browser Use approval and routing controls**: added tool-prefix permission scopes, browser-domain approval context, Browser Use domain approval prompts, the Browser Use composer mention option, sidebar approval wiring, markdown-link routing into the browser sidebar, and tests covering permission-rule behavior.
 - **Expanded gateway runtime**: added shared gateway types, channel delivery services, remote command normalization and registry support, WhatsApp command utilities, temporary workspace routing, voice event routing, tray channel activity, plugin/persona IPC update hooks, and daemon startup wiring for gateway services.
-- **Provider coverage**: added DeepSeek and NanoGPT as named provider options, including NanoGPT onboarding/settings support and Anthropic-compatible request handling that avoids CoWork-managed caching where the upstream provider does not support it.
+- **Provider coverage**: added DeepSeek and NanoGPT as named provider options, including NanoGPT onboarding/settings support and Anthropic-compatible request handling that avoids NeoWorker-managed caching where the upstream provider does not support it.
 - **Persistent goal slash command**: added a slash-command path for keeping an explicit persistent goal in the active task context.
 - **Imagegen frontend web skill**: bundled and registered `imagegen-frontend-web` guidance for higher-quality frontend image direction and generated visual references.
 
@@ -131,7 +131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Agent and gateway routing**: tightened gateway/skill command routing, parallel batch execution coverage, temporary workspace handling, ambient monitoring updates, and shared channel-message behavior across Slack, Discord, email, Telegram, WhatsApp, and the channel registry.
 - **Release packaging and smoke coverage**: refined the Electron builder runner, mac packaging environment loading, desktop artifact smoke checks, unsigned mac entitlements, release artifact-name verification, and the mac unsigned release smoke path used by CI.
 - **Documentation refresh**: updated README, docs home, feature overview, capabilities, architecture, getting started, troubleshooting, web artifact, Linux VPS, self-hosting, status, showcase, development, and message-box guidance to reflect Browser V2, channel guides, gateway behavior, and current release packaging.
-- **Branding assets**: refreshed app/logo assets and related docs for the current CoWork OS branding set.
+- **Branding assets**: refreshed app/logo assets and related docs for the current NeoWorker branding set.
 
 ### Fixed
 - **Agents Hub Heartbeat agents**: Mission Control Heartbeat-enabled agents now appear in Agents Hub counts and panel state instead of being hidden from the hub summary.
@@ -140,7 +140,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HTTP tool failure details**: `http_request` failures preserve clearer failure reason and status metadata instead of collapsing into a generic unknown-error path.
 - **OpenCode Go/Kimi compatibility**: improved OpenAI-compatible tool-call handling for Kimi/OpenCode Go style responses and tightened workspace status labels in the renderer.
 - **Anthropic-compatible custom model selection**: fixed overlapping custom-model matching so the intended Anthropic-compatible gateway model is selected.
-- **NanoGPT request reliability**: fixed NanoGPT Anthropic-compatible request handling and auth/cache behavior for routes that should bypass CoWork-managed prompt caching.
+- **NanoGPT request reliability**: fixed NanoGPT Anthropic-compatible request handling and auth/cache behavior for routes that should bypass NeoWorker-managed prompt caching.
 - **Task archive cleanup**: fixed archive deletion and SQLite cleanup paths so archived tasks and dependent rows are removed without foreign-key leftovers.
 - **Workspace switching**: fixed active-chat workspace switching so task context follows the selected workspace correctly.
 - **PPTX preview path validation**: tightened workspace path validation for presentation previews.
@@ -151,12 +151,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.43] - 2026-05-02
 
 ### Added
-- **Linux server release package**: GitHub Releases can now publish `cowork-os-server-linux-x64-v<version>.tar.gz` plus a `.sha256` checksum for production VPS/systemd deployments. The package includes built daemon assets, full resources, connector runtimes, runtime dependencies, systemd templates, and a Linux smoke test that boots `coworkd-node` and checks `/health`. See [Linux VPS](vps-linux.md).
-- **Task-sourced scheduled automations**: task view now has `... > Add automation...`, which opens a Codex-style modal prefilled from the current task and creates a real cron scheduled task through the existing scheduler API. The saved job keeps the source task title, task ID, and `cowork://tasks/<taskId>` deeplink for traceability. See [Task Automations](task-automations.md).
+- **Linux server release package**: GitHub Releases can now publish `neoworker-server-linux-x64-v<version>.tar.gz` plus a `.sha256` checksum for production VPS/systemd deployments. The package includes built daemon assets, full resources, connector runtimes, runtime dependencies, systemd templates, and a Linux smoke test that boots `neoworkerd-node` and checks `/health`. See [Linux VPS](vps-linux.md).
+- **Task-sourced scheduled automations**: task view now has `... > Add automation...`, which opens a Codex-style modal prefilled from the current task and creates a real cron scheduled task through the existing scheduler API. The saved job keeps the source task title, task ID, and `neoworker://tasks/<taskId>` deeplink for traceability. See [Task Automations](task-automations.md).
 - **Composer `@` mentions for integrations**: added a grouped autocomplete above the message box with Agents, configured Integrations, and Files. Integration mentions render as icon+name chips in prompts and user message bubbles, restore from task/session history, and submit `integrationMentions` as soft runtime guidance. See [Composer Mentions](composer-mentions.md).
 - **`@Inbox` main-composer routing**: `@Inbox` / `@inbox ...` now opens Inbox Agent and runs the remaining query through the Ask Inbox module instead of starting a normal task run.
 - **Message box slash shortcuts**: added one `/` picker for deterministic app commands and skill-backed workflow shortcuts. App commands include `/schedule`, `/clear`, `/plan`, `/cost`, `/compact`, `/doctor`, and `/undo`; plugin-pack aliases resolve to target skills through the skills runtime. See [Message Box Shortcuts](message-box-shortcuts.md).
-- **CoWork Shortcuts pack**: added a bundled shortcuts pack with workflow aliases such as `/strategy`, `/review`, `/memory`, `/batch-rename`, `/smart-deduplication`, `/folder-structure`, `/gmail-summary-drive`, `/calendar-prep-brief`, `/multi-source-report`, `/weekly-newsletter`, `/daily-inbox-zero`, `/monday-planning-brief`, and `/end-of-day-log`.
+- **NeoWorker Shortcuts pack**: added a bundled shortcuts pack with workflow aliases such as `/strategy`, `/review`, `/memory`, `/batch-rename`, `/smart-deduplication`, `/folder-structure`, `/gmail-summary-drive`, `/calendar-prep-brief`, `/multi-source-report`, `/weekly-newsletter`, `/daily-inbox-zero`, `/monday-planning-brief`, and `/end-of-day-log`.
 - **Ask Inbox sidebar chat**: Inbox Agent now has right-sidebar tabs for Agent Rail and Ask Inbox. Ask Inbox shows the user question, live mailbox-agent steps, final answer, and matched email evidence, with a pinned composer for follow-up questions. See [Ask Inbox Architecture](ask-inbox-architecture.md).
 - **Hybrid mailbox retrieval for Ask Inbox**: Ask Inbox now plans broad mailbox searches across local FTS, semantic mailbox embeddings, provider-native search, and attachment text, then shortlists and reads evidence before answering.
 - **Bundled `react-best-practices` skill**: added React and Next.js implementation guidance for feature work, enhancements, refactors, reviews, data fetching, bundle-size checks, and rendering-performance fixes. See [React Best Practices Skill](skills/react-best-practices.md).
@@ -179,14 +179,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.42] - 2026-04-30
 
 ### Fixed
-- **Windows installer architecture**: rebuilt the Windows installer as an x64 app package so standard Windows PCs install `CoWork OS.exe` correctly. The 0.5.41 GitHub release asset was built with an ARM64 Windows payload and GitHub immutable releases prevented replacing that asset in place.
+- **Windows installer architecture**: rebuilt the Windows installer as an x64 app package so standard Windows PCs install `NeoWorker.exe` correctly. The 0.5.41 GitHub release asset was built with an ARM64 Windows payload and GitHub immutable releases prevented replacing that asset in place.
 
 ## [0.5.41] - 2026-04-29
 
 ### Added
 - **Smart PDF attachment reading**: uploaded PDFs now carry compact attachment metadata, a safe excerpt, page/extraction/OCR status, and workspace-relative path guidance. Deeper PDF summaries, Q&A, extraction, comparison, and transformation use `parse_document` on demand instead of inlining the whole PDF; explicit chat PDF turns can auto-promote to read-only analysis for that document read.
 - **Release notes for 0.5.41**: see [Release Notes 0.5.41](release-notes-0.5.41.md).
-- **Everything Workbench positioning docs**: added the canonical [Everything Workbench](everything-workbench.md) page and refreshed product copy around CoWork OS as a GUI-first local AI super app and everything app for coding, email, web design, research, generated docs, sheets, decks, web pages, PDFs, previews, agents, tasks, channels, devices, and automations.
+- **Everything Workbench positioning docs**: added the canonical [Everything Workbench](everything-workbench.md) page and refreshed product copy around NeoWorker as a GUI-first local AI super app and everything app for coding, email, web design, research, generated docs, sheets, decks, web pages, PDFs, previews, agents, tasks, channels, devices, and automations.
 - **Document artifact workbench**: Word-style document artifact cards now recognize DOCX, DOCM, DOTX, DOTM, DOC, RTF, ODT, OTT, and Pages outputs. DOCX opens directly into an editable sidebar/fullscreen document surface with Google Docs-style controls, save/copy actions, external app actions, functional follow-up composer controls, and automatic preview refresh after follow-up edits. See [Document Artifacts](document-artifacts.md).
 - **Spreadsheet artifact format support**: spreadsheet artifact cards now recognize Excel workbooks, CSV/TSV, Numbers, Google Sheets shortcut files, ODS, and XLSB. Editable in-app mode supports workbook and delimited formats; native/app-owned formats keep the same artifact card and external-app/folder actions. See [Spreadsheet Artifacts](spreadsheet-artifacts.md).
 - **Presentation artifact workbench**: PPTX outputs now render as compact artifact cards and open by default in a resizable sidebar/fullscreen presentation viewer with thumbnails, navigation, zoom, speaker notes, fast text-first loading, cached rendered slide images, external actions, and functional follow-up composer controls. Legacy PowerPoint formats are recognized with external-app/folder actions. See [Presentation Artifacts and PPTX Preview](pptx-generation-and-preview.md).
@@ -198,15 +198,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **PDF attachment safety model**: PDF excerpts are documented and emitted as untrusted document data, scanned/image-heavy PDFs no longer present as native text when no native pages were found, and `read_pdf_visual` remains scoped to visual/layout/page-appearance analysis.
-- **Product positioning**: README, docs home, Features, Getting Started, Showcase, Use Cases, GTM, best-fit workflows, artifact docs, architecture, development, troubleshooting, and status docs now frame document, spreadsheet, presentation, web page, PDF, and preview surfaces as one unified artifact workbench inside the broader GUI-first AI super app and everything app positioning. The workbench makes CoWork the default place for everyday generated knowledge work while preserving external-open paths for advanced native workflows.
+- **Product positioning**: README, docs home, Features, Getting Started, Showcase, Use Cases, GTM, best-fit workflows, artifact docs, architecture, development, troubleshooting, and status docs now frame document, spreadsheet, presentation, web page, PDF, and preview surfaces as one unified artifact workbench inside the broader GUI-first AI super app and everything app positioning. The workbench makes NeoWorker the default place for everyday generated knowledge work while preserving external-open paths for advanced native workflows.
 - **Document output concept**: README, Features, Architecture, Development, Getting Started, Troubleshooting, Project Status, and the docs index now describe Word-style outputs as first-class document artifacts with sidebar/fullscreen editing for DOCX and preview/external handling for other document formats.
 - **Spreadsheet output concept**: README, Features, Architecture, Development, Getting Started, Troubleshooting, Project Status, and the docs index now describe Excel outputs as first-class spreadsheet artifacts with sidebar/fullscreen workbench behavior rather than only generic XLSX file previews.
 - **Presentation output concept**: README, Features, Architecture, Development, Getting Started, Troubleshooting, Project Status, Use Cases, and the docs index now describe PowerPoint outputs as first-class presentation artifacts with fast text-first preview, cached rendered slides, sidebar/fullscreen review, and deferred refresh after follow-up completion.
 - **Web output concept**: README, Features, Architecture, Development, Getting Started, Troubleshooting, Project Status, Use Cases, Live Canvas, and the docs index now describe generated web pages as first-class artifacts with sandboxed sidebar/fullscreen preview, built React output handling, no automatic dev-server startup, and deferred refresh after follow-up completion.
 - **Browser-use concept**: README, Features, Architecture, Development, Getting Started, Troubleshooting, Use Cases, Web Page Artifacts, and the docs index now distinguish generated web artifacts from live Browser Workbench sessions, with visible sidebar browser automation as the default for normal-user website testing.
-- **Memory docs refresh**: README, Getting Started, Features, Workspace Memory Flow, Supermemory, and the docs index now describe structured archive observations as the inspectable control plane over local memory rather than a replacement for CoWork's authoritative `memories` table.
+- **Memory docs refresh**: README, Getting Started, Features, Workspace Memory Flow, Supermemory, and the docs index now describe structured archive observations as the inspectable control plane over local memory rather than a replacement for NeoWorker's authoritative `memories` table.
 - **Renderer startup bundle split**: secondary renderer views now lazy-load from the app shell, Mermaid loads only when rendering Mermaid code blocks, and syntax highlighting uses `highlight.js/lib/core` with a bounded language set instead of the package root. The production renderer entry chunk dropped from about `4,842 kB` minified (`1,267 kB` gzip) to about `1,259 kB` minified (`364 kB` gzip); see [Development Guide](development.md#renderer-bundle-size).
-- **Dev log retention and ingestion**: Dev log capture now redacts common secrets before writing files, keeps the last 14 days plus at least the newest 20 runs, caps retained run logs at 100 MB by default, supports `COWORK_DEV_LOG_RETENTION_DAYS`, `COWORK_DEV_LOG_MIN_RUNS`, and `COWORK_DEV_LOG_MAX_MB`, and self-improvement diagnostics prefer `dev-latest.jsonl` before falling back to `dev-latest.log`.
+- **Dev log retention and ingestion**: Dev log capture now redacts common secrets before writing files, keeps the last 14 days plus at least the newest 20 runs, caps retained run logs at 100 MB by default, supports `NEOWORKER_DEV_LOG_RETENTION_DAYS`, `NEOWORKER_DEV_LOG_MIN_RUNS`, and `NEOWORKER_DEV_LOG_MAX_MB`, and self-improvement diagnostics prefer `dev-latest.jsonl` before falling back to `dev-latest.log`.
 - **File preview type detection**: `getFileType` (in `src/electron/ipc/handlers.ts`) and the `FileViewerResult.fileType` union now recognize `audio`, `json`, and `csv` as first-class types instead of routing them through `code`/`text`. JSON moved out of the generic code list, CSV/TSV moved out of the plain-text list, and a new `MAX_AUDIO_SIZE` (200 MB) caps audio previews. Audio reuses the existing video `playbackUrl` data-URL/streaming flow, so no new IPC channel was added.
 
 ## [0.5.40] - 2026-04-26
@@ -221,7 +221,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Multi-provider image generation**: image settings now cover OpenAI, OpenAI Codex/OAuth, Azure, OpenRouter, and Gemini providers with default/backup routing, model selection, timeouts, and provider-attempt progress.
 - **LaTeX/PDF artifact workflow docs**: documented the new `compile_latex` source-first workflow across README, feature, use-case, architecture, runtime, troubleshooting, development, showcase, status, ideas, changelog, and docs index surfaces.
 - **Bundled `kami` skill**: added a new editorial-document workflow for resumes, one-pagers, white papers, letters, portfolios, diagrams, and slide decks, with workspace-local scaffolding, PDF/PPTX render helpers, and related docs.
-- **Bundled `taste-skill` frontend workflow**: CoWork OS now ships `taste-skill` as a global bundled skill for high-agency frontend design with stricter anti-slop layout, typography, motion, dependency, and responsive-implementation rules.
+- **Bundled `taste-skill` frontend workflow**: NeoWorker now ships `taste-skill` as a global bundled skill for high-agency frontend design with stricter anti-slop layout, typography, motion, dependency, and responsive-implementation rules.
 - **Rich PPTX artifact previews**: PowerPoint outputs now open in an in-app presentation viewer with slide thumbnails, navigation, zoom, extracted slide text, and speaker notes. Visual slide images are cached when local `soffice` + `pdftoppm` are available and fall back to text-only previews otherwise.
 
 ### Changed
@@ -243,10 +243,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Release notes for 0.5.35**: see [Release Notes 0.5.35](release-notes-0.5.35.md).
-- **Managed Agents and Managed Sessions**: CoWork now includes versioned managed-agent definitions, durable managed-session runtime plumbing, and Mission Control/control-plane surfaces for operating longer-lived reusable agents.
+- **Managed Agents and Managed Sessions**: NeoWorker now includes versioned managed-agent definitions, durable managed-session runtime plumbing, and Mission Control/control-plane surfaces for operating longer-lived reusable agents.
 - **Optional Supermemory integration**: Supermemory can now act as an external memory lane with setup flows, tool exposure, runtime metadata, Memory Hub controls, and prompt-time profile context injection.
 - **Task Trace Debugger**: a new debugger surface exposes trace requests, projections, formatting helpers, and renderer tabs for inspecting task execution traces directly in the app.
-- **Bundled `novelist` skill and CoWork School guide**: the shipped skill set now includes a novelist workflow, and the docs now include a beginner-oriented `cowork-school` guide.
+- **Bundled `novelist` skill and NeoWorker School guide**: the shipped skill set now includes a novelist workflow, and the docs now include a beginner-oriented `neoworker-school` guide.
 
 ### Changed
 - **Explicit-only turn budgets**: main interactive tasks no longer receive implicit strategy-derived `maxTurns` windows. `maxTurns` and `windowTurnCap` are now explicit-only caps, while uncapped tasks rely on lifetime limits, emergency fuses, and existing recovery safeguards.
@@ -299,7 +299,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Release notes for 0.5.23**: see [Release Notes 0.5.23](release-notes-0.5.23.md).
-- **Subconscious reflective loop**: CoWork now includes a new reflective automation subsystem with persisted targets, backlog items, hypotheses, critiques, dispatch records, artifact storage, migration support, and a dedicated settings surface under Automations.
+- **Subconscious reflective loop**: NeoWorker now includes a new reflective automation subsystem with persisted targets, backlog items, hypotheses, critiques, dispatch records, artifact storage, migration support, and a dedicated settings surface under Automations.
 - **Provider-aware prompt caching**: stable prompt sections can now be cached across Anthropic, OpenRouter Claude, Azure OpenAI, and OpenAI-family routes, with shared cache metadata persisted in `SessionRuntime`.
 - **Adaptive output token policy**: request-kind-aware output budgeting now classifies truncation modes, adjusts output-token limits by provider family, and guides retry or continuation behavior when a response hits output ceilings.
 - **Prompt-aware tool descriptions**: built-in tools now carry prompt metadata so the runtime can render concise execution-facing descriptions and compact planning text from one shared definition.
@@ -346,7 +346,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **RuntimeVisibilityService**: consolidates runtime learning/recall visibility wiring (replaces legacy internal parity helper).
 - **Computer use (macOS)**: session manager, permissions/risk helpers, settings and approval UI; see [Computer use (macOS)](computer-use.md).
 - **Usage Insights LLM section**: model/provider-oriented usage reporting with shared helpers where applicable.
-- **MCP host**: `CoWorkHostProvider` and host server improvements; tests for MCP host behavior.
+- **MCP host**: `NeoWorkerHostProvider` and host server improvements; tests for MCP host behavior.
 - **Heartbeat policy repository**: persisted heartbeat policy hooks integrated with pulse/heartbeat services.
 - **Connector-backed Event Triggers**: MCP connector notifications and resource updates as trigger inputs with subscription sync (see docs).
 - **Per-phase workflow model routing**: workflow pipeline phases with LLM overrides or capability-based auto-selection.
@@ -390,7 +390,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Devices and dispatch surfaces**: Dispatch onboarding now lives inside the Devices panel, the standalone Dispatch panel/sidebar entry were removed, Home Dashboard workspace naming now resolves from visible workspaces, and Inbox Agent filter/pulse controls were compacted.
 - **Security hardening**: channel configs are encrypted at rest when available, mailbox bodies/summaries/excerpts are encrypted locally, database/user-data permissions are restricted during setup, mailbox IPC is limited to the main app window, and OAuth secrets are sanitized from renderer-visible channel configs.
 - **Documentation and positioning**: README, features, channels, mission control, architecture, project status, and new comparison/reference pages were refreshed to reflect runtime visibility, supervisor mode, and external skill support.
-- **Renderer performance**: in the `CoWork-OS/CoWork-OS` repo, sidebar rows now flatten before virtualization, timeline cards use `@chenglou/pretext` estimates with `ResizeObserver` reconciliation, and the main transcript cap stays conservative until the transcript surface is virtualized.
+- **Renderer performance**: in the `NeoWorker/NeoWorker` repo, sidebar rows now flatten before virtualization, timeline cards use `@chenglou/pretext` estimates with `ResizeObserver` reconciliation, and the main transcript cap stays conservative until the transcript surface is virtualized.
 
 ### Fixed
 - **Release hardening gate**: deterministic eval runs against fresh CI/release databases can now be explicitly configured to allow an empty regression corpus instead of failing every tag-triggered release before packaging starts.
@@ -430,7 +430,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Chrome DevTools attach mode**: `browser_attach` tool for connecting to existing Chrome via CDP. See [Browser Automation](features.md#chrome-devtools-attach-mode).
 - **Batched browser actions**: `browser_act_batch` for sequential click, fill, type, press, wait, scroll with optional delays.
 - **Browser profile presets**: `user`, `chrome-relay`, `workspace` presets. Use `browser_attach` for existing signed-in sessions.
-- **Docker timezone**: `COWORK_TZ` env var for IANA timezone in Docker and systemd. Invalid values fall back to UTC.
+- **Docker timezone**: `NEOWORKER_TZ` env var for IANA timezone in Docker and systemd. Invalid values fall back to UTC.
 - **Gateway exec approval fallback**: Per-agent policy and allowlist honored for channel-originated `run_command`; trusted commands auto-approved when approval UI unavailable.
 - **Managed devices docs refresh**: documented the Devices tab, saved remote devices, remote task launching, per-device summaries, and remote file selection workflows.
 - **Automation control center docs refresh**: documented the consolidated `Automations` settings group and the relationship between Task Queue, Scheduled Tasks, Webhooks, Event Triggers, Daily Briefing, and the reflective automation surface available at the time.
@@ -445,13 +445,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Self-improvement documentation**: added detailed architecture and troubleshooting coverage for staged autonomous campaigns, startup ordering, worktree requirements, candidate parking/cooldowns, notification flow, and `logs/dev-latest.log` verification steps.
 - **IPC contract documentation**: clarified that `kit:openFile`, `kit:resetAdaptiveStyle`, and `kit:submitMessageFeedback` live in the shared `IPC_CHANNELS` registry used by preload, renderer, and Electron handlers.
 - **Connector surface consolidation**: the shipped MCP allowlist is now Salesforce, Jira, HubSpot, Zendesk, ServiceNow, Linear, Asana, Okta, Resend, Discord, and Google Workspace. Google services are consolidated under `google-workspace`; DocuSign, Outreach, and Slack were removed from the shipped Tier-1 connector surface.
-- **Native-first GitHub and Notion routing**: GitHub and Notion workflows now prefer CoWork's direct API paths and fall back to MCP only when needed.
+- **Native-first GitHub and Notion routing**: GitHub and Notion workflows now prefer NeoWorker's direct API paths and fall back to MCP only when needed.
 - **Collaborative task UI**: sidebar/task views now use inline agent headers, Lucide role icons, markdown normalization for collaborative output, and explicit sub-task back-navigation.
 - **Notifications**: task notifications now use cleaner titles, humanized statuses, and direct view actions.
 
 ### Fixed
 - **Browser profile=user errors**: Clearer messages when Chrome not installed or profile locked.
-- **Invalid COWORK_TZ**: Validation with UTC fallback.
+- **Invalid NEOWORKER_TZ**: Validation with UTC fallback.
 - **Event batch loss**: Flush pending events on subscription cleanup.
 - **Autonomous improvement startup race**: `ImprovementLoopService` now starts after `MemoryService` initialization, skips non-worktree-capable workspaces when isolated git execution is required, and suppresses misleading legacy `ERR_UNHANDLED_ERROR` log noise from unhandled `"error"` alias emission during startup failures.
 - **Improvement loop candidate persistence**: fixed the `improvement_candidates` repository insert mismatch that could fail startup with `SqliteError: 27 values for 28 columns` and prevent `ImprovementLoopService` initialization.
@@ -467,7 +467,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Structured input requests**: plan-mode tasks can use `request_user_input` to pause for persisted multiple-choice decisions, with submission from the desktop UI or Control Plane dashboard.
 - **Tier-1 integration orchestration**: new `integration_setup` flow supports `list`, `inspect`, and `configure` for Resend, Slack, the Google family, Jira, Linear, and HubSpot with `expected_plan_hash` stale-plan protection.
 - **Approval-gated skill expansion**: new `skill_proposal` lifecycle lets agents draft, list, approve, and reject workspace-local skill proposals instead of mutating skills directly.
-- **Workspace bootstrap lifecycle**: `.cowork/BOOTSTRAP.md`, `.cowork/VIBES.md`, `.cowork/LORE.md`, and `.cowork/workspace-state.json` now track onboarding/bootstrap state and heartbeat-ready context.
+- **Workspace bootstrap lifecycle**: `.neoworker/BOOTSTRAP.md`, `.neoworker/VIBES.md`, `.neoworker/LORE.md`, and `.neoworker/workspace-state.json` now track onboarding/bootstrap state and heartbeat-ready context.
 - **Workspace agent policy**: optional `agent-policy.toml` can require tool families, filter tools, tune loop thresholds, and attach pre-tool / stop-attempt hooks per workspace.
 - **New bundled skills**: added Polymarket, Humanizer, YouTube video intelligence, Stock analysis, Calendly scheduling, Moltbook, and Marketing Strategist skills.
 - **Developer logging capture**: `npm run dev` can mirror timestamped output to `logs/dev-latest.log`, with `npm run dev:log` forcing capture regardless of the Settings toggle.
@@ -513,7 +513,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.90] - 2026-02-23
 
 ### Added
-- **Git Worktree Isolation**: Tasks can run in isolated git worktrees with automatic branch creation (`cowork/<task-slug>`), auto-commit, merge back to base branch, conflict detection, and worktree cleanup after completion.
+- **Git Worktree Isolation**: Tasks can run in isolated git worktrees with automatic branch creation (`neoworker/<task-slug>`), auto-commit, merge back to base branch, conflict detection, and worktree cleanup after completion.
 - **Collaborative Mode**: Auto-create ephemeral multi-agent teams for a task. Multiple agents work in parallel, sharing their analysis and reasoning in real-time via the Collaborative Thoughts Panel, with a leader agent synthesizing the final result.
 - **Multi-LLM Mode**: Send the same task to multiple LLM providers/models simultaneously. A judge agent synthesizes the best result from all participants. Configure participants and judge via the Multi-LLM Selection Panel.
 - **Agent Comparison Mode**: Run the same task across different agents or models side by side using the ComparisonService. View results in a dedicated comparison UI with diff viewer.
@@ -565,7 +565,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Sensitive shell output leakage**: command output now redacts seed phrases and private-key material before logging/model context.
-- **Isolated macOS install keychain prompt safety**: added `COWORK_DISABLE_OS_KEYCHAIN=1` path to bypass OS keychain integration in disposable test environments.
+- **Isolated macOS install keychain prompt safety**: added `NEOWORKER_DISABLE_OS_KEYCHAIN=1` path to bypass OS keychain integration in disposable test environments.
 - **Task activity signaling in UI**: task “working” indicators now consider tool calls/results and tool-execution progress heartbeats, reducing false idle states.
 - **Install reliability carry-forward**: retains prior setup retry behavior and low-memory setup defaults while validating clean first-install flow.
 
@@ -573,14 +573,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Hoisted Electron detection in setup**: `npm run setup` now treats `../electron` as valid in npm-hoisted installs, so first-time setup no longer triggers unnecessary full dependency bootstrap.
-- **Native setup install scope**: missing `better-sqlite3` recovery and rebuild now run from the actual install root (not inside `node_modules/cowork-os`), reducing first-run reify pressure that caused frequent macOS `SIGKILL`.
+- **Native setup install scope**: missing `better-sqlite3` recovery and rebuild now run from the actual install root (not inside `node_modules/neoworker`), reducing first-run reify pressure that caused frequent macOS `SIGKILL`.
 - **Release publish gating**: npm/GitHub package publish jobs now depend on the release validation job, and smoke tests fail if setup unexpectedly falls back to dependency bootstrap.
-- **Install docs hardening**: README now includes a direct native retry-wrapper fallback when `npm run --prefix node_modules/cowork-os setup` is terminated by `zsh: killed`, and recommends local bin launch over `npx` for first run.
+- **Install docs hardening**: README now includes a direct native retry-wrapper fallback when `npm run --prefix node_modules/neoworker setup` is terminated by `zsh: killed`, and recommends local bin launch over `npx` for first run.
 
 ## [0.3.84] - 2026-02-14
 
 ### Fixed
-- **Release smoke-test module resolution**: installability validation now runs Electron with `cwd` set to the installed `cowork-os` package directory so `require('better-sqlite3')` resolves correctly after setup.
+- **Release smoke-test module resolution**: installability validation now runs Electron with `cwd` set to the installed `neoworker` package directory so `require('better-sqlite3')` resolves correctly after setup.
 - **Release continuity**: keeps the 0.3.82 npm SIGKILL regression fix while restoring end-to-end GitHub release packaging path after CI validation.
 
 ## [0.3.83] - 2026-02-14
@@ -610,7 +610,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.79] - 2026-02-14
 
 ### Fixed
-- **macOS install reliability carry-forward**: retained the 0.3.71 SIGKILL workaround for first-time users by documenting and reinforcing the `npm install --ignore-scripts` + `npm run --prefix node_modules/cowork-os setup` flow.
+- **macOS install reliability carry-forward**: retained the 0.3.71 SIGKILL workaround for first-time users by documenting and reinforcing the `npm install --ignore-scripts` + `npm run --prefix node_modules/neoworker setup` flow.
 - **Release workflow hardening**: ensured the macOS release job always creates or reopens the GitHub release as a draft before packaging so `electron-builder` can attach DMG/zip assets without immutable-release failures.
 - **Version alignment**: published metadata now identifies this release as `0.3.79` with the same installability and packaging reliability changes.
 
@@ -677,29 +677,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.69] - 2026-02-11
 
 ### Fixed
-- `npm install -g cowork-os` could fail on macOS with `fsevents` (`binding.gyp not found`) due an npm 11 rebuild edge case triggered by `playwright`.
+- `npm install -g neoworker` could fail on macOS with `fsevents` (`binding.gyp not found`) due an npm 11 rebuild edge case triggered by `playwright`.
 - Switched runtime browser dependency to `playwright-core` via npm alias (`playwright` package name preserved in code) to avoid the failing `fsevents` install path.
-- Added launcher self-heal: on first run, `cowork-os` now verifies direct runtime dependencies and repairs missing packages with a script-free npm install pass before boot.
+- Added launcher self-heal: on first run, `neoworker` now verifies direct runtime dependencies and repairs missing packages with a script-free npm install pass before boot.
 - Moved `@types/jszip` to `devDependencies` and excluded `@types/*` from runtime dependency checks to avoid unnecessary first-run repair installs.
 - Moved `@electron/rebuild` to runtime dependencies so native fallback rebuild works in npm-installed environments.
 - Fixed native setup fallback to locate `@electron/rebuild` via package exports (instead of resolving blocked subpaths), so fallback rebuild actually runs when needed.
-- `cowork-os` first run now uses the shell retry wrapper for native setup, reducing one-shot startup failures when macOS kills a setup attempt under memory pressure.
+- `neoworker` first run now uses the shell retry wrapper for native setup, reducing one-shot startup failures when macOS kills a setup attempt under memory pressure.
 
 ## [0.3.68] - 2026-02-11
 
 ### Fixed
-- `cowork-os` CLI startup could still fail with `better-sqlite3` ABI mismatch on first launch.
+- `neoworker` CLI startup could still fail with `better-sqlite3` ABI mismatch on first launch.
 - Launcher now validates `better-sqlite3` by opening an in-memory database (not just requiring the module) and runs native setup when needed.
 - Native setup script now resolves hoisted dependencies correctly (Electron and `better-sqlite3`) so it works in npm-installed layouts.
 
 ## [0.3.67] - 2026-02-11
 
 ### Added
-- Added npm CLI command support: `cowork-os`, `coworkctl`, `coworkd`, and `coworkd-node`.
+- Added npm CLI command support: `neoworker`, `neoworkerctl`, `neoworkerd`, and `neoworkerd-node`.
 
 ### Fixed
 - Fixed launcher script to resolve the Electron binary correctly (`require('electron')` instead of `require.resolve`).
-- Included `dist/` in published npm files so the `cowork-os` command can start without requiring a local build step.
+- Included `dist/` in published npm files so the `neoworker` command can start without requiring a local build step.
 - Moved `electron` to runtime dependencies so CLI launch works after normal npm install.
 
 ## [0.3.66] - 2026-02-11
@@ -732,7 +732,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - npm installs could still fail when the package `postinstall` script itself was SIGKILL'd by macOS memory pressure.
-- Removed `postinstall` from the published npm package so `npm install cowork-os@latest` no longer depends on any CoWork lifecycle hook.
+- Removed `postinstall` from the published npm package so `npm install neoworker@latest` no longer depends on any NeoWorker lifecycle hook.
 
 ## [0.3.61] - 2026-02-11
 
@@ -804,7 +804,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `/brief [today|tomorrow|week]` - Generate brief summaries (DM only)
   - `/brief schedule|list|unschedule` - Manage recurring brief schedules
 - **Inbound Attachment Persistence** - Channel messages with attachments are saved to workspace
-  - Files persisted under `.cowork/inbox/attachments/<date>/<channel>/<chat>/<message>/`
+  - Files persisted under `.neoworker/inbox/attachments/<date>/<channel>/<chat>/<message>/`
   - Attachment extraction added to Discord, Slack, Teams, Telegram, Google Chat, and iMessage adapters
   - Saved paths appended to task prompts so agents can inspect files (and images via `analyze_image`)
 - **Cron Template Variables** - Dynamic variables in scheduled task prompts
@@ -839,7 +839,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Task Export** - Moved from `telemetry/` to `reports/` to better reflect purpose (structured task summaries, not telemetry)
 - **Skill Metadata** - Added `requires.bins` and `invocation.disableModelInvocation` to gog and himalaya skills
-- **Local Websearch Skill** - Updated branding (moltbot → cowork) and paths to `Application Support/cowork-os`
+- **Local Websearch Skill** - Updated branding (moltbot → neoworker) and paths to `Application Support/neoworker`
 - **Agent Executor** - Improved email fallback logic: prefers `email_imap_unread` when Google Workspace tools are unavailable
 - **Agent Executor** - Fixed missing `tool_result` entries on pause/cancel to keep API message history valid
 - **Channel Tools** - Added channel status and warning metadata to `channel_list_chats` and `channel_history` results
@@ -1082,7 +1082,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ollama support for local LLM inference
 
 ### Changed
-- Updated branding to CoWork OS
+- Updated branding to NeoWorker
 - Improved workspace selector with terminal aesthetic
 
 ## [0.1.0] - 2025-01-24
@@ -1148,7 +1148,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| 0.5.49 | 2026-06-08 | CoWork CLI, Browser Use Cloud, Codex Security workflows, automation outcomes, Usage Insights heatmaps, composer link chips, public adoption stats, and security hardening |
+| 0.5.49 | 2026-06-08 | NeoWorker CLI, Browser Use Cloud, Codex Security workflows, automation outcomes, Usage Insights heatmaps, composer link chips, public adoption stats, and security hardening |
 | 0.5.48 | 2026-05-28 | Side Chat, Secure MCP Tunnels, YouTube video intelligence, timeline/sidebar paging, scheduler/routine reliability, and runtime safety fixes |
 | 0.5.47 | 2026-05-21 | Long-session reliability, off-main-thread memory recall, renderer stability, location approval safety, Maps MCP workflows, and private-memory filtering |
 | 0.5.45 | 2026-05-14 | Agent Builder, finance/legal packs, channel specialization, Google Workspace Tasks/Slides, mailbox queue upgrades, runtime policy controls, Dreaming, and multitask lanes |
@@ -1174,57 +1174,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 0.1.0 | 2025-01-24 | First public release with core features |
 | 0.0.1 | 2025-01-20 | Initial development setup |
 
-[Unreleased]: https://github.com/CoWork-OS/CoWork-OS/compare/v0.5.49...HEAD
-[0.5.49]: https://github.com/CoWork-OS/CoWork-OS/compare/v0.5.48...v0.5.49
-[0.5.48]: https://github.com/CoWork-OS/CoWork-OS/compare/v0.5.47...v0.5.48
-[0.5.47]: https://github.com/CoWork-OS/CoWork-OS/compare/v0.5.45...v0.5.47
-[0.5.45]: https://github.com/CoWork-OS/CoWork-OS/compare/v0.5.44...v0.5.45
-[0.5.44]: https://github.com/CoWork-OS/CoWork-OS/compare/v0.5.43...v0.5.44
-[0.5.43]: https://github.com/CoWork-OS/CoWork-OS/compare/v0.5.42...v0.5.43
-[0.5.42]: https://github.com/CoWork-OS/CoWork-OS/compare/v0.5.41...v0.5.42
-[0.5.41]: https://github.com/CoWork-OS/CoWork-OS/compare/v0.5.40...v0.5.41
-[0.5.40]: https://github.com/CoWork-OS/CoWork-OS/compare/v0.5.35...v0.5.40
-[0.5.35]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.5.35
-[0.5.34]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.5.34
-[0.5.23]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.5.23
-[0.5.19]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.5.19
-[0.5.18]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.5.18
-[0.5.17]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.5.17
-[0.5.16]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.5.16
-[0.5.15]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.5.15
-[0.5.14]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.5.14
-[0.5.13]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.5.13
-[0.5.11]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.5.11
-[0.5.1]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.5.1
-[0.5.0]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.5.0
-[0.4.13]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.4.13
-[0.4.12]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.4.12
-[0.4.11]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.4.11
-[0.4.10]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.4.10
-[0.4.9]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.4.9
-[0.4.8]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.4.8
-[0.4.7]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.4.7
-[0.4.6]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.4.6
-[0.4.1]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.4.1
-[0.3.90]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.90
-[0.3.84]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.84
-[0.3.83]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.83
-[0.3.82]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.82
-[0.3.81]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.81
-[0.3.80]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.80
-[0.3.79]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.79
-[0.3.78]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.78
-[0.3.77]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.77
-[0.3.76]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.76
-[0.3.75]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.75
-[0.3.73]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.73
-[0.3.72]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.72
-[0.3.71]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.71
-[0.3.29]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.29
-[0.3.25]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.3.25
-[0.1.6]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.1.6
-[0.1.5]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.1.5
-[0.1.4]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.1.4
-[0.1.3]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.1.3
-[0.1.0]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.1.0
-[0.0.1]: https://github.com/CoWork-OS/CoWork-OS/releases/tag/v0.0.1
+[Unreleased]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.49...HEAD
+[0.5.49]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.48...v0.5.49
+[0.5.48]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.47...v0.5.48
+[0.5.47]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.45...v0.5.47
+[0.5.45]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.44...v0.5.45
+[0.5.44]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.43...v0.5.44
+[0.5.43]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.42...v0.5.43
+[0.5.42]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.41...v0.5.42
+[0.5.41]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.40...v0.5.41
+[0.5.40]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.35...v0.5.40
+[0.5.35]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.35
+[0.5.34]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.34
+[0.5.23]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.23
+[0.5.19]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.19
+[0.5.18]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.18
+[0.5.17]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.17
+[0.5.16]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.16
+[0.5.15]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.15
+[0.5.14]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.14
+[0.5.13]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.13
+[0.5.11]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.11
+[0.5.1]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.1
+[0.5.0]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.0
+[0.4.13]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.13
+[0.4.12]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.12
+[0.4.11]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.11
+[0.4.10]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.10
+[0.4.9]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.9
+[0.4.8]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.8
+[0.4.7]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.7
+[0.4.6]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.6
+[0.4.1]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.1
+[0.3.90]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.90
+[0.3.84]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.84
+[0.3.83]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.83
+[0.3.82]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.82
+[0.3.81]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.81
+[0.3.80]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.80
+[0.3.79]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.79
+[0.3.78]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.78
+[0.3.77]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.77
+[0.3.76]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.76
+[0.3.75]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.75
+[0.3.73]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.73
+[0.3.72]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.72
+[0.3.71]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.71
+[0.3.29]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.29
+[0.3.25]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.25
+[0.1.6]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.6
+[0.1.5]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.5
+[0.1.4]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.4
+[0.1.3]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.3
+[0.1.0]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.0
+[0.0.1]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.0.1

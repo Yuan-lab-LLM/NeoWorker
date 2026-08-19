@@ -2,7 +2,7 @@
  * Timeline Normalizer
  *
  * Transforms a flat array of raw task_events into UiTimelineEvent[] — a
- * semantic projection suitable for rendering in the CoWork OS timeline UI.
+ * semantic projection suitable for rendering in the NeoWorker timeline UI.
  *
  * Design principles:
  *  - Entirely rule-based / deterministic (no LLM calls)

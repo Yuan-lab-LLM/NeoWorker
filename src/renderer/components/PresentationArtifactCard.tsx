@@ -5,6 +5,9 @@ import {
   canPreviewPresentationInApp,
   getPresentationFormatLabel,
 } from "../../shared/presentation-formats";
+import { translate, useLanguage } from "../i18n";
+import { ArtifactFileTypeIcon } from "./ArtifactFileTypeIcon";
+import { ArtifactDownloadButton } from "./ArtifactDownloadButton";
 
 type PresentationArtifactCardProps = {
   filePath: string;
@@ -21,8 +24,13 @@ export function PresentationArtifactCard({
   workspacePath,
   onOpenViewer,
 }: PresentationArtifactCardProps) {
+  useLanguage();
+  const t = translate;
   const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
   const actionsRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const fileName = getFileName(filePath);
@@ -97,9 +105,10 @@ export function PresentationArtifactCard({
 
   return (
     <div className="presentation-artifact-card">
-      <div className="presentation-artifact-icon" aria-hidden="true">
-        <span>P</span>
-      </div>
+      <ArtifactFileTypeIcon
+        filePath={filePath}
+        className="presentation-artifact-icon"
+      />
       <button
         type="button"
         className="presentation-artifact-file"
@@ -107,24 +116,31 @@ export function PresentationArtifactCard({
         title={fileName}
       >
         <span className="presentation-artifact-name">{fileName}</span>
-        <span className="presentation-artifact-meta">Presentation · {formatLabel}</span>
+        <span className="presentation-artifact-meta">
+          {t("artifactCard.presentationMeta", "Presentation · {format}", {
+            format: formatLabel,
+          })}
+        </span>
       </button>
       <div className="presentation-artifact-actions" ref={actionsRef}>
         <button
           type="button"
           className="presentation-artifact-open"
           onClick={handleOpenViewer}
-          title="Open presentation preview"
+          title={t(
+            "artifactCard.openPresentationPreview",
+            "Open presentation preview",
+          )}
         >
           <ArrowUpRight size={18} strokeWidth={2} />
-          <span>Open</span>
+          <span>{t("common.open", "Open")}</span>
         </button>
         <button
           type="button"
           className="presentation-artifact-menu-btn"
           onClick={() => setMenuOpen((current) => !current)}
-          title="Open options"
-          aria-label="Open options"
+          title={t("artifactCard.openOptions", "Open options")}
+          aria-label={t("artifactCard.openOptions", "Open options")}
           aria-expanded={menuOpen}
           aria-haspopup="menu"
         >
@@ -136,9 +152,20 @@ export function PresentationArtifactCard({
             fill="none"
             aria-hidden="true"
           >
-            <path d="M3.5 5.25L7 8.75L10.5 5.25" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M3.5 5.25L7 8.75L10.5 5.25"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </button>
+        <ArtifactDownloadButton
+          filePath={filePath}
+          workspacePath={workspacePath}
+          className="presentation-artifact-download"
+        />
       </div>
       {menuOpen &&
         menuPosition &&
@@ -147,21 +174,46 @@ export function PresentationArtifactCard({
             className="presentation-artifact-menu"
             ref={menuRef}
             role="menu"
-            style={{ position: "fixed", top: menuPosition.top, left: menuPosition.left, right: "auto" }}
+            style={{
+              position: "fixed",
+              top: menuPosition.top,
+              left: menuPosition.left,
+              right: "auto",
+            }}
           >
-            <button type="button" role="menuitem" onClick={() => handleOpenWithApp("Microsoft PowerPoint")}>
-              <span className="presentation-artifact-app-icon powerpoint">P</span>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleOpenWithApp("Microsoft PowerPoint")}
+            >
+              <span className="presentation-artifact-app-icon powerpoint">
+                P
+              </span>
               Microsoft PowerPoint
             </button>
-            <button type="button" role="menuitem" onClick={() => handleOpenWithApp("Keynote")}>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleOpenWithApp("Keynote")}
+            >
               <span className="presentation-artifact-app-icon keynote">K</span>
               Keynote
             </button>
-            <button type="button" role="menuitem" onClick={() => handleOpenWithApp("LibreOffice")}>
-              <span className="presentation-artifact-app-icon libreoffice">L</span>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleOpenWithApp("LibreOffice")}
+            >
+              <span className="presentation-artifact-app-icon libreoffice">
+                L
+              </span>
               LibreOffice
             </button>
-            <button type="button" role="menuitem" onClick={() => handleOpenWithApp("Preview")}>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleOpenWithApp("Preview")}
+            >
               <span className="presentation-artifact-app-icon preview">V</span>
               Preview
             </button>
@@ -170,7 +222,7 @@ export function PresentationArtifactCard({
               <span className="presentation-artifact-app-icon finder">
                 <FolderOpen size={14} />
               </span>
-              Open in folder
+              {t("common.openInFolder", "Open in folder")}
             </button>
           </div>,
           document.body,

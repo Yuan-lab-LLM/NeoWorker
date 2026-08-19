@@ -410,6 +410,7 @@ function createHarness() {
   const runtime = new SessionRuntime(deps, createBaseState());
   return {
     runtime,
+    deps,
     emittedEvents,
     taskUpdates,
     createMessageWithTimeout,
@@ -447,6 +448,9 @@ function createHarness() {
     },
     setTaskDomain: (nextDomain: string) => {
       taskDomain = nextDomain;
+    },
+    setTask: (nextTask: Any) => {
+      task = nextTask;
     },
   };
 }
@@ -503,22 +507,16 @@ describe("SessionRuntime", () => {
     expect(harness.runtime.state.loop.lifetimeTurnCount).toBe(2);
   });
 
-  it("replays one same-request escalation before continuation recovery in adaptive mode", async () => {
-    const previousPolicy = process.env.COWORK_LLM_OUTPUT_POLICY;
+  it("preserves visible partial output for cutoff continuation instead of replaying the request", async () => {
+    const previousPolicy = process.env.NEOWORKER_LLM_OUTPUT_POLICY;
     try {
-      process.env.COWORK_LLM_OUTPUT_POLICY = "adaptive";
+      process.env.NEOWORKER_LLM_OUTPUT_POLICY = "adaptive";
       const harness = createHarness();
-      harness.createMessageWithTimeout
-        .mockResolvedValueOnce({
-          stopReason: "max_tokens",
-          content: [{ type: "text", text: "partial answer" }],
-          usage: { inputTokens: 10, outputTokens: 8, cachedTokens: 0 },
-        })
-        .mockResolvedValueOnce({
-          stopReason: "end_turn",
-          content: [{ type: "text", text: "complete answer" }],
-          usage: { inputTokens: 10, outputTokens: 12, cachedTokens: 0 },
-        });
+      harness.createMessageWithTimeout.mockResolvedValueOnce({
+        stopReason: "max_tokens",
+        content: [{ type: "text", text: "partial answer" }],
+        usage: { inputTokens: 10, outputTokens: 8, cachedTokens: 0 },
+      });
 
       const result = await harness.runtime.requestLLMResponseWithAdaptiveBudget({
         messages: [{ role: "user", content: "Start" }],
@@ -526,25 +524,26 @@ describe("SessionRuntime", () => {
         operation: "Adaptive retry test",
       });
 
-      expect(harness.createMessageWithTimeout).toHaveBeenCalledTimes(2);
+      expect(harness.createMessageWithTimeout).toHaveBeenCalledTimes(1);
       expect(harness.createMessageWithTimeout.mock.calls[0][0].maxTokens).toBe(8_000);
-      expect(harness.createMessageWithTimeout.mock.calls[1][0].maxTokens).toBe(64_000);
-      expect(result.response.stopReason).toBe("end_turn");
-      expect(result.outputBudget.escalationAttempted).toBe(true);
-      expect(result.outputBudget.finalBudget).toBe(64_000);
+      expect(result.response.stopReason).toBe("max_tokens");
+      expect(result.outputBudget.escalationAttempted).toBe(false);
+      expect(result.outputBudget.continuationAllowed).toBe(true);
+      expect(result.outputBudget.continuationBudget).toBe(32_000);
+      expect(result.outputBudget.finalBudget).toBe(8_000);
     } finally {
       if (previousPolicy == null) {
-        delete process.env.COWORK_LLM_OUTPUT_POLICY;
+        delete process.env.NEOWORKER_LLM_OUTPUT_POLICY;
       } else {
-        process.env.COWORK_LLM_OUTPUT_POLICY = previousPolicy;
+        process.env.NEOWORKER_LLM_OUTPUT_POLICY = previousPolicy;
       }
     }
   });
 
   it("marks repeated thinking-only truncation as non-continuable after escalation", async () => {
-    const previousPolicy = process.env.COWORK_LLM_OUTPUT_POLICY;
+    const previousPolicy = process.env.NEOWORKER_LLM_OUTPUT_POLICY;
     try {
-      process.env.COWORK_LLM_OUTPUT_POLICY = "adaptive";
+      process.env.NEOWORKER_LLM_OUTPUT_POLICY = "adaptive";
       const harness = createHarness();
       harness.createMessageWithTimeout
         .mockResolvedValueOnce({
@@ -569,12 +568,12 @@ describe("SessionRuntime", () => {
       expect(result.outputBudget.escalationAttempted).toBe(true);
       expect(result.outputBudget.truncationClassification).toBe("reasoning_exhausted");
       expect(result.outputBudget.continuationAllowed).toBe(false);
-      expect(result.outputBudget.guidanceMessage).toContain("output budget");
+      expect(result.outputBudget.guidanceMessage).toContain("本轮输出预算");
     } finally {
       if (previousPolicy == null) {
-        delete process.env.COWORK_LLM_OUTPUT_POLICY;
+        delete process.env.NEOWORKER_LLM_OUTPUT_POLICY;
       } else {
-        process.env.COWORK_LLM_OUTPUT_POLICY = previousPolicy;
+        process.env.NEOWORKER_LLM_OUTPUT_POLICY = previousPolicy;
       }
     }
   });
@@ -641,6 +640,47 @@ describe("SessionRuntime", () => {
     const updatedTools = harness.runtime.getAvailableTools();
     expect(updatedRegistry.getTools).toHaveBeenCalledTimes(1);
     expect(updatedTools.map((tool: Any) => tool.name)).toEqual(["browser_navigate"]);
+  });
+
+  it("preserves explicitly requested PowerPoint tools after intent and step filtering", () => {
+    const harness = createHarness();
+    harness.setTask({
+      id: "task-ppt-follow-up",
+      title: "整理股票研究结果",
+      prompt: "先分析股票情况",
+      agentConfig: {},
+    });
+    harness.runtime.state.transcript.lastUserMessage = "生成PPT";
+    harness.setToolRegistry({
+      getTools: vi.fn(() => [
+        { name: "read_file", description: "Read a file" },
+        {
+          name: "create_presentation",
+          description: "Create a PowerPoint presentation",
+          runtime: { deferLoad: true },
+        },
+        {
+          name: "generate_presentation",
+          description: "Generate a PPTX presentation",
+          runtime: { deferLoad: true },
+        },
+      ]),
+      getDeferredTools: vi.fn(() => [
+        { name: "create_presentation", description: "Create a PowerPoint presentation" },
+        { name: "generate_presentation", description: "Generate a PPTX presentation" },
+      ]),
+      getToolCatalogVersion: vi.fn(() => "catalog:ppt"),
+      cleanup: vi.fn(async () => undefined),
+    });
+    harness.deps.applyIntentFilter = (tools) =>
+      tools.filter((tool) => !String(tool.name || "").includes("presentation"));
+    harness.deps.applyStepScopedToolPolicy = (tools) =>
+      tools.filter((tool) => !String(tool.name || "").includes("presentation"));
+
+    const names = harness.runtime.getAvailableTools().map((tool: Any) => tool.name);
+
+    expect(names).toContain("create_presentation");
+    expect(names).toContain("generate_presentation");
   });
 
   it("writes conversation snapshots with the V2 runtime schema", () => {

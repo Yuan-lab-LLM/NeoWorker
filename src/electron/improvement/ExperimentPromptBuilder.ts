@@ -75,7 +75,7 @@ export function loadImprovementProgram(
 
   return {
     instructions: [
-      "You are operating inside CoWork OS self-improvement.",
+      "You are operating inside NeoWorker self-improvement.",
       "Constrain changes to the smallest subsystem that explains the evidence.",
       "Prefer targeted tests and localized fixes over broad refactors.",
     ].join("\n"),
@@ -99,7 +99,7 @@ export function buildImprovementVariantPrompt(
   context: ImprovementPromptContext,
 ): string {
   const lines: string[] = [
-    "You are running one branch in a population-based self-improvement campaign for CoWork OS.",
+    "You are running one branch in a population-based self-improvement campaign for NeoWorker.",
     `Your strategy lane is: ${lane}.`,
     "",
     "Comparable experiment budget:",

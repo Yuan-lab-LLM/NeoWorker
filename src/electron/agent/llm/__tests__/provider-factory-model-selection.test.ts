@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OPENROUTER_DEFAULT_MODEL } from "../openrouter-provider";
+import { DeepSeekProvider } from "../deepseek-provider";
 import { LLMProviderFactory, type LLMSettings } from "../provider-factory";
 import { ANTHROPIC_HEALTHCHECK_MODEL_ID } from "../types";
 
@@ -9,6 +10,90 @@ afterEach(() => {
 });
 
 describe("LLMProviderFactory model status", () => {
+  it("does not expose default Claude models when no provider is configured", () => {
+    const settings: LLMSettings = {
+      providerType: "anthropic",
+      modelKey: "opus-4-5",
+    };
+    vi.spyOn(LLMProviderFactory, "loadSettings").mockReturnValue(settings);
+    vi.spyOn(LLMProviderFactory, "getAvailableProviders").mockReturnValue([
+      { type: "anthropic", name: "Claude", configured: false },
+      { type: "openai", name: "OpenAI", configured: false },
+    ]);
+
+    const status = LLMProviderFactory.getConfigStatus();
+
+    expect(status.currentProvider).toBe("anthropic");
+    expect(status.currentModel).toBe("");
+    expect(status.models).toEqual([]);
+    expect(status.providers.every((provider) => !provider.configured)).toBe(
+      true,
+    );
+  });
+
+  it("keeps every configured DeepSeek model selectable under one provider", () => {
+    const settings: LLMSettings = {
+      providerType: "deepseek",
+      modelKey: "deepseek-v4-pro",
+      deepseek: {
+        apiKey: "deepseek-key",
+        model: "deepseek-v4-pro",
+      },
+      providerModelRegistry: {
+        deepseek: {
+          models: ["deepseek-v4-pro", "deepseek-v4-flash"],
+          enabled: {
+            "deepseek-v4-pro": true,
+            "deepseek-v4-flash": true,
+          },
+        },
+      },
+    };
+    vi.spyOn(LLMProviderFactory, "loadSettings").mockReturnValue(settings);
+
+    const status = LLMProviderFactory.getConfigStatus();
+
+    expect(status.currentProvider).toBe("deepseek");
+    expect(status.models.map((model) => model.key)).toEqual([
+      "deepseek-v4-pro",
+      "deepseek-v4-flash",
+    ]);
+  });
+
+  it("returns every DeepSeek API model instead of reducing the provider to one model", async () => {
+    vi.spyOn(DeepSeekProvider.prototype, "getAvailableModels").mockResolvedValue([
+      { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" },
+      { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" },
+      { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" },
+    ]);
+
+    const models = await LLMProviderFactory.getDeepSeekModels("deepseek-key");
+
+    expect(models).toEqual([
+      { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" },
+      { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" },
+    ]);
+  });
+
+  it("shows only the Kimi model actually configured on legacy installations", () => {
+    const settings: LLMSettings = {
+      providerType: "kimi",
+      modelKey: "kimi-k3",
+      kimi: {
+        apiKey: "kimi-key",
+        model: "kimi-k3",
+      },
+    };
+
+    const status = LLMProviderFactory.getSelectableProviderModelStatus(
+      settings,
+      "kimi",
+    );
+
+    expect(status.currentModel).toBe("kimi-k3");
+    expect(status.models.map((model) => model.key)).toEqual(["kimi-k3"]);
+  });
+
   it.each([
     {
       name: "anthropic",
@@ -119,6 +204,53 @@ describe("LLMProviderFactory model status", () => {
 
     expect(status.currentModel).toBe(expectedCurrentModel);
     expect(status.models.some((model) => model.key === expectedCurrentModel)).toBe(true);
+  });
+
+  it("uses the enabled configured provider and hides disabled configured models", () => {
+    const settings: LLMSettings = {
+      providerType: "openai-compatible",
+      modelKey: "intelligence",
+      openaiCompatible: {
+        apiKey: "disabled-provider-key",
+        baseUrl: "https://example.com/v1",
+        model: "intelligence",
+      },
+      deepseek: {
+        apiKey: "deepseek-key",
+        model: "deepseek-v4-flash",
+      },
+      providerModelRegistry: {
+        "openai-compatible": {
+          models: ["intelligence"],
+          enabled: { intelligence: false },
+        },
+        deepseek: {
+          models: ["deepseek-v4-flash"],
+          enabled: { "deepseek-v4-flash": true },
+        },
+      },
+    };
+    vi.spyOn(LLMProviderFactory, "loadSettings").mockReturnValue(settings);
+
+    const status = LLMProviderFactory.getConfigStatus();
+    const resolved = LLMProviderFactory.resolveTaskModelSelection();
+
+    expect(status.currentProvider).toBe("deepseek");
+    expect(status.currentModel).toBe("deepseek-v4-flash");
+    expect(status.models.map((model) => model.key)).toEqual([
+      "deepseek-v4-flash",
+    ]);
+    expect(
+      status.providers.find(
+        (provider) => provider.type === "openai-compatible",
+      )?.configured,
+    ).toBe(false);
+    expect(
+      status.providers.find((provider) => provider.type === "deepseek")
+        ?.configured,
+    ).toBe(true);
+    expect(resolved.providerType).toBe("deepseek");
+    expect(resolved.modelKey).toBe("deepseek-v4-flash");
   });
 
   it("defaults OpenAI OAuth model status to ChatGPT subscription models", () => {
@@ -877,7 +1009,7 @@ describe("LLMProviderFactory provider failover chain", () => {
     expect(azureFailover.failoverPrimaryRetryCooldownSeconds).toBe(120);
   });
 
-  it("disables automatic failover when a task explicitly overrides provider or model", () => {
+  it("keeps configured failover available when a task explicitly selects its primary model", () => {
     const settings: LLMSettings = {
       providerType: "openai",
       modelKey: "sonnet-4-5",
@@ -901,8 +1033,14 @@ describe("LLMProviderFactory provider failover chain", () => {
       modelKey: "gpt-4.1-mini",
     });
 
-    expect(chain).toHaveLength(1);
+    expect(chain).toHaveLength(2);
     expect(chain[0]?.modelKey).toBe("gpt-4o-mini");
+    expect(chain[1]).toEqual(
+      expect.objectContaining({
+        providerType: "anthropic",
+        modelKey: "sonnet-4-5",
+      }),
+    );
   });
 
   it("filters known text-only OpenRouter fallbacks for image-bearing requests", () => {

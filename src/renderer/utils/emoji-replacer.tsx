@@ -45,7 +45,12 @@ function replaceEmojisInString(text: string, size: number): ReactNode[] {
     }
 
     parts.push(
-      <span key={`ei-${match.index}`} className="inline-emoji-icon" aria-label={emoji} role="img">
+      <span
+        key={`ei-${match.index}`}
+        className="inline-emoji-icon"
+        aria-label={emoji}
+        role="img"
+      >
         <Icon size={size} strokeWidth={1.8} />
       </span>,
     );
@@ -66,7 +71,10 @@ function replaceEmojisInString(text: string, size: number): ReactNode[] {
  * Process ReactMarkdown children, replacing emoji characters with Lucide icons.
  * Only direct string children are scanned; React element children pass through unchanged.
  */
-export function replaceEmojisInChildren(children: ReactNode, size = 16): ReactNode {
+export function replaceEmojisInChildren(
+  children: ReactNode,
+  size = 16,
+): ReactNode {
   return Children.map(children, (child) => {
     if (typeof child === "string") {
       const replaced = replaceEmojisInString(child, size);

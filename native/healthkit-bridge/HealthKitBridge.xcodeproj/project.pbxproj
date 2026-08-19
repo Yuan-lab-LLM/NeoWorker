@@ -144,7 +144,7 @@
           "@executable_path/../Frameworks",
         );
         MACOSX_DEPLOYMENT_TARGET = 13.0;
-        PRODUCT_BUNDLE_IDENTIFIER = com.cowork.healthkitbridge;
+        PRODUCT_BUNDLE_IDENTIFIER = com.neoworker.healthkitbridge;
         PRODUCT_NAME = HealthKitBridge;
         SDKROOT = macosx;
         SWIFT_EMIT_LOC_STRINGS = YES;
@@ -167,7 +167,7 @@
           "@executable_path/../Frameworks",
         );
         MACOSX_DEPLOYMENT_TARGET = 13.0;
-        PRODUCT_BUNDLE_IDENTIFIER = com.cowork.healthkitbridge;
+        PRODUCT_BUNDLE_IDENTIFIER = com.neoworker.healthkitbridge;
         PRODUCT_NAME = HealthKitBridge;
         SDKROOT = macosx;
         SWIFT_EMIT_LOC_STRINGS = YES;
@@ -189,7 +189,7 @@
         GENERATE_INFOPLIST_FILE = NO;
         INFOPLIST_FILE = Info.plist;
         MACOSX_DEPLOYMENT_TARGET = 13.0;
-        PRODUCT_BUNDLE_IDENTIFIER = com.cowork.healthkitbridge;
+        PRODUCT_BUNDLE_IDENTIFIER = com.neoworker.healthkitbridge;
         SDKROOT = macosx;
         SWIFT_VERSION = 5.0;
       };
@@ -205,7 +205,7 @@
         GENERATE_INFOPLIST_FILE = NO;
         INFOPLIST_FILE = Info.plist;
         MACOSX_DEPLOYMENT_TARGET = 13.0;
-        PRODUCT_BUNDLE_IDENTIFIER = com.cowork.healthkitbridge;
+        PRODUCT_BUNDLE_IDENTIFIER = com.neoworker.healthkitbridge;
         SDKROOT = macosx;
         SWIFT_VERSION = 5.0;
       };

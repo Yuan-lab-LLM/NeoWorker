@@ -1,12 +1,12 @@
-# Using CoWork from WhatsApp and Other Channels
+# Using NeoWorker from WhatsApp and Other Channels
 
-This guide explains how to use CoWork from remote chat channels such as WhatsApp, Telegram, Slack, Discord, and other configured messaging integrations.
+This guide explains how to use NeoWorker from remote chat channels such as WhatsApp, Telegram, Slack, Discord, and other configured messaging integrations.
 
 It focuses on daily usage: starting work, following up, stopping tasks, using temporary sessions, invoking skills, and getting scheduled results back in chat. For setup, see [Channel Integrations](channels.md). For per-channel features and best practices, see [Channel User Guides](channel-user-guides.md). For the lower-level lifecycle model, see [Gateway Message Lifecycle](gateway-message-lifecycle.md).
 
 ## Mental Model
 
-Think of each chat as a remote control for CoWork.
+Think of each chat as a remote control for NeoWorker.
 
 You can:
 
@@ -38,7 +38,7 @@ Research the latest pricing for these three tools and summarize the differences.
 Draft a customer reply based on the last email thread.
 ```
 
-CoWork will route the message into the selected workspace for that chat. If no workspace is selected, it may ask you to choose one or use the channel's default behavior.
+NeoWorker will route the message into the selected workspace for that chat. If no workspace is selected, it may ask you to choose one or use the channel's default behavior.
 
 If the chat has an admin-configured specialization, that specialization becomes the default for new tasks from that chat. Workspace router rules can still override it for a specific message when the workspace policy says so.
 
@@ -129,7 +129,7 @@ Use `/stop` or `/cancel` to cancel the active task:
 /cancel
 ```
 
-After cancellation, CoWork clears that chat's task association so late updates from the stopped task are not sent back into the chat.
+After cancellation, NeoWorker clears that chat's task association so late updates from the stopped task are not sent back into the chat.
 
 Best practices:
 
@@ -153,7 +153,7 @@ Prototype a small Node script that parses this CSV shape.
 
 Temporary sessions are useful for experiments, one-off analysis, and work that should not attach to a normal project workspace.
 
-CoWork hides temporary workspace paths from chat replies and from `/workspaces` so the workspace list stays focused on real user workspaces.
+NeoWorker hides temporary workspace paths from chat replies and from `/workspaces` so the workspace list stays focused on real user workspaces.
 
 Best practices:
 
@@ -183,7 +183,7 @@ Use `/queue` to inspect queued work:
 
 Best practices:
 
-- Use `/task` when you want to know what CoWork thinks it is currently doing.
+- Use `/task` when you want to know what NeoWorker thinks it is currently doing.
 - Use `/queue` when multiple tasks or follow-ups may be waiting.
 - Use `/status` when you are checking whether the channel is connected and responsive.
 
@@ -246,14 +246,14 @@ Use `/workspace` to select one:
 ```
 
 ```text
-/workspace cowork
+/workspace neoworker
 ```
 
 Temporary scratch workspaces are hidden from `/workspaces`.
 
 Best practices:
 
-- Select the workspace before asking CoWork to edit files.
+- Select the workspace before asking NeoWorker to edit files.
 - Use clear workspace names where possible.
 - Use `/new temp` instead of adding a temporary folder to the normal workspace list.
 
@@ -281,7 +281,7 @@ Best practices:
 
 - Use `/help` when you only need the basics.
 - Use `/commands` when looking for less common controls.
-- If you type an unknown slash command, CoWork will tell you it is unknown instead of treating it as a task.
+- If you type an unknown slash command, NeoWorker will tell you it is unknown instead of treating it as a task.
 
 ## Skill Slash Commands
 
@@ -320,13 +320,13 @@ Enabled skills can also be invoked by their skill slug:
 Best practices:
 
 - Use skill slashes when you know the workflow you want.
-- Use normal language when you want CoWork to choose the approach.
+- Use normal language when you want NeoWorker to choose the approach.
 - Keep `/skill <id>` for toggling skills; use `/<skill-slug> args` to run one.
-- If a skill is disabled, enable it first or ask CoWork to use another approach.
+- If a skill is disabled, enable it first or ask NeoWorker to use another approach.
 
 ## Approvals
 
-When CoWork asks for approval, respond with:
+When NeoWorker asks for approval, respond with:
 
 ```text
 /approve
@@ -354,7 +354,7 @@ Best practices:
 
 - Read approval prompts carefully before approving.
 - Use `/deny` when the requested action is too broad, risky, or no longer needed.
-- Add a short follow-up after denial if you want CoWork to try a safer alternative.
+- Add a short follow-up after denial if you want NeoWorker to try a safer alternative.
 
 ## Scheduled Results in Chat
 
@@ -370,7 +370,7 @@ Examples:
 /brief schedule morning
 ```
 
-Scheduled tasks should produce the final result as task output. CoWork handles sending that output to the selected chat.
+Scheduled tasks should produce the final result as task output. NeoWorker handles sending that output to the selected chat.
 
 Best practices:
 
@@ -384,7 +384,7 @@ Best practices:
 WhatsApp supports a few conveniences:
 
 - natural shortcuts such as `help`, `status`, `new task`, `new temp`, `stop`, `queue ...`, and `background ...`
-- typing indicators while CoWork is working
+- typing indicators while NeoWorker is working
 - editable progress messages, so repeated progress updates can update one message instead of spamming the chat
 - self-chat mode for using your personal "Message Yourself" thread
 - response prefixes when you want bot replies to be visually distinct
@@ -392,7 +392,7 @@ WhatsApp supports a few conveniences:
 Best practices:
 
 - Use self-chat mode when connecting your personal WhatsApp number.
-- Set a short response prefix if your own messages and CoWork replies are hard to distinguish.
+- Set a short response prefix if your own messages and NeoWorker replies are hard to distinguish.
 - Use `/new temp` for scratch work instead of creating random temporary folders.
 - Use `/commands` when you forget the exact slash form.
 
@@ -435,11 +435,11 @@ Best practices:
 - Use `/task prompt:...` only when you want to start task text from Discord's native slash UI.
 - Use `/status` for current state; `/task` in normal text channels is the gateway task snapshot command when delivered as text.
 - In servers, confirm the bot has access to the channel and that the server is allowed by the channel configuration.
-- In threads, CoWork preserves thread context where the adapter can provide it.
+- In threads, NeoWorker preserves thread context where the adapter can provide it.
 
 ## Slack Tips
 
-Slack can route messages from DMs, mentions, and registered slash commands. CoWork can handle the command text once Slack delivers it, but Slack slash commands must be registered in the Slack app configuration first.
+Slack can route messages from DMs, mentions, and registered slash commands. NeoWorker can handle the command text once Slack delivers it, but Slack slash commands must be registered in the Slack app configuration first.
 
 Recommended Slack slash commands:
 
@@ -475,14 +475,14 @@ Manifest-style snippet:
 features:
   slash_commands:
     - command: /new
-      description: Start the next CoWork message fresh
+      description: Start the next NeoWorker message fresh
       usage_hint: "[temp]"
       should_escape: false
     - command: /stop
-      description: Stop the active CoWork task
+      description: Stop the active NeoWorker task
       should_escape: false
     - command: /commands
-      description: Browse CoWork commands
+      description: Browse NeoWorker commands
       usage_hint: "[category]"
       should_escape: false
     - command: /queue
@@ -499,7 +499,7 @@ features:
       should_escape: false
 ```
 
-Repeat that pattern for the remaining core commands you want visible in Slack. In Socket Mode setups, keep the existing Socket Mode receiver and app tokens; the command entries just make Slack deliver those slash payloads to CoWork.
+Repeat that pattern for the remaining core commands you want visible in Slack. In Socket Mode setups, keep the existing Socket Mode receiver and app tokens; the command entries just make Slack deliver those slash payloads to NeoWorker.
 
 Best practices:
 
@@ -513,7 +513,7 @@ Best practices:
 Start a project task:
 
 ```text
-/workspace cowork
+/workspace neoworker
 Update the channel docs to mention editable WhatsApp progress.
 ```
 
@@ -564,7 +564,7 @@ Run side work:
 
 ## Troubleshooting
 
-If CoWork does not respond:
+If NeoWorker does not respond:
 
 - send `/status`
 - check that the channel is enabled

@@ -244,7 +244,7 @@ export function resolveReviewPolicy(requestedPolicy: unknown): ReviewPolicy {
     return requestedPolicy;
   }
 
-  const envDefault = (process.env.COWORK_REVIEW_POLICY_DEFAULT || "").trim().toLowerCase();
+  const envDefault = (process.env.NEOWORKER_REVIEW_POLICY_DEFAULT || "").trim().toLowerCase();
   if (envDefault === "off" || envDefault === "balanced" || envDefault === "strict") {
     return envDefault;
   }
@@ -319,7 +319,7 @@ export function resolveEntropySweepPolicy(
   if (requested === "off" || requested === "balanced" || requested === "strict") {
     return requested;
   }
-  const envDefault = (process.env.COWORK_ENTROPY_SWEEP_DEFAULT || "").trim().toLowerCase();
+  const envDefault = (process.env.NEOWORKER_ENTROPY_SWEEP_DEFAULT || "").trim().toLowerCase();
   if (envDefault === "off" || envDefault === "balanced" || envDefault === "strict") {
     return envDefault;
   }

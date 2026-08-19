@@ -56,29 +56,29 @@ describe("Memory Kit Skill", () => {
       expect(skillData.prompt.length).toBeGreaterThan(200);
     });
 
-    it("should default to .cowork/ location", () => {
+    it("should default to .neoworker/ location", () => {
       expect(skillData.prompt).toContain("TARGET LOCATION");
-      expect(skillData.prompt).toContain(".cowork/");
+      expect(skillData.prompt).toContain(".neoworker/");
       expect(skillData.prompt).toContain("Do NOT write these files at repo root");
     });
 
     it("should include all core kit files", () => {
-      expect(skillData.prompt).toContain(".cowork/AGENTS.md");
-      expect(skillData.prompt).toContain(".cowork/SOUL.md");
-      expect(skillData.prompt).toContain(".cowork/USER.md");
-      expect(skillData.prompt).toContain(".cowork/MEMORY.md");
-      expect(skillData.prompt).toContain(".cowork/HEARTBEAT.md");
-      expect(skillData.prompt).toContain(".cowork/SUPERVISOR.md");
-      expect(skillData.prompt).toContain(".cowork/PRIORITIES.md");
-      expect(skillData.prompt).toContain(".cowork/CROSS_SIGNALS.md");
-      expect(skillData.prompt).toContain(".cowork/TOOLS.md");
-      expect(skillData.prompt).toContain(".cowork/IDENTITY.md");
-      expect(skillData.prompt).toContain(".cowork/BOOTSTRAP.md");
-      expect(skillData.prompt).toContain(".cowork/DESIGN.md");
+      expect(skillData.prompt).toContain(".neoworker/AGENTS.md");
+      expect(skillData.prompt).toContain(".neoworker/SOUL.md");
+      expect(skillData.prompt).toContain(".neoworker/USER.md");
+      expect(skillData.prompt).toContain(".neoworker/MEMORY.md");
+      expect(skillData.prompt).toContain(".neoworker/HEARTBEAT.md");
+      expect(skillData.prompt).toContain(".neoworker/SUPERVISOR.md");
+      expect(skillData.prompt).toContain(".neoworker/PRIORITIES.md");
+      expect(skillData.prompt).toContain(".neoworker/CROSS_SIGNALS.md");
+      expect(skillData.prompt).toContain(".neoworker/TOOLS.md");
+      expect(skillData.prompt).toContain(".neoworker/IDENTITY.md");
+      expect(skillData.prompt).toContain(".neoworker/BOOTSTRAP.md");
+      expect(skillData.prompt).toContain(".neoworker/DESIGN.md");
     });
 
     it("should include daily log template", () => {
-      expect(skillData.prompt).toContain(".cowork/memory/YYYY-MM-DD.md");
+      expect(skillData.prompt).toContain(".neoworker/memory/YYYY-MM-DD.md");
       expect(skillData.prompt).toContain("# Daily Log (YYYY-MM-DD)");
       expect(skillData.prompt).toContain("## Open Loops");
     });

@@ -57,7 +57,7 @@ export class SecureMcpTunnelSettingsManager {
       relayUrl: input.relayUrl.trim(),
       targetType: input.targetType,
       targetUrl: input.targetUrl?.trim() || undefined,
-      coworkHostPort: input.coworkHostPort ?? 3333,
+      neoworkerHostPort: input.neoworkerHostPort ?? 3333,
       policy: {
         ...DEFAULT_SECURE_MCP_TUNNEL_POLICY,
         ...input.policy,
@@ -92,7 +92,7 @@ export class SecureMcpTunnelSettingsManager {
       targetType: updates.targetType ?? current.targetType,
       targetUrl:
         updates.targetUrl !== undefined ? updates.targetUrl.trim() || undefined : current.targetUrl,
-      coworkHostPort: updates.coworkHostPort ?? current.coworkHostPort,
+      neoworkerHostPort: updates.neoworkerHostPort ?? current.neoworkerHostPort,
       clientToken: updates.clientToken !== undefined ? updates.clientToken.trim() || undefined : current.clientToken,
       callerToken: updates.callerToken !== undefined ? updates.callerToken.trim() || undefined : current.callerToken,
       policy: {
@@ -165,7 +165,7 @@ export class SecureMcpTunnelSettingsManager {
               ...(tunnel.policy || {}),
               allowedTools: sanitizeAllowedTools(tunnel.policy?.allowedTools),
             },
-            coworkHostPort: tunnel.coworkHostPort ?? 3333,
+            neoworkerHostPort: tunnel.neoworkerHostPort ?? 3333,
           }))
         : [],
     };

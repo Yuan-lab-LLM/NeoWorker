@@ -277,7 +277,7 @@ async function smokeLaunchMac(executablePath) {
   const child = spawn(executablePath, [], {
     env: {
       ...process.env,
-      COWORK_DESKTOP_SMOKE: "1",
+      NEOWORKER_DESKTOP_SMOKE: "1",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -325,7 +325,7 @@ async function smokeMac({ releaseDir, expectedVersion, allowUnsigned }) {
 
   validateUpdaterMetadata(releaseDir);
 
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-mac-dmg-smoke-"));
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-mac-dmg-smoke-"));
   const mountPoint = path.join(tempRoot, "mount");
   await fs.mkdir(mountPoint, { recursive: true });
   let mounted = false;
@@ -374,7 +374,7 @@ function powershell(command) {
 
 async function findInstalledWindowsApp(programsDir) {
   const script = `
-$app = Get-ChildItem -Path '${programsDir.replaceAll("'", "''")}' -Filter 'CoWork OS.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+$app = Get-ChildItem -Path '${programsDir.replaceAll("'", "''")}' -Filter 'NeoWorker.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $app) { exit 2 }
 Write-Output $app.FullName
 `;
@@ -399,7 +399,7 @@ function resolveWindowsProgramsDir() {
 
 async function uninstallWindowsApp(programsDir) {
   const script = `
-$uninstaller = Get-ChildItem -Path '${programsDir.replaceAll("'", "''")}' -Filter 'Uninstall CoWork OS.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+$uninstaller = Get-ChildItem -Path '${programsDir.replaceAll("'", "''")}' -Filter 'Uninstall NeoWorker.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($uninstaller) {
   $p = Start-Process -FilePath $uninstaller.FullName -ArgumentList '/S' -Wait -PassThru
   if ($p.ExitCode -ne 0) { exit $p.ExitCode }
@@ -440,7 +440,7 @@ async function smokeWindows({ releaseDir, expectedVersion, skipLaunch }) {
     throw new Error("Could not resolve the per-user Windows Programs directory for installer smoke test.");
   }
 
-  for (const dirName of ["CoWork OS", "cowork-os"]) {
+  for (const dirName of ["NeoWorker", "neoworker"]) {
     await fs.rm(path.join(programsDir, dirName), { recursive: true, force: true });
   }
 
@@ -469,7 +469,7 @@ Write-Output $item.VersionInfo.ProductVersion
         cwd: path.dirname(appExe),
         env: {
           ...process.env,
-          COWORK_DESKTOP_SMOKE: "1",
+          NEOWORKER_DESKTOP_SMOKE: "1",
         },
         stdio: "ignore",
       });

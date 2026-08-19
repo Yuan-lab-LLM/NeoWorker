@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="imessage-g" x1="32" x2="32" y1="5" y2="59" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5CF777"/>
+      <stop offset="1" stop-color="#02C940"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#imessage-g)"/>
+  <path fill="#fff" d="M32 17c-10.5 0-19 6.7-19 15 0 5.4 3.7 10.2 9.2 12.8-.6 2.3-2.5 4.4-3.7 5.4-.5.4-.2 1.1.4 1.1 4.6-.2 8-2.1 10-4.4 1 .1 2 .2 3.1.2 10.5 0 19-6.7 19-15S42.5 17 32 17"/>
+</svg>

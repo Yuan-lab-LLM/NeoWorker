@@ -1,15 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  ArrowRight,
   Ban,
   Bot,
+  Brain,
+  CalendarDays,
   CheckCircle2,
   CircleDot,
+  Code2,
   Clock,
   Database,
   Eye,
   FileClock,
+  FileText,
+  FolderOpen,
+  Globe2,
   KeyRound,
+  Mail,
+  MessageCircle,
+  Monitor,
   PauseCircle,
   Play,
   ReceiptText,
@@ -19,12 +29,15 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Send,
   Trash2,
+  Workflow,
   XCircle,
 } from "lucide-react";
 import {
   EVERYDAY_AGENT_CAPABILITY_BUNDLES,
   EVERYDAY_AGENT_CONSENT_VERSION,
+  type ApprovalRequest,
   type EverydayActionPreview,
   type EverydayActionReceipt,
   type EverydayActionRisk,
@@ -32,21 +45,37 @@ import {
   type EverydayCapabilityBundle,
   type EverydayPauseScope,
   type ProactiveSuggestion,
+  type Task,
   type Workspace,
 } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 import "./everyday-agent.css";
+import { NeoWorkerPageHeader } from "./NeoWorkerPageHeader";
+import { UnifiedTaskComposer } from "./UnifiedTaskComposer";
 
 interface EverydayAgentPanelProps {
   workspace?: Workspace | null;
   settingsMode?: boolean;
   onOpenSettings?: () => void;
   onOpenMissionControl?: () => void;
-  onCreateTask?: (title: string, prompt: string) => void;
+  onOpenApproval?: (approval: ApprovalRequest) => void;
+  onOpenAutomationRuns?: () => void;
+  onCreateTask?: (
+    title: string,
+    prompt: string,
+  ) => boolean | void | Promise<boolean | void>;
+  onOpenComposerDraft?: (
+    draft: string,
+    workspace?: Workspace | null,
+  ) => void | Promise<void>;
+  onStartNewWork?: () => void;
+  tasks?: Task[];
 }
 
 type PauseKind = EverydayPauseScope["kind"];
 type PriorityTone = "danger" | "warn" | "quiet" | "success";
-type EverydayAgentStatus = "loading" | "enabled" | "paused" | "disabled" | "blocked";
+type EverydayAgentStatus =
+  "loading" | "enabled" | "paused" | "disabled" | "blocked";
 export type EverydayAgentTemporaryModes = {
   noMemory: boolean;
   disposableBrowser: boolean;
@@ -59,7 +88,60 @@ export interface EverydayAgentPriorityItem {
   detail: string;
   tone: PriorityTone;
   meta?: string;
-  actionKind?: "settings" | "resume" | "memory" | "receipt" | "suggestion" | "preview";
+  actionKind?:
+    "settings" | "resume" | "memory" | "receipt" | "suggestion" | "preview";
+}
+
+export function getApprovalTypeLabel(type: ApprovalRequest["type"]): string {
+  const labels: Record<ApprovalRequest["type"], string> = {
+    delete_file: translate(
+      "generated.components.everydayagentpanel.89.0",
+      "Delete files",
+    ),
+    delete_multiple: translate(
+      "generated.components.everydayagentpanel.90.1",
+      "Batch delete",
+    ),
+    bulk_rename: translate(
+      "generated.components.everydayagentpanel.91.2",
+      "Batch rename",
+    ),
+    network_access: translate(
+      "generated.components.everydayagentpanel.92.3",
+      "access network",
+    ),
+    data_export: translate(
+      "generated.components.everydayagentpanel.93.4",
+      "Export data",
+    ),
+    external_service: translate(
+      "generated.components.everydayagentpanel.94.5",
+      "Call external services",
+    ),
+    location_access: translate(
+      "generated.components.everydayagentpanel.95.6",
+      "Visit location",
+    ),
+    run_command: translate(
+      "generated.components.everydayagentpanel.96.7",
+      "Run command",
+    ),
+    risk_gate: translate(
+      "generated.components.everydayagentpanel.97.8",
+      "high risk operations",
+    ),
+    computer_use: translate(
+      "generated.components.everydayagentpanel.98.9",
+      "Work with native apps",
+    ),
+  };
+  return (
+    labels[type] ||
+    translate(
+      "generated.components.everydayagentpanel.100.10",
+      "Sensitive operations",
+    )
+  );
 }
 
 interface EverydayRoutineSummary {
@@ -118,6 +200,80 @@ interface EverydaySecureLane {
   status: "available" | "disabled" | "restricted";
 }
 
+const CAPABILITY_MAP_GROUPS: Array<{
+  id: string;
+  title: string;
+  description: string;
+  bundles: EverydayCapabilityBundle[];
+}> = [
+  {
+    id: "read",
+    title: translate("generated.components.everydayagentpanel.167.11", "read"),
+    description: translate(
+      "generated.components.everydayagentpanel.168.12",
+      "Understand authorized information and context",
+    ),
+    bundles: ["inbox", "calendar", "browser", "files", "screen_context"],
+  },
+  {
+    id: "create",
+    title: translate(
+      "generated.components.everydayagentpanel.173.13",
+      "Create",
+    ),
+    description: translate(
+      "generated.components.everydayagentpanel.174.14",
+      "Generate drafts, knowledge, and reviewable suggestions",
+    ),
+    bundles: ["docs", "messages", "memory"],
+  },
+  {
+    id: "act",
+    title: translate(
+      "generated.components.everydayagentpanel.179.15",
+      "execute",
+    ),
+    description: translate(
+      "generated.components.everydayagentpanel.180.16",
+      "Follow approval boundaries before impacting external workflows",
+    ),
+    bundles: ["github_work", "remote_devices", "automations"],
+  },
+];
+
+function CapabilityMapIcon({
+  capability,
+  size = 18,
+}: {
+  capability: EverydayCapabilityBundle;
+  size?: number;
+}) {
+  switch (capability) {
+    case "inbox":
+      return <Mail size={size} />;
+    case "calendar":
+      return <CalendarDays size={size} />;
+    case "browser":
+      return <Globe2 size={size} />;
+    case "files":
+      return <FolderOpen size={size} />;
+    case "docs":
+      return <FileText size={size} />;
+    case "messages":
+      return <MessageCircle size={size} />;
+    case "github_work":
+      return <Code2 size={size} />;
+    case "memory":
+      return <Brain size={size} />;
+    case "screen_context":
+      return <Monitor size={size} />;
+    case "remote_devices":
+      return <Monitor size={size} />;
+    case "automations":
+      return <Workflow size={size} />;
+  }
+}
+
 const RISK_LABELS: Record<EverydayActionRisk, string> = {
   read: "Read",
   draft: "Draft",
@@ -147,21 +303,25 @@ const EVERYDAY_AGENT_RECIPES: EverydayAgentRecipe[] = [
     capability: "inbox",
     riskClass: "execute_sensitive",
     surfaces: ["Inbox Agent", "Home", "Receipts"],
-    prompt: "Run a review-first inbox triage and preview any drafts before sending.",
+    prompt:
+      "Run a review-first inbox triage and preview any drafts before sending.",
   },
   {
     id: "meeting-prep",
     title: "Meeting prep brief",
-    description: "Build a calendar brief from approved docs, email, and recent tasks.",
+    description:
+      "Build a calendar brief from approved docs, email, and recent tasks.",
     capability: "calendar",
     riskClass: "data_export",
     surfaces: ["Calendar", "Docs", "Memory"],
-    prompt: "Prepare a meeting brief using approved sources and cite the evidence used.",
+    prompt:
+      "Prepare a meeting brief using approved sources and cite the evidence used.",
   },
   {
     id: "follow-up-detector",
     title: "Follow-up detector",
-    description: "Find promised next steps and turn them into reviewable suggestions.",
+    description:
+      "Find promised next steps and turn them into reviewable suggestions.",
     capability: "automations",
     riskClass: "stage",
     surfaces: ["Workflow Intelligence", "Routines"],
@@ -170,33 +330,63 @@ const EVERYDAY_AGENT_RECIPES: EverydayAgentRecipe[] = [
   {
     id: "weekly-status-draft",
     title: "Weekly status draft",
-    description: "Summarize completed work, blockers, and next actions for review.",
+    description:
+      "Summarize completed work, blockers, and next actions for review.",
     capability: "docs",
     riskClass: "draft",
     surfaces: ["Docs", "Mission Control"],
-    prompt: "Draft a weekly status update with source-backed bullets and no external posting.",
+    prompt:
+      "Draft a weekly status update with source-backed bullets and no external posting.",
   },
 ];
 
-export function isEverydayAgentUuid(value: string | undefined): value is string {
+export function isEverydayAgentUuid(
+  value: string | undefined,
+): value is string {
   return Boolean(
     value &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        value,
-      ),
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    ),
   );
 }
 
 function formatTime(value?: number): string {
-  if (!value) return "Never";
+  if (!value) return translate("common.never", "never");
   return new Date(value).toLocaleString();
 }
 
 function capabilityLabel(capability: EverydayCapabilityBundle): string {
+  const translated = translate(`everyday.capability.${capability}.label`);
+  if (translated !== `everyday.capability.${capability}.label`)
+    return translated;
   return (
-    EVERYDAY_AGENT_CAPABILITY_BUNDLES.find((bundle) => bundle.id === capability)?.label ||
-    capability
+    EVERYDAY_AGENT_CAPABILITY_BUNDLES.find((bundle) => bundle.id === capability)
+      ?.label || capability
   );
+}
+
+function capabilityDescription(
+  capability: EverydayCapabilityBundle,
+  fallback: string,
+): string {
+  return translate(`everyday.capability.${capability}.description`, fallback);
+}
+
+function surfaceLabel(surface: string): string {
+  const key = `everyday.surface.${surface
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_|_$/g, "")
+    .toLowerCase()}`;
+  return translate(key, surface);
+}
+
+function pauseKindLabel(kind: PauseKind): string {
+  return translate(`everyday.pauseKind.${kind}`, kind.replace("_", " "));
+}
+
+function riskLabel(risk: EverydayActionRisk): string {
+  return translate(`everyday.risk.${risk}`, RISK_LABELS[risk]);
 }
 
 export function getEverydayAgentStatus(
@@ -211,11 +401,15 @@ export function getEverydayAgentStatus(
 
 function statusLabel(result: EverydayAgentProfileResult | null): string {
   const status = getEverydayAgentStatus(result);
-  if (status === "blocked") return "Blocked by admin";
-  if (status === "disabled") return "Disabled";
-  if (status === "paused") return "Paused";
-  if (status === "enabled") return "Enabled";
-  return "Loading";
+  if (status === "blocked")
+    return translate("everyday.status.blocked", "blocked by admin");
+  if (status === "disabled")
+    return translate("everyday.status.disabled", "Deactivated");
+  if (status === "paused")
+    return translate("everyday.status.paused", "Suspended");
+  if (status === "enabled")
+    return translate("everyday.status.enabled", "Enabled");
+  return translate("everyday.status.loading", "Loading");
 }
 
 export function isEverydayAgentConsentRequired(
@@ -223,7 +417,8 @@ export function isEverydayAgentConsentRequired(
 ): boolean {
   if (!result) return false;
   const declinedCurrentConsent =
-    (result.profile.declinedConsentVersion ?? 0) >= EVERYDAY_AGENT_CONSENT_VERSION;
+    (result.profile.declinedConsentVersion ?? 0) >=
+    EVERYDAY_AGENT_CONSENT_VERSION;
   return (
     !declinedCurrentConsent &&
     result.profile.acceptedConsentVersion < EVERYDAY_AGENT_CONSENT_VERSION
@@ -231,7 +426,11 @@ export function isEverydayAgentConsentRequired(
 }
 
 function riskTone(risk: EverydayActionRisk): "quiet" | "warn" | "danger" {
-  if (risk === "destructive" || risk === "spend" || risk === "credential_sensitive") {
+  if (
+    risk === "destructive" ||
+    risk === "spend" ||
+    risk === "credential_sensitive"
+  ) {
     return "danger";
   }
   if (risk === "execute_sensitive" || risk === "data_export") return "warn";
@@ -245,19 +444,32 @@ function receiptTone(status: EverydayActionReceipt["status"]): PriorityTone {
 }
 
 function suggestionDescription(suggestion: ProactiveSuggestion): string {
-  return suggestion.actionPrompt || suggestion.description || "Review suggested next action";
+  return (
+    suggestion.actionPrompt ||
+    suggestion.description ||
+    translate(
+      "everyday.suggestion.defaultAction",
+      "Next steps for review recommendations",
+    )
+  );
 }
 
-function inferSuggestionCapability(suggestion: ProactiveSuggestion): EverydayCapabilityBundle {
+function inferSuggestionCapability(
+  suggestion: ProactiveSuggestion,
+): EverydayCapabilityBundle {
   const haystack =
     `${suggestion.title} ${suggestion.description} ${suggestion.actionPrompt || ""} ${suggestion.sourceEntity || ""}`.toLowerCase();
   if (haystack.includes("mail") || haystack.includes("inbox")) return "inbox";
-  if (haystack.includes("calendar") || haystack.includes("meeting")) return "calendar";
-  if (haystack.includes("browser") || haystack.includes("web")) return "browser";
+  if (haystack.includes("calendar") || haystack.includes("meeting"))
+    return "calendar";
+  if (haystack.includes("browser") || haystack.includes("web"))
+    return "browser";
   if (haystack.includes("file")) return "files";
   if (haystack.includes("doc")) return "docs";
-  if (haystack.includes("message") || haystack.includes("slack")) return "messages";
-  if (haystack.includes("github") || haystack.includes("pull request")) return "github_work";
+  if (haystack.includes("message") || haystack.includes("slack"))
+    return "messages";
+  if (haystack.includes("github") || haystack.includes("pull request"))
+    return "github_work";
   if (haystack.includes("memory")) return "memory";
   if (haystack.includes("device")) return "remote_devices";
   return "automations";
@@ -272,7 +484,7 @@ function previewTargetLabel(preview: EverydayActionPreview): string {
     preview.target.deviceId ||
     preview.target.browserProfileId ||
     preview.target.workspaceId ||
-    "Scoped target"
+    translate("everyday.preview.scopedTarget", "scoped goals")
   );
 }
 
@@ -295,36 +507,63 @@ export function buildEverydayAgentPriorityItems({
   if (status === "blocked") {
     items.push({
       id: "admin-blocked",
-      title: "Everyday Agent is blocked",
-      detail: "Organization policy is preventing all Everyday Agent work.",
+      title: translate(
+        "everyday.priority.blocked.title",
+        "Everyday agents have been blocked",
+      ),
+      detail: translate(
+        "everyday.priority.blocked.detail",
+        "Organizational policies are preventing all day-to-day agent work.",
+      ),
       tone: "danger",
       actionKind: "settings",
     });
   } else if (status === "disabled") {
     items.push({
       id: "disabled",
-      title: "Enable required before work can start",
-      detail: "Review consent and capability scopes before the agent watches signals.",
+      title: translate(
+        "everyday.priority.disabled.title",
+        "Start working after enabling",
+      ),
+      detail: translate(
+        "everyday.priority.disabled.detail",
+        "Before the agent observes the signal, please confirm the authorization and capability scope.",
+      ),
       tone: "warn",
       actionKind: "settings",
     });
   } else if (status === "paused") {
     items.push({
       id: "paused",
-      title: "Everyday Agent is paused",
-      detail: "No new work will begin until active pause scopes are cleared.",
+      title: translate(
+        "everyday.priority.paused.title",
+        "Daily agent has been suspended",
+      ),
+      detail: translate(
+        "everyday.priority.paused.detail",
+        "No new work will be started until the current pause range is cleared.",
+      ),
       tone: "warn",
       actionKind: "resume",
     });
   }
 
-  if (preview && (preview.status === "pending" || preview.status === "blocked")) {
+  if (
+    preview &&
+    (preview.status === "pending" || preview.status === "blocked")
+  ) {
     items.push({
       id: `preview-${preview.id}`,
-      title: preview.status === "blocked" ? "Preview is blocked" : "Action preview needs approval",
+      title:
+        preview.status === "blocked"
+          ? translate("everyday.priority.previewBlocked", "Preview blocked")
+          : translate(
+              "everyday.priority.previewApproval",
+              "Action preview requires approval",
+            ),
       detail: preview.proposedMutation,
       tone: preview.status === "blocked" ? "danger" : "warn",
-      meta: RISK_LABELS[preview.riskClass],
+      meta: riskLabel(preview.riskClass),
       actionKind: "preview",
     });
   }
@@ -348,8 +587,17 @@ export function buildEverydayAgentPriorityItems({
   if (memoryCandidateCount && memoryCandidateCount > 0) {
     items.push({
       id: "memory-review",
-      title: `${memoryCandidateCount} memory candidates need review`,
-      detail: "Review-first memory is waiting for approval before it becomes prompt-visible.",
+      title: translate(
+        "everyday.priority.memory.title",
+        "{count} candidate memories need review",
+        {
+          count: memoryCandidateCount,
+        },
+      ),
+      detail: translate(
+        "everyday.priority.memory.detail",
+        "Memories with review priority need to be approved before they can enter the visible memory of prompt words.",
+      ),
       tone: "quiet",
       actionKind: "memory",
     });
@@ -372,8 +620,14 @@ export function buildEverydayAgentPriorityItems({
   if (items.length === 0) {
     items.push({
       id: "clear",
-      title: "No approvals or failures waiting",
-      detail: "Idle, watching approved signals and trusted routines.",
+      title: translate(
+        "everyday.priority.clear.title",
+        "No approvals pending or failed",
+      ),
+      detail: translate(
+        "everyday.priority.clear.detail",
+        "Currently idle, observing authorized signals and trusted routine tasks.",
+      ),
       tone: "success",
     });
   }
@@ -385,49 +639,91 @@ export function classifyEverydayAgentRecovery(
   receipt: EverydayActionReceipt,
 ): EverydayAgentRecoveryItem | null {
   if (!["blocked", "failed", "paused"].includes(receipt.status)) return null;
-  const text = `${receipt.title} ${receipt.summary} ${receipt.retryState?.lastError || ""}`.toLowerCase();
+  const text =
+    `${receipt.title} ${receipt.summary} ${receipt.retryState?.lastError || ""}`.toLowerCase();
 
-  if (text.includes("oauth") || text.includes("auth") || text.includes("scope")) {
+  if (
+    text.includes("oauth") ||
+    text.includes("auth") ||
+    text.includes("scope")
+  ) {
     return {
       id: `recovery-${receipt.id}`,
-      title: "Connector access needs repair",
+      title: translate(
+        "everyday.recovery.connector.title",
+        "Connector access needs fixing",
+      ),
       detail: receipt.retryState?.lastError || receipt.summary,
-      actionLabel: "Reconnect app",
+      actionLabel: translate(
+        "everyday.recovery.connector.action",
+        "Reconnect app",
+      ),
       tone: "warn",
     };
   }
-  if (text.includes("network") || text.includes("timeout") || text.includes("offline")) {
+  if (
+    text.includes("network") ||
+    text.includes("timeout") ||
+    text.includes("offline")
+  ) {
     return {
       id: `recovery-${receipt.id}`,
-      title: "Network interruption",
-      detail: "Retry as a dry-run first so duplicate side effects stay blocked.",
-      actionLabel: "Retry dry-run",
+      title: translate("everyday.recovery.network.title", "Network outage"),
+      detail: translate(
+        "everyday.recovery.network.detail",
+        "Try again as a drill first to avoid repeating side effects.",
+      ),
+      actionLabel: translate(
+        "everyday.recovery.network.action",
+        "Walkthrough retry",
+      ),
       tone: "warn",
     };
   }
   if (text.includes("duplicate") || text.includes("idempotency")) {
     return {
       id: `recovery-${receipt.id}`,
-      title: "Possible duplicate side effect",
-      detail: `Review external IDs and idempotency key ${receipt.idempotencyKey}.`,
-      actionLabel: "Review receipt",
+      title: translate(
+        "everyday.recovery.duplicate.title",
+        "Possibility of recurring side effects",
+      ),
+      detail: translate(
+        "everyday.recovery.duplicate.detail",
+        "Check external ID and idempotent key {key}.",
+        {
+          key: receipt.idempotencyKey,
+        },
+      ),
+      actionLabel: translate(
+        "everyday.recovery.duplicate.action",
+        "View receipt",
+      ),
       tone: "danger",
     };
   }
   if (text.includes("policy") || receipt.status === "blocked") {
     return {
       id: `recovery-${receipt.id}`,
-      title: "Policy blocked action",
+      title: translate(
+        "everyday.recovery.policy.title",
+        "Strategy blocks action",
+      ),
       detail: receipt.summary,
-      actionLabel: "Open policy",
+      actionLabel: translate("everyday.recovery.policy.action", "open policy"),
       tone: "danger",
     };
   }
   return {
     id: `recovery-${receipt.id}`,
-    title: "Recoverable action failure",
+    title: translate(
+      "everyday.recovery.generic.title",
+      "Recoverable action failed",
+    ),
     detail: receipt.retryState?.lastError || receipt.summary,
-    actionLabel: "Review and retry",
+    actionLabel: translate(
+      "everyday.recovery.generic.action",
+      "Check and try again",
+    ),
     tone: "warn",
   };
 }
@@ -449,8 +745,11 @@ export function buildEverydayAgentPlanSteps({
     return [
       {
         id: "blocked",
-        title: "Stop before work starts",
-        detail: "Admin policy blocks this operator surface.",
+        title: translate("everyday.plan.blocked.title", "stop before start"),
+        detail: translate(
+          "everyday.plan.blocked.detail",
+          "Administrator policy blocks this operator interface.",
+        ),
         capability: "automations",
         riskClass: "read",
         posture: "blocked",
@@ -458,46 +757,85 @@ export function buildEverydayAgentPlanSteps({
     ];
   }
 
-  const firstSuggestion = suggestions.find((suggestion) => !suggestion.dismissed && !suggestion.actedOn);
+  const firstSuggestion = suggestions.find(
+    (suggestion) => !suggestion.dismissed && !suggestion.actedOn,
+  );
   const firstReceipt = receipts[0];
   const targetCapability =
     preview?.capability ||
-    (firstSuggestion ? inferSuggestionCapability(firstSuggestion) : firstReceipt?.capability) ||
+    (firstSuggestion
+      ? inferSuggestionCapability(firstSuggestion)
+      : firstReceipt?.capability) ||
     "automations";
   const targetRisk = preview?.riskClass || firstReceipt?.riskClass || "stage";
 
   return [
     {
       id: "collect",
-      title: busy || "Watch approved signals",
-      detail: "Read-only evidence collection from enabled capabilities.",
+      title:
+        busy ||
+        translate("everyday.plan.collect.title", "Observe authorized signals"),
+      detail: translate(
+        "everyday.plan.collect.detail",
+        "Read-only collection of evidence from enabled capabilities.",
+      ),
       capability: targetCapability,
       riskClass: "read",
       posture: "read_only",
     },
     {
       id: "compose",
-      title: preview ? "Review proposed mutation" : firstSuggestion ? "Shape suggested next action" : "Wait for useful work",
-      detail: preview?.proposedMutation || firstSuggestion?.description || "No side effect is prepared.",
+      title: preview
+        ? translate("everyday.plan.compose.preview", "Review proposed changes")
+        : firstSuggestion
+          ? translate(
+              "everyday.plan.compose.suggestion",
+              "Next steps for organizing suggestions",
+            )
+          : translate(
+              "everyday.plan.compose.wait",
+              "Waiting for valuable work",
+            ),
+      detail:
+        preview?.proposedMutation ||
+        firstSuggestion?.description ||
+        translate(
+          "everyday.plan.compose.empty",
+          "No side effects have been prepared.",
+        ),
       capability: targetCapability,
       riskClass: targetRisk,
       posture: preview ? "preview" : "read_only",
     },
     {
       id: "approval",
-      title: "Ask before consequential actions",
-      detail: "Sends, posts, exports, credentials, spending, deletes, and cross-workspace movement require approval.",
+      title: translate(
+        "everyday.plan.approval.title",
+        "Ask before important actions",
+      ),
+      detail: translate(
+        "everyday.plan.approval.detail",
+        "Send, publish, export, credential, consume, delete, and move across workspaces all require approval.",
+      ),
       capability: targetCapability,
       riskClass: targetRisk,
       posture:
-        targetRisk === "read" || targetRisk === "draft" || targetRisk === "stage"
+        targetRisk === "read" ||
+        targetRisk === "draft" ||
+        targetRisk === "stage"
           ? "preview"
           : "approval",
     },
     {
       id: "receipt",
-      title: "Write receipt and learn only after review",
-      detail: "Receipts stay inspectable; memory and trusted patterns remain review-first.",
+      title: translate(
+        "everyday.plan.receipt.title",
+        "Write a receipt and review it before learning",
+      ),
+      detail: translate(
+        "everyday.plan.receipt.detail",
+        "Receipts are checkable; memory and trusted modes keep review priority.",
+      ),
       capability: "memory",
       riskClass: "stage",
       posture: "trusted",
@@ -511,7 +849,9 @@ function buildSecureLanes(
   pausedScopes: EverydayPauseScope[],
 ): EverydaySecureLane[] {
   const hasPause = (capability: EverydayCapabilityBundle) =>
-    pausedScopes.some((scope) => scope.kind === "capability" && scope.capability === capability);
+    pausedScopes.some(
+      (scope) => scope.kind === "capability" && scope.capability === capability,
+    );
   const laneFor = (
     id: string,
     title: string,
@@ -530,36 +870,91 @@ function buildSecureLanes(
   });
 
   return [
-    laneFor("browser", "Visible browser lane", "Browser Workbench preferred; takeover pauses before side effects.", "browser"),
-    laneFor("mail", "Mail lane", "Drafts and sends bind to account, destination, approval, and receipt.", "inbox"),
-    laneFor("files", "Files lane", "Local files are evidence by default; deletion and export always ask first.", "files"),
-    laneFor("connectors", "Connector lane", "Connected app scopes stay account-bound and revocable.", "docs"),
-    laneFor("devices", "Device lane", "Remote device dispatch remains visible, pausable, and auditable.", "remote_devices"),
+    laneFor(
+      "browser",
+      translate("everyday.lane.browser.title", "Visible browser channel"),
+      translate(
+        "everyday.lane.browser.description",
+        "Prioritize the browser workbench; takeover will be paused before side effects occur.",
+      ),
+      "browser",
+    ),
+    laneFor(
+      "mail",
+      translate("everyday.lane.mail.title", "Mail channel"),
+      translate(
+        "everyday.lane.mail.description",
+        "Both drafting and sending are bound to accounts, goals, approvals and receipts.",
+      ),
+      "inbox",
+    ),
+    laneFor(
+      "files",
+      translate("everyday.lane.files.title", "file channel"),
+      translate(
+        "everyday.lane.files.description",
+        "Local files are used as evidence only by default; deletion and export always ask first.",
+      ),
+      "files",
+    ),
+    laneFor(
+      "connectors",
+      translate("everyday.lane.connectors.title", "connector channel"),
+      translate(
+        "everyday.lane.connectors.description",
+        "The scope of the connected application remains account bound and can be revoked at any time.",
+      ),
+      "docs",
+    ),
+    laneFor(
+      "devices",
+      translate("everyday.lane.devices.title", "device channel"),
+      translate(
+        "everyday.lane.devices.description",
+        "Remote device dispatch remains visible, pauseable, and auditable.",
+      ),
+      "remote_devices",
+    ),
   ];
 }
 
 function routineTriggerSummary(routine: Any): string {
   if (Array.isArray(routine?.triggers) && routine.triggers.length > 0) {
-    return routine.triggers.map((trigger: Any) => trigger.type || "trigger").join(", ");
+    return routine.triggers
+      .map((trigger: Any) => trigger.type || "trigger")
+      .join(", ");
   }
   if (routine?.trigger?.type) return routine.trigger.type;
-  return "Trusted routine";
+  return translate("everyday.routine.trusted", "Trusted routine tasks");
 }
 
 function routineRunFor(routineId: string, runs: Any[]): Any | undefined {
   return runs.find((run) => run.routineId === routineId);
 }
 
-function summarizeRoutine(routine: Any, latestRun?: Any): EverydayRoutineSummary {
+function summarizeRoutine(
+  routine: Any,
+  latestRun?: Any,
+): EverydayRoutineSummary {
   const enabled = routine.enabled !== false;
-  const failed = latestRun?.status === "failed" || latestRun?.status === "error";
+  const failed =
+    latestRun?.status === "failed" || latestRun?.status === "error";
   return {
     id: String(routine.id),
-    name: routine.name || "Untitled routine",
-    detail: latestRun?.errorSummary || routine.description || routineTriggerSummary(routine),
+    name:
+      routine.name ||
+      translate("everyday.routine.untitled", "Unnamed routine tasks"),
+    detail:
+      latestRun?.errorSummary ||
+      routine.description ||
+      routineTriggerSummary(routine),
     enabled,
     lastRunAt: latestRun?.finishedAt || latestRun?.startedAt,
-    status: !enabled ? "Paused" : failed ? "Needs attention" : "Monitoring",
+    status: !enabled
+      ? translate("everyday.routine.paused", "Suspended")
+      : failed
+        ? translate("everyday.routine.needsAttention", "Need attention")
+        : translate("everyday.routine.monitoring", "Monitoring"),
     tone: !enabled ? "quiet" : failed ? "danger" : "success",
   };
 }
@@ -587,9 +982,20 @@ async function loadRoutineSummaries(
     : [];
 
   for (const routine of routineRows || []) {
-    if (workspaceId && routine.workspaceId && routine.workspaceId !== workspaceId) continue;
-    if (summaries.some((summary) => summary.id === String(routine.id))) continue;
-    summaries.push(summarizeRoutine(routine, routineRunFor(String(routine.id), runRows || [])));
+    if (
+      workspaceId &&
+      routine.workspaceId &&
+      routine.workspaceId !== workspaceId
+    )
+      continue;
+    if (summaries.some((summary) => summary.id === String(routine.id)))
+      continue;
+    summaries.push(
+      summarizeRoutine(
+        routine,
+        routineRunFor(String(routine.id), runRows || []),
+      ),
+    );
   }
 
   return summaries.slice(0, 5);
@@ -600,34 +1006,74 @@ export function EverydayAgentPanel({
   settingsMode = false,
   onOpenSettings,
   onOpenMissionControl,
+  onOpenApproval,
+  onOpenAutomationRuns,
   onCreateTask,
+  onOpenComposerDraft,
+  onStartNewWork,
+  tasks = [],
 }: EverydayAgentPanelProps) {
+  const language = useLanguage();
+  const t = translate;
   const [result, setResult] = useState<EverydayAgentProfileResult | null>(null);
   const [receipts, setReceipts] = useState<EverydayActionReceipt[]>([]);
   const [suggestions, setSuggestions] = useState<ProactiveSuggestion[]>([]);
   const [routines, setRoutines] = useState<EverydayRoutineSummary[]>([]);
-  const [memoryCandidateCount, setMemoryCandidateCount] = useState<number | null>(null);
+  const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>(
+    [],
+  );
+  const [memoryCandidateCount, setMemoryCandidateCount] = useState<
+    number | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<EverydayActionPreview | null>(null);
   const [pauseKind, setPauseKind] = useState<PauseKind>("global");
   const [pauseTarget, setPauseTarget] = useState("");
-  const [temporaryModes, setTemporaryModes] = useState<EverydayAgentTemporaryModes>({
-    noMemory: false,
-    disposableBrowser: true,
-    readOnly: false,
-  });
-  const updateTemporaryMode = (mode: keyof EverydayAgentTemporaryModes, checked: boolean) => {
-    setTemporaryModes((current) => updateEverydayAgentTemporaryMode(current, mode, checked));
+  const [temporaryModes, setTemporaryModes] =
+    useState<EverydayAgentTemporaryModes>({
+      noMemory: false,
+      disposableBrowser: true,
+      readOnly: false,
+    });
+  const [showInlineComposer, setShowInlineComposer] = useState(false);
+  const updateTemporaryMode = (
+    mode: keyof EverydayAgentTemporaryModes,
+    checked: boolean,
+  ) => {
+    setTemporaryModes((current) =>
+      updateEverydayAgentTemporaryMode(current, mode, checked),
+    );
   };
   const [previewForm, setPreviewForm] = useState({
-    title: "Triage inbox follow-ups",
-    action: "Draft replies and stage follow-up tasks",
+    title: t(
+      "everyday.previewForm.defaultTitle",
+      "Organize follow-up items in your inbox",
+    ),
+    action: t(
+      "everyday.previewForm.defaultAction",
+      "Draft responses and hold follow-up tasks",
+    ),
     capability: "inbox" as EverydayCapabilityBundle,
     toolName: "mailbox.generateDraft",
     destination: "",
   });
+
+  const loadPendingApprovals = useCallback(async () => {
+    if (!window.electronAPI.listPendingApprovals) {
+      setPendingApprovals([]);
+      return;
+    }
+    const rows = await window.electronAPI
+      .listPendingApprovals(100)
+      .catch(() => []);
+    setPendingApprovals(
+      rows
+        .filter((approval) => approval.status === "pending")
+        .sort((left, right) => left.requestedAt - right.requestedAt),
+    );
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -646,13 +1092,18 @@ export function EverydayAgentPanel({
       setReceipts(receiptRows);
       setRoutines(routineRows);
       if (workspace?.id && window.electronAPI.listSuggestions) {
-        const suggestionRows = await window.electronAPI.listSuggestions(workspace.id);
+        const suggestionRows = await window.electronAPI.listSuggestions(
+          workspace.id,
+        );
         setSuggestions((suggestionRows || []).slice(0, 8));
       } else {
         setSuggestions([]);
       }
       if (window.electronAPI.listCoreMemoryCandidates) {
-        if (isEverydayAgentUuid(profileResult.profile.id) && isEverydayAgentUuid(workspace?.id)) {
+        if (
+          isEverydayAgentUuid(profileResult.profile.id) &&
+          isEverydayAgentUuid(workspace?.id)
+        ) {
           const candidates = await window.electronAPI
             .listCoreMemoryCandidates({
               profileId: profileResult.profile.id,
@@ -667,7 +1118,11 @@ export function EverydayAgentPanel({
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load Everyday Agent");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("everyday.error.load", "Failed to load daily agent"),
+      );
     } finally {
       setLoading(false);
     }
@@ -677,16 +1132,34 @@ export function EverydayAgentPanel({
     void load();
   }, [load]);
 
+  useEffect(() => {
+    void loadPendingApprovals();
+    if (!window.electronAPI.onTaskEvent) return;
+    return window.electronAPI.onTaskEvent((event) => {
+      if (
+        event.type === "approval_requested" ||
+        event.type === "approval_granted" ||
+        event.type === "approval_denied"
+      ) {
+        void loadPendingApprovals();
+      }
+    });
+  }, [loadPendingApprovals]);
+
   const consentRequired = isEverydayAgentConsentRequired(result);
   const enabledCapabilities = result?.compiledPolicy.allowedCapabilities || [];
   const pausedScopes = result?.compiledPolicy.pausedScopes || [];
   const adminBlocked = result?.compiledPolicy.adminPolicy.blocked === true;
   const status = getEverydayAgentStatus(result);
-  const canResume = Boolean(result && !adminBlocked && (status === "paused" || status === "disabled"));
+  const canResume = Boolean(
+    result && !adminBlocked && (status === "paused" || status === "disabled"),
+  );
 
   const connectedApps = useMemo(() => {
     if (!result) return [];
-    return Object.values(result.profile.connectorAllowlists).filter((entry) => entry.enabled);
+    return Object.values(result.profile.connectorAllowlists).filter(
+      (entry) => entry.enabled,
+    );
   }, [result]);
 
   const priorityItems = useMemo(
@@ -702,7 +1175,10 @@ export function EverydayAgentPanel({
   );
 
   const activeSuggestions = useMemo(
-    () => suggestions.filter((suggestion) => !suggestion.dismissed && !suggestion.actedOn).slice(0, 4),
+    () =>
+      suggestions
+        .filter((suggestion) => !suggestion.dismissed && !suggestion.actedOn)
+        .slice(0, 4),
     [suggestions],
   );
 
@@ -727,11 +1203,148 @@ export function EverydayAgentPanel({
     [busy, preview, receipts, status, suggestions],
   );
   const secureLanes = useMemo(
-    () => buildSecureLanes(enabledCapabilities, connectedApps.length, pausedScopes),
+    () =>
+      buildSecureLanes(enabledCapabilities, connectedApps.length, pausedScopes),
     [connectedApps.length, enabledCapabilities, pausedScopes],
   );
+  const dailyFocusItems = useMemo(() => {
+    const attention = priorityItems.find((item) => item.tone !== "success");
+    const suggestion = activeSuggestions[0];
+    const routine = routines.find((item) => item.enabled);
+    return [
+      {
+        id: "focus-priority",
+        index: "01",
+        label: attention
+          ? translate(
+              "generated.components.everydayagentpanel.964.17",
+              "Prioritize processing",
+            )
+          : translate(
+              "generated.components.everydayagentpanel.964.18",
+              "The beginning of today",
+            ),
+        title:
+          attention?.title ||
+          translate(
+            "generated.components.everydayagentpanel.965.19",
+            "Make a clear focus for today",
+          ),
+        detail:
+          attention?.detail ||
+          translate(
+            "generated.components.everydayagentpanel.966.20",
+            "Pick out the most important items from your current workspace and establish actionable next steps.",
+          ),
+        action:
+          attention?.actionKind === "settings"
+            ? !onOpenSettings && status === "disabled"
+              ? translate(
+                  "generated.components.everydayagentpanel.970.21",
+                  "Enable daily assistant",
+                )
+              : translate(
+                  "generated.components.everydayagentpanel.971.22",
+                  "View treatment suggestions",
+                )
+            : attention?.actionKind === "resume"
+              ? translate(
+                  "generated.components.everydayagentpanel.973.23",
+                  "resume operation",
+                )
+              : translate(
+                  "generated.components.everydayagentpanel.974.24",
+                  "Enter the task",
+                ),
+        actionKind:
+          attention?.actionKind === "settings"
+            ? "settings"
+            : attention?.actionKind === "resume"
+              ? "resume"
+              : "mission",
+      },
+      {
+        id: "focus-suggestion",
+        index: "02",
+        label: suggestion
+          ? translate(
+              "generated.components.everydayagentpanel.985.25",
+              "new suggestions",
+            )
+          : translate(
+              "generated.components.everydayagentpanel.985.26",
+              "Assign work",
+            ),
+        title:
+          suggestion?.title ||
+          translate(
+            "generated.components.everydayagentpanel.986.27",
+            "Let your assistant help you sort out today’s to-do list",
+          ),
+        detail: suggestion
+          ? suggestionDescription(suggestion)
+          : translate(
+              "generated.components.everydayagentpanel.989.28",
+              "It creates a trackable job; external actions will still check with you first.",
+            ),
+        action: suggestion
+          ? translate(
+              "generated.components.everydayagentpanel.990.29",
+              "View recommendations",
+            )
+          : translate(
+              "generated.components.everydayagentpanel.990.30",
+              "Start combing",
+            ),
+        actionKind: suggestion ? "suggestion" : "task",
+        suggestion,
+      },
+      {
+        id: "focus-routine",
+        index: "03",
+        label: routine
+          ? translate(
+              "generated.components.everydayagentpanel.997.31",
+              "Routine advancement",
+            )
+          : translate(
+              "generated.components.everydayagentpanel.997.32",
+              "keep pace",
+            ),
+        title:
+          routine?.name ||
+          translate(
+            "generated.components.everydayagentpanel.998.33",
+            "Continuously follow up on work in progress",
+          ),
+        detail:
+          routine?.detail ||
+          translate(
+            "generated.components.everydayagentpanel.999.34",
+            "When work requires ongoing advancement, approval, or delivery, view the complete process in the task.",
+          ),
+        action: routine
+          ? translate(
+              "generated.components.everydayagentpanel.1000.35",
+              "View running records",
+            )
+          : translate(
+              "generated.components.everydayagentpanel.1000.36",
+              "Open task",
+            ),
+        actionKind: routine ? "automation" : "mission",
+      },
+    ] as const;
+  }, [activeSuggestions, onOpenSettings, priorityItems, routines, status]);
+  const approvalItem = pendingApprovals[0] || null;
+  const approvalTask = approvalItem
+    ? tasks.find((task) => task.id === approvalItem.taskId) || null
+    : null;
 
-  const run = async <T,>(label: string, action: () => Promise<T>): Promise<T | null> => {
+  const run = async <T,>(
+    label: string,
+    action: () => Promise<T>,
+  ): Promise<T | null> => {
     setBusy(label);
     setError(null);
     try {
@@ -746,8 +1359,11 @@ export function EverydayAgentPanel({
     }
   };
 
-  const updateCapability = (capability: EverydayCapabilityBundle, enabled: boolean) =>
-    run("update capability", () =>
+  const updateCapability = (
+    capability: EverydayCapabilityBundle,
+    enabled: boolean,
+  ) =>
+    run(t("everyday.busy.updateCapability", "Update capability"), () =>
       window.electronAPI.everydayAgentUpdateProfile({
         capabilitySettings: {
           [capability]: { enabled, paused: false },
@@ -756,36 +1372,52 @@ export function EverydayAgentPanel({
     );
 
   const acceptConsent = (enabled: boolean) =>
-    run(enabled ? "enable Everyday Agent" : "decline Everyday Agent", () =>
-      window.electronAPI.everydayAgentAcceptConsent({
-        enabled,
-        accepted: enabled,
-        workspaceId: workspace?.id,
-      }),
+    run(
+      enabled
+        ? t("everyday.busy.enable", "Enable daily assistant")
+        : t("everyday.busy.decline", "Daily assistant is not enabled yet"),
+      () =>
+        window.electronAPI.everydayAgentAcceptConsent({
+          enabled,
+          accepted: enabled,
+          workspaceId: workspace?.id,
+        }),
     );
 
   const pause = (scope: Partial<EverydayPauseScope>) =>
-    run("pause Everyday Agent", () => window.electronAPI.everydayAgentPause(scope));
+    run(t("everyday.busy.pause", "Pause everyday agents"), () =>
+      window.electronAPI.everydayAgentPause(scope),
+    );
 
   const resume = () =>
-    run("resume Everyday Agent", async () => {
-      let next = result;
-      if (!next?.profile.enabled) {
-        next = await window.electronAPI.everydayAgentUpdateProfile({ enabled: true });
-      }
-      if (next?.compiledPolicy.pausedScopes.length || next?.profile.pauseScopes.length) {
-        next = await window.electronAPI.everydayAgentClearData({ pauseScopes: true });
-      }
-      return next;
-    });
+    run(
+      t("everyday.busy.resume", "Restoring everyday intelligence"),
+      async () => {
+        let next = result;
+        if (!next?.profile.enabled) {
+          next = await window.electronAPI.everydayAgentUpdateProfile({
+            enabled: true,
+          });
+        }
+        if (
+          next?.compiledPolicy.pausedScopes.length ||
+          next?.profile.pauseScopes.length
+        ) {
+          next = await window.electronAPI.everydayAgentClearData({
+            pauseScopes: true,
+          });
+        }
+        return next;
+      },
+    );
 
   const revokeCapability = (capability: EverydayCapabilityBundle) =>
-    run("revoke capability", () =>
+    run(t("everyday.busy.revokeCapability", "Undo ability"), () =>
       window.electronAPI.everydayAgentRevokeCapability(capability),
     );
 
   const clearActivity = () =>
-    run("clear Everyday Agent data", () =>
+    run(t("everyday.busy.clearData", "Clear daily agent data"), () =>
       window.electronAPI.everydayAgentClearData({
         receipts: true,
         previews: true,
@@ -795,7 +1427,7 @@ export function EverydayAgentPanel({
     );
 
   const deleteLocalAgentData = () =>
-    run("delete local Everyday Agent data", () =>
+    run(t("everyday.busy.deleteData", "Delete local daily agent data"), () =>
       window.electronAPI.everydayAgentClearData({
         receipts: true,
         previews: true,
@@ -810,38 +1442,64 @@ export function EverydayAgentPanel({
     );
 
   const createPreview = async () => {
-    const created = await run("preview action", () =>
-      window.electronAPI.everydayAgentPreviewAction({
-        title: previewForm.title,
-        action: previewForm.action,
-        capability: previewForm.capability,
-        toolName: previewForm.toolName,
-        workspaceId: workspace?.id,
-        destination: previewForm.destination || undefined,
-        sourceEvidence: ["Everyday Agent console preview"],
-        proposedMutation: previewForm.action,
-      }),
+    const created = await run(
+      t("everyday.busy.previewAction", "Preview action"),
+      () =>
+        window.electronAPI.everydayAgentPreviewAction({
+          title: previewForm.title,
+          action: previewForm.action,
+          capability: previewForm.capability,
+          toolName: previewForm.toolName,
+          workspaceId: workspace?.id,
+          destination: previewForm.destination || undefined,
+          sourceEvidence: [
+            t("everyday.source.consolePreview", "Daily agent console preview"),
+          ],
+          proposedMutation: previewForm.action,
+        }),
     );
     if (created) setPreview(created);
   };
 
-  const previewSuggestion = async (suggestion: ProactiveSuggestion, trustPattern = false) => {
+  const previewSuggestion = async (
+    suggestion: ProactiveSuggestion,
+    trustPattern = false,
+  ) => {
     const capability = inferSuggestionCapability(suggestion);
-    const created = await run(trustPattern ? "preview trusted pattern" : "preview suggestion", () =>
-      window.electronAPI.everydayAgentPreviewAction({
-        title: trustPattern ? `Trust pattern: ${suggestion.title}` : suggestion.title,
-        action: trustPattern
-          ? `Promote this accepted suggestion into a scoped trusted pattern: ${suggestionDescription(suggestion)}`
-          : suggestionDescription(suggestion),
-        capability,
-        toolName: trustPattern ? "workflow.promoteTrustedPattern" : "workflow.previewSuggestion",
-        workspaceId: suggestion.workspaceId || workspace?.id,
-        destination: suggestion.sourceEntity,
-        sourceEvidence: [suggestion.description],
-        proposedMutation: trustPattern
-          ? "Create a scoped trusted pattern after approval"
-          : suggestionDescription(suggestion),
-      }),
+    const created = await run(
+      trustPattern
+        ? t("everyday.busy.previewTrustedPattern", "Preview trusted mode")
+        : t("everyday.busy.previewSuggestion", "Preview suggestions"),
+      () =>
+        window.electronAPI.everydayAgentPreviewAction({
+          title: trustPattern
+            ? t("everyday.preview.trustPatternTitle", "Trusted mode: {title}", {
+                title: suggestion.title,
+              })
+            : suggestion.title,
+          action: trustPattern
+            ? t(
+                "everyday.preview.promoteTrustedPattern",
+                "Promote this accepted suggestion to scoped trusted mode: {description}",
+                {
+                  description: suggestionDescription(suggestion),
+                },
+              )
+            : suggestionDescription(suggestion),
+          capability,
+          toolName: trustPattern
+            ? "workflow.promoteTrustedPattern"
+            : "workflow.previewSuggestion",
+          workspaceId: suggestion.workspaceId || workspace?.id,
+          destination: suggestion.sourceEntity,
+          sourceEvidence: [suggestion.description],
+          proposedMutation: trustPattern
+            ? t(
+                "everyday.preview.trustedPatternMutation",
+                "Create scoped trusted schema after approval",
+              )
+            : suggestionDescription(suggestion),
+        }),
     );
     if (created) setPreview(created);
   };
@@ -851,45 +1509,83 @@ export function EverydayAgentPanel({
       onOpenSettings?.();
       return;
     }
-    const created = await run("preview recipe", () =>
-      window.electronAPI.everydayAgentPreviewAction({
-        title: recipe.title,
-        action: recipe.prompt,
-        capability: recipe.capability,
-        toolName: "everyday.recipe.preview",
-        workspaceId: workspace?.id,
-        sourceEvidence: recipe.surfaces,
-        proposedMutation: temporaryModes.readOnly
-          ? `Run read-only setup for recipe: ${recipe.description}`
-          : recipe.prompt,
-        metadata: {
-          recipeId: recipe.id,
-          temporaryModes,
-        },
-      }),
+    const recipeTitle = t(`everyday.recipe.${recipe.id}.title`, recipe.title);
+    const recipeDescription = t(
+      `everyday.recipe.${recipe.id}.description`,
+      recipe.description,
+    );
+    const recipePrompt = t(
+      `everyday.recipe.${recipe.id}.prompt`,
+      recipe.prompt,
+    );
+    const created = await run(
+      t("everyday.busy.previewRecipe", "Preview recipe"),
+      () =>
+        window.electronAPI.everydayAgentPreviewAction({
+          title: recipeTitle,
+          action: recipePrompt,
+          capability: recipe.capability,
+          toolName: "everyday.recipe.preview",
+          workspaceId: workspace?.id,
+          sourceEvidence: recipe.surfaces.map(surfaceLabel),
+          proposedMutation: temporaryModes.readOnly
+            ? t(
+                "everyday.preview.readOnlyRecipe",
+                "Run recipe settings in read-only mode: {description}",
+                {
+                  description: recipeDescription,
+                },
+              )
+            : recipePrompt,
+          metadata: {
+            recipeId: recipe.id,
+            temporaryModes,
+          },
+        }),
     );
     if (created) setPreview(created);
   };
 
   const approvePreview = async () => {
     if (!preview) return;
-    const receipt = await run("approve preview", () =>
-      window.electronAPI.everydayAgentApproveAction({
-        previewId: preview.id,
-      }),
+    const receipt = await run(
+      t("everyday.busy.approvePreview", "Approve preview"),
+      () =>
+        window.electronAPI.everydayAgentApproveAction({
+          previewId: preview.id,
+        }),
     );
     if (receipt) setPreview(null);
   };
 
   const startSuggestion = async (suggestion: ProactiveSuggestion) => {
-    const prompt = suggestion.actionPrompt || suggestion.description;
-    const suggestionWorkspaceId = suggestion.workspaceId;
-    if (suggestionWorkspaceId && window.electronAPI.actOnSuggestion) {
-      await run("start suggestion", () =>
-        window.electronAPI.actOnSuggestion(suggestionWorkspaceId, suggestion.id),
+    const prompt = (suggestion.actionPrompt || suggestion.description).trim();
+    if (!prompt || !onOpenComposerDraft) return;
+    await Promise.resolve(onOpenComposerDraft(prompt, workspace));
+  };
+
+  const handleDailyFocusAction = (item: (typeof dailyFocusItems)[number]) => {
+    if (item.actionKind === "settings") {
+      if (onOpenSettings) return onOpenSettings();
+      if (status === "disabled") return void acceptConsent(true);
+      return onOpenMissionControl?.();
+    }
+    if (item.actionKind === "resume") return void resume();
+    if (item.actionKind === "suggestion" && item.suggestion)
+      return void startSuggestion(item.suggestion);
+    if (item.actionKind === "automation") {
+      return onOpenAutomationRuns?.() ?? onOpenMissionControl?.();
+    }
+    if (item.actionKind === "task") {
+      return onOpenComposerDraft?.(
+        translate(
+          "generated.components.everydayagentpanel.1205.37",
+          "Organize the unfinished tasks in the current workspace, sort them into three types of output: the most important today, those that can be delegated, and those that need to be confirmed, and give the next step for each item.",
+        ),
+        workspace,
       );
     }
-    onCreateTask?.(suggestion.title, prompt);
+    return onOpenMissionControl?.();
   };
 
   const consentModal = consentRequired && !settingsMode && (
@@ -898,35 +1594,48 @@ export function EverydayAgentPanel({
         <div className="ea-consent-mark">
           <Sparkles size={30} />
         </div>
-        <h2>Enable Everyday Agent</h2>
+        <h2>{t("everyday.consent.title", "Enable daily assistant")}</h2>
         <p>
-          Let CoWork suggest and operate on approved everyday work with visible browser
-          execution, reviewable memory, scoped connectors, and audit-grade receipts.
+          {t(
+            "everyday.consent.description",
+            "Allows NeoWorker to make recommendations and perform actions on approved routines, with all browser executions, memories, connector scopes, and receipts visible and auditable.",
+          )}
         </p>
         <div className="ea-consent-list">
           <div>
             <ShieldCheck size={18} />
-            <span>Data stays local-first unless a connected app action is explicitly approved.</span>
+            <span>
+              {t(
+                "everyday.consent.localFirst",
+                "Data remains local-first unless explicitly approved by the connected application.",
+              )}
+            </span>
           </div>
           <div>
             <Eye size={18} />
             <span>
-              Browser work prefers the visible Browser Workbench. Real-browser attach is
-              off by default.
+              {t(
+                "everyday.consent.browser",
+                "Browser work preferentially uses the visible browser workbench; the real browser add-on is turned off by default.",
+              )}
             </span>
           </div>
           <div>
             <KeyRound size={18} />
             <span>
-              Sends, posts, exports, destructive actions, spending, credentials, and
-              cross-workspace movement always ask first.
+              {t(
+                "everyday.consent.approval",
+                "Send, publish, export, destructive operations, consume, credential and cross-workspace moves always ask first.",
+              )}
             </span>
           </div>
           <div>
             <ReceiptText size={18} />
             <span>
-              Every preview, block, approval, skip, and execution writes a receipt you
-              can inspect or delete.
+              {t(
+                "everyday.consent.receipts",
+                "Each preview, block, approval, skip, and execution writes a receipt that can be checked or deleted.",
+              )}
             </span>
           </div>
         </div>
@@ -937,7 +1646,7 @@ export function EverydayAgentPanel({
             onClick={() => void acceptConsent(false)}
             disabled={Boolean(busy)}
           >
-            No thanks
+            {t("common.noThanks", "No need")}
           </button>
           <button
             type="button"
@@ -945,7 +1654,7 @@ export function EverydayAgentPanel({
             onClick={() => void acceptConsent(true)}
             disabled={Boolean(busy) || adminBlocked}
           >
-            Enable Everyday Agent
+            {t("everyday.action.enable", "Enable daily assistant")}
           </button>
         </div>
       </div>
@@ -956,7 +1665,9 @@ export function EverydayAgentPanel({
     return (
       <main className="main-content everyday-agent-main">
         <div className="everyday-agent-panel">
-          <div className="everyday-agent-loading">Loading Everyday Agent...</div>
+          <div className="everyday-agent-loading">
+            {t("everyday.loading", "Loading daily agents...")}
+          </div>
         </div>
       </main>
     );
@@ -965,32 +1676,62 @@ export function EverydayAgentPanel({
   if (settingsMode) {
     return (
       <main className="main-content everyday-agent-main settings-mode">
-        <div className="everyday-agent-panel">
-          <section className="ea-hero">
+        <div className="everyday-agent-panel ea-policy-workspace">
+          <header className="ea-policy-header">
             <div>
               <div className="ea-kicker">
-                <SettingsIcon size={16} />
-                Everyday Agent
+                <Sparkles size={16} />
+                {t("everyday.title", "Everyday agents")}
               </div>
-              <h1>Everyday Agent Settings</h1>
+              <h1>{t("everyday.settings.title", "Daily agent settings")}</h1>
               <p>
-                Configure capability bundles, scoped pauses, connector access, previews,
-                receipts, and local data controls.
+                {t(
+                  "everyday.settings.description",
+                  "Configure capability packages, limited scopes, and strategies to allow the agent to complete daily tasks safely under your control.",
+                )}
               </p>
             </div>
-            <div className="ea-hero-actions">
-              <span className={`ea-status ${status}`}>{statusLabel(result)}</span>
+            <div className="ea-policy-header-actions">
               <button
                 type="button"
                 className="ea-icon-button"
                 onClick={() => void load()}
-                title="Refresh"
+                title={t("common.refresh", "Refresh")}
                 disabled={Boolean(busy)}
               >
                 <RefreshCw size={16} />
               </button>
+              {canResume ? (
+                <button
+                  type="button"
+                  className="ea-primary-button"
+                  onClick={() => void resume()}
+                  disabled={Boolean(busy)}
+                >
+                  <Play size={16} />
+                  {t("everyday.action.resume", "resume operation")}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="ea-secondary-button"
+                  onClick={() =>
+                    void pause({
+                      kind: "global",
+                      reason: t(
+                        "everyday.pause.reason.settings",
+                        "Pause from daily agent settings",
+                      ),
+                    })
+                  }
+                  disabled={Boolean(busy) || !result?.profile.enabled}
+                >
+                  <PauseCircle size={16} />
+                  {t("everyday.action.pauseAll", "Pause the agent")}
+                </button>
+              )}
             </div>
-          </section>
+          </header>
 
           {error && (
             <div className="ea-alert danger">
@@ -998,488 +1739,570 @@ export function EverydayAgentPanel({
               {error}
             </div>
           )}
-
           {adminBlocked && (
             <div className="ea-alert danger">
               <Ban size={16} />
-              Everyday Agent is blocked by organization policy.
+              {t(
+                "everyday.blockedByPolicy",
+                "Everyday agents have been blocked by organizational policies.",
+              )}
             </div>
           )}
 
-          <section className="ea-settings-summary">
-            <article>
-              <span>State</span>
-              <strong>{statusLabel(result)}</strong>
-            </article>
-            <article>
-              <span>Capabilities</span>
-              <strong>{enabledCapabilities.length} active</strong>
-            </article>
-            <article>
-              <span>Receipts retained</span>
-              <strong>{receipts.length} recent</strong>
-            </article>
-            <article>
-              <span>Memory review</span>
-              <strong>
-                {memoryCandidateCount === null ? "Review-first" : `${memoryCandidateCount} candidates`}
-              </strong>
-            </article>
-          </section>
-
-          <section className="ea-control-row">
-            <button
-              type="button"
-              className="ea-secondary-button"
-              onClick={() =>
-                void pause({
-                  kind: "global",
-                  reason: "Paused from Everyday Agent settings",
-                })
-              }
-              disabled={Boolean(busy) || !result?.profile.enabled}
-            >
-              <PauseCircle size={16} />
-              Pause all
-            </button>
-            <button
-              type="button"
-              className="ea-secondary-button"
-              onClick={() => void resume()}
-              disabled={Boolean(busy) || !canResume}
-            >
-              <RotateCcw size={16} />
-              Resume
-            </button>
-            <button
-              type="button"
-              className="ea-secondary-button danger"
-              onClick={() => void clearActivity()}
-              disabled={Boolean(busy)}
-            >
-              <Trash2 size={16} />
-              Clear activity
-            </button>
-          </section>
-
-          <section className="ea-section">
-            <div className="ea-section-header">
-              <div>
-                <h2>Capability Bundles</h2>
-                <p>
-                  Enabled bundles compile into managed-agent, connector, permission,
-                  workflow, and routine policy.
-                </p>
-              </div>
-            </div>
-            <div className="ea-capability-grid">
-              {EVERYDAY_AGENT_CAPABILITY_BUNDLES.map((bundle) => {
-                const setting = result?.profile.capabilitySettings[bundle.id];
-                const blocked =
-                  result?.compiledPolicy.adminPolicy.blockedBundles.includes(bundle.id);
-                const revoked = result?.profile.revokedCapabilities.includes(bundle.id);
-                const active = enabledCapabilities.includes(bundle.id);
-                return (
-                  <article
-                    key={bundle.id}
-                    className={`ea-capability-card ${active ? "active" : ""} ${blocked || revoked ? "blocked" : ""}`}
-                  >
-                    <div className="ea-card-topline">
-                      <div>
-                        <h3>{bundle.label}</h3>
-                        <p>{bundle.description}</p>
-                      </div>
-                      <label className="ea-switch">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(setting?.enabled)}
-                          disabled={Boolean(blocked || revoked || busy || adminBlocked)}
-                          onChange={(event) =>
-                            void updateCapability(bundle.id, event.currentTarget.checked)
-                          }
-                        />
-                        <span />
-                      </label>
-                    </div>
-                    <div className="ea-tags">
-                      {bundle.surfaces.slice(0, 3).map((surface) => (
-                        <span key={surface}>{surface}</span>
-                      ))}
-                    </div>
-                    <div className="ea-card-actions">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void pause({
-                            kind: "capability",
-                            capability: bundle.id,
-                            reason: "Paused capability from Everyday Agent settings",
-                          })
-                        }
-                        disabled={Boolean(busy || blocked || revoked)}
-                      >
-                        Pause
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void revokeCapability(bundle.id)}
-                        disabled={Boolean(busy || revoked)}
-                      >
-                        Revoke
-                      </button>
-                    </div>
-                    {(blocked || revoked) && (
-                      <div className="ea-card-footnote">
-                        {blocked ? "Blocked by admin policy" : "Revoked locally"}
-                      </div>
+          <div className="ea-policy-layout">
+            <aside className="ea-policy-rail">
+              <section className="ea-policy-status-card">
+                <span className={`ea-policy-presence ${status}`} />
+                <div>
+                  <span className="ea-policy-label">
+                    {translate(
+                      "generated.components.everydayagentpanel.1369.38",
+                      "Agent state",
                     )}
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="ea-two-column">
-            <div className="ea-section">
-              <div className="ea-section-header">
-                <h2>Scoped Pauses</h2>
-              </div>
-              <div className="ea-pause-builder">
-                <select
-                  value={pauseKind}
-                  onChange={(event) => setPauseKind(event.currentTarget.value as PauseKind)}
-                >
-                  {PAUSE_KINDS.map((kind) => (
-                    <option key={kind} value={kind}>
-                      {kind.replace("_", " ")}
-                    </option>
-                  ))}
-                </select>
-                {pauseKind === "capability" ? (
-                  <select
-                    value={pauseTarget}
-                    onChange={(event) => setPauseTarget(event.currentTarget.value)}
-                  >
-                    <option value="">Select capability</option>
-                    {EVERYDAY_AGENT_CAPABILITY_BUNDLES.map((bundle) => (
-                      <option key={bundle.id} value={bundle.id}>
-                        {bundle.label}
-                      </option>
-                    ))}
-                  </select>
-                ) : pauseKind !== "global" ? (
-                  <input
-                    value={pauseTarget}
-                    onChange={(event) => setPauseTarget(event.currentTarget.value)}
-                    placeholder={`${pauseKind} id`}
-                  />
-                ) : null}
-                <button
-                  type="button"
-                  className="ea-secondary-button"
-                  onClick={() =>
-                    void pause({
-                      kind: pauseKind,
-                      capability:
-                        pauseKind === "capability"
-                          ? (pauseTarget as EverydayCapabilityBundle)
-                          : undefined,
-                      targetId:
-                        pauseKind !== "global" && pauseKind !== "capability"
-                          ? pauseTarget
-                          : undefined,
-                      reason: "Scoped pause from Everyday Agent settings",
-                    })
-                  }
-                  disabled={
-                    Boolean(busy) ||
-                    (pauseKind !== "global" && pauseTarget.trim().length === 0)
-                  }
-                >
-                  Add pause
-                </button>
-              </div>
-              <div className="ea-list">
-                {pausedScopes.length === 0 ? (
-                  <div className="ea-empty">No active pauses</div>
-                ) : (
-                  pausedScopes.map((scope) => (
-                    <div className="ea-list-item" key={scope.id || `${scope.kind}-${scope.pausedAt}`}>
-                      <PauseCircle size={16} />
-                      <div>
-                        <strong>
-                          {scope.kind}
-                          {scope.capability ? `: ${capabilityLabel(scope.capability)}` : ""}
-                          {scope.targetId ? `: ${scope.targetId}` : ""}
-                        </strong>
-                        <span>
-                          {scope.reason || "Manual pause"} - {formatTime(scope.pausedAt)}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="ea-section">
-              <div className="ea-section-header">
-                <h2>Connected Apps</h2>
-              </div>
-              <div className="ea-list">
-                {connectedApps.length === 0 ? (
-                  <div className="ea-empty">No connector allowlists yet</div>
-                ) : (
-                  connectedApps.map((entry) => (
-                    <div className="ea-list-item" key={entry.connectorId}>
-                      <CheckCircle2 size={16} />
-                      <div>
-                        <strong>{entry.connectorId}</strong>
-                        <span>{entry.accountIds?.length || 0} accounts scoped</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </section>
-
-          <section className="ea-two-column">
-            <div className="ea-section">
-              <div className="ea-section-header">
-                <h2>Run Defaults</h2>
-              </div>
-              <label className="ea-check-row">
-                <input
-                  type="checkbox"
-                  checked={temporaryModes.noMemory}
-                  onChange={(event) =>
-                    updateTemporaryMode("noMemory", event.currentTarget.checked)
-                  }
-                />
-                <span>
-                  <strong>Run without memory</strong>
-                  <small>No memory candidates or prompt-visible learning for sensitive runs.</small>
-                </span>
-              </label>
-              <label className="ea-check-row">
-                <input
-                  type="checkbox"
-                  checked={temporaryModes.disposableBrowser}
-                  onChange={(event) =>
-                    updateTemporaryMode("disposableBrowser", event.currentTarget.checked)
-                  }
-                />
-                <span>
-                  <strong>Disposable browser</strong>
-                  <small>Prefer an ephemeral visible browser profile for browser work.</small>
-                </span>
-              </label>
-              <label className="ea-check-row">
-                <input
-                  type="checkbox"
-                  checked={temporaryModes.readOnly}
-                  onChange={(event) =>
-                    updateTemporaryMode("readOnly", event.currentTarget.checked)
-                  }
-                />
-                <span>
-                  <strong>Read-only until approved</strong>
-                  <small>Convert recipe starts into dry-run previews.</small>
-                </span>
-              </label>
-            </div>
-
-            <div className="ea-section">
-              <div className="ea-section-header">
-                <h2>Secure Lanes</h2>
-              </div>
-              <div className="ea-lane-list">
-                {secureLanes.map((lane) => (
-                  <article className={`ea-lane ${lane.status}`} key={lane.id}>
-                    <div>
-                      <strong>{lane.title}</strong>
-                      <span>{lane.description}</span>
-                    </div>
-                    <span>{lane.status}</span>
-                  </article>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <section className="ea-section">
-            <div className="ea-section-header">
-              <div>
-                <h2>Recipe Gallery</h2>
-                <p>Prebuilt review-first routines you can preview before trusting.</p>
-              </div>
-            </div>
-            <div className="ea-recipe-list ea-recipe-grid">
-              {EVERYDAY_AGENT_RECIPES.map((recipe) => {
-                const enabled = enabledCapabilities.includes(recipe.capability);
-                return (
-                  <article className={`ea-recipe ${enabled ? "" : "disabled"}`} key={recipe.id}>
-                    <div>
-                      <strong>{recipe.title}</strong>
-                      <span>{recipe.description}</span>
-                      <div className="ea-plan-meta">
-                        <span>{capabilityLabel(recipe.capability)}</span>
-                        <span>{RISK_LABELS[recipe.riskClass]}</span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="ea-secondary-button"
-                      onClick={() => void previewRecipe(recipe)}
-                      disabled={Boolean(busy)}
-                    >
-                      {enabled ? "Preview" : "Configure"}
-                    </button>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="ea-two-column">
-            <div className="ea-section">
-              <div className="ea-section-header">
-                <h2>Action Preview</h2>
-              </div>
-              <div className="ea-preview-form">
-                <input
-                  value={previewForm.title}
-                  onChange={(event) =>
-                    setPreviewForm((current) => ({ ...current, title: event.currentTarget.value }))
-                  }
-                  placeholder="Action title"
-                />
-                <textarea
-                  value={previewForm.action}
-                  onChange={(event) =>
-                    setPreviewForm((current) => ({ ...current, action: event.currentTarget.value }))
-                  }
-                  placeholder="Proposed action"
-                />
-                <div className="ea-inline-fields">
-                  <select
-                    value={previewForm.capability}
-                    onChange={(event) =>
-                      setPreviewForm((current) => ({
-                        ...current,
-                        capability: event.currentTarget.value as EverydayCapabilityBundle,
-                      }))
-                    }
-                  >
-                    {EVERYDAY_AGENT_CAPABILITY_BUNDLES.map((bundle) => (
-                      <option key={bundle.id} value={bundle.id}>
-                        {bundle.label}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    value={previewForm.toolName}
-                    onChange={(event) =>
-                      setPreviewForm((current) => ({
-                        ...current,
-                        toolName: event.currentTarget.value,
-                      }))
-                    }
-                    placeholder="Tool"
-                  />
+                  </span>
+                  <strong>{statusLabel(result)}</strong>
+                  <p>
+                    {status === "enabled"
+                      ? translate(
+                          "generated.components.everydayagentpanel.1372.39",
+                          "Core capabilities are operating according to strategy",
+                        )
+                      : translate(
+                          "generated.components.everydayagentpanel.1372.40",
+                          "After resuming operation, it will be executed according to the current policy.",
+                        )}
+                  </p>
                 </div>
-                <input
-                  value={previewForm.destination}
-                  onChange={(event) =>
-                    setPreviewForm((current) => ({
-                      ...current,
-                      destination: event.currentTarget.value,
-                    }))
-                  }
-                  placeholder="Destination/account/channel"
-                />
-                <button
-                  type="button"
-                  className="ea-primary-button"
-                  onClick={() => void createPreview()}
-                  disabled={Boolean(busy || !previewForm.title || !previewForm.action)}
-                >
-                  Preview action
-                </button>
-              </div>
-              {preview && (
-                <div className="ea-preview-card">
-                  <div className="ea-card-topline">
-                    <div>
-                      <h3>{preview.title}</h3>
-                      <p>{preview.proposedMutation}</p>
-                    </div>
-                    <span className={`ea-risk ${riskTone(preview.riskClass)}`}>
-                      {RISK_LABELS[preview.riskClass]}
+                <div className="ea-policy-rail-actions">
+                  <button
+                    type="button"
+                    className="ea-secondary-button"
+                    onClick={() =>
+                      void pause({
+                        kind: "global",
+                        reason: t(
+                          "everyday.pause.reason.settings",
+                          "Pause from daily agent settings",
+                        ),
+                      })
+                    }
+                    disabled={Boolean(busy) || !result?.profile.enabled}
+                  >
+                    <PauseCircle size={15} />
+                    {translate(
+                      "generated.components.everydayagentpanel.1388.41",
+                      "pause",
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="ea-secondary-button"
+                    onClick={() => void resume()}
+                    disabled={Boolean(busy) || !canResume}
+                  >
+                    <RotateCcw size={15} />
+                    {translate(
+                      "generated.components.everydayagentpanel.1397.42",
+                      "restore",
+                    )}
+                  </button>
+                </div>
+              </section>
+              <section className="ea-policy-activity">
+                <div className="ea-policy-section-title">
+                  <h2>
+                    {translate(
+                      "generated.components.everydayagentpanel.1403.43",
+                      "activity record",
+                    )}
+                  </h2>
+                  <span>
+                    {receipts.length}{" "}
+                    {translate(
+                      "generated.components.everydayagentpanel.1404.44",
+                      "Article",
+                    )}
+                  </span>
+                </div>
+                {recentReceipts.length === 0 ? (
+                  <div className="ea-policy-empty">
+                    {translate(
+                      "generated.components.everydayagentpanel.1407.45",
+                      "There is no auditable agent activity yet.",
+                    )}
+                  </div>
+                ) : (
+                  recentReceipts.slice(0, 5).map((receipt) => (
+                    <article
+                      className="ea-policy-activity-item"
+                      key={receipt.id}
+                    >
+                      <span className={`ea-activity-dot ${receipt.status}`} />
+                      <div>
+                        <time>{formatTime(receipt.createdAt)}</time>
+                        <strong>{receipt.title}</strong>
+                        <p>{receipt.summary}</p>
+                        <span>{capabilityLabel(receipt.capability)}</span>
+                      </div>
+                    </article>
+                  ))
+                )}
+              </section>
+            </aside>
+
+            <div className="ea-policy-content">
+              <section className="ea-policy-editor">
+                <div className="ea-policy-editor-copy">
+                  <div className="ea-policy-section-title">
+                    <h2>
+                      {translate(
+                        "generated.components.everydayagentpanel.1428.46",
+                        "Current running strategy",
+                      )}
+                    </h2>
+                    <span className="ea-policy-published">
+                      {translate(
+                        "generated.components.everydayagentpanel.1429.47",
+                        "Already effective",
+                      )}
                     </span>
                   </div>
-                  <div className="ea-preview-details">
-                    <span>Approval: {preview.approvalRequired ? "Required" : "Not required"}</span>
-                    <span>Status: {preview.status}</span>
-                    <span>Idempotency: {preview.idempotencyKey}</span>
-                  </div>
-                  <p className="ea-preview-reason">{preview.approvalReason}</p>
-                  <button
-                    type="button"
-                    className="ea-primary-button"
-                    onClick={() => void approvePreview()}
-                    disabled={Boolean(busy || preview.status === "blocked")}
-                  >
-                    Approve preview
-                  </button>
+                  <p>
+                    {translate(
+                      "generated.components.everydayagentpanel.1432.48",
+                      "Prioritize clear, reversible and authorized work; seek your confirmation first for operations that may affect external systems or are irreversible. After completion, auditable results and evidence will be retained.",
+                    )}
+                  </p>
                 </div>
-              )}
-            </div>
+                <div className="ea-policy-controls">
+                  <label>
+                    <span>
+                      {translate(
+                        "generated.components.everydayagentpanel.1437.49",
+                        "operating mode",
+                      )}
+                    </span>
+                    <select defaultValue="balanced">
+                      <option value="balanced">
+                        {translate(
+                          "generated.components.everydayagentpanel.1439.50",
+                          "Balanced (recommended)",
+                        )}
+                      </option>
+                      <option value="careful">
+                        {translate(
+                          "generated.components.everydayagentpanel.1440.51",
+                          "Caution first",
+                        )}
+                      </option>
+                      <option value="efficient">
+                        {translate(
+                          "generated.components.everydayagentpanel.1441.52",
+                          "Efficiency first",
+                        )}
+                      </option>
+                    </select>
+                    <small>
+                      {translate(
+                        "generated.components.everydayagentpanel.1443.53",
+                        "Strike a balance between efficiency and validation",
+                      )}
+                    </small>
+                  </label>
+                  <label>
+                    <span>
+                      {translate(
+                        "generated.components.everydayagentpanel.1446.54",
+                        "Confirm strategy",
+                      )}
+                    </span>
+                    <select defaultValue="sensitive">
+                      <option value="sensitive">
+                        {translate(
+                          "generated.components.everydayagentpanel.1448.55",
+                          "Ask when it may affect",
+                        )}
+                      </option>
+                      <option value="always">
+                        {translate(
+                          "generated.components.everydayagentpanel.1449.56",
+                          "Ask before each operation",
+                        )}
+                      </option>
+                      <option value="trusted">
+                        {translate(
+                          "generated.components.everydayagentpanel.1450.57",
+                          "Ask only for sensitive operations",
+                        )}
+                      </option>
+                    </select>
+                    <small>
+                      {translate(
+                        "generated.components.everydayagentpanel.1452.58",
+                        "You can ask for confirmation at any time before operating",
+                      )}
+                    </small>
+                  </label>
+                  <label>
+                    <span>
+                      {translate(
+                        "generated.components.everydayagentpanel.1455.59",
+                        "Effective scope",
+                      )}
+                    </span>
+                    <select defaultValue="workspace">
+                      <option value="workspace">
+                        {translate(
+                          "generated.components.everydayagentpanel.1457.60",
+                          "personal workspace",
+                        )}
+                      </option>
+                      <option value="project">
+                        {translate(
+                          "generated.components.everydayagentpanel.1458.61",
+                          "Current project",
+                        )}
+                      </option>
+                    </select>
+                    <small>
+                      {translate(
+                        "generated.components.everydayagentpanel.1460.62",
+                        "Only effective in authorized space",
+                      )}
+                    </small>
+                  </label>
+                </div>
+                <div className="ea-policy-toggles">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={temporaryModes.readOnly}
+                      onChange={(event) =>
+                        updateTemporaryMode(
+                          "readOnly",
+                          event.currentTarget.checked,
+                        )
+                      }
+                    />
+                    <span>
+                      <strong>
+                        {translate(
+                          "generated.components.everydayagentpanel.1473.63",
+                          "Read only until approved",
+                        )}
+                      </strong>
+                      <small>
+                        {translate(
+                          "generated.components.everydayagentpanel.1474.64",
+                          "Generate preview first, do not write directly to external system",
+                        )}
+                      </small>
+                    </span>
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={temporaryModes.noMemory}
+                      onChange={(event) =>
+                        updateTemporaryMode(
+                          "noMemory",
+                          event.currentTarget.checked,
+                        )
+                      }
+                    />
+                    <span>
+                      <strong>
+                        {translate(
+                          "generated.components.everydayagentpanel.1486.65",
+                          "Sensitive tasks are not written to memory",
+                        )}
+                      </strong>
+                      <small>
+                        {translate(
+                          "generated.components.everydayagentpanel.1487.66",
+                          "Do not generate visible memory candidates",
+                        )}
+                      </small>
+                    </span>
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={temporaryModes.disposableBrowser}
+                      onChange={(event) =>
+                        updateTemporaryMode(
+                          "disposableBrowser",
+                          event.currentTarget.checked,
+                        )
+                      }
+                    />
+                    <span>
+                      <strong>
+                        {translate(
+                          "generated.components.everydayagentpanel.1499.67",
+                          "disposable browser",
+                        )}
+                      </strong>
+                      <small>
+                        {translate(
+                          "generated.components.everydayagentpanel.1500.68",
+                          "Online tasks use temporary browser configuration",
+                        )}
+                      </small>
+                    </span>
+                  </label>
+                </div>
+                <aside className="ea-policy-overview">
+                  <h3>
+                    {translate(
+                      "generated.components.everydayagentpanel.1505.69",
+                      "Strategy overview",
+                    )}
+                  </h3>
+                  <div>
+                    <Sparkles size={16} />
+                    <span>
+                      {translate(
+                        "generated.components.everydayagentpanel.1509.70",
+                        "Automatic execution",
+                      )}
+                      <strong>
+                        {enabledCapabilities.length}{" "}
+                        {translate(
+                          "generated.components.everydayagentpanel.1509.71",
+                          "capability is enabled",
+                        )}
+                      </strong>
+                    </span>
+                  </div>
+                  <div>
+                    <Clock size={16} />
+                    <span>
+                      {translate(
+                        "generated.components.everydayagentpanel.1515.72",
+                        "Need confirmation",
+                      )}
+                      <strong>
+                        {temporaryModes.readOnly
+                          ? translate(
+                              "generated.components.everydayagentpanel.1517.73",
+                              "All external writes",
+                            )
+                          : translate(
+                              "generated.components.everydayagentpanel.1517.74",
+                              "When it may affect external systems",
+                            )}
+                      </strong>
+                    </span>
+                  </div>
+                  <div>
+                    <ShieldCheck size={16} />
+                    <span>
+                      {translate(
+                        "generated.components.everydayagentpanel.1524.75",
+                        "restricted range",
+                      )}
+                      <strong>
+                        {connectedApps.length
+                          ? translate(
+                              "everydayAgent.authorizedConnectorCount",
+                              "{count} authorized connectors",
+                              { count: connectedApps.length },
+                            )
+                          : translate(
+                              "generated.components.everydayagentpanel.1528.76",
+                              "personal workspace",
+                            )}
+                      </strong>
+                    </span>
+                  </div>
+                </aside>
+              </section>
 
-            <div className="ea-section">
-              <div className="ea-section-header">
-                <h2>Data Controls</h2>
-              </div>
-              <div className="ea-list">
-                <div className="ea-list-item">
-                  <ReceiptText size={16} />
+              <section className="ea-capability-map-section">
+                <div className="ea-section-header">
                   <div>
-                    <strong>Receipts</strong>
-                    <span>Every preview, block, skip, approval, and execution is inspectable.</span>
+                    <h2>
+                      {translate(
+                        "generated.components.everydayagentpanel.1538.77",
+                        "Capability map",
+                      )}
+                    </h2>
+                    <p>
+                      {translate(
+                        "generated.components.everydayagentpanel.1539.78",
+                        "Use clear boundaries to manage what your agent can read, create, and execute.",
+                      )}
+                    </p>
                   </div>
+                  <span className="ea-map-count">
+                    {enabledCapabilities.length} /{" "}
+                    {EVERYDAY_AGENT_CAPABILITY_BUNDLES.length}{" "}
+                    {translate(
+                      "generated.components.everydayagentpanel.1542.79",
+                      "Enabled",
+                    )}
+                  </span>
                 </div>
-                <div className="ea-list-item">
-                  <FileClock size={16} />
-                  <div>
-                    <strong>Memory policy</strong>
-                    <span>Memory candidates remain review-first by default.</span>
-                  </div>
+                <div className="ea-capability-map">
+                  {CAPABILITY_MAP_GROUPS.map((group) => (
+                    <section
+                      className="ea-capability-map-column"
+                      key={group.id}
+                    >
+                      <header>
+                        <h3>{group.title}</h3>
+                        <p>{group.description}</p>
+                      </header>
+                      {group.bundles.map((capability) => {
+                        const bundle = EVERYDAY_AGENT_CAPABILITY_BUNDLES.find(
+                          (item) => item.id === capability,
+                        );
+                        if (!bundle) return null;
+                        const setting =
+                          result?.profile.capabilitySettings[capability];
+                        const blocked =
+                          result?.compiledPolicy.adminPolicy.blockedBundles.includes(
+                            capability,
+                          );
+                        const revoked =
+                          result?.profile.revokedCapabilities.includes(
+                            capability,
+                          );
+                        return (
+                          <div
+                            className={`ea-map-row ${blocked || revoked ? "is-blocked" : ""}`}
+                            key={capability}
+                          >
+                            <span className="ea-map-icon">
+                              <CapabilityMapIcon capability={capability} />
+                            </span>
+                            <div>
+                              <strong>{capabilityLabel(capability)}</strong>
+                              <small>
+                                {capabilityDescription(
+                                  capability,
+                                  bundle.description,
+                                )}
+                              </small>
+                              <span className="ea-map-scope">
+                                {bundle.surfaces
+                                  .slice(0, 2)
+                                  .map(surfaceLabel)
+                                  .join(" · ")}
+                              </span>
+                            </div>
+                            <label className="ea-switch">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(setting?.enabled)}
+                                disabled={Boolean(
+                                  blocked || revoked || busy || adminBlocked,
+                                )}
+                                onChange={(event) =>
+                                  void updateCapability(
+                                    capability,
+                                    event.currentTarget.checked,
+                                  )
+                                }
+                              />
+                              <span />
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </section>
+                  ))}
                 </div>
-                <div className="ea-list-item">
-                  <ShieldCheck size={16} />
+              </section>
+
+              <section className="ea-audit-section">
+                <div className="ea-section-header">
                   <div>
-                    <strong>Consent</strong>
-                    <span>Accepted version {result?.profile.acceptedConsentVersion || 0}</span>
-                  </div>
-                </div>
-                <div className="ea-list-item">
-                  <Database size={16} />
-                  <div>
-                    <strong>Local deletion</strong>
-                    <span>Delete receipts, previews, trust patterns, memory candidates, connector summaries, and browser metadata.</span>
+                    <h2>
+                      {translate(
+                        "generated.components.everydayagentpanel.1598.80",
+                        "Audit log",
+                      )}
+                    </h2>
+                    <p>
+                      {translate(
+                        "generated.components.everydayagentpanel.1599.81",
+                        "Every review, suggestion and execution leaves an auditable record.",
+                      )}
+                    </p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => void deleteLocalAgentData()}
+                    className="ea-secondary-button danger"
+                    onClick={() => void clearActivity()}
                     disabled={Boolean(busy)}
                   >
-                    Delete local data
+                    <Trash2 size={15} />
+                    {translate(
+                      "generated.components.everydayagentpanel.1608.82",
+                      "Clear activity",
+                    )}
                   </button>
                 </div>
-              </div>
+                <div className="ea-audit-table" role="table">
+                  <div className="ea-audit-head" role="row">
+                    <span>
+                      {translate(
+                        "generated.components.everydayagentpanel.1613.83",
+                        "time",
+                      )}
+                    </span>
+                    <span>
+                      {translate(
+                        "generated.components.everydayagentpanel.1614.84",
+                        "Operation",
+                      )}
+                    </span>
+                    <span>
+                      {translate(
+                        "generated.components.everydayagentpanel.1615.85",
+                        "Source",
+                      )}
+                    </span>
+                    <span>
+                      {translate(
+                        "generated.components.everydayagentpanel.1616.86",
+                        "result",
+                      )}
+                    </span>
+                    <span>
+                      {translate(
+                        "generated.components.everydayagentpanel.1617.87",
+                        "Status",
+                      )}
+                    </span>
+                  </div>
+                  {recentReceipts.length === 0 ? (
+                    <div className="ea-policy-empty">
+                      {translate(
+                        "generated.components.everydayagentpanel.1621.88",
+                        "There is no audit record yet. After the agent is run, the process and results will be displayed here.",
+                      )}
+                    </div>
+                  ) : (
+                    recentReceipts.map((receipt) => (
+                      <div className="ea-audit-row" role="row" key={receipt.id}>
+                        <time>{formatTime(receipt.createdAt)}</time>
+                        <strong>{receipt.title}</strong>
+                        <span>{capabilityLabel(receipt.capability)}</span>
+                        <span>{receipt.summary}</span>
+                        <span className={`ea-audit-status ${receipt.status}`}>
+                          <CheckCircle2 size={14} />
+                          {receipt.status}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
             </div>
-          </section>
+          </div>
         </div>
       </main>
     );
@@ -1488,63 +2311,72 @@ export function EverydayAgentPanel({
   return (
     <main className="main-content everyday-agent-main">
       <div className="everyday-agent-panel ea-console">
-        <section className="ea-console-header">
-          <div>
-            <div className="ea-kicker">
-              <Sparkles size={16} />
-              Everyday Agent
-            </div>
-            <h1>Everyday Agent</h1>
-            <p>
-              Supervise the operator: pending approvals, active work, trusted routines,
-              recent receipts, and intervention controls.
-            </p>
-          </div>
-          <div className="ea-console-actions">
-            <span className={`ea-status ${status}`}>{statusLabel(result)}</span>
-            {canResume ? (
+        <NeoWorkerPageHeader
+          className="ea-console-header"
+          title={t("everyday.proactive.title", "daily assistant")}
+          description={t(
+            "everyday.proactive.description",
+            "It organizes today's important items, makes suggestions, and requests confirmation. The created job will start executing and enter the task list.",
+          )}
+          icon={<Sparkles size={18} strokeWidth={2} />}
+          actions={
+            <div className="ea-console-actions">
+              <span className={`ea-status ${status}`}>
+                {statusLabel(result)}
+              </span>
+              {canResume ? (
+                <button
+                  type="button"
+                  className="ea-secondary-button"
+                  onClick={() => void resume()}
+                  disabled={Boolean(busy)}
+                >
+                  <RotateCcw size={16} />
+                  {t("everyday.action.resume", "restore")}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="ea-secondary-button"
+                  onClick={() =>
+                    void pause({
+                      kind: "global",
+                      reason: t(
+                        "everyday.pause.reason.console",
+                        "Pause from daily agent console",
+                      ),
+                    })
+                  }
+                  disabled={
+                    Boolean(busy) || !result?.profile.enabled || adminBlocked
+                  }
+                >
+                  <PauseCircle size={16} />
+                  {t("everyday.action.pauseAll", "Pause all")}
+                </button>
+              )}
               <button
                 type="button"
-                className="ea-secondary-button"
-                onClick={() => void resume()}
+                className="ea-icon-button"
+                onClick={() => void load()}
+                title={t("common.refresh", "Refresh")}
                 disabled={Boolean(busy)}
               >
-                <RotateCcw size={16} />
-                Resume
+                <RefreshCw size={16} />
               </button>
-            ) : (
-              <button
-                type="button"
-                className="ea-secondary-button"
-                onClick={() =>
-                  void pause({
-                    kind: "global",
-                    reason: "Paused from Everyday Agent console",
-                  })
-                }
-                disabled={Boolean(busy) || !result?.profile.enabled || adminBlocked}
-              >
-                <PauseCircle size={16} />
-                Pause all
-              </button>
-            )}
-            <button
-              type="button"
-              className="ea-icon-button"
-              onClick={() => void load()}
-              title="Refresh"
-              disabled={Boolean(busy)}
-            >
-              <RefreshCw size={16} />
-            </button>
-            {onOpenSettings && (
-              <button type="button" className="ea-secondary-button" onClick={onOpenSettings}>
-                <SettingsIcon size={16} />
-                Settings
-              </button>
-            )}
-          </div>
-        </section>
+              {onOpenSettings && (
+                <button
+                  type="button"
+                  className="ea-secondary-button"
+                  onClick={onOpenSettings}
+                >
+                  <SettingsIcon size={16} />
+                  {t("common.settings", "settings")}
+                </button>
+              )}
+            </div>
+          }
+        />
 
         {error && (
           <div className="ea-alert danger">
@@ -1556,73 +2388,304 @@ export function EverydayAgentPanel({
         {adminBlocked && (
           <div className="ea-alert danger">
             <Ban size={16} />
-            Everyday Agent is blocked by organization policy.
+            {t(
+              "everyday.blockedByPolicy",
+              "Everyday agents have been blocked by organizational policies.",
+            )}
           </div>
         )}
 
         {consentModal}
 
-        <section className="ea-operator-card">
-          <div className="ea-operator-main">
-            <div className="ea-operator-icon">
-              <Bot size={20} />
-            </div>
+        <section
+          className="ea-daily-desk"
+          aria-label={translate(
+            "generated.components.everydayagentpanel.1721.89",
+            "Today's work desktop",
+          )}
+        >
+          <div className="ea-daily-intro">
             <div>
-              <span>Current activity</span>
-              <h2>
+              <span className="ea-daily-greeting">
                 {status === "enabled"
-                  ? busy || "Idle, watching approved signals"
-                  : statusLabel(result)}
-              </h2>
-              <p>
-                Work remains bound to profile, workspace, connector account, browser
-                profile, channel, device, and target identity before execution.
-              </p>
+                  ? translate(
+                      "generated.components.everydayagentpanel.1726.90",
+                      "Now, focus on pushing forward.",
+                    )
+                  : translate(
+                      "generated.components.everydayagentpanel.1726.91",
+                      "First finish where you started today.",
+                    )}
+              </span>
+              <span className="ea-daily-date">
+                {new Date().toLocaleDateString(
+                  language === "zh-CN" ? "zh-CN" : "en-US",
+                  {
+                    month: "long",
+                    day: "numeric",
+                    weekday: "long",
+                  },
+                )}
+              </span>
             </div>
+            <p>
+              {status === "enabled"
+                ? translate(
+                    "generated.components.everydayagentpanel.1739.92",
+                    "The Assistant has narrowed down today's context to the matters most worthy of moving forward.",
+                  )
+                : translate(
+                    "generated.components.everydayagentpanel.1740.93",
+                    "Once enabled, the daily assistant will organize work based on the authorized scope, suggest next steps, and retain receipts.",
+                  )}
+            </p>
           </div>
-          <div className="ea-operator-metrics">
-            <div>
-              <strong>{priorityItems.filter((item) => item.tone !== "success").length}</strong>
-              <span>needs attention</span>
-            </div>
-            <div>
-              <strong>{activeSuggestions.length}</strong>
-              <span>suggestions</span>
-            </div>
-            <div>
-              <strong>{recentReceipts.length}</strong>
-              <span>recent receipts</span>
-            </div>
-          </div>
-        </section>
-
-        <section className="ea-live-board">
-          <div className="ea-live-rail">
-            <div className="ea-section-header">
-              <div>
-                <h2>Live Plan</h2>
-                <p>Review what the agent will do before it mutates anything.</p>
+          <div className="ea-daily-layout">
+            <section className="ea-focus-column">
+              <header>
+                <h2>
+                  {translate(
+                    "generated.components.everydayagentpanel.1749.95",
+                    "Today, let’s advance these three things first",
+                  )}
+                </h2>
+                <p>
+                  {translate(
+                    "generated.components.everydayagentpanel.1750.96",
+                    "Work is not more lists, but clear next steps.",
+                  )}
+                </p>
+              </header>
+              <div className="ea-focus-list">
+                {dailyFocusItems.map((item) => (
+                  <article className="ea-focus-row" key={item.id}>
+                    <div className="ea-focus-copy">
+                      <span>{item.label}</span>
+                      <h3>{item.title}</h3>
+                      <p>{item.detail}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDailyFocusAction(item)}
+                    >
+                      {item.action}
+                      <ArrowRight size={15} aria-hidden="true" />
+                    </button>
+                  </article>
+                ))}
               </div>
-            </div>
-            <div className="ea-plan-steps">
-              {planSteps.map((step, index) => (
-                <article className={`ea-plan-step ${step.posture}`} key={step.id}>
-                  <div className="ea-plan-index">{index + 1}</div>
-                  <div>
-                    <div className="ea-plan-title">
-                      <strong>{step.title}</strong>
-                      <span>{step.posture.replace("_", " ")}</span>
+              {(onCreateTask || onOpenComposerDraft || onStartNewWork) && (
+                <button
+                  type="button"
+                  className="ea-new-work"
+                  aria-expanded={showInlineComposer}
+                  onClick={() => {
+                    if (onCreateTask || onOpenComposerDraft)
+                      setShowInlineComposer(true);
+                    else onStartNewWork?.();
+                  }}
+                >
+                  <span aria-hidden="true">+</span>
+                  {translate(
+                    "generated.components.everydayagentpanel.1789.97",
+                    "Create work",
+                  )}
+                </button>
+              )}
+              {showInlineComposer && (
+                <UnifiedTaskComposer
+                  cacheKey={`everyday:${workspace?.id || "no-workspace"}`}
+                  workspace={workspace || null}
+                  label={translate(
+                    "generated.components.everydayagentpanel.1796.98",
+                    "Create a new job",
+                  )}
+                  placeholder={translate(
+                    "generated.components.everydayagentpanel.1797.99",
+                    "Describe the work to be done today...",
+                  )}
+                  autoFocus
+                  onSubmit={async (prompt) => {
+                    if (!onCreateTask) {
+                      if (!onOpenComposerDraft) return false;
+                      await Promise.resolve(
+                        onOpenComposerDraft(prompt, workspace),
+                      );
+                      return true;
+                    }
+                    const summary = prompt.replace(/\s+/g, " ").trim();
+                    const title =
+                      summary.length > 26
+                        ? `${summary.slice(0, 26)}…`
+                        : summary;
+                    return Promise.resolve(
+                      onCreateTask(
+                        translate(
+                          "everydayAgent.taskTitle",
+                          "Daily assistant: {title}",
+                          { title },
+                        ),
+                        prompt,
+                      ),
+                    );
+                  }}
+                />
+              )}
+            </section>
+            <aside className="ea-daily-rail">
+              {approvalItem && (
+                <section className="ea-approval-note">
+                  <header>
+                    <h2>
+                      {translate(
+                        "generated.components.everydayagentpanel.1816.100",
+                        "Awaiting my approval",
+                      )}
+                    </h2>
+                    <span>{pendingApprovals.length}</span>
+                  </header>
+                  <>
+                    <small className="ea-approval-kind">
+                      {getApprovalTypeLabel(approvalItem.type)}
+                    </small>
+                    <h3>
+                      {approvalTask?.title ||
+                        translate(
+                          "generated.components.everydayagentpanel.1823.101",
+                          "The task requires your confirmation",
+                        )}
+                    </h3>
+                    <p>
+                      {approvalItem.description ||
+                        translate(
+                          "generated.components.everydayagentpanel.1824.102",
+                          "This task requires confirmation before proceeding.",
+                        )}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onOpenApproval) onOpenApproval(approvalItem);
+                        else onOpenMissionControl?.();
+                      }}
+                    >
+                      {translate(
+                        "generated.components.everydayagentpanel.1832.103",
+                        "View and approve",
+                      )}
+                      <span>→</span>
+                    </button>
+                    {pendingApprovals.length > 1 && (
+                      <small className="ea-approval-more">
+                        {translate(
+                          "generated.components.everydayagentpanel.1836.104",
+                          "Also",
+                        )}
+                        {pendingApprovals.length - 1}{" "}
+                        {translate(
+                          "generated.components.everydayagentpanel.1836.105",
+                          "Item awaits confirmation",
+                        )}
+                      </small>
+                    )}
+                  </>
+                </section>
+              )}
+              <section className="ea-run-log">
+                <header>
+                  <h2>
+                    {translate(
+                      "generated.components.everydayagentpanel.1846.106",
+                      "Run log",
+                    )}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => onOpenMissionControl?.()}
+                  >
+                    {translate(
+                      "generated.components.everydayagentpanel.1849.107",
+                      "View all",
+                    )}
+                  </button>
+                </header>
+                {recentReceipts.length ? (
+                  recentReceipts.slice(0, 4).map((receipt) => (
+                    <div className="ea-log-row" key={receipt.id}>
+                      <time>{formatTime(receipt.createdAt)}</time>
+                      <p>
+                        {receipt.title}
+                        <small>{receipt.summary}</small>
+                      </p>
                     </div>
-                    <p>{step.detail}</p>
-                    <div className="ea-plan-meta">
-                      <span>{capabilityLabel(step.capability)}</span>
-                      <span>{RISK_LABELS[step.riskClass]}</span>
-                    </div>
+                  ))
+                ) : (
+                  <div className="ea-log-row is-empty">
+                    <time>
+                      {translate(
+                        "generated.components.everydayagentpanel.1864.108",
+                        "Now",
+                      )}
+                    </time>
+                    <p>
+                      {translate(
+                        "generated.components.everydayagentpanel.1866.109",
+                        "Waiting for the first work record",
+                      )}
+                      <small>
+                        {translate(
+                          "generated.components.everydayagentpanel.1867.110",
+                          "Every suggestion, confirmation and implementation will leave a verifiable record here.",
+                        )}
+                      </small>
+                    </p>
                   </div>
-                </article>
-              ))}
-            </div>
+                )}
+              </section>
+            </aside>
           </div>
+          <section className="ea-completed-ledger">
+            <header>
+              <h2>
+                {translate(
+                  "generated.components.everydayagentpanel.1878.111",
+                  "Completed",
+                )}
+              </h2>
+              <span>
+                {recentReceipts.length}{" "}
+                {translate(
+                  "generated.components.everydayagentpanel.1880.112",
+                  "recent records",
+                )}
+              </span>
+              <button type="button" onClick={() => onOpenMissionControl?.()}>
+                {translate(
+                  "generated.components.everydayagentpanel.1882.113",
+                  "View all",
+                )}
+              </button>
+            </header>
+            {recentReceipts.length ? (
+              recentReceipts.slice(0, 3).map((receipt) => (
+                <div className="ea-completed-row" key={receipt.id}>
+                  <CheckCircle2 size={16} />
+                  <span>{receipt.title}</span>
+                  <time>{formatTime(receipt.createdAt)}</time>
+                </div>
+              ))
+            ) : (
+              <div className="ea-completed-row">
+                <CheckCircle2 size={16} />
+                <span>
+                  {translate(
+                    "generated.components.everydayagentpanel.1896.114",
+                    "The completed work will quietly settle here.",
+                  )}
+                </span>
+              </div>
+            )}
+          </section>
         </section>
 
         <div className="ea-console-grid">
@@ -1630,13 +2693,21 @@ export function EverydayAgentPanel({
             <section className="ea-section ea-priority-section">
               <div className="ea-section-header">
                 <div>
-                  <h2>Priority Queue</h2>
-                  <p>Approvals, blocked actions, and recoverable failures appear first.</p>
+                  <h2>{t("everyday.priority.title", "priority queue")}</h2>
+                  <p>
+                    {t(
+                      "everyday.priority.description",
+                      "Approvals, blocked actions, and recoverable failures are displayed first.",
+                    )}
+                  </p>
                 </div>
               </div>
               <div className="ea-priority-list">
                 {priorityItems.map((item) => (
-                  <article className={`ea-priority-item ${item.tone}`} key={item.id}>
+                  <article
+                    className={`ea-priority-item ${item.tone}`}
+                    key={item.id}
+                  >
                     <div className="ea-priority-icon">
                       {item.tone === "danger" ? (
                         <AlertTriangle size={17} />
@@ -1662,17 +2733,18 @@ export function EverydayAgentPanel({
                         onClick={() => void resume()}
                         disabled={Boolean(busy) || !canResume}
                       >
-                        Resume
+                        {t("everyday.action.resume", "restore")}
                       </button>
                     )}
-                    {(item.actionKind === "settings" || item.actionKind === "memory") &&
+                    {(item.actionKind === "settings" ||
+                      item.actionKind === "memory") &&
                       onOpenSettings && (
                         <button
                           type="button"
                           className="ea-secondary-button"
                           onClick={onOpenSettings}
                         >
-                          Settings
+                          {t("common.settings", "settings")}
                         </button>
                       )}
                     {item.actionKind === "receipt" && onOpenMissionControl && (
@@ -1681,7 +2753,7 @@ export function EverydayAgentPanel({
                         className="ea-secondary-button"
                         onClick={onOpenMissionControl}
                       >
-                        Mission Control
+                        {t("everyday.action.missionControl", "task console")}
                       </button>
                     )}
                   </article>
@@ -1693,8 +2765,13 @@ export function EverydayAgentPanel({
               <section className="ea-section">
                 <div className="ea-section-header">
                   <div>
-                    <h2>Action Preview</h2>
-                    <p>Review source evidence, target, mutation, risk, rollback, and idempotency.</p>
+                    <h2>{t("everyday.preview.title", "action preview")}</h2>
+                    <p>
+                      {t(
+                        "everyday.preview.description",
+                        "Review provenance, targets, changes, risks, rollbacks, and idempotence.",
+                      )}
+                    </p>
                   </div>
                 </div>
                 <div className="ea-preview-card">
@@ -1704,14 +2781,30 @@ export function EverydayAgentPanel({
                       <p>{preview.proposedMutation}</p>
                     </div>
                     <span className={`ea-risk ${riskTone(preview.riskClass)}`}>
-                      {RISK_LABELS[preview.riskClass]}
+                      {riskLabel(preview.riskClass)}
                     </span>
                   </div>
                   <div className="ea-preview-details">
-                    <span>Target: {previewTargetLabel(preview)}</span>
-                    <span>Approval: {preview.approvalRequired ? "Required" : "Not required"}</span>
-                    <span>Rollback: {preview.rollbackAvailable ? "Available" : "Unavailable"}</span>
-                    <span>Idempotency: {preview.idempotencyKey}</span>
+                    <span>
+                      {t("everyday.preview.target", "target")}：
+                      {previewTargetLabel(preview)}
+                    </span>
+                    <span>
+                      {t("everyday.preview.approval", "Approval")}：
+                      {preview.approvalRequired
+                        ? t("common.required", "need")
+                        : t("common.notRequired", "No need")}
+                    </span>
+                    <span>
+                      {t("everyday.preview.rollback", "rollback")}：
+                      {preview.rollbackAvailable
+                        ? t("common.available", "Available")
+                        : t("common.unavailable", "Not available")}
+                    </span>
+                    <span>
+                      {t("everyday.preview.idempotency", "idempotent keys")}：
+                      {preview.idempotencyKey}
+                    </span>
                   </div>
                   <p className="ea-preview-reason">{preview.approvalReason}</p>
                   <button
@@ -1720,7 +2813,7 @@ export function EverydayAgentPanel({
                     onClick={() => void approvePreview()}
                     disabled={Boolean(busy || preview.status === "blocked")}
                   >
-                    Approve preview
+                    {t("everyday.action.approvePreview", "Approve preview")}
                   </button>
                 </div>
               </section>
@@ -1729,13 +2822,20 @@ export function EverydayAgentPanel({
             <section className="ea-section">
               <div className="ea-section-header">
                 <div>
-                  <h2>Suggestions</h2>
-                  <p>Accepted, rejected, snoozed, and trusted patterns stay scoped.</p>
+                  <h2>{t("everyday.suggestions.title", "Suggestions")}</h2>
+                  <p>
+                    {t(
+                      "everyday.suggestions.description",
+                      "Accepted, Rejected, Remind Later, and Trusted modes all remain scoped.",
+                    )}
+                  </p>
                 </div>
               </div>
               <div className="ea-list ea-suggestion-list">
                 {activeSuggestions.length === 0 ? (
-                  <div className="ea-empty">No suggestions waiting</div>
+                  <div className="ea-empty">
+                    {t("everyday.suggestions.empty", "No suggestions pending")}
+                  </div>
                 ) : (
                   activeSuggestions.map((suggestion) => (
                     <div className="ea-list-item" key={suggestion.id}>
@@ -1744,10 +2844,33 @@ export function EverydayAgentPanel({
                         <strong>{suggestion.title}</strong>
                         <span>{suggestion.description}</span>
                         <div className="ea-evidence-row">
-                          <span>Why now: {suggestion.urgency || "normal"} urgency</span>
-                          <span>Confidence: {Math.round(suggestion.confidence * 100)}%</span>
-                          {suggestion.sourceEntity && <span>Source: {suggestion.sourceEntity}</span>}
-                          {suggestion.snoozedUntil && <span>Snoozed until {formatTime(suggestion.snoozedUntil)}</span>}
+                          <span>
+                            {t("everyday.suggestions.whyNow", "current cause")}
+                            ：
+                            {suggestion.urgency || t("common.normal", "normal")}{" "}
+                            {t("everyday.suggestions.urgency", "Urgency")}
+                          </span>
+                          <span>
+                            {t("everyday.suggestions.confidence", "Confidence")}
+                            ：{Math.round(suggestion.confidence * 100)}%
+                          </span>
+                          {suggestion.sourceEntity && (
+                            <span>
+                              {t("common.source", "Source")}：
+                              {suggestion.sourceEntity}
+                            </span>
+                          )}
+                          {suggestion.snoozedUntil && (
+                            <span>
+                              {t(
+                                "everyday.suggestions.snoozedUntil",
+                                "Remind later to {time}",
+                                {
+                                  time: formatTime(suggestion.snoozedUntil),
+                                },
+                              )}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="ea-row-actions">
@@ -1756,21 +2879,23 @@ export function EverydayAgentPanel({
                           onClick={() => void previewSuggestion(suggestion)}
                           disabled={Boolean(busy)}
                         >
-                          Preview
+                          {t("everyday.action.preview", "Preview")}
                         </button>
                         <button
                           type="button"
                           onClick={() => void startSuggestion(suggestion)}
-                          disabled={Boolean(busy || !onCreateTask)}
+                          disabled={Boolean(busy || !onOpenComposerDraft)}
                         >
-                          Start
+                          {t("everyday.action.start", "start")}
                         </button>
                         <button
                           type="button"
-                          onClick={() => void previewSuggestion(suggestion, true)}
+                          onClick={() =>
+                            void previewSuggestion(suggestion, true)
+                          }
                           disabled={Boolean(busy)}
                         >
-                          Trust pattern
+                          {t("everyday.action.trustPattern", "trust model")}
                         </button>
                       </div>
                     </div>
@@ -1782,24 +2907,36 @@ export function EverydayAgentPanel({
             <section className="ea-section">
               <div className="ea-section-header">
                 <div>
-                  <h2>Recent Receipts</h2>
-                  <p>Executed, skipped, blocked, previewed, and approved work remains inspectable.</p>
+                  <h2>{t("everyday.receipts.title", "latest receipt")}</h2>
+                  <p>
+                    {t(
+                      "everyday.receipts.description",
+                      "Executed, skipped, blocked, previewed, and approved work remains available for inspection.",
+                    )}
+                  </p>
                 </div>
                 {onOpenMissionControl && (
-                  <button type="button" className="ea-secondary-button" onClick={onOpenMissionControl}>
+                  <button
+                    type="button"
+                    className="ea-secondary-button"
+                    onClick={onOpenMissionControl}
+                  >
                     <Play size={16} />
-                    Mission Control
+                    {t("everyday.action.missionControl", "task console")}
                   </button>
                 )}
               </div>
               <div className="ea-receipts compact">
                 {recentReceipts.length === 0 ? (
-                  <div className="ea-empty">No receipts yet</div>
+                  <div className="ea-empty">
+                    {t("everyday.receipts.empty", "No reply yet")}
+                  </div>
                 ) : (
                   recentReceipts.map((receipt) => (
                     <article className="ea-receipt" key={receipt.id}>
                       <div className="ea-receipt-icon">
-                        {receipt.status === "blocked" || receipt.status === "failed" ? (
+                        {receipt.status === "blocked" ||
+                        receipt.status === "failed" ? (
                           <XCircle size={16} />
                         ) : receipt.status === "paused" ? (
                           <PauseCircle size={16} />
@@ -1810,8 +2947,10 @@ export function EverydayAgentPanel({
                       <div>
                         <div className="ea-receipt-title">
                           <strong>{receipt.title}</strong>
-                          <span className={`ea-risk ${riskTone(receipt.riskClass)}`}>
-                            {RISK_LABELS[receipt.riskClass]}
+                          <span
+                            className={`ea-risk ${riskTone(receipt.riskClass)}`}
+                          >
+                            {riskLabel(receipt.riskClass)}
                           </span>
                         </div>
                         <p>{receipt.summary}</p>
@@ -1833,18 +2972,35 @@ export function EverydayAgentPanel({
             <section className="ea-section">
               <div className="ea-section-header">
                 <div>
-                  <h2>Recoverable Failures</h2>
-                  <p>Auth, policy, network, duplicate, and partial-failure states become explicit actions.</p>
+                  <h2>{t("everyday.recovery.title", "Recoverable failure")}</h2>
+                  <p>
+                    {t(
+                      "everyday.recovery.description",
+                      "Authentication, policy, network, duplicate and partial failure status become explicit actions.",
+                    )}
+                  </p>
                 </div>
               </div>
               <div className="ea-recovery-list">
                 {recoveryItems.length === 0 ? (
-                  <div className="ea-empty">No recovery actions waiting</div>
+                  <div className="ea-empty">
+                    {t(
+                      "everyday.recovery.empty",
+                      "No recovery actions pending",
+                    )}
+                  </div>
                 ) : (
                   recoveryItems.map((item) => (
-                    <article className={`ea-recovery-item ${item.tone}`} key={item.id}>
+                    <article
+                      className={`ea-recovery-item ${item.tone}`}
+                      key={item.id}
+                    >
                       <div className="ea-recovery-icon">
-                        {item.tone === "danger" ? <AlertTriangle size={16} /> : <RefreshCw size={16} />}
+                        {item.tone === "danger" ? (
+                          <AlertTriangle size={16} />
+                        ) : (
+                          <RefreshCw size={16} />
+                        )}
                       </div>
                       <div>
                         <strong>{item.title}</strong>
@@ -1854,13 +3010,24 @@ export function EverydayAgentPanel({
                         type="button"
                         className="ea-secondary-button"
                         onClick={() => {
-                          if (item.actionLabel.includes("policy")) {
+                          if (
+                            item.actionLabel.includes(
+                              translate(
+                                "generated.components.everydayagentpanel.2197.115",
+                                "Strategy",
+                              ),
+                            ) ||
+                            item.actionLabel.includes("policy")
+                          ) {
                             onOpenSettings?.();
                           } else {
                             onOpenMissionControl?.();
                           }
                         }}
-                        disabled={Boolean(busy) || (!onOpenSettings && !onOpenMissionControl)}
+                        disabled={
+                          Boolean(busy) ||
+                          (!onOpenSettings && !onOpenMissionControl)
+                        }
                       >
                         {item.actionLabel}
                       </button>
@@ -1873,23 +3040,40 @@ export function EverydayAgentPanel({
             <section className="ea-section">
               <div className="ea-section-header">
                 <div>
-                  <h2>Active Routines</h2>
-                  <p>Trusted routines, dry-runs, pauses, and failures.</p>
+                  <h2>
+                    {t("everyday.routines.title", "active routine tasks")}
+                  </h2>
+                  <p>
+                    {t(
+                      "everyday.routines.description",
+                      "Trusted routine tasks, drills, pauses, and failures.",
+                    )}
+                  </p>
                 </div>
               </div>
               <div className="ea-routine-list">
                 {routines.length === 0 ? (
-                  <div className="ea-empty">No trusted routines yet</div>
+                  <div className="ea-empty">
+                    {t(
+                      "everyday.routines.empty",
+                      "No trusted routine tasks yet",
+                    )}
+                  </div>
                 ) : (
                   routines.map((routine) => (
-                    <article className={`ea-routine ${routine.tone}`} key={routine.id}>
+                    <article
+                      className={`ea-routine ${routine.tone}`}
+                      key={routine.id}
+                    >
                       <div>
                         <strong>{routine.name}</strong>
                         <span>{routine.detail}</span>
                       </div>
                       <div className="ea-routine-meta">
                         <span>{routine.status}</span>
-                        {routine.lastRunAt && <span>{formatTime(routine.lastRunAt)}</span>}
+                        {routine.lastRunAt && (
+                          <span>{formatTime(routine.lastRunAt)}</span>
+                        )}
                       </div>
                     </article>
                   ))
@@ -1908,7 +3092,10 @@ export function EverydayAgentSettingsPanel({
   onCreateTask,
 }: {
   workspaceId?: string;
-  onCreateTask?: (title: string, prompt: string) => void;
+  onCreateTask?: (
+    title: string,
+    prompt: string,
+  ) => boolean | void | Promise<boolean | void>;
 }) {
   return (
     <EverydayAgentPanel

@@ -1,4 +1,5 @@
-export type UsageInsightsPeriodPreset = 1 | 7 | 14 | 30 | 90 | 180 | 365 | "custom";
+export type UsageInsightsPeriodPreset =
+  1 | 7 | 14 | 30 | 90 | 180 | 365 | "custom";
 
 export const DEFAULT_USAGE_INSIGHTS_PERIOD_PRESET: UsageInsightsPeriodPreset = 7;
 
@@ -16,7 +17,9 @@ export const USAGE_INSIGHTS_PERIOD_PRESETS: Array<{
   { value: "custom", label: "Custom" },
 ];
 
-export function getVisibleUsageInsightsPeriodPresets(dataAgeDays: number | null) {
+export function getVisibleUsageInsightsPeriodPresets(
+  dataAgeDays: number | null,
+) {
   if (dataAgeDays === null) return USAGE_INSIGHTS_PERIOD_PRESETS;
   return USAGE_INSIGHTS_PERIOD_PRESETS.filter(
     ({ value }) => value === "custom" || value <= Math.max(dataAgeDays, 7),

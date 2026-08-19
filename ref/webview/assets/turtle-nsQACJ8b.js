@@ -1,0 +1,3 @@
+import { n as e, t } from "./turtle-DYWuF75l.js";
+t();
+export { e as default };

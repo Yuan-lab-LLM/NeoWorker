@@ -13,8 +13,8 @@ Manually record an insight, correction, preference, or rule that the agent shoul
 
 - Use when: Use when the user explicitly wants to teach the agent something, record a preference, save a correction, or store a rule for future tasks.
 - Do not use when: Don't use for general conversation, one-time instructions that don't need to be remembered, or when the user is just chatting.
-- Outputs: Persisted learning in memory system and .cowork/MEMORY.md file.
-- Success criteria: Learning is stored in memory and written to .cowork/MEMORY.md with confirmation to the user.
+- Outputs: Persisted learning in memory system and .neoworker/MEMORY.md file.
+- Success criteria: Learning is stored in memory and written to .neoworker/MEMORY.md with confirmation to the user.
 
 ## Trigger Examples
 

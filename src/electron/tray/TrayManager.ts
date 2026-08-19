@@ -588,7 +588,7 @@ export class TrayManager {
       const icon = this.getTrayIcon("idle");
 
       this.tray = new Tray(icon);
-      this.tray.setToolTip("CoWork OS");
+      this.tray.setToolTip("NeoWorker");
 
       // Supply tray bounds so overlay notifications resolve the correct display (multi-monitor)
       try {
@@ -849,7 +849,7 @@ export class TrayManager {
 
       // App controls
       {
-        label: "About CoWork OS",
+        label: "About NeoWorker",
         click: () => {
           this.showMainWindow();
           this.mainWindow?.webContents.send("tray:open-about");
@@ -864,7 +864,7 @@ export class TrayManager {
       },
       { type: "separator" },
       {
-        label: "Quit CoWork OS",
+        label: "Quit NeoWorker",
         accelerator: "CmdOrCtrl+Q",
         click: () => {
           // Force quit (bypass close-to-tray)

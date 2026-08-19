@@ -17,11 +17,14 @@ import {
 
 import { getEmojiIcon } from "../utils/emoji-icon-map";
 import { replaceEmojisInChildren } from "../utils/emoji-replacer";
+import { translate, useLanguage } from "../i18n";
 import { CitationBadge } from "./CitationPanel";
 import { MarkdownImagePreview } from "./MarkdownImagePreview";
 
 const LazyHighlightedCodeBlock = lazy(() =>
-  import("./HighlightedCode").then((module) => ({ default: module.HighlightedCodeBlock })),
+  import("./HighlightedCode").then((module) => ({
+    default: module.HighlightedCodeBlock,
+  })),
 );
 
 type CodeBlockProps = HTMLAttributes<HTMLElement> & {
@@ -131,7 +134,10 @@ function sanitizeMermaidSvg(svgMarkup: string): SVGSVGElement | null {
         element.removeAttribute(attr.name);
         continue;
       }
-      if ((name === "href" || name === "xlink:href") && /^javascript:/i.test(value)) {
+      if (
+        (name === "href" || name === "xlink:href") &&
+        /^javascript:/i.test(value)
+      ) {
         element.removeAttribute(attr.name);
       }
     }
@@ -141,17 +147,23 @@ function sanitizeMermaidSvg(svgMarkup: string): SVGSVGElement | null {
 }
 
 export function MermaidDiagram({ chart }: { chart: string }) {
+  useLanguage();
+  const t = translate;
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [svg, setSvg] = useState<string | null>(null);
   const idRef = useRef(`mermaid-${Math.random().toString(36).slice(2)}`);
   const [themeKey, setThemeKey] = useState(() =>
-    document.documentElement.classList.contains("theme-light") ? "light" : "dark",
+    document.documentElement.classList.contains("theme-light")
+      ? "light"
+      : "dark",
   );
 
   useLayoutEffect(() => {
     const observer = new MutationObserver(() => {
-      const next = document.documentElement.classList.contains("theme-light") ? "light" : "dark";
+      const next = document.documentElement.classList.contains("theme-light")
+        ? "light"
+        : "dark";
       setThemeKey((prev) => (prev === next ? prev : next));
     });
     observer.observe(document.documentElement, {
@@ -177,7 +189,11 @@ export function MermaidDiagram({ chart }: { chart: string }) {
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to render diagram");
+          setError(
+            err instanceof Error
+              ? err.message
+              : t("markdown.diagram.errorRender", "Failed to render diagram"),
+          );
         }
       });
     return () => {
@@ -192,7 +208,7 @@ export function MermaidDiagram({ chart }: { chart: string }) {
     if (!svg) return;
     const sanitizedSvg = sanitizeMermaidSvg(svg);
     if (!sanitizedSvg) {
-      setError("Failed to render diagram");
+      setError(t("markdown.diagram.errorRender", "Failed to render diagram"));
       return;
     }
     container.appendChild(document.importNode(sanitizedSvg, true));
@@ -201,7 +217,9 @@ export function MermaidDiagram({ chart }: { chart: string }) {
   if (error) {
     return (
       <div className="mermaid-error">
-        <span>Diagram error: {error}</span>
+        <span>
+          {t("markdown.diagram.error", "Diagram error: {error}", { error })}
+        </span>
       </div>
     );
   }
@@ -210,7 +228,9 @@ export function MermaidDiagram({ chart }: { chart: string }) {
     <div className="mermaid-diagram" ref={containerRef} />
   ) : (
     <div className="mermaid-diagram">
-      <span className="mermaid-loading">Rendering diagram...</span>
+      <span className="mermaid-loading">
+        {t("markdown.diagram.rendering", "Rendering diagram...")}
+      </span>
     </div>
   );
 }
@@ -219,12 +239,17 @@ function getTextContent(node: ReactNode): string {
   if (typeof node === "string") return node;
   if (Array.isArray(node)) return node.map(getTextContent).join("");
   if (node && typeof node === "object" && "props" in node) {
-    return getTextContent((node as { props: { children?: ReactNode } }).props.children);
+    return getTextContent(
+      (node as { props: { children?: ReactNode } }).props.children,
+    );
   }
   return "";
 }
 
-export function normalizeCodeBlockTextForDisplay(codeText: string, language?: string): string {
+export function normalizeCodeBlockTextForDisplay(
+  codeText: string,
+  language?: string,
+): string {
   const normalizedLanguage = (language || "").toLowerCase();
   if (normalizedLanguage !== "diff" && normalizedLanguage !== "patch") {
     return codeText;
@@ -233,12 +258,17 @@ export function normalizeCodeBlockTextForDisplay(codeText: string, language?: st
 }
 
 function CodeBlock({ children, className, ...props }: CodeBlockProps) {
+  useLanguage();
+  const t = translate;
   const [copied, setCopied] = useState(false);
   const languageMatch = /(?:^|\s)language-([^\s]+)/.exec(className || "");
   const isCodeBlock = Boolean(languageMatch);
   const language = languageMatch?.[1] || "";
   const rawCodeText = isCodeBlock ? getTextContent(children) : "";
-  const displayCodeText = normalizeCodeBlockTextForDisplay(rawCodeText, language);
+  const displayCodeText = normalizeCodeBlockTextForDisplay(
+    rawCodeText,
+    language,
+  );
 
   const handleCopy = async () => {
     try {
@@ -269,7 +299,11 @@ function CodeBlock({ children, className, ...props }: CodeBlockProps) {
         <button
           className={`code-block-copy ${copied ? "copied" : ""}`}
           onClick={handleCopy}
-          title={copied ? "Copied!" : "Copy code"}
+          title={
+            copied
+              ? t("common.copiedBang", "Copied!")
+              : t("markdown.copyCode", "Copy code")
+          }
         >
           {copied ? (
             <svg
@@ -295,7 +329,11 @@ function CodeBlock({ children, className, ...props }: CodeBlockProps) {
               <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
             </svg>
           )}
-          <span>{copied ? "Copied!" : "Copy"}</span>
+          <span>
+            {copied
+              ? t("common.copiedBang", "Copied!")
+              : t("common.copy", "Copy")}
+          </span>
         </button>
       </div>
       <Suspense
@@ -316,7 +354,8 @@ function CodeBlock({ children, className, ...props }: CodeBlockProps) {
   );
 }
 
-const HEADING_EMOJI_REGEX = /^([\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}][\uFE0F\uFE0E]?)(\s+)?/u;
+const HEADING_EMOJI_REGEX =
+  /^([\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}][\uFE0F\uFE0E]?)(\s+)?/u;
 
 function getHeadingIcon(emoji: string): ReactNode {
   const Icon = getEmojiIcon(emoji);
@@ -417,9 +456,11 @@ const FILE_EXTENSIONS = new Set([
   "7z",
 ]);
 
-const stripHttpScheme = (value: string): string => value.replace(/^https?:\/\//, "");
+const stripHttpScheme = (value: string): string =>
+  value.replace(/^https?:\/\//, "");
 const HTML_TAG_REGEX = /<[^>]*>/g;
-const URLISH_TEXT_REGEX = /^(?:https?:\/\/|www\.|(?:[a-z0-9-]+\.)+[a-z]{2,}\/)/i;
+const URLISH_TEXT_REGEX =
+  /^(?:https?:\/\/|www\.|(?:[a-z0-9-]+\.)+[a-z]{2,}\/)/i;
 const X_LINK_HOSTS = new Set(["x.com", "twitter.com"]);
 
 function stripHtmlTags(value: string): string {
@@ -441,7 +482,9 @@ function extractDomainFromUrl(raw: string): string {
     );
     return parsed.hostname.replace(/^www\./i, "");
   } catch {
-    return stripHttpScheme(trimmed).split("/")[0].replace(/^www\./i, "");
+    return stripHttpScheme(trimmed)
+      .split("/")[0]
+      .replace(/^www\./i, "");
   }
 }
 
@@ -455,14 +498,17 @@ function isXComLink(raw: string): boolean {
         ? trimmed
         : `https://${trimmed}`,
     );
-    const hostname = parsed.hostname.replace(/^(?:www\.|mobile\.)/i, "").toLowerCase();
+    const hostname = parsed.hostname
+      .replace(/^(?:www\.|mobile\.)/i, "")
+      .toLowerCase();
     return X_LINK_HOSTS.has(hostname);
   } catch {
     return false;
   }
 }
 
-const isUrlLikeLabel = (value: string): boolean => URLISH_TEXT_REGEX.test(String(value || "").trim());
+const isUrlLikeLabel = (value: string): boolean =>
+  URLISH_TEXT_REGEX.test(String(value || "").trim());
 
 function looksLikeLocalFilePath(value: string): boolean {
   const trimmed = value.trim();
@@ -534,8 +580,11 @@ function resolveFileLinkTarget(href: string, linkText: string): string | null {
 const CITATION_REF_REGEX = /\[(\d+)\]/g;
 
 export function buildMarkdownComponents(options: MarkdownComponentsOptions) {
-  const { workspacePath, onOpenViewer, onOpenWebLinkInSidebar, citations } = options;
-  const citationMap = new Map((citations || []).map((citation) => [citation.index, citation]));
+  const { workspacePath, onOpenViewer, onOpenWebLinkInSidebar, citations } =
+    options;
+  const citationMap = new Map(
+    (citations || []).map((citation) => [citation.index, citation]),
+  );
   const citationUrlMap = new Map(
     (citations || []).map((citation) => [
       citation.url.replace(/\/+$/, "").toLowerCase(),
@@ -555,7 +604,9 @@ export function buildMarkdownComponents(options: MarkdownComponentsOptions) {
       : xComLink
         ? `https://${href.replace(/^\/+/, "")}`
         : null;
-    const fileTarget = externalHref ? null : resolveFileLinkTarget(href, linkText);
+    const fileTarget = externalHref
+      ? null
+      : resolveFileLinkTarget(href, linkText);
 
     if (!externalHref && (fileTarget || isFileLink(href))) {
       const filePath = fileTarget ?? normalizeFileHref(href);
@@ -571,7 +622,10 @@ export function buildMarkdownComponents(options: MarkdownComponentsOptions) {
         if (!workspacePath) return;
 
         try {
-          const error = await window.electronAPI.openFile(filePath, workspacePath);
+          const error = await window.electronAPI.openFile(
+            filePath,
+            workspacePath,
+          );
           if (error) {
             console.error("Failed to open file:", error);
           }
@@ -658,7 +712,8 @@ export function buildMarkdownComponents(options: MarkdownComponentsOptions) {
         !isUrlLikeLabel(linkText);
 
       if (shouldRenderCitationCard) {
-        const citationDomain = matchedCitationDomain || extractDomainFromUrl(matchedCitationUrl);
+        const citationDomain =
+          matchedCitationDomain || extractDomainFromUrl(matchedCitationUrl);
         return (
           <a
             {...props}
@@ -680,12 +735,16 @@ export function buildMarkdownComponents(options: MarkdownComponentsOptions) {
               maxWidth: "100%",
             }}
             onMouseEnter={(event) => {
-              event.currentTarget.style.background = "var(--surface-hover, rgba(255,255,255,0.08))";
-              event.currentTarget.style.borderColor = "var(--accent-color, #60a5fa)";
+              event.currentTarget.style.background =
+                "var(--surface-hover, rgba(255,255,255,0.08))";
+              event.currentTarget.style.borderColor =
+                "var(--accent-color, #60a5fa)";
             }}
             onMouseLeave={(event) => {
-              event.currentTarget.style.background = "var(--surface-secondary, #1a1a1a)";
-              event.currentTarget.style.borderColor = "var(--border-color, #333)";
+              event.currentTarget.style.background =
+                "var(--surface-secondary, #1a1a1a)";
+              event.currentTarget.style.borderColor =
+                "var(--border-color, #333)";
             }}
           >
             <img
@@ -762,7 +821,11 @@ export function buildMarkdownComponents(options: MarkdownComponentsOptions) {
             parts.push(child.slice(lastIndex, match.index));
           }
           parts.push(
-            <CitationBadge key={`cite-${idx}-${match.index}`} index={idx} citation={citation} />,
+            <CitationBadge
+              key={`cite-${idx}-${match.index}`}
+              index={idx}
+              citation={citation}
+            />,
           );
           lastIndex = match.index + match[0].length;
         }
@@ -772,7 +835,13 @@ export function buildMarkdownComponents(options: MarkdownComponentsOptions) {
         if (lastIndex < child.length) {
           parts.push(child.slice(lastIndex));
         }
-        return <>{parts.map((part) => (typeof part === "string" ? replaceEmojisInChildren(part) : part))}</>;
+        return (
+          <>
+            {parts.map((part) =>
+              typeof part === "string" ? replaceEmojisInChildren(part) : part,
+            )}
+          </>
+        );
       }
       return child;
     });

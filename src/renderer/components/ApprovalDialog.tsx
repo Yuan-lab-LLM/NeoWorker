@@ -1,4 +1,5 @@
 import { ApprovalRequest } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 interface ApprovalDialogProps {
   approval: ApprovalRequest;
@@ -6,7 +7,13 @@ interface ApprovalDialogProps {
   onDeny: () => void;
 }
 
-export function ApprovalDialog({ approval, onApprove, onDeny }: ApprovalDialogProps) {
+export function ApprovalDialog({
+  approval,
+  onApprove,
+  onDeny,
+}: ApprovalDialogProps) {
+  useLanguage();
+  const t = translate;
   const getCommandExplanation = (details: ApprovalRequest["details"]) => {
     const command = details?.command;
     if (!command || typeof command !== "string") return null;
@@ -14,25 +21,50 @@ export function ApprovalDialog({ approval, onApprove, onDeny }: ApprovalDialogPr
     const explanation: string[] = [];
 
     if (command.includes(";")) {
-      explanation.push("Runs multiple commands in sequence.");
+      explanation.push(
+        t("approval.command.multiple", "Runs multiple commands in sequence."),
+      );
     }
 
     if (/\bls\s+-la\s+\/Applications\b/.test(command)) {
-      explanation.push("Lists the contents of /Applications.");
+      explanation.push(
+        t(
+          "approval.command.listApplications",
+          "Lists the contents of /Applications.",
+        ),
+      );
     }
 
     if (/\bls\s+-la\s+~\/Applications\b/.test(command)) {
-      explanation.push("Lists the contents of ~/Applications if it exists.");
+      explanation.push(
+        t(
+          "approval.command.listUserApplications",
+          "Lists the contents of ~/Applications if it exists.",
+        ),
+      );
     }
 
     const grepMatches = [...command.matchAll(/\bgrep\s+-i\s+([^\s;]+)/g)];
     if (grepMatches.length > 0) {
-      const terms = grepMatches.map((match) => match[1].replace(/["']/g, "")).join(", ");
-      explanation.push(`Filters the output for "${terms}" (case-insensitive).`);
+      const terms = grepMatches
+        .map((match) => match[1].replace(/["']/g, ""))
+        .join(", ");
+      explanation.push(
+        t(
+          "approval.command.filters",
+          'Filters the output for "{terms}" (case-insensitive).',
+          { terms },
+        ),
+      );
     }
 
     if (command.includes("2>/dev/null")) {
-      explanation.push("Suppresses non-critical errors (like missing folders).");
+      explanation.push(
+        t(
+          "approval.command.suppressesErrors",
+          "Suppresses non-critical errors (like missing folders).",
+        ),
+      );
     }
 
     return explanation.length > 0 ? explanation.join(" ") : null;
@@ -76,10 +108,12 @@ export function ApprovalDialog({ approval, onApprove, onDeny }: ApprovalDialogPr
         <div className="approval-icon">{getApprovalIcon(approval.type)}</div>
 
         <div className="approval-content">
-          <h3>Need Your Input</h3>
+          <h3>{t("approval.needInput", "Need Your Input")}</h3>
           <p className="approval-description">{approval.description}</p>
           {getCommandExplanation(approval.details) && (
-            <p className="approval-explanation">{getCommandExplanation(approval.details)}</p>
+            <p className="approval-explanation">
+              {getCommandExplanation(approval.details)}
+            </p>
           )}
 
           {approval.details && (
@@ -91,10 +125,10 @@ export function ApprovalDialog({ approval, onApprove, onDeny }: ApprovalDialogPr
 
         <div className="approval-actions">
           <button className="button-secondary" onClick={onDeny}>
-            Deny
+            {t("common.deny", "Deny")}
           </button>
           <button className="button-primary" onClick={onApprove}>
-            Approve
+            {t("common.approve", "Approve")}
           </button>
         </div>
       </div>

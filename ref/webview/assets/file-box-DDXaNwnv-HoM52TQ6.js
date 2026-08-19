@@ -1,0 +1,3 @@
+import { n as e, t } from "./file-box-DDXaNwnv-D0qkWCuL.js";
+t();
+export { e as default };

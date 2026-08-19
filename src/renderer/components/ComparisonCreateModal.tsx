@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { translate, useLanguage } from "../i18n";
 
 interface AgentSpec {
   id: string;
@@ -8,7 +9,9 @@ interface AgentSpec {
 }
 
 const createAgentSpec = (label: string): AgentSpec => ({
-  id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  id:
+    globalThis.crypto?.randomUUID?.() ||
+    `${Date.now()}-${Math.random().toString(16).slice(2)}`,
   label,
 });
 
@@ -23,6 +26,8 @@ export function ComparisonCreateModal({
   onClose,
   onCreated,
 }: ComparisonCreateModalProps) {
+  useLanguage();
+  const t = translate;
   const [title, setTitle] = useState("");
   const [prompt, setPrompt] = useState("");
   const [agents, setAgents] = useState<AgentSpec[]>([
@@ -50,11 +55,11 @@ export function ComparisonCreateModal({
 
   const handleCreate = async () => {
     if (!prompt.trim()) {
-      setError("Prompt is required");
+      setError(t("comparison.error.promptRequired", "Prompt is required"));
       return;
     }
     if (agents.length < 2) {
-      setError("At least 2 agents required");
+      setError(t("comparison.error.minAgents", "At least 2 agents required"));
       return;
     }
 
@@ -63,7 +68,7 @@ export function ComparisonCreateModal({
 
     try {
       const session = await window.electronAPI.createComparison({
-        title: title.trim() || "Comparison",
+        title: title.trim() || t("comparison.defaultTitle", "Comparison"),
         prompt: prompt.trim(),
         workspaceId,
         agents: agents.map((a) => ({
@@ -74,7 +79,10 @@ export function ComparisonCreateModal({
       });
       onCreated(session.id);
     } catch (err: Any) {
-      setError(err.message || "Failed to create comparison");
+      setError(
+        err.message ||
+          t("comparison.error.create", "Failed to create comparison"),
+      );
     } finally {
       setCreating(false);
     }
@@ -107,36 +115,63 @@ export function ComparisonCreateModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={{ margin: "0 0 16px 0" }}>Agent Comparison</h2>
+        <h2 style={{ margin: "0 0 16px 0" }}>
+          {t("comparison.create.title", "Agent Comparison")}
+        </h2>
         <p style={{ margin: "0 0 16px 0", opacity: 0.7, fontSize: "0.875rem" }}>
-          Run the same prompt on multiple agents and compare their approaches side-by-side.
+          {t(
+            "comparison.create.description",
+            "Run the same prompt on multiple agents and compare their approaches side-by-side.",
+          )}
         </p>
 
         <div style={{ marginBottom: "12px" }}>
-          <label style={{ display: "block", marginBottom: "4px", fontSize: "0.875rem" }}>
-            Title
+          <label
+            style={{
+              display: "block",
+              marginBottom: "4px",
+              fontSize: "0.875rem",
+            }}
+          >
+            {t("common.title", "Title")}
           </label>
           <input
             type="text"
             className="settings-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g., Fix the login bug"
+            placeholder={t(
+              "comparison.placeholder.title",
+              "e.g., Fix the login bug",
+            )}
             style={{ width: "100%", boxSizing: "border-box" }}
           />
         </div>
 
         <div style={{ marginBottom: "16px" }}>
-          <label style={{ display: "block", marginBottom: "4px", fontSize: "0.875rem" }}>
-            Prompt
+          <label
+            style={{
+              display: "block",
+              marginBottom: "4px",
+              fontSize: "0.875rem",
+            }}
+          >
+            {t("comparison.prompt", "Prompt")}
           </label>
           <textarea
             className="settings-input"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe the task for all agents..."
+            placeholder={t(
+              "comparison.placeholder.prompt",
+              "Describe the task for all agents...",
+            )}
             rows={4}
-            style={{ width: "100%", boxSizing: "border-box", resize: "vertical" }}
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              resize: "vertical",
+            }}
           />
         </div>
 
@@ -149,7 +184,11 @@ export function ComparisonCreateModal({
               marginBottom: "8px",
             }}
           >
-            <label style={{ fontSize: "0.875rem" }}>Agents ({agents.length})</label>
+            <label style={{ fontSize: "0.875rem" }}>
+              {t("comparison.agentsCount", "Agents ({count})", {
+                count: agents.length,
+              })}
+            </label>
             {agents.length < 4 && (
               <button
                 onClick={addAgent}
@@ -163,7 +202,7 @@ export function ComparisonCreateModal({
                   fontSize: "0.75rem",
                 }}
               >
-                + Add Agent
+                {t("comparison.addAgent", "+ Add Agent")}
               </button>
             )}
           </div>
@@ -178,7 +217,8 @@ export function ComparisonCreateModal({
                 marginBottom: "8px",
                 padding: "8px",
                 borderRadius: "6px",
-                backgroundColor: "var(--color-bg-elevated, rgba(255,255,255,0.05))",
+                backgroundColor:
+                  "var(--color-bg-elevated, rgba(255,255,255,0.05))",
               }}
             >
               <input
@@ -187,7 +227,7 @@ export function ComparisonCreateModal({
                 value={agent.label}
                 onChange={(e) => updateAgent(i, { label: e.target.value })}
                 style={{ flex: 1, fontSize: "0.875rem" }}
-                placeholder="Label"
+                placeholder={t("comparison.placeholder.label", "Label")}
               />
               {agents.length > 2 && (
                 <button
@@ -220,7 +260,9 @@ export function ComparisonCreateModal({
           </p>
         )}
 
-        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+        <div
+          style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}
+        >
           <button
             onClick={onClose}
             style={{
@@ -232,7 +274,7 @@ export function ComparisonCreateModal({
               cursor: "pointer",
             }}
           >
-            Cancel
+            {t("common.cancel", "Cancel")}
           </button>
           <button
             onClick={handleCreate}
@@ -248,7 +290,9 @@ export function ComparisonCreateModal({
               opacity: creating || !prompt.trim() ? 0.5 : 1,
             }}
           >
-            {creating ? "Starting..." : "Start Comparison"}
+            {creating
+              ? t("comparison.starting", "Starting...")
+              : t("comparison.start", "Start Comparison")}
           </button>
         </div>
       </div>

@@ -5,6 +5,29 @@ export interface ToolCallTextSanitizationResult {
 }
 
 const XML_TOOL_PATTERNS: RegExp[] = [
+  // Some providers emit the same tool protocol without the DSML namespace.
+  // It is transport metadata, never user-facing markdown.
+  /<FunctionCalls\b[^>]*>[\s\S]*?<\/FunctionCalls>/gi,
+  /<InvokeFunction\b[^>]*>[\s\S]*?<\/InvokeFunction>/gi,
+  /<functions\b[^>]*>[\s\S]*?<\/functions>/gi,
+  /<read_workspace_structure\b[^>]*>[\s\S]*?<\/read_workspace_structure>/gi,
+  /<NeoWorker\b[^>]*>[\s\S]*?<\/NeoWorker>/gi,
+  /(?:^|\n)\s*Function Calls?\s*(?=\n?\s*<invoke\b)/gi,
+  /<tool_calls\b[^>]*>[\s\S]*?<\/tool_calls>/gi,
+  /<invoke\b[^>]*>[\s\S]*?<\/invoke>/gi,
+  // A truncated stream may omit the closing tag. Once an invoke starts, the
+  // remainder is still protocol payload and must not leak into the reply.
+  /<(?:tool_calls|invoke)\b[\s\S]*$/gi,
+  /<parameter\b[^>]*>[\s\S]*?<\/parameter>/gi,
+  /<\/?(?:tool_calls|invoke|parameter)\b[^>]*>/gi,
+  /<[^>]*\bDSML\b[^>]*\btool_calls\b[^>]*>[\s\S]*?<\s*\/[^>]*\bDSML\b[^>]*\btool_calls\b[^>]*>/gi,
+  /<[^>]*\bDSML\b[^>]*\binvoke\b[^>]*>[\s\S]*?<\s*\/[^>]*\bDSML\b[^>]*\binvoke\b[^>]*>/gi,
+  /<[^>]*\bDSML\b[^>]*\bparameter\b[^>]*>[\s\S]*?<\s*\/[^>]*\bDSML\b[^>]*\bparameter\b[^>]*>/gi,
+  /<\/?[^>]*\bDSML\b[^>]*\b(?:tool_calls|invoke|parameter)\b[^>]*>/gi,
+  /<\s*\|\s*\|\s*DSML\s*\|\s*\|\s*tool_calls\s*>[\s\S]*?<\s*\/\s*\|\s*\|\s*DSML\s*\|\s*\|\s*tool_calls\s*>/gi,
+  /<\s*\|\s*\|\s*DSML\s*\|\s*\|\s*invoke\b[\s\S]*?<\s*\/\s*\|\s*\|\s*DSML\s*\|\s*\|\s*invoke\s*>/gi,
+  /<\s*\|\s*\|\s*DSML\s*\|\s*\|\s*parameter\b[\s\S]*?<\s*\/\s*\|\s*\|\s*DSML\s*\|\s*\|\s*parameter\s*>/gi,
+  /<\/?\s*\|\s*\|\s*DSML\s*\|\s*\|\s*(?:tool_calls|invoke|parameter)\b[^>]*>/gi,
   /<tool_call\b[\s\S]*?<\/tool_call>/gi,
   /<tool_result\b[\s\S]*?<\/tool_result>/gi,
   /<tool\b[^>]*>[\s\S]*?<\/tool>/gi,
@@ -29,6 +52,8 @@ const TOOL_TEXT_MARKERS = [
   "</tool_result>",
   "<tool ",
   "</tool>",
+  "||dsml||",
+  "| | dsml | |",
   "\"tool_name\"",
   "\"tool\"",
   "\"tool_call\"",
@@ -59,10 +84,33 @@ const PLAIN_TOOL_TRANSCRIPT_MARKERS = [
   "\"arguments\":",
 ];
 
+// Some model adapters flatten a sequence of tool events into one assistant
+// message (for example: "Read File … · Web Search … · Http Request …").
+// Those records are operational telemetry, not a reply for the user.
+const TOOL_ACTIVITY_LABEL_RE = /\b(?:Parse Document|Create Document(?: From Text)?|Inspect Workspace|Read File|Scratchpad Write|List Directory|Web Search|Web Fetch|Http Request|Write File|Edit File|Get File Info|Glob|Grep)\b/gi;
+const MIN_TOOL_ACTIVITY_LABELS = 3;
+const STANDALONE_TOOL_ACTIVITY_LINE_RE =
+  /^(?:[-•*]\s*)?(?:Parse Document|Create Document(?: From Text)?|Inspect Workspace|Read File|Scratchpad Write|List Directory|Web Search|Web Fetch|Http Request|Write File|Edit File|Get File Info|Glob|Grep)\s*$/i;
+
 const INLINE_TOOL_JSON_PATTERNS: RegExp[] = [
   /\{\s*"id"\s*:\s*"call_[^"]+"\s*,\s*"tool"\s*:\s*"[^"]+"\s*,\s*"input"\s*:\s*\{[\s\S]*?\}\s*\}/gi,
   /\{\s*"tool_name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*"(?:\\.|[^"])*"\s*\}/gi,
 ];
+
+function normalizeEscapedToolCallMarkup(input: string): string {
+  if (!/\b(?:DSML|tool_call|tool_result|tool_name|TOOL_CALL|TOOL_RESULT)\b/i.test(input)) {
+    return input;
+  }
+  if (!/&(?:lt|gt|quot|#34|#x22|#124|#x7c|vert);/i.test(input)) {
+    return input;
+  }
+
+  return input
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;|&#34;|&#x22;/gi, "\"")
+    .replace(/&#124;|&#x7c;|&vert;/gi, "|");
+}
 
 function looksLikePlainToolTranscript(input: string): boolean {
   const lower = input.toLowerCase();
@@ -175,13 +223,40 @@ function stripEmptyObjectThenInlineTranscriptPrefix(input: string): { text: stri
   };
 }
 
+function stripFlattenedToolActivityTranscript(input: string): { text: string; removed: number } {
+  const matches = [...input.matchAll(TOOL_ACTIVITY_LABEL_RE)];
+  if (matches.length < MIN_TOOL_ACTIVITY_LABELS) {
+    return { text: input, removed: 0 };
+  }
+
+  const firstMatchIndex = matches[0].index ?? 0;
+  return {
+    text: input.slice(0, firstMatchIndex).trimEnd(),
+    removed: 1,
+  };
+}
+
+function stripStandaloneToolActivityLines(input: string): { text: string; removed: number } {
+  let removed = 0;
+  const text = input
+    .split(/\r?\n/)
+    .filter((line) => {
+      if (!STANDALONE_TOOL_ACTIVITY_LINE_RE.test(line.trim())) return true;
+      removed += 1;
+      return false;
+    })
+    .join("\n");
+
+  return { text, removed };
+}
+
 export function sanitizeToolCallTextFromAssistant(raw: string): ToolCallTextSanitizationResult {
   const input = String(raw || "");
   if (!input.trim()) {
     return { text: "", hadToolCallText: false, removedSegments: 0 };
   }
 
-  let text = input;
+  let text = normalizeEscapedToolCallMarkup(input);
   let removedSegments = 0;
 
   const fenced = stripFencedToolBlocks(text);
@@ -218,6 +293,14 @@ export function sanitizeToolCallTextFromAssistant(raw: string): ToolCallTextSani
   text = strippedEmptyObject.text;
   removedSegments += strippedEmptyObject.removed;
 
+  const strippedActivityTranscript = stripFlattenedToolActivityTranscript(text);
+  text = strippedActivityTranscript.text;
+  removedSegments += strippedActivityTranscript.removed;
+
+  const strippedStandaloneActivityLines = stripStandaloneToolActivityLines(text);
+  text = strippedStandaloneActivityLines.text;
+  removedSegments += strippedStandaloneActivityLines.removed;
+
   if (looksLikePlainToolTranscript(text)) {
     return {
       text: "",
@@ -227,6 +310,9 @@ export function sanitizeToolCallTextFromAssistant(raw: string): ToolCallTextSani
   }
 
   text = text
+    // Markdown is rendered without raw HTML. Preserve the readable content
+    // of disclosure blocks but never expose the literal tags.
+    .replace(/<\/?(?:details|summary)\b[^>]*>/gi, "")
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/[ \t]+\n/g, "\n")

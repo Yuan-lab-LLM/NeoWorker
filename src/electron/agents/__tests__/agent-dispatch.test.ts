@@ -9,7 +9,7 @@ describe("agent-dispatch", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-agent-dispatch-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-agent-dispatch-"));
   });
 
   afterEach(() => {
@@ -17,9 +17,9 @@ describe("agent-dispatch", () => {
   });
 
   it("injects role profile when workspacePath is provided", () => {
-    fs.mkdirSync(path.join(tmpDir, ".cowork", "agents", "qa-analyst"), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, ".neoworker", "agents", "qa-analyst"), { recursive: true });
     fs.writeFileSync(
-      path.join(tmpDir, ".cowork", "agents", "qa-analyst", "SOUL.md"),
+      path.join(tmpDir, ".neoworker", "agents", "qa-analyst", "SOUL.md"),
       "# SOUL\n\nCalm and concise",
       "utf-8",
     );

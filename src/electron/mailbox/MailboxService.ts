@@ -552,8 +552,8 @@ type MailboxAskActionPlan =
     };
 
 const MAILBOX_CIPHER_PREFIX = "mbox:";
-const MAILBOX_CIPHER_SALT = "cowork-mailbox-content-v1";
-const MAILBOX_MACHINE_ID_FILE = ".cowork-machine-id";
+const MAILBOX_CIPHER_SALT = "neoworker-mailbox-content-v1";
+const MAILBOX_MACHINE_ID_FILE = ".neoworker-machine-id";
 const MAILBOX_AUTO_SYNC_INTERVAL_MS = 2 * 60 * 1000;
 const MAILBOX_AUTO_SYNC_INITIAL_DELAY_MS = 30 * 1000;
 const MAILBOX_AUTO_SYNC_LIMIT = 25;
@@ -640,7 +640,7 @@ function toMailboxActionError(
   }
   if (isMailboxConnectionError(error)) {
     return new Error(
-      `Mailbox provider connection failed while applying ${action}. CoWork could not reach the ${provider} mail server (${summarizeMailboxConnectionError(error)}). Check your network/VPN/firewall and mailbox integration settings, then retry.`,
+      `Mailbox provider connection failed while applying ${action}. NeoWorker could not reach the ${provider} mail server (${summarizeMailboxConnectionError(error)}). Check your network/VPN/firewall and mailbox integration settings, then retry.`,
     );
   }
   return new Error(`Mailbox action ${action} failed: ${originalMessage}`, { cause: error });
@@ -5898,10 +5898,10 @@ export class MailboxService {
         threadId: row.id,
         type: "cleanup",
         title: `Queue cleanup for ${row.subject}`,
-        reasoning: "Hide this low-priority handled thread from the Cowork inbox. Use Archive or Trash for a server-side mailbox change.",
+        reasoning: "Hide this low-priority handled thread from the NeoWorker inbox. Use Archive or Trash for a server-side mailbox change.",
         preview: {
           threadId: row.id,
-          suggestedAction: "hide from Cowork inbox",
+          suggestedAction: "hide from NeoWorker inbox",
         },
       });
     }
@@ -8514,7 +8514,7 @@ export class MailboxService {
         threadId: thread.id,
         type: "cleanup",
         title: `Clean up ${thread.subject}`,
-        reasoning: "Hide this thread from the Cowork inbox. Use Archive or Trash if you want to change the server-side mailbox.",
+        reasoning: "Hide this thread from the NeoWorker inbox. Use Archive or Trash if you want to change the server-side mailbox.",
       });
     }
     if (thread.staleFollowup) {
@@ -10263,7 +10263,7 @@ export class MailboxService {
         "Microsoft Graph request failed";
       if (response.status === 401 || response.status === 403) {
         throw new Error(
-          `Microsoft Outlook permission failed (${response.status}): ${graphMessage}. Reconnect the Outlook email channel so CoWork can request Microsoft Graph Mail.ReadWrite access.`,
+          `Microsoft Outlook permission failed (${response.status}): ${graphMessage}. Reconnect the Outlook email channel so NeoWorker can request Microsoft Graph Mail.ReadWrite access.`,
         );
       }
       throw new Error(`Microsoft Graph error ${response.status}: ${graphMessage}`);
@@ -10312,7 +10312,7 @@ export class MailboxService {
       return accessToken;
     }
     if (!oauthClientId || !refreshToken) {
-      throw new Error("Reconnect the Outlook email channel so CoWork can sync Outlook read state.");
+      throw new Error("Reconnect the Outlook email channel so NeoWorker can sync Outlook read state.");
     }
 
     const refreshed = await refreshMicrosoftEmailAccessToken({
@@ -11018,7 +11018,7 @@ export class MailboxService {
 
   private buildRawMimeMessage(draft: MailboxComposeDraft, attachments: EmailAttachment[]): string {
     const strip = (value: string) => value.replace(/[\r\n]/g, "");
-    const boundary = `cowork-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const boundary = `neoworker-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const headers = [
       draft.to.length ? `To: ${draft.to.map((recipient) => strip(recipient.email)).join(", ")}` : null,
       draft.cc.length ? `Cc: ${draft.cc.map((recipient) => strip(recipient.email)).join(", ")}` : null,

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { StandupReport } from "../../electron/preload";
 import { useAgentContext } from "../hooks/useAgentContext";
+import { translate, useLanguage } from "../i18n";
 
 interface Task {
   id: string;
@@ -13,9 +14,16 @@ interface StandupReportViewerProps {
   onClose?: () => void;
 }
 
-export function StandupReportViewer({ workspaceId, onClose }: StandupReportViewerProps) {
+export function StandupReportViewer({
+  workspaceId,
+  onClose,
+}: StandupReportViewerProps) {
+  const language = useLanguage();
+  const t = translate;
   const [reports, setReports] = useState<StandupReport[]>([]);
-  const [selectedReport, setSelectedReport] = useState<StandupReport | null>(null);
+  const [selectedReport, setSelectedReport] = useState<StandupReport | null>(
+    null,
+  );
   const [taskMap, setTaskMap] = useState<Map<string, Task>>(new Map());
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -28,7 +36,10 @@ export function StandupReportViewer({ workspaceId, onClose }: StandupReportViewe
   const loadReports = async () => {
     try {
       setLoading(true);
-      const loadedReports = await window.electronAPI.listStandupReports(workspaceId, 30);
+      const loadedReports = await window.electronAPI.listStandupReports(
+        workspaceId,
+        30,
+      );
       setReports(loadedReports);
 
       // Select the latest report if available
@@ -79,8 +90,12 @@ export function StandupReportViewer({ workspaceId, onClose }: StandupReportViewe
   const handleGenerateReport = async () => {
     try {
       setGenerating(true);
-      const newReport = await window.electronAPI.generateStandupReport(workspaceId);
-      setReports((prev) => [newReport, ...prev.filter((r) => r.id !== newReport.id)]);
+      const newReport =
+        await window.electronAPI.generateStandupReport(workspaceId);
+      setReports((prev) => [
+        newReport,
+        ...prev.filter((r) => r.id !== newReport.id),
+      ]);
       setSelectedReport(newReport);
       await loadTaskDetails(newReport);
     } catch (err) {
@@ -97,12 +112,12 @@ export function StandupReportViewer({ workspaceId, onClose }: StandupReportViewe
     yesterday.setDate(yesterday.getDate() - 1);
 
     if (dateStr === today.toISOString().split("T")[0]) {
-      return "Today";
+      return t("date.today", "Today");
     } else if (dateStr === yesterday.toISOString().split("T")[0]) {
-      return "Yesterday";
+      return t("date.yesterday", "Yesterday");
     }
 
-    return date.toLocaleDateString("en-US", {
+    return date.toLocaleDateString(language === "zh-CN" ? "zh-CN" : "en-US", {
       weekday: "short",
       month: "short",
       day: "numeric",
@@ -117,7 +132,9 @@ export function StandupReportViewer({ workspaceId, onClose }: StandupReportViewe
   if (loading) {
     return (
       <div className="standup-viewer">
-        <div className="loading-state">{agentContext.getUiCopy("standupLoading")}</div>
+        <div className="loading-state">
+          {agentContext.getUiCopy("standupLoading")}
+        </div>
         <style>{styles}</style>
       </div>
     );
@@ -128,7 +145,11 @@ export function StandupReportViewer({ workspaceId, onClose }: StandupReportViewe
       <div className="viewer-header">
         <div className="header-content">
           <h2>{agentContext.getUiCopy("standupTitle")}</h2>
-          <button className="btn-generate" onClick={handleGenerateReport} disabled={generating}>
+          <button
+            className="btn-generate"
+            onClick={handleGenerateReport}
+            disabled={generating}
+          >
             {generating
               ? agentContext.getUiCopy("standupGenerating")
               : agentContext.getUiCopy("standupGenerate")}
@@ -155,7 +176,9 @@ export function StandupReportViewer({ workspaceId, onClose }: StandupReportViewe
           <h3>{agentContext.getUiCopy("standupHistoryTitle")}</h3>
           <div className="report-list">
             {reports.length === 0 ? (
-              <div className="empty-state">{agentContext.getUiCopy("standupEmpty")}</div>
+              <div className="empty-state">
+                {agentContext.getUiCopy("standupEmpty")}
+              </div>
             ) : (
               reports.map((report) => (
                 <button
@@ -163,10 +186,18 @@ export function StandupReportViewer({ workspaceId, onClose }: StandupReportViewe
                   className={`report-item ${selectedReport?.id === report.id ? "selected" : ""}`}
                   onClick={() => handleSelectReport(report)}
                 >
-                  <span className="report-date">{formatDate(report.reportDate)}</span>
+                  <span className="report-date">
+                    {formatDate(report.reportDate)}
+                  </span>
                   <span className="report-summary-mini">
-                    {report.completedTaskIds.length} completed, {report.inProgressTaskIds.length} in
-                    progress
+                    {t(
+                      "standup.miniSummary",
+                      "{completed} completed, {inProgress} in progress",
+                      {
+                        completed: report.completedTaskIds.length,
+                        inProgress: report.inProgressTaskIds.length,
+                      },
+                    )}
                   </span>
                 </button>
               ))
@@ -192,7 +223,9 @@ export function StandupReportViewer({ workspaceId, onClose }: StandupReportViewe
                   <div className="section-header">
                     <span className="section-icon">✅</span>
                     <h4>{agentContext.getUiCopy("standupCompletedTitle")}</h4>
-                    <span className="section-count">{selectedReport.completedTaskIds.length}</span>
+                    <span className="section-count">
+                      {selectedReport.completedTaskIds.length}
+                    </span>
                   </div>
                   {selectedReport.completedTaskIds.length === 0 ? (
                     <div className="section-empty">
@@ -217,7 +250,9 @@ export function StandupReportViewer({ workspaceId, onClose }: StandupReportViewe
                   <div className="section-header">
                     <span className="section-icon">🔄</span>
                     <h4>{agentContext.getUiCopy("standupInProgressTitle")}</h4>
-                    <span className="section-count">{selectedReport.inProgressTaskIds.length}</span>
+                    <span className="section-count">
+                      {selectedReport.inProgressTaskIds.length}
+                    </span>
                   </div>
                   {selectedReport.inProgressTaskIds.length === 0 ? (
                     <div className="section-empty">
@@ -242,7 +277,9 @@ export function StandupReportViewer({ workspaceId, onClose }: StandupReportViewe
                   <div className="section-header">
                     <span className="section-icon">🚫</span>
                     <h4>{agentContext.getUiCopy("standupBlockedTitle")}</h4>
-                    <span className="section-count">{selectedReport.blockedTaskIds.length}</span>
+                    <span className="section-count">
+                      {selectedReport.blockedTaskIds.length}
+                    </span>
                   </div>
                   {selectedReport.blockedTaskIds.length === 0 ? (
                     <div className="section-empty">
@@ -265,22 +302,29 @@ export function StandupReportViewer({ workspaceId, onClose }: StandupReportViewe
 
               {/* Summary */}
               <div className="report-summary">
-                <h4>Summary</h4>
+                <h4>{t("standup.summary", "Summary")}</h4>
                 <p>{selectedReport.summary}</p>
               </div>
 
               {selectedReport.deliveredToChannel && (
                 <div className="delivery-info">
                   <span className="delivery-icon">📤</span>
-                  Delivered to {selectedReport.deliveredToChannel}
+                  {t("standup.deliveredTo", "Delivered to {channel}", {
+                    channel: selectedReport.deliveredToChannel,
+                  })}
                 </div>
               )}
             </>
           ) : (
             <div className="no-report">
               <div className="no-report-icon">📋</div>
-              <h3>No Report Selected</h3>
-              <p>Select a report from the sidebar or generate a new one.</p>
+              <h3>{t("standup.noReportSelected", "No Report Selected")}</h3>
+              <p>
+                {t(
+                  "standup.noReportHint",
+                  "Select a report from the sidebar or generate a new one.",
+                )}
+              </p>
             </div>
           )}
         </div>

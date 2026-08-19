@@ -17,6 +17,10 @@ import * as fs from "fs";
 import * as path from "path";
 import { getUserDataDir } from "../utils/user-data-dir";
 import { getSafeStorage, type SafeStorageLike } from "../utils/safe-storage";
+import {
+  LEGACY_APP_KEY_SALTS,
+  LEGACY_USER_DATA_LAYOUTS,
+} from "../migrations/legacy-brand-compat";
 import { createLogger } from "../utils/logger";
 
 /** Result status for load operations */
@@ -69,8 +73,6 @@ export type SettingsCategory =
   | "relationship-memory"
   | "conway"
   | "conway-wallet"
-  | "infra"
-  | "infra-wallet"
   | "proactive-suggestions-state"
   | "improvement-loop"
   | "improvement-owner"
@@ -97,8 +99,17 @@ interface SecureSettingsRow {
 }
 
 /** Machine ID file name - persisted for stable key derivation */
-const MACHINE_ID_FILE = ".cowork-machine-id";
+const MACHINE_ID_FILE = ".neoworker-machine-id";
+const DEV_STABLE_ENCRYPTION_ENV = "NEOWORKER_DEV_STABLE_SECURE_SETTINGS";
 const logger = createLogger("SecureSettingsRepository");
+
+function isEnabledEnvironmentFlag(value: string | undefined): boolean {
+  return ["1", "true", "yes", "on"].includes(
+    String(value || "")
+      .trim()
+      .toLowerCase(),
+  );
+}
 
 /**
  * Repository for securely storing encrypted settings in the database
@@ -107,13 +118,18 @@ export class SecureSettingsRepository {
   private static instance: SecureSettingsRepository | null = null;
   private encryptionAvailable: boolean;
   private safeStorage: SafeStorageLike | null;
+  private preferStableAppEncryption: boolean;
   private machineId: string | null = null;
   private unreadableCategories = new Map<string, LoadResult<never>>();
 
   constructor(private db: Database.Database) {
     this.safeStorage = getSafeStorage();
+    this.preferStableAppEncryption = isEnabledEnvironmentFlag(
+      process.env[DEV_STABLE_ENCRYPTION_ENV],
+    );
     try {
-      this.encryptionAvailable = this.safeStorage?.isEncryptionAvailable() ?? false;
+      this.encryptionAvailable =
+        this.safeStorage?.isEncryptionAvailable() ?? false;
     } catch (error) {
       this.encryptionAvailable = false;
       console.warn(
@@ -124,6 +140,11 @@ export class SecureSettingsRepository {
     if (!this.encryptionAvailable) {
       console.warn(
         "[SecureSettingsRepository] OS encryption not available. Settings will be stored with app-level encryption only.",
+      );
+    }
+    if (this.preferStableAppEncryption) {
+      logger.info(
+        "Using rebuild-stable app-level encryption for local development settings.",
       );
     }
     // Initialize stable machine ID for fallback encryption
@@ -142,15 +163,27 @@ export class SecureSettingsRepository {
       const machineIdPath = path.join(userDataPath, MACHINE_ID_FILE);
 
       if (fs.existsSync(machineIdPath)) {
-      this.machineId = fs.readFileSync(machineIdPath, "utf-8").trim();
-      logger.debug("Loaded existing machine ID");
-    } else {
-      // Generate a new stable machine ID
-      this.machineId = uuidv4();
-      // Write with restrictive permissions (owner read/write only)
-      fs.writeFileSync(machineIdPath, this.machineId, { mode: 0o600 });
-      logger.debug("Generated new machine ID");
-    }
+        this.machineId = fs.readFileSync(machineIdPath, "utf-8").trim();
+        logger.debug("Loaded existing machine ID");
+      } else {
+        const legacyMachineIdPath = [
+          ...new Set(
+            LEGACY_USER_DATA_LAYOUTS.flatMap((layout) => layout.machineIdNames),
+          ),
+        ]
+          .map((fileName) => path.join(userDataPath, fileName))
+          .find((candidate) => fs.existsSync(candidate));
+
+        if (legacyMachineIdPath) {
+          this.machineId = fs.readFileSync(legacyMachineIdPath, "utf-8").trim();
+          fs.writeFileSync(machineIdPath, this.machineId, { mode: 0o600 });
+          logger.info("Migrated legacy machine ID");
+        } else {
+          this.machineId = uuidv4();
+          fs.writeFileSync(machineIdPath, this.machineId, { mode: 0o600 });
+          logger.debug("Generated new machine ID");
+        }
+      }
     } catch (error) {
       console.warn(
         "[SecureSettingsRepository] Failed to initialize machine ID, using fallback:",
@@ -260,14 +293,22 @@ export class SecureSettingsRepository {
         return result;
       }
 
+      const data = JSON.parse(decrypted) as T;
+      this.migrateReadableOsEncryption(category, row, decrypted);
+
       return {
         status: "success",
-        data: JSON.parse(decrypted) as T,
+        data,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       // Detect specific failure modes
-      if (errorMessage.includes("OS encryption was used but is no longer available")) {
+      if (
+        errorMessage.includes(
+          "OS encryption was used but is no longer available",
+        )
+      ) {
         const result: LoadResult<never> = {
           status: "os_encryption_unavailable",
           error:
@@ -311,7 +352,9 @@ export class SecureSettingsRepository {
    * Delete settings for a category
    */
   delete(category: SettingsCategory): boolean {
-    const stmt = this.db.prepare("DELETE FROM secure_settings WHERE category = ?");
+    const stmt = this.db.prepare(
+      "DELETE FROM secure_settings WHERE category = ?",
+    );
     const result = stmt.run(category);
     this.unreadableCategories.delete(category);
     return result.changes > 0;
@@ -321,7 +364,9 @@ export class SecureSettingsRepository {
    * Check if settings exist for a category
    */
   exists(category: SettingsCategory): boolean {
-    const stmt = this.db.prepare("SELECT 1 FROM secure_settings WHERE category = ? LIMIT 1");
+    const stmt = this.db.prepare(
+      "SELECT 1 FROM secure_settings WHERE category = ? LIMIT 1",
+    );
     const row = stmt.get(category);
     return row !== undefined;
   }
@@ -330,7 +375,9 @@ export class SecureSettingsRepository {
    * Get all categories that have settings stored
    */
   listCategories(): SettingsCategory[] {
-    const stmt = this.db.prepare("SELECT category FROM secure_settings ORDER BY category");
+    const stmt = this.db.prepare(
+      "SELECT category FROM secure_settings ORDER BY category",
+    );
     const rows = stmt.all() as Array<{ category: string }>;
     return rows.map((r) => r.category as SettingsCategory);
   }
@@ -338,12 +385,17 @@ export class SecureSettingsRepository {
   /**
    * Get metadata about stored settings (without decrypting)
    */
-  getMetadata(category: SettingsCategory): { createdAt: number; updatedAt: number } | undefined {
+  getMetadata(
+    category: SettingsCategory,
+  ): { createdAt: number; updatedAt: number } | undefined {
     const stmt = this.db.prepare(
       "SELECT created_at, updated_at FROM secure_settings WHERE category = ?",
     );
-    const row = stmt.get(category) as { created_at: number; updated_at: number } | undefined;
-    return row ? { createdAt: row.created_at, updatedAt: row.updated_at } : undefined;
+    const row = stmt.get(category) as
+      { created_at: number; updated_at: number } | undefined;
+    return row
+      ? { createdAt: row.created_at, updatedAt: row.updated_at }
+      : undefined;
   }
 
   // ============ Backup & Recovery ============
@@ -382,7 +434,8 @@ export class SecureSettingsRepository {
 
       return { success: true, categoriesBackedUp: categories };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.error("[SecureSettingsRepository] Backup failed:", error);
       return { success: false, categoriesBackedUp: [], error: errorMessage };
     }
@@ -399,7 +452,11 @@ export class SecureSettingsRepository {
   ): { success: boolean; categoriesRestored: string[]; error?: string } {
     try {
       if (!fs.existsSync(backupPath)) {
-        return { success: false, categoriesRestored: [], error: "Backup file not found" };
+        return {
+          success: false,
+          categoriesRestored: [],
+          error: "Backup file not found",
+        };
       }
 
       const encryptedBackup = fs.readFileSync(backupPath, "utf-8");
@@ -407,7 +464,11 @@ export class SecureSettingsRepository {
       const backup = JSON.parse(jsonData);
 
       if (!backup.version || !backup.categories) {
-        return { success: false, categoriesRestored: [], error: "Invalid backup format" };
+        return {
+          success: false,
+          categoriesRestored: [],
+          error: "Invalid backup format",
+        };
       }
 
       const categoriesRestored: string[] = [];
@@ -425,10 +486,13 @@ export class SecureSettingsRepository {
         categoriesRestored.push(category);
       }
 
-      logger.debug(`Restored ${categoriesRestored.length} categories from backup`);
+      logger.debug(
+        `Restored ${categoriesRestored.length} categories from backup`,
+      );
       return { success: true, categoriesRestored };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.error("[SecureSettingsRepository] Restore failed:", error);
       return { success: false, categoriesRestored: [], error: errorMessage };
     }
@@ -448,7 +512,9 @@ export class SecureSettingsRepository {
       return false;
     }
 
-    logger.debug(`Deleting corrupted settings for ${category} (status: ${status})`);
+    logger.debug(
+      `Deleting corrupted settings for ${category} (status: ${status})`,
+    );
     return this.delete(category);
   }
 
@@ -456,7 +522,11 @@ export class SecureSettingsRepository {
    * Re-encrypt all settings with current encryption method
    * Useful after OS keychain becomes available or for migration
    */
-  reEncryptAll(): { success: boolean; categoriesProcessed: string[]; errors: string[] } {
+  reEncryptAll(): {
+    success: boolean;
+    categoriesProcessed: string[];
+    errors: string[];
+  } {
     const categories = this.listCategories();
     const processed: string[] = [];
     const errors: string[] = [];
@@ -472,19 +542,67 @@ export class SecureSettingsRepository {
           errors.push(`${category}: ${result.error || result.status}`);
         }
       } catch (error) {
-        errors.push(`${category}: ${error instanceof Error ? error.message : String(error)}`);
+        errors.push(
+          `${category}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 
-    logger.debug(`Re-encrypted ${processed.length}/${categories.length} categories`);
-    return { success: errors.length === 0, categoriesProcessed: processed, errors };
+    logger.debug(
+      `Re-encrypted ${processed.length}/${categories.length} categories`,
+    );
+    return {
+      success: errors.length === 0,
+      categoriesProcessed: processed,
+      errors,
+    };
   }
 
   // ============ Private Methods ============
 
-  private findByCategory(category: SettingsCategory): SecureSettingsRow | undefined {
-    const stmt = this.db.prepare("SELECT * FROM secure_settings WHERE category = ?");
+  private findByCategory(
+    category: SettingsCategory,
+  ): SecureSettingsRow | undefined {
+    const stmt = this.db.prepare(
+      "SELECT * FROM secure_settings WHERE category = ?",
+    );
     return stmt.get(category) as SecureSettingsRow | undefined;
+  }
+
+  /**
+   * Local development rebuilds can change Electron's macOS keychain identity.
+   * If an existing OS-encrypted value is still readable, migrate it immediately
+   * to the rebuild-stable app encryption scheme without exposing its plaintext.
+   */
+  private migrateReadableOsEncryption(
+    category: SettingsCategory,
+    row: SecureSettingsRow,
+    decrypted: string,
+  ): void {
+    if (
+      !this.preferStableAppEncryption ||
+      !row.encrypted_data.startsWith("os:")
+    ) {
+      return;
+    }
+
+    try {
+      const encryptedData = this.encrypt(decrypted);
+      const stmt = this.db.prepare(`
+        UPDATE secure_settings
+        SET encrypted_data = ?, updated_at = ?
+        WHERE category = ? AND encrypted_data = ?
+      `);
+      stmt.run(encryptedData, Date.now(), category, row.encrypted_data);
+      logger.info(
+        `Migrated ${category} settings to rebuild-stable development encryption.`,
+      );
+    } catch (error) {
+      console.warn(
+        `[SecureSettingsRepository] Could not migrate ${category} to rebuild-stable development encryption:`,
+        error,
+      );
+    }
   }
 
   /**
@@ -492,7 +610,11 @@ export class SecureSettingsRepository {
    * otherwise use app-level encryption with a derived key
    */
   private encrypt(data: string): string {
-    if (this.encryptionAvailable && this.safeStorage) {
+    if (
+      !this.preferStableAppEncryption &&
+      this.encryptionAvailable &&
+      this.safeStorage
+    ) {
       // Use OS keychain encryption
       const encryptedBuffer = this.safeStorage.encryptString(data);
       return "os:" + encryptedBuffer.toString("base64");
@@ -533,20 +655,30 @@ export class SecureSettingsRepository {
       }
 
       const [ivBase64, authTagBase64, encrypted] = parts;
-      const key = this.deriveAppKey();
       const iv = Buffer.from(ivBase64, "base64");
       const authTag = Buffer.from(authTagBase64, "base64");
+      let lastError: unknown;
 
-      const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
-      decipher.setAuthTag(authTag);
+      for (const key of this.deriveCompatibleAppKeys()) {
+        try {
+          const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+          decipher.setAuthTag(authTag);
+          let decrypted = decipher.update(encrypted, "base64", "utf8");
+          decrypted += decipher.final("utf8");
+          return decrypted;
+        } catch (error) {
+          lastError = error;
+        }
+      }
 
-      let decrypted = decipher.update(encrypted, "base64", "utf8");
-      decrypted += decipher.final("utf8");
-
-      return decrypted;
+      throw lastError instanceof Error
+        ? lastError
+        : new Error("Unable to decrypt app-level settings");
     } else {
       // Legacy unencrypted data (shouldn't happen, but handle gracefully)
-      console.warn("[SecureSettingsRepository] Found unencrypted data, returning as-is");
+      console.warn(
+        "[SecureSettingsRepository] Found unencrypted data, returning as-is",
+      );
       return encryptedData;
     }
   }
@@ -559,11 +691,18 @@ export class SecureSettingsRepository {
     // Use a combination of:
     // 1. App identifier (hardcoded, same for all installations)
     // 2. Process info (changes per machine but is consistent)
-    const appSalt = "cowork-os-secure-settings-v1";
+    const appSalt = "neoworker-secure-settings-v1";
     const machineId = this.getMachineIdentifier();
 
     // Derive a 256-bit key using PBKDF2
     return crypto.pbkdf2Sync(appSalt, machineId, 100000, 32, "sha512");
+  }
+
+  private deriveCompatibleAppKeys(): Buffer[] {
+    const machineId = this.getMachineIdentifier();
+    return ["neoworker-secure-settings-v1", ...LEGACY_APP_KEY_SALTS].map(
+      (salt) => crypto.pbkdf2Sync(salt, machineId, 100000, 32, "sha512"),
+    );
   }
 
   /**
@@ -580,9 +719,11 @@ export class SecureSettingsRepository {
     const factors = [
       getUserDataDir(),
       path.join(getUserDataDir(), MACHINE_ID_FILE),
-      "cowork-os-secure-settings-fallback-v2",
+      "neoworker-secure-settings-fallback-v2",
     ];
-    console.warn("[SecureSettingsRepository] Using path-derived fallback machine identifier");
+    console.warn(
+      "[SecureSettingsRepository] Using path-derived fallback machine identifier",
+    );
     return factors.join(":");
   }
 

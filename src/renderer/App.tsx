@@ -10,18 +10,34 @@ import {
   lazy,
   Suspense,
   startTransition,
+  Component,
 } from "react";
 import type {
+  ErrorInfo,
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
+  ReactNode,
 } from "react";
+import {
+  Archive,
+  ArrowLeft,
+  ArrowRight,
+  Ellipsis,
+  Folder,
+  Globe2,
+  PanelLeft,
+  Pencil,
+  Pin,
+  PinOff,
+  SquareTerminal,
+} from "lucide-react";
 import { useReplayMode, type ReplayControls } from "./hooks/useReplayMode";
 import { useTaskDuration } from "./hooks/useTaskDuration";
 import { Sidebar } from "./components/Sidebar";
-import type { SpreadsheetTurnContext } from "./components/SpreadsheetArtifactViewer";
+import { CollapsedSidebarRail } from "./components/CollapsedSidebarRail";
+import type { SpreadsheetTurnContext } from "./components/ArtifactTurnProgressPanel";
+import type { IdeaPromptSelection } from "./components/IdeasPanel";
 import { ResizableDividerHandle } from "./components/ResizableDividerHandle";
-import { DisclaimerModal } from "./components/DisclaimerModal";
-import { Onboarding } from "./components/Onboarding";
 // TaskQueuePanel moved to RightPanel
 import { ToastContainer } from "./components/Toast";
 import {
@@ -43,10 +59,6 @@ import {
   TaskEvent,
   LLMModelInfo,
   LLMProviderInfo,
-  UpdateInfo,
-  ThemeMode,
-  VisualTheme,
-  AccentColor,
   UiDensity,
   QueueStatus,
   ToastNotification,
@@ -66,16 +78,43 @@ import {
   LLMProviderType,
   LLMReasoningEffort,
   IntegrationMentionSelection,
+  AgentRole,
   TaskTimelinePageCursor,
+  ActiveArtifactContext,
 } from "../shared/types";
-import { TASK_EVENT_STATUS_MAP } from "../shared/task-event-status-map";
 import { getEffectiveTaskEventType } from "./utils/task-event-compat";
+import {
+  formatCreateTaskError,
+  unwrapCreateTaskError,
+} from "./utils/create-task-error";
+import {
+  getExpiredApprovalToastId,
+  shouldDismissApprovalAfterResponse,
+} from "./utils/approval-response-state";
 import { isLlmRequestCancelledEvent } from "./utils/task-event-visibility";
-import { appendRendererTaskEvents, capTaskEvents } from "./utils/task-event-append";
+import {
+  appendRendererTaskEvents,
+  capTaskEvents,
+} from "./utils/task-event-append";
+import { applyPersistedLanguage, translate, useLanguage } from "./i18n";
+import {
+  FEATURE_VISIBILITY,
+  isInitialReleaseViewAvailable,
+} from "./feature-visibility";
 import { invalidateGlobalMeasurer } from "./utils/pretext-adapter";
+import {
+  ARTIFACT_FOCUS_MIN_MAIN_WIDTH,
+  ARTIFACT_FOCUS_MIN_SIDEBAR_WIDTH,
+  LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY,
+  clampArtifactFocusSidebarWidth,
+  getArtifactOpenMode,
+  getLeftSidebarShortcutLabel,
+  isLeftSidebarToggleShortcut,
+} from "./utils/shell-layout";
 import {
   hasTaskOutputs,
   resolveTaskOutputSummaryFromCompletionEvent,
+  resolveTaskOutputSummaryFromTask,
 } from "./utils/task-outputs";
 import {
   addUniqueTaskId,
@@ -89,11 +128,17 @@ import {
   shouldTrackUnseenCompletion,
 } from "./utils/task-completion-ux";
 import { isSpawnSubagentsPrompt } from "../shared/spawn-intent-detection";
-import { findMultitaskCommand, parseMultitaskCommand } from "../shared/multitask-command";
+import {
+  findMultitaskCommand,
+  parseMultitaskCommand,
+} from "../shared/multitask-command";
 import { isSynthesisChildTask } from "../shared/synthesis-agent-detection";
 import { classifyShellPermissionDecision } from "../shared/shell-permission-intents";
 import { isAutomatedTaskLike } from "../shared/automated-task-detection";
-import { resolveTaskStatusUpdateFromEvent } from "../shared/task-status";
+import {
+  isActiveTaskStatus,
+  resolveTaskStatusUpdateFromEvent,
+} from "../shared/task-status";
 import {
   getFirstRunReadiness,
   getFirstRunReadinessActionLabel,
@@ -115,10 +160,14 @@ import {
   type SharedTaskEventUiState,
 } from "./utils/task-event-derived";
 import { isTaskActivelyWorking } from "./utils/task-working-state";
+import { getManagedAgentTaskTitleForDisplay } from "./utils/mission-control-copy";
 import { deriveReplayTaskSnapshot } from "./utils/task-replay-state";
 import {
   getTaskEventIdentity,
+  getTaskStatusUpdateFromEvent,
+  loadTaskTimelineWithLegacyFallback,
   mergeTaskEventsByIdentity,
+  reconcileTaskDeliveryEvents,
   shouldIncludeTaskEventInSelectedSession,
   shouldRefreshCanonicalEventsForTerminalUpdate,
 } from "./utils/task-event-stream";
@@ -131,23 +180,36 @@ import {
   shouldHydrateTaskSummary,
 } from "./utils/sidebar-task-summaries";
 import { classifyLiveTaskEvent } from "./utils/live-task-event-policy";
+import { findReplacementArtifactForCompletedFollowUp } from "./utils/artifact-followup";
+import {
+  requiresMailboxConnection,
+  resolveRequestedSkillId,
+} from "./utils/skill-runtime-prerequisites";
 
 const Settings = lazy(() =>
-  import("./components/Settings").then((module) => ({ default: module.Settings })),
+  import("./components/Settings").then((module) => ({
+    default: module.Settings,
+  })),
 );
 const mainContentModulePromise = import("./components/MainContent");
 void mainContentModulePromise.catch(() => {});
 const MainContent = lazy(() =>
   mainContentModulePromise.then((module) => ({ default: module.MainContent })),
 );
-const RightPanel = lazy(() =>
-  import("./components/RightPanel").then((module) => ({ default: module.RightPanel })),
+const ProjectContextPanel = lazy(() =>
+  import("./components/ProjectContextPanel").then((module) => ({
+    default: module.ProjectContextPanel,
+  })),
 );
 const SideChatPanel = lazy(() =>
-  import("./components/SideChatPanel").then((module) => ({ default: module.SideChatPanel })),
+  import("./components/SideChatPanel").then((module) => ({
+    default: module.SideChatPanel,
+  })),
 );
 const TerminalTabsDock = lazy(() =>
-  import("./components/TerminalTabsDock").then((module) => ({ default: module.TerminalTabsDock })),
+  import("./components/TerminalTabsDock").then((module) => ({
+    default: module.TerminalTabsDock,
+  })),
 );
 const SpreadsheetArtifactViewer = lazy(() =>
   import("./components/SpreadsheetArtifactViewer").then((module) => ({
@@ -165,7 +227,9 @@ const PresentationArtifactViewer = lazy(() =>
   })),
 );
 const WebArtifactViewer = lazy(() =>
-  import("./components/WebArtifactViewer").then((module) => ({ default: module.WebArtifactViewer })),
+  import("./components/WebArtifactViewer").then((module) => ({
+    default: module.WebArtifactViewer,
+  })),
 );
 const BrowserWorkbenchView = lazy(() =>
   import("./components/BrowserWorkbenchView").then((module) => ({
@@ -178,25 +242,54 @@ const SpawnedAgentSidebar = lazy(() =>
   })),
 );
 const BrowserView = lazy(() =>
-  import("./components/BrowserView").then((module) => ({ default: module.BrowserView })),
+  import("./components/BrowserView").then((module) => ({
+    default: module.BrowserView,
+  })),
 );
 const HomeDashboard = lazy(() =>
-  import("./components/HomeDashboard").then((module) => ({ default: module.HomeDashboard })),
+  import("./components/HomeDashboard").then((module) => ({
+    default: module.HomeDashboard,
+  })),
 );
-const HealthPanel = lazy(() =>
-  import("./components/HealthPanel").then((module) => ({ default: module.HealthPanel })),
+const TeamWorkspacePanel = lazy(() =>
+  import("./components/TeamWorkspacePanel").then((module) => ({
+    default: module.TeamWorkspacePanel,
+  })),
+);
+const CapabilityCenter = lazy(() =>
+  import("./components/CapabilityCenter").then((module) => ({
+    default: module.CapabilityCenter,
+  })),
+);
+const ProjectHubPanel = lazy(() =>
+  import("./components/ProjectHubPanel").then((module) => ({
+    default: module.ProjectHubPanel,
+  })),
+);
+const AutomationHubPanel = lazy(() =>
+  import("./components/AutomationHubPanel").then((module) => ({
+    default: module.AutomationHubPanel,
+  })),
 );
 const DevicesPanel = lazy(() =>
-  import("./components/DevicesPanel").then((module) => ({ default: module.DevicesPanel })),
+  import("./components/DevicesPanel").then((module) => ({
+    default: module.DevicesPanel,
+  })),
 );
 const IdeasPanel = lazy(() =>
-  import("./components/IdeasPanel").then((module) => ({ default: module.IdeasPanel })),
+  import("./components/IdeasPanel").then((module) => ({
+    default: module.IdeasPanel,
+  })),
 );
 const InboxAgentPanel = lazy(() =>
-  import("./components/InboxAgentPanel").then((module) => ({ default: module.InboxAgentPanel })),
+  import("./components/InboxAgentPanel").then((module) => ({
+    default: module.InboxAgentPanel,
+  })),
 );
-const AgentsHubPanel = lazy(() =>
-  import("./components/AgentsHubPanel").then((module) => ({ default: module.AgentsHubPanel })),
+const SimpleAgentBuilderPanel = lazy(() =>
+  import("./components/SimpleAgentBuilderPanel").then((module) => ({
+    default: module.SimpleAgentBuilderPanel,
+  })),
 );
 const EverydayAgentPanel = lazy(() =>
   import("./components/EverydayAgentPanel").then((module) => ({
@@ -208,12 +301,17 @@ const MissionControlPanel = lazy(() =>
     default: module.MissionControlPanel,
   })),
 );
+const CompaniesPanel = lazy(() =>
+  import("./components/CompaniesPanel").then((module) => ({
+    default: module.CompaniesPanel,
+  })),
+);
 
 const SPREADSHEET_SIDEBAR_DEFAULT_WIDTH = 720;
 const SPREADSHEET_SIDEBAR_MIN_WIDTH = 420;
-const SPREADSHEET_MAIN_MIN_WIDTH = 390;
-const SPREADSHEET_SIDEBAR_WIDTH_STORAGE_KEY = "cowork:spreadsheetSidebarWidth";
-type ActiveArtifactKind = "spreadsheet" | "document" | "presentation" | "webpage";
+const SPREADSHEET_MAIN_MIN_WIDTH = ARTIFACT_FOCUS_MIN_MAIN_WIDTH;
+const SPREADSHEET_SIDEBAR_WIDTH_STORAGE_KEY =
+  "neoworker:spreadsheetSidebarWidth";
 type BrowserWorkbenchOpenRequest = {
   requestId: string;
   taskId: string;
@@ -223,7 +321,9 @@ type BrowserWorkbenchOpenRequest = {
 
 function readPersistedSpreadsheetSidebarWidth(): number {
   try {
-    const rawValue = window.localStorage.getItem(SPREADSHEET_SIDEBAR_WIDTH_STORAGE_KEY);
+    const rawValue = window.localStorage.getItem(
+      SPREADSHEET_SIDEBAR_WIDTH_STORAGE_KEY,
+    );
     const parsedValue = rawValue ? Number(rawValue) : NaN;
     if (!Number.isFinite(parsedValue)) return SPREADSHEET_SIDEBAR_DEFAULT_WIDTH;
     return Math.max(Math.round(parsedValue), SPREADSHEET_SIDEBAR_MIN_WIDTH);
@@ -252,7 +352,10 @@ function cleanTurnText(value: unknown, maxLength = 220): string {
 function getEventText(event: TaskEvent | undefined): string {
   if (!event) return "";
   const payload = event.payload || {};
-  const step = payload.step && typeof payload.step === "object" ? payload.step as Record<string, unknown> : null;
+  const step =
+    payload.step && typeof payload.step === "object"
+      ? (payload.step as Record<string, unknown>)
+      : null;
   return cleanTurnText(
     payload.message ??
       payload.resultSummary ??
@@ -268,11 +371,18 @@ function getSpreadsheetTurnEventKind(event: TaskEvent): {
 } | null {
   const effectiveType = getEffectiveTaskEventType(event);
   if (effectiveType === "assistant_message") return { kind: "assistant" };
-  if (effectiveType === "progress_update") return { kind: "step", tone: "active" };
-  if (event.type === "timeline_step_started" || event.type === "timeline_step_updated") {
+  if (effectiveType === "progress_update")
+    return { kind: "step", tone: "active" };
+  if (
+    event.type === "timeline_step_started" ||
+    event.type === "timeline_step_updated"
+  ) {
     return { kind: "step", tone: "active" };
   }
-  if (event.type === "timeline_step_finished" || effectiveType === "step_completed") {
+  if (
+    event.type === "timeline_step_finished" ||
+    effectiveType === "step_completed"
+  ) {
     return { kind: "step", tone: "done" };
   }
   return null;
@@ -281,7 +391,10 @@ function getSpreadsheetTurnEventKind(event: TaskEvent): {
 function getSpreadsheetTurnEventText(event: TaskEvent): string {
   const effectiveType = getEffectiveTaskEventType(event);
   const payload = event.payload || {};
-  const step = payload.step && typeof payload.step === "object" ? payload.step as Record<string, unknown> : null;
+  const step =
+    payload.step && typeof payload.step === "object"
+      ? (payload.step as Record<string, unknown>)
+      : null;
   const path =
     typeof payload.path === "string"
       ? payload.path
@@ -296,7 +409,10 @@ function getSpreadsheetTurnEventText(event: TaskEvent): string {
     return path ? getSpreadsheetFileName(path) : getEventText(event);
   }
   if (effectiveType === "tool_call") {
-    return cleanTurnText(payload.command ?? payload.description ?? payload.tool, 180);
+    return cleanTurnText(
+      payload.command ?? payload.description ?? payload.tool,
+      180,
+    );
   }
   return cleanTurnText(
     payload.message ??
@@ -320,7 +436,8 @@ function buildSpreadsheetTurnEvents(args: {
     if (args.sinceTimestamp && event.timestamp < args.sinceTimestamp) continue;
     const eventKind = getSpreadsheetTurnEventKind(event);
     if (!eventKind) continue;
-    if (event.payload?.internal === true && eventKind.kind === "assistant") continue;
+    if (event.payload?.internal === true && eventKind.kind === "assistant")
+      continue;
     const text = getSpreadsheetTurnEventText(event);
     if (!text) continue;
     const previous = rows[rows.length - 1];
@@ -335,20 +452,31 @@ function buildSpreadsheetTurnEvents(args: {
   return rows.slice(-(args.limit ?? 8));
 }
 
-function eventPathMatchesSpreadsheet(event: TaskEvent, filePath: string): boolean {
+function eventPathMatchesSpreadsheet(
+  event: TaskEvent,
+  filePath: string,
+): boolean {
   const target = normalizeWorkspacePath(filePath);
   const targetName = getSpreadsheetFileName(target);
   const payload = event.payload || {};
-  const candidatePaths = [payload.path, payload.to, payload.from, payload.filePath].filter(
-    (value): value is string => typeof value === "string",
-  );
+  const candidatePaths = [
+    payload.path,
+    payload.to,
+    payload.from,
+    payload.filePath,
+  ].filter((value): value is string => typeof value === "string");
   return candidatePaths.some((candidate) => {
     const normalized = normalizeWorkspacePath(candidate);
-    return normalized === target || getSpreadsheetFileName(normalized) === targetName;
+    return (
+      normalized === target || getSpreadsheetFileName(normalized) === targetName
+    );
   });
 }
 
-function findSpreadsheetCreationEvent(events: TaskEvent[], filePath: string): TaskEvent | null {
+function findSpreadsheetCreationEvent(
+  events: TaskEvent[],
+  filePath: string,
+): TaskEvent | null {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
     const effectiveType = getEffectiveTaskEventType(event);
@@ -364,11 +492,15 @@ function findSpreadsheetCreationEvent(events: TaskEvent[], filePath: string): Ta
   return null;
 }
 
-function findLatestUserMessageTimestamp(events: TaskEvent[], taskId?: string): number | null {
+function findLatestUserMessageTimestamp(
+  events: TaskEvent[],
+  taskId?: string,
+): number | null {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
     if (taskId && event.taskId !== taskId) continue;
-    if (getEffectiveTaskEventType(event) === "user_message") return event.timestamp;
+    if (getEffectiveTaskEventType(event) === "user_message")
+      return event.timestamp;
   }
   return null;
 }
@@ -383,14 +515,16 @@ function buildSpreadsheetTurnContext(args: {
 }): SpreadsheetTurnContext | null {
   const fileName = getSpreadsheetFileName(args.filePath);
   const latestUserMessageAt =
-    args.turnStartedAt ?? findLatestUserMessageTimestamp(args.events, args.task?.id);
+    args.turnStartedAt ??
+    findLatestUserMessageTimestamp(args.events, args.task?.id);
 
   if (args.isWorking) {
     let summary = "";
     for (let index = args.events.length - 1; index >= 0; index -= 1) {
       const event = args.events[index];
       if (args.task?.id && event.taskId !== args.task.id) continue;
-      if (latestUserMessageAt && event.timestamp < latestUserMessageAt) continue;
+      if (latestUserMessageAt && event.timestamp < latestUserMessageAt)
+        continue;
       const effectiveType = getEffectiveTaskEventType(event);
       if (
         effectiveType === "assistant_message" ||
@@ -403,31 +537,58 @@ function buildSpreadsheetTurnContext(args: {
         if (summary) break;
       }
     }
-    if (!summary) summary = cleanTurnText(args.task?.title) || `Working on ${fileName}.`;
+    if (!summary)
+      summary = cleanTurnText(args.task?.title) || `Working on ${fileName}.`;
 
     const modifiedFiles = new Set<string>();
     let runningCommandCount = 0;
     for (const event of args.events) {
       if (args.task?.id && event.taskId !== args.task.id) continue;
-      if (latestUserMessageAt && event.timestamp < latestUserMessageAt) continue;
+      if (latestUserMessageAt && event.timestamp < latestUserMessageAt)
+        continue;
       const effectiveType = getEffectiveTaskEventType(event);
       if (effectiveType === "file_modified") {
-        const path = typeof event.payload?.path === "string" ? event.payload.path : "";
+        const path =
+          typeof event.payload?.path === "string" ? event.payload.path : "";
         if (path) modifiedFiles.add(path);
       }
-      if (effectiveType === "tool_call" && event.payload?.tool === "run_command") {
+      if (
+        effectiveType === "tool_call" &&
+        event.payload?.tool === "run_command"
+      ) {
         runningCommandCount += 1;
       }
     }
     const detailParts = [
-      modifiedFiles.size > 0 ? `Edited ${modifiedFiles.size} file${modifiedFiles.size === 1 ? "" : "s"}` : "",
+      modifiedFiles.size > 0
+        ? translate(
+            "artifactViewer.turn.filesEdited",
+            "Edited {count} file(s)",
+            {
+              count: modifiedFiles.size,
+            },
+          )
+        : "",
       runningCommandCount > 0
-        ? `running ${runningCommandCount} command${runningCommandCount === 1 ? "" : "s"}`
+        ? translate(
+            "artifactViewer.turn.toolsRunning",
+            "{count} tool(s) running",
+            {
+              count: runningCommandCount,
+            },
+          )
         : "",
     ].filter(Boolean);
 
     return {
-      statusLabel: `Working for ${args.durationLabel}`,
+      status: "working",
+      statusLabel: translate(
+        "artifactViewer.turn.working",
+        "Working for {duration}",
+        {
+          duration: args.durationLabel,
+        },
+      ),
       summary,
       secondaryText: detailParts.join(", "),
       artifactPath: args.filePath,
@@ -440,14 +601,18 @@ function buildSpreadsheetTurnContext(args: {
     };
   }
 
-  const creationEvent = findSpreadsheetCreationEvent(args.events, args.filePath);
+  const creationEvent = findSpreadsheetCreationEvent(
+    args.events,
+    args.filePath,
+  );
   const settledTurnStartedAt = latestUserMessageAt ?? creationEvent?.timestamp;
   let completionEvent: TaskEvent | null = null;
   for (let index = args.events.length - 1; index >= 0; index -= 1) {
     const event = args.events[index];
     if (args.task?.id && event.taskId !== args.task.id) continue;
     if (getEffectiveTaskEventType(event) !== "task_completed") continue;
-    if (settledTurnStartedAt && event.timestamp < settledTurnStartedAt) continue;
+    if (settledTurnStartedAt && event.timestamp < settledTurnStartedAt)
+      continue;
     completionEvent = event;
     break;
   }
@@ -461,8 +626,33 @@ function buildSpreadsheetTurnContext(args: {
     cleanTurnText(args.task?.resultSummary) ||
     `Created ${fileName}.`;
 
+  const settledStatus: NonNullable<SpreadsheetTurnContext["status"]> =
+    args.task?.status === "failed"
+      ? "failed"
+      : args.task?.status === "blocked"
+        ? "waiting"
+        : args.task?.status === "paused" || args.task?.status === "interrupted"
+          ? "paused"
+          : completionEvent || latestUserMessageAt
+            ? "completed"
+            : "latest";
+  const settledStatusLabel =
+    settledStatus === "failed"
+      ? translate("artifactViewer.turn.failed", "Modification failed")
+      : settledStatus === "waiting"
+        ? translate("artifactViewer.turn.waiting", "Waiting for confirmation")
+        : settledStatus === "paused"
+          ? translate("artifactViewer.turn.paused", "Paused")
+          : settledStatus === "completed"
+            ? translate(
+                "artifactViewer.turn.completed",
+                "Modification complete",
+              )
+            : translate("artifactViewer.turn.latest", "Latest turn");
+
   return {
-    statusLabel: "Latest turn",
+    status: settledStatus,
+    statusLabel: settledStatusLabel,
     summary,
     artifactPath: args.filePath,
     artifactName: fileName,
@@ -474,31 +664,38 @@ function buildSpreadsheetTurnContext(args: {
   };
 }
 
-// Helper to get effective theme based on system preference
-function getEffectiveTheme(themeMode: ThemeMode): "light" | "dark" {
-  if (themeMode === "system") {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  }
-  return themeMode;
-}
+const FIXED_VISUAL_THEME_CLASS = "visual-oblivion";
+const FIXED_UI_DENSITY: UiDensity = "focused";
 
-function LazyViewFallback({ className = "main-content" }: { className?: string }) {
+function LazyViewFallback({
+  className = "main-content",
+}: {
+  className?: string;
+}) {
   return (
     <main className={className}>
-      <div className="loading">Loading...</div>
+      <div className="loading">{translate("common.loading", "Loading...")}</div>
     </main>
   );
 }
 
-function SnowLeopardLoadingLogo({ decorative = false }: { decorative?: boolean }) {
+function NeoWorkerLoadingMark({
+  decorative = false,
+}: {
+  decorative?: boolean;
+}) {
   return (
     <div
-      className="task-view-loading-logo"
+      className="task-view-loading-mark"
       role={decorative ? undefined : "status"}
-      aria-label={decorative ? undefined : "Loading main area"}
+      aria-label={
+        decorative
+          ? undefined
+          : translate("app.loading.mainArea", "Loading main area")
+      }
       aria-hidden={decorative ? true : undefined}
     >
-      <img src="./cowork-os-app-logo-light.png" alt="" aria-hidden="true" />
+      <img src="./neoworker-app-icon.png" alt="" aria-hidden="true" />
     </div>
   );
 }
@@ -506,7 +703,7 @@ function SnowLeopardLoadingLogo({ decorative = false }: { decorative?: boolean }
 function TaskViewSkeleton() {
   return (
     <main className="main-content task-view-skeleton" aria-busy="true">
-      <SnowLeopardLoadingLogo />
+      <NeoWorkerLoadingMark />
     </main>
   );
 }
@@ -526,17 +723,60 @@ function RightPanelFallback() {
         borderLeft: "1px solid var(--color-border-subtle)",
       }}
     >
-      <div className="loading">Loading...</div>
+      <div className="loading">{translate("common.loading", "Loading...")}</div>
     </aside>
   );
 }
 
 function ArtifactSidebarFallback() {
   return (
-    <aside className="spreadsheet-viewer spreadsheet-viewer-sidebar" aria-busy="true">
-      <div className="loading">Loading...</div>
+    <aside
+      className="spreadsheet-viewer spreadsheet-viewer-sidebar"
+      aria-busy="true"
+    >
+      <div className="loading">{translate("common.loading", "Loading...")}</div>
     </aside>
   );
+}
+
+class WorkbenchPreviewErrorBoundary extends Component<
+  { children: ReactNode; onClose: () => void },
+  { error: Error | null }
+> {
+  state = { error: null as Error | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[WorkbenchPreview] Preview renderer failed", error, info);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <aside className="workbench-preview-error" role="alert">
+        <div className="workbench-preview-error-card">
+          <strong>
+            {translate(
+              "fileViewer.previewFailed",
+              "Unable to preview this file",
+            )}
+          </strong>
+          <p>
+            {translate(
+              "fileViewer.previewFailedHint",
+              "The preview encountered an error. Return to the file list and try again.",
+            )}
+          </p>
+          <button type="button" onClick={this.props.onClose}>
+            {translate("fileViewer.backToFiles", "Back to files")}
+          </button>
+        </div>
+      </aside>
+    );
+  }
 }
 
 const EMPTY_RIGHT_PANEL_INPUT = {
@@ -553,7 +793,10 @@ const EMPTY_RIGHT_PANEL_INPUT = {
   highlightOutputPath: null,
 };
 
-function mergeTaskPreservingIdentity(current: Task, updates: Partial<Task>): Task {
+function mergeTaskPreservingIdentity(
+  current: Task,
+  updates: Partial<Task>,
+): Task {
   let changed = false;
   const next = { ...current } as Task;
 
@@ -561,7 +804,8 @@ function mergeTaskPreservingIdentity(current: Task, updates: Partial<Task>): Tas
     const value = updates[key];
     if (Object.is(current[key], value)) continue;
     changed = true;
-    (next as Record<keyof Task, Task[keyof Task]>)[key] = value as Task[keyof Task];
+    (next as Record<keyof Task, Task[keyof Task]>)[key] =
+      value as Task[keyof Task];
   }
 
   return changed ? next : current;
@@ -608,16 +852,25 @@ function updateTaskPreservingIdentity(
 
 type AppView =
   | "home"
+  | "automations"
   | "main"
   | "settings"
   | "browser"
   | "devices"
-  | "health"
   | "ideas"
   | "inboxAgent"
+  | "agentTeam"
+  | "projects"
+  | "capabilityBundles"
   | "agents"
+  | "agentsManage"
+  | "companies"
   | "everydayAgent"
   | "missionControl";
+type AppNavigationEntry = {
+  view: AppView;
+  taskId: string | null;
+};
 type RemoteTaskView = {
   deviceId: string;
   deviceName: string;
@@ -633,17 +886,51 @@ type SideChatState = {
   sending: boolean;
 };
 
+type ComposerDraftRequest = {
+  id: number;
+  value: string;
+  skillId?: string;
+  skillLabel?: string;
+};
+
+const RIGHT_PANEL_COLLAPSED_STORAGE_KEY = "neoworker:right-panel-collapsed";
+
+function readStoredRightPanelCollapsed(): boolean {
+  try {
+    return (
+      window.localStorage.getItem(RIGHT_PANEL_COLLAPSED_STORAGE_KEY) === "true"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function readStoredLeftSidebarCollapsed(): boolean {
+  try {
+    return (
+      window.localStorage.getItem(LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY) === "true"
+    );
+  } catch {
+    return false;
+  }
+}
+
 type SelectedTaskWorkspaceViewProps = {
   task: Task | undefined;
   selectedTaskId: string | null;
   workspace: Workspace | null;
+  projectId: string | null;
+  events: TaskEvent[];
   replayControls: ReplayControls;
   sharedTaskEventUi: SharedTaskEventUiState | null;
   remoteTaskView: RemoteTaskView | null;
   childTasks: Task[];
   childEvents: TaskEvent[];
+  sessionTasks: Task[];
   activeInputRequest: InputRequest | null;
   pendingInputRequests: InputRequest[];
+  composerDraftRequest: ComposerDraftRequest | null;
+  onComposerDraftConsumed: (requestId: number) => void;
   selectedModel: string;
   selectedProvider: LLMProviderType;
   selectedReasoningEffort?: LLMReasoningEffort;
@@ -651,6 +938,7 @@ type SelectedTaskWorkspaceViewProps = {
   availableProviders: LLMProviderInfo[];
   uiDensity: UiDensity;
   homeResearchVaultEnabled: boolean;
+  onHomeResearchVaultEnabledChange: (enabled: boolean) => void;
   homeNextActionsEnabled: boolean;
   rendererPerfLoggingEnabled: boolean;
   taskSwitchId: string | null;
@@ -658,7 +946,10 @@ type SelectedTaskWorkspaceViewProps = {
   isLoadingTimelineHistory: boolean;
   timelineHistoryError: string | null;
   onLoadMoreTimelineHistory: () => void | Promise<void>;
-  onLoadTaskEventDetail: (eventId: string, taskId: string) => void | Promise<void>;
+  onLoadTaskEventDetail: (
+    eventId: string,
+    taskId: string,
+  ) => void | Promise<void>;
   effectiveRightCollapsed: boolean;
   terminalTabsOpen: boolean;
   browserWorkbenchRequest: BrowserWorkbenchOpenRequest | null;
@@ -678,11 +969,18 @@ type SelectedTaskWorkspaceViewProps = {
   };
   onSelectChildTask: (taskId: string) => void;
   onSelectTask: (taskId: string | null) => void;
+  onOpenProject?: (projectId: string) => void;
+  onProjectAssigned?: (task: Task) => void;
+  onOpenProjects?: () => void;
   onSendMessage: (
     message: string,
     images?: ImageAttachment[],
     quotedAssistantMessage?: QuotedAssistantMessage,
     options?: {
+      activeArtifactContext?: ActiveArtifactContext;
+      executionMode?: ExecutionMode;
+      taskDomain?: TaskDomain;
+      requestedSkillId?: string;
       permissionMode?: PermissionMode;
       shellAccess?: boolean;
       integrationMentions?: IntegrationMentionSelection[];
@@ -692,11 +990,13 @@ type SelectedTaskWorkspaceViewProps = {
     taskId: string;
     fromEventId?: string;
     initialMessage?: string;
-  }) => Promise<void>;
+  }) => Promise<boolean>;
   onSendSideChatMessage: (message: string) => Promise<void>;
   onCloseSideChat: () => void;
   onOpenSideChatFullThread: (taskId: string) => void | Promise<void>;
   onStartOnboarding: () => void;
+  showInlineOnboarding: boolean;
+  onCompleteInlineOnboarding: () => void;
   onStartFreshSession?: () => void;
   onCreateTask: (
     title: string,
@@ -704,7 +1004,7 @@ type SelectedTaskWorkspaceViewProps = {
     options?: Any,
     images?: ImageAttachment[],
     workspace?: Workspace,
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   onAskInbox: (query: string) => void;
   onChangeWorkspace: () => void;
   onSelectWorkspace: (workspace: Workspace) => void;
@@ -713,6 +1013,7 @@ type SelectedTaskWorkspaceViewProps = {
   onEnableShellForPausedTask: () => Promise<void>;
   onContinueWithoutShellForPausedTask: () => Promise<void>;
   onWrapUpTask: () => Promise<void>;
+  onOpenApproval: (approval: ApprovalRequest) => void;
   onSubmitInputRequest: (
     requestId: string,
     answers: Record<string, { optionLabel?: string; otherText?: string }>,
@@ -720,6 +1021,8 @@ type SelectedTaskWorkspaceViewProps = {
   onDismissInputRequest: (requestId: string) => void;
   onOpenBrowserView?: (url?: string) => void;
   onRevealRightSidebar?: () => void;
+  onArtifactFocusChange: (active: boolean) => void;
+  onToggleRightSidebar: () => void;
   onViewTaskOutputs: (taskId: string, primaryOutputPath?: string) => void;
   onTasksChanged: () => void | Promise<void>;
   onCancelTaskById: (taskId: string) => Promise<void>;
@@ -745,537 +1048,722 @@ function getAppTaskSignature(task: Task | undefined): string {
     task.lastRunDurationMs ?? "",
     task.pinned ? "pinned" : "unpinned",
     task.sessionId ?? "",
+    task.projectId ?? "",
     task.worktreePath ?? "",
+    task.resultSummary ?? "",
+    task.semanticSummary ?? "",
+    task.bestKnownOutcome?.capturedAt ?? "",
+    task.bestKnownOutcome?.resultSummary ?? "",
+    task.bestKnownOutcome?.outputSummary?.primaryOutputPath ?? "",
+    task.bestKnownOutcome?.outputSummary?.outputCount ?? "",
   ].join(":");
 }
 
 function getInputRequestSignature(inputRequest: InputRequest | null): string {
   if (!inputRequest) return "none";
-  return [inputRequest.id, inputRequest.taskId, inputRequest.status, inputRequest.requestedAt].join(":");
+  return [
+    inputRequest.id,
+    inputRequest.taskId,
+    inputRequest.status,
+    inputRequest.requestedAt,
+  ].join(":");
 }
 
 function getInputRequestsSignature(inputRequests: InputRequest[]): string {
   if (inputRequests.length === 0) return "none";
   return inputRequests
     .map((request) =>
-      [request.id, request.taskId, request.status, request.requestedAt, request.questions.length].join(":"),
+      [
+        request.id,
+        request.taskId,
+        request.status,
+        request.requestedAt,
+        request.questions.length,
+      ].join(":"),
     )
     .join("|");
 }
 
-const SelectedTaskWorkspaceView = memo(function SelectedTaskWorkspaceView({
-  task,
-  selectedTaskId,
-  workspace,
-  replayControls,
-  sharedTaskEventUi,
-  remoteTaskView,
-  childTasks,
-  childEvents,
-  activeInputRequest,
-  pendingInputRequests,
-  selectedModel,
-  selectedProvider,
-  selectedReasoningEffort,
-  availableModels,
-  availableProviders,
-  uiDensity,
-  homeResearchVaultEnabled,
-  homeNextActionsEnabled,
-  rendererPerfLoggingEnabled,
-  taskSwitchId,
-  hasMoreTimelineHistory,
-  isLoadingTimelineHistory,
-  timelineHistoryError,
-  onLoadMoreTimelineHistory,
-  onLoadTaskEventDetail,
-  effectiveRightCollapsed,
-  terminalTabsOpen,
-  browserWorkbenchRequest,
-  sideChat,
-  rightPanelInput,
-  onSelectChildTask,
-  onSelectTask,
-  onSendMessage,
-  onOpenSideChat,
-  onSendSideChatMessage,
-  onCloseSideChat,
-  onOpenSideChatFullThread,
-  onStartOnboarding,
-  onStartFreshSession,
-  onCreateTask,
-  onAskInbox,
-  onChangeWorkspace,
-  onSelectWorkspace,
-  onOpenSettings,
-  onStopTask,
-  onEnableShellForPausedTask,
-  onContinueWithoutShellForPausedTask,
-  onWrapUpTask,
-  onSubmitInputRequest,
-  onDismissInputRequest,
-  onOpenBrowserView,
-  onRevealRightSidebar,
-  onViewTaskOutputs,
-  onTasksChanged,
-  onCancelTaskById,
-  onHighlightConsumed,
-  onCloseTerminalTabs,
-  onModelChange,
-}: SelectedTaskWorkspaceViewProps) {
-  const [spreadsheetArtifact, setSpreadsheetArtifact] = useState<{
-    kind: ActiveArtifactKind;
-    path: string;
-    mode: "sidebar" | "fullscreen";
-  } | null>(null);
-  const [browserWorkbench, setBrowserWorkbench] = useState<{
-    sessionId: string;
-    url?: string;
-    mode: "sidebar" | "fullscreen";
-    requestId?: string;
-  } | null>(null);
-  const [spawnedAgentSidebar, setSpawnedAgentSidebar] = useState<{
-    taskId: string;
-  } | null>(null);
-  const [lastSettledArtifactRefreshKey, setLastSettledArtifactRefreshKey] = useState<{
-    path: string;
-    key: string | null;
-  } | null>(null);
-  const [spreadsheetTurnStartedAt, setSpreadsheetTurnStartedAt] = useState<number | null>(null);
-  const [spreadsheetOptimisticWorkingStartedAt, setSpreadsheetOptimisticWorkingStartedAt] =
-    useState<number | null>(null);
-  const splitLayoutRef = useRef<HTMLDivElement | null>(null);
-  const [spreadsheetSidebarWidth, setSpreadsheetSidebarWidth] = useState(
-    readPersistedSpreadsheetSidebarWidth,
-  );
-  const [isSpreadsheetResizing, setIsSpreadsheetResizing] = useState(false);
-  useEffect(() => {
-    if (!sideChat?.task?.id) return;
-    setSpreadsheetArtifact(null);
-    setBrowserWorkbench(null);
-    setSpawnedAgentSidebar(null);
-  }, [sideChat?.task?.id]);
-  const openSpreadsheetArtifact = useCallback((path: string) => {
-    setBrowserWorkbench(null);
-    setSpawnedAgentSidebar(null);
-    onRevealRightSidebar?.();
-    setSpreadsheetArtifact({ kind: "spreadsheet", path, mode: "sidebar" });
-  }, [onRevealRightSidebar]);
-  const openDocumentArtifact = useCallback((path: string) => {
-    setBrowserWorkbench(null);
-    setSpawnedAgentSidebar(null);
-    onRevealRightSidebar?.();
-    setSpreadsheetArtifact({ kind: "document", path, mode: "sidebar" });
-  }, [onRevealRightSidebar]);
-  const openPresentationArtifact = useCallback((path: string) => {
-    setBrowserWorkbench(null);
-    setSpawnedAgentSidebar(null);
-    onRevealRightSidebar?.();
-    setSpreadsheetArtifact({ kind: "presentation", path, mode: "sidebar" });
-  }, [onRevealRightSidebar]);
-  const openWebArtifact = useCallback((path: string) => {
-    setBrowserWorkbench(null);
-    setSpawnedAgentSidebar(null);
-    onRevealRightSidebar?.();
-    setSpreadsheetArtifact({ kind: "webpage", path, mode: "sidebar" });
-  }, [onRevealRightSidebar]);
-  const closeSpreadsheetArtifact = useCallback(() => {
-    setSpreadsheetArtifact(null);
-  }, []);
-  const closeBrowserWorkbench = useCallback(() => {
-    setBrowserWorkbench(null);
-  }, []);
-  const openSpawnedAgentSidebar = useCallback(
-    (taskId: string) => {
+const SelectedTaskWorkspaceView = memo(
+  function SelectedTaskWorkspaceView({
+    task,
+    selectedTaskId,
+    workspace,
+    projectId,
+    events,
+    replayControls,
+    sharedTaskEventUi,
+    remoteTaskView,
+    childTasks,
+    childEvents,
+    sessionTasks,
+    activeInputRequest,
+    pendingInputRequests,
+    composerDraftRequest,
+    onComposerDraftConsumed,
+    selectedModel,
+    selectedProvider,
+    selectedReasoningEffort,
+    availableModels,
+    availableProviders,
+    uiDensity,
+    homeResearchVaultEnabled,
+    onHomeResearchVaultEnabledChange,
+    homeNextActionsEnabled,
+    rendererPerfLoggingEnabled,
+    taskSwitchId,
+    hasMoreTimelineHistory,
+    isLoadingTimelineHistory,
+    timelineHistoryError,
+    onLoadMoreTimelineHistory,
+    onLoadTaskEventDetail,
+    effectiveRightCollapsed,
+    terminalTabsOpen,
+    browserWorkbenchRequest,
+    sideChat,
+    rightPanelInput,
+    onSelectChildTask,
+    onSelectTask,
+    onOpenProject,
+    onProjectAssigned,
+    onOpenProjects,
+    onSendMessage,
+    onOpenSideChat,
+    onSendSideChatMessage,
+    onCloseSideChat,
+    onOpenSideChatFullThread,
+    onStartOnboarding,
+    showInlineOnboarding,
+    onCompleteInlineOnboarding,
+    onStartFreshSession,
+    onCreateTask,
+    onAskInbox,
+    onChangeWorkspace,
+    onSelectWorkspace,
+    onOpenSettings,
+    onStopTask,
+    onEnableShellForPausedTask,
+    onContinueWithoutShellForPausedTask,
+    onWrapUpTask,
+    onOpenApproval,
+    onSubmitInputRequest,
+    onDismissInputRequest,
+    onOpenBrowserView,
+    onRevealRightSidebar,
+    onArtifactFocusChange,
+    onToggleRightSidebar,
+    onViewTaskOutputs,
+    onTasksChanged,
+    onCancelTaskById,
+    onHighlightConsumed,
+    onCloseTerminalTabs,
+    onModelChange,
+  }: SelectedTaskWorkspaceViewProps) {
+    const language = useLanguage();
+    const [spreadsheetArtifact, setSpreadsheetArtifact] = useState<{
+      kind: ActiveArtifactContext["kind"];
+      path: string;
+      mode: "sidebar" | "fullscreen";
+    } | null>(null);
+    const [browserWorkbench, setBrowserWorkbench] = useState<{
+      sessionId: string;
+      url?: string;
+      mode: "sidebar" | "fullscreen";
+      requestId?: string;
+    } | null>(null);
+    const [spawnedAgentSidebar, setSpawnedAgentSidebar] = useState<{
+      taskId: string;
+    } | null>(null);
+    const [lastSettledArtifactRefreshKey, setLastSettledArtifactRefreshKey] =
+      useState<{
+        path: string;
+        key: string | null;
+      } | null>(null);
+    const [spreadsheetTurnStartedAt, setSpreadsheetTurnStartedAt] = useState<
+      number | null
+    >(null);
+    const [
+      spreadsheetOptimisticWorkingStartedAt,
+      setSpreadsheetOptimisticWorkingStartedAt,
+    ] = useState<number | null>(null);
+    const splitLayoutRef = useRef<HTMLDivElement | null>(null);
+    const [spreadsheetSidebarWidth, setSpreadsheetSidebarWidth] = useState(
+      readPersistedSpreadsheetSidebarWidth,
+    );
+    const [isSpreadsheetResizing, setIsSpreadsheetResizing] = useState(false);
+    const artifactFocusActive = Boolean(spreadsheetArtifact);
+    useLayoutEffect(() => {
+      onArtifactFocusChange(artifactFocusActive);
+      return () => {
+        if (artifactFocusActive) onArtifactFocusChange(false);
+      };
+    }, [artifactFocusActive, onArtifactFocusChange]);
+    useEffect(() => {
+      if (!sideChat?.task?.id) return;
       setSpreadsheetArtifact(null);
       setBrowserWorkbench(null);
-      onRevealRightSidebar?.();
-      setSpawnedAgentSidebar({ taskId });
-    },
-    [onRevealRightSidebar],
-  );
-  const closeSpawnedAgentSidebar = useCallback(() => {
-    setSpawnedAgentSidebar(null);
-  }, []);
-  const selectSpawnedAgentSidebarTask = useCallback((taskId: string) => {
-    setSpawnedAgentSidebar({ taskId });
-  }, []);
-  const showSpreadsheetFullscreen = useCallback(() => {
-    setSpreadsheetArtifact((current) =>
-      current ? { ...current, mode: "fullscreen" } : current,
-    );
-  }, []);
-  const showSpreadsheetSidebar = useCallback(() => {
-    setSpreadsheetArtifact((current) =>
-      current ? { ...current, mode: "sidebar" } : current,
-    );
-  }, []);
-  const showBrowserFullscreen = useCallback(() => {
-    setBrowserWorkbench((current) =>
-      current ? { ...current, mode: "fullscreen" } : current,
-    );
-  }, []);
-  const showBrowserSidebar = useCallback(() => {
-    setBrowserWorkbench((current) =>
-      current ? { ...current, mode: "sidebar" } : current,
-    );
-  }, []);
-  const updateBrowserWorkbenchStatus = useCallback((status: { url?: string }) => {
-    setBrowserWorkbench((current) =>
-      current ? { ...current, url: status.url ?? current.url } : current,
-    );
-  }, []);
-  const openBrowserWorkbenchSidebar = useCallback(
-    (request: { sessionId?: string; url?: string; requestId?: string }) => {
-      setSpreadsheetArtifact(null);
       setSpawnedAgentSidebar(null);
-      onRevealRightSidebar?.();
-      const containerWidth =
-        splitLayoutRef.current?.getBoundingClientRect().width || window.innerWidth;
-      const maxWidth = Math.max(
-        SPREADSHEET_SIDEBAR_MIN_WIDTH,
-        containerWidth - SPREADSHEET_MAIN_MIN_WIDTH,
-      );
-      const preferredBrowserWidth = Math.max(
-        SPREADSHEET_SIDEBAR_DEFAULT_WIDTH,
-        containerWidth - 460,
-      );
-      setSpreadsheetSidebarWidth(
-        Math.min(Math.max(preferredBrowserWidth, SPREADSHEET_SIDEBAR_MIN_WIDTH), maxWidth),
-      );
-      setBrowserWorkbench({
-        sessionId: request.sessionId || "default",
-        url: request.url,
-        mode: "sidebar",
-        requestId: request.requestId,
-      });
-    },
-    [onRevealRightSidebar],
-  );
-  const openWebLinkInBrowserSidebar = useCallback(
-    (url: string) => {
-      openBrowserWorkbenchSidebar({
-        sessionId: "link-preview",
-        url,
-        requestId: `link-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      });
-    },
-    [openBrowserWorkbenchSidebar],
-  );
-  const openEmptyBrowserWorkbenchSidebar = useCallback(() => {
-    openBrowserWorkbenchSidebar({
-      sessionId: "default",
-      requestId: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    });
-  }, [openBrowserWorkbenchSidebar]);
-  const sendSpreadsheetFullscreenMessage = useCallback(
-    async (message: string, images?: ImageAttachment[]) => {
-      const startedAt = Date.now();
-      setSpreadsheetTurnStartedAt(startedAt);
-      setSpreadsheetOptimisticWorkingStartedAt(startedAt);
-      await onSendMessage(message, images);
-    },
-    [onSendMessage],
-  );
-  useEffect(() => {
-    setSpreadsheetArtifact(null);
-    setBrowserWorkbench(null);
-    setSpawnedAgentSidebar(null);
-    setLastSettledArtifactRefreshKey(null);
-    setSpreadsheetTurnStartedAt(null);
-    setSpreadsheetOptimisticWorkingStartedAt(null);
-  }, [selectedTaskId, workspace?.path]);
-  useEffect(() => {
-    if (!browserWorkbenchRequest || browserWorkbenchRequest.taskId !== selectedTaskId) return;
-    openBrowserWorkbenchSidebar({
-      sessionId: browserWorkbenchRequest.sessionId || "default",
-      url: browserWorkbenchRequest.url,
-      requestId: browserWorkbenchRequest.requestId,
-    });
-  }, [browserWorkbenchRequest, openBrowserWorkbenchSidebar, selectedTaskId]);
-  useEffect(() => {
-    if (!spawnedAgentSidebar) return;
-    if (childTasks.some((childTask) => childTask.id === spawnedAgentSidebar.taskId)) return;
-    setSpawnedAgentSidebar(null);
-  }, [childTasks, spawnedAgentSidebar]);
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        SPREADSHEET_SIDEBAR_WIDTH_STORAGE_KEY,
-        String(Math.round(spreadsheetSidebarWidth)),
-      );
-    } catch {
-      // Ignore storage failures; resizing should still work for the current session.
-    }
-  }, [spreadsheetSidebarWidth]);
-  const clampSpreadsheetSidebarWidth = useCallback((width: number) => {
-    const containerWidth =
-      splitLayoutRef.current?.getBoundingClientRect().width || window.innerWidth;
-    const maxWidth = Math.max(
-      SPREADSHEET_SIDEBAR_MIN_WIDTH,
-      containerWidth - SPREADSHEET_MAIN_MIN_WIDTH,
+    }, [sideChat?.task?.id]);
+    const openArtifact = useCallback(
+      (kind: ActiveArtifactContext["kind"], path: string) => {
+        const availableWidth = Math.max(
+          splitLayoutRef.current?.getBoundingClientRect().width || 0,
+          window.innerWidth,
+        );
+        const mode = getArtifactOpenMode(availableWidth);
+        setBrowserWorkbench(null);
+        setSpawnedAgentSidebar(null);
+        if (mode === "sidebar") {
+          setSpreadsheetSidebarWidth((current) =>
+            clampArtifactFocusSidebarWidth(current, availableWidth),
+          );
+        }
+        setSpreadsheetArtifact({ kind, path, mode });
+      },
+      [],
     );
-    return Math.min(Math.max(width, SPREADSHEET_SIDEBAR_MIN_WIDTH), maxWidth);
-  }, []);
-  useLayoutEffect(() => {
-    if (
-      !(
+    const openSpreadsheetArtifact = useCallback(
+      (path: string) => openArtifact("spreadsheet", path),
+      [openArtifact],
+    );
+    const openDocumentArtifact = useCallback(
+      (path: string) => openArtifact("document", path),
+      [openArtifact],
+    );
+    const openPresentationArtifact = useCallback(
+      (path: string) => openArtifact("presentation", path),
+      [openArtifact],
+    );
+    const openWebArtifact = useCallback(
+      (path: string) => openArtifact("webpage", path),
+      [openArtifact],
+    );
+    const closeSpreadsheetArtifact = useCallback(() => {
+      setSpreadsheetArtifact(null);
+    }, []);
+    const closeBrowserWorkbench = useCallback(() => {
+      setBrowserWorkbench(null);
+    }, []);
+    const closeWorkbenchPreview = useCallback(() => {
+      setSpreadsheetArtifact(null);
+      setBrowserWorkbench(null);
+      setSpawnedAgentSidebar(null);
+    }, []);
+    const openSpawnedAgentSidebar = useCallback(
+      (taskId: string) => {
+        setSpreadsheetArtifact(null);
+        setBrowserWorkbench(null);
+        onRevealRightSidebar?.();
+        setSpawnedAgentSidebar({ taskId });
+      },
+      [onRevealRightSidebar],
+    );
+    const closeSpawnedAgentSidebar = useCallback(() => {
+      setSpawnedAgentSidebar(null);
+    }, []);
+    const selectSpawnedAgentSidebarTask = useCallback((taskId: string) => {
+      setSpawnedAgentSidebar({ taskId });
+    }, []);
+    const showSpreadsheetFullscreen = useCallback(() => {
+      setSpreadsheetArtifact((current) =>
+        current ? { ...current, mode: "fullscreen" } : current,
+      );
+    }, []);
+    const showSpreadsheetSidebar = useCallback(() => {
+      setSpreadsheetArtifact((current) =>
+        current ? { ...current, mode: "sidebar" } : current,
+      );
+    }, []);
+    const showBrowserFullscreen = useCallback(() => {
+      setBrowserWorkbench((current) =>
+        current ? { ...current, mode: "fullscreen" } : current,
+      );
+    }, []);
+    const showBrowserSidebar = useCallback(() => {
+      setBrowserWorkbench((current) =>
+        current ? { ...current, mode: "sidebar" } : current,
+      );
+    }, []);
+    const updateBrowserWorkbenchStatus = useCallback(
+      (status: { url?: string }) => {
+        setBrowserWorkbench((current) => {
+          if (!current) return current;
+          const nextUrl = status.url ?? current.url;
+          if (nextUrl === current.url) return current;
+          return { ...current, url: nextUrl };
+        });
+      },
+      [],
+    );
+    const openBrowserWorkbenchSidebar = useCallback(
+      (request: { sessionId?: string; url?: string; requestId?: string }) => {
+        setSpreadsheetArtifact(null);
+        setSpawnedAgentSidebar(null);
+        onRevealRightSidebar?.();
+        const containerWidth =
+          splitLayoutRef.current?.getBoundingClientRect().width ||
+          window.innerWidth;
+        const maxWidth = Math.max(
+          SPREADSHEET_SIDEBAR_MIN_WIDTH,
+          containerWidth - SPREADSHEET_MAIN_MIN_WIDTH,
+        );
+        const preferredBrowserWidth = Math.max(
+          SPREADSHEET_SIDEBAR_DEFAULT_WIDTH,
+          containerWidth - 460,
+        );
+        setSpreadsheetSidebarWidth(
+          Math.min(
+            Math.max(preferredBrowserWidth, SPREADSHEET_SIDEBAR_MIN_WIDTH),
+            maxWidth,
+          ),
+        );
+        setBrowserWorkbench({
+          sessionId: request.sessionId || "default",
+          url: request.url,
+          mode: "sidebar",
+          requestId: request.requestId,
+        });
+      },
+      [onRevealRightSidebar],
+    );
+    const openWebLinkInBrowserSidebar = useCallback(
+      (url: string) => {
+        openBrowserWorkbenchSidebar({
+          sessionId: "link-preview",
+          url,
+          requestId: `link-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        });
+      },
+      [openBrowserWorkbenchSidebar],
+    );
+    const openEmptyBrowserWorkbenchSidebar = useCallback(() => {
+      openBrowserWorkbenchSidebar({
+        sessionId: "default",
+        requestId: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      });
+    }, [openBrowserWorkbenchSidebar]);
+    const sendSpreadsheetFullscreenMessage = useCallback(
+      async (message: string, images?: ImageAttachment[]) => {
+        const startedAt = Date.now();
+        setSpreadsheetTurnStartedAt(startedAt);
+        setSpreadsheetOptimisticWorkingStartedAt(startedAt);
+        await onSendMessage(
+          message,
+          images,
+          undefined,
+          spreadsheetArtifact
+            ? {
+                activeArtifactContext: {
+                  kind: spreadsheetArtifact.kind,
+                  path: spreadsheetArtifact.path,
+                },
+              }
+            : undefined,
+        );
+      },
+      [onSendMessage, spreadsheetArtifact],
+    );
+    useEffect(() => {
+      setSpreadsheetArtifact(null);
+      setBrowserWorkbench(null);
+      setSpawnedAgentSidebar(null);
+      setLastSettledArtifactRefreshKey(null);
+      setSpreadsheetTurnStartedAt(null);
+      setSpreadsheetOptimisticWorkingStartedAt(null);
+    }, [selectedTaskId, workspace?.path]);
+    useEffect(() => {
+      if (
+        !browserWorkbenchRequest ||
+        browserWorkbenchRequest.taskId !== selectedTaskId
+      )
+        return;
+      openBrowserWorkbenchSidebar({
+        sessionId: browserWorkbenchRequest.sessionId || "default",
+        url: browserWorkbenchRequest.url,
+        requestId: browserWorkbenchRequest.requestId,
+      });
+    }, [browserWorkbenchRequest, openBrowserWorkbenchSidebar, selectedTaskId]);
+    useEffect(() => {
+      if (!spawnedAgentSidebar) return;
+      if (
+        childTasks.some(
+          (childTask) => childTask.id === spawnedAgentSidebar.taskId,
+        )
+      )
+        return;
+      setSpawnedAgentSidebar(null);
+    }, [childTasks, spawnedAgentSidebar]);
+    useEffect(() => {
+      try {
+        window.localStorage.setItem(
+          SPREADSHEET_SIDEBAR_WIDTH_STORAGE_KEY,
+          String(Math.round(spreadsheetSidebarWidth)),
+        );
+      } catch {
+        // Ignore storage failures; resizing should still work for the current session.
+      }
+    }, [spreadsheetSidebarWidth]);
+    const clampSpreadsheetSidebarWidth = useCallback(
+      (width: number) => {
+        const containerWidth =
+          splitLayoutRef.current?.getBoundingClientRect().width ||
+          window.innerWidth;
+        if (spreadsheetArtifact) {
+          return clampArtifactFocusSidebarWidth(width, containerWidth);
+        }
+        const maxWidth = Math.max(
+          SPREADSHEET_SIDEBAR_MIN_WIDTH,
+          containerWidth - SPREADSHEET_MAIN_MIN_WIDTH,
+        );
+        return Math.min(
+          Math.max(width, SPREADSHEET_SIDEBAR_MIN_WIDTH),
+          maxWidth,
+        );
+      },
+      [spreadsheetArtifact],
+    );
+    useLayoutEffect(() => {
+      if (!(
         (spreadsheetArtifact && spreadsheetArtifact.mode === "sidebar") ||
         (browserWorkbench && browserWorkbench.mode === "sidebar") ||
         spawnedAgentSidebar
-      )
-    ) {
-      return;
-    }
-    setSpreadsheetSidebarWidth((current) => clampSpreadsheetSidebarWidth(current));
-  }, [browserWorkbench, clampSpreadsheetSidebarWidth, spawnedAgentSidebar, spreadsheetArtifact]);
-  useEffect(() => {
-    if (!isSpreadsheetResizing) return;
-    const previousCursor = document.body.style.cursor;
-    const previousUserSelect = document.body.style.userSelect;
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    return () => {
-      document.body.style.cursor = previousCursor;
-      document.body.style.userSelect = previousUserSelect;
-    };
-  }, [isSpreadsheetResizing]);
-  const handleSpreadsheetResizePointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      const rect = splitLayoutRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      event.preventDefault();
-      event.currentTarget.setPointerCapture?.(event.pointerId);
-      const resizeHandle = event.currentTarget;
-      const pointerId = event.pointerId;
-      const maxWidth = Math.max(
-        SPREADSHEET_SIDEBAR_MIN_WIDTH,
-        rect.width - SPREADSHEET_MAIN_MIN_WIDTH,
-      );
-      const clampWidth = (width: number) =>
-        Math.min(Math.max(width, SPREADSHEET_SIDEBAR_MIN_WIDTH), maxWidth);
-      setIsSpreadsheetResizing(true);
-      setSpreadsheetSidebarWidth(clampWidth(rect.right - event.clientX));
-
-      const handlePointerMove = (moveEvent: PointerEvent) => {
-        setSpreadsheetSidebarWidth(clampWidth(rect.right - moveEvent.clientX));
-      };
-      let finished = false;
-      const handlePointerUp = () => {
-        if (finished) return;
-        finished = true;
-        setIsSpreadsheetResizing(false);
-        resizeHandle.removeEventListener("lostpointercapture", handlePointerUp);
-        if (resizeHandle.hasPointerCapture?.(pointerId)) {
-          resizeHandle.releasePointerCapture?.(pointerId);
-        }
-        window.removeEventListener("pointermove", handlePointerMove);
-        window.removeEventListener("pointerup", handlePointerUp);
-        window.removeEventListener("pointercancel", handlePointerUp);
-      };
-
-      window.addEventListener("pointermove", handlePointerMove);
-      window.addEventListener("pointerup", handlePointerUp);
-      window.addEventListener("pointercancel", handlePointerUp);
-      resizeHandle.addEventListener("lostpointercapture", handlePointerUp);
-    },
-    [],
-  );
-  const handleSpreadsheetResizeKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-      event.preventDefault();
+      )) {
+        return;
+      }
       setSpreadsheetSidebarWidth((current) =>
-        clampSpreadsheetSidebarWidth(current + (event.key === "ArrowLeft" ? 32 : -32)),
+        clampSpreadsheetSidebarWidth(current),
       );
-    },
-    [clampSpreadsheetSidebarWidth],
-  );
-  const spreadsheetEvents = replayControls.replayEvents;
-  const spreadsheetHasActiveChildren = useMemo(
-    () =>
-      childTasks.some((childTask) =>
-        childTask.status === "executing" ||
-        childTask.status === "planning" ||
-        childTask.status === "interrupted",
-      ),
-    [childTasks],
-  );
-  const isSpreadsheetTaskWorking = useMemo(
-    () => isTaskActivelyWorking(task, spreadsheetEvents, spreadsheetHasActiveChildren),
-    [task, spreadsheetEvents, spreadsheetHasActiveChildren],
-  );
-  useEffect(() => {
-    if (!spreadsheetOptimisticWorkingStartedAt) return;
-    const hasCompletionAfterFollowup = spreadsheetEvents.some(
-      (event) =>
-        event.timestamp >= spreadsheetOptimisticWorkingStartedAt &&
-        getEffectiveTaskEventType(event) === "task_completed",
+    }, [
+      browserWorkbench,
+      clampSpreadsheetSidebarWidth,
+      spawnedAgentSidebar,
+      spreadsheetArtifact,
+    ]);
+    useEffect(() => {
+      if (!spreadsheetArtifact || spreadsheetArtifact.mode !== "sidebar")
+        return;
+      const handleWindowResize = () => {
+        const availableWidth =
+          splitLayoutRef.current?.getBoundingClientRect().width ||
+          window.innerWidth;
+        if (getArtifactOpenMode(availableWidth) === "fullscreen") {
+          setSpreadsheetArtifact((current) =>
+            current ? { ...current, mode: "fullscreen" } : current,
+          );
+          return;
+        }
+        setSpreadsheetSidebarWidth((current) =>
+          clampArtifactFocusSidebarWidth(current, availableWidth),
+        );
+      };
+      window.addEventListener("resize", handleWindowResize);
+      return () => window.removeEventListener("resize", handleWindowResize);
+    }, [spreadsheetArtifact]);
+    useEffect(() => {
+      if (!isSpreadsheetResizing) return;
+      const previousCursor = document.body.style.cursor;
+      const previousUserSelect = document.body.style.userSelect;
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      return () => {
+        document.body.style.cursor = previousCursor;
+        document.body.style.userSelect = previousUserSelect;
+      };
+    }, [isSpreadsheetResizing]);
+    const handleSpreadsheetResizePointerDown = useCallback(
+      (event: ReactPointerEvent<HTMLDivElement>) => {
+        const rect = splitLayoutRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        event.preventDefault();
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        const resizeHandle = event.currentTarget;
+        const pointerId = event.pointerId;
+        const minWidth = spreadsheetArtifact
+          ? ARTIFACT_FOCUS_MIN_SIDEBAR_WIDTH
+          : SPREADSHEET_SIDEBAR_MIN_WIDTH;
+        const maxWidth = Math.max(
+          minWidth,
+          rect.width - SPREADSHEET_MAIN_MIN_WIDTH,
+        );
+        const clampWidth = (width: number) =>
+          Math.min(Math.max(width, minWidth), maxWidth);
+        setIsSpreadsheetResizing(true);
+        setSpreadsheetSidebarWidth(clampWidth(rect.right - event.clientX));
+
+        const handlePointerMove = (moveEvent: PointerEvent) => {
+          setSpreadsheetSidebarWidth(
+            clampWidth(rect.right - moveEvent.clientX),
+          );
+        };
+        let finished = false;
+        const handlePointerUp = () => {
+          if (finished) return;
+          finished = true;
+          setIsSpreadsheetResizing(false);
+          resizeHandle.removeEventListener(
+            "lostpointercapture",
+            handlePointerUp,
+          );
+          if (resizeHandle.hasPointerCapture?.(pointerId)) {
+            resizeHandle.releasePointerCapture?.(pointerId);
+          }
+          window.removeEventListener("pointermove", handlePointerMove);
+          window.removeEventListener("pointerup", handlePointerUp);
+          window.removeEventListener("pointercancel", handlePointerUp);
+        };
+
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+        window.addEventListener("pointercancel", handlePointerUp);
+        resizeHandle.addEventListener("lostpointercapture", handlePointerUp);
+      },
+      [spreadsheetArtifact],
     );
-    if (hasCompletionAfterFollowup) {
-      setSpreadsheetOptimisticWorkingStartedAt(null);
-    }
-  }, [spreadsheetEvents, spreadsheetOptimisticWorkingStartedAt]);
-  const isSpreadsheetFollowupWorking = spreadsheetOptimisticWorkingStartedAt !== null;
-  const effectiveSpreadsheetTaskWorking = isSpreadsheetTaskWorking || isSpreadsheetFollowupWorking;
-  const latestSpreadsheetUserMessageTimestamp = useMemo(
-    () => findLatestUserMessageTimestamp(spreadsheetEvents, task?.id),
-    [spreadsheetEvents, task?.id],
-  );
-  const activeSpreadsheetTurnStartedAt =
-    spreadsheetTurnStartedAt ?? latestSpreadsheetUserMessageTimestamp;
-  const spreadsheetWorkStartedAt = task
-    ? (spreadsheetOptimisticWorkingStartedAt ?? activeSpreadsheetTurnStartedAt ?? task.createdAt)
-    : Date.now();
-  const spreadsheetWorkCompletedAt = spreadsheetOptimisticWorkingStartedAt
-    ? undefined
-    : isTerminalTaskStatus(task?.status)
-    ? (task?.completedAt ?? task?.updatedAt)
-    : task?.completedAt;
-  const spreadsheetWorkDuration = useTaskDuration(
-    spreadsheetWorkStartedAt,
-    spreadsheetWorkCompletedAt,
-    Boolean(task && effectiveSpreadsheetTaskWorking),
-  );
-  const spreadsheetTurnContext = useMemo(
-    () =>
-      spreadsheetArtifact
-        ? buildSpreadsheetTurnContext({
-            task,
-            events: spreadsheetEvents,
-            filePath: spreadsheetArtifact.path,
-            isWorking: effectiveSpreadsheetTaskWorking,
-            durationLabel: spreadsheetWorkDuration,
-            turnStartedAt: activeSpreadsheetTurnStartedAt,
-          })
-        : null,
-    [
+    const handleSpreadsheetResizeKeyDown = useCallback(
+      (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        setSpreadsheetSidebarWidth((current) =>
+          clampSpreadsheetSidebarWidth(
+            current + (event.key === "ArrowLeft" ? 32 : -32),
+          ),
+        );
+      },
+      [clampSpreadsheetSidebarWidth],
+    );
+    const spreadsheetEvents = replayControls.replayEvents;
+    const spreadsheetHasActiveChildren = useMemo(
+      () =>
+        childTasks.some(
+          (childTask) =>
+            childTask.status === "executing" ||
+            childTask.status === "planning" ||
+            childTask.status === "interrupted",
+        ),
+      [childTasks],
+    );
+    const isSpreadsheetTaskWorking = useMemo(
+      () =>
+        isTaskActivelyWorking(
+          task,
+          spreadsheetEvents,
+          spreadsheetHasActiveChildren,
+        ),
+      [task, spreadsheetEvents, spreadsheetHasActiveChildren],
+    );
+    useEffect(() => {
+      if (!spreadsheetOptimisticWorkingStartedAt) return;
+      const hasTurnEndedAfterFollowup = spreadsheetEvents.some((event) => {
+        if (event.timestamp < spreadsheetOptimisticWorkingStartedAt) {
+          return false;
+        }
+        const effectiveType = getEffectiveTaskEventType(event);
+        if (
+          effectiveType === "task_completed" ||
+          effectiveType === "follow_up_completed" ||
+          effectiveType === "follow_up_failed"
+        ) {
+          return true;
+        }
+        const status = getTaskStatusUpdateFromEvent(event);
+        return Boolean(status && !isActiveTaskStatus(status));
+      });
+      if (hasTurnEndedAfterFollowup) {
+        setSpreadsheetOptimisticWorkingStartedAt(null);
+      }
+    }, [spreadsheetEvents, spreadsheetOptimisticWorkingStartedAt]);
+    const isSpreadsheetFollowupWorking =
+      spreadsheetOptimisticWorkingStartedAt !== null;
+    const effectiveSpreadsheetTaskWorking =
+      isSpreadsheetTaskWorking || isSpreadsheetFollowupWorking;
+    const latestSpreadsheetUserMessageTimestamp = useMemo(
+      () => findLatestUserMessageTimestamp(spreadsheetEvents, task?.id),
+      [spreadsheetEvents, task?.id],
+    );
+    const activeSpreadsheetTurnStartedAt =
+      spreadsheetTurnStartedAt ?? latestSpreadsheetUserMessageTimestamp;
+    const spreadsheetWorkStartedAt = task
+      ? (spreadsheetOptimisticWorkingStartedAt ??
+        activeSpreadsheetTurnStartedAt ??
+        task.createdAt)
+      : Date.now();
+    const spreadsheetWorkCompletedAt = spreadsheetOptimisticWorkingStartedAt
+      ? undefined
+      : isTerminalTaskStatus(task?.status)
+        ? (task?.completedAt ?? task?.updatedAt)
+        : task?.completedAt;
+    const spreadsheetWorkDuration = useTaskDuration(
+      spreadsheetWorkStartedAt,
+      spreadsheetWorkCompletedAt,
+      Boolean(task && effectiveSpreadsheetTaskWorking),
+    );
+    const spreadsheetTurnContext = useMemo(
+      () =>
+        spreadsheetArtifact
+          ? buildSpreadsheetTurnContext({
+              task,
+              events: spreadsheetEvents,
+              filePath: spreadsheetArtifact.path,
+              isWorking: effectiveSpreadsheetTaskWorking,
+              durationLabel: spreadsheetWorkDuration,
+              turnStartedAt: activeSpreadsheetTurnStartedAt,
+            })
+          : null,
+      [
+        activeSpreadsheetTurnStartedAt,
+        effectiveSpreadsheetTaskWorking,
+        spreadsheetArtifact,
+        spreadsheetEvents,
+        spreadsheetWorkDuration,
+        task,
+        language,
+      ],
+    );
+    const browserTurnContext = useMemo(
+      () =>
+        browserWorkbench
+          ? buildSpreadsheetTurnContext({
+              task,
+              events: spreadsheetEvents,
+              filePath: browserWorkbench.url || "browser workbench",
+              isWorking: effectiveSpreadsheetTaskWorking,
+              durationLabel: spreadsheetWorkDuration,
+              turnStartedAt: activeSpreadsheetTurnStartedAt,
+            })
+          : null,
+      [
+        activeSpreadsheetTurnStartedAt,
+        browserWorkbench,
+        effectiveSpreadsheetTaskWorking,
+        spreadsheetEvents,
+        spreadsheetWorkDuration,
+        task,
+        language,
+      ],
+    );
+    const completedFollowUpArtifactReplacement = useMemo(() => {
+      if (
+        !spreadsheetArtifact ||
+        activeSpreadsheetTurnStartedAt === null ||
+        effectiveSpreadsheetTaskWorking
+      ) {
+        return null;
+      }
+      return findReplacementArtifactForCompletedFollowUp({
+        current: spreadsheetArtifact,
+        events: spreadsheetEvents,
+        turnStartedAt: activeSpreadsheetTurnStartedAt,
+        taskId: task?.id,
+        outputSummary: resolveTaskOutputSummaryFromTask(
+          task,
+          spreadsheetEvents,
+        ),
+      });
+    }, [
       activeSpreadsheetTurnStartedAt,
       effectiveSpreadsheetTaskWorking,
       spreadsheetArtifact,
       spreadsheetEvents,
-      spreadsheetWorkDuration,
       task,
-    ],
-  );
-  const browserTurnContext = useMemo(
-    () =>
-      browserWorkbench
-        ? buildSpreadsheetTurnContext({
-            task,
-            events: spreadsheetEvents,
-            filePath: browserWorkbench.url || "browser workbench",
-            isWorking: effectiveSpreadsheetTaskWorking,
-            durationLabel: spreadsheetWorkDuration,
-            turnStartedAt: activeSpreadsheetTurnStartedAt,
-          })
-        : null,
-    [
-      activeSpreadsheetTurnStartedAt,
-      browserWorkbench,
-      effectiveSpreadsheetTaskWorking,
-      spreadsheetEvents,
-      spreadsheetWorkDuration,
-      task,
-    ],
-  );
-  const computedArtifactRefreshKey = useMemo(() => {
-    if (!spreadsheetArtifact) return null;
-    let latestTimestamp = 0;
-    const hasActiveTurn = activeSpreadsheetTurnStartedAt !== null;
-    for (const event of spreadsheetEvents) {
-      if (task?.id && event.taskId !== task.id) continue;
-      if (hasActiveTurn && activeSpreadsheetTurnStartedAt !== null) {
-        if (effectiveSpreadsheetTaskWorking && event.timestamp >= activeSpreadsheetTurnStartedAt) {
-          continue;
-        }
-        if (!effectiveSpreadsheetTaskWorking && event.timestamp < activeSpreadsheetTurnStartedAt) {
-          continue;
-        }
-      }
-      const effectiveType = getEffectiveTaskEventType(event);
-      const touchesArtifact =
-        eventPathMatchesSpreadsheet(event, spreadsheetArtifact.path) ||
-        effectiveType === "task_completed";
-      if (!touchesArtifact) continue;
-      latestTimestamp = Math.max(latestTimestamp, event.timestamp);
-    }
-    return latestTimestamp > 0 ? `${spreadsheetArtifact.path}:${latestTimestamp}` : null;
-  }, [
-    activeSpreadsheetTurnStartedAt,
-    effectiveSpreadsheetTaskWorking,
-    spreadsheetArtifact,
-    spreadsheetEvents,
-    task?.id,
-  ]);
-  useEffect(() => {
-    if (!spreadsheetArtifact) {
+      task?.id,
+    ]);
+    useEffect(() => {
+      if (!completedFollowUpArtifactReplacement) return;
+      setSpreadsheetArtifact((current) =>
+        current
+          ? {
+              ...current,
+              kind: completedFollowUpArtifactReplacement.kind,
+              path: completedFollowUpArtifactReplacement.path,
+            }
+          : current,
+      );
       setLastSettledArtifactRefreshKey(null);
-      return;
-    }
-    if (effectiveSpreadsheetTaskWorking) return;
-    setLastSettledArtifactRefreshKey((current) => {
-      if (
-        current?.path === spreadsheetArtifact.path &&
-        current.key === computedArtifactRefreshKey
-      ) {
-        return current;
+      setSpreadsheetTurnStartedAt(null);
+    }, [completedFollowUpArtifactReplacement]);
+    const computedArtifactRefreshKey = useMemo(() => {
+      if (!spreadsheetArtifact) return null;
+      let latestTimestamp = 0;
+      const hasActiveTurn = activeSpreadsheetTurnStartedAt !== null;
+      for (const event of spreadsheetEvents) {
+        if (task?.id && event.taskId !== task.id) continue;
+        if (hasActiveTurn && activeSpreadsheetTurnStartedAt !== null) {
+          if (
+            effectiveSpreadsheetTaskWorking &&
+            event.timestamp >= activeSpreadsheetTurnStartedAt
+          ) {
+            continue;
+          }
+          if (
+            !effectiveSpreadsheetTaskWorking &&
+            event.timestamp < activeSpreadsheetTurnStartedAt
+          ) {
+            continue;
+          }
+        }
+        const effectiveType = getEffectiveTaskEventType(event);
+        const touchesArtifact =
+          eventPathMatchesSpreadsheet(event, spreadsheetArtifact.path) ||
+          effectiveType === "task_completed";
+        if (!touchesArtifact) continue;
+        latestTimestamp = Math.max(latestTimestamp, event.timestamp);
       }
-      return {
-        path: spreadsheetArtifact.path,
-        key: computedArtifactRefreshKey,
-      };
-    });
-  }, [computedArtifactRefreshKey, effectiveSpreadsheetTaskWorking, spreadsheetArtifact]);
-  const artifactRefreshKey =
-    effectiveSpreadsheetTaskWorking
+      return latestTimestamp > 0
+        ? `${spreadsheetArtifact.path}:${latestTimestamp}`
+        : null;
+    }, [
+      activeSpreadsheetTurnStartedAt,
+      effectiveSpreadsheetTaskWorking,
+      spreadsheetArtifact,
+      spreadsheetEvents,
+      task?.id,
+    ]);
+    useEffect(() => {
+      if (!spreadsheetArtifact) {
+        setLastSettledArtifactRefreshKey(null);
+        return;
+      }
+      if (effectiveSpreadsheetTaskWorking) return;
+      setLastSettledArtifactRefreshKey((current) => {
+        if (
+          current?.path === spreadsheetArtifact.path &&
+          current.key === computedArtifactRefreshKey
+        ) {
+          return current;
+        }
+        return {
+          path: spreadsheetArtifact.path,
+          key: computedArtifactRefreshKey,
+        };
+      });
+    }, [
+      computedArtifactRefreshKey,
+      effectiveSpreadsheetTaskWorking,
+      spreadsheetArtifact,
+    ]);
+    const artifactRefreshKey = effectiveSpreadsheetTaskWorking
       ? lastSettledArtifactRefreshKey &&
         lastSettledArtifactRefreshKey.path === spreadsheetArtifact?.path
         ? lastSettledArtifactRefreshKey.key
         : null
       : computedArtifactRefreshKey;
 
-  if (browserWorkbench?.mode === "fullscreen" && task) {
-    const selectedModelLabel =
-      availableModels.find((model) => model.key === selectedModel)?.displayName || selectedModel;
-    return (
-      <BrowserWorkbenchView
-        taskId={task.id}
-        sessionId={browserWorkbench.sessionId}
-        initialUrl={browserWorkbench.url}
-        workspaceId={workspace?.id}
-        workspacePath={workspace?.path}
-        mode="fullscreen"
-        onClose={closeBrowserWorkbench}
-        onFullscreen={showBrowserFullscreen}
-        onExitFullscreen={showBrowserSidebar}
-        onStatusChange={updateBrowserWorkbenchStatus}
-        onSendMessage={sendSpreadsheetFullscreenMessage}
-        selectedModelLabel={selectedModelLabel}
-        selectedModel={selectedModel}
-        selectedProvider={selectedProvider}
-        selectedReasoningEffort={selectedReasoningEffort}
-        availableModels={availableModels}
-        availableProviders={availableProviders}
-        onModelChange={onModelChange}
-        onOpenSettings={onOpenSettings}
-        turnContext={browserTurnContext}
-      />
-    );
-  }
-
-  if (spreadsheetArtifact?.mode === "fullscreen" && workspace?.path) {
-    const selectedModelLabel =
-      availableModels.find((model) => model.key === selectedModel)?.displayName || selectedModel;
-    if (spreadsheetArtifact.kind === "document") {
+    if (browserWorkbench?.mode === "fullscreen" && task) {
+      const selectedModelLabel =
+        availableModels.find((model) => model.key === selectedModel)
+          ?.displayName || selectedModel;
       return (
-        <DocumentArtifactViewer
-          filePath={spreadsheetArtifact.path}
-          workspacePath={workspace.path}
+        <BrowserWorkbenchView
+          taskId={task.id}
+          sessionId={browserWorkbench.sessionId}
+          initialUrl={browserWorkbench.url}
+          workspaceId={workspace?.id}
+          workspacePath={workspace?.path}
           mode="fullscreen"
-          onClose={closeSpreadsheetArtifact}
-          onFullscreen={showSpreadsheetFullscreen}
-          onExitFullscreen={showSpreadsheetSidebar}
+          onClose={closeBrowserWorkbench}
+          onFullscreen={showBrowserFullscreen}
+          onExitFullscreen={showBrowserSidebar}
+          onStatusChange={updateBrowserWorkbenchStatus}
           onSendMessage={sendSpreadsheetFullscreenMessage}
           selectedModelLabel={selectedModelLabel}
           selectedModel={selectedModel}
@@ -1283,366 +1771,453 @@ const SelectedTaskWorkspaceView = memo(function SelectedTaskWorkspaceView({
           selectedReasoningEffort={selectedReasoningEffort}
           availableModels={availableModels}
           availableProviders={availableProviders}
-          workspaceId={workspace.id}
           onModelChange={onModelChange}
           onOpenSettings={onOpenSettings}
-          turnContext={spreadsheetTurnContext}
-          refreshKey={artifactRefreshKey}
+          turnContext={browserTurnContext}
         />
       );
     }
-    if (spreadsheetArtifact.kind === "presentation") {
-      return (
-        <PresentationArtifactViewer
-          filePath={spreadsheetArtifact.path}
-          workspacePath={workspace.path}
-          mode="fullscreen"
-          onClose={closeSpreadsheetArtifact}
-          onFullscreen={showSpreadsheetFullscreen}
-          onExitFullscreen={showSpreadsheetSidebar}
-          onSendMessage={sendSpreadsheetFullscreenMessage}
-          selectedModelLabel={selectedModelLabel}
-          selectedModel={selectedModel}
-          selectedProvider={selectedProvider}
-          selectedReasoningEffort={selectedReasoningEffort}
-          availableModels={availableModels}
-          availableProviders={availableProviders}
-          workspaceId={workspace.id}
-          onModelChange={onModelChange}
-          onOpenSettings={onOpenSettings}
-          turnContext={spreadsheetTurnContext}
-          refreshKey={artifactRefreshKey}
-        />
-      );
-    }
-    if (spreadsheetArtifact.kind === "webpage") {
-      return (
-        <WebArtifactViewer
-          filePath={spreadsheetArtifact.path}
-          workspacePath={workspace.path}
-          mode="fullscreen"
-          onClose={closeSpreadsheetArtifact}
-          onFullscreen={showSpreadsheetFullscreen}
-          onExitFullscreen={showSpreadsheetSidebar}
-          onSendMessage={sendSpreadsheetFullscreenMessage}
-          selectedModelLabel={selectedModelLabel}
-          selectedModel={selectedModel}
-          selectedProvider={selectedProvider}
-          selectedReasoningEffort={selectedReasoningEffort}
-          availableModels={availableModels}
-          availableProviders={availableProviders}
-          workspaceId={workspace.id}
-          onModelChange={onModelChange}
-          onOpenSettings={onOpenSettings}
-          turnContext={spreadsheetTurnContext}
-          refreshKey={artifactRefreshKey}
-        />
-      );
-    }
-    return (
-      <SpreadsheetArtifactViewer
-        filePath={spreadsheetArtifact.path}
-        workspacePath={workspace.path}
-        mode="fullscreen"
-        onClose={closeSpreadsheetArtifact}
-        onFullscreen={showSpreadsheetFullscreen}
-        onExitFullscreen={showSpreadsheetSidebar}
-        onSendMessage={sendSpreadsheetFullscreenMessage}
-        selectedModelLabel={selectedModelLabel}
-        selectedModel={selectedModel}
-        selectedProvider={selectedProvider}
-        selectedReasoningEffort={selectedReasoningEffort}
-        availableModels={availableModels}
-        availableProviders={availableProviders}
-        workspaceId={workspace.id}
-        onModelChange={onModelChange}
-        onOpenSettings={onOpenSettings}
-        turnContext={spreadsheetTurnContext}
-      />
-    );
-  }
 
-  const hasSpreadsheetSidebar =
-    Boolean(
-      (spreadsheetArtifact || browserWorkbench || spawnedAgentSidebar || sideChat) &&
-        workspace?.path &&
-        !remoteTaskView,
-    );
-
-  return (
-    <div
-      ref={splitLayoutRef}
-      className={`selected-workspace-view ${hasSpreadsheetSidebar ? "has-spreadsheet-sidebar" : ""} ${
-        isSpreadsheetResizing ? "is-resizing" : ""
-      }`}
-    >
-      <div className="selected-workspace-main-row">
-      <Suspense fallback={<TaskViewSkeleton />}>
-        <MainContent
-          task={task}
-          selectedTaskId={selectedTaskId}
-          workspace={workspace}
-          events={replayControls.replayEvents}
-          sharedTaskEventUi={replayControls.isReplayMode ? null : sharedTaskEventUi}
-          replayControls={replayControls}
-          childTasks={remoteTaskView ? [] : childTasks}
-          childEvents={remoteTaskView ? [] : childEvents}
-          onSelectChildTask={onSelectChildTask}
-          onSelectTask={onSelectTask}
-          onSendMessage={onSendMessage}
-          onStartOnboarding={onStartOnboarding}
-          onStartFreshSession={onStartFreshSession}
-          onCreateTask={onCreateTask}
-          onAskInbox={onAskInbox}
-          onChangeWorkspace={onChangeWorkspace}
-          onSelectWorkspace={onSelectWorkspace}
-          onOpenSettings={onOpenSettings as Any}
-          onStopTask={onStopTask}
-          onEnableShellForPausedTask={onEnableShellForPausedTask}
-          onContinueWithoutShellForPausedTask={onContinueWithoutShellForPausedTask}
-          onWrapUpTask={onWrapUpTask}
-          inputRequest={activeInputRequest}
-          pendingInputRequests={pendingInputRequests}
-          onSubmitInputRequest={onSubmitInputRequest}
-          onDismissInputRequest={onDismissInputRequest}
-          onOpenBrowserView={onOpenBrowserView}
-          onViewTaskOutputs={onViewTaskOutputs}
-          onTasksChanged={onTasksChanged}
-          selectedModel={selectedModel}
-          selectedProvider={selectedProvider}
-          selectedReasoningEffort={selectedReasoningEffort}
-          availableModels={availableModels}
-          onModelChange={onModelChange}
-          availableProviders={availableProviders}
-          uiDensity={uiDensity}
-          homeResearchVaultEnabled={homeResearchVaultEnabled}
-          homeNextActionsEnabled={homeNextActionsEnabled}
-          rendererPerfLoggingEnabled={rendererPerfLoggingEnabled}
-          taskSwitchId={taskSwitchId}
-          hasMoreTimelineHistory={hasMoreTimelineHistory}
-          isLoadingTimelineHistory={isLoadingTimelineHistory}
-          timelineHistoryError={timelineHistoryError}
-          onLoadMoreTimelineHistory={onLoadMoreTimelineHistory}
-          onLoadTaskEventDetail={onLoadTaskEventDetail}
-          remoteSession={
-            remoteTaskView
-              ? { deviceId: remoteTaskView.deviceId, deviceName: remoteTaskView.deviceName }
-              : null
-          }
-          onOpenSpreadsheetArtifact={openSpreadsheetArtifact}
-          onOpenDocumentArtifact={openDocumentArtifact}
-          onOpenPresentationArtifact={openPresentationArtifact}
-          onOpenWebArtifact={openWebArtifact}
-          onOpenBrowserWorkbenchSidebar={
-            task && workspace?.path && !remoteTaskView ? openEmptyBrowserWorkbenchSidebar : undefined
-          }
-          onOpenWebLinkInSidebar={
-            task && workspace?.path && !remoteTaskView ? openWebLinkInBrowserSidebar : undefined
-          }
-          onOpenSideChat={onOpenSideChat}
-          onOpenChildAgentSidebar={openSpawnedAgentSidebar}
-        />
-      </Suspense>
-      {sideChat && workspace?.path && !remoteTaskView ? (
-        <>
-          <ResizableDividerHandle
-            className="spreadsheet-sidebar-resize-handle"
-            role="separator"
-            orientation="vertical"
-            aria-label="Resize side conversation"
-            aria-valuemin={SPREADSHEET_SIDEBAR_MIN_WIDTH}
-            aria-valuenow={Math.round(spreadsheetSidebarWidth)}
-            tabIndex={0}
-            onPointerDown={handleSpreadsheetResizePointerDown}
-            onKeyDown={handleSpreadsheetResizeKeyDown}
+    if (spreadsheetArtifact?.mode === "fullscreen" && workspace?.path) {
+      const selectedModelLabel =
+        availableModels.find((model) => model.key === selectedModel)
+          ?.displayName || selectedModel;
+      if (spreadsheetArtifact.kind === "document") {
+        return (
+          <DocumentArtifactViewer
+            filePath={spreadsheetArtifact.path}
+            workspacePath={workspace.path}
+            mode="fullscreen"
+            onClose={closeSpreadsheetArtifact}
+            onFullscreen={showSpreadsheetFullscreen}
+            onExitFullscreen={showSpreadsheetSidebar}
+            onSendMessage={sendSpreadsheetFullscreenMessage}
+            selectedModelLabel={selectedModelLabel}
+            selectedModel={selectedModel}
+            selectedProvider={selectedProvider}
+            selectedReasoningEffort={selectedReasoningEffort}
+            availableModels={availableModels}
+            availableProviders={availableProviders}
+            workspaceId={workspace.id}
+            onModelChange={onModelChange}
+            onOpenSettings={onOpenSettings}
+            turnContext={spreadsheetTurnContext}
+            refreshKey={artifactRefreshKey}
           />
-          <div
-            className="spreadsheet-resizable-sidebar"
-            style={{ width: `${spreadsheetSidebarWidth}px` }}
-          >
+        );
+      }
+      if (spreadsheetArtifact.kind === "presentation") {
+        return (
+          <PresentationArtifactViewer
+            filePath={spreadsheetArtifact.path}
+            workspacePath={workspace.path}
+            mode="fullscreen"
+            onClose={closeSpreadsheetArtifact}
+            onFullscreen={showSpreadsheetFullscreen}
+            onExitFullscreen={showSpreadsheetSidebar}
+            onSendMessage={sendSpreadsheetFullscreenMessage}
+            selectedModelLabel={selectedModelLabel}
+            selectedModel={selectedModel}
+            selectedProvider={selectedProvider}
+            selectedReasoningEffort={selectedReasoningEffort}
+            availableModels={availableModels}
+            availableProviders={availableProviders}
+            workspaceId={workspace.id}
+            onModelChange={onModelChange}
+            onOpenSettings={onOpenSettings}
+            turnContext={spreadsheetTurnContext}
+            refreshKey={artifactRefreshKey}
+          />
+        );
+      }
+      if (spreadsheetArtifact.kind === "webpage") {
+        return (
+          <WebArtifactViewer
+            filePath={spreadsheetArtifact.path}
+            workspacePath={workspace.path}
+            mode="fullscreen"
+            onClose={closeSpreadsheetArtifact}
+            onFullscreen={showSpreadsheetFullscreen}
+            onExitFullscreen={showSpreadsheetSidebar}
+            onSendMessage={sendSpreadsheetFullscreenMessage}
+            selectedModelLabel={selectedModelLabel}
+            selectedModel={selectedModel}
+            selectedProvider={selectedProvider}
+            selectedReasoningEffort={selectedReasoningEffort}
+            availableModels={availableModels}
+            availableProviders={availableProviders}
+            workspaceId={workspace.id}
+            onModelChange={onModelChange}
+            onOpenSettings={onOpenSettings}
+            turnContext={spreadsheetTurnContext}
+            refreshKey={artifactRefreshKey}
+          />
+        );
+      }
+      return (
+        <SpreadsheetArtifactViewer
+          filePath={spreadsheetArtifact.path}
+          workspacePath={workspace.path}
+          mode="fullscreen"
+          onClose={closeSpreadsheetArtifact}
+          onFullscreen={showSpreadsheetFullscreen}
+          onExitFullscreen={showSpreadsheetSidebar}
+          onSendMessage={sendSpreadsheetFullscreenMessage}
+          selectedModelLabel={selectedModelLabel}
+          selectedModel={selectedModel}
+          selectedProvider={selectedProvider}
+          selectedReasoningEffort={selectedReasoningEffort}
+          availableModels={availableModels}
+          availableProviders={availableProviders}
+          workspaceId={workspace.id}
+          onModelChange={onModelChange}
+          onOpenSettings={onOpenSettings}
+          turnContext={spreadsheetTurnContext}
+        />
+      );
+    }
+
+    const hasSpreadsheetSidebar = Boolean(
+      (spreadsheetArtifact ||
+        browserWorkbench ||
+        spawnedAgentSidebar ||
+        sideChat) &&
+      workspace?.path &&
+      !remoteTaskView,
+    );
+    const workbenchSidebarMinWidth = spreadsheetArtifact
+      ? ARTIFACT_FOCUS_MIN_SIDEBAR_WIDTH
+      : SPREADSHEET_SIDEBAR_MIN_WIDTH;
+    const workbenchSidebarWidth = spreadsheetArtifact
+      ? Math.max(spreadsheetSidebarWidth, ARTIFACT_FOCUS_MIN_SIDEBAR_WIDTH)
+      : spreadsheetSidebarWidth;
+
+    return (
+      <div
+        ref={splitLayoutRef}
+        className={`selected-workspace-view ${hasSpreadsheetSidebar ? "has-spreadsheet-sidebar" : ""} ${
+          isSpreadsheetResizing ? "is-resizing" : ""
+        }`}
+      >
+        <div className="selected-workspace-main-row">
+          <Suspense fallback={<TaskViewSkeleton />}>
+            <MainContent
+              task={task}
+              selectedTaskId={selectedTaskId}
+              workspace={workspace}
+              projectId={projectId}
+              events={
+                replayControls.isReplayMode
+                  ? replayControls.replayEvents
+                  : events
+              }
+              sharedTaskEventUi={
+                replayControls.isReplayMode ? null : sharedTaskEventUi
+              }
+              replayControls={replayControls}
+              childTasks={remoteTaskView ? [] : childTasks}
+              childEvents={remoteTaskView ? [] : childEvents}
+              onSelectChildTask={onSelectChildTask}
+              onSelectTask={onSelectTask}
+              onOpenProject={onOpenProject}
+              onProjectAssigned={onProjectAssigned}
+              onOpenProjects={onOpenProjects}
+              onOpenTaskAccess={onRevealRightSidebar}
+              onSendMessage={onSendMessage}
+              onStartOnboarding={onStartOnboarding}
+              showInlineOnboarding={showInlineOnboarding}
+              onCompleteInlineOnboarding={onCompleteInlineOnboarding}
+              onStartFreshSession={onStartFreshSession}
+              onCreateTask={onCreateTask}
+              onAskInbox={onAskInbox}
+              onChangeWorkspace={onChangeWorkspace}
+              onSelectWorkspace={onSelectWorkspace}
+              onOpenSettings={onOpenSettings as Any}
+              onStopTask={onStopTask}
+              onEnableShellForPausedTask={onEnableShellForPausedTask}
+              onContinueWithoutShellForPausedTask={
+                onContinueWithoutShellForPausedTask
+              }
+              onWrapUpTask={onWrapUpTask}
+              onOpenApproval={remoteTaskView ? undefined : onOpenApproval}
+              inputRequest={activeInputRequest}
+              pendingInputRequests={pendingInputRequests}
+              composerDraftRequest={composerDraftRequest}
+              onComposerDraftConsumed={onComposerDraftConsumed}
+              onSubmitInputRequest={onSubmitInputRequest}
+              onDismissInputRequest={onDismissInputRequest}
+              onOpenBrowserView={onOpenBrowserView}
+              onViewTaskOutputs={onViewTaskOutputs}
+              onTasksChanged={onTasksChanged}
+              selectedModel={selectedModel}
+              selectedProvider={selectedProvider}
+              selectedReasoningEffort={selectedReasoningEffort}
+              availableModels={availableModels}
+              onModelChange={onModelChange}
+              availableProviders={availableProviders}
+              uiDensity={uiDensity}
+              homeResearchVaultEnabled={homeResearchVaultEnabled}
+              onHomeResearchVaultEnabledChange={
+                onHomeResearchVaultEnabledChange
+              }
+              homeNextActionsEnabled={homeNextActionsEnabled}
+              rendererPerfLoggingEnabled={rendererPerfLoggingEnabled}
+              taskSwitchId={taskSwitchId}
+              hasMoreTimelineHistory={hasMoreTimelineHistory}
+              isLoadingTimelineHistory={isLoadingTimelineHistory}
+              timelineHistoryError={timelineHistoryError}
+              onLoadMoreTimelineHistory={onLoadMoreTimelineHistory}
+              onLoadTaskEventDetail={onLoadTaskEventDetail}
+              remoteSession={
+                remoteTaskView
+                  ? {
+                      deviceId: remoteTaskView.deviceId,
+                      deviceName: remoteTaskView.deviceName,
+                    }
+                  : null
+              }
+              onOpenSpreadsheetArtifact={openSpreadsheetArtifact}
+              onOpenDocumentArtifact={openDocumentArtifact}
+              onOpenPresentationArtifact={openPresentationArtifact}
+              onOpenWebArtifact={openWebArtifact}
+              onOpenBrowserWorkbenchSidebar={
+                task && workspace?.path && !remoteTaskView
+                  ? openEmptyBrowserWorkbenchSidebar
+                  : undefined
+              }
+              onOpenWebLinkInSidebar={
+                task && workspace?.path && !remoteTaskView
+                  ? openWebLinkInBrowserSidebar
+                  : undefined
+              }
+              onOpenSideChat={onOpenSideChat}
+              onOpenChildAgentSidebar={openSpawnedAgentSidebar}
+            />
+          </Suspense>
+          {sideChat && workspace?.path && !remoteTaskView ? (
+            <>
+              <ResizableDividerHandle
+                className="spreadsheet-sidebar-resize-handle"
+                role="separator"
+                orientation="vertical"
+                aria-label={translate(
+                  "app.resizeSideConversation",
+                  "Resize side conversation",
+                )}
+                aria-valuemin={SPREADSHEET_SIDEBAR_MIN_WIDTH}
+                aria-valuenow={Math.round(spreadsheetSidebarWidth)}
+                tabIndex={0}
+                onPointerDown={handleSpreadsheetResizePointerDown}
+                onKeyDown={handleSpreadsheetResizeKeyDown}
+              />
+              <div
+                className="spreadsheet-resizable-sidebar"
+                style={{ width: `${spreadsheetSidebarWidth}px` }}
+              >
+                <Suspense fallback={<RightPanelFallback />}>
+                  <SideChatPanel
+                    parentTask={sideChat.parentTask}
+                    sideTask={sideChat.task}
+                    events={sideChat.events}
+                    loading={sideChat.loading}
+                    sending={sideChat.sending}
+                    onSendMessage={onSendSideChatMessage}
+                    onClose={onCloseSideChat}
+                    onOpenSideTask={onOpenSideChatFullThread}
+                  />
+                </Suspense>
+              </div>
+            </>
+          ) : (spreadsheetArtifact ||
+              browserWorkbench ||
+              spawnedAgentSidebar) &&
+            workspace?.path &&
+            !remoteTaskView ? (
+            <>
+              <ResizableDividerHandle
+                className="spreadsheet-sidebar-resize-handle"
+                role="separator"
+                orientation="vertical"
+                aria-label={translate(
+                  "app.resizeWorkbenchSidebar",
+                  "Resize workbench sidebar",
+                )}
+                aria-valuemin={workbenchSidebarMinWidth}
+                aria-valuenow={Math.round(workbenchSidebarWidth)}
+                tabIndex={0}
+                onPointerDown={handleSpreadsheetResizePointerDown}
+                onKeyDown={handleSpreadsheetResizeKeyDown}
+              />
+              <div
+                className="spreadsheet-resizable-sidebar"
+                style={{ width: `${workbenchSidebarWidth}px` }}
+              >
+                <WorkbenchPreviewErrorBoundary
+                  key={
+                    spreadsheetArtifact
+                      ? `${spreadsheetArtifact.kind}:${spreadsheetArtifact.path}`
+                      : browserWorkbench
+                        ? `browser:${browserWorkbench.requestId || browserWorkbench.sessionId}`
+                        : `agent:${spawnedAgentSidebar?.taskId || "unknown"}`
+                  }
+                  onClose={closeWorkbenchPreview}
+                >
+                  <Suspense fallback={<ArtifactSidebarFallback />}>
+                    {spawnedAgentSidebar && task ? (
+                      <SpawnedAgentSidebar
+                        parentTask={task}
+                        childTasks={childTasks}
+                        childEvents={childEvents}
+                        selectedTaskId={spawnedAgentSidebar.taskId}
+                        workspace={workspace}
+                        selectedModel={selectedModel}
+                        selectedProvider={selectedProvider}
+                        selectedReasoningEffort={selectedReasoningEffort}
+                        availableModels={availableModels}
+                        availableProviders={availableProviders}
+                        uiDensity={uiDensity}
+                        rendererPerfLoggingEnabled={rendererPerfLoggingEnabled}
+                        inputRequest={activeInputRequest}
+                        onSelectTask={selectSpawnedAgentSidebarTask}
+                        onClose={closeSpawnedAgentSidebar}
+                        onCancelTask={onCancelTaskById}
+                        onTasksChanged={onTasksChanged}
+                        onOpenSettings={onOpenSettings}
+                        onModelChange={onModelChange}
+                        onOpenSpreadsheetArtifact={openSpreadsheetArtifact}
+                        onOpenDocumentArtifact={openDocumentArtifact}
+                        onOpenPresentationArtifact={openPresentationArtifact}
+                        onOpenWebArtifact={openWebArtifact}
+                      />
+                    ) : browserWorkbench && task ? (
+                      <BrowserWorkbenchView
+                        key={
+                          browserWorkbench.requestId ||
+                          browserWorkbench.sessionId
+                        }
+                        taskId={task.id}
+                        sessionId={browserWorkbench.sessionId}
+                        initialUrl={browserWorkbench.url}
+                        workspaceId={workspace.id}
+                        workspacePath={workspace.path}
+                        mode="sidebar"
+                        onClose={closeBrowserWorkbench}
+                        onFullscreen={showBrowserFullscreen}
+                        onExitFullscreen={showBrowserSidebar}
+                        onStatusChange={updateBrowserWorkbenchStatus}
+                        onSendMessage={sendSpreadsheetFullscreenMessage}
+                      />
+                    ) : spreadsheetArtifact?.kind === "document" ? (
+                      <DocumentArtifactViewer
+                        filePath={spreadsheetArtifact.path}
+                        workspacePath={workspace.path}
+                        mode="sidebar"
+                        onClose={closeSpreadsheetArtifact}
+                        onFullscreen={showSpreadsheetFullscreen}
+                        onExitFullscreen={showSpreadsheetSidebar}
+                        refreshKey={artifactRefreshKey}
+                      />
+                    ) : spreadsheetArtifact?.kind === "presentation" ? (
+                      <PresentationArtifactViewer
+                        filePath={spreadsheetArtifact.path}
+                        workspacePath={workspace.path}
+                        mode="sidebar"
+                        onClose={closeSpreadsheetArtifact}
+                        onFullscreen={showSpreadsheetFullscreen}
+                        onExitFullscreen={showSpreadsheetSidebar}
+                        refreshKey={artifactRefreshKey}
+                      />
+                    ) : spreadsheetArtifact?.kind === "webpage" ? (
+                      <WebArtifactViewer
+                        filePath={spreadsheetArtifact.path}
+                        workspacePath={workspace.path}
+                        mode="sidebar"
+                        onClose={closeSpreadsheetArtifact}
+                        onFullscreen={showSpreadsheetFullscreen}
+                        onExitFullscreen={showSpreadsheetSidebar}
+                        refreshKey={artifactRefreshKey}
+                      />
+                    ) : spreadsheetArtifact ? (
+                      <SpreadsheetArtifactViewer
+                        filePath={spreadsheetArtifact.path}
+                        workspacePath={workspace.path}
+                        mode="sidebar"
+                        onClose={closeSpreadsheetArtifact}
+                        onFullscreen={showSpreadsheetFullscreen}
+                        onExitFullscreen={showSpreadsheetSidebar}
+                      />
+                    ) : null}
+                  </Suspense>
+                </WorkbenchPreviewErrorBoundary>
+              </div>
+            </>
+          ) : !effectiveRightCollapsed && !remoteTaskView ? (
             <Suspense fallback={<RightPanelFallback />}>
-              <SideChatPanel
-                parentTask={sideChat.parentTask}
-                sideTask={sideChat.task}
-                events={sideChat.events}
-                loading={sideChat.loading}
-                sending={sideChat.sending}
-                onSendMessage={onSendSideChatMessage}
-                onClose={onCloseSideChat}
-                onOpenSideTask={onOpenSideChatFullThread}
+              <ProjectContextPanel
+                task={rightPanelInput.task}
+                workspace={rightPanelInput.workspace}
+                projectId={projectId}
+                sessionTasks={sessionTasks}
+                events={rightPanelInput.events}
+                sharedTaskEventUi={rightPanelInput.sharedTaskEventUi}
+                onOpenSpreadsheetArtifact={openSpreadsheetArtifact}
+                onOpenDocumentArtifact={openDocumentArtifact}
+                onOpenPresentationArtifact={openPresentationArtifact}
+                onOpenWebArtifact={openWebArtifact}
+                onSelectTask={(taskId) => onSelectTask(taskId)}
+                onCollapse={onToggleRightSidebar}
               />
             </Suspense>
-          </div>
-        </>
-      ) : (spreadsheetArtifact || browserWorkbench || spawnedAgentSidebar) &&
-      workspace?.path &&
-      !remoteTaskView ? (
-        <>
-          <ResizableDividerHandle
-            className="spreadsheet-sidebar-resize-handle"
-            role="separator"
-            orientation="vertical"
-            aria-label="Resize workbench sidebar"
-            aria-valuemin={SPREADSHEET_SIDEBAR_MIN_WIDTH}
-            aria-valuenow={Math.round(spreadsheetSidebarWidth)}
-            tabIndex={0}
-            onPointerDown={handleSpreadsheetResizePointerDown}
-            onKeyDown={handleSpreadsheetResizeKeyDown}
-          />
-          <div
-            className="spreadsheet-resizable-sidebar"
-            style={{ width: `${spreadsheetSidebarWidth}px` }}
-          >
-            <Suspense fallback={<ArtifactSidebarFallback />}>
-              {spawnedAgentSidebar && task ? (
-                <SpawnedAgentSidebar
-                  parentTask={task}
-                  childTasks={childTasks}
-                  childEvents={childEvents}
-                  selectedTaskId={spawnedAgentSidebar.taskId}
-                  workspace={workspace}
-                  selectedModel={selectedModel}
-                  selectedProvider={selectedProvider}
-                  selectedReasoningEffort={selectedReasoningEffort}
-                  availableModels={availableModels}
-                  availableProviders={availableProviders}
-                  uiDensity={uiDensity}
-                  rendererPerfLoggingEnabled={rendererPerfLoggingEnabled}
-                  inputRequest={activeInputRequest}
-                  onSelectTask={selectSpawnedAgentSidebarTask}
-                  onClose={closeSpawnedAgentSidebar}
-                  onCancelTask={onCancelTaskById}
-                  onTasksChanged={onTasksChanged}
-                  onOpenSettings={onOpenSettings}
-                  onModelChange={onModelChange}
-                  onOpenSpreadsheetArtifact={openSpreadsheetArtifact}
-                  onOpenDocumentArtifact={openDocumentArtifact}
-                  onOpenPresentationArtifact={openPresentationArtifact}
-                  onOpenWebArtifact={openWebArtifact}
-                />
-              ) : browserWorkbench && task ? (
-                <BrowserWorkbenchView
-                  key={browserWorkbench.requestId || browserWorkbench.sessionId}
-                  taskId={task.id}
-                  sessionId={browserWorkbench.sessionId}
-                  initialUrl={browserWorkbench.url}
-                  workspaceId={workspace.id}
-                  workspacePath={workspace.path}
-                  mode="sidebar"
-                  onClose={closeBrowserWorkbench}
-                  onFullscreen={showBrowserFullscreen}
-                  onExitFullscreen={showBrowserSidebar}
-                  onStatusChange={updateBrowserWorkbenchStatus}
-                  onSendMessage={sendSpreadsheetFullscreenMessage}
-                />
-              ) : spreadsheetArtifact?.kind === "document" ? (
-                <DocumentArtifactViewer
-                  filePath={spreadsheetArtifact.path}
-                  workspacePath={workspace.path}
-                  mode="sidebar"
-                  onClose={closeSpreadsheetArtifact}
-                  onFullscreen={showSpreadsheetFullscreen}
-                  onExitFullscreen={showSpreadsheetSidebar}
-                  refreshKey={artifactRefreshKey}
-                />
-              ) : spreadsheetArtifact?.kind === "presentation" ? (
-                <PresentationArtifactViewer
-                  filePath={spreadsheetArtifact.path}
-                  workspacePath={workspace.path}
-                  mode="sidebar"
-                  onClose={closeSpreadsheetArtifact}
-                  onFullscreen={showSpreadsheetFullscreen}
-                  onExitFullscreen={showSpreadsheetSidebar}
-                  refreshKey={artifactRefreshKey}
-                />
-              ) : spreadsheetArtifact?.kind === "webpage" ? (
-                <WebArtifactViewer
-                  filePath={spreadsheetArtifact.path}
-                  workspacePath={workspace.path}
-                  mode="sidebar"
-                  onClose={closeSpreadsheetArtifact}
-                  onFullscreen={showSpreadsheetFullscreen}
-                  onExitFullscreen={showSpreadsheetSidebar}
-                  refreshKey={artifactRefreshKey}
-                />
-              ) : (
-                spreadsheetArtifact ? <SpreadsheetArtifactViewer
-                  filePath={spreadsheetArtifact.path}
-                  workspacePath={workspace.path}
-                  mode="sidebar"
-                  onClose={closeSpreadsheetArtifact}
-                  onFullscreen={showSpreadsheetFullscreen}
-                  onExitFullscreen={showSpreadsheetSidebar}
-                /> : null
-              )}
-            </Suspense>
-          </div>
-        </>
-      ) : !effectiveRightCollapsed && !remoteTaskView ? (
-        <Suspense fallback={<RightPanelFallback />}>
-          <RightPanel
-            task={rightPanelInput.task}
-            workspace={rightPanelInput.workspace}
-            events={rightPanelInput.events}
-            sharedTaskEventUi={rightPanelInput.sharedTaskEventUi}
-            hasActiveChildren={rightPanelInput.hasActiveChildren}
-            childTasks={rightPanelInput.childTasks}
-            childEvents={rightPanelInput.childEvents}
-            runningTasks={rightPanelInput.runningTasks}
-            queuedTasks={rightPanelInput.queuedTasks}
-            queueStatus={rightPanelInput.queueStatus}
-            onSelectTask={onSelectTask}
-            onCancelTask={onCancelTaskById}
-            onOpenSpreadsheetArtifact={openSpreadsheetArtifact}
-            onOpenDocumentArtifact={openDocumentArtifact}
-            onOpenPresentationArtifact={openPresentationArtifact}
-            onOpenWebArtifact={openWebArtifact}
-            rendererPerfLoggingEnabled={rendererPerfLoggingEnabled}
-            highlightOutputPath={rightPanelInput.highlightOutputPath}
-            onHighlightConsumed={onHighlightConsumed}
-          />
-        </Suspense>
-      ) : null}
+          ) : null}
+        </div>
+        {!remoteTaskView && terminalTabsOpen && (
+          <Suspense fallback={null}>
+            <TerminalTabsDock
+              workspace={workspace}
+              taskId={task?.id ?? selectedTaskId ?? null}
+              onClose={onCloseTerminalTabs}
+            />
+          </Suspense>
+        )}
       </div>
-      {!remoteTaskView && terminalTabsOpen && (
-        <Suspense fallback={null}>
-          <TerminalTabsDock
-            workspace={workspace}
-            taskId={task?.id ?? selectedTaskId ?? null}
-            onClose={onCloseTerminalTabs}
-          />
-        </Suspense>
-      )}
-    </div>
-  );
-}, (prev, next) =>
-  getAppTaskSignature(prev.task) === getAppTaskSignature(next.task) &&
-  prev.selectedTaskId === next.selectedTaskId &&
-  prev.workspace?.path === next.workspace?.path &&
-  prev.replayControls === next.replayControls &&
-  prev.sharedTaskEventUi === next.sharedTaskEventUi &&
-  prev.remoteTaskView?.deviceId === next.remoteTaskView?.deviceId &&
-  prev.remoteTaskView?.task.id === next.remoteTaskView?.task.id &&
-  prev.remoteTaskView?.events === next.remoteTaskView?.events &&
-  prev.childTasks === next.childTasks &&
-  prev.childEvents === next.childEvents &&
-  getInputRequestSignature(prev.activeInputRequest) === getInputRequestSignature(next.activeInputRequest) &&
-  getInputRequestsSignature(prev.pendingInputRequests) ===
-    getInputRequestsSignature(next.pendingInputRequests) &&
-  prev.selectedModel === next.selectedModel &&
-  prev.selectedProvider === next.selectedProvider &&
-  prev.selectedReasoningEffort === next.selectedReasoningEffort &&
-  prev.availableModels === next.availableModels &&
-  prev.availableProviders === next.availableProviders &&
-  prev.uiDensity === next.uiDensity &&
-  prev.homeResearchVaultEnabled === next.homeResearchVaultEnabled &&
-  prev.homeNextActionsEnabled === next.homeNextActionsEnabled &&
-  prev.rendererPerfLoggingEnabled === next.rendererPerfLoggingEnabled &&
-  prev.effectiveRightCollapsed === next.effectiveRightCollapsed &&
-  prev.terminalTabsOpen === next.terminalTabsOpen &&
-  prev.browserWorkbenchRequest?.requestId === next.browserWorkbenchRequest?.requestId &&
-  prev.sideChat === next.sideChat &&
-  prev.rightPanelInput === next.rightPanelInput
+    );
+  },
+  (prev, next) =>
+    getAppTaskSignature(prev.task) === getAppTaskSignature(next.task) &&
+    prev.selectedTaskId === next.selectedTaskId &&
+    prev.workspace?.path === next.workspace?.path &&
+    prev.events === next.events &&
+    prev.replayControls === next.replayControls &&
+    prev.sharedTaskEventUi === next.sharedTaskEventUi &&
+    prev.remoteTaskView?.deviceId === next.remoteTaskView?.deviceId &&
+    prev.remoteTaskView?.task.id === next.remoteTaskView?.task.id &&
+    prev.remoteTaskView?.events === next.remoteTaskView?.events &&
+    prev.childTasks === next.childTasks &&
+    prev.childEvents === next.childEvents &&
+    prev.sessionTasks === next.sessionTasks &&
+    getInputRequestSignature(prev.activeInputRequest) ===
+      getInputRequestSignature(next.activeInputRequest) &&
+    getInputRequestsSignature(prev.pendingInputRequests) ===
+      getInputRequestsSignature(next.pendingInputRequests) &&
+    prev.composerDraftRequest === next.composerDraftRequest &&
+    prev.onComposerDraftConsumed === next.onComposerDraftConsumed &&
+    prev.selectedModel === next.selectedModel &&
+    prev.selectedProvider === next.selectedProvider &&
+    prev.selectedReasoningEffort === next.selectedReasoningEffort &&
+    prev.availableModels === next.availableModels &&
+    prev.availableProviders === next.availableProviders &&
+    prev.uiDensity === next.uiDensity &&
+    prev.homeResearchVaultEnabled === next.homeResearchVaultEnabled &&
+    prev.homeNextActionsEnabled === next.homeNextActionsEnabled &&
+    prev.rendererPerfLoggingEnabled === next.rendererPerfLoggingEnabled &&
+    prev.effectiveRightCollapsed === next.effectiveRightCollapsed &&
+    prev.terminalTabsOpen === next.terminalTabsOpen &&
+    prev.browserWorkbenchRequest?.requestId ===
+      next.browserWorkbenchRequest?.requestId &&
+    prev.sideChat === next.sideChat &&
+    prev.rightPanelInput === next.rightPanelInput &&
+    prev.onArtifactFocusChange === next.onArtifactFocusChange &&
+    prev.onToggleRightSidebar === next.onToggleRightSidebar,
 );
 
 const MAX_RENDERER_CHILD_EVENTS = 300;
@@ -1693,17 +2268,28 @@ type PendingToolEventEntry = {
 };
 
 function isTaskPossiblyRunning(status: Task["status"] | undefined): boolean {
-  return status === "planning" || status === "executing" || status === "interrupted";
+  return (
+    status === "pending" ||
+    status === "queued" ||
+    status === "planning" ||
+    status === "executing" ||
+    status === "interrupted"
+  );
 }
 
 function isTerminalTaskStatus(status: Task["status"] | undefined): boolean {
-  return status === "completed" || status === "failed" || status === "cancelled";
+  return (
+    status === "completed" || status === "failed" || status === "cancelled"
+  );
 }
 
 function getLatestEventTimestamp(events: TaskEvent[]): number {
   let latest = 0;
   for (const event of events) {
-    if (typeof event.timestamp === "number" && Number.isFinite(event.timestamp)) {
+    if (
+      typeof event.timestamp === "number" &&
+      Number.isFinite(event.timestamp)
+    ) {
       latest = Math.max(latest, event.timestamp);
     }
   }
@@ -1714,18 +2300,27 @@ function isImmediateTaskAttentionEvent(event: TaskEvent): boolean {
   return (
     (event.type === "task_paused" &&
       isNotificationWorthyPauseReason(
-        typeof event.payload?.reason === "string" ? event.payload.reason : undefined,
+        typeof event.payload?.reason === "string"
+          ? event.payload.reason
+          : undefined,
       )) ||
     event.type === "approval_requested" ||
     event.type === "input_request_created"
   );
 }
 
-function isShellPermissionPauseReason(reasonCode: string | null | undefined): boolean {
-  return reasonCode === "shell_permission_required" || reasonCode === "shell_permission_still_disabled";
+function isShellPermissionPauseReason(
+  reasonCode: string | null | undefined,
+): boolean {
+  return (
+    reasonCode === "shell_permission_required" ||
+    reasonCode === "shell_permission_still_disabled"
+  );
 }
 
-function isNotificationWorthyPauseReason(reasonCode: string | null | undefined): boolean {
+function isNotificationWorthyPauseReason(
+  reasonCode: string | null | undefined,
+): boolean {
   return (
     reasonCode === "shell_permission_required" ||
     reasonCode === "shell_permission_still_disabled" ||
@@ -1736,7 +2331,10 @@ function isNotificationWorthyPauseReason(reasonCode: string | null | undefined):
   );
 }
 
-function mergeUniqueTaskEvents(existing: TaskEvent[], incoming: TaskEvent[]): TaskEvent[] {
+function mergeUniqueTaskEvents(
+  existing: TaskEvent[],
+  incoming: TaskEvent[],
+): TaskEvent[] {
   return mergeTaskEventsByIdentity(existing, incoming);
 }
 
@@ -1757,7 +2355,10 @@ function describeApprovalPersistence(
         manifestError?: string;
       }
     | undefined;
-  const action = typeof payload?.action === "string" ? (payload.action as ApprovalResponseAction) : "";
+  const action =
+    typeof payload?.action === "string"
+      ? (payload.action as ApprovalResponseAction)
+      : "";
 
   if (!persistence && !action) return null;
 
@@ -1777,14 +2378,14 @@ function describeApprovalPersistence(
     if (persistence.manifestPersisted === false && persistence.manifestError) {
       return {
         type: "warning",
-        message:
-          `Workspace rule saved to the local database, but manifest write failed: ${persistence.manifestError}`,
+        message: `Workspace rule saved to the local database, but manifest write failed: ${persistence.manifestError}`,
       };
     }
     if (persistence.dbPersisted && persistence.manifestPersisted) {
       return {
         type: "info",
-        message: "Workspace rule saved to both the local database and the workspace manifest.",
+        message:
+          "Workspace rule saved to both the local database and the workspace manifest.",
       };
     }
     if (persistence.dbPersisted) {
@@ -1850,27 +2451,66 @@ function extractInputRequestId(event: TaskEvent): string | null {
 }
 
 export function App() {
-  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
+  useLanguage();
+  const t = translate;
+  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(
+    null,
+  );
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [hasMoreTasks, setHasMoreTasks] = useState(true);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [remoteTaskView, setRemoteTaskView] = useState<RemoteTaskView | null>(null);
+  const [remoteTaskView, setRemoteTaskView] = useState<RemoteTaskView | null>(
+    null,
+  );
   const [currentView, setCurrentView] = useState<AppView>("main");
+  const [agentTeamSelectedRole, setAgentTeamSelectedRole] =
+    useState<AgentRole | null>(null);
+  const navigationHistoryRef = useRef<AppNavigationEntry[]>([
+    { view: "main", taskId: null },
+  ]);
+  const navigationIndexRef = useRef(0);
+  const navigationApplyTargetRef = useRef<AppNavigationEntry | null>(null);
+  const [, setNavigationRevision] = useState(0);
+  const [titleBarTaskMenuOpen, setTitleBarTaskMenuOpen] = useState(false);
+  const titleBarTaskMenuRef = useRef<HTMLDivElement>(null);
+  const [composerDraftRequest, setComposerDraftRequest] =
+    useState<ComposerDraftRequest | null>(null);
+  const composerDraftRequestIdRef = useRef(0);
+  const [hasMountedMissionControl, setHasMountedMissionControl] =
+    useState(false);
+  const [
+    missionControlNavigationRequestId,
+    setMissionControlNavigationRequestId,
+  ] = useState(0);
   const [inboxAgentAskRequest, setInboxAgentAskRequest] = useState<{
     id: number;
     query: string;
   } | null>(null);
-  const [missionControlInitialCompanyId, setMissionControlInitialCompanyId] = useState<string | null>(
-    null,
-  );
-  const [missionControlInitialIssueId, setMissionControlInitialIssueId] = useState<string | null>(null);
-  const [missionControlEverydayAgentFocus, setMissionControlEverydayAgentFocus] = useState(false);
+  const [missionControlInitialCompanyId, setMissionControlInitialCompanyId] =
+    useState<string | null>(null);
+  const [missionControlInitialIssueId, setMissionControlInitialIssueId] =
+    useState<string | null>(null);
+  const [
+    missionControlEverydayAgentFocus,
+    setMissionControlEverydayAgentFocus,
+  ] = useState(false);
+  const [missionControlInitialTab, setMissionControlInitialTab] = useState<
+    "overview" | "board" | "intelligence"
+  >("overview");
   const [browserUrl, setBrowserUrl] = useState<string>("");
   const [browserWorkbenchRequest, setBrowserWorkbenchRequest] =
     useState<BrowserWorkbenchOpenRequest | null>(null);
   const [sideChat, setSideChat] = useState<SideChatState | null>(null);
+
+  useEffect(() => {
+    if (!isInitialReleaseViewAvailable(currentView)) {
+      setCurrentView("main");
+    }
+  }, [currentView]);
   const [settingsTab, setSettingsTab] = useState<
     | "appearance"
+    | "aimodels"
     | "llm"
     | "image"
     | "search"
@@ -1882,34 +2522,146 @@ export function App() {
     | "morechannels"
     | "integrations"
     | "updates"
-    | "system"
     | "queue"
     | "skills"
+    | "customize"
     | "scheduled"
     | "voice"
-    | "companies"
     | "digitaltwins"
     | "mcp"
     | "triggers"
     | "subconscious"
     | "health"
+    | "devices"
     | "suggestions"
     | "traces"
     | "everydayAgent"
   >("appearance");
   const [homeAutomationFocusTick, setHomeAutomationFocusTick] = useState(0);
+  const [automationFocusSection, setAutomationFocusSection] = useState<
+    "activity" | null
+  >(null);
   const [events, setEvents] = useState<TaskEvent[]>([]);
   const [childEvents, setChildEvents] = useState<TaskEvent[]>([]);
 
   // Child tasks dispatched from the selected parent task (for DispatchedAgentsPanel)
   const childTasks = useMemo(() => {
     if (!selectedTaskId) return [];
-    return tasks.filter((t) => t.parentTaskId === selectedTaskId && t.agentType === "sub");
+    return tasks.filter(
+      (t) => t.parentTaskId === selectedTaskId && t.agentType === "sub",
+    );
   }, [tasks, selectedTaskId]);
   const selectedTask = useMemo(
-    () => remoteTaskView?.task || (selectedTaskId ? tasks.find((task) => task.id === selectedTaskId) : undefined),
+    () =>
+      remoteTaskView?.task ||
+      (selectedTaskId
+        ? tasks.find((task) => task.id === selectedTaskId)
+        : undefined),
     [remoteTaskView, tasks, selectedTaskId],
   );
+  const sessionTasks = useMemo(() => {
+    if (!selectedTask) return [];
+    const relatedIds = new Set<string>([selectedTask.id]);
+    const selectedSessionId = selectedTask.sessionId?.trim();
+    if (selectedSessionId) {
+      tasks.forEach((task) => {
+        if (task.sessionId?.trim() === selectedSessionId)
+          relatedIds.add(task.id);
+      });
+    }
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const task of tasks) {
+        const sourceIds = [task.parentTaskId, task.branchFromTaskId].filter(
+          (id): id is string => Boolean(id),
+        );
+        if (
+          (relatedIds.has(task.id) &&
+            sourceIds.some((id) => !relatedIds.has(id))) ||
+          (!relatedIds.has(task.id) &&
+            sourceIds.some((id) => relatedIds.has(id)))
+        ) {
+          if (!relatedIds.has(task.id)) {
+            relatedIds.add(task.id);
+            changed = true;
+          }
+          sourceIds.forEach((id) => {
+            if (
+              !relatedIds.has(id) &&
+              tasks.some((candidate) => candidate.id === id)
+            ) {
+              relatedIds.add(id);
+              changed = true;
+            }
+          });
+        }
+      }
+    }
+    return tasks
+      .filter((task) => relatedIds.has(task.id))
+      .sort((left, right) => left.createdAt - right.createdAt);
+  }, [selectedTask, tasks]);
+  useEffect(() => {
+    if (!selectedTaskId || remoteTaskView || !selectedTask) return;
+    if (!FEATURE_VISIBILITY.projects) {
+      setCurrentProjectId(null);
+      return;
+    }
+    const projectId = selectedTask.projectId;
+    if (!projectId) {
+      setCurrentProjectId(null);
+      return;
+    }
+    let cancelled = false;
+    void window.electronAPI
+      .getProject(projectId)
+      .then((project) => {
+        if (cancelled) return;
+        setCurrentProjectId(
+          project?.status === "active" && !project.archivedAt
+            ? projectId
+            : null,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setCurrentProjectId(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [remoteTaskView, selectedTask, selectedTaskId]);
+  useEffect(() => {
+    const nextEntry: AppNavigationEntry = {
+      view: currentView,
+      taskId: currentView === "main" ? selectedTaskId : null,
+    };
+    const applyingTarget = navigationApplyTargetRef.current;
+    if (
+      applyingTarget &&
+      applyingTarget.view === nextEntry.view &&
+      applyingTarget.taskId === nextEntry.taskId
+    ) {
+      navigationApplyTargetRef.current = null;
+      setNavigationRevision((revision) => revision + 1);
+      return;
+    }
+
+    const history = navigationHistoryRef.current;
+    const currentEntry = history[navigationIndexRef.current];
+    if (
+      currentEntry?.view === nextEntry.view &&
+      currentEntry.taskId === nextEntry.taskId
+    ) {
+      return;
+    }
+
+    const nextHistory = history.slice(0, navigationIndexRef.current + 1);
+    nextHistory.push(nextEntry);
+    navigationHistoryRef.current = nextHistory.slice(-50);
+    navigationIndexRef.current = navigationHistoryRef.current.length - 1;
+    setNavigationRevision((revision) => revision + 1);
+  }, [currentView, selectedTaskId]);
   const completedTaskIdsSignature = useMemo(
     () =>
       tasks
@@ -1927,67 +2679,87 @@ export function App() {
     childTaskIdsRef.current = newIds;
     // Flush any buffered events that now match known child task IDs
     if (pendingChildEventsRef.current.length > 0 && newIds.size > 0) {
-      const matched = pendingChildEventsRef.current.filter((e) => newIds.has(e.taskId));
-      pendingChildEventsRef.current = pendingChildEventsRef.current.filter((e) => !newIds.has(e.taskId));
+      const matched = pendingChildEventsRef.current.filter((e) =>
+        newIds.has(e.taskId),
+      );
+      pendingChildEventsRef.current = pendingChildEventsRef.current.filter(
+        (e) => !newIds.has(e.taskId),
+      );
       if (matched.length > 0) {
-        setChildEvents((prev) => capTaskEvents(mergeUniqueTaskEvents(prev, matched), MAX_RENDERER_CHILD_EVENTS));
+        setChildEvents((prev) =>
+          capTaskEvents(
+            mergeUniqueTaskEvents(prev, matched),
+            MAX_RENDERER_CHILD_EVENTS,
+          ),
+        );
       }
     }
   }, [childTasks]);
 
   // Model selection state
-  const [selectedModel, setSelectedModel] = useState<string>("opus-4-5");
+  const [selectedModel, setSelectedModel] = useState<string>("");
   const [selectedProvider, setSelectedProvider] =
     useState<LLMProviderType>("anthropic");
-  const [selectedReasoningEffort, setSelectedReasoningEffort] =
-    useState<LLMReasoningEffort | undefined>(undefined);
+  const [selectedReasoningEffort, setSelectedReasoningEffort] = useState<
+    LLMReasoningEffort | undefined
+  >(undefined);
   const [sessionModelOverride, setSessionModelOverride] = useState<string>("");
   const [availableModels, setAvailableModels] = useState<LLMModelInfo[]>([]);
-  const [availableProviders, setAvailableProviders] = useState<LLMProviderInfo[]>([]);
+  const [availableProviders, setAvailableProviders] = useState<
+    LLMProviderInfo[]
+  >([]);
 
-  // Update notification state
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-
-  // Theme state (loaded from main process on mount)
-  const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
-  const [visualTheme, setVisualTheme] = useState<VisualTheme>("warm");
-  const [accentColor, setAccentColor] = useState<AccentColor>("cyan");
-  const [transparencyEffectsEnabled, setTransparencyEffectsEnabled] = useState(true);
-  const [uiDensity, setUiDensity] = useState<UiDensity>("focused");
+  const uiDensity = FIXED_UI_DENSITY;
   const [devRunLoggingEnabled, setDevRunLoggingEnabled] = useState(false);
-  const [selectedTaskSwitchId, setSelectedTaskSwitchId] = useState<string | null>(null);
-  const [selectedTaskTimelineHistory, setSelectedTaskTimelineHistory] = useState<{
-    cursor: TaskTimelinePageCursor | null;
-    hasMoreHistory: boolean;
-    isLoadingMore: boolean;
-    error: string | null;
-  }>({
-    cursor: null,
-    hasMoreHistory: false,
-    isLoadingMore: false,
-    error: null,
-  });
-  const [homeResearchVaultEnabled, setHomeResearchVaultEnabled] = useState(false);
+  const [selectedTaskSwitchId, setSelectedTaskSwitchId] = useState<
+    string | null
+  >(null);
+  const [selectedTaskTimelineHistory, setSelectedTaskTimelineHistory] =
+    useState<{
+      cursor: TaskTimelinePageCursor | null;
+      hasMoreHistory: boolean;
+      isLoadingMore: boolean;
+      error: string | null;
+    }>({
+      cursor: null,
+      hasMoreHistory: false,
+      isLoadingMore: false,
+      error: null,
+    });
+  const [homeResearchVaultEnabled, setHomeResearchVaultEnabled] =
+    useState(false);
   const [homeNextActionsEnabled, setHomeNextActionsEnabled] = useState(false);
 
   // Queue state
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [sessionAutoApproveAll, setSessionAutoApproveAll] = useState(false);
-  const [pendingInputRequests, setPendingInputRequests] = useState<InputRequest[]>([]);
-  const [computerUseAppGrantApproval, setComputerUseAppGrantApproval] = useState<ApprovalRequest | null>(
-    null,
-  );
-  const [genericApproval, setGenericApproval] = useState<ApprovalRequest | null>(null);
-  const [approveAllSessionWarningOpen, setApproveAllSessionWarningOpen] = useState(false);
+  const [pendingInputRequests, setPendingInputRequests] = useState<
+    InputRequest[]
+  >([]);
+  const [computerUseAppGrantApproval, setComputerUseAppGrantApproval] =
+    useState<ApprovalRequest | null>(null);
+  const [genericApproval, setGenericApproval] =
+    useState<ApprovalRequest | null>(null);
+  const [approveAllSessionWarningOpen, setApproveAllSessionWarningOpen] =
+    useState(false);
   const [unseenOutputTaskIds, setUnseenOutputTaskIds] = useState<string[]>([]);
-  const [unseenCompletedTaskIds, setUnseenCompletedTaskIds] = useState<string[]>([]);
-  const [isInitialTaskListLoading, setIsInitialTaskListLoading] = useState(true);
+  const [unseenCompletedTaskIds, setUnseenCompletedTaskIds] = useState<
+    string[]
+  >([]);
+  const [isInitialTaskListLoading, setIsInitialTaskListLoading] =
+    useState(true);
   const [isLoadingMoreTasks, setIsLoadingMoreTasks] = useState(false);
   const [rightPanelHighlight, setRightPanelHighlight] = useState<{
     taskId: string;
     path: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (currentView === "missionControl") {
+      setHasMountedMissionControl(true);
+    }
+  }, [currentView]);
 
   useEffect(() => {
     if (currentView !== "missionControl") {
@@ -1996,12 +2768,83 @@ export function App() {
   }, [currentView]);
 
   // Sidebar collapse state
-  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
-  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(
+    readStoredLeftSidebarCollapsed,
+  );
+  const [artifactFocusModeActive, setArtifactFocusModeActive] = useState(false);
+  const artifactFocusLayoutRef = useRef<{
+    collapsedBeforeFocus: boolean;
+    userOverrodeLayout: boolean;
+  } | null>(null);
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(
+    readStoredRightPanelCollapsed,
+  );
   const [terminalTabsOpen, setTerminalTabsOpen] = useState(false);
+  const terminalOpenInFlightRef = useRef(false);
   const handleCloseTerminalTabs = useCallback(() => {
     setTerminalTabsOpen(false);
   }, []);
+
+  const handleLeftSidebarToggle = useCallback(() => {
+    setLeftSidebarCollapsed((collapsed) => {
+      const nextCollapsed = !collapsed;
+      if (artifactFocusLayoutRef.current) {
+        artifactFocusLayoutRef.current.userOverrodeLayout = true;
+      }
+      try {
+        window.localStorage.setItem(
+          LEFT_SIDEBAR_COLLAPSED_STORAGE_KEY,
+          String(nextCollapsed),
+        );
+      } catch {
+        // Keep the current-session preference when storage is unavailable.
+      }
+      return nextCollapsed;
+    });
+  }, []);
+
+  const handleArtifactFocusChange = useCallback((active: boolean) => {
+    setArtifactFocusModeActive(active);
+    if (active) {
+      if (artifactFocusLayoutRef.current) return;
+      setLeftSidebarCollapsed((collapsed) => {
+        artifactFocusLayoutRef.current = {
+          collapsedBeforeFocus: collapsed,
+          userOverrodeLayout: false,
+        };
+        return true;
+      });
+      return;
+    }
+
+    const previousLayout = artifactFocusLayoutRef.current;
+    if (!previousLayout) return;
+    artifactFocusLayoutRef.current = null;
+    if (!previousLayout.userOverrodeLayout) {
+      setLeftSidebarCollapsed(previousLayout.collapsedBeforeFocus);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleSidebarShortcut = (event: KeyboardEvent) => {
+      if (!isLeftSidebarToggleShortcut(event)) return;
+      event.preventDefault();
+      handleLeftSidebarToggle();
+    };
+    window.addEventListener("keydown", handleSidebarShortcut);
+    return () => window.removeEventListener("keydown", handleSidebarShortcut);
+  }, [handleLeftSidebarToggle]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        RIGHT_PANEL_COLLAPSED_STORAGE_KEY,
+        String(rightSidebarCollapsed),
+      );
+    } catch {
+      // The in-memory preference still works when renderer storage is unavailable.
+    }
+  }, [rightSidebarCollapsed]);
 
   // Ref to track current tasks for use in event handlers (avoids stale closure)
   const tasksRef = useRef<Task[]>([]);
@@ -2009,6 +2852,7 @@ export function App() {
   /** While true, `handleApprovalResponse` does not advance modal state (bulk auto-approve). */
   const bulkApproveSilentRef = useRef(false);
   const pendingApprovalsRef = useRef<Map<string, ApprovalRequest>>(new Map());
+  const approvalResponsesInFlightRef = useRef<Set<string>>(new Set());
   const pendingInputRequestsRef = useRef<Map<string, InputRequest>>(new Map());
   const eventsRef = useRef<TaskEvent[]>([]);
   const sideChatRef = useRef<SideChatState | null>(null);
@@ -2022,18 +2866,27 @@ export function App() {
   const taskLastEventTimestampRef = useRef<Map<string, number>>(new Map());
   const staleTaskReconcileInFlightRef = useRef(false);
   const pendingToolEventsRef = useRef<PendingToolEventEntry[]>([]);
-  const pendingToolEventsFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingToolEventsForceFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingToolEventsFlushTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const pendingToolEventsForceFlushTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const lastBatchableAppendAtRef = useRef(0);
   const terminalEventRefreshInFlightRef = useRef<Set<string>>(new Set());
-  const latestAttentionEventByTaskIdRef = useRef<Map<string, TaskEvent>>(new Map());
+  const latestAttentionEventByTaskIdRef = useRef<Map<string, TaskEvent>>(
+    new Map(),
+  );
   const taskSwitchStartedAtRef = useRef<Map<string, number>>(new Map());
   const taskSwitchIdByTaskIdRef = useRef<Map<string, string>>(new Map());
   const taskSwitchSequenceRef = useRef(0);
   const taskHeaderMarkedRef = useRef<Set<string>>(new Set());
   const sidebarFirstPaintMarkedRef = useRef(false);
   const taskTimelinePageStateRef = useRef<
-    Map<string, { cursor: TaskTimelinePageCursor | null; hasMoreHistory: boolean }>
+    Map<
+      string,
+      { cursor: TaskTimelinePageCursor | null; hasMoreHistory: boolean }
+    >
   >(new Map());
   const eventDetailInFlightRef = useRef<Set<string>>(new Set());
   const eventDetailCacheRef = useRef<Map<string, TaskEvent>>(new Map());
@@ -2042,19 +2895,23 @@ export function App() {
   const selectedTaskHydrationInFlightRef = useRef<Set<string>>(new Set());
   const selectedTaskHydrationAttemptedRef = useRef<Set<string>>(new Set());
   /** Tracks output paths we've already shown completion toast for (suppresses repeat toasts on follow-ups) */
-  const completionToastNotifiedPathsRef = useRef<Map<string, Set<string>>>(new Map());
+  const completionToastNotifiedPathsRef = useRef<Map<string, Set<string>>>(
+    new Map(),
+  );
 
   // Purge stale entries from growing Map refs when the task list changes
   useEffect(() => {
-    const activeIds = new Set(tasks.map(t => t.id));
+    const activeIds = new Set(tasks.map((t) => t.id));
     for (const key of latestAttentionEventByTaskIdRef.current.keys()) {
-      if (!activeIds.has(key)) latestAttentionEventByTaskIdRef.current.delete(key);
+      if (!activeIds.has(key))
+        latestAttentionEventByTaskIdRef.current.delete(key);
     }
     for (const key of taskLastEventTimestampRef.current.keys()) {
       if (!activeIds.has(key)) taskLastEventTimestampRef.current.delete(key);
     }
     for (const key of completionToastNotifiedPathsRef.current.keys()) {
-      if (!activeIds.has(key)) completionToastNotifiedPathsRef.current.delete(key);
+      if (!activeIds.has(key))
+        completionToastNotifiedPathsRef.current.delete(key);
     }
     for (const key of taskSwitchStartedAtRef.current.keys()) {
       if (!activeIds.has(key)) taskSwitchStartedAtRef.current.delete(key);
@@ -2065,21 +2922,27 @@ export function App() {
     for (const key of taskTimelinePageStateRef.current.keys()) {
       if (!activeIds.has(key)) taskTimelinePageStateRef.current.delete(key);
     }
-    pruneTaskHydrationAttemptKeys(selectedTaskHydrationAttemptedRef.current, activeIds);
+    pruneTaskHydrationAttemptKeys(
+      selectedTaskHydrationAttemptedRef.current,
+      activeIds,
+    );
   }, [tasks]);
 
-  // Disclaimer state (null = loading)
-  const [disclaimerAccepted, setDisclaimerAccepted] = useState<boolean | null>(null);
   // Onboarding state (null = loading)
-  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
-  // Timestamp of when onboarding was completed
-  const [onboardingCompletedAt, setOnboardingCompletedAt] = useState<string | undefined>(undefined);
+  const [onboardingCompleted, setOnboardingCompleted] = useState<
+    boolean | null
+  >(null);
   const hasElectronAPI = typeof window !== "undefined" && !!window.electronAPI;
   const [devLogCaptureEnabled, setDevLogCaptureEnabled] = useState(false);
-  const rendererPerfLoggingEnabled = devRunLoggingEnabled || devLogCaptureEnabled;
+  const rendererPerfLoggingEnabled =
+    devRunLoggingEnabled || devLogCaptureEnabled;
   const startupMarksRef = useRef<Set<string>>(new Set());
 
-  recordRendererRender("App", `view:${currentView}`, rendererPerfLoggingEnabled);
+  recordRendererRender(
+    "App",
+    `view:${currentView}`,
+    rendererPerfLoggingEnabled,
+  );
 
   const markStartupOnce = useCallback(
     (name: string, details?: Record<string, unknown>) => {
@@ -2108,15 +2971,22 @@ export function App() {
   );
 
   const mergeSelectedTaskTimelineEvents = useCallback(
-    (taskId: string, existing: TaskEvent[], incoming: TaskEvent[]): TaskEvent[] => {
-      const incomingIdentities = new Set(incoming.map((event) => getTaskEventIdentity(event)));
-      const relevantExisting = existing.filter((event) =>
-        incomingIdentities.has(getTaskEventIdentity(event)) ||
-        shouldIncludeTaskEventInSelectedSession({
-          selectedTaskId: taskId,
-          event,
-          tasks: tasksRef.current,
-        }),
+    (
+      taskId: string,
+      existing: TaskEvent[],
+      incoming: TaskEvent[],
+    ): TaskEvent[] => {
+      const incomingIdentities = new Set(
+        incoming.map((event) => getTaskEventIdentity(event)),
+      );
+      const relevantExisting = existing.filter(
+        (event) =>
+          incomingIdentities.has(getTaskEventIdentity(event)) ||
+          shouldIncludeTaskEventInSelectedSession({
+            selectedTaskId: taskId,
+            event,
+            tasks: tasksRef.current,
+          }),
       );
       return mergeTaskEventsByIdentity(relevantExisting, incoming);
     },
@@ -2132,8 +3002,12 @@ export function App() {
       );
       if (incomingEvents.length === 0) return capped;
 
-      const incomingIds = new Set(incomingEvents.map((event) => getTaskEventIdentity(event)));
-      const cappedIds = new Set(capped.map((event) => getTaskEventIdentity(event)));
+      const incomingIds = new Set(
+        incomingEvents.map((event) => getTaskEventIdentity(event)),
+      );
+      const cappedIds = new Set(
+        capped.map((event) => getTaskEventIdentity(event)),
+      );
       const missingIncoming = incomingEvents.filter(
         (event) => !cappedIds.has(getTaskEventIdentity(event)),
       );
@@ -2147,18 +3021,27 @@ export function App() {
       const preservedIncomingIds = new Set(
         preservedIncoming.map((event) => getTaskEventIdentity(event)),
       );
-      const nonIncomingBudget = Math.max(0, MAX_TIMELINE_HISTORY_EVENTS - preservedIncoming.length);
+      const nonIncomingBudget = Math.max(
+        0,
+        MAX_TIMELINE_HISTORY_EVENTS - preservedIncoming.length,
+      );
       const nonIncoming =
         nonIncomingBudget > 0
           ? capTaskEvents(
-              capped.filter((event) => !incomingIds.has(getTaskEventIdentity(event))),
+              capped.filter(
+                (event) => !incomingIds.has(getTaskEventIdentity(event)),
+              ),
               nonIncomingBudget,
               Math.max(
                 MAX_TIMELINE_HISTORY_PAGE_PAYLOAD_BYTES,
-                MAX_TIMELINE_HISTORY_PAYLOAD_BYTES - MAX_TIMELINE_HISTORY_PAGE_PAYLOAD_BYTES,
+                MAX_TIMELINE_HISTORY_PAYLOAD_BYTES -
+                  MAX_TIMELINE_HISTORY_PAGE_PAYLOAD_BYTES,
               ),
             )
-              .filter((event) => !preservedIncomingIds.has(getTaskEventIdentity(event)))
+              .filter(
+                (event) =>
+                  !preservedIncomingIds.has(getTaskEventIdentity(event)),
+              )
               .slice(-nonIncomingBudget)
           : [];
 
@@ -2175,7 +3058,12 @@ export function App() {
     if (!leftSidebarCollapsed && !isInitialTaskListLoading) {
       markStartupOnce("sidebar_ready", { taskCount: tasks.length });
     }
-  }, [isInitialTaskListLoading, leftSidebarCollapsed, markStartupOnce, tasks.length]);
+  }, [
+    isInitialTaskListLoading,
+    leftSidebarCollapsed,
+    markStartupOnce,
+    tasks.length,
+  ]);
 
   useEffect(() => {
     if (
@@ -2190,10 +3078,19 @@ export function App() {
     markRendererPerfEvent("sidebar_first_paint", rendererPerfLoggingEnabled, {
       taskCount: tasks.length,
     });
-  }, [isInitialTaskListLoading, leftSidebarCollapsed, rendererPerfLoggingEnabled, tasks.length]);
+  }, [
+    isInitialTaskListLoading,
+    leftSidebarCollapsed,
+    rendererPerfLoggingEnabled,
+    tasks.length,
+  ]);
 
   useEffect(() => {
-    if (!selectedTaskId || !selectedTask || taskHeaderMarkedRef.current.has(selectedTaskId)) {
+    if (
+      !selectedTaskId ||
+      !selectedTask ||
+      taskHeaderMarkedRef.current.has(selectedTaskId)
+    ) {
       return;
     }
     taskHeaderMarkedRef.current.add(selectedTaskId);
@@ -2242,29 +3139,40 @@ export function App() {
   }, [hasElectronAPI]);
 
   const reconcileTaskFromCanonical = useCallback(
-    async (taskId: string, options?: { refreshEventsWhenTerminal?: boolean }) => {
+    async (
+      taskId: string,
+      options?: { refreshEventsWhenTerminal?: boolean },
+    ) => {
       if (!window.electronAPI?.getTask) return null;
       try {
-        const canonicalTask = (await window.electronAPI.getTask(taskId)) as Task | null;
+        const canonicalTask = (await window.electronAPI.getTask(
+          taskId,
+        )) as Task | null;
         if (!canonicalTask) return null;
 
-        setTasks((prev) => upsertTaskPreservingIdentity(prev, canonicalTask, { prependIfMissing: true }));
+        setTasks((prev) =>
+          upsertTaskPreservingIdentity(prev, canonicalTask, {
+            prependIfMissing: true,
+          }),
+        );
 
         if (
           options?.refreshEventsWhenTerminal &&
           !isTaskPossiblyRunning(canonicalTask.status) &&
-          (window.electronAPI?.getTaskTimelinePage || window.electronAPI?.getTaskEvents)
+          (window.electronAPI?.getTaskTimelinePage ||
+            window.electronAPI?.getTaskEvents)
         ) {
-          const timelinePage = window.electronAPI.getTaskTimelinePage
-            ? await window.electronAPI.getTaskTimelinePage({
+          const { events: refreshedEvents, timelinePage } =
+            await loadTaskTimelineWithLegacyFallback({
+              request: {
                 taskId,
                 limit: 160,
                 byteLimit: 512 * 1024,
                 singleEventByteLimit: 64 * 1024,
-              })
-            : null;
-          const refreshedEvents =
-            timelinePage?.events ?? (await window.electronAPI.getTaskEvents(taskId));
+              },
+              getTaskTimelinePage: window.electronAPI.getTaskTimelinePage,
+              getTaskEvents: window.electronAPI.getTaskEvents,
+            });
           if (timelinePage) {
             taskTimelinePageStateRef.current.set(taskId, {
               cursor: timelinePage.nextCursor,
@@ -2285,7 +3193,9 @@ export function App() {
             pendingToolEventsFlushTimerRef.current = null;
           }
           setEvents((prev) =>
-            capTaskEvents(mergeSelectedTaskTimelineEvents(taskId, prev, refreshedEvents)),
+            capTaskEvents(
+              mergeSelectedTaskTimelineEvents(taskId, prev, refreshedEvents),
+            ),
           );
           const latestTimestamp = getLatestEventTimestamp(refreshedEvents);
           taskLastEventTimestampRef.current.set(
@@ -2303,54 +3213,19 @@ export function App() {
   );
 
   // Platform detection for Windows-specific UI (custom window controls, opaque backgrounds)
-  const isWindows = hasElectronAPI && window.electronAPI.getPlatform() === "win32";
+  const isWindows =
+    hasElectronAPI && window.electronAPI.getPlatform() === "win32";
   useEffect(() => {
-    document.documentElement.classList.toggle("platform-darwin", hasElectronAPI && window.electronAPI.getPlatform() === "darwin");
+    document.documentElement.classList.toggle(
+      "platform-darwin",
+      hasElectronAPI && window.electronAPI.getPlatform() === "darwin",
+    );
     if (isWindows) {
       document.documentElement.classList.add("platform-win32");
       return;
     }
     document.documentElement.classList.remove("platform-win32");
   }, [isWindows]);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    let cancelled = false;
-
-    if (!hasElectronAPI || window.electronAPI.getPlatform() !== "darwin") {
-      root.classList.remove("opaque-vibrancy");
-      return;
-    }
-
-    void window.electronAPI
-      .getAppearanceRuntimeInfo?.()
-      .then((runtimeInfo) => {
-        if (cancelled) return;
-        root.classList.toggle(
-          "opaque-vibrancy",
-          runtimeInfo?.prefersReducedTransparency === true || !transparencyEffectsEnabled,
-        );
-      })
-      .catch(() => {
-        if (!cancelled) {
-          root.classList.toggle("opaque-vibrancy", !transparencyEffectsEnabled);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [hasElectronAPI, transparencyEffectsEnabled]);
-
-  const handleDisclaimerAccept = (dontShowAgain: boolean) => {
-    // Save to main process for persistence
-    window.electronAPI
-      ?.saveAppearanceSettings?.({ disclaimerAccepted: dontShowAgain })
-      ?.catch((error) => {
-        console.error("Failed to save disclaimer setting:", error);
-      });
-    setDisclaimerAccepted(true);
-  };
 
   const handleOnboardingComplete = (dontShowAgain: boolean) => {
     const timestamp = new Date().toISOString();
@@ -2366,39 +3241,53 @@ export function App() {
         console.error("Failed to save onboarding state:", error);
       });
     setOnboardingCompleted(true); // Always allow proceeding to main app
-    setOnboardingCompletedAt(timestamp);
-
-    // Sync any onboarding-time appearance changes (e.g. light/dark toggle)
-    window.electronAPI
-      ?.getAppearanceSettings?.()
-      .then((settings) => {
-        if (!settings) return;
-        setThemeMode(settings.themeMode);
-        setVisualTheme(settings.visualTheme || "warm");
-        setAccentColor(settings.accentColor);
-      })
-      .catch((error) => {
-        console.error("Failed to refresh appearance settings after onboarding:", error);
-      });
 
     // Refresh LLM config after onboarding (user may have configured a provider)
     loadLLMConfig();
   };
 
-  const handleOpenBrowserView = (url?: string) => {
-    setBrowserUrl(url || "");
-    setCurrentView("browser");
-  };
+  const handleOpenBrowserView = useCallback(
+    (url?: string) => {
+      // Browser actions launched from a task must stay attached to that task.
+      // The legacy full-page BrowserView has no task/session registration, which
+      // leaves a manual launch with no URL looking like a blank browser.
+      if (selectedTaskId) {
+        setCurrentView("main");
+        setRemoteTaskView(null);
+        setRightSidebarCollapsed(false);
+        setBrowserWorkbenchRequest({
+          taskId: selectedTaskId,
+          sessionId: "default",
+          url,
+          requestId: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        });
+        return;
+      }
+
+      // Keep the standalone view only as a fallback for entry points that do
+      // not belong to a task yet.
+      setBrowserUrl(url || "");
+      setCurrentView("browser");
+    },
+    [selectedTaskId],
+  );
   const handleRevealRightSidebar = useCallback(() => {
     setRightSidebarCollapsed(false);
   }, []);
 
-  const handleShowOnboarding = () => {
-    // Reset onboarding state to show the wizard again
-    setOnboardingCompleted(false);
-    // Close settings view if open
+  const handleShowOnboarding = useCallback(() => {
     setCurrentView("main");
-  };
+    setCurrentProjectId(null);
+    setSelectedTaskId(null);
+    setEvents([]);
+    setRemoteTaskView(null);
+    setOnboardingCompleted(false);
+    window.electronAPI
+      ?.saveAppearanceSettings?.({ onboardingCompleted: false })
+      ?.catch((error) => {
+        console.error("Failed to reopen inline onboarding:", error);
+      });
+  }, []);
 
   // Load LLM config status
   const loadLLMConfig = async () => {
@@ -2406,11 +3295,21 @@ export function App() {
     try {
       const config = await window.electronAPI.getLLMConfigStatus();
       if (!config) return;
-      setSelectedModel(config.currentModel);
+      const currentProviderConfigured = config.providers.some(
+        (provider) =>
+          provider.type === config.currentProvider && provider.configured,
+      );
+      const hasConfiguredModel =
+        currentProviderConfigured &&
+        Boolean(config.currentModel?.trim()) &&
+        config.models.some((model) => model.key === config.currentModel);
+      setSelectedModel(hasConfiguredModel ? config.currentModel : "");
       setSelectedProvider(config.currentProvider);
-      setSelectedReasoningEffort(config.currentReasoningEffort);
+      setSelectedReasoningEffort(
+        hasConfiguredModel ? config.currentReasoningEffort : undefined,
+      );
       setSessionModelOverride("");
-      setAvailableModels(config.models);
+      setAvailableModels(hasConfiguredModel ? config.models : []);
       setAvailableProviders(config.providers);
     } catch (error) {
       console.error("Failed to load LLM config:", error);
@@ -2428,49 +3327,41 @@ export function App() {
       setCurrentView("settings");
     };
     window.addEventListener("open-settings", handler as EventListener);
-    return () => window.removeEventListener("open-settings", handler as EventListener);
+    return () =>
+      window.removeEventListener("open-settings", handler as EventListener);
   }, []);
 
   // Load appearance settings on mount
   useEffect(() => {
     const loadAppearanceSettings = async () => {
       if (!window.electronAPI?.getAppearanceSettings) {
-        setDisclaimerAccepted(true);
+        applyPersistedLanguage();
         setOnboardingCompleted(true);
-        setOnboardingCompletedAt(undefined);
         return;
       }
       try {
         const settings = await window.electronAPI.getAppearanceSettings();
         if (!settings) {
-          setDisclaimerAccepted(true);
+          applyPersistedLanguage();
           setOnboardingCompleted(true);
-          setOnboardingCompletedAt(undefined);
           return;
         }
-        setThemeMode(settings.themeMode);
-        setVisualTheme(settings.visualTheme || "warm");
-        setAccentColor(settings.accentColor);
-        setTransparencyEffectsEnabled(settings.transparencyEffectsEnabled !== false);
-        setUiDensity(settings.uiDensity || "focused");
+        applyPersistedLanguage(settings.language);
         setDevRunLoggingEnabled(settings.devRunLoggingEnabled === true);
         setHomeResearchVaultEnabled(settings.homeResearchVaultEnabled === true);
         setHomeNextActionsEnabled(settings.homeNextActionsEnabled === true);
-        setDisclaimerAccepted(settings.disclaimerAccepted ?? false);
         setOnboardingCompleted(settings.onboardingCompleted ?? false);
-        setOnboardingCompletedAt(settings.onboardingCompletedAt);
       } catch (error) {
         console.error("Failed to load appearance settings:", error);
-        setDisclaimerAccepted(false);
+        applyPersistedLanguage();
         setOnboardingCompleted(false);
-        setOnboardingCompletedAt(undefined);
       }
     };
     loadAppearanceSettings();
   }, []);
 
   // Check for migration status and show one-time notification if needed
-  // This handles the case where the app was renamed from cowork-oss to cowork-os
+  // Handle encrypted credentials carried over from a pre-NeoWorker install.
   // and encrypted credentials (API keys) need to be re-entered
   const migrationCheckDone = useRef(false);
   useEffect(() => {
@@ -2490,11 +3381,13 @@ export function App() {
           const toast: ToastNotification = {
             id,
             type: "info",
-            title: "Welcome to CoWork OS",
-            message:
+            title: t("app.toast.migration.title", "Welcome to NeoWorker"),
+            message: t(
+              "app.toast.migration.message",
               "Your data was migrated successfully. Due to macOS security, API keys need to be re-entered.",
+            ),
             action: {
-              label: "Open Settings",
+              label: t("app.action.openSettings", "Open Settings"),
               callback: () => {
                 setCurrentView("settings");
                 setSettingsTab("llm");
@@ -2520,7 +3413,11 @@ export function App() {
 
   // Load queue status and subscribe to updates
   useEffect(() => {
-    if (!window.electronAPI?.getQueueStatus || !window.electronAPI?.onQueueUpdate) return;
+    if (
+      !window.electronAPI?.getQueueStatus ||
+      !window.electronAPI?.onQueueUpdate
+    )
+      return;
 
     const loadQueueStatus = async () => {
       try {
@@ -2540,91 +3437,23 @@ export function App() {
     return typeof unsubscribe === "function" ? unsubscribe : undefined;
   }, []);
 
-  // Check for updates on mount
-  useEffect(() => {
-    if (!window.electronAPI?.checkForUpdates) return;
-
-    const checkUpdates = async () => {
-      try {
-        const info = await window.electronAPI.checkForUpdates();
-        if (info.available) {
-          setUpdateInfo(info);
-        }
-      } catch (error) {
-        // Silently ignore update check failures
-        console.log("Update check skipped:", error);
-      }
-    };
-    // Delay check to not block app startup
-    const timeoutId = setTimeout(checkUpdates, 3000);
-    return () => clearTimeout(timeoutId);
-  }, []);
-
-  // Apply theme classes to root element
+  // The initial release intentionally exposes one visual mode.
   useEffect(() => {
     const root = document.documentElement;
-    const effectiveTheme = getEffectiveTheme(themeMode);
 
-    // Remove existing theme classes
     root.classList.remove("theme-light", "theme-dark");
-
-    // Apply theme mode class
-    if (effectiveTheme === "light") {
-      root.classList.add("theme-light");
-    }
-    // dark is default, no class needed unless specified otherwise by visual styles
+    root.classList.add("theme-light");
 
     // Remove existing visual theme classes
     root.classList.remove("visual-terminal", "visual-warm", "visual-oblivion");
-    const resolvedVisualTheme = visualTheme === "warm" ? "oblivion" : visualTheme;
-    root.classList.add(`visual-${resolvedVisualTheme}`);
+    root.classList.add(FIXED_VISUAL_THEME_CLASS);
 
-    // Remove existing accent classes
-    root.classList.remove(
-      "accent-cyan",
-      "accent-blue",
-      "accent-purple",
-      "accent-pink",
-      "accent-rose",
-      "accent-orange",
-      "accent-green",
-      "accent-teal",
-      "accent-coral",
-    );
-
-    // Apply accent class
-    root.classList.add(`accent-${accentColor}`);
-
-    // Apply density class
-    root.classList.remove("density-focused", "density-full");
-    root.classList.add(`density-${uiDensity}`);
-
-    // Cache density in localStorage for instant restore on next startup
-    try {
-      localStorage.setItem("uiDensity", uiDensity);
-    } catch {
-      /* ignore */
-    }
+    // Apply the single supported density class.
+    root.classList.remove("density-full", "density-power");
+    root.classList.add("density-focused");
 
     invalidateGlobalMeasurer();
-  }, [themeMode, visualTheme, accentColor, uiDensity]);
-
-  // Listen for system theme changes when in 'system' mode
-  useEffect(() => {
-    if (themeMode !== "system") return;
-
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const handleChange = () => {
-      const root = document.documentElement;
-      root.classList.remove("theme-light", "theme-dark");
-      if (!mediaQuery.matches) {
-        root.classList.add("theme-light");
-      }
-    };
-
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [themeMode]);
+  }, []);
 
   useEffect(() => {
     console.log("App mounted");
@@ -2660,7 +3489,11 @@ export function App() {
 
   // Sync current workspace to the selected task's workspace
   useEffect(() => {
-    if (!window.electronAPI?.selectWorkspace || !window.electronAPI?.getTempWorkspace) return;
+    if (
+      !window.electronAPI?.selectWorkspace ||
+      !window.electronAPI?.getTempWorkspace
+    )
+      return;
     if (!selectedTaskId) return;
     if (remoteTaskView) return;
     if (!selectedTask) return;
@@ -2670,12 +3503,15 @@ export function App() {
 
     const loadTaskWorkspace = async () => {
       try {
-        let resolved: Workspace | null = await window.electronAPI.selectWorkspace(selectedTask.workspaceId);
+        let resolved: Workspace | null =
+          await window.electronAPI.selectWorkspace(selectedTask.workspaceId);
         if (!resolved && isTempWorkspaceId(selectedTask.workspaceId)) {
           resolved = await window.electronAPI.getTempWorkspace();
         }
         if (!cancelled && resolved) {
-          setCurrentWorkspace((prev) => (prev?.id === resolved.id ? prev : resolved));
+          setCurrentWorkspace((prev) =>
+            prev?.id === resolved.id ? prev : resolved,
+          );
         }
       } catch (error) {
         console.error("Failed to load task workspace:", error);
@@ -2692,9 +3528,11 @@ export function App() {
   useEffect(() => {
     if (!window.electronAPI?.touchWorkspace) return;
     if (!currentWorkspace) return;
-    window.electronAPI.touchWorkspace(currentWorkspace.id).catch((error: unknown) => {
-      console.error("Failed to update workspace recency:", error);
-    });
+    window.electronAPI
+      .touchWorkspace(currentWorkspace.id)
+      .catch((error: unknown) => {
+        console.error("Failed to update workspace recency:", error);
+      });
   }, [currentWorkspace?.id]);
 
   // Keep temp workspace lease alive while it is active in the UI.
@@ -2702,9 +3540,11 @@ export function App() {
     if (!window.electronAPI?.touchWorkspace) return;
     if (!currentWorkspace || !isTempWorkspaceId(currentWorkspace.id)) return;
     const interval = setInterval(() => {
-      window.electronAPI.touchWorkspace(currentWorkspace.id).catch((error: unknown) => {
-        console.error("Failed to refresh temp workspace lease:", error);
-      });
+      window.electronAPI
+        .touchWorkspace(currentWorkspace.id)
+        .catch((error: unknown) => {
+          console.error("Failed to refresh temp workspace lease:", error);
+        });
     }, 60 * 1000);
     return () => clearInterval(interval);
   }, [currentWorkspace?.id]);
@@ -2715,9 +3555,13 @@ export function App() {
 
   // Toast helper functions
   const addToast = (toast: Omit<ToastNotification, "id"> & { id?: string }) => {
-    const id = toast.id || `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const id =
+      toast.id ||
+      `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newToast: ToastNotification = { ...toast, id };
-    setToasts((prev) => (prev.some((t) => t.id === id) ? prev : [...prev, newToast]));
+    setToasts((prev) =>
+      prev.some((t) => t.id === id) ? prev : [...prev, newToast],
+    );
 
     const durationMs = toast.persistent ? null : (toast.durationMs ?? 5000);
     if (durationMs !== null && durationMs > 0) {
@@ -2736,24 +3580,51 @@ export function App() {
     approved: boolean,
     action?: ApprovalResponseAction,
   ) => {
-    let handled = false;
+    if (approvalResponsesInFlightRef.current.has(approvalId)) return;
+    approvalResponsesInFlightRef.current.add(approvalId);
+
+    let shouldDismiss = false;
     try {
-      await window.electronAPI.respondToApproval({
+      const status = await window.electronAPI.respondToApproval({
         approvalId,
         approved,
         action,
       });
-      handled = true;
+      shouldDismiss = shouldDismissApprovalAfterResponse(status);
+      if (status === "not_found") {
+        const expiredTitle = t(
+          "app.toast.approvalExpired.title",
+          "Approval expired",
+        );
+        setToasts((prev) =>
+          prev.filter((toast) => toast.title !== expiredTitle),
+        );
+        addToast({
+          id: getExpiredApprovalToastId(approvalId),
+          type: "error",
+          title: expiredTitle,
+          message: t(
+            "app.toast.approvalExpired.message",
+            "This approval is no longer connected to a running task. Reopen the task or send a message to continue.",
+          ),
+          durationMs: 7000,
+        });
+      }
     } catch (error) {
       console.error("Failed to respond to approval:", error);
       addToast({
         type: "error",
-        title: "Approval action failed",
-        message: "Could not send your approval decision. Please try again.",
+        title: t("app.toast.approvalFailed.title", "Approval action failed"),
+        message: t(
+          "app.toast.approvalFailed.message",
+          "Could not send your approval decision. Please try again.",
+        ),
       });
+    } finally {
+      approvalResponsesInFlightRef.current.delete(approvalId);
     }
 
-    if (handled) {
+    if (shouldDismiss) {
       pendingApprovalsRef.current.delete(approvalId);
       dismissToast(getApprovalToastId(approvalId));
       if (!bulkApproveSilentRef.current) {
@@ -2778,23 +3649,29 @@ export function App() {
     setPendingInputRequests(pending);
   }, []);
 
-  const handleInputRequestResponse = useCallback(async (data: InputRequestResponse) => {
-    try {
-      const response = await window.electronAPI.respondToInputRequest(data);
-      // Keep the prompt visible while the daemon still reports an in-progress mutation.
-      if (response?.status !== "in_progress") {
-        pendingInputRequestsRef.current.delete(data.requestId);
-        syncPendingInputRequests();
+  const handleInputRequestResponse = useCallback(
+    async (data: InputRequestResponse) => {
+      try {
+        const response = await window.electronAPI.respondToInputRequest(data);
+        // Keep the prompt visible while the daemon still reports an in-progress mutation.
+        if (response?.status !== "in_progress") {
+          pendingInputRequestsRef.current.delete(data.requestId);
+          syncPendingInputRequests();
+        }
+      } catch (error) {
+        console.error("Failed to respond to input request:", error);
+        addToast({
+          type: "error",
+          title: t("app.toast.inputFailed.title", "Input response failed"),
+          message: t(
+            "app.toast.inputFailed.message",
+            "Could not submit your response. Please try again.",
+          ),
+        });
       }
-    } catch (error) {
-      console.error("Failed to respond to input request:", error);
-      addToast({
-        type: "error",
-        title: "Input response failed",
-        message: "Could not submit your response. Please try again.",
-      });
-    }
-  }, [addToast, syncPendingInputRequests]);
+    },
+    [addToast, syncPendingInputRequests],
+  );
 
   const handleSessionApproveAllConfirm = () => {
     setSessionAutoApproveAll(true);
@@ -2805,15 +3682,17 @@ export function App() {
     setComputerUseAppGrantApproval(null);
     setGenericApproval(null);
 
-    const pendingNonComputerUse = Array.from(pendingApprovalsRef.current.entries()).filter(
-      ([, approval]) => !isComputerUseAppGrantApproval(approval),
-    );
+    const pendingNonComputerUse = Array.from(
+      pendingApprovalsRef.current.entries(),
+    ).filter(([, approval]) => !isComputerUseAppGrantApproval(approval));
 
     void (async () => {
       bulkApproveSilentRef.current = true;
       try {
         await Promise.all(
-          pendingNonComputerUse.map(([approvalId]) => handleApprovalResponse(approvalId, true)),
+          pendingNonComputerUse.map(([approvalId]) =>
+            handleApprovalResponse(approvalId, true),
+          ),
         );
       } finally {
         bulkApproveSilentRef.current = false;
@@ -2822,16 +3701,39 @@ export function App() {
 
     addToast({
       type: "info",
-      title: "Session auto-approve enabled",
-      message: "Approvals will be accepted automatically for the rest of this app session.",
+      title: t(
+        "app.toast.sessionAutoApprove.title",
+        "Session auto-approve enabled",
+      ),
+      message: t(
+        "app.toast.sessionAutoApprove.message",
+        "Approvals will be accepted automatically for the rest of this app session.",
+      ),
       durationMs: 7000,
     });
   };
 
   const reshowPendingApprovalToasts = () => {
-    setComputerUseAppGrantApproval(pickFirstPendingComputerUseApproval(pendingApprovalsRef.current));
-    setGenericApproval(pickFirstPendingGenericApproval(pendingApprovalsRef.current));
+    setComputerUseAppGrantApproval(
+      pickFirstPendingComputerUseApproval(pendingApprovalsRef.current),
+    );
+    setGenericApproval(
+      pickFirstPendingGenericApproval(pendingApprovalsRef.current),
+    );
   };
+
+  const handleOpenApproval = useCallback((approval: ApprovalRequest) => {
+    if (!approval?.id) return;
+    pendingApprovalsRef.current.set(approval.id, approval);
+    setApproveAllSessionWarningOpen(false);
+    if (isComputerUseAppGrantApproval(approval)) {
+      setGenericApproval(null);
+      setComputerUseAppGrantApproval(approval);
+      return;
+    }
+    setComputerUseAppGrantApproval(null);
+    setGenericApproval(approval);
+  }, []);
 
   const showApproveAllWarning = () => {
     const pendingApprovalIds = Array.from(pendingApprovalsRef.current.keys());
@@ -2866,7 +3768,8 @@ export function App() {
   }, [selectedTaskId]);
 
   useEffect(() => {
-    if (!selectedTaskId || remoteTaskView || !window.electronAPI?.getTask) return;
+    if (!selectedTaskId || remoteTaskView || !window.electronAPI?.getTask)
+      return;
     if (selectedTask && !shouldHydrateTaskSummary(selectedTask)) return;
 
     if (
@@ -2893,7 +3796,9 @@ export function App() {
           selectedTask,
           new Set(tasksRef.current.map((currentTask) => currentTask.id)),
         );
-        setTasks((prev) => upsertTaskPreservingIdentity(prev, task, { prependIfMissing: true }));
+        setTasks((prev) =>
+          upsertTaskPreservingIdentity(prev, task, { prependIfMissing: true }),
+        );
       })
       .catch((error) => {
         if (!cancelled) {
@@ -2980,35 +3885,38 @@ export function App() {
   useEffect(() => {
     if (!window.electronAPI?.onTaskEvent || !remoteTaskView) return;
     const view = remoteTaskView;
-    const unsubscribe = window.electronAPI.onTaskEvent((rawEvent: TaskEvent & { deviceId?: string }) => {
-      if (rawEvent.deviceId !== view.deviceId || rawEvent.taskId !== view.task.id) return;
-      const effectiveType = getEffectiveTaskEventType(rawEvent);
-      const event = { ...rawEvent, type: effectiveType } as TaskEvent;
-      setEvents((prev) => capTaskEvents([...prev, event]));
-      const newStatus =
-        isLlmRequestCancelledEvent(event)
+    const unsubscribe = window.electronAPI.onTaskEvent(
+      (rawEvent: TaskEvent & { deviceId?: string }) => {
+        if (
+          rawEvent.deviceId !== view.deviceId ||
+          rawEvent.taskId !== view.task.id
+        )
+          return;
+        const effectiveType = getEffectiveTaskEventType(rawEvent);
+        const event = { ...rawEvent, type: effectiveType } as TaskEvent;
+        setEvents((prev) => capTaskEvents([...prev, event]));
+        const newStatus = isLlmRequestCancelledEvent(event)
           ? undefined
-          : event.type === "task_status"
-            ? event.payload?.status
-            : TASK_EVENT_STATUS_MAP[event.type];
-      if (newStatus) {
-        setRemoteTaskView((prev) =>
-          prev && prev.task.id === view.task.id
-            ? {
-                ...prev,
-                task: {
-                  ...prev.task,
-                  status:
-                    resolveTaskStatusUpdateFromEvent(
-                      prev.task,
-                      newStatus as Task["status"],
-                    ) ?? prev.task.status,
-                },
-              }
-            : prev,
-        );
-      }
-    });
+          : getTaskStatusUpdateFromEvent(event);
+        if (newStatus) {
+          setRemoteTaskView((prev) =>
+            prev && prev.task.id === view.task.id
+              ? {
+                  ...prev,
+                  task: {
+                    ...prev.task,
+                    status:
+                      resolveTaskStatusUpdateFromEvent(
+                        prev.task,
+                        newStatus as Task["status"],
+                      ) ?? prev.task.status,
+                  },
+                }
+              : prev,
+          );
+        }
+      },
+    );
     return typeof unsubscribe === "function" ? unsubscribe : undefined;
   }, [remoteTaskView]);
 
@@ -3017,671 +3925,826 @@ export function App() {
     if (!window.electronAPI?.onTaskEvent) return;
     if (remoteTaskView) return;
 
-    const unsubscribe = window.electronAPI.onTaskEvent((rawEvent: TaskEvent) => {
-      const effectiveType = getEffectiveTaskEventType(rawEvent);
-      const event = {
-        ...rawEvent,
-        type: effectiveType,
-      } as TaskEvent;
-      noteRendererTaskEventReceived(event, rendererPerfLoggingEnabled);
-      const sideChatTaskId = sideChatRef.current?.task?.id;
-      const sideChatParentTaskId = sideChatRef.current?.parentTaskId;
-      const isSideChatTaskEvent = sideChatTaskId === event.taskId;
-      if (sideChatParentTaskId && sideChatParentTaskId === event.taskId) {
-        setSideChat((prev) => {
-          if (!prev || prev.parentTaskId !== event.taskId || !prev.parentTask) return prev;
-          const parentStatus =
-            isLlmRequestCancelledEvent(event)
+    const unsubscribe = window.electronAPI.onTaskEvent(
+      (rawEvent: TaskEvent) => {
+        const effectiveType = getEffectiveTaskEventType(rawEvent);
+        const event = {
+          ...rawEvent,
+          type: effectiveType,
+        } as TaskEvent;
+        noteRendererTaskEventReceived(event, rendererPerfLoggingEnabled);
+        const sideChatTaskId = sideChatRef.current?.task?.id;
+        const sideChatParentTaskId = sideChatRef.current?.parentTaskId;
+        const isSideChatTaskEvent = sideChatTaskId === event.taskId;
+        if (sideChatParentTaskId && sideChatParentTaskId === event.taskId) {
+          setSideChat((prev) => {
+            if (!prev || prev.parentTaskId !== event.taskId || !prev.parentTask)
+              return prev;
+            const parentStatus = isLlmRequestCancelledEvent(event)
               ? undefined
-              : event.type === "task_status"
-                ? event.payload?.status
-                : TASK_EVENT_STATUS_MAP[event.type];
-          const nextParentTask =
-            parentStatus && typeof parentStatus === "string"
-              ? {
-                  ...prev.parentTask,
-                  status:
-                    resolveTaskStatusUpdateFromEvent(
-                      prev.parentTask,
-                      parentStatus as Task["status"],
-                    ) ?? prev.parentTask.status,
-                  updatedAt: event.timestamp || Date.now(),
-                }
-              : {
-                  ...prev.parentTask,
-                  updatedAt: event.timestamp || prev.parentTask.updatedAt,
-                };
-          return { ...prev, parentTask: nextParentTask };
-        });
-      }
-      if (isSideChatTaskEvent) {
-        setSideChat((prev) => {
-          if (!prev?.task || prev.task.id !== event.taskId) return prev;
-          const sideStatus =
-            isLlmRequestCancelledEvent(event)
-              ? undefined
-              : event.type === "task_status"
-                ? event.payload?.status
-                : TASK_EVENT_STATUS_MAP[event.type];
-          const nextTask =
-            sideStatus && typeof sideStatus === "string"
-              ? {
-                  ...prev.task,
-                  status:
-                    resolveTaskStatusUpdateFromEvent(prev.task, sideStatus as Task["status"]) ??
-                    prev.task.status,
-                  updatedAt: event.timestamp || Date.now(),
-                }
-              : {
-                  ...prev.task,
-                  updatedAt: event.timestamp || prev.task.updatedAt,
-                };
-          return {
-            ...prev,
-            task: nextTask,
-            events: capTaskEvents(mergeUniqueTaskEvents(prev.events, [event])),
-            sending:
-              event.type === "assistant_message" || isTerminalTaskStatus(nextTask.status)
-                ? false
-                : prev.sending,
-            loading: false,
-          };
-        });
-        if (!tasksRef.current.some((task) => task.id === event.taskId)) {
-          return;
-        }
-      }
-      const eventTimestamp =
-        typeof rawEvent?.timestamp === "number" && Number.isFinite(rawEvent.timestamp)
-          ? rawEvent.timestamp
-          : Date.now();
-      taskLastEventTimestampRef.current.set(event.taskId, eventTimestamp);
-      if (isImmediateTaskAttentionEvent(event)) {
-        latestAttentionEventByTaskIdRef.current.set(event.taskId, event);
-      } else if (
-        event.type === "task_resumed" ||
-        event.type === "approval_granted" ||
-        event.type === "approval_denied" ||
-        event.type === "input_request_resolved" ||
-        event.type === "input_request_dismissed" ||
-        event.type === "task_completed" ||
-        event.type === "task_cancelled"
-      ) {
-        latestAttentionEventByTaskIdRef.current.delete(event.taskId);
-      }
-      // Update task status based on event type
-      // Check if this is a new task we don't know about (e.g., sub-agent created)
-      const isNewTask = !tasksRef.current.some((t) => t.id === event.taskId);
-      if (isNewTask && event.type === "task_created") {
-        // Refresh task list to include the new sub-agent task
-        loadTasks();
-        return;
-      }
-
-      const newStatus =
-        isLlmRequestCancelledEvent(event)
-          ? undefined
-          : event.type === "task_status"
-            ? event.payload?.status
-            : TASK_EVENT_STATUS_MAP[event.type];
-      const isAutoApprovalRequested =
-        event.type === "approval_requested" && event.payload?.autoApproved === true;
-      const isSessionAutoApproval =
-        event.type === "approval_requested" && sessionAutoApproveAllRef.current;
-      const skipBlockedStateForAutoApproval = isAutoApprovalRequested || isSessionAutoApproval;
-      const payloadTerminalStatus =
-        typeof event.payload?.terminalStatus === "string" ? event.payload.terminalStatus : undefined;
-      const eventTerminalStatus =
-        payloadTerminalStatus !== undefined
-          ? payloadTerminalStatus
-          : event.type === "approval_requested" && !skipBlockedStateForAutoApproval
-            ? "awaiting_approval"
-            : event.type === "approval_denied" || event.type === "input_request_created"
-              ? "needs_user_action"
-              : event.type === "task_interrupted"
-                ? "resume_available"
-                : undefined;
-      const shouldClearTerminalStatus =
-        event.type === "approval_granted" ||
-        event.type === "task_resumed" ||
-        event.type === "input_request_resolved";
-      const isNewRunStarted =
-        event.type === "task_resumed" && event.payload?.newRunStarted === true;
-      const payloadFailureClass =
-        typeof event.payload?.failureClass === "string" ? event.payload.failureClass : undefined;
-      const payloadBestKnownOutcome =
-        event.payload?.bestKnownOutcome && typeof event.payload.bestKnownOutcome === "object"
-          ? event.payload.bestKnownOutcome
-          : undefined;
-      const payloadLastRunDurationMs =
-        typeof event.payload?.lastRunDurationMs === "number" &&
-        Number.isFinite(event.payload.lastRunDurationMs)
-          ? Math.max(0, Math.floor(event.payload.lastRunDurationMs))
-          : undefined;
-      const isInputRequestResolutionEvent =
-        event.type === "input_request_resolved" || event.type === "input_request_dismissed";
-      const isTerminalInputResolution =
-        isInputRequestResolutionEvent &&
-        (event.payload?.terminalTask === true ||
-          isTerminalTaskStatus(tasksRef.current.find((t) => t.id === event.taskId)?.status));
-      const nextStatus = newStatus as Task["status"] | undefined;
-      if (newStatus && !skipBlockedStateForAutoApproval) {
-        const applyTaskStatusUpdate = () =>
-          setTasks((prev) =>
-            updateTaskPreservingIdentity(prev, event.taskId, (t) => {
-              if (isTerminalInputResolution && isTerminalTaskStatus(t.status)) {
-                return t;
-              }
-              const resolvedStatus =
-                isNewRunStarted
-                  ? (newStatus as Task["status"])
-                  : resolveTaskStatusUpdateFromEvent(t, newStatus as Task["status"]) ?? t.status;
-              const updates: Partial<Task> = {
-                status: resolvedStatus,
-                updatedAt: Math.max(t.updatedAt || 0, eventTimestamp),
-              };
-              if (isNewRunStarted) {
-                updates.completedAt = undefined;
-                updates.lastRunDurationMs = undefined;
-              }
-              if (shouldClearTerminalStatus) {
-                updates.terminalStatus = undefined;
-                updates.failureClass = undefined;
-              } else if (eventTerminalStatus !== undefined) {
-                updates.terminalStatus = eventTerminalStatus;
-              }
-              if (payloadFailureClass !== undefined) {
-                updates.failureClass = payloadFailureClass;
-              }
-              if (payloadBestKnownOutcome) {
-                updates.bestKnownOutcome = payloadBestKnownOutcome;
-              }
-              if (payloadLastRunDurationMs !== undefined) {
-                updates.lastRunDurationMs = payloadLastRunDurationMs;
-              }
-              return mergeTaskPreservingIdentity(t, updates);
-            }),
-          );
-
-        if (event.taskId === selectedTaskIdRef.current) {
-          applyTaskStatusUpdate();
-        } else {
-          startTransition(() => {
-            applyTaskStatusUpdate();
+              : getTaskStatusUpdateFromEvent(event);
+            const nextParentTask =
+              parentStatus && typeof parentStatus === "string"
+                ? {
+                    ...prev.parentTask,
+                    status:
+                      resolveTaskStatusUpdateFromEvent(
+                        prev.parentTask,
+                        parentStatus as Task["status"],
+                      ) ?? prev.parentTask.status,
+                    updatedAt: event.timestamp || Date.now(),
+                  }
+                : {
+                    ...prev.parentTask,
+                    updatedAt: event.timestamp || prev.parentTask.updatedAt,
+                  };
+            return { ...prev, parentTask: nextParentTask };
           });
         }
-      }
-
-      if (
-        shouldRefreshCanonicalEventsForTerminalUpdate({
-          selectedTaskId: selectedTaskIdRef.current,
-          event,
-          nextStatus,
-        }) &&
-        !terminalEventRefreshInFlightRef.current.has(event.taskId)
-      ) {
-        terminalEventRefreshInFlightRef.current.add(event.taskId);
-        void reconcileTaskFromCanonical(event.taskId, {
-          refreshEventsWhenTerminal: true,
-        }).catch((error) => {
-          terminalEventRefreshInFlightRef.current.delete(event.taskId);
-          console.error("Failed to refresh selected task events after terminal update:", error);
-        });
-      }
-
-      if (event.type === "approval_requested" && !isAutoApprovalRequested) {
-        const approval = event.payload?.approval as ApprovalRequest | undefined;
-        if (approval?.id) {
-          pendingApprovalsRef.current.set(approval.id, approval);
-
-          if (isComputerUseAppGrantApproval(approval)) {
-            setComputerUseAppGrantApproval(approval);
-          } else if (sessionAutoApproveAllRef.current) {
-            void handleApprovalResponse(approval.id, true);
-          } else {
-            setGenericApproval((prev) => prev ?? approval);
-          }
-        }
-      }
-
-      if (event.type === "approval_granted" || event.type === "approval_denied") {
-        const approvalId = extractApprovalId(event);
-        if (approvalId) {
-          pendingApprovalsRef.current.delete(approvalId);
-          dismissToast(getApprovalToastId(approvalId));
-          setComputerUseAppGrantApproval((prev) =>
-            prev?.id === approvalId
-              ? pickFirstPendingComputerUseApproval(pendingApprovalsRef.current)
-              : prev,
-          );
-          setGenericApproval((prev) =>
-            prev?.id === approvalId
-              ? pickFirstPendingGenericApproval(pendingApprovalsRef.current)
-              : prev,
-          );
-
-          const approvalFeedback = describeApprovalPersistence(
-            event.payload,
-            event.type === "approval_granted",
-          );
-          if (approvalFeedback) {
-            void (async () => {
-              try {
-                const traySettings = await window.electronAPI.getTraySettings();
-                if (
-                  !traySettings.showNotifications ||
-                  !traySettings.showApprovalSavedNotifications
-                ) {
-                  return;
-                }
-
-                await window.electronAPI.addNotification({
-                  type: approvalFeedback.type,
-                  title:
-                    event.type === "approval_granted"
-                      ? "Approval saved"
-                      : "Approval recorded",
-                  message: approvalFeedback.message,
-                  taskId: event.taskId,
-                  workspaceId: tasksRef.current.find((t) => t.id === event.taskId)?.workspaceId,
-                });
-              } catch (error) {
-                console.error("Failed to add approval persistence notification:", error);
-              }
-            })();
-          }
-        }
-      }
-
-      if (event.type === "input_request_created") {
-        const request = event.payload?.request as InputRequest | undefined;
-        if (request?.id) {
-          pendingInputRequestsRef.current.set(request.id, request);
-          syncPendingInputRequests();
-        }
-      }
-
-      if (event.type === "input_request_resolved" || event.type === "input_request_dismissed") {
-        const requestId = extractInputRequestId(event);
-        if (requestId) {
-          pendingInputRequestsRef.current.delete(requestId);
-          syncPendingInputRequests();
-        }
-      }
-
-      if (event.type === "workspace_permissions_updated") {
-        const payloadWorkspace = event.payload?.workspace as Workspace | undefined;
-        const payloadWorkspaceId = event.payload?.workspaceId as string | undefined;
-        const payloadPermissions = event.payload?.permissions as
-          | Workspace["permissions"]
-          | undefined;
-        setCurrentWorkspace((prev) => {
-          if (!prev) return prev;
-          if (payloadWorkspace && payloadWorkspace.id === prev.id) {
-            return payloadWorkspace;
-          }
-          if (payloadWorkspaceId && payloadWorkspaceId === prev.id && payloadPermissions) {
+        if (isSideChatTaskEvent) {
+          setSideChat((prev) => {
+            if (!prev?.task || prev.task.id !== event.taskId) return prev;
+            const sideStatus = isLlmRequestCancelledEvent(event)
+              ? undefined
+              : getTaskStatusUpdateFromEvent(event);
+            const nextTask =
+              sideStatus && typeof sideStatus === "string"
+                ? {
+                    ...prev.task,
+                    status:
+                      resolveTaskStatusUpdateFromEvent(
+                        prev.task,
+                        sideStatus as Task["status"],
+                      ) ?? prev.task.status,
+                    updatedAt: event.timestamp || Date.now(),
+                  }
+                : {
+                    ...prev.task,
+                    updatedAt: event.timestamp || prev.task.updatedAt,
+                  };
             return {
               ...prev,
-              permissions: {
-                ...prev.permissions,
-                ...payloadPermissions,
-              },
+              task: nextTask,
+              events: capTaskEvents(
+                mergeUniqueTaskEvents(prev.events, [event]),
+              ),
+              sending:
+                event.type === "assistant_message" ||
+                isTerminalTaskStatus(nextTask.status)
+                  ? false
+                  : prev.sending,
+              loading: false,
             };
+          });
+          if (!tasksRef.current.some((task) => task.id === event.taskId)) {
+            return;
           }
-          return prev;
-        });
-      }
+        }
+        const eventTimestamp =
+          typeof rawEvent?.timestamp === "number" &&
+          Number.isFinite(rawEvent.timestamp)
+            ? rawEvent.timestamp
+            : Date.now();
+        taskLastEventTimestampRef.current.set(event.taskId, eventTimestamp);
+        if (isImmediateTaskAttentionEvent(event)) {
+          latestAttentionEventByTaskIdRef.current.set(event.taskId, event);
+        } else if (
+          event.type === "task_resumed" ||
+          event.type === "approval_granted" ||
+          event.type === "approval_denied" ||
+          event.type === "input_request_resolved" ||
+          event.type === "input_request_dismissed" ||
+          event.type === "task_completed" ||
+          event.type === "task_cancelled"
+        ) {
+          latestAttentionEventByTaskIdRef.current.delete(event.taskId);
+        }
+        // Update task status based on event type
+        // Check if this is a new task we don't know about (e.g., sub-agent created)
+        const isNewTask = !tasksRef.current.some((t) => t.id === event.taskId);
+        if (isNewTask && event.type === "task_created") {
+          // Refresh task list to include the new sub-agent task
+          loadTasks();
+          return;
+        }
 
-      if (event.type === "approval_granted") {
-        void window.electronAPI.resumeTask(event.taskId);
-      }
-
-      if (
-        (event.type === "task_paused" &&
-          isNotificationWorthyPauseReason(
-            typeof event.payload?.reason === "string" ? event.payload.reason : undefined,
-          )) ||
-        (event.type === "approval_requested" && !skipBlockedStateForAutoApproval) ||
-        event.type === "input_request_created"
-      ) {
-        const isApproval = event.type === "approval_requested";
-        const isInputRequest = event.type === "input_request_created";
-        const task = tasksRef.current.find((t) => t.id === event.taskId);
-        const baseTitle = isApproval ? "Approval needed" : isInputRequest ? "Input needed" : "Action needed";
-        const title = task?.title ? `${baseTitle} · ${task.title}` : baseTitle;
-        const requestQuestion =
-          isInputRequest && Array.isArray(event.payload?.request?.questions)
-            ? event.payload.request.questions[0]?.question
+        const newStatus = isLlmRequestCancelledEvent(event)
+          ? undefined
+          : getTaskStatusUpdateFromEvent(event);
+        const isAutoApprovalRequested =
+          event.type === "approval_requested" &&
+          event.payload?.autoApproved === true;
+        const isSessionAutoApproval =
+          event.type === "approval_requested" &&
+          sessionAutoApproveAllRef.current;
+        const skipBlockedStateForAutoApproval =
+          isAutoApprovalRequested || isSessionAutoApproval;
+        const payloadTerminalStatus =
+          typeof event.payload?.terminalStatus === "string"
+            ? event.payload.terminalStatus
             : undefined;
-        const message =
-          (isApproval
-            ? event.payload?.approval?.description
-            : isInputRequest
-              ? requestQuestion
-              : event.payload?.message) ||
-          "Quick pause - ready to continue once you respond.";
+        const eventTerminalStatus =
+          payloadTerminalStatus !== undefined
+            ? payloadTerminalStatus
+            : event.type === "approval_requested" &&
+                !skipBlockedStateForAutoApproval
+              ? "awaiting_approval"
+              : event.type === "approval_denied" ||
+                  event.type === "input_request_created"
+                ? "needs_user_action"
+                : event.type === "task_interrupted"
+                  ? "resume_available"
+                  : undefined;
+        const shouldClearTerminalStatus =
+          event.type === "approval_granted" ||
+          event.type === "task_resumed" ||
+          event.type === "input_request_resolved";
+        const isNewRunStarted =
+          event.type === "task_resumed" &&
+          event.payload?.newRunStarted === true;
+        const payloadFailureClass =
+          typeof event.payload?.failureClass === "string"
+            ? event.payload.failureClass
+            : undefined;
+        const payloadBestKnownOutcome =
+          event.payload?.bestKnownOutcome &&
+          typeof event.payload.bestKnownOutcome === "object"
+            ? event.payload.bestKnownOutcome
+            : undefined;
+        const payloadLastRunDurationMs =
+          typeof event.payload?.lastRunDurationMs === "number" &&
+          Number.isFinite(event.payload.lastRunDurationMs)
+            ? Math.max(0, Math.floor(event.payload.lastRunDurationMs))
+            : undefined;
+        const isInputRequestResolutionEvent =
+          event.type === "input_request_resolved" ||
+          event.type === "input_request_dismissed";
+        const isTerminalInputResolution =
+          isInputRequestResolutionEvent &&
+          (event.payload?.terminalTask === true ||
+            isTerminalTaskStatus(
+              tasksRef.current.find((t) => t.id === event.taskId)?.status,
+            ));
+        const nextStatus = newStatus as Task["status"] | undefined;
+        if (newStatus && !skipBlockedStateForAutoApproval) {
+          const applyTaskStatusUpdate = () =>
+            setTasks((prev) =>
+              updateTaskPreservingIdentity(prev, event.taskId, (t) => {
+                if (
+                  isTerminalInputResolution &&
+                  isTerminalTaskStatus(t.status)
+                ) {
+                  return t;
+                }
+                const resolvedStatus = isNewRunStarted
+                  ? (newStatus as Task["status"])
+                  : (resolveTaskStatusUpdateFromEvent(
+                      t,
+                      newStatus as Task["status"],
+                    ) ?? t.status);
+                const updates: Partial<Task> = {
+                  status: resolvedStatus,
+                  updatedAt: Math.max(t.updatedAt || 0, eventTimestamp),
+                };
+                if (isNewRunStarted) {
+                  updates.completedAt = undefined;
+                  updates.lastRunDurationMs = undefined;
+                }
+                if (shouldClearTerminalStatus) {
+                  updates.terminalStatus = undefined;
+                  updates.failureClass = undefined;
+                } else if (eventTerminalStatus !== undefined) {
+                  updates.terminalStatus = eventTerminalStatus;
+                }
+                if (payloadFailureClass !== undefined) {
+                  updates.failureClass = payloadFailureClass;
+                }
+                if (payloadBestKnownOutcome) {
+                  updates.bestKnownOutcome = payloadBestKnownOutcome;
+                }
+                if (payloadLastRunDurationMs !== undefined) {
+                  updates.lastRunDurationMs = payloadLastRunDurationMs;
+                }
+                return mergeTaskPreservingIdentity(t, updates);
+              }),
+            );
 
-        void (async () => {
-          try {
-            const existing = await window.electronAPI.listNotifications();
-            const existingForTask = existing
-              .filter((n) => n.type === "input_required" && n.taskId === event.taskId)
-              .sort((a, b) => b.createdAt - a.createdAt);
-            if (existingForTask.length > 0) {
-              const duplicateNotifications = existingForTask.slice(1);
-              if (duplicateNotifications.length > 0) {
+          if (event.taskId === selectedTaskIdRef.current) {
+            applyTaskStatusUpdate();
+          } else {
+            startTransition(() => {
+              applyTaskStatusUpdate();
+            });
+          }
+        }
+
+        if (
+          shouldRefreshCanonicalEventsForTerminalUpdate({
+            selectedTaskId: selectedTaskIdRef.current,
+            event,
+            nextStatus,
+          }) &&
+          !terminalEventRefreshInFlightRef.current.has(event.taskId)
+        ) {
+          terminalEventRefreshInFlightRef.current.add(event.taskId);
+          void reconcileTaskFromCanonical(event.taskId, {
+            refreshEventsWhenTerminal: true,
+          }).catch((error) => {
+            terminalEventRefreshInFlightRef.current.delete(event.taskId);
+            console.error(
+              "Failed to refresh selected task events after terminal update:",
+              error,
+            );
+          });
+        }
+
+        if (event.type === "approval_requested" && !isAutoApprovalRequested) {
+          const approval = event.payload?.approval as
+            ApprovalRequest | undefined;
+          if (approval?.id) {
+            pendingApprovalsRef.current.set(approval.id, approval);
+
+            if (isComputerUseAppGrantApproval(approval)) {
+              setComputerUseAppGrantApproval(approval);
+            } else if (sessionAutoApproveAllRef.current) {
+              void handleApprovalResponse(approval.id, true);
+            } else {
+              setGenericApproval((prev) => prev ?? approval);
+            }
+          }
+        }
+
+        if (
+          event.type === "approval_granted" ||
+          event.type === "approval_denied"
+        ) {
+          const approvalId = extractApprovalId(event);
+          if (approvalId) {
+            pendingApprovalsRef.current.delete(approvalId);
+            dismissToast(getApprovalToastId(approvalId));
+            setComputerUseAppGrantApproval((prev) =>
+              prev?.id === approvalId
+                ? pickFirstPendingComputerUseApproval(
+                    pendingApprovalsRef.current,
+                  )
+                : prev,
+            );
+            setGenericApproval((prev) =>
+              prev?.id === approvalId
+                ? pickFirstPendingGenericApproval(pendingApprovalsRef.current)
+                : prev,
+            );
+
+            const approvalFeedback = describeApprovalPersistence(
+              event.payload,
+              event.type === "approval_granted",
+            );
+            if (approvalFeedback) {
+              void (async () => {
+                try {
+                  const traySettings =
+                    await window.electronAPI.getTraySettings();
+                  if (
+                    !traySettings.showNotifications ||
+                    !traySettings.showApprovalSavedNotifications
+                  ) {
+                    return;
+                  }
+
+                  await window.electronAPI.addNotification({
+                    type: approvalFeedback.type,
+                    title:
+                      event.type === "approval_granted"
+                        ? "Approval saved"
+                        : "Approval recorded",
+                    message: approvalFeedback.message,
+                    taskId: event.taskId,
+                    workspaceId: tasksRef.current.find(
+                      (t) => t.id === event.taskId,
+                    )?.workspaceId,
+                  });
+                } catch (error) {
+                  console.error(
+                    "Failed to add approval persistence notification:",
+                    error,
+                  );
+                }
+              })();
+            }
+          }
+        }
+
+        if (event.type === "input_request_created") {
+          const request = event.payload?.request as InputRequest | undefined;
+          if (request?.id) {
+            pendingInputRequestsRef.current.set(request.id, request);
+            syncPendingInputRequests();
+          }
+        }
+
+        if (
+          event.type === "input_request_resolved" ||
+          event.type === "input_request_dismissed"
+        ) {
+          const requestId = extractInputRequestId(event);
+          if (requestId) {
+            pendingInputRequestsRef.current.delete(requestId);
+            syncPendingInputRequests();
+          }
+        }
+
+        if (event.type === "workspace_permissions_updated") {
+          const payloadWorkspace = event.payload?.workspace as
+            Workspace | undefined;
+          const payloadWorkspaceId = event.payload?.workspaceId as
+            string | undefined;
+          const payloadPermissions = event.payload?.permissions as
+            Workspace["permissions"] | undefined;
+          setCurrentWorkspace((prev) => {
+            if (!prev) return prev;
+            if (payloadWorkspace && payloadWorkspace.id === prev.id) {
+              return payloadWorkspace;
+            }
+            if (
+              payloadWorkspaceId &&
+              payloadWorkspaceId === prev.id &&
+              payloadPermissions
+            ) {
+              return {
+                ...prev,
+                permissions: {
+                  ...prev.permissions,
+                  ...payloadPermissions,
+                },
+              };
+            }
+            return prev;
+          });
+        }
+
+        if (event.type === "approval_granted") {
+          void window.electronAPI.resumeTask(event.taskId);
+        }
+
+        if (
+          (event.type === "task_paused" &&
+            isNotificationWorthyPauseReason(
+              typeof event.payload?.reason === "string"
+                ? event.payload.reason
+                : undefined,
+            )) ||
+          (event.type === "approval_requested" &&
+            !skipBlockedStateForAutoApproval) ||
+          event.type === "input_request_created"
+        ) {
+          const isApproval = event.type === "approval_requested";
+          const isInputRequest = event.type === "input_request_created";
+          const task = tasksRef.current.find((t) => t.id === event.taskId);
+          const baseTitle = isApproval
+            ? "Approval needed"
+            : isInputRequest
+              ? "Input needed"
+              : "Action needed";
+          const title = task?.title
+            ? `${baseTitle} · ${task.title}`
+            : baseTitle;
+          const requestQuestion =
+            isInputRequest && Array.isArray(event.payload?.request?.questions)
+              ? event.payload.request.questions[0]?.question
+              : undefined;
+          const message =
+            (isApproval
+              ? event.payload?.approval?.description
+              : isInputRequest
+                ? requestQuestion
+                : event.payload?.message) ||
+            "Quick pause - ready to continue once you respond.";
+
+          void (async () => {
+            try {
+              const existing = await window.electronAPI.listNotifications();
+              const existingForTask = existing
+                .filter(
+                  (n) =>
+                    n.type === "input_required" && n.taskId === event.taskId,
+                )
+                .sort((a, b) => b.createdAt - a.createdAt);
+              if (existingForTask.length > 0) {
+                const duplicateNotifications = existingForTask.slice(1);
+                if (duplicateNotifications.length > 0) {
+                  const removals = await Promise.allSettled(
+                    duplicateNotifications.map((n) =>
+                      window.electronAPI.deleteNotification(n.id),
+                    ),
+                  );
+                  if (removals.some((result) => result.status === "rejected")) {
+                    console.error(
+                      "Some duplicate input-required notifications failed to clear before sending update.",
+                    );
+                  }
+                }
+                return;
+              }
+              await window.electronAPI.addNotification({
+                type: "input_required",
+                title,
+                message,
+                taskId: event.taskId,
+                workspaceId: task?.workspaceId,
+              });
+            } catch (error) {
+              console.error(
+                "Failed to add input-required notification:",
+                error,
+              );
+            }
+          })();
+        }
+
+        if (
+          event.type === "task_resumed" ||
+          event.type === "approval_granted" ||
+          event.type === "approval_denied" ||
+          event.type === "input_request_resolved" ||
+          event.type === "input_request_dismissed"
+        ) {
+          void (async () => {
+            try {
+              const existing = await window.electronAPI.listNotifications();
+              const existingForTask = existing.filter(
+                (n) => n.type === "input_required" && n.taskId === event.taskId,
+              );
+              if (existingForTask.length > 0) {
                 const removals = await Promise.allSettled(
-                  duplicateNotifications.map((n) => window.electronAPI.deleteNotification(n.id)),
+                  existingForTask.map((n) =>
+                    window.electronAPI.deleteNotification(n.id),
+                  ),
                 );
                 if (removals.some((result) => result.status === "rejected")) {
                   console.error(
-                    "Some duplicate input-required notifications failed to clear before sending update.",
+                    "Failed to clear some stale input-required notifications after resume.",
                   );
                 }
               }
-              return;
-            }
-            await window.electronAPI.addNotification({
-              type: "input_required",
-              title,
-              message,
-              taskId: event.taskId,
-              workspaceId: task?.workspaceId,
-            });
-          } catch (error) {
-            console.error("Failed to add input-required notification:", error);
-          }
-        })();
-      }
-
-      if (
-        event.type === "task_resumed" ||
-        event.type === "approval_granted" ||
-        event.type === "approval_denied" ||
-        event.type === "input_request_resolved" ||
-        event.type === "input_request_dismissed"
-      ) {
-        void (async () => {
-          try {
-            const existing = await window.electronAPI.listNotifications();
-            const existingForTask = existing.filter(
-              (n) => n.type === "input_required" && n.taskId === event.taskId,
-            );
-            if (existingForTask.length > 0) {
-              const removals = await Promise.allSettled(
-                existingForTask.map((n) => window.electronAPI.deleteNotification(n.id)),
+            } catch (error) {
+              console.error(
+                "Failed to clear input-required notifications after resume:",
+                error,
               );
-              if (removals.some((result) => result.status === "rejected")) {
-                console.error(
-                  "Failed to clear some stale input-required notifications after resume.",
-                );
-              }
             }
-          } catch (error) {
-            console.error("Failed to clear input-required notifications after resume:", error);
-          }
-        })();
-      }
-
-      // Show toast notifications for task completion/failure
-      if (event.type === "task_completed") {
-        const task = tasksRef.current.find((t) => t.id === event.taskId);
-        const isMainView = currentViewRef.current === "main";
-        const isSelectedTask = selectedTaskIdRef.current === event.taskId;
-        if (shouldTrackUnseenCompletion({ isMainView, isSelectedTask })) {
-          setUnseenCompletedTaskIds((prev) => addUniqueTaskId(prev, event.taskId));
+          })();
         }
-        const fallbackEventsForTask =
-          event.taskId === selectedTaskIdRef.current
-            ? capTaskEvents([...eventsRef.current, event])
-            : undefined;
-        const outputSummary = resolveTaskOutputSummaryFromCompletionEvent(
-          event,
-          fallbackEventsForTask,
-        );
-        const toastDecision = shouldShowCompletionToast(
-          event.taskId,
-          outputSummary,
-          completionToastNotifiedPathsRef.current,
-        );
-        const terminalStatus =
-          typeof event.payload?.terminalStatus === "string"
-            ? event.payload.terminalStatus
-            : typeof task?.terminalStatus === "string"
-              ? task.terminalStatus
-            : undefined;
-        const shouldShowToast =
-          toastDecision.show &&
-          shouldNotifyForTaskCompletionTerminalStatus(terminalStatus) &&
-          !isAutomatedTaskLike(task);
-        if (shouldShowToast) {
-          recordCompletionToastShown(
+
+        // Show toast notifications for task completion/failure
+        if (event.type === "task_completed") {
+          const task = tasksRef.current.find((t) => t.id === event.taskId);
+          const isMainView = currentViewRef.current === "main";
+          const isSelectedTask = selectedTaskIdRef.current === event.taskId;
+          if (shouldTrackUnseenCompletion({ isMainView, isSelectedTask })) {
+            setUnseenCompletedTaskIds((prev) =>
+              addUniqueTaskId(prev, event.taskId),
+            );
+          }
+          const fallbackEventsForTask =
+            event.taskId === selectedTaskIdRef.current
+              ? capTaskEvents([...eventsRef.current, event])
+              : undefined;
+          const outputSummary = resolveTaskOutputSummaryFromCompletionEvent(
+            event,
+            fallbackEventsForTask,
+          );
+          const toastDecision = shouldShowCompletionToast(
             event.taskId,
-            toastDecision.pathsToRecord,
+            outputSummary,
             completionToastNotifiedPathsRef.current,
-            hasTaskOutputs(outputSummary),
           );
-        }
-        const resolveWorkspacePathForTask = async (): Promise<string | undefined> => {
-          const taskForEvent = tasksRef.current.find((t) => t.id === event.taskId);
-          if (!taskForEvent) return currentWorkspaceRef.current?.path;
-          if (currentWorkspaceRef.current?.id === taskForEvent.workspaceId) {
-            return currentWorkspaceRef.current.path;
+          const terminalStatus =
+            typeof event.payload?.terminalStatus === "string"
+              ? event.payload.terminalStatus
+              : typeof task?.terminalStatus === "string"
+                ? task.terminalStatus
+                : undefined;
+          const shouldShowToast =
+            toastDecision.show &&
+            shouldNotifyForTaskCompletionTerminalStatus(terminalStatus) &&
+            !isAutomatedTaskLike(task);
+          if (shouldShowToast) {
+            recordCompletionToastShown(
+              event.taskId,
+              toastDecision.pathsToRecord,
+              completionToastNotifiedPathsRef.current,
+              hasTaskOutputs(outputSummary),
+            );
           }
-          try {
-            const allWorkspaces = await window.electronAPI.listWorkspaces();
-            return allWorkspaces.find((w) => w.id === taskForEvent.workspaceId)?.path;
-          } catch {
-            return currentWorkspaceRef.current?.path;
-          }
-        };
-        const primaryOutputPath = hasTaskOutputs(outputSummary)
-          ? outputSummary.primaryOutputPath
-          : undefined;
-        if (shouldShowToast) {
-          addToast(
-            buildTaskCompletionToast({
-              taskId: event.taskId,
-              taskTitle: task?.title,
-              outputSummary,
-              terminalStatus,
-              actionDependencies: hasTaskOutputs(outputSummary)
-                ? {
-                    resolveWorkspacePath: resolveWorkspacePathForTask,
-                    openFile: (path, workspacePath) => window.electronAPI.openFile(path, workspacePath),
-                    showInFinder: (path, workspacePath) =>
-                      window.electronAPI.showInFinder(path, workspacePath),
-                    onViewInFiles: () => {
-                      setCurrentView("main");
-                      setSelectedTaskId(event.taskId);
-                      setRightSidebarCollapsed(false);
-                      if (primaryOutputPath) {
-                        setRightPanelHighlight({ taskId: event.taskId, path: primaryOutputPath });
-                      }
-                      setUnseenOutputTaskIds((prev) => removeTaskId(prev, event.taskId));
-                      setUnseenCompletedTaskIds((prev) => removeTaskId(prev, event.taskId));
-                    },
-                    onOpenFileError: (error) => {
-                      console.error("Failed to open completion output:", error);
-                    },
-                    onShowInFinderError: (error) => {
-                      console.error("Failed to reveal completion output:", error);
-                    },
-                  }
-                : undefined,
-            }),
-          );
-        }
-
-        if (hasTaskOutputs(outputSummary)) {
-          const panelBehavior = decideCompletionPanelBehavior({
-            isMainView,
-            isSelectedTask,
-            panelCollapsed: rightSidebarCollapsedRef.current,
-          });
-          if (panelBehavior.autoOpenPanel) {
-            setRightSidebarCollapsed(false);
-            if (primaryOutputPath) {
-              setRightPanelHighlight({ taskId: event.taskId, path: primaryOutputPath });
+          const resolveWorkspacePathForTask = async (): Promise<
+            string | undefined
+          > => {
+            const taskForEvent = tasksRef.current.find(
+              (t) => t.id === event.taskId,
+            );
+            if (!taskForEvent) return currentWorkspaceRef.current?.path;
+            if (currentWorkspaceRef.current?.id === taskForEvent.workspaceId) {
+              return currentWorkspaceRef.current.path;
             }
-          } else if (panelBehavior.markUnseenOutput) {
-            setUnseenOutputTaskIds((prev) => addUniqueTaskId(prev, event.taskId));
+            try {
+              const allWorkspaces = await window.electronAPI.listWorkspaces();
+              return allWorkspaces.find(
+                (w) => w.id === taskForEvent.workspaceId,
+              )?.path;
+            } catch {
+              return currentWorkspaceRef.current?.path;
+            }
+          };
+          const primaryOutputPath = hasTaskOutputs(outputSummary)
+            ? outputSummary.primaryOutputPath
+            : undefined;
+          if (shouldShowToast) {
+            addToast(
+              buildTaskCompletionToast({
+                taskId: event.taskId,
+                taskTitle: task?.title,
+                outputSummary,
+                terminalStatus,
+                actionDependencies: hasTaskOutputs(outputSummary)
+                  ? {
+                      resolveWorkspacePath: resolveWorkspacePathForTask,
+                      openFile: (path, workspacePath) =>
+                        window.electronAPI.openFile(path, workspacePath),
+                      showInFinder: (path, workspacePath) =>
+                        window.electronAPI.showInFinder(path, workspacePath),
+                      onViewInFiles: () => {
+                        setCurrentView("main");
+                        setSelectedTaskId(event.taskId);
+                        setRightSidebarCollapsed(false);
+                        if (primaryOutputPath) {
+                          setRightPanelHighlight({
+                            taskId: event.taskId,
+                            path: primaryOutputPath,
+                          });
+                        }
+                        setUnseenOutputTaskIds((prev) =>
+                          removeTaskId(prev, event.taskId),
+                        );
+                        setUnseenCompletedTaskIds((prev) =>
+                          removeTaskId(prev, event.taskId),
+                        );
+                      },
+                      onOpenFileError: (error) => {
+                        console.error(
+                          "Failed to open completion output:",
+                          error,
+                        );
+                      },
+                      onShowInFinderError: (error) => {
+                        console.error(
+                          "Failed to reveal completion output:",
+                          error,
+                        );
+                      },
+                    }
+                  : undefined,
+              }),
+            );
           }
-        }
-      } else if (event.type === "error") {
-        const task = tasksRef.current.find((t) => t.id === event.taskId);
-        addToast({
-          type: "error",
-          title: "Task Failed",
-          message: task?.title || "Task encountered an error",
-          taskId: event.taskId,
-        });
-      } else if (event.type === "follow_up_failed") {
-        const task = tasksRef.current.find((t) => t.id === event.taskId);
-        const fallbackMessage = task?.title || "A follow-up message failed";
-        const reason = String(event.payload?.userMessage || event.payload?.error || "").trim();
-        addToast({
-          type: "error",
-          title: "Follow-up Failed",
-          message: reason ? `${fallbackMessage}: ${reason}` : fallbackMessage,
-          taskId: event.taskId,
-        });
-      }
 
-      // Add event to events list if it's for the selected task
-      const isSelectedTask = event.taskId === selectedTaskIdRef.current;
-      const shouldIncludeInSelectedSession = shouldIncludeTaskEventInSelectedSession({
-        selectedTaskId: selectedTaskIdRef.current,
-        event,
-        tasks: tasksRef.current,
-      });
+          if (hasTaskOutputs(outputSummary)) {
+            const panelBehavior = decideCompletionPanelBehavior({
+              isMainView,
+              isSelectedTask,
+              panelCollapsed: rightSidebarCollapsedRef.current,
+            });
+            if (panelBehavior.autoOpenPanel) {
+              setRightSidebarCollapsed(false);
+              if (primaryOutputPath) {
+                setRightPanelHighlight({
+                  taskId: event.taskId,
+                  path: primaryOutputPath,
+                });
+              }
+            } else if (panelBehavior.markUnseenOutput) {
+              setUnseenOutputTaskIds((prev) =>
+                addUniqueTaskId(prev, event.taskId),
+              );
+            }
+          }
+        } else if (event.type === "error") {
+          const task = tasksRef.current.find((t) => t.id === event.taskId);
+          addToast({
+            type: "error",
+            title: t("app.toast.taskFailed.title", "Task Failed"),
+            message:
+              task?.title ||
+              t("app.toast.taskFailed.message", "Task encountered an error"),
+            taskId: event.taskId,
+          });
+        } else if (event.type === "follow_up_failed") {
+          const reason = String(
+            event.payload?.userMessage || event.payload?.error || "",
+          ).trim();
+          const restoredStatus =
+            event.payload?.parentTaskStatus === "failed"
+              ? ("failed" as const)
+              : ("completed" as const);
+          const restoredTasks = tasksRef.current.map((currentTask) =>
+            currentTask.id === event.taskId
+              ? {
+                  ...currentTask,
+                  status: restoredStatus,
+                  completedAt: currentTask.completedAt || Date.now(),
+                  ...(restoredStatus === "completed"
+                    ? { error: undefined }
+                    : {}),
+                }
+              : currentTask,
+          );
 
-      if (shouldIncludeInSelectedSession) {
-        if (RENDERER_DROPPED_EVENT_TYPES.has(event.type)) {
-          return;
+          // Do not wait for a database refresh to unlock the composer. The
+          // follow_up_failed event is terminal for this turn even when the
+          // persistence path itself encountered an error.
+          tasksRef.current = restoredTasks;
+          setTasks(restoredTasks);
+          addToast({
+            type: "error",
+            title: t("app.toast.followUpFailed.title", "本轮未完成"),
+            message:
+              reason ||
+              t(
+                "app.toast.followUpFailed.message",
+                "本轮已结束，当前上下文已保留，可以直接重试。",
+              ),
+            taskId: event.taskId,
+          });
         }
-        if (RENDERER_THROTTLED_EVENT_TYPES.has(event.type)) {
-          const throttleKey = `${event.taskId}:${event.type}`;
-          const now = Date.now();
-          const previous = noiseEventThrottleRef.current.get(throttleKey) ?? 0;
-          if (now - previous < RENDERER_NOISE_THROTTLE_MS) {
+
+        // Add event to events list if it's for the selected task
+        const isSelectedTask = event.taskId === selectedTaskIdRef.current;
+        const shouldIncludeInSelectedSession =
+          shouldIncludeTaskEventInSelectedSession({
+            selectedTaskId: selectedTaskIdRef.current,
+            event,
+            tasks: tasksRef.current,
+          });
+
+        if (shouldIncludeInSelectedSession) {
+          if (RENDERER_DROPPED_EVENT_TYPES.has(event.type)) {
             return;
           }
-          noiseEventThrottleRef.current.set(throttleKey, now);
-        }
+          if (RENDERER_THROTTLED_EVENT_TYPES.has(event.type)) {
+            const throttleKey = `${event.taskId}:${event.type}`;
+            const now = Date.now();
+            const previous =
+              noiseEventThrottleRef.current.get(throttleKey) ?? 0;
+            if (now - previous < RENDERER_NOISE_THROTTLE_MS) {
+              return;
+            }
+            noiseEventThrottleRef.current.set(throttleKey, now);
+          }
 
-        const lane = classifyLiveTaskEvent(event);
-        const isMilestone = lane === "immediate" || EVENT_TYPES_MILESTONE.has(event.type);
-        const isBatchable =
-          isSelectedTask &&
-          (lane === "batchable" ||
-            lane === "coalescible" ||
-            EVENT_TYPES_BATCHABLE.has(event.type));
+          const lane = classifyLiveTaskEvent(event);
+          const isMilestone =
+            lane === "immediate" || EVENT_TYPES_MILESTONE.has(event.type);
+          const isBatchable =
+            isSelectedTask &&
+            (lane === "batchable" ||
+              lane === "coalescible" ||
+              EVENT_TYPES_BATCHABLE.has(event.type));
 
-        const appendSelectedTaskEvents = (
-          incomingEvents: TaskEvent[],
-          options?: { queuedAtByEventId?: Map<string, number>; transition?: boolean },
-        ) => {
-          if (incomingEvents.length === 0) return;
-          const queuedAtByEventId = options?.queuedAtByEventId;
-          noteRendererTaskEventsAppendDispatched(incomingEvents, rendererPerfLoggingEnabled);
-          const applyAppend = () => {
-            setEvents((prev) => {
-              noteRendererTaskEventsAppended(
-                incomingEvents.map((incomingEvent) => ({
-                  event: incomingEvent,
-                  queuedAtMs: queuedAtByEventId?.get(incomingEvent.id),
-                })),
-                rendererPerfLoggingEnabled,
-              );
-              return appendRendererTaskEvents(prev, incomingEvents);
+          const appendSelectedTaskEvents = (
+            incomingEvents: TaskEvent[],
+            options?: {
+              queuedAtByEventId?: Map<string, number>;
+              transition?: boolean;
+            },
+          ) => {
+            if (incomingEvents.length === 0) return;
+            const queuedAtByEventId = options?.queuedAtByEventId;
+            noteRendererTaskEventsAppendDispatched(
+              incomingEvents,
+              rendererPerfLoggingEnabled,
+            );
+            const applyAppend = () => {
+              setEvents((prev) => {
+                noteRendererTaskEventsAppended(
+                  incomingEvents.map((incomingEvent) => ({
+                    event: incomingEvent,
+                    queuedAtMs: queuedAtByEventId?.get(incomingEvent.id),
+                  })),
+                  rendererPerfLoggingEnabled,
+                );
+                return appendRendererTaskEvents(prev, incomingEvents);
+              });
+            };
+            if (options?.transition) {
+              startTransition(applyAppend);
+            } else {
+              applyAppend();
+            }
+          };
+
+          const flushPendingToolEvents = (extraEvents: TaskEvent[] = []) => {
+            const queuedEntries = pendingToolEventsRef.current;
+            pendingToolEventsRef.current = [];
+            if (pendingToolEventsFlushTimerRef.current) {
+              clearTimeout(pendingToolEventsFlushTimerRef.current);
+              pendingToolEventsFlushTimerRef.current = null;
+            }
+            if (pendingToolEventsForceFlushTimerRef.current) {
+              clearTimeout(pendingToolEventsForceFlushTimerRef.current);
+              pendingToolEventsForceFlushTimerRef.current = null;
+            }
+            const flushedEvents = queuedEntries.map((entry) => entry.event);
+            const queuedAtByEventId = new Map(
+              queuedEntries.map(
+                (entry) => [entry.event.id, entry.queuedAtMs] as const,
+              ),
+            );
+            if (flushedEvents.length + extraEvents.length === 0) return;
+            lastBatchableAppendAtRef.current = performance.now();
+            appendSelectedTaskEvents([...flushedEvents, ...extraEvents], {
+              queuedAtByEventId,
+              transition: extraEvents.length === 0,
             });
           };
-          if (options?.transition) {
-            startTransition(applyAppend);
-          } else {
-            applyAppend();
-          }
-        };
 
-        const flushPendingToolEvents = (extraEvents: TaskEvent[] = []) => {
-          const queuedEntries = pendingToolEventsRef.current;
-          pendingToolEventsRef.current = [];
-          if (pendingToolEventsFlushTimerRef.current) {
-            clearTimeout(pendingToolEventsFlushTimerRef.current);
-            pendingToolEventsFlushTimerRef.current = null;
-          }
-          if (pendingToolEventsForceFlushTimerRef.current) {
-            clearTimeout(pendingToolEventsForceFlushTimerRef.current);
-            pendingToolEventsForceFlushTimerRef.current = null;
-          }
-          const flushedEvents = queuedEntries.map((entry) => entry.event);
-          const queuedAtByEventId = new Map(
-            queuedEntries.map((entry) => [entry.event.id, entry.queuedAtMs] as const),
-          );
-          if (flushedEvents.length + extraEvents.length === 0) return;
-          lastBatchableAppendAtRef.current = performance.now();
-          appendSelectedTaskEvents([...flushedEvents, ...extraEvents], {
-            queuedAtByEventId,
-            transition: extraEvents.length === 0,
-          });
-        };
+          const schedulePendingToolEventFlush = () => {
+            if (!pendingToolEventsFlushTimerRef.current) {
+              pendingToolEventsFlushTimerRef.current = setTimeout(() => {
+                pendingToolEventsFlushTimerRef.current = null;
+                flushPendingToolEvents();
+              }, EVENT_BATCH_FLUSH_INTERVAL_MS);
+            }
+            if (!pendingToolEventsForceFlushTimerRef.current) {
+              pendingToolEventsForceFlushTimerRef.current = setTimeout(() => {
+                pendingToolEventsForceFlushTimerRef.current = null;
+                flushPendingToolEvents();
+              }, EVENT_BATCH_MAX_WAIT_MS);
+            }
+          };
 
-        const schedulePendingToolEventFlush = () => {
-          if (!pendingToolEventsFlushTimerRef.current) {
-            pendingToolEventsFlushTimerRef.current = setTimeout(() => {
-              pendingToolEventsFlushTimerRef.current = null;
-              flushPendingToolEvents();
-            }, EVENT_BATCH_FLUSH_INTERVAL_MS);
-          }
-          if (!pendingToolEventsForceFlushTimerRef.current) {
-            pendingToolEventsForceFlushTimerRef.current = setTimeout(() => {
-              pendingToolEventsForceFlushTimerRef.current = null;
-              flushPendingToolEvents();
-            }, EVENT_BATCH_MAX_WAIT_MS);
-          }
-        };
-
-        if (isMilestone) {
-          flushPendingToolEvents([event]);
-        } else if (isBatchable && isSelectedTask) {
-          const nowMs = performance.now();
-          const withinBurstWindow =
-            pendingToolEventsRef.current.length > 0 ||
-            nowMs - lastBatchableAppendAtRef.current <= EVENT_BATCH_BURST_WINDOW_MS;
-          if (!withinBurstWindow) {
-            lastBatchableAppendAtRef.current = nowMs;
-            appendSelectedTaskEvents([event], { transition: true });
-          } else {
-            pendingToolEventsRef.current.push({ event, queuedAtMs: nowMs });
-            noteRendererTaskEventQueued(event, nowMs, rendererPerfLoggingEnabled);
-            if (pendingToolEventsRef.current.length >= EVENT_BATCH_MAX_EVENTS) {
-              flushPendingToolEvents();
+          if (isMilestone) {
+            flushPendingToolEvents([event]);
+          } else if (isBatchable && isSelectedTask) {
+            const nowMs = performance.now();
+            const withinBurstWindow =
+              pendingToolEventsRef.current.length > 0 ||
+              nowMs - lastBatchableAppendAtRef.current <=
+                EVENT_BATCH_BURST_WINDOW_MS;
+            if (!withinBurstWindow) {
+              lastBatchableAppendAtRef.current = nowMs;
+              appendSelectedTaskEvents([event], { transition: true });
             } else {
-              schedulePendingToolEventFlush();
+              pendingToolEventsRef.current.push({ event, queuedAtMs: nowMs });
+              noteRendererTaskEventQueued(
+                event,
+                nowMs,
+                rendererPerfLoggingEnabled,
+              );
+              if (
+                pendingToolEventsRef.current.length >= EVENT_BATCH_MAX_EVENTS
+              ) {
+                flushPendingToolEvents();
+              } else {
+                schedulePendingToolEventFlush();
+              }
+            }
+          } else {
+            appendSelectedTaskEvents([event]);
+          }
+        }
+
+        // Capture events from dispatched child tasks for DispatchedAgentsPanel / CliAgentFrame
+        if (
+          !isSelectedTask &&
+          event.type !== "llm_streaming" &&
+          event.type !== "llm_usage"
+        ) {
+          if (childTaskIdsRef.current.has(event.taskId)) {
+            setChildEvents((prev) =>
+              capTaskEvents(
+                mergeUniqueTaskEvents(prev, [rawEvent]),
+                MAX_RENDERER_CHILD_EVENTS,
+              ),
+            );
+          } else if (
+            event.type === "task_created" ||
+            event.type === "step_started" ||
+            event.type === "tool_call" ||
+            event.type === "command_output" ||
+            event.type === "progress_update" ||
+            event.type === "assistant_message"
+          ) {
+            // Buffer events from unknown task IDs — they may be from a just-spawned child
+            // whose task_created event hasn't been processed yet (race condition)
+            pendingChildEventsRef.current.push(rawEvent);
+            // Cap buffer to prevent unbounded growth from unrelated tasks
+            if (pendingChildEventsRef.current.length > 500) {
+              pendingChildEventsRef.current =
+                pendingChildEventsRef.current.slice(-200);
             }
           }
-        } else {
-          appendSelectedTaskEvents([event]);
         }
-      }
-
-      // Capture events from dispatched child tasks for DispatchedAgentsPanel / CliAgentFrame
-      if (!isSelectedTask && event.type !== "llm_streaming" && event.type !== "llm_usage") {
-        if (childTaskIdsRef.current.has(event.taskId)) {
-          setChildEvents((prev) => capTaskEvents(mergeUniqueTaskEvents(prev, [rawEvent]), MAX_RENDERER_CHILD_EVENTS));
-        } else if (event.type === "task_created" || event.type === "step_started" || event.type === "tool_call" || event.type === "command_output" || event.type === "progress_update" || event.type === "assistant_message") {
-          // Buffer events from unknown task IDs — they may be from a just-spawned child
-          // whose task_created event hasn't been processed yet (race condition)
-          pendingChildEventsRef.current.push(rawEvent);
-          // Cap buffer to prevent unbounded growth from unrelated tasks
-          if (pendingChildEventsRef.current.length > 500) {
-            pendingChildEventsRef.current = pendingChildEventsRef.current.slice(-200);
-          }
-        }
-      }
-    });
+      },
+    );
 
     return () => {
       // Flush pending batched events before unsubscribe so we don't lose the last batch
@@ -3697,10 +4760,15 @@ export function App() {
           pendingToolEventsForceFlushTimerRef.current = null;
         }
         const queuedAtByEventId = new Map(
-          queuedEntries.map((entry) => [entry.event.id, entry.queuedAtMs] as const),
+          queuedEntries.map(
+            (entry) => [entry.event.id, entry.queuedAtMs] as const,
+          ),
         );
         const queuedEvents = queuedEntries.map((entry) => entry.event);
-        noteRendererTaskEventsAppendDispatched(queuedEvents, rendererPerfLoggingEnabled);
+        noteRendererTaskEventsAppendDispatched(
+          queuedEvents,
+          rendererPerfLoggingEnabled,
+        );
         setEvents((prev) => {
           noteRendererTaskEventsAppended(
             queuedEvents.map((queuedEvent) => ({
@@ -3756,29 +4824,34 @@ export function App() {
 
     // Load the initial projected timeline page from the database. The legacy
     // event history endpoint remains as a fallback for older preload bundles.
-    if (!window.electronAPI?.getTaskTimelinePage && !window.electronAPI?.getTaskEvents) {
+    if (
+      !window.electronAPI?.getTaskTimelinePage &&
+      !window.electronAPI?.getTaskEvents
+    ) {
       setEvents([]);
       return;
     }
 
     const requestedTaskId = selectedTaskId;
     let cancelled = false;
-    const latestAttentionEvent = latestAttentionEventByTaskIdRef.current.get(requestedTaskId);
+    const latestAttentionEvent =
+      latestAttentionEventByTaskIdRef.current.get(requestedTaskId);
     setEvents(latestAttentionEvent ? [latestAttentionEvent] : []);
 
     const loadHistoricalEvents = async () => {
       try {
         const startedAt = performance.now();
-        const timelinePage = window.electronAPI.getTaskTimelinePage
-          ? await window.electronAPI.getTaskTimelinePage({
+        const { events: historicalEvents, timelinePage } =
+          await loadTaskTimelineWithLegacyFallback({
+            request: {
               taskId: requestedTaskId,
               limit: 160,
               byteLimit: 512 * 1024,
               singleEventByteLimit: 64 * 1024,
-            })
-          : null;
-        const historicalEvents =
-          timelinePage?.events ?? (await window.electronAPI.getTaskEvents(requestedTaskId));
+            },
+            getTaskTimelinePage: window.electronAPI.getTaskTimelinePage,
+            getTaskEvents: window.electronAPI.getTaskEvents,
+          });
         if (cancelled) return;
         const receiveMs = performance.now() - startedAt;
         taskTimelinePageStateRef.current.set(requestedTaskId, {
@@ -3796,7 +4869,8 @@ export function App() {
           receiveMs,
           rendererPerfLoggingEnabled,
         );
-        const switchStartedAt = taskSwitchStartedAtRef.current.get(requestedTaskId);
+        const switchStartedAt =
+          taskSwitchStartedAtRef.current.get(requestedTaskId);
         if (switchStartedAt != null) {
           recordRendererPerfSample(
             "task-switch.timeline_data_received_ms",
@@ -3804,28 +4878,39 @@ export function App() {
             rendererPerfLoggingEnabled,
           );
         }
-        markRendererPerfEvent("timeline_data_received", rendererPerfLoggingEnabled, {
-          taskId: requestedTaskId,
-          switchId: taskSwitchIdByTaskIdRef.current.get(requestedTaskId),
-          eventCount: historicalEvents.length,
-          payloadBytes: timelinePage?.summary.payloadBytes,
-          serializedPayloadBytes: timelinePage
-            ? undefined
-            : new Blob([JSON.stringify(historicalEvents)]).size,
-          truncatedEventCount: timelinePage?.summary.truncatedEventCount,
-          hasMoreHistory: timelinePage?.hasMoreHistory,
-          receiveMs: Number(receiveMs.toFixed(1)),
-        });
+        markRendererPerfEvent(
+          "timeline_data_received",
+          rendererPerfLoggingEnabled,
+          {
+            taskId: requestedTaskId,
+            switchId: taskSwitchIdByTaskIdRef.current.get(requestedTaskId),
+            eventCount: historicalEvents.length,
+            payloadBytes: timelinePage?.summary.payloadBytes,
+            serializedPayloadBytes: timelinePage
+              ? undefined
+              : new Blob([JSON.stringify(historicalEvents)]).size,
+            truncatedEventCount: timelinePage?.summary.truncatedEventCount,
+            hasMoreHistory: timelinePage?.hasMoreHistory,
+            receiveMs: Number(receiveMs.toFixed(1)),
+          },
+        );
         startTransition(() => {
           setEvents((prev) =>
             capTaskEvents(
-              mergeSelectedTaskTimelineEvents(requestedTaskId, prev, historicalEvents),
+              mergeSelectedTaskTimelineEvents(
+                requestedTaskId,
+                prev,
+                historicalEvents,
+              ),
             ),
           );
         });
         const latestTimestamp = getLatestEventTimestamp(historicalEvents);
         if (latestTimestamp > 0) {
-          taskLastEventTimestampRef.current.set(requestedTaskId, latestTimestamp);
+          taskLastEventTimestampRef.current.set(
+            requestedTaskId,
+            latestTimestamp,
+          );
         }
       } catch (error) {
         if (cancelled) return;
@@ -3838,78 +4923,92 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [mergeSelectedTaskTimelineEvents, rendererPerfLoggingEnabled, selectedTaskId, remoteTaskView]);
+  }, [
+    mergeSelectedTaskTimelineEvents,
+    rendererPerfLoggingEnabled,
+    selectedTaskId,
+    remoteTaskView,
+  ]);
 
-  const handleLoadTaskEventDetail = useCallback(async (eventId: string, taskId: string) => {
-    const normalizedEventId = typeof eventId === "string" ? eventId.trim() : "";
-    const normalizedTaskId = typeof taskId === "string" ? taskId.trim() : "";
-    const cacheKey = `${normalizedTaskId}:${normalizedEventId}`;
-    if (!normalizedTaskId || !normalizedEventId || eventDetailInFlightRef.current.has(cacheKey)) return;
-    if (!window.electronAPI?.getTaskEventDetail) return;
-    const missingUntil = eventDetailMissingUntilRef.current.get(cacheKey);
-    if (missingUntil && missingUntil > Date.now()) return;
-    if (missingUntil) eventDetailMissingUntilRef.current.delete(cacheKey);
-    const cachedEvent = eventDetailCacheRef.current.get(cacheKey);
-    if (cachedEvent) {
-      setEvents((prev) =>
-        prev.map((event) => {
-          if (
-            event.id === cachedEvent.id ||
-            event.eventId === cachedEvent.eventId ||
-            event.id === normalizedEventId ||
-            event.eventId === normalizedEventId
-          ) {
-            return cachedEvent;
-          }
-          return event;
-        }),
-      );
-      return;
-    }
-    eventDetailInFlightRef.current.add(cacheKey);
-    try {
-      const detail = await window.electronAPI.getTaskEventDetail({
-        taskId: normalizedTaskId,
-        eventId: normalizedEventId,
-      });
-      const detailedEvent = detail?.event;
-      if (!detailedEvent) {
-        const missing = eventDetailMissingUntilRef.current;
-        missing.set(cacheKey, Date.now() + EVENT_DETAIL_NEGATIVE_CACHE_MS);
-        while (missing.size > MAX_EVENT_DETAIL_CACHE_ENTRIES) {
-          const oldestKey = missing.keys().next().value;
-          if (!oldestKey) break;
-          missing.delete(oldestKey);
-        }
+  const handleLoadTaskEventDetail = useCallback(
+    async (eventId: string, taskId: string) => {
+      const normalizedEventId =
+        typeof eventId === "string" ? eventId.trim() : "";
+      const normalizedTaskId = typeof taskId === "string" ? taskId.trim() : "";
+      const cacheKey = `${normalizedTaskId}:${normalizedEventId}`;
+      if (
+        !normalizedTaskId ||
+        !normalizedEventId ||
+        eventDetailInFlightRef.current.has(cacheKey)
+      )
+        return;
+      if (!window.electronAPI?.getTaskEventDetail) return;
+      const missingUntil = eventDetailMissingUntilRef.current.get(cacheKey);
+      if (missingUntil && missingUntil > Date.now()) return;
+      if (missingUntil) eventDetailMissingUntilRef.current.delete(cacheKey);
+      const cachedEvent = eventDetailCacheRef.current.get(cacheKey);
+      if (cachedEvent) {
+        setEvents((prev) =>
+          prev.map((event) => {
+            if (
+              event.id === cachedEvent.id ||
+              event.eventId === cachedEvent.eventId ||
+              event.id === normalizedEventId ||
+              event.eventId === normalizedEventId
+            ) {
+              return cachedEvent;
+            }
+            return event;
+          }),
+        );
         return;
       }
-      eventDetailMissingUntilRef.current.delete(cacheKey);
-      const cache = eventDetailCacheRef.current;
-      cache.set(cacheKey, detailedEvent);
-      while (cache.size > MAX_EVENT_DETAIL_CACHE_ENTRIES) {
-        const oldestKey = cache.keys().next().value;
-        if (!oldestKey) break;
-        cache.delete(oldestKey);
-      }
-      setEvents((prev) =>
-        prev.map((event) => {
-          if (
-            event.id === detailedEvent.id ||
-            event.eventId === detailedEvent.eventId ||
-            event.id === normalizedEventId ||
-            event.eventId === normalizedEventId
-          ) {
-            return detailedEvent;
+      eventDetailInFlightRef.current.add(cacheKey);
+      try {
+        const detail = await window.electronAPI.getTaskEventDetail({
+          taskId: normalizedTaskId,
+          eventId: normalizedEventId,
+        });
+        const detailedEvent = detail?.event;
+        if (!detailedEvent) {
+          const missing = eventDetailMissingUntilRef.current;
+          missing.set(cacheKey, Date.now() + EVENT_DETAIL_NEGATIVE_CACHE_MS);
+          while (missing.size > MAX_EVENT_DETAIL_CACHE_ENTRIES) {
+            const oldestKey = missing.keys().next().value;
+            if (!oldestKey) break;
+            missing.delete(oldestKey);
           }
-          return event;
-        }),
-      );
-    } catch (error) {
-      console.error("Failed to load event detail:", error);
-    } finally {
-      eventDetailInFlightRef.current.delete(cacheKey);
-    }
-  }, []);
+          return;
+        }
+        eventDetailMissingUntilRef.current.delete(cacheKey);
+        const cache = eventDetailCacheRef.current;
+        cache.set(cacheKey, detailedEvent);
+        while (cache.size > MAX_EVENT_DETAIL_CACHE_ENTRIES) {
+          const oldestKey = cache.keys().next().value;
+          if (!oldestKey) break;
+          cache.delete(oldestKey);
+        }
+        setEvents((prev) =>
+          prev.map((event) => {
+            if (
+              event.id === detailedEvent.id ||
+              event.eventId === detailedEvent.eventId ||
+              event.id === normalizedEventId ||
+              event.eventId === normalizedEventId
+            ) {
+              return detailedEvent;
+            }
+            return event;
+          }),
+        );
+      } catch (error) {
+        console.error("Failed to load event detail:", error);
+      } finally {
+        eventDetailInFlightRef.current.delete(cacheKey);
+      }
+    },
+    [],
+  );
 
   const handleLoadMoreTaskTimelineHistory = useCallback(async () => {
     if (timelineHistoryLoadInFlightRef.current) return;
@@ -3943,16 +5042,24 @@ export function App() {
         error: null,
       });
       setEvents((prev) => {
-        const merged = mergeSelectedTaskTimelineEvents(taskId, prev, timelinePage.events);
+        const merged = mergeSelectedTaskTimelineEvents(
+          taskId,
+          prev,
+          timelinePage.events,
+        );
         return capTaskEventsPreservingIncoming(merged, timelinePage.events);
       });
-      markRendererPerfEvent("timeline_history_page_received", rendererPerfLoggingEnabled, {
-        taskId,
-        eventCount: timelinePage.events.length,
-        hasMoreHistory: timelinePage.hasMoreHistory,
-        payloadBytes: timelinePage.summary.payloadBytes,
-        truncatedEventCount: timelinePage.summary.truncatedEventCount,
-      });
+      markRendererPerfEvent(
+        "timeline_history_page_received",
+        rendererPerfLoggingEnabled,
+        {
+          taskId,
+          eventCount: timelinePage.events.length,
+          hasMoreHistory: timelinePage.hasMoreHistory,
+          payloadBytes: timelinePage.summary.payloadBytes,
+          truncatedEventCount: timelinePage.summary.truncatedEventCount,
+        },
+      );
     } catch (error) {
       console.error("Failed to load older timeline history:", error);
       setSelectedTaskTimelineHistory((current) => ({
@@ -3966,14 +5073,18 @@ export function App() {
     } finally {
       timelineHistoryLoadInFlightRef.current = false;
     }
-  }, [capTaskEventsPreservingIncoming, mergeSelectedTaskTimelineEvents, rendererPerfLoggingEnabled]);
+  }, [
+    capTaskEventsPreservingIncoming,
+    mergeSelectedTaskTimelineEvents,
+    rendererPerfLoggingEnabled,
+  ]);
 
   // Reconcile stale executing/interrupted task state if event delivery falls behind.
   useEffect(() => {
     if (!selectedTaskId || !window.electronAPI?.getTask) return;
     if (remoteTaskView) return;
 
-    const currentTask = tasksRef.current.find(t => t.id === selectedTaskId);
+    const currentTask = tasksRef.current.find((t) => t.id === selectedTaskId);
     if (!currentTask || isTerminalTaskStatus(currentTask.status)) return;
 
     let cancelled = false;
@@ -3988,7 +5099,10 @@ export function App() {
       if (!currentTask || !isTaskPossiblyRunning(currentTask.status)) return;
 
       const lastEventTs = taskLastEventTimestampRef.current.get(taskId) ?? 0;
-      if (lastEventTs > 0 && Date.now() - lastEventTs < STALE_TASK_RECONCILE_IDLE_WINDOW_MS) {
+      if (
+        lastEventTs > 0 &&
+        Date.now() - lastEventTs < STALE_TASK_RECONCILE_IDLE_WINDOW_MS
+      ) {
         return;
       }
 
@@ -4037,7 +5151,10 @@ export function App() {
         });
       } catch (error) {
         if (!cancelled) {
-          console.error("Failed to reconcile selected task after queue completion:", error);
+          console.error(
+            "Failed to reconcile selected task after queue completion:",
+            error,
+          );
         }
       } finally {
         staleTaskReconcileInFlightRef.current = false;
@@ -4069,7 +5186,12 @@ export function App() {
           allEvents.push(...evts);
         }
         allEvents.sort((a, b) => a.timestamp - b.timestamp);
-        setChildEvents(capTaskEvents(mergeUniqueTaskEvents([], allEvents), MAX_RENDERER_CHILD_EVENTS));
+        setChildEvents(
+          capTaskEvents(
+            mergeUniqueTaskEvents([], allEvents),
+            MAX_RENDERER_CHILD_EVENTS,
+          ),
+        );
       } catch (error) {
         console.error("Failed to load child task events:", error);
       }
@@ -4086,10 +5208,19 @@ export function App() {
     if (hasExecutingChildren) {
       pollTimer = setInterval(() => {
         const currentChildren = tasksRef.current.filter(
-          (t) => t.parentTaskId === selectedTaskIdRef.current && t.agentType === "sub"
+          (t) =>
+            t.parentTaskId === selectedTaskIdRef.current &&
+            t.agentType === "sub",
         );
-        if (!currentChildren.some(t => t.status === "executing" || t.status === "planning")) {
-          if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        if (
+          !currentChildren.some(
+            (t) => t.status === "executing" || t.status === "planning",
+          )
+        ) {
+          if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+          }
           return;
         }
         loadChildHistoricalEvents();
@@ -4101,7 +5232,11 @@ export function App() {
     };
     // Re-load when child tasks change (new children appear)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childTasks.map((c) => `${c.id}:${c.status}`).join(","), remoteTaskView, selectedTaskId]);
+  }, [
+    childTasks.map((c) => `${c.id}:${c.status}`).join(","),
+    remoteTaskView,
+    selectedTaskId,
+  ]);
 
   // Keep startup light: load the first sidebar page, then page in more sessions
   // only when the user scrolls. The sidebar-prioritized DB order keeps pinned
@@ -4109,10 +5244,8 @@ export function App() {
   const INITIAL_TASK_LOAD = 60;
   const TASK_LOAD_MORE = 80;
   const TASK_PAGE_LOOKAHEAD = 1;
-  const MAIN_SIDEBAR_EXCLUDED_TASK_SOURCES: Array<NonNullable<Task["source"]>> = [
-    "managed_agent_panel",
-    "side_chat",
-  ];
+  const MAIN_SIDEBAR_EXCLUDED_TASK_SOURCES: Array<NonNullable<Task["source"]>> =
+    ["managed_agent_panel", "side_chat"];
 
   // Refs let loadMoreTasks read current state without being in its dep array
   // (avoids re-creating the callback — and re-subscribing the scroll listener
@@ -4141,7 +5274,8 @@ export function App() {
 
   const loadTasks = useCallback(async () => {
     setIsInitialTaskListLoading(true);
-    const listSidebarTasks = window.electronAPI?.listSidebarTasks ?? window.electronAPI?.listTasks;
+    const listSidebarTasks =
+      window.electronAPI?.listSidebarTasks ?? window.electronAPI?.listTasks;
     if (!listSidebarTasks) {
       setTasks([]);
       setHasMoreTasks(false);
@@ -4155,10 +5289,14 @@ export function App() {
       isLoadingMoreRef.current = false;
       setIsLoadingMoreTasks(false);
       const startedAt = performance.now();
-      markRendererPerfEvent("sidebar_request_start", rendererPerfLoggingEnabled, {
-        limit: INITIAL_TASK_LOAD + TASK_PAGE_LOOKAHEAD,
-        offset: 0,
-      });
+      markRendererPerfEvent(
+        "sidebar_request_start",
+        rendererPerfLoggingEnabled,
+        {
+          limit: INITIAL_TASK_LOAD + TASK_PAGE_LOOKAHEAD,
+          offset: 0,
+        },
+      );
       const loadedTaskPage = await listSidebarTasks({
         limit: INITIAL_TASK_LOAD + TASK_PAGE_LOOKAHEAD,
         offset: 0,
@@ -4171,10 +5309,14 @@ export function App() {
         receiveMs,
         rendererPerfLoggingEnabled,
       );
-      markRendererPerfEvent("sidebar_data_received", rendererPerfLoggingEnabled, {
-        rowCount: loadedTaskPage.length,
-        receiveMs: Number(receiveMs.toFixed(1)),
-      });
+      markRendererPerfEvent(
+        "sidebar_data_received",
+        rendererPerfLoggingEnabled,
+        {
+          rowCount: loadedTaskPage.length,
+          receiveMs: Number(receiveMs.toFixed(1)),
+        },
+      );
       const loadedTasks = loadedTaskPage.slice(0, INITIAL_TASK_LOAD);
       setTasks((prev) =>
         mergeSidebarInitialPageWithSelectedTask(
@@ -4196,8 +5338,13 @@ export function App() {
   }, [rendererPerfLoggingEnabled, toSidebarTaskCursor]);
 
   const loadMoreTasks = useCallback(async () => {
-    const listSidebarTasks = window.electronAPI?.listSidebarTasks ?? window.electronAPI?.listTasks;
-    if (!listSidebarTasks || isLoadingMoreRef.current || !hasMoreTasksRef.current) {
+    const listSidebarTasks =
+      window.electronAPI?.listSidebarTasks ?? window.electronAPI?.listTasks;
+    if (
+      !listSidebarTasks ||
+      isLoadingMoreRef.current ||
+      !hasMoreTasksRef.current
+    ) {
       return;
     }
     isLoadingMoreRef.current = true;
@@ -4215,7 +5362,10 @@ export function App() {
       const moreTasks = moreTaskPage.slice(0, TASK_LOAD_MORE);
       if (moreTasks.length > 0) {
         setTasks((prev) => {
-          const mergedPage = mergeSidebarTaskSummariesWithExisting(prev, moreTasks);
+          const mergedPage = mergeSidebarTaskSummariesWithExisting(
+            prev,
+            moreTasks,
+          );
           const mergedById = new Map(mergedPage.map((task) => [task.id, task]));
           const existingIds = new Set(prev.map((t) => t.id));
           let changed = false;
@@ -4227,7 +5377,9 @@ export function App() {
             return updated;
           });
           const fresh = mergedPage.filter((task) => !existingIds.has(task.id));
-          return changed || fresh.length > 0 ? [...updatedPrev, ...fresh] : prev;
+          return changed || fresh.length > 0
+            ? [...updatedPrev, ...fresh]
+            : prev;
         });
         taskOffsetRef.current = offset + moreTasks.length;
         sidebarTaskCursorRef.current = toSidebarTaskCursor(moreTasks.at(-1));
@@ -4241,12 +5393,20 @@ export function App() {
       isLoadingMoreRef.current = false;
       setIsLoadingMoreTasks(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSelectWorkspace = useCallback(
-    async (workspace: Workspace) => {
-      if (selectedTaskId && !remoteTaskView && window.electronAPI?.updateTaskWorkspace) {
+    async (
+      workspace: Workspace,
+      options?: { reassignSelectedTask?: boolean },
+    ) => {
+      if (
+        options?.reassignSelectedTask !== false &&
+        selectedTaskId &&
+        !remoteTaskView &&
+        window.electronAPI?.updateTaskWorkspace
+      ) {
         try {
           const updatedTask = (await window.electronAPI.updateTaskWorkspace(
             selectedTaskId,
@@ -4254,50 +5414,81 @@ export function App() {
           )) as Task | undefined;
           setTasks((prev) =>
             updateTaskPreservingIdentity(prev, selectedTaskId, (task) =>
-              mergeTaskPreservingIdentity(task, updatedTask ?? { workspaceId: workspace.id }),
+              mergeTaskPreservingIdentity(
+                task,
+                updatedTask ?? { workspaceId: workspace.id },
+              ),
             ),
           );
         } catch (error) {
           console.error("Failed to update task workspace:", error);
           addToast({
             type: "error",
-            title: "Workspace Error",
-            message: error instanceof Error ? error.message : "Could not apply the workspace to this chat.",
+            title: t("app.toast.workspaceError.title", "Workspace Error"),
+            message:
+              error instanceof Error
+                ? error.message
+                : t(
+                    "app.toast.workspaceError.message",
+                    "Could not apply the workspace to this chat.",
+                  ),
           });
           return;
         }
       }
 
+      if (currentProjectId) {
+        try {
+          const links =
+            await window.electronAPI.listProjectWorkspaces(currentProjectId);
+          if (!links.some((link) => link.workspaceId === workspace.id)) {
+            setCurrentProjectId(null);
+          }
+        } catch (error) {
+          console.error("Failed to verify project workspace context:", error);
+          setCurrentProjectId(null);
+        }
+      }
       setCurrentWorkspace(workspace);
     },
-    [addToast, remoteTaskView, selectedTaskId],
+    [addToast, currentProjectId, remoteTaskView, selectedTaskId],
   );
 
   // Handle workspace change - opens folder selection dialog directly
-  const handleChangeWorkspace = async () => {
+  const handleChangeWorkspace = async (options?: {
+    reassignSelectedTask?: boolean;
+  }) => {
     try {
       const pickerDefaultPath =
-        currentWorkspace && !currentWorkspace.isTemp && !isTempWorkspaceId(currentWorkspace.id)
+        currentWorkspace &&
+        !currentWorkspace.isTemp &&
+        !isTempWorkspaceId(currentWorkspace.id)
           ? currentWorkspace.path
           : undefined;
 
       // Open folder selection dialog
-      const folderPath = await window.electronAPI.selectFolder(pickerDefaultPath);
+      const folderPath =
+        await window.electronAPI.selectFolder(pickerDefaultPath);
       if (!folderPath) return; // User cancelled
 
       // Get list of existing workspaces for reference
       const existingWorkspaces = await window.electronAPI.listWorkspaces();
 
       // Check if this folder is already a workspace
-      const existingWorkspace = existingWorkspaces.find((w: Workspace) => w.path === folderPath);
+      const existingWorkspace = existingWorkspaces.find(
+        (w: Workspace) => w.path === folderPath,
+      );
       if (existingWorkspace) {
-        await handleSelectWorkspace(existingWorkspace);
+        await handleSelectWorkspace(existingWorkspace, options);
         return;
       }
 
       // Create a new workspace for this folder
-      const folderName = folderPath.split(/[\\/]/).filter(Boolean).pop() || "Workspace";
-      const permissionSettings = await window.electronAPI.getPermissionSettings().catch(() => null);
+      const folderName =
+        folderPath.split(/[\\/]/).filter(Boolean).pop() || "Workspace";
+      const permissionSettings = await window.electronAPI
+        .getPermissionSettings()
+        .catch(() => null);
       const workspace = await window.electronAPI.createWorkspace({
         name: folderName,
         path: folderPath,
@@ -4310,7 +5501,7 @@ export function App() {
         },
       });
 
-      await handleSelectWorkspace(workspace);
+      await handleSelectWorkspace(workspace, options);
     } catch (error) {
       console.error("Failed to change workspace:", error);
     }
@@ -4338,24 +5529,79 @@ export function App() {
       llmProfileForced?: boolean;
       agentConfig?: AgentConfig;
       integrationMentions?: IntegrationMentionSelection[];
+      assignedAgentRoleId?: string;
     },
     images?: ImageAttachment[],
     workspaceOverride?: Workspace,
-  ) => {
+  ): Promise<boolean> => {
+    if (!prompt.trim()) return false;
+
     const effectiveWorkspace = workspaceOverride ?? currentWorkspace;
-    if (!effectiveWorkspace) return;
+    if (!effectiveWorkspace) return false;
+    let effectiveProjectId = FEATURE_VISIBILITY.projects
+      ? workspaceOverride && workspaceOverride.id !== currentWorkspace?.id
+        ? undefined
+        : currentProjectId || undefined
+      : undefined;
+
+    if (effectiveProjectId) {
+      try {
+        const project = await window.electronAPI.getProject(effectiveProjectId);
+        if (
+          !project ||
+          project.status !== "active" ||
+          Boolean(project.archivedAt)
+        ) {
+          console.warn(
+            "Clearing inactive project context before creating task:",
+            effectiveProjectId,
+          );
+          effectiveProjectId = undefined;
+          setCurrentProjectId(null);
+        }
+        if (effectiveProjectId) {
+          const links =
+            await window.electronAPI.listProjectWorkspaces(effectiveProjectId);
+          if (
+            !links.some((link) => link.workspaceId === effectiveWorkspace.id)
+          ) {
+            console.warn(
+              "Clearing stale project context before creating task:",
+              effectiveProjectId,
+              effectiveWorkspace.id,
+            );
+            effectiveProjectId = undefined;
+            setCurrentProjectId(null);
+          }
+        }
+      } catch (error) {
+        console.warn(
+          "Could not verify project context before creating task; continuing without the stale project:",
+          error,
+        );
+        effectiveProjectId = undefined;
+        setCurrentProjectId(null);
+      }
+    }
 
     const multitaskCommand = findMultitaskCommand(prompt, title);
     if (multitaskCommand?.isMultitask && !multitaskCommand.valid) {
       addToast({
         type: "error",
-        title: "Multitask request needed",
-        message: multitaskCommand.error || "Add a request after /multitask.",
+        title: t("app.toast.multitaskNeeded.title", "Multitask request needed"),
+        message:
+          multitaskCommand.error ||
+          t(
+            "app.toast.multitaskNeeded.message",
+            "Add a request after /multitask.",
+          ),
       });
-      return;
+      return false;
     }
     const isMultitaskCommand = Boolean(multitaskCommand?.valid);
-    const effectivePrompt = isMultitaskCommand ? multitaskCommand!.prompt : prompt;
+    const effectivePrompt = isMultitaskCommand
+      ? multitaskCommand!.prompt
+      : prompt;
     const titleMultitaskCommand = parseMultitaskCommand(title);
     const effectiveTitle = isMultitaskCommand
       ? (titleMultitaskCommand.valid
@@ -4364,37 +5610,107 @@ export function App() {
         ).slice(0, 500)
       : title;
 
+    const requestedSkillId = resolveRequestedSkillId(
+      options?.agentConfig?.requestedSkillId,
+      effectivePrompt,
+    );
+    if (requiresMailboxConnection(requestedSkillId)) {
+      try {
+        const mailboxStatus = await window.electronAPI.getMailboxSyncStatus();
+        if (!mailboxStatus.connected) {
+          addToast({
+            type: "info",
+            title: t(
+              "app.toast.mailboxRequired.title",
+              "Connect an email account first",
+            ),
+            message: t(
+              "app.toast.mailboxRequired.message",
+              "This workflow needs real mailbox data. No connected email account was found, so the task was not started. Connect Gmail, AgentMail, or Email in Settings first.",
+            ),
+            action: {
+              label: t("app.action.connectEmail", "Connect email"),
+              callback: () => {
+                setSettingsTab("morechannels");
+                setCurrentView("settings");
+              },
+            },
+          });
+          return false;
+        }
+      } catch (error) {
+        console.error(
+          "Failed to verify mailbox readiness before creating task:",
+          error,
+        );
+        addToast({
+          type: "error",
+          title: t(
+            "app.toast.mailboxCheckFailed.title",
+            "Could not verify the email connection",
+          ),
+          message: t(
+            "app.toast.mailboxCheckFailed.message",
+            "The task was not started because NeoWorker could not confirm that an email account is connected. Check Email in Settings and try again.",
+          ),
+          action: {
+            label: t("app.action.openEmailSettings", "Open email settings"),
+            callback: () => {
+              setSettingsTab("morechannels");
+              setCurrentView("settings");
+            },
+          },
+        });
+        return false;
+      }
+    }
+
     // Auto-enable collaborative mode when prompt requests spawning subagents/agents
     // (e.g. "spawn 3 subagents", "spawn agents") — before any other processing
-    const spawnIntent = isSpawnSubagentsPrompt(`${effectiveTitle}\n${effectivePrompt}`);
+    const spawnIntent = isSpawnSubagentsPrompt(
+      `${effectiveTitle}\n${effectivePrompt}`,
+    );
     const requestedCollaborative =
       options?.collaborativeMode === true || spawnIntent || isMultitaskCommand;
     const requestedAutonomous = options?.autonomousMode === true;
     const requestedMultiLlm = options?.multiLlmMode === true;
-    const autonomousMode = requestedAutonomous && !requestedCollaborative && !requestedMultiLlm;
+    const autonomousMode =
+      requestedAutonomous && !requestedCollaborative && !requestedMultiLlm;
     const collaborativeMode = requestedCollaborative && !requestedMultiLlm;
     const multiLlmMode = requestedMultiLlm;
 
     if (requestedAutonomous && requestedCollaborative) {
       addToast({
         type: "info",
-        title: "Collaborative mode selected",
-        message: "Autonomous mode is disabled when collaborative mode is enabled.",
+        title: t(
+          "app.toast.collabSelected.title",
+          "Collaborative mode selected",
+        ),
+        message: t(
+          "app.toast.collabSelected.message",
+          "Autonomous mode is disabled when collaborative mode is enabled.",
+        ),
       });
     }
     if (spawnIntent && !options?.collaborativeMode) {
       addToast({
         type: "info",
-        title: "Collaborative mode enabled",
-        message: "Your prompt requests spawning agents — the task will be handled by the collaborative team.",
+        title: t("app.toast.collabEnabled.title", "Collaborative mode enabled"),
+        message: t(
+          "app.toast.collabEnabled.message",
+          "Your prompt requests spawning agents — the task will be handled by the collaborative team.",
+        ),
       });
     }
 
     if (autonomousMode) {
       const shouldContinue = window.confirm(
-        "Autonomous mode allows the agent to proceed without manual confirmation on gated actions. Continue?",
+        t(
+          "app.confirm.autonomousMode",
+          "Autonomous mode allows the agent to proceed without manual confirmation on gated actions. Continue?",
+        ),
       );
-      if (!shouldContinue) return;
+      if (!shouldContinue) return false;
     }
 
     const verificationAgent = options?.verificationAgent === true;
@@ -4412,10 +5728,18 @@ export function App() {
         ? options.integrationMentions
         : undefined;
     const trimmedSessionModelOverride = sessionModelOverride.trim();
-    const hasSelectedModelInCurrentProvider = availableModels.some((m) => m.key === trimmedSessionModelOverride);
-    const effectiveSessionModelOverride = hasSelectedModelInCurrentProvider ? trimmedSessionModelOverride : "";
-    const effectiveLlmProfile = effectiveSessionModelOverride ? undefined : llmProfile;
-    const effectiveLlmProfileForced = effectiveSessionModelOverride ? false : llmProfileForced;
+    const hasSelectedModelInCurrentProvider = availableModels.some(
+      (m) => m.key === trimmedSessionModelOverride,
+    );
+    const effectiveSessionModelOverride = hasSelectedModelInCurrentProvider
+      ? trimmedSessionModelOverride
+      : "";
+    const effectiveLlmProfile = effectiveSessionModelOverride
+      ? undefined
+      : llmProfile;
+    const effectiveLlmProfileForced = effectiveSessionModelOverride
+      ? false
+      : llmProfileForced;
 
     const agentConfig =
       effectiveSessionModelOverride ||
@@ -4436,16 +5760,24 @@ export function App() {
       explicitAgentConfig
         ? {
             ...explicitAgentConfig,
-            ...(effectiveSessionModelOverride ? { modelKey: effectiveSessionModelOverride } : {}),
+            ...(effectiveSessionModelOverride
+              ? { modelKey: effectiveSessionModelOverride }
+              : {}),
             ...(autonomousMode
-              ? { allowUserInput: false, humanInputPolicy: "none" as const, autonomousMode: true }
+              ? {
+                  allowUserInput: false,
+                  humanInputPolicy: "none" as const,
+                  autonomousMode: true,
+                }
               : {}),
             ...(collaborativeMode ? { collaborativeMode: true } : {}),
             ...(isMultitaskCommand || options?.multitaskMode
               ? {
                   multitaskMode: true,
                   multitaskLaneCount:
-                    multitaskCommand?.laneCount || options?.multitaskLaneCount || 4,
+                    multitaskCommand?.laneCount ||
+                    options?.multitaskLaneCount ||
+                    4,
                   multitaskAssignmentMode:
                     multitaskCommand?.assignmentMode ||
                     options?.multitaskAssignmentMode ||
@@ -4471,14 +5803,19 @@ export function App() {
     try {
       if (window.electronAPI?.getLLMSettings) {
         const llmSettings = await window.electronAPI.getLLMSettings();
-        const readiness = getFirstRunReadiness(llmSettings, { workspace: effectiveWorkspace });
+        const readiness = getFirstRunReadiness(llmSettings, {
+          workspace: effectiveWorkspace,
+        });
         if (!readiness.modelReady) {
           addToast({
             type: "error",
-            title: "Set up AI first",
+            title: t("app.toast.setupAiFirst.title", "Set up AI first"),
             message:
               readiness.blockingReason ||
-              "Connect ChatGPT, local Ollama, or an API key before running AI tasks.",
+              t(
+                "app.toast.setupAiFirst.message",
+                "Connect ChatGPT, local Ollama, or an API key before running AI tasks.",
+              ),
             action: {
               label: getFirstRunReadinessActionLabel(readiness),
               callback: () => {
@@ -4487,7 +5824,7 @@ export function App() {
               },
             },
           });
-          return;
+          return false;
         }
       }
 
@@ -4495,24 +5832,36 @@ export function App() {
         title: effectiveTitle,
         prompt: effectivePrompt,
         workspaceId: effectiveWorkspace.id,
+        ...(effectiveProjectId ? { projectId: effectiveProjectId } : {}),
         ...(agentConfig && { agentConfig }),
+        ...(options?.assignedAgentRoleId
+          ? { assignedAgentRoleId: options.assignedAgentRoleId }
+          : {}),
         ...(images && images.length > 0 && { images }),
       });
 
       setTasks((prev) => [task, ...prev]);
       setSelectedTaskId(task.id);
       setCurrentView("main");
+      return true;
     } catch (error: unknown) {
       console.error("Failed to create task:", error);
       // Check if it's an API key error and prompt user to configure settings
-      const errorMessage = error instanceof Error ? error.message : "Failed to create task";
-      if (errorMessage.includes("API key") || errorMessage.includes("credentials")) {
+      const rawErrorMessage = unwrapCreateTaskError(error);
+      const displayErrorMessage = formatCreateTaskError(error);
+      if (
+        rawErrorMessage.includes("API key") ||
+        rawErrorMessage.includes("credentials")
+      ) {
         addToast({
           type: "error",
-          title: "Configuration Required",
-          message: errorMessage,
+          title: t(
+            "app.toast.configurationRequired.title",
+            "Configuration Required",
+          ),
+          message: displayErrorMessage,
           action: {
-            label: "Open Settings",
+            label: t("app.action.openSettings", "Open Settings"),
             callback: () => {
               setSettingsTab("llm");
               setCurrentView("settings");
@@ -4520,8 +5869,13 @@ export function App() {
           },
         });
       } else {
-        addToast({ type: "error", title: "Task Error", message: errorMessage });
+        addToast({
+          type: "error",
+          title: t("app.toast.taskCreateFailed.title", "Could not create task"),
+          message: displayErrorMessage,
+        });
       }
+      return false;
     }
   };
 
@@ -4531,7 +5885,12 @@ export function App() {
     try {
       const task = (await window.electronAPI.getTask(taskId)) as Task | null;
       if (task) {
-        setTasks((prev) => upsertTaskPreservingIdentity(prev, task, { prependIfMissing: true }));
+        setCurrentProjectId(
+          FEATURE_VISIBILITY.projects ? task.projectId || null : null,
+        );
+        setTasks((prev) =>
+          upsertTaskPreservingIdentity(prev, task, { prependIfMissing: true }),
+        );
       }
     } catch (error) {
       console.error("Failed to open managed agent task:", error);
@@ -4555,7 +5914,9 @@ export function App() {
     const trimmed = message.trim();
     const sideTaskId = sideChatRef.current?.task?.id;
     if (!trimmed || !sideTaskId) return;
-    setSideChat((prev) => (prev?.task?.id === sideTaskId ? { ...prev, sending: true } : prev));
+    setSideChat((prev) =>
+      prev?.task?.id === sideTaskId ? { ...prev, sending: true } : prev,
+    );
     try {
       await window.electronAPI.sendMessage(sideTaskId, trimmed);
       const [updatedTask, updatedEvents] = await Promise.all([
@@ -4567,7 +5928,12 @@ export function App() {
           ? {
               ...prev,
               task: (updatedTask as Task | null) || prev.task,
-              events: capTaskEvents(mergeUniqueTaskEvents(prev.events, updatedEvents as TaskEvent[])),
+              events: capTaskEvents(
+                mergeUniqueTaskEvents(
+                  prev.events,
+                  updatedEvents as TaskEvent[],
+                ),
+              ),
               sending: false,
               loading: false,
             }
@@ -4575,9 +5941,18 @@ export function App() {
       );
     } catch (error) {
       console.error("Failed to send sidechat message:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to send side message";
-      addToast({ type: "error", title: "Side Chat Error", message: errorMessage });
-      setSideChat((prev) => (prev?.task?.id === sideTaskId ? { ...prev, sending: false } : prev));
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : t("app.error.sendSideMessage", "Failed to send side message");
+      addToast({
+        type: "error",
+        title: t("app.toast.sideChatError.title", "Side Chat Error"),
+        message: errorMessage,
+      });
+      setSideChat((prev) =>
+        prev?.task?.id === sideTaskId ? { ...prev, sending: false } : prev,
+      );
       throw error;
     }
   }, []);
@@ -4591,7 +5966,9 @@ export function App() {
     try {
       const task = (await window.electronAPI.getTask(taskId)) as Task | null;
       if (task) {
-        setTasks((prev) => upsertTaskPreservingIdentity(prev, task, { prependIfMissing: true }));
+        setTasks((prev) =>
+          upsertTaskPreservingIdentity(prev, task, { prependIfMissing: true }),
+        );
       }
     } catch (error) {
       console.error("Failed to open sidechat as full thread:", error);
@@ -4599,16 +5976,22 @@ export function App() {
   }, []);
 
   const handleOpenSideChat = useCallback(
-    async (request: { taskId: string; fromEventId?: string; initialMessage?: string }) => {
-      if (!window.electronAPI?.forkTaskSession) return;
+    async (request: {
+      taskId: string;
+      fromEventId?: string;
+      initialMessage?: string;
+    }) => {
+      if (!window.electronAPI?.forkTaskSession) return false;
       const requestSeq = sideChatRequestSeqRef.current + 1;
       sideChatRequestSeqRef.current = requestSeq;
       const parentTaskId = request.taskId;
       const initialMessage = request.initialMessage?.trim();
       const parentTask =
         tasksRef.current.find((candidate) => candidate.id === parentTaskId) ||
-        ((await window.electronAPI.getTask(parentTaskId).catch(() => null)) as Task | null);
-      if (sideChatRequestSeqRef.current !== requestSeq) return;
+        ((await window.electronAPI
+          .getTask(parentTaskId)
+          .catch(() => null)) as Task | null);
+      if (sideChatRequestSeqRef.current !== requestSeq) return false;
       const existing = sideChatRef.current;
       if (
         existing?.parentTaskId === parentTaskId &&
@@ -4618,7 +6001,9 @@ export function App() {
         setRightSidebarCollapsed(false);
         if (parentTask) {
           setSideChat((prev) =>
-            prev?.parentTaskId === parentTaskId ? { ...prev, parentTask } : prev,
+            prev?.parentTaskId === parentTaskId
+              ? { ...prev, parentTask }
+              : prev,
           );
         }
         if (initialMessage) {
@@ -4626,9 +6011,10 @@ export function App() {
             await handleSendSideChatMessage(initialMessage);
           } catch {
             // The send handler already reports the failure and restores panel state.
+            return false;
           }
         }
-        return;
+        return true;
       }
 
       setCurrentView("main");
@@ -4651,25 +6037,37 @@ export function App() {
           ...(request.fromEventId ? { fromEventId: request.fromEventId } : {}),
         })) as Task;
         if (sideChatRequestSeqRef.current !== requestSeq) {
-          void window.electronAPI.deleteTask?.(forkedTask.id).catch((deleteError) => {
-            console.error("Failed to delete stale sidechat task:", deleteError);
-          });
-          return;
+          void window.electronAPI
+            .deleteTask?.(forkedTask.id)
+            .catch((deleteError) => {
+              console.error(
+                "Failed to delete stale sidechat task:",
+                deleteError,
+              );
+            });
+          return false;
         }
         const forkedEvents = (await window.electronAPI
           .getTaskEvents(forkedTask.id)
           .catch(() => [])) as TaskEvent[];
         if (sideChatRequestSeqRef.current !== requestSeq) {
-          void window.electronAPI.deleteTask?.(forkedTask.id).catch((deleteError) => {
-            console.error("Failed to delete stale sidechat task:", deleteError);
-          });
-          return;
+          void window.electronAPI
+            .deleteTask?.(forkedTask.id)
+            .catch((deleteError) => {
+              console.error(
+                "Failed to delete stale sidechat task:",
+                deleteError,
+              );
+            });
+          return false;
         }
         const cappedForkedEvents = capTaskEvents(forkedEvents);
         const initialMessageStillSending =
           Boolean(initialMessage) &&
           !isTerminalTaskStatus(forkedTask.status) &&
-          !cappedForkedEvents.some((event) => getEffectiveTaskEventType(event) === "assistant_message");
+          !cappedForkedEvents.some(
+            (event) => getEffectiveTaskEventType(event) === "assistant_message",
+          );
         setSideChat({
           parentTaskId,
           parentTask,
@@ -4686,33 +6084,51 @@ export function App() {
           loading: false,
           sending: initialMessageStillSending,
         };
+        return true;
       } catch (error) {
-        if (sideChatRequestSeqRef.current !== requestSeq) return;
+        if (sideChatRequestSeqRef.current !== requestSeq) return false;
         console.error("Failed to open sidechat:", error);
-        const errorMessage = error instanceof Error ? error.message : "Failed to open side chat";
-        addToast({ type: "error", title: "Side Chat Error", message: errorMessage });
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : t("app.error.openSideChat", "Failed to open side chat");
+        addToast({
+          type: "error",
+          title: t("app.toast.sideChatError.title", "Side Chat Error"),
+          message: errorMessage,
+        });
         setSideChat(null);
+        return false;
       }
     },
     [handleSendSideChatMessage],
   );
 
   const replayControls = useReplayMode(events, selectedTask);
-  const deferredEvents = useDeferredValue(events);
+  const deliveryEvents = useMemo(
+    () => reconcileTaskDeliveryEvents(selectedTask, events),
+    [events, selectedTask],
+  );
+  const deferredEvents = useDeferredValue(deliveryEvents);
   const selectedTaskUsesLiveProjection =
     !replayControls.isReplayMode && isTaskPossiblyRunning(selectedTask?.status);
-  const projectedTaskEvents = selectedTaskUsesLiveProjection ? deferredEvents : events;
+  const projectedTaskEvents = selectedTaskUsesLiveProjection
+    ? deferredEvents
+    : deliveryEvents;
   const sharedTaskEventUi = useMemo(
     () =>
-      measureRendererPerf("App.sharedTaskEventUi", rendererPerfLoggingEnabled, () =>
-        deriveSharedTaskEventUiState({
-          rawEvents: projectedTaskEvents,
-          task: selectedTask,
-          workspace: currentWorkspace,
-          verboseSteps: false,
-          projectionMode: selectedTaskUsesLiveProjection ? "live" : "inspect",
-          liveWindowSize: 160,
-        }),
+      measureRendererPerf(
+        "App.sharedTaskEventUi",
+        rendererPerfLoggingEnabled,
+        () =>
+          deriveSharedTaskEventUiState({
+            rawEvents: projectedTaskEvents,
+            task: selectedTask,
+            workspace: currentWorkspace,
+            verboseSteps: false,
+            projectionMode: selectedTaskUsesLiveProjection ? "live" : "inspect",
+            liveWindowSize: 160,
+          }),
       ),
     [
       currentWorkspace?.id,
@@ -4733,28 +6149,28 @@ export function App() {
   const rightPanelEvents = replayControls.isReplayMode
     ? replayControls.replayEvents
     : projectedTaskEvents;
-  const rightPanelSharedTaskEventUi = useMemo(
-    () => {
-      if (!replayControls.isReplayMode) return sharedTaskEventUi;
-      return measureRendererPerf("App.rightPanelReplayTaskEventUi", rendererPerfLoggingEnabled, () =>
+  const rightPanelSharedTaskEventUi = useMemo(() => {
+    if (!replayControls.isReplayMode) return sharedTaskEventUi;
+    return measureRendererPerf(
+      "App.rightPanelReplayTaskEventUi",
+      rendererPerfLoggingEnabled,
+      () =>
         deriveSharedTaskEventUiState({
           rawEvents: replayControls.replayEvents,
           task: rightPanelReplayTask,
           workspace: currentWorkspace,
           verboseSteps: false,
         }),
-      );
-    },
-    [
-      currentWorkspace?.id,
-      currentWorkspace?.path,
-      replayControls.isReplayMode,
-      replayControls.replayEvents,
-      rendererPerfLoggingEnabled,
-      rightPanelReplayTask,
-      sharedTaskEventUi,
-    ],
-  );
+    );
+  }, [
+    currentWorkspace?.id,
+    currentWorkspace?.path,
+    replayControls.isReplayMode,
+    replayControls.replayEvents,
+    rendererPerfLoggingEnabled,
+    rightPanelReplayTask,
+    sharedTaskEventUi,
+  ]);
   const rightPanelChildTasks = remoteTaskView ? [] : childTasks;
   const rightPanelHasActiveChildren = useMemo(
     () =>
@@ -4764,11 +6180,17 @@ export function App() {
     [rightPanelChildTasks],
   );
   const rightPanelRunningTasks = useMemo(
-    () => (queueStatus ? tasks.filter((task) => queueStatus.runningTaskIds.includes(task.id)) : []),
+    () =>
+      queueStatus
+        ? tasks.filter((task) => queueStatus.runningTaskIds.includes(task.id))
+        : [],
     [queueStatus, tasks],
   );
   const rightPanelQueuedTasks = useMemo(
-    () => (queueStatus ? tasks.filter((task) => queueStatus.queuedTaskIds.includes(task.id)) : []),
+    () =>
+      queueStatus
+        ? tasks.filter((task) => queueStatus.queuedTaskIds.includes(task.id))
+        : [],
     [queueStatus, tasks],
   );
   const rightPanelHighlightPath = useMemo(
@@ -4784,13 +6206,17 @@ export function App() {
       workspace: currentWorkspace,
       events: rightPanelEvents,
       sharedTaskEventUi: rightPanelSharedTaskEventUi,
-      hasActiveChildren: replayControls.isReplayMode ? false : rightPanelHasActiveChildren,
+      hasActiveChildren: replayControls.isReplayMode
+        ? false
+        : rightPanelHasActiveChildren,
       childTasks: replayControls.isReplayMode ? [] : rightPanelChildTasks,
       childEvents: replayControls.isReplayMode ? [] : childEvents,
       runningTasks: replayControls.isReplayMode ? [] : rightPanelRunningTasks,
       queuedTasks: replayControls.isReplayMode ? [] : rightPanelQueuedTasks,
       queueStatus: replayControls.isReplayMode ? null : queueStatus,
-      highlightOutputPath: replayControls.isReplayMode ? null : rightPanelHighlightPath,
+      highlightOutputPath: replayControls.isReplayMode
+        ? null
+        : rightPanelHighlightPath,
     }),
     [
       currentWorkspace,
@@ -4812,7 +6238,8 @@ export function App() {
     if (remoteTaskView) return null;
     if (!selectedTaskId) return null;
     const candidates = pendingInputRequests.filter(
-      (request) => request.taskId === selectedTaskId && request.status === "pending",
+      (request) =>
+        request.taskId === selectedTaskId && request.status === "pending",
     );
     if (candidates.length === 0) return null;
     return [...candidates].sort((a, b) => b.requestedAt - a.requestedAt)[0];
@@ -4823,7 +6250,10 @@ export function App() {
   }, []);
 
   const openRemoteTaskView = useCallback(
-    async (taskId: string, remote: { deviceId: string; deviceName: string }) => {
+    async (
+      taskId: string,
+      remote: { deviceId: string; deviceName: string },
+    ) => {
       try {
         const [taskResult, eventsResult] = await Promise.all([
           window.electronAPI?.deviceProxyRequest?.({
@@ -4838,11 +6268,13 @@ export function App() {
           }),
         ]);
 
-        const remoteTask = (taskResult?.payload as { task?: Task | null } | undefined)?.task;
-        const remoteEvents =
-          ((eventsResult?.payload as { events?: TaskEvent[] } | undefined)?.events || []).sort(
-            (a, b) => a.timestamp - b.timestamp,
-          );
+        const remoteTask = (
+          taskResult?.payload as { task?: Task | null } | undefined
+        )?.task;
+        const remoteEvents = (
+          (eventsResult?.payload as { events?: TaskEvent[] } | undefined)
+            ?.events || []
+        ).sort((a, b) => a.timestamp - b.timestamp);
         if (!remoteTask) return;
 
         setRemoteTaskView({
@@ -4858,8 +6290,14 @@ export function App() {
         console.error("Failed to open remote task view:", error);
         addToast({
           type: "error",
-          title: "Remote task unavailable",
-          message: "Could not load the remote task history for this device.",
+          title: t(
+            "app.toast.remoteTaskUnavailable.title",
+            "Remote task unavailable",
+          ),
+          message: t(
+            "app.toast.remoteTaskUnavailable.message",
+            "Could not load the remote task history for this device.",
+          ),
         });
       }
     },
@@ -4871,6 +6309,10 @@ export function App() {
     images?: ImageAttachment[],
     quotedAssistantMessage?: QuotedAssistantMessage,
     options?: {
+      activeArtifactContext?: ActiveArtifactContext;
+      executionMode?: ExecutionMode;
+      taskDomain?: TaskDomain;
+      requestedSkillId?: string;
       permissionMode?: PermissionMode;
       shellAccess?: boolean;
       integrationMentions?: IntegrationMentionSelection[];
@@ -4894,39 +6336,49 @@ export function App() {
         );
       }
 
-      const selectedTask = tasksRef.current.find((task) => task.id === selectedTaskId);
-      const latestAttentionEvent = latestAttentionEventByTaskIdRef.current.get(selectedTaskId);
+      const selectedTask = tasksRef.current.find(
+        (task) => task.id === selectedTaskId,
+      );
+      const latestAttentionEvent =
+        latestAttentionEventByTaskIdRef.current.get(selectedTaskId);
       const latestAttentionReason =
         typeof latestAttentionEvent?.payload?.reason === "string"
           ? latestAttentionEvent.payload.reason
           : undefined;
       const isShellPermissionPause =
-        isShellPermissionPauseReason(selectedTask?.awaitingUserInputReasonCode) ||
-        isShellPermissionPauseReason(latestAttentionReason);
+        isShellPermissionPauseReason(
+          selectedTask?.awaitingUserInputReasonCode,
+        ) || isShellPermissionPauseReason(latestAttentionReason);
       const shellPermissionDecision = isShellPermissionPause
         ? classifyShellPermissionDecision(message)
         : "unknown";
       let nextMessage = message;
+      let nextOptions = options;
 
-      if (
-        shellPermissionDecision === "enable_shell" &&
-        currentWorkspace &&
-        !currentWorkspace.permissions.shell
-      ) {
-        try {
-          const updatedWorkspace = await window.electronAPI.updateWorkspacePermissions(
-            currentWorkspace.id,
-            { shell: true },
-          );
-          if (updatedWorkspace) {
-            setCurrentWorkspace(updatedWorkspace);
+      if (shellPermissionDecision === "enable_shell" && currentWorkspace) {
+        if (!currentWorkspace.permissions.shell) {
+          try {
+            const updatedWorkspace =
+              await window.electronAPI.updateWorkspacePermissions(
+                currentWorkspace.id,
+                { shell: true },
+              );
+            if (updatedWorkspace) {
+              setCurrentWorkspace(updatedWorkspace);
+            }
+          } catch (permissionError) {
+            console.error(
+              "Failed to pre-enable shell from user message:",
+              permissionError,
+            );
           }
-        } catch (permissionError) {
-          console.error("Failed to pre-enable shell from user message:", permissionError);
         }
-        nextMessage = "Please continue with shell access enabled for this workspace.";
+        nextOptions = { ...options, shellAccess: true };
+        nextMessage =
+          "Please continue with shell access enabled for this workspace.";
       } else if (shellPermissionDecision === "continue_without_shell") {
-        nextMessage = "Please continue without shell access and use the limited best-effort path.";
+        nextMessage =
+          "Please continue without shell access and use the limited best-effort path.";
       }
 
       if (remoteTaskView) {
@@ -4938,7 +6390,7 @@ export function App() {
             message: nextMessage,
             images,
             quotedAssistantMessage,
-            ...(options || {}),
+            ...nextOptions,
           },
         });
       } else {
@@ -4947,24 +6399,40 @@ export function App() {
           nextMessage,
           images,
           quotedAssistantMessage,
-          options,
+          nextOptions,
         );
       }
     } catch (error: unknown) {
       console.error("Failed to send message:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to send message";
-      addToast({ type: "error", title: "Error", message: errorMessage });
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : t("app.error.sendMessage", "Failed to send message");
+      addToast({
+        type: "error",
+        title: t("common.error", "Error"),
+        message: errorMessage,
+      });
+      throw error instanceof Error ? error : new Error(errorMessage);
     }
   };
 
   const handleEnableShellForPausedTask = useCallback(async () => {
     if (remoteTaskView) return;
-    await handleSendMessage("enable shell");
+    try {
+      await handleSendMessage("enable shell");
+    } catch {
+      // handleSendMessage already reports the failure to the user.
+    }
   }, [handleSendMessage, remoteTaskView]);
 
   const handleContinueWithoutShellForPausedTask = useCallback(async () => {
     if (remoteTaskView) return;
-    await handleSendMessage("continue without shell");
+    try {
+      await handleSendMessage("continue without shell");
+    } catch {
+      // handleSendMessage already reports the failure to the user.
+    }
   }, [handleSendMessage, remoteTaskView]);
 
   const handleCancelTask = async () => {
@@ -4973,13 +6441,18 @@ export function App() {
     if (remoteTaskView) {
       setRemoteTaskView((prev) =>
         prev && prev.task.id === selectedTaskId
-          ? { ...prev, task: { ...prev.task, status: "cancelled" as Task["status"] } }
+          ? {
+              ...prev,
+              task: { ...prev.task, status: "cancelled" as Task["status"] },
+            }
           : prev,
       );
     } else {
       setTasks((prev) =>
         prev.map((t) =>
-          t.id === selectedTaskId ? { ...t, status: "cancelled" as Task["status"] } : t,
+          t.id === selectedTaskId
+            ? { ...t, status: "cancelled" as Task["status"] }
+            : t,
         ),
       );
     }
@@ -4996,8 +6469,15 @@ export function App() {
       }
     } catch (error: unknown) {
       console.error("Failed to cancel task:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to cancel task";
-      addToast({ type: "error", title: "Error", message: errorMessage });
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : t("app.error.cancelTask", "Failed to cancel task");
+      addToast({
+        type: "error",
+        title: t("common.error", "Error"),
+        message: errorMessage,
+      });
     }
   };
 
@@ -5006,23 +6486,37 @@ export function App() {
     if (remoteTaskView) {
       addToast({
         type: "info",
-        title: "Remote session view",
-        message: "Wrap up from the remote device directly is not available yet.",
+        title: t("app.toast.remoteSessionView.title", "Remote session view"),
+        message: t(
+          "app.toast.remoteSessionView.message",
+          "Wrap up from the remote device directly is not available yet.",
+        ),
       });
       return;
     }
 
     try {
-      const collaborativeRun = await window.electronAPI.findTeamRunByRootTask(selectedTaskId);
-      if (collaborativeRun?.collaborativeMode && collaborativeRun.status === "running") {
+      const collaborativeRun =
+        await window.electronAPI.findTeamRunByRootTask(selectedTaskId);
+      if (
+        collaborativeRun?.collaborativeMode &&
+        collaborativeRun.status === "running"
+      ) {
         await window.electronAPI.wrapUpTeamRun(collaborativeRun.id);
       } else {
         await window.electronAPI.wrapUpTask(selectedTaskId);
       }
     } catch (error: unknown) {
       console.error("Failed to wrap up task:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to wrap up task";
-      addToast({ type: "error", title: "Error", message: errorMessage });
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : t("app.error.wrapUpTask", "Failed to wrap up task");
+      addToast({
+        type: "error",
+        title: t("common.error", "Error"),
+        message: errorMessage,
+      });
     }
   };
 
@@ -5043,39 +6537,81 @@ export function App() {
     await handleCreateTask(title, prompt);
   };
 
-  const handleCreateTaskFromIdea = async (prompt: string) => {
-    setCurrentView("main");
-    clearRemoteTaskView();
-    let workspace = currentWorkspace;
-    if (!workspace) {
-      try {
-        workspace = await window.electronAPI.getTempWorkspace({ createNew: true });
-        setCurrentWorkspace(workspace);
-      } catch (error) {
-        console.error("Failed to get workspace for idea:", error);
-        addToast({ type: "error", title: "Error", message: "Could not create session" });
-        return;
-      }
+  const handleOpenComposerDraft = async (
+    draft: string,
+    skillContext?: { skillId?: string; skillLabel?: string },
+    workspaceOverride?: Workspace | null,
+  ) => {
+    try {
+      const workspace =
+        workspaceOverride ||
+        (await window.electronAPI.getTempWorkspace({ createNew: true }));
+      composerDraftRequestIdRef.current += 1;
+      setCurrentWorkspace(workspace);
+      setCurrentProjectId(null);
+      setSelectedTaskId(null);
+      setEvents([]);
+      clearRemoteTaskView();
+      setComposerDraftRequest({
+        id: composerDraftRequestIdRef.current,
+        value: draft,
+        ...(skillContext?.skillId ? { skillId: skillContext.skillId } : {}),
+        ...(skillContext?.skillLabel
+          ? { skillLabel: skillContext.skillLabel }
+          : {}),
+      });
+      setCurrentView("main");
+    } catch (error) {
+      console.error("Failed to open composer draft:", error);
+      addToast({
+        type: "error",
+        title: t("common.error", "Error"),
+        message: t("app.error.createSession", "Could not create session"),
+      });
     }
-    const title = prompt.slice(0, 50) + (prompt.length > 50 ? "..." : "");
-    await handleCreateTask(title, prompt, undefined, undefined, workspace || undefined);
   };
+
+  const handleUseIdeaPrompt = async (selection: IdeaPromptSelection) => {
+    const draft = selection.prompt.trim();
+    if (!draft) return;
+    await handleOpenComposerDraft(draft, {
+      skillId: selection.skillId,
+      skillLabel: selection.skillLabel,
+    });
+  };
+
+  const handleStartNewWork = async () => {
+    await handleOpenComposerDraft("");
+  };
+
+  const handleComposerDraftConsumed = useCallback((requestId: number) => {
+    setComposerDraftRequest((current) =>
+      current?.id === requestId ? null : current,
+    );
+  }, []);
 
   const handleNewSession = async () => {
     setCurrentView("main");
+    setCurrentProjectId(null);
     setSelectedTaskId(null);
     setEvents([]);
     clearRemoteTaskView();
     try {
-      const tempWorkspace = await window.electronAPI.getTempWorkspace({ createNew: true });
+      const tempWorkspace = await window.electronAPI.getTempWorkspace({
+        createNew: true,
+      });
       setCurrentWorkspace(tempWorkspace);
     } catch (error) {
-      console.error("Failed to switch to temp workspace for new session:", error);
+      console.error(
+        "Failed to switch to temp workspace for new session:",
+        error,
+      );
     }
   };
 
   const handleClearTaskView = () => {
     setCurrentView("main");
+    setCurrentProjectId(null);
     setSelectedTaskId(null);
     setEvents([]);
     clearRemoteTaskView();
@@ -5106,70 +6642,19 @@ export function App() {
       console.error("Failed to save LLM model selection:", error);
       addToast({
         type: "error",
-        title: "Model not saved",
+        title: t("app.toast.modelNotSaved.title", "Model not saved"),
         message:
           error instanceof Error
             ? error.message
-            : "Could not update the default model.",
+            : t(
+                "app.toast.modelNotSaved.message",
+                "Could not update the default model.",
+              ),
       });
     }
-    // When model changes during a task, clear the current task to start fresh
-    if (selectedTaskId) {
-      setSelectedTaskId(null);
-      setEvents([]);
-      clearRemoteTaskView();
-    }
-  };
-
-  const handleThemeChange = (theme: ThemeMode) => {
-    setThemeMode(theme);
-    // Persist to main process
-    void window.electronAPI?.saveAppearanceSettings?.({
-      themeMode: theme,
-      visualTheme,
-      accentColor,
-      transparencyEffectsEnabled,
-    });
-  };
-
-  const handleVisualThemeChange = (visual: VisualTheme) => {
-    setVisualTheme(visual);
-    // Persist to main process
-    void window.electronAPI?.saveAppearanceSettings?.({
-      themeMode,
-      visualTheme: visual,
-      accentColor,
-      transparencyEffectsEnabled,
-    });
-  };
-
-  const handleAccentChange = (accent: AccentColor) => {
-    setAccentColor(accent);
-    // Persist to main process
-    void window.electronAPI?.saveAppearanceSettings?.({
-      themeMode,
-      visualTheme,
-      accentColor: accent,
-      transparencyEffectsEnabled,
-    });
-  };
-
-  const handleUiDensityChange = (density: UiDensity) => {
-    setUiDensity(density);
-    void window.electronAPI?.saveAppearanceSettings?.({
-      themeMode,
-      visualTheme,
-      accentColor,
-      transparencyEffectsEnabled,
-      uiDensity: density,
-    });
-  };
-
-  const handleTransparencyEffectsEnabledChange = (enabled: boolean) => {
-    setTransparencyEffectsEnabled(enabled);
-    void window.electronAPI?.saveAppearanceSettings?.({
-      transparencyEffectsEnabled: enabled,
-    });
+    // A model choice changes the route for the next request, not the active
+    // conversation. Keep the selected task, timeline and workspace mounted so
+    // the user can continue the same session with the newly selected model.
   };
 
   const handleDevRunLoggingEnabledChange = (enabled: boolean) => {
@@ -5197,21 +6682,64 @@ export function App() {
   const effectiveRightCollapsed =
     currentView !== "main"
       ? true
-      : uiDensity === "full"
-        ? rightSidebarCollapsed
-        : !selectedTaskId
-          ? true
-          : rightSidebarCollapsed;
+      : !selectedTaskId
+        ? true
+        : rightSidebarCollapsed;
   const unseenOutputCount = unseenOutputTaskIds.length;
   const showTitleBarTerminalToggle =
     currentView === "main" &&
     !effectiveRightCollapsed &&
     Boolean(currentWorkspace?.path) &&
     !remoteTaskView;
-  const titleBarBrowserTaskId = showTitleBarTerminalToggle ? selectedTask?.id : undefined;
+  const titleBarBrowserTaskId = showTitleBarTerminalToggle
+    ? selectedTask?.id
+    : undefined;
   const visibleRightPanelInput = effectiveRightCollapsed
     ? EMPTY_RIGHT_PANEL_INPUT
     : deferredRightPanelInput;
+
+  const handleTerminalTabsToggle = async () => {
+    if (terminalTabsOpen) {
+      setTerminalTabsOpen(false);
+      return;
+    }
+    if (!currentWorkspace || terminalOpenInFlightRef.current) return;
+
+    terminalOpenInFlightRef.current = true;
+    try {
+      if (!currentWorkspace.permissions?.shell) {
+        const updatedWorkspace =
+          await window.electronAPI.updateWorkspacePermissions(
+            currentWorkspace.id,
+            { shell: true },
+          );
+        if (!updatedWorkspace?.permissions?.shell) {
+          throw new Error(
+            t(
+              "terminal.error.permissionNotEnabled",
+              "Terminal permission could not be enabled.",
+            ),
+          );
+        }
+        setCurrentWorkspace(updatedWorkspace);
+      }
+      setTerminalTabsOpen(true);
+    } catch (error) {
+      addToast({
+        type: "error",
+        title: t("terminal.error.openTitle", "Could not open Terminal"),
+        message:
+          error instanceof Error
+            ? error.message
+            : t(
+                "terminal.error.open",
+                "Terminal could not be opened for this workspace.",
+              ),
+      });
+    } finally {
+      terminalOpenInFlightRef.current = false;
+    }
+  };
 
   const handleRightSidebarToggle = useCallback(() => {
     const startedAtMs =
@@ -5235,6 +6763,68 @@ export function App() {
     });
   }, [rendererPerfLoggingEnabled]);
 
+  const navigateToHistoryIndex = useCallback(
+    (nextIndex: number) => {
+      const target = navigationHistoryRef.current[nextIndex];
+      if (!target) return;
+      navigationIndexRef.current = nextIndex;
+      navigationApplyTargetRef.current = target;
+      clearRemoteTaskView();
+      if (target.taskId) {
+        markTaskSwitchStart(target.taskId);
+      }
+      setSelectedTaskId(target.taskId);
+      setCurrentView(target.view);
+      setTitleBarTaskMenuOpen(false);
+      setNavigationRevision((revision) => revision + 1);
+    },
+    [clearRemoteTaskView, markTaskSwitchStart],
+  );
+  const handleNavigateBack = useCallback(() => {
+    navigateToHistoryIndex(navigationIndexRef.current - 1);
+  }, [navigateToHistoryIndex]);
+  const handleNavigateForward = useCallback(() => {
+    navigateToHistoryIndex(navigationIndexRef.current + 1);
+  }, [navigateToHistoryIndex]);
+
+  const handleTitleBarTaskPin = useCallback(async () => {
+    if (!selectedTask || remoteTaskView) return;
+    setTitleBarTaskMenuOpen(false);
+    try {
+      await window.electronAPI.toggleTaskPin(selectedTask.id);
+      await loadTasks();
+    } catch (error) {
+      console.error("Failed to toggle task pin from title bar:", error);
+    }
+  }, [loadTasks, remoteTaskView, selectedTask]);
+
+  const handleTitleBarTaskRename = useCallback(async () => {
+    if (!selectedTask || remoteTaskView) return;
+    setTitleBarTaskMenuOpen(false);
+    const nextTitle = window
+      .prompt(t("task.actions.renamePrompt", "Rename task"), selectedTask.title)
+      ?.trim();
+    if (!nextTitle || nextTitle === selectedTask.title) return;
+    try {
+      await window.electronAPI.renameTask(selectedTask.id, nextTitle);
+      await loadTasks();
+    } catch (error) {
+      console.error("Failed to rename task from title bar:", error);
+    }
+  }, [loadTasks, remoteTaskView, selectedTask, t]);
+
+  const handleTitleBarTaskArchive = useCallback(async () => {
+    if (!selectedTask || remoteTaskView) return;
+    setTitleBarTaskMenuOpen(false);
+    try {
+      await window.electronAPI.archiveTask(selectedTask.id);
+      setSelectedTaskId(null);
+      await loadTasks();
+    } catch (error) {
+      console.error("Failed to archive task from title bar:", error);
+    }
+  }, [loadTasks, remoteTaskView, selectedTask]);
+
   const handleSelectTaskFromShell = useCallback(
     (taskId: string | null) => {
       clearRemoteTaskView();
@@ -5248,20 +6838,29 @@ export function App() {
     [clearRemoteTaskView, markTaskSwitchStart],
   );
   const handleOpenSettings = useCallback(() => setCurrentView("settings"), []);
+  const handleOpenSetupGuide = useCallback(() => {
+    handleShowOnboarding();
+  }, [handleShowOnboarding]);
   const handleOpenMissionControl = useCallback(() => {
-    setMissionControlInitialCompanyId(null);
-    setMissionControlInitialIssueId(null);
-    setMissionControlEverydayAgentFocus(false);
-    setCurrentView("missionControl");
+    setAutomationFocusSection("activity");
+    setCurrentView("automations");
   }, []);
-  const handleSelectChildTaskFromMainContent = useCallback((taskId: string) => {
-    const task = tasksRef.current.find((candidate) => candidate.id === taskId);
-    if (task && isSynthesisChildTask(task)) return;
-    markTaskSwitchStart(taskId);
-    setSelectedTaskId(taskId);
-  }, [markTaskSwitchStart]);
+  const handleSelectChildTaskFromMainContent = useCallback(
+    (taskId: string) => {
+      const task = tasksRef.current.find(
+        (candidate) => candidate.id === taskId,
+      );
+      if (task && isSynthesisChildTask(task)) return;
+      markTaskSwitchStart(taskId);
+      setSelectedTaskId(taskId);
+    },
+    [markTaskSwitchStart],
+  );
   const handleSubmitInputRequestFromMainContent = useCallback(
-    (requestId: string, answers: Record<string, { optionLabel?: string; otherText?: string }>) => {
+    (
+      requestId: string,
+      answers: Record<string, { optionLabel?: string; otherText?: string }>,
+    ) => {
       void handleInputRequestResponse({
         requestId,
         status: "submitted",
@@ -5303,9 +6902,14 @@ export function App() {
   // When opening a session from history, ensure we have the full task (including prompt)
   // in case it wasn't in the initial list or has stale data
   useEffect(() => {
-    if (!selectedTaskId || remoteTaskView || !window.electronAPI?.getTask) return;
+    if (!selectedTaskId || remoteTaskView || !window.electronAPI?.getTask)
+      return;
 
-    const hasPrompt = selectedTask && (selectedTask.rawPrompt || selectedTask.userPrompt || selectedTask.prompt);
+    const hasPrompt =
+      selectedTask &&
+      (selectedTask.rawPrompt ||
+        selectedTask.userPrompt ||
+        selectedTask.prompt);
     const displayPrompt = [
       selectedTask?.rawPrompt,
       selectedTask?.userPrompt,
@@ -5321,14 +6925,19 @@ export function App() {
     let cancelled = false;
     const fetchTask = async () => {
       try {
-        const fullTask = (await window.electronAPI.getTask(selectedTaskId)) as Task | null;
+        const fullTask = (await window.electronAPI.getTask(
+          selectedTaskId,
+        )) as Task | null;
         if (cancelled || !fullTask) return;
         fetchedFullTaskForMentionMetadataRef.current.add(selectedTaskId);
         setTasks((prev) =>
-          upsertTaskPreservingIdentity(prev, fullTask, { prependIfMissing: true }),
+          upsertTaskPreservingIdentity(prev, fullTask, {
+            prependIfMissing: true,
+          }),
         );
       } catch (error) {
-        if (!cancelled) console.error("Failed to fetch task for session view:", error);
+        if (!cancelled)
+          console.error("Failed to fetch task for session view:", error);
       }
     };
     void fetchTask();
@@ -5355,7 +6964,9 @@ export function App() {
         const task = (await window.electronAPI.getTask(taskId)) as Task | null;
         if (!task) return;
 
-        setTasks((prev) => upsertTaskPreservingIdentity(prev, task, { prependIfMissing: true }));
+        setTasks((prev) =>
+          upsertTaskPreservingIdentity(prev, task, { prependIfMissing: true }),
+        );
         markTaskSwitchStart(task.id);
         setSelectedTaskId(task.id);
       } catch (error) {
@@ -5366,7 +6977,13 @@ export function App() {
   );
 
   useEffect(() => {
-    if (!shouldClearUnseenOutputBadges(currentView === "main", effectiveRightCollapsed)) return;
+    if (
+      !shouldClearUnseenOutputBadges(
+        currentView === "main",
+        effectiveRightCollapsed,
+      )
+    )
+      return;
     if (unseenOutputTaskIds.length > 0) {
       setUnseenOutputTaskIds([]);
     }
@@ -5375,7 +6992,9 @@ export function App() {
   useEffect(() => {
     if (!selectedTaskId || currentView !== "main") return;
     setUnseenCompletedTaskIds((prev) =>
-      prev.includes(selectedTaskId) ? prev.filter((id) => id !== selectedTaskId) : prev,
+      prev.includes(selectedTaskId)
+        ? prev.filter((id) => id !== selectedTaskId)
+        : prev,
     );
   }, [selectedTaskId, currentView]);
 
@@ -5383,7 +7002,9 @@ export function App() {
     setUnseenCompletedTaskIds((prev) => {
       if (prev.length === 0) return prev;
       const completedTaskIds = new Set(
-        tasks.filter((task) => task.status === "completed").map((task) => task.id),
+        tasks
+          .filter((task) => task.status === "completed")
+          .map((task) => task.id),
       );
       const next = prev.filter((taskId) => completedTaskIds.has(taskId));
       return next.length === prev.length ? prev : next;
@@ -5400,13 +7021,38 @@ export function App() {
     return typeof unsubscribe === "function" ? unsubscribe : undefined;
   }, [openTaskById]);
 
+  useEffect(() => {
+    if (!titleBarTaskMenuOpen) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (
+        event.target instanceof Node &&
+        !titleBarTaskMenuRef.current?.contains(event.target)
+      ) {
+        setTitleBarTaskMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setTitleBarTaskMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [titleBarTaskMenuOpen]);
+
   if (!hasElectronAPI) {
     const isHttpContext =
       typeof window !== "undefined" &&
-      (window.location.protocol === "http:" || window.location.protocol === "https:");
+      (window.location.protocol === "http:" ||
+        window.location.protocol === "https:");
     const isViteDevServer =
       typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+      (window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1");
 
     if (isHttpContext && !isViteDevServer) {
       return <WebAccessClient />;
@@ -5416,18 +7062,22 @@ export function App() {
       <div className="app">
         <div className="title-bar" />
         <div className="empty-state">
-          <h2>Desktop bridge unavailable</h2>
+          <h2>
+            {t("app.desktopBridgeUnavailable", "Desktop bridge unavailable")}
+          </h2>
           <p>
-            CoWork OS is running without Electron preload APIs. Start it with `npm run dev` (not
-            only `npm run dev:react`) or relaunch the desktop app.
+            {t(
+              "app.desktopBridgeUnavailable.description",
+              "NeoWorker is running without Electron preload APIs. Start it with `npm run dev` (not only `npm run dev:react`) or relaunch the desktop app.",
+            )}
           </p>
         </div>
       </div>
     );
   }
 
-  // Show loading state while checking disclaimer/onboarding status
-  if (disclaimerAccepted === null || onboardingCompleted === null) {
+  // Show loading state while checking onboarding status.
+  if (onboardingCompleted === null) {
     return (
       <div className="app">
         <div className="title-bar" />
@@ -5436,57 +7086,193 @@ export function App() {
     );
   }
 
-  // Show onboarding on first launch
-  if (!onboardingCompleted) {
-    return (
-      <div className="app">
-        <Onboarding
-          onComplete={handleOnboardingComplete}
-          workspaceId={currentWorkspace?.id ?? null}
-        />
-      </div>
-    );
-  }
-
-  // Show disclaimer after onboarding is completed but before main app
-  if (!disclaimerAccepted) {
-    return (
-      <div className="app">
-        <div className="title-bar" />
-        <DisclaimerModal onAccept={handleDisclaimerAccept} />
-      </div>
-    );
-  }
+  const showSidebarShell =
+    currentView === "main" ||
+    currentView === "home" ||
+    currentView === "automations" ||
+    currentView === "devices" ||
+    currentView === "ideas" ||
+    currentView === "inboxAgent" ||
+    currentView === "agentTeam" ||
+    currentView === "projects" ||
+    currentView === "capabilityBundles" ||
+    currentView === "agents" ||
+    currentView === "agentsManage" ||
+    currentView === "companies" ||
+    currentView === "everydayAgent" ||
+    currentView === "missionControl";
+  const canNavigateBack = navigationIndexRef.current > 0;
+  const canNavigateForward =
+    navigationIndexRef.current < navigationHistoryRef.current.length - 1;
+  const leftSidebarShortcutLabel = getLeftSidebarShortcutLabel(
+    window.electronAPI.getPlatform(),
+  );
+  const collapsedShellTitle =
+    currentView === "home"
+      ? "NeoWorker"
+      : currentView === "agentTeam"
+        ? t("sidebar.agentTeam", "Agent team")
+        : currentView === "everydayAgent"
+          ? t("sidebar.everydayAgent", "Daily assistant")
+          : currentView === "projects"
+            ? t("sidebar.projects", "Project")
+            : currentView === "ideas"
+              ? t("sidebar.ideas", "Inspiration")
+              : currentView === "missionControl"
+                ? t("sidebar.automations", "Automation")
+                : currentView === "automations"
+                  ? t("sidebar.automations", "Automation")
+                  : currentView === "devices"
+                    ? t("sidebar.devices", "Equipment")
+                    : currentView === "capabilityBundles"
+                      ? t("sidebar.capabilityBundles", "Ability combination")
+                      : currentView === "agents"
+                        ? t("sidebar.toolsAndSkills", "Tools and Skills")
+                        : currentView === "agentsManage"
+                          ? t("sidebar.agents", "agent")
+                          : currentView === "companies"
+                            ? t("sidebar.companies", "enterprise")
+                            : "NeoWorker";
+  const titleBarContextTitle =
+    currentView === "main" && selectedTask
+      ? getManagedAgentTaskTitleForDisplay(selectedTask.title)
+      : leftSidebarCollapsed && showSidebarShell
+        ? collapsedShellTitle
+        : null;
+  const titleBarContextIsTask = currentView === "main" && Boolean(selectedTask);
 
   return (
     <div className="app">
-      <div className="title-bar">
+      <div
+        className={`title-bar ${showSidebarShell ? "with-sidebar-shell" : ""} ${
+          leftSidebarCollapsed ? "left-sidebar-collapsed" : ""
+        }`}
+      >
         <div className="title-bar-drag-handle" aria-hidden="true" />
         <div className="title-bar-left">
-          <button
-            type="button"
-            className="title-bar-btn title-bar-sidebar-toggle"
-            onClick={() => setLeftSidebarCollapsed(!leftSidebarCollapsed)}
-            title={leftSidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-            aria-label={leftSidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-          >
-            <svg
-              aria-hidden="true"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#6b7280"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ display: "block", flexShrink: 0 }}
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <line x1="9" y1="3" x2="9" y2="21" />
-            </svg>
-          </button>
+          {showSidebarShell && (
+            <>
+              <button
+                type="button"
+                className="title-bar-btn title-bar-sidebar-toggle"
+                onClick={handleLeftSidebarToggle}
+                title={`${
+                  leftSidebarCollapsed
+                    ? t("app.action.showSidebar", "Show sidebar")
+                    : t("app.action.hideSidebar", "Hide sidebar")
+                } (${leftSidebarShortcutLabel})`}
+                aria-label={
+                  leftSidebarCollapsed
+                    ? t("app.action.showSidebar", "Show sidebar")
+                    : t("app.action.hideSidebar", "Hide sidebar")
+                }
+              >
+                <PanelLeft aria-hidden="true" size={16} strokeWidth={1.65} />
+              </button>
+              <button
+                type="button"
+                className="title-bar-btn title-bar-navigation-btn"
+                onClick={handleNavigateBack}
+                disabled={!canNavigateBack}
+                title={t("app.action.navigateBack", "Back")}
+                aria-label={t("app.action.navigateBack", "Back")}
+              >
+                <ArrowLeft aria-hidden="true" size={16} strokeWidth={1.65} />
+              </button>
+              <button
+                type="button"
+                className="title-bar-btn title-bar-navigation-btn"
+                onClick={handleNavigateForward}
+                disabled={!canNavigateForward}
+                title={t("app.action.navigateForward", "Forward")}
+                aria-label={t("app.action.navigateForward", "Forward")}
+              >
+                <ArrowRight aria-hidden="true" size={16} strokeWidth={1.65} />
+              </button>
+            </>
+          )}
         </div>
+        {titleBarContextTitle && (
+          <div className="title-bar-context">
+            {titleBarContextIsTask && (
+              <Folder aria-hidden="true" size={15} strokeWidth={1.7} />
+            )}
+            <span
+              className="title-bar-context-title"
+              title={titleBarContextTitle}
+            >
+              {titleBarContextTitle}
+            </span>
+            {titleBarContextIsTask && selectedTask && (
+              <div
+                className="title-bar-task-menu-container"
+                ref={titleBarTaskMenuRef}
+              >
+                <button
+                  type="button"
+                  className={`title-bar-btn title-bar-task-menu-btn ${
+                    titleBarTaskMenuOpen ? "active" : ""
+                  }`}
+                  aria-haspopup="menu"
+                  aria-expanded={titleBarTaskMenuOpen}
+                  aria-controls="title-bar-task-menu"
+                  title={t("task.actions.title", "Task actions")}
+                  aria-label={t("task.actions.title", "Task actions")}
+                  onClick={() => setTitleBarTaskMenuOpen((open) => !open)}
+                >
+                  <Ellipsis aria-hidden="true" size={16} strokeWidth={1.8} />
+                </button>
+                {titleBarTaskMenuOpen && (
+                  <div
+                    id="title-bar-task-menu"
+                    className="title-bar-task-menu"
+                    role="menu"
+                    aria-label={t("task.actions.title", "Task actions")}
+                  >
+                    <button
+                      type="button"
+                      className="title-bar-task-menu-item"
+                      role="menuitem"
+                      disabled={Boolean(remoteTaskView)}
+                      onClick={() => void handleTitleBarTaskPin()}
+                    >
+                      {selectedTask.pinned ? (
+                        <PinOff aria-hidden="true" size={15} />
+                      ) : (
+                        <Pin aria-hidden="true" size={15} />
+                      )}
+                      <span>
+                        {selectedTask.pinned
+                          ? t("task.actions.unpin", "Unpin task")
+                          : t("task.actions.pin", "Pin task")}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="title-bar-task-menu-item"
+                      role="menuitem"
+                      disabled={Boolean(remoteTaskView)}
+                      onClick={() => void handleTitleBarTaskRename()}
+                    >
+                      <Pencil aria-hidden="true" size={15} />
+                      <span>{t("task.actions.rename", "Rename task")}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="title-bar-task-menu-item danger"
+                      role="menuitem"
+                      disabled={Boolean(remoteTaskView)}
+                      onClick={() => void handleTitleBarTaskArchive()}
+                    >
+                      <Archive aria-hidden="true" size={15} />
+                      <span>{t("task.actions.archive", "Archive task")}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         <div className="title-bar-spacer" />
         <div className="title-bar-actions">
           {titleBarBrowserTaskId && (
@@ -5500,105 +7286,32 @@ export function App() {
                   requestId: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                 });
               }}
-              title="Open browser"
-              aria-label="Open browser"
+              title={t("app.action.openBrowser", "Open browser")}
+              aria-label={t("app.action.openBrowser", "Open browser")}
             >
-              <svg
-                aria-hidden="true"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#6b7280"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ display: "block", flexShrink: 0 }}
-              >
-                <circle cx="12" cy="12" r="9" />
-                <path d="M3 12h18" />
-                <path d="M12 3a13.5 13.5 0 0 1 0 18" />
-                <path d="M12 3a13.5 13.5 0 0 0 0 18" />
-              </svg>
+              <Globe2 aria-hidden="true" size={16} strokeWidth={1.65} />
             </button>
           )}
           {showTitleBarTerminalToggle && (
             <button
               type="button"
               className={`title-bar-btn title-bar-terminal-toggle ${terminalTabsOpen ? "active" : ""}`}
-              onClick={() => setTerminalTabsOpen((open) => !open)}
-              title={terminalTabsOpen ? "Close terminal" : "Open terminal"}
-              aria-label={terminalTabsOpen ? "Close terminal" : "Open terminal"}
+              onClick={() => void handleTerminalTabsToggle()}
+              title={
+                terminalTabsOpen
+                  ? t("app.action.closeTerminal", "Close terminal")
+                  : t("app.action.openTerminal", "Open terminal")
+              }
+              aria-label={
+                terminalTabsOpen
+                  ? t("app.action.closeTerminal", "Close terminal")
+                  : t("app.action.openTerminal", "Open terminal")
+              }
               aria-pressed={terminalTabsOpen}
             >
-              <svg
-                aria-hidden="true"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#6b7280"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ display: "block", flexShrink: 0 }}
-              >
-                <path d="m7 11 2 2-2 2" />
-                <path d="M11 15h4" />
-                <rect x="3" y="4" width="18" height="16" rx="2" ry="2" />
-              </svg>
+              <SquareTerminal aria-hidden="true" size={16} strokeWidth={1.65} />
             </button>
           )}
-          <button
-            type="button"
-            className="title-bar-btn title-bar-theme-toggle"
-            onClick={() => {
-              const effectiveTheme = getEffectiveTheme(themeMode);
-              handleThemeChange(effectiveTheme === "dark" ? "light" : "dark");
-            }}
-            title={`Switch to ${getEffectiveTheme(themeMode) === "dark" ? "light" : "dark"} mode`}
-            aria-label={`Switch to ${getEffectiveTheme(themeMode) === "dark" ? "light" : "dark"} mode`}
-          >
-            {getEffectiveTheme(themeMode) === "dark" ? (
-              <svg
-                aria-hidden="true"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#6b7280"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ display: "block", flexShrink: 0 }}
-              >
-                <circle cx="12" cy="12" r="5" />
-                <line x1="12" y1="1" x2="12" y2="3" />
-                <line x1="12" y1="21" x2="12" y2="23" />
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                <line x1="1" y1="12" x2="3" y2="12" />
-                <line x1="21" y1="12" x2="23" y2="12" />
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-              </svg>
-            ) : (
-              <svg
-                aria-hidden="true"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#6b7280"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ display: "block", flexShrink: 0 }}
-              >
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-              </svg>
-            )}
-          </button>
           <NotificationPanel
             onNotificationClick={(notification) => {
               // Prioritize taskId to show the completed task result
@@ -5610,9 +7323,11 @@ export function App() {
                 void (async () => {
                   try {
                     if (notification.workspaceId) {
-                      const workspaces = await window.electronAPI.listWorkspaces();
+                      const workspaces =
+                        await window.electronAPI.listWorkspaces();
                       const targetWorkspace = workspaces.find(
-                        (workspace) => workspace.id === notification.workspaceId,
+                        (workspace) =>
+                          workspace.id === notification.workspaceId,
                       );
                       if (targetWorkspace) {
                         setCurrentWorkspace(targetWorkspace);
@@ -5634,74 +7349,44 @@ export function App() {
               }
             }}
           />
-          <button
-            type="button"
-            className={`title-bar-btn density-toggle ${uiDensity}`}
-            onClick={() => handleUiDensityChange(uiDensity === "focused" ? "full" : "focused")}
-            title={uiDensity === "focused" ? "Switch to Full mode" : "Switch to Focused mode"}
-            aria-label={uiDensity === "focused" ? "Switch to Full mode" : "Switch to Focused mode"}
-          >
-            {uiDensity === "focused" ? (
-              <svg
-                aria-hidden="true"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#6b7280"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ display: "block", flexShrink: 0 }}
-              >
-                <rect x="4" y="5" width="16" height="14" rx="2" />
-                <line x1="4" y1="12" x2="20" y2="12" />
-              </svg>
-            ) : (
-              <svg
-                aria-hidden="true"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#6b7280"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ display: "block", flexShrink: 0 }}
-              >
-                <rect x="4" y="4" width="16" height="16" rx="2" />
-                <line x1="4" y1="9" x2="20" y2="9" />
-                <line x1="4" y1="14" x2="20" y2="14" />
-                <line x1="12" y1="4" x2="12" y2="20" />
-              </svg>
-            )}
-          </button>
           {currentView === "main" && (
             <button
               type="button"
               className="title-bar-btn title-bar-panel-toggle"
               onClick={handleRightSidebarToggle}
-              title={effectiveRightCollapsed ? "Show panel" : "Hide panel"}
-              aria-label={effectiveRightCollapsed ? "Show panel" : "Hide panel"}
+              title={
+                effectiveRightCollapsed
+                  ? t("app.action.showPanel", "Show panel")
+                  : t("app.action.hidePanel", "Hide panel")
+              }
+              aria-label={
+                effectiveRightCollapsed
+                  ? t("app.action.showPanel", "Show panel")
+                  : t("app.action.hidePanel", "Hide panel")
+              }
             >
               <svg
+                className="title-bar-panel-toggle-icon"
                 aria-hidden="true"
-                width="18"
-                height="18"
+                width="16"
+                height="16"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#6b7280"
-                strokeWidth="2"
+                stroke="currentColor"
+                strokeWidth="1.8"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                style={{ display: "block", flexShrink: 0 }}
               >
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <rect x="3" y="3" width="18" height="18" rx="2" />
                 <line x1="15" y1="3" x2="15" y2="21" />
               </svg>
               {effectiveRightCollapsed && unseenOutputCount > 0 && (
-                <span className="title-bar-output-badge" aria-label={`${unseenOutputCount} new outputs`}>
+                <span
+                  className="title-bar-output-badge"
+                  aria-label={t("app.output.newCount", "{count} new outputs", {
+                    count: unseenOutputCount,
+                  })}
+                >
                   {unseenOutputCount > 9 ? "9+" : unseenOutputCount}
                 </span>
               )}
@@ -5715,7 +7400,7 @@ export function App() {
               type="button"
               className="win-control-btn"
               onClick={() => window.electronAPI.windowMinimize()}
-              aria-label="Minimize"
+              aria-label={t("app.window.minimize", "Minimize")}
             >
               <svg viewBox="0 0 10 10" aria-hidden="true">
                 <line x1="0" y1="5" x2="10" y2="5" />
@@ -5725,7 +7410,7 @@ export function App() {
               type="button"
               className="win-control-btn"
               onClick={() => window.electronAPI.windowMaximize()}
-              aria-label="Maximize"
+              aria-label={t("app.window.maximize", "Maximize")}
             >
               <svg viewBox="0 0 10 10" aria-hidden="true">
                 <rect x="0.5" y="0.5" width="9" height="9" />
@@ -5735,7 +7420,7 @@ export function App() {
               type="button"
               className="win-control-btn win-close"
               onClick={() => window.electronAPI.windowClose()}
-              aria-label="Close"
+              aria-label={t("common.close", "Close")}
             >
               <svg viewBox="0 0 10 10" aria-hidden="true">
                 <line x1="0" y1="0" x2="10" y2="10" />
@@ -5745,63 +7430,115 @@ export function App() {
           </div>
         )}
       </div>
-      {(currentView === "main" ||
-        currentView === "home" ||
-        currentView === "devices" ||
-        currentView === "health" ||
-        currentView === "ideas" ||
-        currentView === "inboxAgent" ||
-        currentView === "agents" ||
-        currentView === "everydayAgent" ||
-        currentView === "missionControl") && (
+      {showSidebarShell && (
         <>
           <div
-            className={`app-layout ${leftSidebarCollapsed ? "left-collapsed" : ""} ${effectiveRightCollapsed ? "right-collapsed" : ""}`}
+            className={`app-layout ${leftSidebarCollapsed ? "left-collapsed" : ""} ${effectiveRightCollapsed ? "right-collapsed" : ""} ${artifactFocusModeActive ? "artifact-focus-mode" : ""}`}
           >
-            {!leftSidebarCollapsed && (
+            {leftSidebarCollapsed ? (
+              <CollapsedSidebarRail
+                isSessionsActive={currentView === "main"}
+                isEverydayAgentActive={currentView === "everydayAgent"}
+                isAgentTeamActive={currentView === "agentTeam"}
+                isIdeasActive={currentView === "ideas"}
+                isAutomationsActive={
+                  currentView === "automations" ||
+                  currentView === "missionControl"
+                }
+                isToolsAndSkillsActive={
+                  currentView === "agents" ||
+                  currentView === "agentsManage" ||
+                  currentView === "capabilityBundles"
+                }
+                onExpand={handleLeftSidebarToggle}
+                onNewSession={handleNewSession}
+                onOpenEverydayAgent={() => setCurrentView("everydayAgent")}
+                onOpenAgentTeam={() => setCurrentView("agentTeam")}
+                onOpenIdeas={() => setCurrentView("ideas")}
+                onOpenAutomations={() => setCurrentView("automations")}
+                onOpenToolsAndSkills={() => setCurrentView("agents")}
+                onOpenSettings={handleOpenSettings}
+              />
+            ) : (
               <Sidebar
                 workspace={currentWorkspace}
                 tasks={tasks}
                 selectedTaskId={selectedTaskId}
-                isHomeActive={currentView === "home"}
-                isIdeasActive={currentView === "ideas"}
-                isInboxAgentActive={currentView === "inboxAgent"}
-                isAgentsActive={currentView === "agents"}
                 isEverydayAgentActive={currentView === "everydayAgent"}
-                isMissionControlActive={currentView === "missionControl"}
-                isHealthActive={currentView === "health"}
+                isAgentTeamActive={currentView === "agentTeam"}
+                isIdeasActive={currentView === "ideas"}
+                isAutomationsActive={
+                  currentView === "automations" ||
+                  currentView === "missionControl"
+                }
+                isToolsAndSkillsActive={
+                  currentView === "agents" ||
+                  currentView === "agentsManage" ||
+                  currentView === "capabilityBundles"
+                }
                 isDevicesActive={currentView === "devices"}
                 isLoadingSessions={isInitialTaskListLoading}
                 isLoadingMoreTasks={isLoadingMoreTasks}
                 completionAttentionTaskIds={unseenCompletedTaskIds}
                 onSelectTask={handleSelectTaskFromShell}
-                onOpenHome={() => setCurrentView("home")}
-                onOpenIdeas={() => setCurrentView("ideas")}
-                onOpenInboxAgent={() => setCurrentView("inboxAgent")}
-                onOpenAgents={() => setCurrentView("agents")}
                 onOpenEverydayAgent={() => setCurrentView("everydayAgent")}
-                onOpenHealth={() => setCurrentView("health")}
-                onOpenDevices={() => setCurrentView("devices")}
+                onOpenAgentTeam={() => setCurrentView("agentTeam")}
+                onOpenIdeas={() => setCurrentView("ideas")}
+                onOpenToolsAndSkills={() => setCurrentView("agents")}
+                onOpenDevices={() => {
+                  setSettingsTab("devices");
+                  setCurrentView("settings");
+                }}
                 onNewSession={handleNewSession}
                 onOpenSettings={handleOpenSettings}
-                onOpenMissionControl={handleOpenMissionControl}
+                onOpenSetupGuide={handleOpenSetupGuide}
+                onOpenAutomations={() => setCurrentView("automations")}
                 onTasksChanged={loadTasks}
                 onLoadMoreTasks={loadMoreTasks}
                 hasMoreTasks={hasMoreTasks}
                 uiDensity={uiDensity}
-                updateInfo={updateInfo}
+                updateInfo={null}
                 onViewUpdate={() => {
                   setSettingsTab("updates");
                   setCurrentView("settings");
                 }}
               />
             )}
+            {(hasMountedMissionControl || currentView === "missionControl") && (
+              <Suspense
+                fallback={
+                  currentView === "missionControl" ? <LazyViewFallback /> : null
+                }
+              >
+                <main
+                  className="main-content mission-control-main"
+                  hidden={currentView !== "missionControl"}
+                >
+                  <MissionControlPanel
+                    onOpenAutomations={() => setCurrentView("automations")}
+                    onOpenTask={handleOpenManagedAgentTask}
+                    onTasksChanged={loadTasks}
+                    initialCompanyId={missionControlInitialCompanyId}
+                    initialIssueId={missionControlInitialIssueId}
+                    initialEverydayAgentFocus={missionControlEverydayAgentFocus}
+                    initialTab={missionControlInitialTab}
+                    navigationRequestId={missionControlNavigationRequestId}
+                    isActive={currentView === "missionControl"}
+                  />
+                </main>
+              </Suspense>
+            )}
             <Suspense
               fallback={
-                currentView === "main" ? <TaskViewSkeleton /> : <LazyViewFallback />
+                currentView === "main" ? (
+                  <TaskViewSkeleton />
+                ) : (
+                  <LazyViewFallback />
+                )
               }
             >
-              {currentView === "home" ? (
+              {currentView === "missionControl" ? null : currentView ===
+                "home" ? (
                 <HomeDashboard
                   workspace={currentWorkspace}
                   tasks={tasks}
@@ -5815,13 +7552,9 @@ export function App() {
                     setSettingsTab("scheduled");
                     setCurrentView("settings");
                   }}
-                  onOpenMissionControl={() => {
-                    setMissionControlInitialCompanyId(null);
-                    setMissionControlInitialIssueId(null);
-                    setMissionControlEverydayAgentFocus(false);
-                    setCurrentView("missionControl");
-                  }}
+                  onOpenMissionControl={handleOpenMissionControl}
                   onOpenEverydayAgent={() => setCurrentView("everydayAgent")}
+                  onOpenAutomations={() => setCurrentView("automations")}
                   onOpenEventTriggers={() => {
                     setSettingsTab("triggers");
                     setCurrentView("settings");
@@ -5830,106 +7563,248 @@ export function App() {
                     setSettingsTab("subconscious");
                     setCurrentView("settings");
                   }}
+                  onOpenAgentManagement={() => setCurrentView("agentsManage")}
+                  onOpenComposerDraft={(draft, targetWorkspace) =>
+                    handleOpenComposerDraft(draft, undefined, targetWorkspace)
+                  }
                   onCreateTask={handleCreateTask}
+                />
+              ) : currentView === "agentTeam" ? (
+                <TeamWorkspacePanel
+                  workspace={currentWorkspace}
+                  tasks={tasks}
+                  selectedRole={agentTeamSelectedRole}
+                  onSelectedRoleChange={setAgentTeamSelectedRole}
+                  onStartTask={(
+                    title,
+                    prompt,
+                    selectedWorkspace,
+                    agentRoleId,
+                  ) =>
+                    handleCreateTask(
+                      title,
+                      prompt,
+                      agentRoleId
+                        ? {
+                            assignedAgentRoleId: agentRoleId,
+                            executionMode: "execute",
+                          }
+                        : {
+                            collaborativeMode: true,
+                            executionMode: "execute",
+                          },
+                      undefined,
+                      selectedWorkspace,
+                    )
+                  }
+                  onOpenTask={handleOpenManagedAgentTask}
+                  onSelectWorkspace={(workspace) =>
+                    handleSelectWorkspace(workspace, {
+                      reassignSelectedTask: false,
+                    })
+                  }
+                  onAddWorkspace={() =>
+                    handleChangeWorkspace({ reassignSelectedTask: false })
+                  }
+                />
+              ) : FEATURE_VISIBILITY.projects && currentView === "projects" ? (
+                <ProjectHubPanel
+                  currentWorkspace={currentWorkspace}
+                  currentProjectId={currentProjectId}
+                  tasks={tasks}
+                  onSelectProject={(project, workspace) => {
+                    setCurrentProjectId(project.id);
+                    setCurrentWorkspace(workspace);
+                  }}
+                  onOpenTask={handleOpenManagedAgentTask}
+                  onStartWork={(project, workspace, options) => {
+                    setCurrentProjectId(project.id);
+                    setCurrentWorkspace(workspace);
+                    setSelectedTaskId(null);
+                    setEvents([]);
+                    clearRemoteTaskView();
+                    if (options?.draft) {
+                      composerDraftRequestIdRef.current += 1;
+                      setComposerDraftRequest({
+                        id: composerDraftRequestIdRef.current,
+                        value: options.draft,
+                      });
+                    }
+                    setCurrentView("main");
+                  }}
+                  onProjectArchived={(projectId) => {
+                    if (currentProjectId === projectId) {
+                      setCurrentProjectId(null);
+                    }
+                  }}
+                />
+              ) : currentView === "capabilityBundles" ? (
+                <CapabilityCenter
+                  initialTab="bundles"
+                  onOpenExperts={() => setCurrentView("agentsManage")}
+                  onCreateExpertTask={handleCreateTask}
+                  onUseBundle={async (selection) => {
+                    await handleOpenComposerDraft(selection.prompt);
+                  }}
+                />
+              ) : currentView === "agents" ? (
+                <CapabilityCenter
+                  onOpenExperts={() => setCurrentView("agentsManage")}
+                  onCreateExpertTask={handleCreateTask}
+                  onUseSkill={async (selection) => {
+                    await handleOpenComposerDraft(selection.prompt, {
+                      skillId: selection.skillId,
+                      skillLabel: selection.skillLabel,
+                    });
+                  }}
+                  onUseBundle={async (selection) => {
+                    await handleOpenComposerDraft(selection.prompt);
+                  }}
+                />
+              ) : currentView === "automations" ? (
+                <AutomationHubPanel
+                  tasks={tasks}
+                  focusSection={automationFocusSection}
+                  onFocusHandled={() => setAutomationFocusSection(null)}
+                  onOpenTask={(taskId) => {
+                    setSelectedTaskId(taskId);
+                    setCurrentView("main");
+                  }}
                 />
               ) : currentView === "devices" ? (
                 <DevicesPanel
-                onOpenTask={(taskId, remote) => {
-                  if (remote) {
-                    void openRemoteTaskView(taskId, remote);
-                    return;
-                  }
-                  clearRemoteTaskView();
-                  setSelectedTaskId(taskId);
-                  setCurrentView("main");
-                }}
-                onCreateTaskHere={async (prompt, options) => {
-                  const title = prompt.slice(0, 50) + (prompt.length > 50 ? "..." : "");
-                  clearRemoteTaskView();
-                  if (options?.shellAccess && currentWorkspace) {
-                    try {
-                      const updated = await window.electronAPI?.updateWorkspacePermissions?.(currentWorkspace.id, { shell: true });
-                      if (updated) setCurrentWorkspace(updated);
-                    } catch (e) {
-                      console.warn("[Devices] Failed to enable shell for workspace:", e);
+                  onOpenTask={(taskId, remote) => {
+                    if (remote) {
+                      void openRemoteTaskView(taskId, remote);
+                      return;
                     }
-                  }
-                  await handleCreateTask(title, prompt, options ? {
-                    autonomousMode: options.autonomousMode,
-                    collaborativeMode: options.collaborativeMode,
-                    multiLlmMode: options.multiLlmMode,
-                    multiLlmConfig: options.multiLlmConfig,
-                    executionMode: options.executionMode,
-                    taskDomain: options.taskDomain,
-                    chronicleMode: options.chronicleMode,
-                  } : undefined);
-                  loadTasks();
-                }}
-                onNewTaskForDevice={async (nodeId, prompt, options) => {
-                  try {
-                    const res = await window.electronAPI?.deviceAssignTask?.({
-                      nodeId,
+                    clearRemoteTaskView();
+                    setSelectedTaskId(taskId);
+                    setCurrentView("main");
+                  }}
+                  onCreateTaskHere={async (prompt, options) => {
+                    const title =
+                      prompt.slice(0, 50) + (prompt.length > 50 ? "..." : "");
+                    clearRemoteTaskView();
+                    if (options?.shellAccess && currentWorkspace) {
+                      try {
+                        const updated =
+                          await window.electronAPI?.updateWorkspacePermissions?.(
+                            currentWorkspace.id,
+                            { shell: true },
+                          );
+                        if (updated) setCurrentWorkspace(updated);
+                      } catch (e) {
+                        console.warn(
+                          "[Devices] Failed to enable shell for workspace:",
+                          e,
+                        );
+                      }
+                    }
+                    await handleCreateTask(
+                      title,
                       prompt,
-                      workspaceId: currentWorkspace?.id,
-                      agentConfig: options ? {
-                        ...(options.autonomousMode && {
-                          autonomousMode: true,
-                          allowUserInput: false,
-                          humanInputPolicy: "none" as const,
-                        }),
-                        ...(options.collaborativeMode && { collaborativeMode: true }),
-                        ...(options.multiLlmMode && { multiLlmMode: true, multiLlmConfig: options.multiLlmConfig }),
-                        ...(options.executionMode && { executionMode: options.executionMode }),
-                        ...(options.taskDomain && { taskDomain: options.taskDomain }),
-                        ...(options.chronicleMode && { chronicleMode: options.chronicleMode }),
-                      } : undefined,
-                      shellAccess: options?.shellAccess,
-                    });
-                    
-                    if (res?.ok) {
-                      addToast({
-                        type: "success",
-                        title: "Task Started Remotely",
-                        message: "The task is now running on the remote device."
+                      options
+                        ? {
+                            autonomousMode: options.autonomousMode,
+                            collaborativeMode: options.collaborativeMode,
+                            multiLlmMode: options.multiLlmMode,
+                            multiLlmConfig: options.multiLlmConfig,
+                            executionMode: options.executionMode,
+                            taskDomain: options.taskDomain,
+                            chronicleMode: options.chronicleMode,
+                          }
+                        : undefined,
+                    );
+                    loadTasks();
+                  }}
+                  onNewTaskForDevice={async (nodeId, prompt, options) => {
+                    try {
+                      const res = await window.electronAPI?.deviceAssignTask?.({
+                        nodeId,
+                        prompt,
+                        workspaceId: currentWorkspace?.id,
+                        agentConfig: options
+                          ? {
+                              ...(options.autonomousMode && {
+                                autonomousMode: true,
+                                allowUserInput: false,
+                                humanInputPolicy: "none" as const,
+                              }),
+                              ...(options.collaborativeMode && {
+                                collaborativeMode: true,
+                              }),
+                              ...(options.multiLlmMode && {
+                                multiLlmMode: true,
+                                multiLlmConfig: options.multiLlmConfig,
+                              }),
+                              ...(options.executionMode && {
+                                executionMode: options.executionMode,
+                              }),
+                              ...(options.taskDomain && {
+                                taskDomain: options.taskDomain,
+                              }),
+                              ...(options.chronicleMode && {
+                                chronicleMode: options.chronicleMode,
+                              }),
+                            }
+                          : undefined,
+                        shellAccess: options?.shellAccess,
                       });
-                      // Refresh task list to show the new task in the sidebar/dashboard
-                      loadTasks();
-                    } else {
-                      throw new Error(res?.error || "Unknown error assigning task");
+
+                      if (res?.ok) {
+                        addToast({
+                          type: "success",
+                          title: t(
+                            "app.toast.remoteTaskStarted.title",
+                            "Task Started Remotely",
+                          ),
+                          message: t(
+                            "app.toast.remoteTaskStarted.message",
+                            "The task is now running on the remote device.",
+                          ),
+                        });
+                        // Refresh task list to show the new task in the sidebar/dashboard
+                        loadTasks();
+                      } else {
+                        throw new Error(
+                          res?.error || "Unknown error assigning task",
+                        );
+                      }
+                    } catch (err: any) {
+                      console.error(
+                        "[Devices] deviceAssignTask record failed:",
+                        err,
+                      );
+                      addToast({
+                        type: "error",
+                        title: t(
+                          "app.toast.remoteTaskFailed.title",
+                          "Remote Task Failed",
+                        ),
+                        message:
+                          err?.message ||
+                          t(
+                            "app.error.startRemoteTask",
+                            "Failed to start task on remote device",
+                          ),
+                      });
                     }
-                  } catch (err: any) {
-                    console.error("[Devices] deviceAssignTask record failed:", err);
-                    addToast({
-                      type: "error",
-                      title: "Remote Task Failed",
-                      message: err?.message || "Failed to start task on remote device"
-                    });
-                  }
-                }}
-                workspace={currentWorkspace}
-                onOpenSettings={(tab) => {
-                  setSettingsTab(
-                    tab === "improvement"
-                      ? "subconscious"
-                      : ((tab as typeof settingsTab | undefined) || "appearance"),
-                  );
-                  setCurrentView("settings");
-                }}
-                availableProviders={availableProviders}
-                />
-              ) : currentView === "health" ? (
-                <HealthPanel
-                  onOpenSettings={() => {
-                    setSettingsTab("health");
+                  }}
+                  workspace={currentWorkspace}
+                  onOpenSettings={(tab) => {
+                    setSettingsTab(
+                      tab === "improvement"
+                        ? "subconscious"
+                        : (tab as typeof settingsTab | undefined) ||
+                            "appearance",
+                    );
                     setCurrentView("settings");
                   }}
-                  onCreateTask={(title, prompt) => {
-                    setCurrentView("main");
-                    handleCreateTask(title, prompt);
-                  }}
+                  availableProviders={availableProviders}
                 />
               ) : currentView === "ideas" ? (
-                <IdeasPanel onCreateTaskFromPrompt={handleCreateTaskFromIdea} />
+                <IdeasPanel onUsePrompt={handleUseIdeaPrompt} />
               ) : currentView === "inboxAgent" ? (
                 <InboxAgentPanel
                   externalAskRequest={inboxAgentAskRequest}
@@ -5937,130 +7812,185 @@ export function App() {
                     setMissionControlInitialCompanyId(companyId);
                     setMissionControlInitialIssueId(issueId);
                     setMissionControlEverydayAgentFocus(false);
+                    setMissionControlInitialTab("overview");
+                    setMissionControlNavigationRequestId(
+                      (requestId) => requestId + 1,
+                    );
                     setCurrentView("missionControl");
                   }}
                 />
-              ) : currentView === "agents" ? (
-                <main className="main-content">
-                  <AgentsHubPanel
-                    onOpenMissionControl={() => {
-                      setMissionControlInitialCompanyId(null);
-                      setMissionControlInitialIssueId(null);
-                      setMissionControlEverydayAgentFocus(false);
-                      setCurrentView("missionControl");
-                    }}
-                    onOpenAgentPersonas={() => {
-                      setSettingsTab("digitaltwins");
-                      setCurrentView("settings");
-                    }}
-                    onOpenSlackSettings={() => {
-                      setSettingsTab("slack");
-                      setCurrentView("settings");
-                    }}
-                    onOpenSettings={(tab) => {
-                      setSettingsTab(tab);
-                      setCurrentView("settings");
-                    }}
-                    onOpenTask={handleOpenManagedAgentTask}
-                  />
-                </main>
+              ) : currentView === "agentsManage" ? (
+                <SimpleAgentBuilderPanel
+                  workspace={currentWorkspace}
+                  onBack={() => setCurrentView("agentTeam")}
+                  onSelectRole={(role) => {
+                    setAgentTeamSelectedRole(role);
+                    setCurrentView("agentTeam");
+                  }}
+                />
               ) : currentView === "everydayAgent" ? (
                 <EverydayAgentPanel
                   workspace={currentWorkspace}
-                  onOpenSettings={() => {
-                    setSettingsTab("everydayAgent");
-                    setCurrentView("settings");
+                  tasks={tasks}
+                  onOpenMissionControl={handleOpenMissionControl}
+                  onOpenApproval={handleOpenApproval}
+                  onOpenAutomationRuns={() => {
+                    setAutomationFocusSection("activity");
+                    setCurrentView("automations");
                   }}
-                  onOpenMissionControl={() => {
-                    setMissionControlInitialCompanyId(null);
-                    setMissionControlInitialIssueId(null);
-                    setMissionControlEverydayAgentFocus(true);
-                    setCurrentView("missionControl");
+                  onStartNewWork={() => {
+                    void handleStartNewWork();
                   }}
-                  onCreateTask={(title, prompt) => {
-                    setCurrentView("main");
-                    handleCreateTask(title, prompt);
-                  }}
+                  onCreateTask={(title, prompt) =>
+                    handleCreateTask(title, prompt)
+                  }
+                  onOpenComposerDraft={(draft, targetWorkspace) =>
+                    handleOpenComposerDraft(draft, undefined, targetWorkspace)
+                  }
                 />
-              ) : currentView === "missionControl" ? (
-                <main className="main-content mission-control-main">
-                  <MissionControlPanel
-                    onOpenAgents={() => setCurrentView("agents")}
-                    initialCompanyId={missionControlInitialCompanyId}
-                    initialIssueId={missionControlInitialIssueId}
-                    initialEverydayAgentFocus={missionControlEverydayAgentFocus}
+              ) : currentView === "companies" ? (
+                <main className="main-content company-management-main">
+                  <CompaniesPanel
+                    onOpenMissionControl={(companyId) => {
+                      setMissionControlInitialCompanyId(companyId);
+                      setMissionControlInitialIssueId(null);
+                      setMissionControlEverydayAgentFocus(false);
+                      setMissionControlInitialTab("overview");
+                      setMissionControlNavigationRequestId(
+                        (requestId) => requestId + 1,
+                      );
+                      setCurrentView("missionControl");
+                    }}
+                    onOpenDigitalTwins={() => setCurrentView("agents")}
                   />
                 </main>
               ) : (
                 <SelectedTaskWorkspaceView
-                task={selectedTask}
-                selectedTaskId={selectedTaskId}
-                workspace={currentWorkspace}
-                replayControls={replayControls}
-                sharedTaskEventUi={sharedTaskEventUi}
-                remoteTaskView={remoteTaskView}
-                childTasks={childTasks}
-                childEvents={childEvents}
-                activeInputRequest={activeInputRequest}
-                pendingInputRequests={pendingInputRequests}
-                selectedModel={selectedModel}
-                selectedProvider={selectedProvider}
-                selectedReasoningEffort={selectedReasoningEffort}
-                availableModels={availableModels}
-                availableProviders={availableProviders}
-                uiDensity={uiDensity}
-                homeResearchVaultEnabled={homeResearchVaultEnabled}
-                homeNextActionsEnabled={homeNextActionsEnabled}
-                rendererPerfLoggingEnabled={rendererPerfLoggingEnabled}
-                taskSwitchId={selectedTaskSwitchId}
-                hasMoreTimelineHistory={selectedTaskTimelineHistory.hasMoreHistory}
-                isLoadingTimelineHistory={selectedTaskTimelineHistory.isLoadingMore}
-                timelineHistoryError={selectedTaskTimelineHistory.error}
-                onLoadMoreTimelineHistory={handleLoadMoreTaskTimelineHistory}
-                onLoadTaskEventDetail={handleLoadTaskEventDetail}
-                effectiveRightCollapsed={effectiveRightCollapsed}
-                terminalTabsOpen={terminalTabsOpen}
-                browserWorkbenchRequest={browserWorkbenchRequest}
-                sideChat={sideChat}
-                rightPanelInput={visibleRightPanelInput}
-                onSelectChildTask={handleSelectChildTaskFromMainContent}
-                onSelectTask={handleSelectTaskFromShell}
-                onSendMessage={handleSendMessage}
-                onOpenSideChat={handleOpenSideChat}
-                onSendSideChatMessage={handleSendSideChatMessage}
-                onCloseSideChat={handleCloseSideChat}
-                onOpenSideChatFullThread={handleOpenSideChatFullThread}
-                onStartOnboarding={handleShowOnboarding}
-                onStartFreshSession={handleClearTaskView}
-                onCreateTask={handleCreateTask}
-                onAskInbox={handleAskInboxFromComposer}
-                onChangeWorkspace={handleChangeWorkspace}
-                onSelectWorkspace={handleSelectWorkspace}
-                onOpenSettings={(tab) => {
-                  setSettingsTab((tab as typeof settingsTab | undefined) || "appearance");
-                  setCurrentView("settings");
-                }}
-                onStopTask={handleCancelTask}
-                onEnableShellForPausedTask={handleEnableShellForPausedTask}
-                onContinueWithoutShellForPausedTask={handleContinueWithoutShellForPausedTask}
-                onWrapUpTask={handleWrapUpTask}
-                onSubmitInputRequest={handleSubmitInputRequestFromMainContent}
-                onDismissInputRequest={handleDismissInputRequestFromMainContent}
-                onOpenBrowserView={handleOpenBrowserView}
-                onRevealRightSidebar={handleRevealRightSidebar}
-                onViewTaskOutputs={handleViewTaskOutputsFromMainContent}
-                onTasksChanged={loadTasks}
-                onCancelTaskById={handleCancelTaskById}
-                onHighlightConsumed={handleRightPanelHighlightConsumed}
-                onCloseTerminalTabs={handleCloseTerminalTabs}
-                onModelChange={handleModelChange}
+                  task={selectedTask}
+                  selectedTaskId={selectedTaskId}
+                  workspace={currentWorkspace}
+                  projectId={
+                    FEATURE_VISIBILITY.projects ? currentProjectId : null
+                  }
+                  events={deliveryEvents}
+                  replayControls={replayControls}
+                  sharedTaskEventUi={sharedTaskEventUi}
+                  remoteTaskView={remoteTaskView}
+                  childTasks={childTasks}
+                  childEvents={childEvents}
+                  sessionTasks={sessionTasks}
+                  activeInputRequest={activeInputRequest}
+                  pendingInputRequests={pendingInputRequests}
+                  composerDraftRequest={composerDraftRequest}
+                  onComposerDraftConsumed={handleComposerDraftConsumed}
+                  selectedModel={selectedModel}
+                  selectedProvider={selectedProvider}
+                  selectedReasoningEffort={selectedReasoningEffort}
+                  availableModels={availableModels}
+                  availableProviders={availableProviders}
+                  uiDensity={uiDensity}
+                  homeResearchVaultEnabled={homeResearchVaultEnabled}
+                  onHomeResearchVaultEnabledChange={
+                    handleHomeResearchVaultEnabledChange
+                  }
+                  homeNextActionsEnabled={homeNextActionsEnabled}
+                  rendererPerfLoggingEnabled={rendererPerfLoggingEnabled}
+                  taskSwitchId={selectedTaskSwitchId}
+                  hasMoreTimelineHistory={
+                    selectedTaskTimelineHistory.hasMoreHistory
+                  }
+                  isLoadingTimelineHistory={
+                    selectedTaskTimelineHistory.isLoadingMore
+                  }
+                  timelineHistoryError={selectedTaskTimelineHistory.error}
+                  onLoadMoreTimelineHistory={handleLoadMoreTaskTimelineHistory}
+                  onLoadTaskEventDetail={handleLoadTaskEventDetail}
+                  effectiveRightCollapsed={effectiveRightCollapsed}
+                  terminalTabsOpen={terminalTabsOpen}
+                  browserWorkbenchRequest={browserWorkbenchRequest}
+                  sideChat={sideChat}
+                  rightPanelInput={visibleRightPanelInput}
+                  onSelectChildTask={handleSelectChildTaskFromMainContent}
+                  onSelectTask={handleSelectTaskFromShell}
+                  onOpenProject={
+                    FEATURE_VISIBILITY.projects
+                      ? (projectId) => {
+                          setCurrentProjectId(projectId);
+                          setCurrentView("projects");
+                        }
+                      : undefined
+                  }
+                  onOpenProjects={
+                    FEATURE_VISIBILITY.projects
+                      ? () => setCurrentView("projects")
+                      : undefined
+                  }
+                  onProjectAssigned={
+                    FEATURE_VISIBILITY.projects
+                      ? (updatedTask) => {
+                          setTasks((current) =>
+                            updateTaskPreservingIdentity(
+                              current,
+                              updatedTask.id,
+                              (task) =>
+                                mergeTaskPreservingIdentity(task, updatedTask),
+                            ),
+                          );
+                          setCurrentProjectId(updatedTask.projectId || null);
+                        }
+                      : undefined
+                  }
+                  onSendMessage={handleSendMessage}
+                  onOpenSideChat={handleOpenSideChat}
+                  onSendSideChatMessage={handleSendSideChatMessage}
+                  onCloseSideChat={handleCloseSideChat}
+                  onOpenSideChatFullThread={handleOpenSideChatFullThread}
+                  onStartOnboarding={handleShowOnboarding}
+                  showInlineOnboarding={!onboardingCompleted}
+                  onCompleteInlineOnboarding={() =>
+                    handleOnboardingComplete(true)
+                  }
+                  onStartFreshSession={handleClearTaskView}
+                  onCreateTask={handleCreateTask}
+                  onAskInbox={handleAskInboxFromComposer}
+                  onChangeWorkspace={handleChangeWorkspace}
+                  onSelectWorkspace={handleSelectWorkspace}
+                  onOpenSettings={(tab) => {
+                    setSettingsTab(
+                      (tab as typeof settingsTab | undefined) || "appearance",
+                    );
+                    setCurrentView("settings");
+                  }}
+                  onStopTask={handleCancelTask}
+                  onEnableShellForPausedTask={handleEnableShellForPausedTask}
+                  onContinueWithoutShellForPausedTask={
+                    handleContinueWithoutShellForPausedTask
+                  }
+                  onWrapUpTask={handleWrapUpTask}
+                  onOpenApproval={handleOpenApproval}
+                  onSubmitInputRequest={handleSubmitInputRequestFromMainContent}
+                  onDismissInputRequest={
+                    handleDismissInputRequestFromMainContent
+                  }
+                  onOpenBrowserView={handleOpenBrowserView}
+                  onRevealRightSidebar={handleRevealRightSidebar}
+                  onArtifactFocusChange={handleArtifactFocusChange}
+                  onToggleRightSidebar={handleRightSidebarToggle}
+                  onViewTaskOutputs={handleViewTaskOutputsFromMainContent}
+                  onTasksChanged={loadTasks}
+                  onCancelTaskById={handleCancelTaskById}
+                  onHighlightConsumed={handleRightPanelHighlightConsumed}
+                  onCloseTerminalTabs={handleCloseTerminalTabs}
+                  onModelChange={handleModelChange}
                 />
               )}
             </Suspense>
           </div>
 
           {/* Quick Task FAB */}
-          {currentWorkspace && currentView === "main" && <QuickTaskFAB onCreateTask={handleQuickTask} />}
+          {currentWorkspace && currentView === "main" && (
+            <QuickTaskFAB onCreateTask={handleQuickTask} />
+          )}
 
           {approveAllSessionWarningOpen ? (
             <ApproveAllSessionWarningDialog
@@ -6077,9 +8007,17 @@ export function App() {
             <ComputerUseApprovalDialog
               approval={computerUseAppGrantApproval}
               onAllowSession={() =>
-                void handleApprovalResponse(computerUseAppGrantApproval.id, true)
+                void handleApprovalResponse(
+                  computerUseAppGrantApproval.id,
+                  true,
+                )
               }
-              onDeny={() => void handleApprovalResponse(computerUseAppGrantApproval.id, false)}
+              onDeny={() =>
+                void handleApprovalResponse(
+                  computerUseAppGrantApproval.id,
+                  false,
+                )
+              }
             />
           ) : genericApproval && isBrowserUseDomainApproval(genericApproval) ? (
             <BrowserUseApprovalDialog
@@ -6122,25 +8060,15 @@ export function App() {
           <Settings
             onBack={() => setCurrentView("main")}
             onSettingsChanged={loadLLMConfig}
-            themeMode={themeMode}
-            visualTheme={visualTheme}
-            accentColor={accentColor}
-            transparencyEffectsEnabled={transparencyEffectsEnabled}
-            onThemeChange={handleThemeChange}
-            onVisualThemeChange={handleVisualThemeChange}
-            onAccentChange={handleAccentChange}
-            onTransparencyEffectsEnabledChange={handleTransparencyEffectsEnabledChange}
-            uiDensity={uiDensity}
-            onUiDensityChange={handleUiDensityChange}
             devRunLoggingEnabled={devRunLoggingEnabled}
             onDevRunLoggingEnabledChange={handleDevRunLoggingEnabledChange}
             homeResearchVaultEnabled={homeResearchVaultEnabled}
             homeNextActionsEnabled={homeNextActionsEnabled}
-            onHomeResearchVaultEnabledChange={handleHomeResearchVaultEnabledChange}
+            onHomeResearchVaultEnabledChange={
+              handleHomeResearchVaultEnabledChange
+            }
             onHomeNextActionsEnabledChange={handleHomeNextActionsEnabledChange}
             initialTab={settingsTab}
-            onShowOnboarding={handleShowOnboarding}
-            onboardingCompletedAt={onboardingCompletedAt}
             workspaceId={currentWorkspace?.id}
             onCreateTask={(title, prompt) => {
               setCurrentView("main");
@@ -6151,21 +8079,15 @@ export function App() {
               setSelectedTaskId(taskId);
               setRightSidebarCollapsed(false);
             }}
-            onNavigateToMissionControl={(companyId) => {
-              setMissionControlInitialCompanyId(companyId);
-              setMissionControlInitialIssueId(null);
-              setMissionControlEverydayAgentFocus(false);
-              setCurrentView("missionControl");
-            }}
-            onNavigateToAgents={() => {
-              setCurrentView("agents");
-            }}
           />
         </Suspense>
       )}
       {currentView === "browser" && (
         <Suspense fallback={<LazyViewFallback />}>
-          <BrowserView initialUrl={browserUrl} onBack={() => setCurrentView("main")} />
+          <BrowserView
+            initialUrl={browserUrl}
+            onBack={() => setCurrentView("main")}
+          />
         </Suspense>
       )}
     </div>

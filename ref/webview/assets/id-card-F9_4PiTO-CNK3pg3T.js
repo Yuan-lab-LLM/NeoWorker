@@ -1,0 +1,3 @@
+import { n as e, t } from "./id-card-F9_4PiTO-BpeFeCWi.js";
+e();
+export { t as default };

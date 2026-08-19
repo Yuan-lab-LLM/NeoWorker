@@ -1,5 +1,5 @@
 /**
- * Tests for workspace-local tool policy hook (.cowork/policy/tools.monty)
+ * Tests for workspace-local tool policy hook (.neoworker/policy/tools.monty)
  */
 
 import { describe, it, expect } from "vitest";
@@ -10,8 +10,8 @@ import { evaluateMontyToolPolicy } from "../monty-tool-policy";
 
 describe("evaluateMontyToolPolicy", () => {
   it("can deny a specific tool by name", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-policy-"));
-    const policyDir = path.join(tmpDir, ".cowork", "policy");
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-policy-"));
+    const policyDir = path.join(tmpDir, ".neoworker", "policy");
     await fs.mkdir(policyDir, { recursive: true });
     await fs.writeFile(
       path.join(policyDir, "tools.monty"),

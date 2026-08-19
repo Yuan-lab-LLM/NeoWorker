@@ -1,7 +1,7 @@
 /**
  * LOOM Email Client
  *
- * Bridges CoWork Email channel behavior to a LOOM node using:
+ * Bridges NeoWorker Email channel behavior to a LOOM node using:
  * - GET /v1/gateway/imap/folders/{folder}/messages
  * - POST /v1/gateway/smtp/submit
  * - PATCH /v1/mailbox/threads/{id}/state
@@ -551,7 +551,7 @@ export class LoomEmailClient extends EventEmitter {
   }
 
   private buildIdempotencyKey(): string {
-    return `cowork-loom-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return `neoworker-loom-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 
   private async request<T = unknown>(path: string, options: LoomRequestOptions = {}): Promise<T> {

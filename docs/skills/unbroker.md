@@ -1,6 +1,6 @@
 # Unbroker Skill
 
-`unbroker` is a bundled CoWork OS global skill for authorized personal-data cleanup across data brokers and people-search sites.
+`unbroker` is a bundled NeoWorker global skill for authorized personal-data cleanup across data brokers and people-search sites.
 
 It is designed for:
 
@@ -20,7 +20,7 @@ It is not for:
 
 ## What The Skill Does
 
-The bundled skill ports the upstream [Nous Research Hermes Agent `unbroker` skill](https://github.com/NousResearch/hermes-agent/tree/main/optional-skills/security/unbroker) into CoWork's local skill runtime.
+The bundled skill ports the upstream [Nous Research Hermes Agent `unbroker` skill](https://github.com/NousResearch/hermes-agent/tree/main/optional-skills/security/unbroker) into NeoWorker's local skill runtime.
 
 It uses a deterministic Python engine at `resources/skills/unbroker/scripts/pdd.py` to manage:
 
@@ -31,7 +31,7 @@ It uses a deterministic Python engine at `resources/skills/unbroker/scripts/pdd.
 - a `next` queue that tells the agent what to do next
 - a final consolidated human-task digest for CAPTCHA, ID, phone, fax, or other human-only work
 
-CoWork adds the runtime mapping around that engine: shell commands run through CoWork's command tools, browser work uses the available browser automation tools, recurring checks can use CoWork scheduling, and large discovery phases can use CoWork multi-agent orchestration when appropriate.
+NeoWorker adds the runtime mapping around that engine: shell commands run through NeoWorker's command tools, browser work uses the available browser automation tools, recurring checks can use NeoWorker scheduling, and large discovery phases can use NeoWorker multi-agent orchestration when appropriate.
 
 ## How To Use It
 
@@ -63,7 +63,7 @@ Good requests usually include:
 
 ## Invocation Model
 
-`unbroker` follows CoWork's additive skill runtime.
+`unbroker` follows NeoWorker's additive skill runtime.
 
 - The original task remains canonical.
 - The skill adds scoped privacy-cleanup instructions and local workflow expectations.
@@ -92,8 +92,8 @@ Unbroker stores sensitive personal data locally.
 The Python engine chooses its data root in this order:
 
 1. `PDD_DATA_DIR`, when explicitly set
-2. `$COWORK_HOME/unbroker`
-3. `$COWORK_USER_DATA_DIR/unbroker`
+2. `$NEOWORKER_HOME/unbroker`
+3. `$NEOWORKER_USER_DATA_DIR/unbroker`
 4. legacy upstream fallback `$HERMES_HOME/unbroker`
 5. legacy upstream fallback `~/.hermes/unbroker`
 

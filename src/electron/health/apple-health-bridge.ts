@@ -162,7 +162,7 @@ function extractBundleIdentifierFromPlist(plistPath: string): string | undefined
 
 function readLocalBundleIdentifier(): string | undefined {
   try {
-    const configPath = path.resolve(process.cwd(), ".cowork", "healthkit-bridge.json");
+    const configPath = path.resolve(process.cwd(), ".neoworker", "healthkit-bridge.json");
     if (!fs.existsSync(configPath)) return undefined;
     const parsed = JSON.parse(fs.readFileSync(configPath, "utf8")) as { bundleIdentifier?: unknown };
     return typeof parsed.bundleIdentifier === "string" && parsed.bundleIdentifier.trim().length > 0
@@ -175,7 +175,7 @@ function readLocalBundleIdentifier(): string | undefined {
 
 function resolveProvisioningBundleIdentifier(bundlePath?: string): string {
   const configured =
-    process.env.COWORK_HEALTHKIT_BUNDLE_IDENTIFIER ||
+    process.env.NEOWORKER_HEALTHKIT_BUNDLE_IDENTIFIER ||
     process.env.HEALTHKIT_BRIDGE_BUNDLE_IDENTIFIER ||
     process.env.PRODUCT_BUNDLE_IDENTIFIER ||
     readLocalBundleIdentifier();
@@ -186,13 +186,13 @@ function resolveProvisioningBundleIdentifier(bundlePath?: string): string {
     );
     if (bundleIdentifier) return bundleIdentifier;
   }
-  return "com.cowork.healthkitbridge";
+  return "com.neoworker.healthkitbridge";
 }
 
 function provisioningErrorMessage(bundlePath?: string): string {
   const profilePath = bundlePath ? embeddedProvisioningProfilePath(bundlePath) : "the helper app bundle";
   const bundleIdentifier = resolveProvisioningBundleIdentifier(bundlePath);
-  return `Apple Health bridge cannot launch because HealthKit uses restricted entitlements and macOS requires an eligible embedded provisioning profile. Missing profile: ${profilePath}. Register this Mac in Apple Developer, create/download a Mac App Development profile for ${bundleIdentifier} with HealthKit enabled, set COWORK_HEALTHKIT_PROVISIONING_PROFILE (or .cowork/healthkit-bridge.json -> provisioningProfile), then rebuild the helper.`;
+  return `Apple Health bridge cannot launch because HealthKit uses restricted entitlements and macOS requires an eligible embedded provisioning profile. Missing profile: ${profilePath}. Register this Mac in Apple Developer, create/download a Mac App Development profile for ${bundleIdentifier} with HealthKit enabled, set NEOWORKER_HEALTHKIT_PROVISIONING_PROFILE (or .neoworker/healthkit-bridge.json -> provisioningProfile), then rebuild the helper.`;
 }
 
 function normalizeBridgeLaunchError(raw: string, bundlePath?: string): string {
@@ -209,7 +209,7 @@ function normalizeBridgeLaunchError(raw: string, bundlePath?: string): string {
 
 function runBridge<T>(request: BridgeRequest): Promise<BridgeResponse<T>> {
   return new Promise((resolve, reject) => {
-    const shouldUseBundle = !process.env.COWORK_HEALTHKIT_BRIDGE_DIRECT;
+    const shouldUseBundle = !process.env.NEOWORKER_HEALTHKIT_BRIDGE_DIRECT;
     const bundlePath = shouldUseBundle ? resolveBridgeBundle() : null;
     if (bundlePath) {
       if (!hasEmbeddedProvisioningProfile(bundlePath)) {
@@ -223,7 +223,7 @@ function runBridge<T>(request: BridgeRequest): Promise<BridgeResponse<T>> {
         return;
       }
 
-      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-healthkit-"));
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-healthkit-"));
       const requestPath = path.join(tempDir, "request.json");
       const responsePath = path.join(tempDir, "response.json");
       fs.writeFileSync(requestPath, `${JSON.stringify(request)}\n`, "utf8");
@@ -245,7 +245,7 @@ function runBridge<T>(request: BridgeRequest): Promise<BridgeResponse<T>> {
 
       child.on("close", (code) => {
         if (code !== 0) {
-          if (resolveBridgeExecutable() && process.env.COWORK_HEALTHKIT_BRIDGE_DIRECT) {
+          if (resolveBridgeExecutable() && process.env.NEOWORKER_HEALTHKIT_BRIDGE_DIRECT) {
             // fall through to executable path below
           } else {
             resolve({

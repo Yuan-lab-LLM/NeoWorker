@@ -196,6 +196,7 @@ export class IntentRouter {
     const sanitizedPrompt = this.stripStrategyContext(String(prompt || ""));
     const text = `${title || ""}\n${sanitizedPrompt}`.trim();
     const lower = text.toLowerCase();
+    const conversationalText = (sanitizedPrompt || title || "").trim().toLowerCase();
     const scores: IntentScores = { chat: 0, advice: 0, planning: 0, execution: 0, thinking: 0, redirect: 0 };
     const signals: string[] = [];
 
@@ -215,14 +216,20 @@ export class IntentRouter {
       3,
       "casual-greeting",
       /^(hi|hey|hello|yo|good morning|good afternoon|good evening|how are you|thanks|thank you)\b/.test(
-        lower.trim(),
-      ),
+        conversationalText,
+      ) ||
+        /^(?:你好|您好|嗨|哈[喽啰罗]|早上好|下午好|晚上好|谢谢)(?:呀|啊|呢)?(?:[，,。.!！？?\s]|$)/.test(
+          conversationalText,
+        ),
     );
     add(
       "chat",
       2,
       "small-talk",
-      /\b(how are you|how's it going|what's up|good night)\b/.test(lower),
+      /\b(how are you|how's it going|what's up|good night)\b/.test(conversationalText) ||
+        /(?:你是谁|你是什么|你叫什么(?:名字)?|你能做什么|介绍一下你自己|你还好吗|最近怎么样)/.test(
+          conversationalText,
+        ),
     );
     add(
       "advice",
@@ -300,7 +307,11 @@ export class IntentRouter {
       "needs-tool-inspection",
       /\b(my screen|my display|screenshot|on screen|latest draft|same doc|what is this|why is this failing|the failing one|disk space|storage|battery|cpu|memory|ram|running apps?|running process|installed|clipboard|weather|temperature|stock price|exchange rate|current time|what time)\b/i.test(
         lower,
-      ),
+      ) ||
+        /天气|气温|温度|降雨|预报|新闻|股价|股票|行情|证券|指数|汇率|价格|赛程|比分|排名|实时|最新|查一下|查一查|查询|搜一下|搜索|检索|帮我看|看一下|查看|获取/.test(
+          text,
+        ) ||
+        /\b\d{6}(?:\.(?:sz|sh|ss))?\b/i.test(lower),
     );
     add(
       "execution",

@@ -1,6 +1,6 @@
 # Core Automation
 
-CoWork OS now treats always-on automation as a strict core runtime, not a blended product story.
+NeoWorker now treats always-on automation as a strict core runtime, not a blended product story.
 
 ## Core Boundary
 
@@ -28,14 +28,10 @@ Everything else is a surrounding surface:
 
 That makes `Routines` the main user-facing automation abstraction without redefining the actual core runtime boundary.
 
-Task view can also create a task-sourced routine with `... > Add automation...`. That flow is not a new core cognition loop; it is a task-prefilled routine authoring shortcut that can continue the existing thread by default or create new tasks on each run. Schedule triggers still compile to `Scheduled Tasks`, API triggers compile to `Webhooks`, and event triggers compile to `Event Triggers`, with the source task title, task ID, and `cowork://tasks/<taskId>` reference preserved. See [Task Automations](task-automations.md).
+Task view can also create a task-sourced routine with `... > Add automation...`. That flow is not a new core cognition loop; it is a task-prefilled routine authoring shortcut that can continue the existing thread by default or create new tasks on each run. Schedule triggers still compile to `Scheduled Tasks`, API triggers compile to `Webhooks`, and event triggers compile to `Event Triggers`, with the source task title, task ID, and `neoworker://tasks/<taskId>` reference preserved. See [Task Automations](task-automations.md).
 
 `Settings > Automations > Routines` is the primary observability surface for task-sourced automations. When a routine compiles to a cron job, `Settings > Automations > Scheduled Tasks` also shows aggregate run health, the latest result, delivery status, recent run history, and links to generated sessions or continued threads so lower-level scheduled work can be audited without digging through the general task list.
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-6.webp" alt="Automations control center" width="700">
-  <br><em>The Automations surface separates scheduled work, triggered work, and core automation controls.</em>
-</p>
 
 ## Ownership Model
 

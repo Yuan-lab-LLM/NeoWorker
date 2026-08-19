@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { translate, useLanguage } from "../i18n";
 
 const ipcAPI = window.electronAPI;
 
@@ -27,6 +28,8 @@ interface ScrapingStatus {
 }
 
 export function ScrapingSettings() {
+  useLanguage();
+  const t = translate;
   const [settings, setSettings] = useState<ScrapingSettingsData | null>(null);
   const [status, setStatus] = useState<ScrapingStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,7 +79,15 @@ export function ScrapingSettings() {
   };
 
   const handleReset = async () => {
-    if (!confirm("This will reset all scraping settings to defaults.\n\nContinue?")) return;
+    if (
+      !confirm(
+        t(
+          "scraping.confirmReset",
+          "This will reset all scraping settings to defaults.\n\nContinue?",
+        ),
+      )
+    )
+      return;
     try {
       await ipcAPI.scrapingReset();
       await loadData();
@@ -86,12 +97,18 @@ export function ScrapingSettings() {
   };
 
   if (loading) {
-    return <div style={{ padding: "24px", opacity: 0.6 }}>Loading scraping settings...</div>;
+    return (
+      <div style={{ padding: "24px", opacity: 0.6 }}>
+        {t("scraping.loading", "Loading scraping settings...")}
+      </div>
+    );
   }
 
   if (!settings) {
     return (
-      <div style={{ padding: "24px", color: "var(--error)" }}>Failed to load scraping settings</div>
+      <div style={{ padding: "24px", color: "var(--error)" }}>
+        {t("scraping.error.load", "Failed to load scraping settings")}
+      </div>
     );
   }
 
@@ -105,7 +122,7 @@ export function ScrapingSettings() {
           color: "var(--text-primary)",
         }}
       >
-        Web Scraping
+        {t("scraping.title", "Web Scraping")}
       </h2>
       <p
         style={{
@@ -114,7 +131,7 @@ export function ScrapingSettings() {
           marginBottom: 20,
         }}
       >
-        Advanced web scraping powered by{" "}
+        {t("scraping.description.prefix", "Advanced web scraping powered by")}{" "}
         <a
           href="https://github.com/D4Vinci/Scrapling"
           target="_blank"
@@ -123,8 +140,11 @@ export function ScrapingSettings() {
         >
           Scrapling
         </a>
-        . Anti-bot bypass, stealth browsing, adaptive element tracking, and structured data
-        extraction.
+        .{" "}
+        {t(
+          "scraping.description.suffix",
+          "Anti-bot bypass, stealth browsing, adaptive element tracking, and structured data extraction.",
+        )}
       </p>
 
       {/* Status Banner */}
@@ -151,8 +171,12 @@ export function ScrapingSettings() {
             }}
           >
             {status?.installed
-              ? `Scrapling v${status.version} installed`
-              : "Scrapling not installed"}
+              ? t(
+                  "scraping.status.installed",
+                  "Scrapling v{version} installed",
+                  { version: status.version || "" },
+                )
+              : t("scraping.status.notInstalled", "Scrapling not installed")}
           </div>
           {!status?.installed && (
             <div
@@ -162,7 +186,11 @@ export function ScrapingSettings() {
                 marginTop: 2,
               }}
             >
-              {status?.error || "Run: pip install scrapling && scrapling install"}
+              {status?.error ||
+                t(
+                  "scraping.status.installHint",
+                  "Run: pip install scrapling && scrapling install",
+                )}
             </div>
           )}
         </div>
@@ -180,14 +208,19 @@ export function ScrapingSettings() {
             opacity: checking ? 0.6 : 1,
           }}
         >
-          {checking ? "Checking..." : "Check Status"}
+          {checking
+            ? t("scraping.status.checking", "Checking...")
+            : t("scraping.status.check", "Check Status")}
         </button>
       </div>
 
       {/* Enable Toggle */}
       <SettingRow
-        label="Enable Scraping Tools"
-        description="Make scraping tools available to agents"
+        label={t("scraping.enableTools", "Enable Scraping Tools")}
+        description={t(
+          "scraping.enableTools.description",
+          "Make scraping tools available to agents",
+        )}
       >
         <ToggleSwitch
           checked={settings.enabled}
@@ -199,29 +232,45 @@ export function ScrapingSettings() {
         <>
           {/* Default Fetcher */}
           <SettingRow
-            label="Default Fetcher"
-            description="HTTP engine used when no fetcher is specified"
+            label={t("scraping.defaultFetcher", "Default Fetcher")}
+            description={t(
+              "scraping.defaultFetcher.description",
+              "HTTP engine used when no fetcher is specified",
+            )}
           >
             <select
               value={settings.defaultFetcher}
               onChange={(e) =>
                 handleSave({
                   ...settings,
-                  defaultFetcher: e.target.value as ScrapingSettingsData["defaultFetcher"],
+                  defaultFetcher: e.target
+                    .value as ScrapingSettingsData["defaultFetcher"],
                 })
               }
               style={selectStyle}
             >
-              <option value="default">Default (fast HTTP + TLS fingerprinting)</option>
-              <option value="stealth">Stealth (Cloudflare bypass)</option>
-              <option value="playwright">Playwright (full browser)</option>
+              <option value="default">
+                {t(
+                  "scraping.fetcher.default",
+                  "Default (fast HTTP + TLS fingerprinting)",
+                )}
+              </option>
+              <option value="stealth">
+                {t("scraping.fetcher.stealth", "Stealth (Cloudflare bypass)")}
+              </option>
+              <option value="playwright">
+                {t("scraping.fetcher.playwright", "Playwright (full browser)")}
+              </option>
             </select>
           </SettingRow>
 
           {/* Headless Mode */}
           <SettingRow
-            label="Headless Mode"
-            description="Run browser fetchers without visible window"
+            label={t("scraping.headless", "Headless Mode")}
+            description={t(
+              "scraping.headless.description",
+              "Run browser fetchers without visible window",
+            )}
           >
             <ToggleSwitch
               checked={settings.headless}
@@ -230,14 +279,23 @@ export function ScrapingSettings() {
           </SettingRow>
 
           {/* Timeout */}
-          <SettingRow label="Timeout (ms)" description="Maximum time to wait for a page to load">
+          <SettingRow
+            label={t("scraping.timeout", "Timeout (ms)")}
+            description={t(
+              "scraping.timeout.description",
+              "Maximum time to wait for a page to load",
+            )}
+          >
             <input
               type="number"
               value={settings.timeout}
               onChange={(e) =>
                 handleSave({
                   ...settings,
-                  timeout: Math.max(5000, Math.min(120000, parseInt(e.target.value) || 30000)),
+                  timeout: Math.max(
+                    5000,
+                    Math.min(120000, parseInt(e.target.value) || 30000),
+                  ),
                 })
               }
               style={inputStyle}
@@ -249,8 +307,11 @@ export function ScrapingSettings() {
 
           {/* Max Content Length */}
           <SettingRow
-            label="Max Content Length"
-            description="Maximum characters to return per page"
+            label={t("scraping.maxContentLength", "Max Content Length")}
+            description={t(
+              "scraping.maxContentLength.description",
+              "Maximum characters to return per page",
+            )}
           >
             <input
               type="number"
@@ -272,11 +333,22 @@ export function ScrapingSettings() {
           </SettingRow>
 
           {/* Python Path */}
-          <SettingRow label="Python Path" description="Path to Python 3 binary">
+          <SettingRow
+            label={t("scraping.pythonPath", "Python Path")}
+            description={t(
+              "scraping.pythonPath.description",
+              "Path to Python 3 binary",
+            )}
+          >
             <input
               type="text"
               value={settings.pythonPath}
-              onChange={(e) => handleSave({ ...settings, pythonPath: e.target.value || "python3" })}
+              onChange={(e) =>
+                handleSave({
+                  ...settings,
+                  pythonPath: e.target.value || "python3",
+                })
+              }
               style={inputStyle}
               placeholder="python3"
             />
@@ -292,21 +364,36 @@ export function ScrapingSettings() {
                 marginBottom: 8,
               }}
             >
-              Proxy
+              {t("scraping.proxy", "Proxy")}
             </h3>
           </div>
 
-          <SettingRow label="Enable Proxy" description="Route scraping requests through a proxy">
+          <SettingRow
+            label={t("scraping.proxy.enable", "Enable Proxy")}
+            description={t(
+              "scraping.proxy.enable.description",
+              "Route scraping requests through a proxy",
+            )}
+          >
             <ToggleSwitch
               checked={settings.proxy.enabled}
               onChange={(enabled) =>
-                handleSave({ ...settings, proxy: { ...settings.proxy, enabled } })
+                handleSave({
+                  ...settings,
+                  proxy: { ...settings.proxy, enabled },
+                })
               }
             />
           </SettingRow>
 
           {settings.proxy.enabled && (
-            <SettingRow label="Proxy URL" description="HTTP/HTTPS/SOCKS5 proxy address">
+            <SettingRow
+              label={t("scraping.proxy.url", "Proxy URL")}
+              description={t(
+                "scraping.proxy.url.description",
+                "HTTP/HTTPS/SOCKS5 proxy address",
+              )}
+            >
               <input
                 type="text"
                 value={settings.proxy.url}
@@ -332,11 +419,17 @@ export function ScrapingSettings() {
                 marginBottom: 8,
               }}
             >
-              Rate Limiting
+              {t("scraping.rateLimiting", "Rate Limiting")}
             </h3>
           </div>
 
-          <SettingRow label="Enable Rate Limiting" description="Limit scraping request frequency">
+          <SettingRow
+            label={t("scraping.rateLimiting.enable", "Enable Rate Limiting")}
+            description={t(
+              "scraping.rateLimiting.enable.description",
+              "Limit scraping request frequency",
+            )}
+          >
             <ToggleSwitch
               checked={settings.rateLimiting.enabled}
               onChange={(enabled) =>
@@ -349,7 +442,13 @@ export function ScrapingSettings() {
           </SettingRow>
 
           {settings.rateLimiting.enabled && (
-            <SettingRow label="Requests/Minute" description="Maximum scraping requests per minute">
+            <SettingRow
+              label={t("scraping.requestsPerMinute", "Requests/Minute")}
+              description={t(
+                "scraping.requestsPerMinute.description",
+                "Maximum scraping requests per minute",
+              )}
+            >
               <input
                 type="number"
                 value={settings.rateLimiting.requestsPerMinute}
@@ -358,7 +457,10 @@ export function ScrapingSettings() {
                     ...settings,
                     rateLimiting: {
                       ...settings.rateLimiting,
-                      requestsPerMinute: Math.max(1, Math.min(120, parseInt(e.target.value) || 30)),
+                      requestsPerMinute: Math.max(
+                        1,
+                        Math.min(120, parseInt(e.target.value) || 30),
+                      ),
                     },
                   })
                 }
@@ -370,7 +472,13 @@ export function ScrapingSettings() {
           )}
 
           {/* Reset */}
-          <div style={{ marginTop: 24, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+          <div
+            style={{
+              marginTop: 24,
+              borderTop: "1px solid var(--border)",
+              paddingTop: 16,
+            }}
+          >
             <button
               onClick={handleReset}
               style={{
@@ -383,7 +491,7 @@ export function ScrapingSettings() {
                 cursor: "pointer",
               }}
             >
-              Reset to Defaults
+              {t("scraping.reset", "Reset to Defaults")}
             </button>
           </div>
         </>
@@ -405,7 +513,7 @@ export function ScrapingSettings() {
             zIndex: 1000,
           }}
         >
-          Settings saved
+          {t("scraping.saved", "Settings saved")}
         </div>
       )}
     </div>
@@ -434,8 +542,18 @@ function SettingRow({
       }}
     >
       <div style={{ flex: 1, marginRight: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)" }}>{label}</div>
-        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 500,
+            color: "var(--text-primary)",
+          }}
+        >
+          {label}
+        </div>
+        <div
+          style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}
+        >
           {description}
         </div>
       </div>

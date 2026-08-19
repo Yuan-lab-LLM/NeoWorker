@@ -22,8 +22,8 @@ interface GitHubRelease {
 
 export class UpdateManager {
   private mainWindow: BrowserWindow | null = null;
-  private repoOwner = "CoWork-OS";
-  private repoName = "CoWork-OS";
+  private repoOwner = "NeoWorker";
+  private repoName = "NeoWorker";
   private isUpdating = false;
 
   setMainWindow(window: BrowserWindow): void {
@@ -89,7 +89,7 @@ export class UpdateManager {
       "/usr/local/lib/node_modules",
       "/usr/lib/node_modules",
       "/opt/homebrew/lib/node_modules",
-      "node_modules/cowork-os",
+      "node_modules/neoworker",
       ".nvm/versions/node",
       ".npm-global",
       "AppData/Roaming/npm/node_modules", // Windows (user-level)
@@ -113,7 +113,7 @@ export class UpdateManager {
         {
           headers: {
             Accept: "application/vnd.github.v3+json",
-            "User-Agent": "CoWork-OS-Updater",
+            "User-Agent": "NeoWorker-Updater",
           },
         },
       );
@@ -330,7 +330,7 @@ export class UpdateManager {
   private runNpmGlobalUpdate(): Promise<void> {
     return new Promise((resolve, reject) => {
       const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-      const child = spawn(npm, ["install", "-g", "cowork-os@latest"], { shell: true });
+      const child = spawn(npm, ["install", "-g", "neoworker@latest"], { shell: true });
 
       let stderr = "";
 

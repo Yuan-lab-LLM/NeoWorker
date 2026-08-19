@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { AgentWorkingStateData, WorkingStateType } from "../../electron/preload";
+import {
+  AgentWorkingStateData,
+  WorkingStateType,
+} from "../../electron/preload";
+import { translate, useLanguage } from "../i18n";
 
 interface WorkingStateEditorProps {
   state: AgentWorkingStateData;
@@ -9,31 +13,54 @@ interface WorkingStateEditorProps {
 
 const STATE_TYPE_LABELS: Record<
   WorkingStateType,
-  { label: string; icon: string; placeholder: string }
+  {
+    label: string;
+    labelKey: string;
+    icon: string;
+    placeholder: string;
+    placeholderKey: string;
+  }
 > = {
   context: {
     label: "Context",
+    labelKey: "workingState.context",
     icon: "📋",
-    placeholder: "Describe the current context, background information, and key understanding...",
+    placeholder:
+      "Describe the current context, background information, and key understanding...",
+    placeholderKey: "workingState.context.placeholder",
   },
   progress: {
     label: "Progress",
+    labelKey: "workingState.progress",
     icon: "📊",
-    placeholder: "Document current progress, completed items, and work status...",
+    placeholder:
+      "Document current progress, completed items, and work status...",
+    placeholderKey: "workingState.progress.placeholder",
   },
   notes: {
     label: "Notes",
+    labelKey: "workingState.notes",
     icon: "📝",
-    placeholder: "Record important observations, reminders, and things to remember...",
+    placeholder:
+      "Record important observations, reminders, and things to remember...",
+    placeholderKey: "workingState.notes.placeholder",
   },
   plan: {
     label: "Plan",
+    labelKey: "workingState.plan",
     icon: "🎯",
     placeholder: "Outline the action plan, next steps, and goals...",
+    placeholderKey: "workingState.plan.placeholder",
   },
 };
 
-export function WorkingStateEditor({ state, onSave, onCancel }: WorkingStateEditorProps) {
+export function WorkingStateEditor({
+  state,
+  onSave,
+  onCancel,
+}: WorkingStateEditorProps) {
+  useLanguage();
+  const t = translate;
   const [content, setContent] = useState(state.content);
   const [fileReferences, setFileReferences] = useState<string>(
     state.fileReferences?.join("\n") || "",
@@ -46,7 +73,7 @@ export function WorkingStateEditor({ state, onSave, onCancel }: WorkingStateEdit
 
   const handleSave = async () => {
     if (!content.trim()) {
-      setError("Content cannot be empty");
+      setError(t("workingState.error.empty", "Content cannot be empty"));
       return;
     }
 
@@ -71,7 +98,7 @@ export function WorkingStateEditor({ state, onSave, onCancel }: WorkingStateEdit
       onSave(updatedState);
     } catch (err: Any) {
       console.error("Failed to save working state:", err);
-      setError(err.message || "Failed to save");
+      setError(err.message || t("workingState.error.save", "Failed to save"));
     } finally {
       setSaving(false);
     }
@@ -79,12 +106,16 @@ export function WorkingStateEditor({ state, onSave, onCancel }: WorkingStateEdit
 
   return (
     <div className="working-state-editor-overlay" onClick={onCancel}>
-      <div className="working-state-editor" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="working-state-editor"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="editor-header">
           <div className="editor-title">
             <span className="title-icon">{config.icon}</span>
             <span className="title-text">
-              {isNew ? "Add" : "Edit"} {config.label}
+              {isNew ? t("common.add", "Add") : t("common.edit", "Edit")}{" "}
+              {t(config.labelKey, config.label)}
             </span>
           </div>
           <button className="close-btn" onClick={onCancel}>
@@ -96,11 +127,11 @@ export function WorkingStateEditor({ state, onSave, onCancel }: WorkingStateEdit
 
         <div className="editor-form">
           <div className="form-group">
-            <label>Content</label>
+            <label>{t("workingState.content", "Content")}</label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder={config.placeholder}
+              placeholder={t(config.placeholderKey, config.placeholder)}
               rows={12}
               autoFocus
             />
@@ -108,7 +139,10 @@ export function WorkingStateEditor({ state, onSave, onCancel }: WorkingStateEdit
 
           <div className="form-group">
             <label>
-              Referenced Files <span className="label-hint">(one per line, optional)</span>
+              {t("workingState.referencedFiles", "Referenced Files")}{" "}
+              <span className="label-hint">
+                {t("workingState.onePerLine", "(one per line, optional)")}
+              </span>
             </label>
             <textarea
               value={fileReferences}
@@ -122,10 +156,16 @@ export function WorkingStateEditor({ state, onSave, onCancel }: WorkingStateEdit
 
         <div className="editor-footer">
           <button className="cancel-btn" onClick={onCancel} disabled={saving}>
-            Cancel
+            {t("common.cancel", "Cancel")}
           </button>
-          <button className="save-btn" onClick={handleSave} disabled={saving || !content.trim()}>
-            {saving ? "Saving..." : "Save"}
+          <button
+            className="save-btn"
+            onClick={handleSave}
+            disabled={saving || !content.trim()}
+          >
+            {saving
+              ? t("common.saving", "Saving...")
+              : t("common.save", "Save")}
           </button>
         </div>
 

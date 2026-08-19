@@ -1,6 +1,6 @@
 # Inbox Agent
 
-Inbox Agent is CoWork OS's local-first, agent-assisted email workspace. It is designed to be more than a mailbox viewer: it keeps recent mail cached locally, syncs in the background, classifies work into action lanes, lets you reply or forward like a normal email client, and turns important threads into tasks, automations, Mission Control issues, and relationship memory.
+Inbox Agent is NeoWorker's local-first, agent-assisted email workspace. It is designed to be more than a mailbox viewer: it keeps recent mail cached locally, syncs in the background, classifies work into action lanes, lets you reply or forward like a normal email client, and turns important threads into tasks, automations, Mission Control issues, and relationship memory.
 
 The current product shape is:
 
@@ -10,10 +10,6 @@ The current product shape is:
 - **`@Inbox` from the main composer routes mailbox questions into Inbox Agent** without starting a normal task run.
 - **Provider state is authoritative** for read/unread and supported server actions; the local database is the cache plus agent metadata.
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-5.webp" alt="Inbox Agent workspace" width="700">
-  <br><em>Inbox Agent keeps mailbox triage, thread evidence, drafts, and next actions in one workspace.</em>
-</p>
 
 ## What It Does
 
@@ -108,7 +104,7 @@ Example:
 @inbox when do I need to make payment for my QNB credit card?
 ```
 
-When the prompt starts with `@Inbox` or `@inbox`, CoWork strips the mention from the query, opens Inbox Agent, switches the right sidebar to **Ask Inbox**, and runs the remaining text there. This path uses the mailbox retrieval stack and mailbox evidence instead of the normal task executor.
+When the prompt starts with `@Inbox` or `@inbox`, NeoWorker strips the mention from the query, opens Inbox Agent, switches the right sidebar to **Ask Inbox**, and runs the remaining text there. This path uses the mailbox retrieval stack and mailbox evidence instead of the normal task executor.
 
 Current boundary: attachments are not accepted on the `@Inbox` Ask Inbox route because the request is answered from mailbox evidence and indexed attachment text already known to Inbox Agent.
 

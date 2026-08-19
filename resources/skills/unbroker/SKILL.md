@@ -5,18 +5,18 @@ description: Find and remove authorized personal information exposures from data
 
 # unbroker
 
-This CoWork OS bundled port is based on the upstream Hermes Agent `unbroker` skill:
+This NeoWorker bundled port is based on the upstream Hermes Agent `unbroker` skill:
 https://github.com/NousResearch/hermes-agent/tree/main/optional-skills/security/unbroker
 
-CoWork runtime mapping:
+NeoWorker runtime mapping:
 
-- Treat `terminal` as CoWork's shell/run_command capability.
-- Treat `web_extract` as CoWork web search, fetch, or extraction tools.
-- Treat `browser_*` as the available CoWork browser automation tools.
-- Treat `delegate_task` as CoWork multi-agent orchestration when available.
-- Treat `cronjob` as CoWork scheduling/automation.
+- Treat `terminal` as NeoWorker's shell/run_command capability.
+- Treat `web_extract` as NeoWorker web search, fetch, or extraction tools.
+- Treat `browser_*` as the available NeoWorker browser automation tools.
+- Treat `delegate_task` as NeoWorker multi-agent orchestration when available.
+- Treat `cronjob` as NeoWorker scheduling/automation.
 - The Python engine stores data under `$PDD_DATA_DIR` when set. Otherwise it prefers
-  `$COWORK_HOME/unbroker`, then `$COWORK_USER_DATA_DIR/unbroker`, then the upstream legacy
+  `$NEOWORKER_HOME/unbroker`, then `$NEOWORKER_USER_DATA_DIR/unbroker`, then the upstream legacy
   `$HERMES_HOME/unbroker` / `~/.hermes/unbroker` path.
 
 Code is MIT licensed. Broker data includes BADBOOL-derived data under CC BY-NC-SA 4.0; keep the
@@ -32,7 +32,7 @@ person controls.
 The Python CLI (`scripts/pdd.py`) owns the deterministic state - config, dossiers + consent, the
 broker database, tier planning, the ledger, drafts, reports, **email sending (SMTP), verification-link
 polling (IMAP), and the autonomous action queue (`next`)**. You (the agent) do the scanning,
-form-driving, parallel work, and scheduling with the matching CoWork tools.
+form-driving, parallel work, and scheduling with the matching NeoWorker tools.
 
 ## Autonomy contract
 
@@ -67,8 +67,8 @@ verifying re-scan.
 
 - `python3` (stdlib only; no extra packages needed for the core engine).
 - **Optional upgrades** (the skill works zero-config without these; `setup --auto` turns on every
-  one it detects, reading credentials from the shell env **and from the CoWork runtime `.env`**
-  (`$COWORK_HOME/.env` or `$COWORK_USER_DATA_DIR/.env`, with upstream `$HERMES_HOME/.env` as a
+  one it detects, reading credentials from the shell env **and from the NeoWorker runtime `.env`**
+  (`$NEOWORKER_HOME/.env` or `$NEOWORKER_USER_DATA_DIR/.env`, with upstream `$HERMES_HOME/.env` as a
   compatibility fallback) so keys already loaded for local tools are picked up without re-exporting - each one converts a
   class of human tasks into agent actions):
   - **Cloud browser (recommended default): `BROWSERBASE_API_KEY`.** `setup --auto` selects it
@@ -81,11 +81,11 @@ verifying re-scan.
   - Email automation, two credential-free-or-not options:
     - **Browser mode (no password): `setup --email-mode browser`.** The agent sends opt-out/CCPA
       emails and opens verification links through the operator's **logged-in webmail** using
-      browser tools. Nothing is stored. This requires CoWork to be pointed at the operator's own
+      browser tools. Nothing is stored. This requires NeoWorker to be pointed at the operator's own
       logged-in browser, **NOT** a cloud browser: a headless cloud browser (Browserbase) holds no
       webmail session and is itself Cloudflare/DataDome-gated on webmail and on session-bound broker
       gates (e.g. PeopleConnect guided-mode). Drive the operator's real Chrome over CDP - launch
-      `chrome --remote-debugging-port=9222 --user-data-dir="$HOME/.cowork/chrome-debug"` (a dedicated
+      `chrome --remote-debugging-port=9222 --user-data-dir="$HOME/.neoworker/chrome-debug"` (a dedicated
       debug profile signed into the webmail once, not the Default profile) and connect the browser
       tools to `127.0.0.1:9222`. **`$PDD cdp` launches this for you** (finds Chrome/Chromium/Brave/Edge,
       starts it detached on the dedicated profile, prints the CDP endpoint; `--check` to test, `--print`
@@ -95,19 +95,19 @@ verifying re-scan.
       `EMAIL_IMAP_HOST` for non-mainstream providers; gmail/outlook/yahoo/icloud/fastmail inferred).
       The CLI sends via `send-email` and reads verify links via `poll-verification`. The `agentmail`
       skill (per-broker aliases) also counts.
-  - Google Sheets tracker: CoWork's Google Workspace/Sheets capability, when configured.
+  - Google Sheets tracker: NeoWorker's Google Workspace/Sheets capability, when configured.
   - Stealth-capable browser or scraping tools for Cloudflare-protected pages, when configured.
 
 ## How to Run
 
-Run everything through CoWork's shell/run_command tool. From this skill's directory:
+Run everything through NeoWorker's shell/run_command tool. From this skill's directory:
 
 ```bash
 PDD="python3 scripts/pdd.py"
 ```
 
-The engine stores data under `$PDD_DATA_DIR` when set, otherwise under the CoWork runtime home
-(`$COWORK_HOME/unbroker` or `$COWORK_USER_DATA_DIR/unbroker`, with the upstream `$HERMES_HOME`
+The engine stores data under `$PDD_DATA_DIR` when set, otherwise under the NeoWorker runtime home
+(`$NEOWORKER_HOME/unbroker` or `$NEOWORKER_USER_DATA_DIR/unbroker`, with the upstream `$HERMES_HOME`
 fallback), written `0600`. Run via shell/run_command, **not** a throwaway code-execution sandbox that
 scrubs env and redacts output, which breaks reading the dossier.
 
@@ -126,7 +126,7 @@ scrubs env and redacts output, which breaks reading the dossier.
 | `$PDD drop <subject> [--filed]` | **The one-shot legal lever**: one CA DROP request deletes from ALL registered brokers; `--filed` records it |
 | `$PDD plan <subject> [--priority crucial]` | Per-broker tier + method + `search_vectors` + the exact fields to disclose |
 | `$PDD plan <subject> --batch` | **Reduce view**: overlays ledger state, groups brokers by next action (unscanned/found/indirect/blocked/in_progress/done), collapses ownership clusters, **orders `found` cluster-parents-first + emits a tailored `parent_playbook`**, prints `next_actions` |
-| `$PDD fanout <subject> [--priority crucial] [--size 5]` | Batch brokers into parallel CoWork subagent/multi-agent tasks when available (auto for large runs; batches of 5 - 8+ time out) |
+| `$PDD fanout <subject> [--priority crucial] [--size 5]` | Batch brokers into parallel NeoWorker subagent/multi-agent tasks when available (auto for large runs; batches of 5 - 8+ time out) |
 | `$PDD record <subject> <broker> <state> [--found true] [--evidence JSON] [--disclosed F --channel C] [--reason "..."]` | Update the ledger (validated state machine); **auto-stamps `next_recheck_at`** |
 | `$PDD show <subject> <broker>` | Read back a case's recorded state + evidence + disclosure log (so the parent re-verifies a subagent's `found` without re-deriving the listing URL) |
 | `$PDD send-email <subject> <broker> --listing <url> [--kind ccpa_indirect ...]` | Render + record the request (recipient locked to the broker's own address). **browser** mode returns a `compose` payload to send via webmail (no password); **programmatic** mode SMTP-sends |
@@ -145,10 +145,10 @@ For anything past a couple of brokers, run this as **map → reduce → act**, n
 - **Phase 1 - DISCOVER (read-only, parallel, idempotent).** Crawl *every* broker first and record a
   verdict for each (`found` / `not_found` / `indirect_exposure` / `blocked`). Scanning has no side
   effects, so it is safe to parallelize and retry. Getting the full exposure map *before* acting is
-  what unlocks cluster dedup and prioritization below. **Default: the parent drives CoWork web
+  what unlocks cluster dedup and prioritization below. **Default: the parent drives NeoWorker web
   extraction/search probes directly** - most people-search sites render name/phone/address results as
   static HTML that can be read in seconds. Escalate to browser automation only for the few JS-only
-  sites, and to CoWork subagents only for genuinely *reasoning*-heavy work (large-scale namesake/relative
+  sites, and to NeoWorker subagents only for genuinely *reasoning*-heavy work (large-scale namesake/relative
   disambiguation). **Do NOT hand a browser-toolset subagent a big list of brokers to crawl** - in the
   field this timed out repeatedly (600s, ~5-6 brokers each, no summary) because browser navigation is
   heavy; the ledger writes that survived came at 10x the cost of parent web extraction. A `blocked`
@@ -226,7 +226,7 @@ recording `found` and before any deletion.
    accumulates in `q.human_digest`. In `autonomy=full`, execute actions without pausing; honor
    `confirm_first` in `assisted` mode.
 4. **Scanning (when `next` says so).** For `fanout_scan`: run `$PDD fanout <subject>` and **spawn one
-   CoWork subagent per `batch`, in parallel when multi-agent tools are available, passing that batch's ready-made `brief`** - do
+   NeoWorker subagent per `batch`, in parallel when multi-agent tools are available, passing that batch's ready-made `brief`** - do
    not scan all brokers yourself sequentially. For `scan_inline`: scan the few brokers yourself.
    Either way, each broker gets **every** `search_vectors` entry via the `references/methods.md`
    ladder (web extraction -> `site:` probe -> browser automation -> stealth-capable browser/scraping), a 404 is INCONCLUSIVE
@@ -250,7 +250,7 @@ recording `found` and before any deletion.
       record declares; `next` picks the kind from residency - never claim CCPA/GDPR for someone who
       can't). In **browser** mode it returns a recipient-locked `compose` payload: compose a new
       message to `compose.to` with `compose.subject`/`compose.body` exactly in the operator's webmail
-      via CoWork browser tools and send (no password); in **programmatic** mode it SMTP-sends. `next` also
+      via NeoWorker browser tools and send (no password); in **programmatic** mode it SMTP-sends. `next` also
       routes human-gated forms (phone-callback/gov-ID) through a broker's deletion email when one
       exists - the **rescue lane** (verified Whitepages pattern). Draft-only falls back to
       `render-email` + a digest entry.
@@ -269,9 +269,9 @@ recording `found` and before any deletion.
     verifying re-scan shows the listing gone - never off the submission flow's own confirmation page.
 7. **Wrap up (once per run).** When `next` returns no actions: present `$PDD tasks <subject>` (the
    consolidated human digest) if non-empty, then `$PDD status <subject>`; if the Sheets tracker is
-   on, append `$PDD report <subject> --sheets` rows via CoWork's Google Sheets/Workspace capability.
+   on, append `$PDD report <subject> --sheets` rows via NeoWorker's Google Sheets/Workspace capability.
 8. **Schedule the next wake-up.** `next` returns `next_wake_at` (earliest due re-check). Create ONE
-   CoWork scheduled automation that re-runs this skill's loop for the subject (a prompt like: *"run the
+   NeoWorker scheduled automation that re-runs this skill's loop for the subject (a prompt like: *"run the
    unbroker loop for <subject_id>: `$PDD next` and execute all actions"*). Processing
    windows, verification polls, and reappearance sweeps all flow through the same queue, so the case
    keeps advancing with zero human attention.
@@ -294,7 +294,7 @@ recording `found` and before any deletion.
   goes to the digest. The only mid-run question that's ever warranted is a missing-identity fact that
   blocks scanning (e.g. no city at all) - and that should have been collected at intake.
 - **Use shell/run_command, not a throwaway code-execution sandbox** for `pdd.py` (secret scrubbing + output redaction break it).
-- **Dossiers are plaintext by default** (JSON, `0600` under the CoWork runtime home unless `PDD_DATA_DIR` is set). For at-rest encryption run
+- **Dossiers are plaintext by default** (JSON, `0600` under the NeoWorker runtime home unless `PDD_DATA_DIR` is set). For at-rest encryption run
   `$PDD setup --encryption age` - it generates a local `age` key and encrypts dossiers + ledgers (the
   audit log holds field names only and stays plaintext). It guards casual/backup/commit exposure, not
   a full runtime-home read; set `PDD_AGE_IDENTITY` to a separate volume for real key separation.

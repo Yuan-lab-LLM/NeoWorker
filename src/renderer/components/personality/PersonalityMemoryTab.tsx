@@ -4,6 +4,8 @@ import {
   buildStructuredUserProfileSummary,
   inferUserFactCategory,
 } from "../../../shared/user-profile-summary";
+import { getCurrentLanguage, translate, useLanguage } from "../../i18n";
+import { PersonalityTabHeader } from "./PersonalityTabHeader";
 
 interface PersonalityMemoryTabProps {
   onChanged?: () => void;
@@ -12,28 +14,61 @@ interface PersonalityMemoryTabProps {
 const MAX_PROFILE_MEMORY_LENGTH = 240;
 
 function formatRelativeTime(timestamp?: number): string {
-  if (!timestamp) return "Not updated yet";
+  const t = translate;
+  if (!timestamp) return t("personality.memory.notUpdated", "Not updated yet");
   const deltaMs = Date.now() - timestamp;
   const minutes = Math.floor(deltaMs / 60000);
-  if (minutes < 1) return "Updated just now";
-  if (minutes < 60) return `Updated ${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  if (minutes < 1)
+    return t("personality.memory.updatedJustNow", "Updated just now");
+  if (minutes < 60) {
+    return t(
+      "personality.memory.updatedMinutesAgo",
+      "Updated {count} minute{plural} ago",
+      {
+        count: minutes,
+        plural: getCurrentLanguage() === "en" && minutes === 1 ? "" : "s",
+      },
+    );
+  }
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `Updated ${hours} hour${hours === 1 ? "" : "s"} ago`;
+  if (hours < 24) {
+    return t(
+      "personality.memory.updatedHoursAgo",
+      "Updated {count} hour{plural} ago",
+      {
+        count: hours,
+        plural: getCurrentLanguage() === "en" && hours === 1 ? "" : "s",
+      },
+    );
+  }
   const days = Math.floor(hours / 24);
-  return `Updated ${days} day${days === 1 ? "" : "s"} ago`;
+  return t(
+    "personality.memory.updatedDaysAgo",
+    "Updated {count} day{plural} ago",
+    {
+      count: days,
+      plural: getCurrentLanguage() === "en" && days === 1 ? "" : "s",
+    },
+  );
 }
 
 export function PersonalityMemoryTab({ onChanged }: PersonalityMemoryTabProps) {
+  useLanguage();
+  const t = translate;
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState("");
   const [editingFact, setEditingFact] = useState<UserFact | null>(null);
-  const [status, setStatus] = useState<{ tone: "success" | "error"; message: string } | null>(
-    null,
-  );
+  const [status, setStatus] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
 
-  const sections = useMemo(() => buildStructuredUserProfileSummary(profile), [profile]);
+  const sections = useMemo(
+    () => buildStructuredUserProfileSummary(profile),
+    [profile],
+  );
   const factCount = profile?.facts?.length ?? 0;
   const draftLength = draft.trim().length;
 
@@ -60,7 +95,9 @@ export function PersonalityMemoryTab({ onChanged }: PersonalityMemoryTabProps) {
       return {
         ...current,
         updatedAt: Date.now(),
-        facts: current.facts.map((fact) => (fact.id === updated.id ? updated : fact)),
+        facts: current.facts.map((fact) =>
+          fact.id === updated.id ? updated : fact,
+        ),
       };
     });
   };
@@ -71,7 +108,13 @@ export function PersonalityMemoryTab({ onChanged }: PersonalityMemoryTabProps) {
     if (value.length > MAX_PROFILE_MEMORY_LENGTH) {
       setStatus({
         tone: "error",
-        message: `Profile memory is limited to ${MAX_PROFILE_MEMORY_LENGTH} characters.`,
+        message: t(
+          "personality.memory.limitError",
+          "Profile memory is limited to {max} characters.",
+          {
+            max: MAX_PROFILE_MEMORY_LENGTH,
+          },
+        ),
       });
       return;
     }
@@ -90,7 +133,10 @@ export function PersonalityMemoryTab({ onChanged }: PersonalityMemoryTabProps) {
         if (!updated) {
           setStatus({
             tone: "error",
-            message: "That memory no longer exists. Refreshing memory.",
+            message: t(
+              "personality.memory.missingRefresh",
+              "That memory no longer exists. Refreshing memory.",
+            ),
           });
           await loadProfile();
           return;
@@ -107,19 +153,30 @@ export function PersonalityMemoryTab({ onChanged }: PersonalityMemoryTabProps) {
         setProfile((current) => ({
           summary: current?.summary,
           updatedAt: Date.now(),
-          facts: [created, ...(current?.facts || []).filter((fact) => fact.id !== created.id)],
+          facts: [
+            created,
+            ...(current?.facts || []).filter((fact) => fact.id !== created.id),
+          ],
         }));
       }
       setDraft("");
       setEditingFact(null);
       setStatus({
         tone: "success",
-        message: editingFact ? "Profile memory updated." : "Profile memory added.",
+        message: editingFact
+          ? t("personality.memory.updated", "Profile memory updated.")
+          : t("personality.memory.added", "Profile memory added."),
       });
       onChanged?.();
     } catch (error) {
       console.error("Failed to save profile memory:", error);
-      setStatus({ tone: "error", message: "Failed to save profile memory." });
+      setStatus({
+        tone: "error",
+        message: t(
+          "personality.memory.saveFailed",
+          "Failed to save profile memory.",
+        ),
+      });
     } finally {
       setSaving(false);
     }
@@ -136,7 +193,14 @@ export function PersonalityMemoryTab({ onChanged }: PersonalityMemoryTabProps) {
   };
 
   const handleDelete = async (factId: string) => {
-    if (!window.confirm("Delete this profile memory? This cannot be undone.")) {
+    if (
+      !window.confirm(
+        t(
+          "personality.memory.deleteConfirm",
+          "Delete this profile memory? This cannot be undone.",
+        ),
+      )
+    ) {
       return;
     }
     try {
@@ -144,7 +208,10 @@ export function PersonalityMemoryTab({ onChanged }: PersonalityMemoryTabProps) {
       if (!result?.success) {
         setStatus({
           tone: "error",
-          message: "That memory was already removed. Refreshing memory.",
+          message: t(
+            "personality.memory.alreadyRemoved",
+            "That memory was already removed. Refreshing memory.",
+          ),
         });
         await loadProfile();
         return;
@@ -158,11 +225,20 @@ export function PersonalityMemoryTab({ onChanged }: PersonalityMemoryTabProps) {
         };
       });
       if (editingFact?.id === factId) handleCancelEdit();
-      setStatus({ tone: "success", message: "Profile memory deleted." });
+      setStatus({
+        tone: "success",
+        message: t("personality.memory.deleted", "Profile memory deleted."),
+      });
       onChanged?.();
     } catch (error) {
       console.error("Failed to delete profile memory:", error);
-      setStatus({ tone: "error", message: "Failed to delete profile memory." });
+      setStatus({
+        tone: "error",
+        message: t(
+          "personality.memory.deleteFailed",
+          "Failed to delete profile memory.",
+        ),
+      });
     }
   };
 
@@ -176,71 +252,113 @@ export function PersonalityMemoryTab({ onChanged }: PersonalityMemoryTabProps) {
         replaceFact(updated);
         setStatus({
           tone: "success",
-          message: updated.pinned ? "Memory pinned." : "Memory unpinned.",
+          message: updated.pinned
+            ? t("personality.memory.pinned", "Memory pinned.")
+            : t("personality.memory.unpinned", "Memory unpinned."),
         });
         onChanged?.();
       } else {
-        setStatus({ tone: "error", message: "That memory no longer exists. Refreshing memory." });
+        setStatus({
+          tone: "error",
+          message: t(
+            "personality.memory.missingRefresh",
+            "That memory no longer exists. Refreshing memory.",
+          ),
+        });
         await loadProfile();
       }
     } catch (error) {
       console.error("Failed to update profile memory pin:", error);
-      setStatus({ tone: "error", message: "Failed to update profile memory." });
+      setStatus({
+        tone: "error",
+        message: t(
+          "personality.memory.updateFailed",
+          "Failed to update profile memory.",
+        ),
+      });
     }
   };
 
   if (loading) {
-    return <div className="settings-loading">Loading profile memory...</div>;
+    return (
+      <div className="settings-loading">
+        {t("personality.memory.loading", "Loading profile memory...")}
+      </div>
+    );
   }
 
   return (
     <div className="personality-memory-tab settings-section">
-      <div className="profile-memory-header">
-        <div>
-          <h3>View and manage memory</h3>
-          <p className="settings-description">
-            View a structured summary of what CoWork remembers about you. These profile entries are
-            the prompt-visible personalization layer.
-          </p>
-        </div>
-        <div className="profile-memory-meta">
-          <span>{factCount} item{factCount === 1 ? "" : "s"}</span>
-          <span>{formatRelativeTime(profile?.updatedAt)}</span>
-        </div>
-      </div>
+      <PersonalityTabHeader
+        title={t("personality.memory.title", "View and manage memory")}
+        description={t(
+          "personality.memory.description",
+          "View a structured summary of what NeoWorker remembers about you. These profile entries are the prompt-visible personalization layer.",
+        )}
+        aside={
+          <div className="profile-memory-meta">
+            <span>
+              {t("personality.memory.itemCount", "{count} item{plural}", {
+                count: factCount,
+                plural:
+                  getCurrentLanguage() === "en" && factCount === 1 ? "" : "s",
+              })}
+            </span>
+            <span>{formatRelativeTime(profile?.updatedAt)}</span>
+          </div>
+        }
+      />
 
       {sections.length === 0 ? (
         <div className="settings-empty profile-memory-empty">
-          No profile memory yet. Add a preference, goal, work context, or constraint below.
+          {t(
+            "personality.memory.empty",
+            "No profile memory yet. Add a preference, goal, work context, or constraint below.",
+          )}
         </div>
       ) : (
         <div className="profile-memory-summary">
           {sections.map((section) => (
             <section key={section.id} className="profile-memory-section">
-              <h4>{section.title}</h4>
+              <h4>
+                {t(`personality.memory.category.${section.id}`, section.title)}
+              </h4>
               <div className="profile-memory-facts">
                 {section.facts.map((fact) => (
                   <article key={fact.id} className="profile-memory-fact">
                     <div className="profile-memory-fact-body">
                       <p>{fact.value}</p>
                       <span>
-                        {Math.round(fact.confidence * 100)}% confidence
-                        {fact.pinned ? " • pinned" : ""}
+                        {t(
+                          "personality.memory.confidence",
+                          "{value}% confidence",
+                          {
+                            value: Math.round(fact.confidence * 100),
+                          },
+                        )}
+                        {fact.pinned
+                          ? t("personality.memory.pinnedSuffix", " • pinned")
+                          : ""}
                       </span>
                     </div>
                     <div className="profile-memory-actions">
                       <button type="button" onClick={() => handleEdit(fact)}>
-                        Edit
+                        {t("personality.common.edit", "Edit")}
                       </button>
-                      <button type="button" onClick={() => void handleTogglePin(fact)}>
-                        {fact.pinned ? "Unpin" : "Pin"}
+                      <button
+                        type="button"
+                        onClick={() => void handleTogglePin(fact)}
+                      >
+                        {fact.pinned
+                          ? t("personality.memory.unpinAction", "Unpin")
+                          : t("personality.memory.pinAction", "Pin")}
                       </button>
                       <button
                         type="button"
                         className="danger"
                         onClick={() => void handleDelete(fact.id)}
                       >
-                        Delete
+                        {t("personality.common.delete", "Delete")}
                       </button>
                     </div>
                   </article>
@@ -253,13 +371,20 @@ export function PersonalityMemoryTab({ onChanged }: PersonalityMemoryTabProps) {
 
       <div className="profile-memory-composer">
         {status && (
-          <div className={`profile-memory-status ${status.tone}`}>{status.message}</div>
+          <div className={`profile-memory-status ${status.tone}`}>
+            {status.message}
+          </div>
         )}
         {editingFact && (
           <div className="profile-memory-editing">
-            Updating {editingFact.category} memory
+            {t("personality.memory.editing", "Updating {category} memory", {
+              category: t(
+                `personality.memory.category.${editingFact.category}`,
+                editingFact.category,
+              ),
+            })}
             <button type="button" onClick={handleCancelEdit} disabled={saving}>
-              Cancel
+              {t("personality.common.cancel", "Cancel")}
             </button>
           </div>
         )}
@@ -274,7 +399,10 @@ export function PersonalityMemoryTab({ onChanged }: PersonalityMemoryTabProps) {
                 void handleSubmit();
               }
             }}
-            placeholder="Add or update something about yourself"
+            placeholder={t(
+              "personality.memory.placeholder",
+              "Add or update something about yourself",
+            )}
             disabled={saving}
             maxLength={MAX_PROFILE_MEMORY_LENGTH}
           />
@@ -284,7 +412,11 @@ export function PersonalityMemoryTab({ onChanged }: PersonalityMemoryTabProps) {
             onClick={() => void handleSubmit()}
             disabled={saving || !draft.trim()}
           >
-            {saving ? "Saving..." : editingFact ? "Update" : "Add"}
+            {saving
+              ? t("personality.common.saving", "Saving...")
+              : editingFact
+                ? t("personality.common.update", "Update")
+                : t("personality.common.add", "Add")}
           </button>
         </div>
         <div

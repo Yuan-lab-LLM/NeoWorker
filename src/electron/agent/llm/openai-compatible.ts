@@ -18,6 +18,134 @@ import {
 
 const logger = createLogger("openai-compat");
 
+type RetryableToolArgumentsError = Error & {
+  code: "MALFORMED_TOOL_ARGUMENTS";
+  retryable: true;
+};
+
+/**
+ * JSON emitted by some OpenAI-compatible providers occasionally contains
+ * literal control characters inside a string value. This is especially
+ * common when a model puts a multi-line HTML/Markdown document in a tool
+ * argument. JSON requires those characters to be escaped, so repair only
+ * control characters that are unambiguously inside a quoted string.
+ */
+function escapeControlCharactersInsideJsonStrings(value: string): string {
+  let output = "";
+  let inString = false;
+  let escaped = false;
+
+  for (const char of value) {
+    if (!inString) {
+      output += char;
+      if (char === '"') inString = true;
+      continue;
+    }
+
+    if (escaped) {
+      output += char;
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      output += char;
+      escaped = true;
+      continue;
+    }
+    if (char === '"') {
+      output += char;
+      inString = false;
+      continue;
+    }
+
+    switch (char) {
+      case "\n":
+        output += "\\n";
+        break;
+      case "\r":
+        output += "\\r";
+        break;
+      case "\t":
+        output += "\\t";
+        break;
+      case "\b":
+        output += "\\b";
+        break;
+      case "\f":
+        output += "\\f";
+        break;
+      default: {
+        const code = char.charCodeAt(0);
+        output +=
+          code < 0x20
+            ? `\\u${code.toString(16).padStart(4, "0")}`
+            : char;
+      }
+    }
+  }
+
+  return output;
+}
+
+/**
+ * OpenAI-compatible providers occasionally return almost-valid JSON for a
+ * function call (for example a missing comma between two properties). A raw
+ * JSON.parse here used to fail the entire agent step even when the assistant
+ * had already produced a useful answer. Repair the common formatting slips;
+ * if the payload is genuinely unusable, mark it as transient so the executor
+ * can retry the model turn instead of surfacing a low-level SyntaxError.
+ */
+export function parseOpenAICompatibleToolArguments(value?: string): Record<string, Any> {
+  const raw = String(value || "{}").trim() || "{}";
+
+  const normalizeObject = (parsed: unknown): Record<string, Any> | null =>
+    parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, Any>)
+      : null;
+
+  try {
+    const parsed = normalizeObject(JSON.parse(raw));
+    if (parsed) return parsed;
+  } catch {
+    // Continue with the repair pass below.
+  }
+
+  try {
+    const withoutFence = raw
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/, "")
+      .trim();
+    // Repair the most common provider slip: an omitted comma between an
+    // object value and the next quoted property name. Keep this deliberately
+    // conservative; anything more ambiguous is retried instead of guessed.
+    const repaired = escapeControlCharactersInsideJsonStrings(withoutFence)
+      .replace(
+        /("(?:\\.|[^"\\])*")(\s+)(?="(?:\\.|[^"\\])*"\s*:)/g,
+        "$1,$2",
+      )
+      .replace(
+        /(\b(?:true|false|null)|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|[}\]])(\s+)(?="(?:\\.|[^"\\])*"\s*:)/g,
+        "$1,$2",
+      )
+      .replace(/,\s*([}\]])/g, "$1");
+    const parsed = normalizeObject(JSON.parse(repaired));
+    if (parsed) {
+      logger.warn("Repaired malformed tool-call arguments from an OpenAI-compatible provider");
+      return parsed;
+    }
+  } catch {
+    // Fall through to a retryable provider error.
+  }
+
+  const error = new Error(
+    "The model returned malformed tool arguments. Retrying the model response.",
+  ) as RetryableToolArgumentsError;
+  error.name = "MalformedToolArgumentsError";
+  error.code = "MALFORMED_TOOL_ARGUMENTS";
+  error.retryable = true;
+  throw error;
+}
+
 export interface OpenAICompatibleMessageOptions {
   /** Set to false to replace image blocks with text fallback (default: false) */
   supportsImages?: boolean;
@@ -294,7 +422,7 @@ export function fromOpenAICompatibleResponse(response: Any): LLMResponse {
           type: "tool_use",
           id: toolCall.id,
           name: toolCall.function.name,
-          input: JSON.parse(toolCall.function.arguments || "{}"),
+          input: parseOpenAICompatibleToolArguments(toolCall.function.arguments),
         });
       }
     }

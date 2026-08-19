@@ -1,8 +1,8 @@
 # Channel-Specific User Guides
 
-These guides explain how to use each CoWork channel after it is connected. They are written for end users: what the channel is best for, which features matter, how to work day to day, and what to avoid.
+These guides explain how to use each NeoWorker channel after it is connected. They are written for end users: what the channel is best for, which features matter, how to work day to day, and what to avoid.
 
-For setup instructions, see [Channel Integrations](../channels.md). For shared remote commands and task lifecycle behavior, see [Using CoWork from WhatsApp and Other Channels](../gateway-user-guide.md) and [Gateway Message Lifecycle](../gateway-message-lifecycle.md).
+For setup instructions, see [Channel Integrations](../channels.md). For shared remote commands and task lifecycle behavior, see [Using NeoWorker from WhatsApp and Other Channels](../gateway-user-guide.md) and [Gateway Message Lifecycle](../gateway-message-lifecycle.md).
 
 Admins can also use [Channel Specialization](../channels.md#channel-specialization) to make a whole channel, specific chat/group, or topic/thread default to a workspace, agent role, prompt guidance, tool restrictions, and shared-memory policy.
 
@@ -30,7 +30,7 @@ Admins can also use [Channel Specialization](../channels.md#channel-specializati
 
 ## Shared Commands
 
-Most channels support the same remote lifecycle commands once messages reach CoWork:
+Most channels support the same remote lifecycle commands once messages reach NeoWorker:
 
 - `/commands` shows the command catalog.
 - `/new` starts the next message fresh without cancelling the old task.

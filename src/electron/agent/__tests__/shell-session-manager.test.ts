@@ -8,15 +8,15 @@ describe("ShellSessionManager", () => {
   let workspaceDir: string;
 
   beforeEach(() => {
-    userDataDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "cowork-shell-session-")));
+    userDataDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-shell-session-")));
     workspaceDir = fs.realpathSync(fs.mkdtempSync(path.join(userDataDir, "workspace-")));
     fs.mkdirSync(path.join(workspaceDir, "subdir"), { recursive: true });
-    process.env.COWORK_USER_DATA_DIR = userDataDir;
+    process.env.NEOWORKER_USER_DATA_DIR = userDataDir;
     vi.resetModules();
   });
 
   afterEach(() => {
-    delete process.env.COWORK_USER_DATA_DIR;
+    delete process.env.NEOWORKER_USER_DATA_DIR;
     vi.restoreAllMocks();
   });
 
@@ -81,7 +81,7 @@ describe("ShellSessionManager", () => {
       taskId: "task-2",
       workspaceId: "workspace-2",
       workspacePath: workspaceDir,
-      command: "export COWORK_TEST_SECRET='super-secret-value' && pwd",
+      command: "export NEOWORKER_TEST_SECRET='super-secret-value' && pwd",
       timeoutMs: 10_000,
       fallbackRunner: async () => ({
         success: false,
@@ -96,7 +96,7 @@ describe("ShellSessionManager", () => {
 
     const persisted = fs.readFileSync(stateFile, "utf8");
     expect(persisted).not.toContain("super-secret-value");
-    expect(persisted).not.toContain("COWORK_TEST_SECRET");
+    expect(persisted).not.toContain("NEOWORKER_TEST_SECRET");
   });
 
   it("resets a timed-out session so later commands use a fresh shell", async () => {

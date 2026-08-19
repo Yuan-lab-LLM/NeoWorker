@@ -1,15 +1,15 @@
-# CoWork OS Architecture
+# NeoWorker Architecture
 
-CoWork OS is a GUI-first, CLI-capable local AI super app, everything app, and runtime for task execution, many-agent orchestration, generated knowledge-work artifacts, background operator loops, and multi-surface automation.
+NeoWorker is a GUI-first, CLI-capable local AI super app, everything app, and runtime for task execution, many-agent orchestration, generated knowledge-work artifacts, background operator loops, and multi-surface automation.
 
 ## Core Architecture
 
 - **Electron main process**: task orchestration, agent runtime, heartbeat orchestration, IPC, and tool execution
 - **React renderer**: desktop UI, Agents Hub, Mission Control, task timeline, settings, task boards, approval dialogs, xterm.js terminal tabs, and monitoring surfaces for managing many agents visually while the external CLI covers terminal-native starts
 - **Tool and connector layer**: file, shell, browser, web, native integrations, document generation/compilation tools including source-first LaTeX PDF compilation, MCP connectors, remote execution, and **computer use** (`screenshot`, `click`, `type_text`, and related tools) as a governed desktop-GUI lane (platform helper, single-session lock, policy-gated routing). See [Computer use](computer-use.md).
-- **Secure MCP tunnel layer**: outbound-only WebSocket clients can expose selected local/private MCP JSON-RPC endpoints through a CoWork-operated or self-hosted relay, with separate client/caller tokens, relay-side policy, local policy, request limits, and audit events. See [Secure MCP Tunnels](secure-mcp-tunnels.md).
+- **Secure MCP tunnel layer**: outbound-only WebSocket clients can expose selected local/private MCP JSON-RPC endpoints through a NeoWorker-operated or self-hosted relay, with separate client/caller tokens, relay-side policy, local policy, request limits, and audit events. See [Secure MCP Tunnels](secure-mcp-tunnels.md).
 - **Terminal tab layer**: workspace terminal tabs use xterm.js in the renderer and `node-pty` in Electron so user-visible terminal work flows through native PTYs instead of custom text emulation. macOS launches the user's login shell with zsh prompt/cwd integration; Windows launches `cmd.exe` through node-pty's ConPTY/winpty backend with a cwd-only prompt. See [Terminal Tabs](terminal-tabs.md).
-- **CLI runtime layer**: the `cowork` command provides an interactive terminal UI and local one-shot task runner on top of the same database, settings, providers, workspaces, skills, MCP servers, and agent runtime as the desktop app. Local `cowork run` prefers a hidden Electron app-entry mode (`--cowork-cli-direct-run`) so encrypted desktop settings keep the same app identity. `--remote` is the explicit Control Plane client path. See [CoWork OS CLI](cli.md).
+- **CLI runtime layer**: the `neoworker` command provides an interactive terminal UI and local one-shot task runner on top of the same database, settings, providers, workspaces, skills, MCP servers, and agent runtime as the desktop app. Local `neoworker run` prefers a hidden Electron app-entry mode (`--neoworker-cli-direct-run`) so encrypted desktop settings keep the same app identity. `--remote` is the explicit Control Plane client path. See [NeoWorker CLI](cli.md).
 - **Composer mention layer**: the renderer and Electron preload expose a grouped `@` autocomplete for Agents, configured Integrations, and Files. Integration mentions are resolved locally, render as rich chips, persist in task/session metadata, and inject soft routing guidance into the executor without changing permissions or `allowedTools`. See [Composer Mentions](composer-mentions.md).
 - **Message shortcut layer**: the renderer exposes one `/` picker for deterministic app commands and skill-backed workflow shortcuts. Shared app command parsing handles `/schedule`, `/clear`, `/plan`, `/cost`, `/multitask`, `/compact`, `/doctor`, and `/undo`; plugin-pack aliases resolve to target skill IDs before generic skill slash execution. Skill-backed picker selections insert editable slash tokens before launch, and Claude-for-Legal workflows can surface structured main-view matter intake cards. See [Message Box Shortcuts](message-box-shortcuts.md) and [Claude-for-Legal Workflows](claude-for-legal.md).
 - **Chronicle screen-context lane**: desktop-only passive recent-screen capture, local ranking/OCR enrichment, source resolution, provenance-aware `screen_context_resolve` tool exposure, and promotion of task-used observations into workspace-backed `screen_context` evidence plus optional linked background memory generation. See [Chronicle](chronicle.md).
@@ -25,7 +25,7 @@ CoWork OS is a GUI-first, CLI-capable local AI super app, everything app, and ru
 - **Worker roles and verification**: built-in worker roles (`researcher`, `implementer`, `verifier`, `synthesizer`) carry hard tool scopes, delegated work receives a structured brief instead of raw prompt passthrough, and verification runs use both early nudges and a dedicated verdict/report contract
 - **Adaptive model routing**: the executor can switch into a workflow-pipeline path where decomposed phases run as child tasks with per-phase model overrides or capability-based auto-selection
 - **Federated agent orchestration**: ACP registry + remote invocation let orchestrators target local roles or remote A2A-compatible agents under shared approval and policy controls
-- **Local persistence**: SQLite, local files, curated hot-memory entries, archive memory rows and summaries, transcript spans/checkpoints with structured summaries + verbatim evidence packets, Dreaming runs/candidates for reviewable memory curation, knowledge graph state including temporal edge validity, run records, orchestration graph nodes/events, ACP agent registrations and ACP task state, usage telemetry, feedback events, `session_runtime_v2` task snapshots, managed-agent tables (`managed_agents`, `managed_agent_versions`, `managed_environments`, `managed_sessions`, `managed_session_events`), `.cowork/memory/topics`, and workspace-kit contracts in `.cowork/`
+- **Local persistence**: SQLite, local files, curated hot-memory entries, archive memory rows and summaries, transcript spans/checkpoints with structured summaries + verbatim evidence packets, Dreaming runs/candidates for reviewable memory curation, knowledge graph state including temporal edge validity, run records, orchestration graph nodes/events, ACP agent registrations and ACP task state, usage telemetry, feedback events, `session_runtime_v2` task snapshots, managed-agent tables (`managed_agents`, `managed_agent_versions`, `managed_environments`, `managed_sessions`, `managed_session_events`), `.neoworker/memory/topics`, and workspace-kit contracts in `.neoworker/`
 - **Artifact preview layer**: file preview IPC resolves workspace-contained outputs, extracts document content, and enriches artifacts with renderer-ready previews. Spreadsheet previews are extracted in Electron into shared sheet structures (`spreadsheetPreview`) for sheet names, used bounds, display values, formulas, styles, and column widths; workbook formats use `exceljs`, while CSV/TSV use a delimited parser and save back with the original delimiter. Native/app-owned spreadsheet formats such as Numbers and Google Sheets shortcuts are recognized as artifacts but open externally. Word-style document previews are extracted into `documentPreview`; DOCX-like files use Mammoth plus editable block metadata, RTF and ODT/OTT use best-effort local text extraction, legacy DOC attempts local converter fallback, and Pages is recognized for external handling. Web page previews are extracted into `webPreview`; HTML/HTM files and built React output entrypoints return sandbox-ready iframe HTML with local assets inlined where possible, while React-style projects without build output return a structured preview-unavailable state. Existing `content` and `htmlContent` fallbacks remain for compatibility. PPTX previews use `presentationPreview` with fast text/notes extraction, cached `imageUrl` slide PNGs, background full rendering through Codex `@oai/artifact-tool`, local `soffice` + `pdftoppm` fallback, in-flight render dedupe, and text-only fallback when image rendering is unavailable.
 - **Browser V2 workbench layer**: interactive browser-use tools target a renderer-owned Electron webview by default, with main-process automation owned by `BrowserSessionManager` and routed through Electron `webContents.debugger` / CDP. The main process maps `{ taskId, sessionId }` to the webview's `webContentsId`; browser tools route navigation, accessibility snapshots, ref-aware click/fill/type/read/hover/drag/upload actions, dialogs, downloads, diagnostics, emulation, tracing, and screenshots to that visible session. The renderer opens the resizable right-sidebar/fullscreen Browser Workbench on demand and carries status, screenshot capture, annotation handoff, diagnostics UI, snapshot overlay state, cursor events, and viewport events so users can see agent movement and responsive breakpoint changes over the page. The embedded session uses a persistent per-workspace partition isolated from system Chrome; explicit forced-headless, profile, browser-channel, Chrome DevTools attach, and Browser Use Cloud provider options keep Playwright/local, external-CDP, and remote stealth-browser fallback paths available when explicitly needed. Real-browser profile control requires explicit consent, and Browser Use Cloud is explicit opt-in for public HTTP(S) targets with private/local target blocking and remote-session stop handling. See [Browser Workbench](browser-workbench.md) and [Browser V2 Architecture](browser-v2-architecture.md).
 - **Permission engine**: layered tool approval decisions combine workspace capabilities, explicit rules, hard guardrails, session grants, workspace-local policy files, and mode defaults including `dangerous_only`, with workspace rule browsing/removal in Settings
@@ -36,7 +36,7 @@ CoWork OS is a GUI-first, CLI-capable local AI super app, everything app, and ru
 
 ## Profiles and Isolation
 
-CoWork supports multiple app profiles so one install can keep separate operating environments for different users, clients, or trust zones.
+NeoWorker supports multiple app profiles so one install can keep separate operating environments for different users, clients, or trust zones.
 
 - each profile has its own user-data root, SQLite database, encrypted settings, channel configs, managed skills, and session history
 - profile export/import moves a complete app profile bundle without merging it into another profile implicitly
@@ -66,12 +66,12 @@ Dreaming candidates are proposals, not final mutations. Accepted candidates must
 
 ## Workspace Kit
 
-The `.cowork/` workspace kit holds durable human-edited operating context.
+The `.neoworker/` workspace kit holds durable human-edited operating context.
 
 - `BOOTSTRAP.md` is a one-time onboarding checklist
 - `HEARTBEAT.md` is reserved for recurring heartbeat checklist work
 - `USER.md` and `MEMORY.md` can contain both human-authored content and auto-managed curated-memory blocks
-- project-scoped context lives under `.cowork/projects/<projectId>/`
+- project-scoped context lives under `.neoworker/projects/<projectId>/`
 
 ## Skills Runtime Model
 
@@ -111,14 +111,14 @@ MCP transport disconnects that classify as auth failures stop at `error` rather 
 
 - `src/electron/`: main-process runtime, services, database, scheduling, monitoring
 - `src/electron/agent/runtime/SessionRuntime.ts`: canonical task-session owner for execution, recovery, snapshotting, and task projection
-- `src/cli/`: `cowork` CLI argument parsing, terminal UI, local one-shot runner, diagnostics, and remote Control Plane dispatch
-- `bin/cowork-cli.js`: npm binary launcher for the `cowork` command
+- `src/cli/`: `neoworker` CLI argument parsing, terminal UI, local one-shot runner, diagnostics, and remote Control Plane dispatch
+- `bin/neoworker-cli.js`: npm binary launcher for the `neoworker` command
 - `src/renderer/components/RightPanel.tsx`: renderer-side read-only projection of the latest session checklist state
 - `src/electron/agent/runtime/PermissionEngine.ts`: layered tool-approval evaluation, rule matching, and fallback escalation
 - `src/renderer/`: React UI and settings surfaces
 - `src/shared/`: shared contracts and types
 - `docs/`: product and architecture documentation
-- `.cowork/`: local workspace operating context
+- `.neoworker/`: local workspace operating context
 
 ## Desktop Location
 
@@ -146,20 +146,20 @@ Terminal tabs are implemented with a renderer/main split:
 - `src/electron/terminal/TerminalPtyManager.ts` owns `node-pty` processes, replay buffers, cwd/status metadata, PTY resize, and tab lifecycle.
 - `src/electron/ipc/handlers.ts`, `src/electron/preload.ts`, and `src/shared/types.ts` expose typed channels for create/list/write/resize/stop/close/output.
 
-The design keeps structured shell tools available for agent-run commands while giving humans a real terminal work surface in the same task workspace. This is the terminal counterpart to the Everything Workbench and Browser Workbench: direct CLI work no longer has to leave CoWork OS. Product behavior and QA guidance are documented in [Terminal Tabs](terminal-tabs.md).
+The design keeps structured shell tools available for agent-run commands while giving humans a real terminal work surface in the same task workspace. This is the terminal counterpart to the Everything Workbench and Browser Workbench: direct CLI work no longer has to leave NeoWorker. Product behavior and QA guidance are documented in [Terminal Tabs](terminal-tabs.md).
 
-## CoWork CLI
+## NeoWorker CLI
 
-The standalone `cowork` CLI is implemented separately from in-app terminal tabs:
+The standalone `neoworker` CLI is implemented separately from in-app terminal tabs:
 
-- `bin/cowork-cli.js` resolves the installed package and launches built CLI output.
+- `bin/neoworker-cli.js` resolves the installed package and launches built CLI output.
 - `src/cli/main.ts` owns argument parsing, the interactive welcome screen, slash commands, local diagnostics, and remote-mode handling.
 - `src/cli/direct-run.ts` owns one-shot local task execution once the app runtime has initialized.
-- `src/electron/main.ts` recognizes `--cowork-cli-direct-run` and starts a hidden Electron runner without opening the desktop window.
+- `src/electron/main.ts` recognizes `--neoworker-cli-direct-run` and starts a hidden Electron runner without opening the desktop window.
 
 The local path is intentionally not a Control Plane dependency. It initializes the local database, settings manager, provider routing, workspace state, skill registry, MCP manager, and `AgentDaemon`, then creates and waits on a task. The daemon is started with startup recovery disabled in CLI direct-run mode so a short-lived terminal process does not recover or rewrite GUI-owned tasks.
 
-Use `cowork run ... --remote` for the token-gated Control Plane client path. Product behavior and first-run guidance are documented in [CoWork OS CLI](cli.md).
+Use `neoworker run ... --remote` for the token-gated Control Plane client path. Product behavior and first-run guidance are documented in [NeoWorker CLI](cli.md).
 
 ## Chronicle
 
@@ -169,7 +169,7 @@ Chronicle is implemented as a dedicated desktop screen-context subsystem under `
 - `ChronicleSelector` ranks frames by recency, app/window metadata, and OCR-derived local text
 - `ChronicleSourceResolver` enriches Chronicle captures with frontmost URL/file/app references when available
 - `ChronicleProvenance` turns screen-derived text into untrusted, provenance-tagged context
-- `ChronicleObservationRepository` promotes only task-used observations into `.cowork/chronicle/`
+- `ChronicleObservationRepository` promotes only task-used observations into `.neoworker/chronicle/`
 - `ChronicleMemoryService` can create linked `screen_context` memory rows through the normal memory pipeline
 - `screen_context_resolve` is registered from the agent tool registry, exposed through the dedicated built-in `chronicle` tool category, and hidden when Chronicle is disabled, paused, or unavailable
 - Mission Control and runtime visibility consume promoted observations as `screen_context`, not as a separate memory database

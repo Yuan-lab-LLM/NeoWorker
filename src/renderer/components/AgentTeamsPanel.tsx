@@ -9,6 +9,8 @@ import type {
   AgentTeamRunStatus,
   Task,
 } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
+import "./team-workspace.css";
 
 type AgentRole = AgentRoleData;
 
@@ -41,39 +43,95 @@ function formatTime(ts?: number): string {
 function summarizeEvent(event: TeamRunEvent): string {
   switch (event.type) {
     case "team_created":
-      return `Team created: ${event.team?.name || event.teamId || ""}`.trim();
+      return translate("agentTeams.event.teamCreated", "Team created: {name}", {
+        name: event.team?.name || event.teamId || "",
+      }).trim();
     case "team_updated":
-      return `Team updated: ${event.team?.name || event.teamId || ""}`.trim();
+      return translate("agentTeams.event.teamUpdated", "Team updated: {name}", {
+        name: event.team?.name || event.teamId || "",
+      }).trim();
     case "team_deleted":
-      return `Team deleted: ${event.teamId || ""}`.trim();
+      return translate("agentTeams.event.teamDeleted", "Team deleted: {id}", {
+        id: event.teamId || "",
+      }).trim();
     case "team_member_added":
-      return `Member added: ${event.member?.agentRoleId || ""}`.trim();
+      return translate("agentTeams.event.memberAdded", "Member added: {role}", {
+        role: event.member?.agentRoleId || "",
+      }).trim();
     case "team_member_updated":
-      return `Member updated: ${event.member?.agentRoleId || ""}`.trim();
+      return translate(
+        "agentTeams.event.memberUpdated",
+        "Member updated: {role}",
+        {
+          role: event.member?.agentRoleId || "",
+        },
+      ).trim();
     case "team_member_removed":
-      return `Member removed: ${event.agentRoleId || ""}`.trim();
+      return translate(
+        "agentTeams.event.memberRemoved",
+        "Member removed: {role}",
+        {
+          role: event.agentRoleId || "",
+        },
+      ).trim();
     case "team_members_reordered":
-      return `Members reordered`;
+      return translate(
+        "agentTeams.event.membersReordered",
+        "Members reordered",
+      );
     case "team_run_created":
-      return `Run created: ${event.run?.id || ""}`.trim();
+      return translate("agentTeams.event.runCreated", "Run created: {id}", {
+        id: event.run?.id || "",
+      }).trim();
     case "team_run_updated":
-      return `Run ${event.run?.id || ""} -> ${event.run?.status || ""}`.trim();
+      return translate("agentTeams.event.runUpdated", "Run {id} -> {status}", {
+        id: event.run?.id || "",
+        status: event.run?.status || "",
+      }).trim();
     case "team_item_created":
-      return `Item created: ${event.item?.title || ""}`.trim();
+      return translate(
+        "agentTeams.event.itemCreated",
+        "Item created: {title}",
+        {
+          title: event.item?.title || "",
+        },
+      ).trim();
     case "team_item_updated":
-      return `Item updated: ${event.item?.title || ""} -> ${event.item?.status || ""}`.trim();
+      return translate(
+        "agentTeams.event.itemUpdated",
+        "Item updated: {title} -> {status}",
+        {
+          title: event.item?.title || "",
+          status: event.item?.status || "",
+        },
+      ).trim();
     case "team_item_deleted":
-      return `Item deleted`;
+      return translate("agentTeams.event.itemDeleted", "Item deleted");
     case "team_item_moved":
-      return `Item moved: ${event.item?.title || ""}`.trim();
+      return translate("agentTeams.event.itemMoved", "Item moved: {title}", {
+        title: event.item?.title || "",
+      }).trim();
     case "team_item_spawned":
-      return `Spawned task for: ${event.item?.title || ""}`.trim();
+      return translate(
+        "agentTeams.event.itemSpawned",
+        "Spawned task for: {title}",
+        {
+          title: event.item?.title || "",
+        },
+      ).trim();
     default:
       return event.type;
   }
 }
 
-export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: AgentTeamsPanelProps) {
+export function AgentTeamsPanel({
+  workspaceId,
+  agents,
+  tasks,
+  onOpenTask,
+}: AgentTeamsPanelProps) {
+  useLanguage();
+  const t = translate;
   const [teams, setTeams] = useState<AgentTeam[]>([]);
   const [showInactiveTeams, setShowInactiveTeams] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
@@ -92,11 +150,13 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
   const [newTeamMaxParallel, setNewTeamMaxParallel] = useState<number>(4);
   const [newTeamDefaultModelPreference, setNewTeamDefaultModelPreference] =
     useState<string>("cheaper");
-  const [newTeamDefaultPersonality, setNewTeamDefaultPersonality] = useState<string>("concise");
+  const [newTeamDefaultPersonality, setNewTeamDefaultPersonality] =
+    useState<string>("concise");
 
   // Selected Team edit draft (simple inline editing)
   const selectedTeam = useMemo(
-    () => (selectedTeamId ? teams.find((t) => t.id === selectedTeamId) : undefined),
+    () =>
+      selectedTeamId ? teams.find((t) => t.id === selectedTeamId) : undefined,
     [teams, selectedTeamId],
   );
   const [teamDraft, setTeamDraft] = useState<{
@@ -139,7 +199,8 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
 
   const sortedTasks = useMemo(() => {
     return [...tasks].sort(
-      (a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0),
+      (a, b) =>
+        (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0),
     );
   }, [tasks]);
 
@@ -147,7 +208,10 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
     try {
       setIsLoadingTeams(true);
       setError(null);
-      const loaded = await window.electronAPI.listTeams(workspaceId, showInactiveTeams);
+      const loaded = await window.electronAPI.listTeams(
+        workspaceId,
+        showInactiveTeams,
+      );
       setTeams(loaded);
       setSelectedTeamId((prev) => {
         if (prev && loaded.some((t) => t.id === prev)) return prev;
@@ -155,7 +219,9 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
       });
     } catch (err: Any) {
       console.error("Failed to load teams:", err);
-      setError(err?.message || "Failed to load teams");
+      setError(
+        err?.message || t("agentTeams.error.loadTeams", "Failed to load teams"),
+      );
     } finally {
       setIsLoadingTeams(false);
     }
@@ -176,7 +242,10 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
       });
     } catch (err: Any) {
       console.error("Failed to load team details:", err);
-      setError(err?.message || "Failed to load team details");
+      setError(
+        err?.message ||
+          t("agentTeams.error.loadDetails", "Failed to load team details"),
+      );
     }
   }, []);
 
@@ -187,7 +256,10 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
       setItems(loaded);
     } catch (err: Any) {
       console.error("Failed to load run items:", err);
-      setError(err?.message || "Failed to load run items");
+      setError(
+        err?.message ||
+          t("agentTeams.error.loadItems", "Failed to load run items"),
+      );
     }
   }, []);
 
@@ -256,7 +328,9 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
           break;
         case "team_updated":
           setTeams((prev) =>
-            prev.map((t) => (t.id === event.team?.id ? (event.team as AgentTeam) : t)),
+            prev.map((t) =>
+              t.id === event.team?.id ? (event.team as AgentTeam) : t,
+            ),
           );
           break;
         case "team_deleted":
@@ -283,7 +357,9 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
           break;
         case "team_member_removed":
           if (event.teamId === selectedTeamId) {
-            setTeamMembers((prev) => prev.filter((m) => m.agentRoleId !== event.agentRoleId));
+            setTeamMembers((prev) =>
+              prev.filter((m) => m.agentRoleId !== event.agentRoleId),
+            );
           }
           break;
         case "team_members_reordered":
@@ -296,7 +372,9 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
             setRuns((prev) => {
               const run = event.run as AgentTeamRun;
               const existing = prev.some((r) => r.id === run.id);
-              return existing ? prev.map((r) => (r.id === run.id ? run : r)) : [run, ...prev];
+              return existing
+                ? prev.map((r) => (r.id === run.id ? run : r))
+                : [run, ...prev];
             });
             setSelectedRunId((prev) => prev ?? event.run.id);
           }
@@ -306,7 +384,9 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
             setRuns((prev) => {
               const run = event.run as AgentTeamRun;
               const existing = prev.some((r) => r.id === run.id);
-              return existing ? prev.map((r) => (r.id === run.id ? run : r)) : [run, ...prev];
+              return existing
+                ? prev.map((r) => (r.id === run.id ? run : r))
+                : [run, ...prev];
             });
           }
           break;
@@ -315,7 +395,9 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
             setItems((prev) => {
               const item = event.item as AgentTeamItem;
               const existing = prev.some((i) => i.id === item.id);
-              return existing ? prev.map((i) => (i.id === item.id ? item : i)) : [...prev, item];
+              return existing
+                ? prev.map((i) => (i.id === item.id ? item : i))
+                : [...prev, item];
             });
           }
           break;
@@ -324,7 +406,9 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
             setItems((prev) => {
               const item = event.item as AgentTeamItem;
               const existing = prev.some((i) => i.id === item.id);
-              return existing ? prev.map((i) => (i.id === item.id ? item : i)) : [...prev, item];
+              return existing
+                ? prev.map((i) => (i.id === item.id ? item : i))
+                : [...prev, item];
             });
           }
           break;
@@ -337,7 +421,9 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
         case "team_item_spawned":
           if (event.item?.teamRunId === selectedRunId) {
             setItems((prev) =>
-              prev.map((i) => (i.id === event.item.id ? (event.item as AgentTeamItem) : i)),
+              prev.map((i) =>
+                i.id === event.item.id ? (event.item as AgentTeamItem) : i,
+              ),
             );
           }
           break;
@@ -349,13 +435,16 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
   }, [selectedTeamId, selectedRunId]);
 
   const handleCreateTeam = useCallback(async () => {
-    const leadId = newTeamLeadRoleId || agents.find((a) => a.isActive)?.id || "";
+    const leadId =
+      newTeamLeadRoleId || agents.find((a) => a.isActive)?.id || "";
     if (!newTeamName.trim()) {
-      setError("Team name is required");
+      setError(t("agentTeams.error.nameRequired", "Team name is required"));
       return;
     }
     if (!leadId) {
-      setError("Lead agent role is required");
+      setError(
+        t("agentTeams.error.leadRequired", "Lead agent role is required"),
+      );
       return;
     }
     try {
@@ -384,7 +473,10 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
       setNewTeamDefaultPersonality("concise");
     } catch (err: Any) {
       console.error("Failed to create team:", err);
-      setError(err?.message || "Failed to create team");
+      setError(
+        err?.message ||
+          t("agentTeams.error.createTeam", "Failed to create team"),
+      );
     }
   }, [
     workspaceId,
@@ -406,24 +498,43 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
         name: teamDraft.name.trim(),
         description: teamDraft.description.trim() || null,
         leadAgentRoleId: teamDraft.leadAgentRoleId,
-        maxParallelAgents: Math.max(1, Number(teamDraft.maxParallelAgents) || 1),
+        maxParallelAgents: Math.max(
+          1,
+          Number(teamDraft.maxParallelAgents) || 1,
+        ),
         defaultModelPreference: teamDraft.defaultModelPreference,
         defaultPersonality: teamDraft.defaultPersonality,
         isActive: teamDraft.isActive,
         persistent: teamDraft.persistent,
       });
       if (updated) {
-        setTeams((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+        setTeams((prev) =>
+          prev.map((t) => (t.id === updated.id ? updated : t)),
+        );
       }
     } catch (err: Any) {
       console.error("Failed to update team:", err);
-      setError(err?.message || "Failed to update team");
+      setError(
+        err?.message ||
+          t("agentTeams.error.updateTeam", "Failed to update team"),
+      );
     }
   }, [selectedTeam?.id, teamDraft]);
 
   const handleDeleteTeam = useCallback(async () => {
     if (!selectedTeam) return;
-    if (!confirm(`Delete team "${selectedTeam.name}"? This will delete runs and items.`)) return;
+    if (
+      !confirm(
+        t(
+          "agentTeams.confirm.deleteTeam",
+          'Delete team "{name}"? This will delete runs and items.',
+          {
+            name: selectedTeam.name,
+          },
+        ),
+      )
+    )
+      return;
     try {
       setError(null);
       const res = await window.electronAPI.deleteTeam(selectedTeam.id);
@@ -433,14 +544,17 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
       }
     } catch (err: Any) {
       console.error("Failed to delete team:", err);
-      setError(err?.message || "Failed to delete team");
+      setError(
+        err?.message ||
+          t("agentTeams.error.deleteTeam", "Failed to delete team"),
+      );
     }
   }, [selectedTeam?.id]);
 
   const handleAddMember = useCallback(async () => {
     if (!selectedTeamId) return;
     if (!newMemberRoleId) {
-      setError("Pick an agent role to add");
+      setError(t("agentTeams.error.pickRole", "Pick an agent role to add"));
       return;
     }
     try {
@@ -463,7 +577,10 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
       setNewMemberGuidance("");
     } catch (err: Any) {
       console.error("Failed to add team member:", err);
-      setError(err?.message || "Failed to add team member");
+      setError(
+        err?.message ||
+          t("agentTeams.error.addMember", "Failed to add team member"),
+      );
     }
   }, [selectedTeamId, newMemberRoleId, newMemberRequired, newMemberGuidance]);
 
@@ -471,14 +588,32 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
     async (member: AgentTeamMember) => {
       if (!selectedTeamId) return;
       const role = agentById.get(member.agentRoleId);
-      if (!confirm(`Remove ${role?.displayName || "member"} from this team?`)) return;
+      if (
+        !confirm(
+          t(
+            "agentTeams.confirm.removeMember",
+            "Remove {name} from this team?",
+            {
+              name:
+                role?.displayName || t("agentTeams.memberFallback", "member"),
+            },
+          ),
+        )
+      )
+        return;
       try {
         setError(null);
-        await window.electronAPI.removeTeamMember(selectedTeamId, member.agentRoleId);
+        await window.electronAPI.removeTeamMember(
+          selectedTeamId,
+          member.agentRoleId,
+        );
         setTeamMembers((prev) => prev.filter((m) => m.id !== member.id));
       } catch (err: Any) {
         console.error("Failed to remove team member:", err);
-        setError(err?.message || "Failed to remove team member");
+        setError(
+          err?.message ||
+            t("agentTeams.error.removeMember", "Failed to remove team member"),
+        );
       }
     },
     [selectedTeamId, agentById],
@@ -490,18 +625,27 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
         setError(null);
         const updated = await window.electronAPI.updateTeamMember({
           id: memberId,
-          ...(updates.isRequired !== undefined ? { isRequired: updates.isRequired } : {}),
+          ...(updates.isRequired !== undefined
+            ? { isRequired: updates.isRequired }
+            : {}),
           ...(updates.roleGuidance !== undefined
             ? { roleGuidance: updates.roleGuidance || null }
             : {}),
-          ...(updates.memberOrder !== undefined ? { memberOrder: updates.memberOrder } : {}),
+          ...(updates.memberOrder !== undefined
+            ? { memberOrder: updates.memberOrder }
+            : {}),
         });
         if (updated) {
-          setTeamMembers((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+          setTeamMembers((prev) =>
+            prev.map((m) => (m.id === updated.id ? updated : m)),
+          );
         }
       } catch (err: Any) {
         console.error("Failed to update team member:", err);
-        setError(err?.message || "Failed to update team member");
+        setError(
+          err?.message ||
+            t("agentTeams.error.updateMember", "Failed to update team member"),
+        );
       }
     },
     [],
@@ -528,7 +672,13 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
         setTeamMembers(updated);
       } catch (err: Any) {
         console.error("Failed to reorder team members:", err);
-        setError(err?.message || "Failed to reorder team members");
+        setError(
+          err?.message ||
+            t(
+              "agentTeams.error.reorderMembers",
+              "Failed to reorder team members",
+            ),
+        );
       }
     },
     [selectedTeamId, teamMembers],
@@ -537,7 +687,7 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
   const handleCreateRun = useCallback(async () => {
     if (!selectedTeamId) return;
     if (!newRunRootTaskId) {
-      setError("Pick a root task");
+      setError(t("agentTeams.error.pickRootTask", "Pick a root task"));
       return;
     }
     try {
@@ -552,12 +702,16 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
       setSelectedRunId(run.id);
     } catch (err: Any) {
       console.error("Failed to create team run:", err);
-      setError(err?.message || "Failed to create team run");
+      setError(
+        err?.message ||
+          t("agentTeams.error.createRun", "Failed to create team run"),
+      );
     }
   }, [selectedTeamId, newRunRootTaskId, newRunStartNow, newRunCollaborative]);
 
   const selectedRun = useMemo(
-    () => (selectedRunId ? runs.find((r) => r.id === selectedRunId) : undefined),
+    () =>
+      selectedRunId ? runs.find((r) => r.id === selectedRunId) : undefined,
     [runs, selectedRunId],
   );
 
@@ -575,7 +729,10 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
         }
       } catch (err: Any) {
         console.error("Failed to update team run:", err);
-        setError(err?.message || "Failed to update team run");
+        setError(
+          err?.message ||
+            t("agentTeams.error.updateRun", "Failed to update team run"),
+        );
       }
     },
     [selectedRunId],
@@ -591,12 +748,17 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
   const handleCreateItem = useCallback(async () => {
     if (!selectedRunId) return;
     if (!newItemTitle.trim()) {
-      setError("Item title is required");
+      setError(
+        t("agentTeams.error.itemTitleRequired", "Item title is required"),
+      );
       return;
     }
     try {
       setError(null);
-      const maxSort = sortedItems.reduce((acc, i) => Math.max(acc, i.sortOrder), 0);
+      const maxSort = sortedItems.reduce(
+        (acc, i) => Math.max(acc, i.sortOrder),
+        0,
+      );
       const created = await window.electronAPI.createTeamItem({
         teamRunId: selectedRunId,
         title: newItemTitle.trim(),
@@ -611,47 +773,80 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
       setNewItemOwnerRoleId("");
     } catch (err: Any) {
       console.error("Failed to create item:", err);
-      setError(err?.message || "Failed to create item");
+      setError(
+        err?.message ||
+          t("agentTeams.error.createItem", "Failed to create item"),
+      );
     }
-  }, [selectedRunId, newItemTitle, newItemDescription, newItemOwnerRoleId, sortedItems]);
+  }, [
+    selectedRunId,
+    newItemTitle,
+    newItemDescription,
+    newItemOwnerRoleId,
+    sortedItems,
+  ]);
 
-  const handleUpdateItem = useCallback(async (itemId: string, updates: Partial<AgentTeamItem>) => {
-    try {
-      setError(null);
-      const updated = await window.electronAPI.updateTeamItem({
-        id: itemId,
-        ...(updates.title !== undefined ? { title: updates.title } : {}),
-        ...(updates.description !== undefined ? { description: updates.description || null } : {}),
-        ...(updates.ownerAgentRoleId !== undefined
-          ? { ownerAgentRoleId: updates.ownerAgentRoleId || null }
-          : {}),
-        ...(updates.sourceTaskId !== undefined
-          ? { sourceTaskId: updates.sourceTaskId || null }
-          : {}),
-        ...(updates.status !== undefined ? { status: updates.status as AgentTeamItemStatus } : {}),
-        ...(updates.resultSummary !== undefined
-          ? { resultSummary: updates.resultSummary || null }
-          : {}),
-        ...(updates.sortOrder !== undefined ? { sortOrder: updates.sortOrder } : {}),
-      });
-      if (updated) {
-        setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+  const handleUpdateItem = useCallback(
+    async (itemId: string, updates: Partial<AgentTeamItem>) => {
+      try {
+        setError(null);
+        const updated = await window.electronAPI.updateTeamItem({
+          id: itemId,
+          ...(updates.title !== undefined ? { title: updates.title } : {}),
+          ...(updates.description !== undefined
+            ? { description: updates.description || null }
+            : {}),
+          ...(updates.ownerAgentRoleId !== undefined
+            ? { ownerAgentRoleId: updates.ownerAgentRoleId || null }
+            : {}),
+          ...(updates.sourceTaskId !== undefined
+            ? { sourceTaskId: updates.sourceTaskId || null }
+            : {}),
+          ...(updates.status !== undefined
+            ? { status: updates.status as AgentTeamItemStatus }
+            : {}),
+          ...(updates.resultSummary !== undefined
+            ? { resultSummary: updates.resultSummary || null }
+            : {}),
+          ...(updates.sortOrder !== undefined
+            ? { sortOrder: updates.sortOrder }
+            : {}),
+        });
+        if (updated) {
+          setItems((prev) =>
+            prev.map((i) => (i.id === updated.id ? updated : i)),
+          );
+        }
+      } catch (err: Any) {
+        console.error("Failed to update item:", err);
+        setError(
+          err?.message ||
+            t("agentTeams.error.updateItem", "Failed to update item"),
+        );
       }
-    } catch (err: Any) {
-      console.error("Failed to update item:", err);
-      setError(err?.message || "Failed to update item");
-    }
-  }, []);
+    },
+    [],
+  );
 
   const handleDeleteItem = useCallback(async (item: AgentTeamItem) => {
-    if (!confirm(`Delete item "${item.title}"?`)) return;
+    if (
+      !confirm(
+        t("agentTeams.confirm.deleteItem", 'Delete item "{title}"?', {
+          title: item.title,
+        }),
+      )
+    )
+      return;
     try {
       setError(null);
       await window.electronAPI.deleteTeamItem(item.id);
       setItems((prev) => prev.filter((i) => i.id !== item.id));
     } catch (err: Any) {
       console.error("Failed to delete item:", err);
-      setError(err?.message || "Failed to delete item");
+      setError(
+        err?.message ||
+          t("agentTeams.error.deleteItem", "Failed to delete item"),
+      );
     }
   }, []);
 
@@ -683,7 +878,10 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
         );
       } catch (err: Any) {
         console.error("Failed to reorder item:", err);
-        setError(err?.message || "Failed to reorder item");
+        setError(
+          err?.message ||
+            t("agentTeams.error.reorderItem", "Failed to reorder item"),
+        );
       }
     },
     [sortedItems],
@@ -697,12 +895,23 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
   const runStatusLabel = (status?: AgentTeamRunStatus): string => {
     if (!status) return "";
     const labels: Record<AgentTeamRunStatus, string> = {
-      pending: "PENDING",
-      running: "RUNNING",
-      paused: "PAUSED",
-      completed: "COMPLETED",
-      failed: "FAILED",
-      cancelled: "CANCELLED",
+      pending: t("agentTeams.status.pending", "PENDING"),
+      running: t("agentTeams.status.running", "RUNNING"),
+      paused: t("agentTeams.status.paused", "PAUSED"),
+      completed: t("agentTeams.status.completed", "COMPLETED"),
+      failed: t("agentTeams.status.failed", "FAILED"),
+      cancelled: t("agentTeams.status.cancelled", "CANCELLED"),
+    };
+    return labels[status];
+  };
+
+  const itemStatusLabel = (status: AgentTeamItemStatus): string => {
+    const labels: Record<AgentTeamItemStatus, string> = {
+      todo: t("agentTeams.itemStatus.todo", "todo"),
+      in_progress: t("agentTeams.itemStatus.inProgress", "in_progress"),
+      blocked: t("agentTeams.itemStatus.blocked", "blocked"),
+      done: t("agentTeams.itemStatus.done", "done"),
+      failed: t("agentTeams.itemStatus.failed", "failed"),
     };
     return labels[status];
   };
@@ -729,7 +938,7 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
       {/* Left Panel - Teams */}
       <aside className="mc-agents-panel mc-teams-left">
         <div className="mc-panel-header">
-          <h2>Teams</h2>
+          <h2>{t("agentTeams.title", "Teams")}</h2>
           <span className="mc-count">{teams.length}</span>
         </div>
         <div className="mc-teams-toolbar">
@@ -739,17 +948,27 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
               checked={showInactiveTeams}
               onChange={(e) => setShowInactiveTeams(e.target.checked)}
             />
-            Show inactive
+            {t("agentTeams.showInactive", "Show inactive")}
           </label>
-          <button className="mc-btn" onClick={() => void loadTeams()} disabled={isLoadingTeams}>
-            {isLoadingTeams ? "Loading…" : "Reload"}
+          <button
+            className="mc-btn"
+            onClick={() => void loadTeams()}
+            disabled={isLoadingTeams}
+          >
+            {isLoadingTeams
+              ? t("common.loading", "Loading…")
+              : t("common.reload", "Reload")}
           </button>
         </div>
         <div className="mc-agents-list mc-teams-list">
           {isLoadingTeams ? (
-            <div className="mc-empty">Loading teams…</div>
+            <div className="mc-empty">
+              {t("agentTeams.loadingTeams", "Loading teams…")}
+            </div>
           ) : teams.length === 0 ? (
-            <div className="mc-empty">No teams yet. Create one below.</div>
+            <div className="mc-empty">
+              {t("agentTeams.emptyTeams", "No teams yet. Create one below.")}
+            </div>
           ) : (
             teams.map((team) => {
               const lead = agentById.get(team.leadAgentRoleId);
@@ -761,18 +980,28 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                 >
                   <div className="mc-team-row-top">
                     <span className="mc-team-name">{team.name}</span>
-                    {!team.isActive && <span className="mc-pill neutral">INACTIVE</span>}
+                    {!team.isActive && (
+                      <span className="mc-pill neutral">
+                        {t("agentTeams.badge.inactive", "INACTIVE")}
+                      </span>
+                    )}
                     {team.persistent && (
                       <span
                         className="mc-pill"
-                        style={{ background: "var(--accent, #6366f1)", color: "#fff" }}
+                        style={{
+                          background: "var(--accent, #6366f1)",
+                          color: "#fff",
+                        }}
                       >
-                        PERSISTENT
+                        {t("agentTeams.badge.persistent", "PERSISTENT")}
                       </span>
                     )}
                   </div>
                   <div className="mc-team-meta">
-                    Lead: {lead?.displayName || "Unknown"} · Max: {team.maxParallelAgents}
+                    {t("agentTeams.teamMeta", "Lead: {lead} · Max: {max}", {
+                      lead: lead?.displayName || t("common.unknown", "Unknown"),
+                      max: team.maxParallelAgents,
+                    })}
                   </div>
                 </button>
               );
@@ -783,34 +1012,39 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
         <div className="mc-divider" />
 
         <div className="mc-section mc-team-create">
-          <div className="mc-section-title">New team</div>
+          <div className="mc-section-title">
+            {t("agentTeams.newTeam", "New team")}
+          </div>
           <div className="mc-form">
             <label className="mc-field">
-              <span>Name</span>
+              <span>{t("common.name", "Name")}</span>
               <input
                 className="mc-input"
                 value={newTeamName}
                 onChange={(e) => setNewTeamName(e.target.value)}
-                placeholder="e.g. Web squad"
+                placeholder={t(
+                  "agentTeams.placeholder.teamName",
+                  "e.g. Web squad",
+                )}
               />
             </label>
             <label className="mc-field">
-              <span>Description</span>
+              <span>{t("common.description", "Description")}</span>
               <textarea
                 className="mc-textarea"
                 value={newTeamDescription}
                 onChange={(e) => setNewTeamDescription(e.target.value)}
-                placeholder="Optional"
+                placeholder={t("common.optional", "Optional")}
               />
             </label>
             <label className="mc-field">
-              <span>Lead agent</span>
+              <span>{t("agentTeams.leadAgent", "Lead agent")}</span>
               <select
                 className="mc-select"
                 value={newTeamLeadRoleId}
                 onChange={(e) => setNewTeamLeadRoleId(e.target.value)}
               >
-                <option value="">Select…</option>
+                <option value="">{t("common.select", "Select…")}</option>
                 {agents
                   .filter((a) => a.isActive)
                   .map((a) => (
@@ -821,7 +1055,9 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
               </select>
             </label>
             <label className="mc-field">
-              <span>Max parallel agents</span>
+              <span>
+                {t("agentTeams.maxParallelAgents", "Max parallel agents")}
+              </span>
               <input
                 className="mc-input"
                 type="number"
@@ -832,36 +1068,61 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
               />
             </label>
             <label className="mc-field">
-              <span>Default model</span>
+              <span>{t("agentTeams.defaultModel", "Default model")}</span>
               <select
                 className="mc-select"
                 value={newTeamDefaultModelPreference}
-                onChange={(e) => setNewTeamDefaultModelPreference(e.target.value)}
+                onChange={(e) =>
+                  setNewTeamDefaultModelPreference(e.target.value)
+                }
               >
-                <option value="same">Same (inherit)</option>
-                <option value="cheaper">Cheaper (Haiku)</option>
+                <option value="same">
+                  {t("agentTeams.model.same", "Same (inherit)")}
+                </option>
+                <option value="cheaper">
+                  {t("agentTeams.model.cheaper", "Cheaper (Haiku)")}
+                </option>
                 <option value="sonnet">Sonnet</option>
                 <option value="opus">Opus</option>
               </select>
             </label>
             <label className="mc-field">
-              <span>Default personality</span>
+              <span>
+                {t("agentTeams.defaultPersonality", "Default personality")}
+              </span>
               <select
                 className="mc-select"
                 value={newTeamDefaultPersonality}
                 onChange={(e) => setNewTeamDefaultPersonality(e.target.value)}
               >
-                <option value="same">Same (inherit)</option>
-                <option value="concise">Concise</option>
-                <option value="professional">Professional</option>
-                <option value="technical">Technical</option>
-                <option value="friendly">Friendly</option>
-                <option value="creative">Creative</option>
-                <option value="casual">Casual</option>
+                <option value="same">
+                  {t("agentTeams.model.same", "Same (inherit)")}
+                </option>
+                <option value="concise">
+                  {t("agentTeams.personality.concise", "Concise")}
+                </option>
+                <option value="professional">
+                  {t("agentTeams.personality.professional", "Professional")}
+                </option>
+                <option value="technical">
+                  {t("agentTeams.personality.technical", "Technical")}
+                </option>
+                <option value="friendly">
+                  {t("agentTeams.personality.friendly", "Friendly")}
+                </option>
+                <option value="creative">
+                  {t("agentTeams.personality.creative", "Creative")}
+                </option>
+                <option value="casual">
+                  {t("agentTeams.personality.casual", "Casual")}
+                </option>
               </select>
             </label>
-            <button className="mc-btn primary" onClick={() => void handleCreateTeam()}>
-              Create team
+            <button
+              className="mc-btn primary"
+              onClick={() => void handleCreateTeam()}
+            >
+              {t("agentTeams.createTeam", "Create team")}
             </button>
           </div>
         </div>
@@ -870,43 +1131,58 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
       {/* Center Panel - Team Details / Runs / Items */}
       <main className="mc-queue-panel mc-teams-center">
         <div className="mc-panel-header">
-          <h2>Team Builder</h2>
+          <h2>{t("agentTeams.builderTitle", "Team Builder")}</h2>
         </div>
 
         {error && <div className="mc-error">{error}</div>}
 
         {!selectedTeam || !teamDraft ? (
-          <div className="mc-empty mc-teams-empty">Select a team to configure it.</div>
+          <div className="mc-empty mc-teams-empty">
+            {t("agentTeams.selectTeam", "Select a team to configure it.")}
+          </div>
         ) : (
           <div className="mc-teams-scroll">
             <div className="mc-section">
               <div className="mc-section-header">
-                <div className="mc-section-title">Team</div>
+                <div className="mc-section-title">
+                  {t("agentTeams.teamSection", "Team")}
+                </div>
                 <div className="mc-section-actions">
-                  <button className="mc-btn" onClick={() => void handleSaveTeam()}>
-                    Save
+                  <button
+                    className="mc-btn"
+                    onClick={() => void handleSaveTeam()}
+                  >
+                    {t("common.save", "Save")}
                   </button>
-                  <button className="mc-btn danger" onClick={() => void handleDeleteTeam()}>
-                    Delete
+                  <button
+                    className="mc-btn danger"
+                    onClick={() => void handleDeleteTeam()}
+                  >
+                    {t("common.delete", "Delete")}
                   </button>
                 </div>
               </div>
               <div className="mc-form mc-form-grid">
                 <label className="mc-field">
-                  <span>Name</span>
+                  <span>{t("common.name", "Name")}</span>
                   <input
                     className="mc-input"
                     value={teamDraft.name}
-                    onChange={(e) => setTeamDraft({ ...teamDraft, name: e.target.value })}
+                    onChange={(e) =>
+                      setTeamDraft({ ...teamDraft, name: e.target.value })
+                    }
                   />
                 </label>
                 <label className="mc-field">
-                  <span>Lead agent</span>
+                  <span>{t("agentTeams.leadAgent", "Lead agent")}</span>
                   <select
                     className="mc-select"
                     value={teamDraft.leadAgentRoleId}
                     onChange={(e) =>
-                      setTeamDraft({ ...teamDraft, leadAgentRoleId: e.target.value })
+                      setTeamDraft({
+                        ...teamDraft,
+                        leadAgentRoleId: e.target.value,
+                      })
                     }
                   >
                     {agents
@@ -919,7 +1195,7 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                   </select>
                 </label>
                 <label className="mc-field">
-                  <span>Max parallel</span>
+                  <span>{t("agentTeams.maxParallel", "Max parallel")}</span>
                   <input
                     className="mc-input"
                     type="number"
@@ -927,68 +1203,112 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                     max={50}
                     value={teamDraft.maxParallelAgents}
                     onChange={(e) =>
-                      setTeamDraft({ ...teamDraft, maxParallelAgents: Number(e.target.value) })
+                      setTeamDraft({
+                        ...teamDraft,
+                        maxParallelAgents: Number(e.target.value),
+                      })
                     }
                   />
                 </label>
                 <label className="mc-field">
-                  <span>Default model</span>
+                  <span>{t("agentTeams.defaultModel", "Default model")}</span>
                   <select
                     className="mc-select"
                     value={teamDraft.defaultModelPreference}
                     onChange={(e) =>
-                      setTeamDraft({ ...teamDraft, defaultModelPreference: e.target.value })
+                      setTeamDraft({
+                        ...teamDraft,
+                        defaultModelPreference: e.target.value,
+                      })
                     }
                   >
-                    <option value="same">Same (inherit)</option>
-                    <option value="cheaper">Cheaper (Haiku)</option>
+                    <option value="same">
+                      {t("agentTeams.model.same", "Same (inherit)")}
+                    </option>
+                    <option value="cheaper">
+                      {t("agentTeams.model.cheaper", "Cheaper (Haiku)")}
+                    </option>
                     <option value="sonnet">Sonnet</option>
                     <option value="opus">Opus</option>
                   </select>
                 </label>
                 <label className="mc-field">
-                  <span>Default personality</span>
+                  <span>
+                    {t("agentTeams.defaultPersonality", "Default personality")}
+                  </span>
                   <select
                     className="mc-select"
                     value={teamDraft.defaultPersonality}
                     onChange={(e) =>
-                      setTeamDraft({ ...teamDraft, defaultPersonality: e.target.value })
+                      setTeamDraft({
+                        ...teamDraft,
+                        defaultPersonality: e.target.value,
+                      })
                     }
                   >
-                    <option value="same">Same (inherit)</option>
-                    <option value="concise">Concise</option>
-                    <option value="professional">Professional</option>
-                    <option value="technical">Technical</option>
-                    <option value="friendly">Friendly</option>
-                    <option value="creative">Creative</option>
-                    <option value="casual">Casual</option>
+                    <option value="same">
+                      {t("agentTeams.model.same", "Same (inherit)")}
+                    </option>
+                    <option value="concise">
+                      {t("agentTeams.personality.concise", "Concise")}
+                    </option>
+                    <option value="professional">
+                      {t("agentTeams.personality.professional", "Professional")}
+                    </option>
+                    <option value="technical">
+                      {t("agentTeams.personality.technical", "Technical")}
+                    </option>
+                    <option value="friendly">
+                      {t("agentTeams.personality.friendly", "Friendly")}
+                    </option>
+                    <option value="creative">
+                      {t("agentTeams.personality.creative", "Creative")}
+                    </option>
+                    <option value="casual">
+                      {t("agentTeams.personality.casual", "Casual")}
+                    </option>
                   </select>
                 </label>
                 <label className="mc-field mc-field-inline">
-                  <span>Active</span>
+                  <span>{t("common.active", "Active")}</span>
                   <input
                     type="checkbox"
                     checked={teamDraft.isActive}
-                    onChange={(e) => setTeamDraft({ ...teamDraft, isActive: e.target.checked })}
+                    onChange={(e) =>
+                      setTeamDraft({ ...teamDraft, isActive: e.target.checked })
+                    }
                   />
                 </label>
                 <label
                   className="mc-field mc-field-inline"
-                  title="Persistent teams remain available across sessions and can auto-dispatch for matching workspace tasks"
+                  title={t(
+                    "agentTeams.persistentHint",
+                    "Persistent teams remain available across sessions and can auto-dispatch for matching workspace tasks",
+                  )}
                 >
-                  <span>Persistent</span>
+                  <span>{t("agentTeams.persistent", "Persistent")}</span>
                   <input
                     type="checkbox"
                     checked={teamDraft.persistent}
-                    onChange={(e) => setTeamDraft({ ...teamDraft, persistent: e.target.checked })}
+                    onChange={(e) =>
+                      setTeamDraft({
+                        ...teamDraft,
+                        persistent: e.target.checked,
+                      })
+                    }
                   />
                 </label>
                 <label className="mc-field mc-field-wide">
-                  <span>Description</span>
+                  <span>{t("common.description", "Description")}</span>
                   <textarea
                     className="mc-textarea"
                     value={teamDraft.description}
-                    onChange={(e) => setTeamDraft({ ...teamDraft, description: e.target.value })}
+                    onChange={(e) =>
+                      setTeamDraft({
+                        ...teamDraft,
+                        description: e.target.value,
+                      })
+                    }
                   />
                 </label>
               </div>
@@ -996,18 +1316,20 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
 
             <div className="mc-section">
               <div className="mc-section-header">
-                <div className="mc-section-title">Members</div>
+                <div className="mc-section-title">
+                  {t("agentTeams.members", "Members")}
+                </div>
                 <div className="mc-section-subtitle">{teamMembers.length}</div>
               </div>
               <div className="mc-form mc-form-grid">
                 <label className="mc-field">
-                  <span>Add member</span>
+                  <span>{t("agentTeams.addMember", "Add member")}</span>
                   <select
                     className="mc-select"
                     value={newMemberRoleId}
                     onChange={(e) => setNewMemberRoleId(e.target.value)}
                   >
-                    <option value="">Select…</option>
+                    <option value="">{t("common.select", "Select…")}</option>
                     {agents
                       .filter((a) => a.isActive)
                       .map((a) => (
@@ -1018,7 +1340,7 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                   </select>
                 </label>
                 <label className="mc-field mc-field-inline">
-                  <span>Required</span>
+                  <span>{t("agentTeams.required", "Required")}</span>
                   <input
                     type="checkbox"
                     checked={newMemberRequired}
@@ -1026,22 +1348,32 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                   />
                 </label>
                 <label className="mc-field mc-field-wide">
-                  <span>Guidance (optional)</span>
+                  <span>
+                    {t("agentTeams.guidanceOptional", "Guidance (optional)")}
+                  </span>
                   <textarea
                     className="mc-textarea"
                     value={newMemberGuidance}
                     onChange={(e) => setNewMemberGuidance(e.target.value)}
-                    placeholder="Team-specific guidance for this role"
+                    placeholder={t(
+                      "agentTeams.placeholder.roleGuidance",
+                      "Team-specific guidance for this role",
+                    )}
                   />
                 </label>
-                <button className="mc-btn primary" onClick={() => void handleAddMember()}>
-                  Add member
+                <button
+                  className="mc-btn primary"
+                  onClick={() => void handleAddMember()}
+                >
+                  {t("agentTeams.addMember", "Add member")}
                 </button>
               </div>
 
               <div className="mc-table">
                 {teamMembers.length === 0 ? (
-                  <div className="mc-empty">No members yet.</div>
+                  <div className="mc-empty">
+                    {t("agentTeams.emptyMembers", "No members yet.")}
+                  </div>
                 ) : (
                   teamMembers.map((m) => {
                     const role = agentById.get(m.agentRoleId);
@@ -1053,9 +1385,13 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                           </div>
                           <div className="mc-row-sub">
                             {m.isRequired ? (
-                              <span className="mc-pill info">REQUIRED</span>
+                              <span className="mc-pill info">
+                                {t("agentTeams.badge.required", "REQUIRED")}
+                              </span>
                             ) : (
-                              <span className="mc-pill neutral">OPTIONAL</span>
+                              <span className="mc-pill neutral">
+                                {t("agentTeams.badge.optional", "OPTIONAL")}
+                              </span>
                             )}
                           </div>
                         </div>
@@ -1068,36 +1404,45 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                           </button>
                           <button
                             className="mc-btn tiny"
-                            onClick={() => void handleReorderMember(m.id, "down")}
+                            onClick={() =>
+                              void handleReorderMember(m.id, "down")
+                            }
                           >
                             ↓
                           </button>
                           <button
                             className="mc-btn tiny"
                             onClick={() =>
-                              void handleUpdateMember(m.id, { isRequired: !m.isRequired })
+                              void handleUpdateMember(m.id, {
+                                isRequired: !m.isRequired,
+                              })
                             }
                           >
-                            Toggle required
+                            {t("agentTeams.toggleRequired", "Toggle required")}
                           </button>
                           <button
                             className="mc-btn tiny"
                             onClick={() => {
                               const next = prompt(
-                                "Role guidance (team-specific)",
+                                t(
+                                  "agentTeams.prompt.roleGuidance",
+                                  "Role guidance (team-specific)",
+                                ),
                                 m.roleGuidance || "",
                               );
                               if (next === null) return;
-                              void handleUpdateMember(m.id, { roleGuidance: next });
+                              void handleUpdateMember(m.id, {
+                                roleGuidance: next,
+                              });
                             }}
                           >
-                            Guidance
+                            {t("agentTeams.guidance", "Guidance")}
                           </button>
                           <button
                             className="mc-btn tiny danger"
                             onClick={() => void handleRemoveMember(m)}
                           >
-                            Remove
+                            {t("common.remove", "Remove")}
                           </button>
                         </div>
                       </div>
@@ -1109,19 +1454,21 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
 
             <div className="mc-section">
               <div className="mc-section-header">
-                <div className="mc-section-title">Runs</div>
+                <div className="mc-section-title">
+                  {t("agentTeams.runs", "Runs")}
+                </div>
                 <div className="mc-section-subtitle">{runs.length}</div>
               </div>
 
               <div className="mc-form mc-form-grid">
                 <label className="mc-field mc-field-wide">
-                  <span>Root task</span>
+                  <span>{t("agentTeams.rootTask", "Root task")}</span>
                   <select
                     className="mc-select"
                     value={newRunRootTaskId}
                     onChange={(e) => setNewRunRootTaskId(e.target.value)}
                   >
-                    <option value="">Select…</option>
+                    <option value="">{t("common.select", "Select…")}</option>
                     {sortedTasks.slice(0, 200).map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.title}
@@ -1130,7 +1477,7 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                   </select>
                 </label>
                 <label className="mc-field mc-field-inline">
-                  <span>Start now</span>
+                  <span>{t("agentTeams.startNow", "Start now")}</span>
                   <input
                     type="checkbox"
                     checked={newRunStartNow}
@@ -1138,21 +1485,26 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                   />
                 </label>
                 <label className="mc-field mc-field-inline">
-                  <span>Collaborative</span>
+                  <span>{t("agentTeams.collaborative", "Collaborative")}</span>
                   <input
                     type="checkbox"
                     checked={newRunCollaborative}
                     onChange={(e) => setNewRunCollaborative(e.target.checked)}
                   />
                 </label>
-                <button className="mc-btn primary" onClick={() => void handleCreateRun()}>
-                  Create run
+                <button
+                  className="mc-btn primary"
+                  onClick={() => void handleCreateRun()}
+                >
+                  {t("agentTeams.createRun", "Create run")}
                 </button>
               </div>
 
               <div className="mc-table">
                 {runs.length === 0 ? (
-                  <div className="mc-empty">No runs yet.</div>
+                  <div className="mc-empty">
+                    {t("agentTeams.emptyRuns", "No runs yet.")}
+                  </div>
                 ) : (
                   runs.map((r) => {
                     const root = tasksById.get(r.rootTaskId);
@@ -1168,11 +1520,21 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                           >
                             {runStatusLabel(r.status)}
                           </span>
-                          {r.collaborativeMode && <span className="mc-pill info">COLLAB</span>}
-                          <span className="mc-muted">{formatTime(r.startedAt)}</span>
+                          {r.collaborativeMode && (
+                            <span className="mc-pill info">
+                              {t("agentTeams.badge.collab", "COLLAB")}
+                            </span>
+                          )}
+                          <span className="mc-muted">
+                            {formatTime(r.startedAt)}
+                          </span>
                         </div>
-                        <div className="mc-run-row-title">{root?.title || r.rootTaskId}</div>
-                        {r.error && <div className="mc-run-row-error">{r.error}</div>}
+                        <div className="mc-run-row-title">
+                          {root?.title || r.rootTaskId}
+                        </div>
+                        {r.error && (
+                          <div className="mc-run-row-error">{r.error}</div>
+                        )}
                       </button>
                     );
                   })
@@ -1182,15 +1544,20 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
 
             <div className="mc-section">
               <div className="mc-section-header">
-                <div className="mc-section-title">Run monitor</div>
+                <div className="mc-section-title">
+                  {t("agentTeams.runMonitor", "Run monitor")}
+                </div>
                 {selectedRun && (
                   <div className="mc-section-actions">
-                    {(selectedRun.status === "pending" || selectedRun.status === "paused") && (
+                    {(selectedRun.status === "pending" ||
+                      selectedRun.status === "paused") && (
                       <button
                         className="mc-btn primary"
                         onClick={() => void handleUpdateRunStatus("resume")}
                       >
-                        {selectedRun.status === "pending" ? "Start" : "Resume"}
+                        {selectedRun.status === "pending"
+                          ? t("common.start", "Start")
+                          : t("common.resume", "Resume")}
                       </button>
                     )}
                     {selectedRun.status === "running" && (
@@ -1198,7 +1565,7 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                         className="mc-btn"
                         onClick={() => void handleUpdateRunStatus("pause")}
                       >
-                        Pause
+                        {t("common.pause", "Pause")}
                       </button>
                     )}
                     {selectedRun.status !== "completed" &&
@@ -1208,7 +1575,7 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                           className="mc-btn danger"
                           onClick={() => void handleUpdateRunStatus("cancel")}
                         >
-                          Cancel
+                          {t("common.cancel", "Cancel")}
                         </button>
                       )}
                   </div>
@@ -1216,29 +1583,38 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
               </div>
 
               {!selectedRun ? (
-                <div className="mc-empty">Select a run to see items.</div>
+                <div className="mc-empty">
+                  {t("agentTeams.selectRun", "Select a run to see items.")}
+                </div>
               ) : (
                 <>
-                  {selectedRun.summary && <pre className="mc-pre">{selectedRun.summary}</pre>}
+                  {selectedRun.summary && (
+                    <pre className="mc-pre">{selectedRun.summary}</pre>
+                  )}
 
                   <div className="mc-form mc-form-grid">
                     <label className="mc-field">
-                      <span>New item</span>
+                      <span>{t("agentTeams.newItem", "New item")}</span>
                       <input
                         className="mc-input"
                         value={newItemTitle}
                         onChange={(e) => setNewItemTitle(e.target.value)}
-                        placeholder="e.g. Implement API endpoint"
+                        placeholder={t(
+                          "agentTeams.placeholder.itemTitle",
+                          "e.g. Implement API endpoint",
+                        )}
                       />
                     </label>
                     <label className="mc-field">
-                      <span>Owner</span>
+                      <span>{t("agentTeams.owner", "Owner")}</span>
                       <select
                         className="mc-select"
                         value={newItemOwnerRoleId}
                         onChange={(e) => setNewItemOwnerRoleId(e.target.value)}
                       >
-                        <option value="">Unassigned</option>
+                        <option value="">
+                          {t("agentTeams.unassigned", "Unassigned")}
+                        </option>
                         {(availableMemberRoles.length > 0
                           ? availableMemberRoles
                           : agents.filter((a) => a.isActive)
@@ -1250,60 +1626,105 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                       </select>
                     </label>
                     <label className="mc-field mc-field-wide">
-                      <span>Description (optional)</span>
+                      <span>
+                        {t(
+                          "agentTeams.descriptionOptional",
+                          "Description (optional)",
+                        )}
+                      </span>
                       <textarea
                         className="mc-textarea"
                         value={newItemDescription}
                         onChange={(e) => setNewItemDescription(e.target.value)}
-                        placeholder="Optional"
+                        placeholder={t("common.optional", "Optional")}
                       />
                     </label>
-                    <button className="mc-btn primary" onClick={() => void handleCreateItem()}>
-                      Add item
+                    <button
+                      className="mc-btn primary"
+                      onClick={() => void handleCreateItem()}
+                    >
+                      {t("agentTeams.addItem", "Add item")}
                     </button>
                   </div>
 
                   <div className="mc-table">
                     {sortedItems.length === 0 ? (
-                      <div className="mc-empty">No checklist items yet.</div>
+                      <div className="mc-empty">
+                        {t("agentTeams.emptyItems", "No checklist items yet.")}
+                      </div>
                     ) : (
                       sortedItems.map((it) => {
                         const owner = it.ownerAgentRoleId
                           ? agentById.get(it.ownerAgentRoleId)
                           : null;
-                        const linkedTask = it.sourceTaskId ? tasksById.get(it.sourceTaskId) : null;
+                        const linkedTask = it.sourceTaskId
+                          ? tasksById.get(it.sourceTaskId)
+                          : null;
                         return (
                           <div key={it.id} className="mc-row mc-item-row">
                             <div className="mc-row-main">
                               <div className="mc-row-title">
-                                <span className={`mc-dot ${itemStatusColorClass(it.status)}`} />
-                                <span className="mc-item-title">{it.title}</span>
+                                <span
+                                  className={`mc-dot ${itemStatusColorClass(it.status)}`}
+                                />
+                                <span className="mc-item-title">
+                                  {it.title}
+                                </span>
                               </div>
                               <div className="mc-row-sub">
-                                <span className={`mc-pill ${itemStatusColorClass(it.status)}`}>
-                                  {it.status.toUpperCase()}
+                                <span
+                                  className={`mc-pill ${itemStatusColorClass(it.status)}`}
+                                >
+                                  {itemStatusLabel(it.status)}
                                 </span>
                                 <span className="mc-muted">
-                                  Owner:{" "}
-                                  {owner ? `${owner.icon} ${owner.displayName}` : "Unassigned"}
+                                  {t(
+                                    "agentTeams.ownerLabel",
+                                    "Owner: {owner}",
+                                    {
+                                      owner: owner
+                                        ? `${owner.icon} ${owner.displayName}`
+                                        : t(
+                                            "agentTeams.unassigned",
+                                            "Unassigned",
+                                          ),
+                                    },
+                                  )}
                                 </span>
                                 {linkedTask && (
                                   <button
                                     className="mc-link"
                                     onClick={() =>
-                                      onOpenTask ? onOpenTask(linkedTask.id) : undefined
+                                      onOpenTask
+                                        ? onOpenTask(linkedTask.id)
+                                        : undefined
                                     }
-                                    title="Open linked task"
+                                    title={t(
+                                      "agentTeams.openLinkedTask",
+                                      "Open linked task",
+                                    )}
                                   >
-                                    Task: {linkedTask.title}
+                                    {t(
+                                      "agentTeams.taskLabel",
+                                      "Task: {title}",
+                                      { title: linkedTask.title },
+                                    )}
                                   </button>
                                 )}
                                 {!linkedTask && it.sourceTaskId && (
-                                  <span className="mc-muted">Task: {it.sourceTaskId}</span>
+                                  <span className="mc-muted">
+                                    {t(
+                                      "agentTeams.taskLabel",
+                                      "Task: {title}",
+                                      { title: it.sourceTaskId },
+                                    )}
+                                  </span>
                                 )}
                               </div>
                               {it.resultSummary && (
-                                <div className="mc-row-summary">{it.resultSummary}</div>
+                                <div className="mc-row-summary">
+                                  {it.resultSummary}
+                                </div>
                               )}
                             </div>
                             <div className="mc-row-actions">
@@ -1315,9 +1736,14 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                                     ownerAgentRoleId: e.target.value || "",
                                   })
                                 }
-                                title="Assign owner"
+                                title={t(
+                                  "agentTeams.assignOwner",
+                                  "Assign owner",
+                                )}
                               >
-                                <option value="">Unassigned</option>
+                                <option value="">
+                                  {t("agentTeams.unassigned", "Unassigned")}
+                                </option>
                                 {(availableMemberRoles.length > 0
                                   ? availableMemberRoles
                                   : agents.filter((a) => a.isActive)
@@ -1332,10 +1758,11 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                                 value={it.status}
                                 onChange={(e) =>
                                   void handleUpdateItem(it.id, {
-                                    status: e.target.value as AgentTeamItemStatus,
+                                    status: e.target
+                                      .value as AgentTeamItemStatus,
                                   })
                                 }
-                                title="Set status"
+                                title={t("agentTeams.setStatus", "Set status")}
                               >
                                 {(
                                   [
@@ -1347,38 +1774,45 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
                                   ] as AgentTeamItemStatus[]
                                 ).map((s) => (
                                   <option key={s} value={s}>
-                                    {s}
+                                    {itemStatusLabel(s)}
                                   </option>
                                 ))}
                               </select>
                               <button
                                 className="mc-btn tiny"
                                 onClick={() => void handleMoveItem(it, "up")}
-                                title="Move up"
+                                title={t("common.moveUp", "Move up")}
                               >
                                 ↑
                               </button>
                               <button
                                 className="mc-btn tiny"
                                 onClick={() => void handleMoveItem(it, "down")}
-                                title="Move down"
+                                title={t("common.moveDown", "Move down")}
                               >
                                 ↓
                               </button>
                               {it.sourceTaskId && (
                                 <button
                                   className="mc-btn tiny"
-                                  onClick={() => void handleUpdateItem(it.id, { sourceTaskId: "" })}
-                                  title="Unlink task"
+                                  onClick={() =>
+                                    void handleUpdateItem(it.id, {
+                                      sourceTaskId: "",
+                                    })
+                                  }
+                                  title={t(
+                                    "agentTeams.unlinkTask",
+                                    "Unlink task",
+                                  )}
                                 >
-                                  Unlink
+                                  {t("common.unlink", "Unlink")}
                                 </button>
                               )}
                               <button
                                 className="mc-btn tiny danger"
                                 onClick={() => void handleDeleteItem(it)}
                               >
-                                Delete
+                                {t("common.delete", "Delete")}
                               </button>
                             </div>
                           </div>
@@ -1397,21 +1831,30 @@ export function AgentTeamsPanel({ workspaceId, agents, tasks, onOpenTask }: Agen
       <aside className="mc-feed-panel mc-teams-right">
         <div className="mc-panel-header mc-feed-header">
           <div className="mc-tabs">
-            <button className="mc-tab-btn active">Run events</button>
+            <button className="mc-tab-btn active">
+              {t("agentTeams.runEvents", "Run events")}
+            </button>
           </div>
           <button className="mc-clear-task" onClick={() => setEvents([])}>
-            Clear
+            {t("common.clear", "Clear")}
           </button>
         </div>
         <div className="mc-feed-list mc-team-events">
           {events.length === 0 ? (
-            <div className="mc-feed-empty">No events yet.</div>
+            <div className="mc-feed-empty">
+              {t("agentTeams.emptyEvents", "No events yet.")}
+            </div>
           ) : (
             events.map((e, idx) => (
-              <div key={`${e.type}-${e.timestamp || 0}-${idx}`} className="mc-feed-item">
+              <div
+                key={`${e.type}-${e.timestamp || 0}-${idx}`}
+                className="mc-feed-item"
+              >
                 <div className="mc-feed-item-header">
                   <span className="mc-feed-agent system">{e.type}</span>
-                  <span className="mc-feed-time">{formatTime(e.timestamp)}</span>
+                  <span className="mc-feed-time">
+                    {formatTime(e.timestamp)}
+                  </span>
                 </div>
                 <div className="mc-feed-content">{summarizeEvent(e)}</div>
               </div>

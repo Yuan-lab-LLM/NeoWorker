@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import "../electron/migrations/legacy-brand-compat";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -406,11 +407,11 @@ async function doctor(ctx: CommandContext): Promise<number> {
 
   if (!ctx.connection.token) {
     printLinesOrJson(ctx, { ok: false, checks }, [
-      "CoWork CLI doctor",
+      "NeoWorker CLI doctor",
       ...checks.map((line) => `- ${line}`),
       "",
       "Missing token. Run:",
-      "  cowork login --token <control-plane-token>",
+      "  neoworker login --token <control-plane-token>",
     ]);
     return 1;
   }
@@ -420,7 +421,7 @@ async function doctor(ctx: CommandContext): Promise<number> {
     const health = await client.request(METHODS.HEALTH);
     const config = await client.request(METHODS.CONFIG_GET);
     printLinesOrJson(ctx, { ok: true, checks, health, config }, [
-      "CoWork CLI doctor",
+      "NeoWorker CLI doctor",
       ...checks.map((line) => `- ${line}`),
       "- control plane: reachable",
       ...formatConfigWarnings(config),
@@ -441,10 +442,10 @@ async function status(ctx: CommandContext): Promise<number> {
 
 function login(ctx: CommandContext): number {
   const url = getFlag(ctx.parsed, "--url") || ctx.connection.url;
-  const token = getFlag(ctx.parsed, "--token") || process.env.COWORK_CONTROL_PLANE_TOKEN || "";
+  const token = getFlag(ctx.parsed, "--token") || process.env.NEOWORKER_CONTROL_PLANE_TOKEN || "";
   const profile = getFlag(ctx.parsed, "--profile") || ctx.connection.profileName || "local";
   if (!token) {
-    process.stderr.write("Missing token. Provide --token or set COWORK_CONTROL_PLANE_TOKEN.\n");
+    process.stderr.write("Missing token. Provide --token or set NEOWORKER_CONTROL_PLANE_TOKEN.\n");
     return 1;
   }
   const next = upsertProfile(ctx.config, profile, { url, token }, true);
@@ -486,7 +487,7 @@ function whoami(ctx: CommandContext): number {
 function configCommand(ctx: CommandContext): number {
   if (ctx.parsed.rest[0] === "reset") {
     saveCliConfig(createDefaultConfig());
-    process.stdout.write("Reset CoWork CLI config.\n");
+    process.stdout.write("Reset NeoWorker CLI config.\n");
     return 0;
   }
   printJson(ctx.config);
@@ -499,12 +500,12 @@ async function daemon(ctx: CommandContext): Promise<number> {
     return doctor({ ...ctx, parsed: { ...ctx.parsed, command: "doctor", rest: [] } });
   }
   if (sub !== "start") {
-    process.stderr.write("Usage: cowork daemon status | cowork daemon start [--background]\n");
+    process.stderr.write("Usage: neoworker daemon status | neoworker daemon start [--background]\n");
     return 1;
   }
 
   const packageRoot = path.resolve(__dirname, "..", "..");
-  const daemonBin = path.join(packageRoot, "bin", "coworkd-node.js");
+  const daemonBin = path.join(packageRoot, "bin", "neoworkerd-node.js");
   const args = ["--print-control-plane-token", ...ctx.parsed.rest.slice(1)];
   if (hasFlag(ctx.parsed, "--background")) {
     const child = spawn(process.execPath, [daemonBin, ...args], {
@@ -514,7 +515,7 @@ async function daemon(ctx: CommandContext): Promise<number> {
       env: process.env,
     });
     child.unref();
-    process.stdout.write("Started CoWork daemon in the background.\n");
+    process.stdout.write("Started NeoWorker daemon in the background.\n");
     process.stdout.write("Check logs from your process manager, or run foreground mode to read the token.\n");
     return 0;
   }
@@ -538,7 +539,7 @@ async function workspace(ctx: CommandContext): Promise<number> {
       const name = getFlag(ctx.parsed, "--name") || path.basename(resolved) || "Workspace";
       return runDirectCommandProcess(ctx, ["--workspace-create", "--cwd", resolved, "--name", name]);
     }
-    process.stderr.write("Usage: cowork workspace list | cowork workspace create [path] [--name <name>]\n");
+    process.stderr.write("Usage: neoworker workspace list | neoworker workspace create [path] [--name <name>]\n");
     return 1;
   }
 
@@ -558,7 +559,7 @@ async function workspace(ctx: CommandContext): Promise<number> {
       printLinesOrJson(ctx, payload, [`Created workspace: ${formatWorkspace((payload as Any).workspace || {})}`]);
       return 0;
     }
-    process.stderr.write("Usage: cowork workspace list | cowork workspace create [path] [--name <name>]\n");
+    process.stderr.write("Usage: neoworker workspace list | neoworker workspace create [path] [--name <name>]\n");
     return 1;
   } finally {
     client.close();
@@ -568,12 +569,12 @@ async function workspace(ctx: CommandContext): Promise<number> {
 async function runTask(ctx: CommandContext): Promise<number> {
   const prompt = ctx.parsed.rest.join(" ").trim();
   if (!prompt) {
-    process.stderr.write('Usage: cowork run "task prompt" [--cwd <path>] [--workspace-id <id>] [--shell] [--detach]\n');
+    process.stderr.write('Usage: neoworker run "task prompt" [--cwd <path>] [--workspace-id <id>] [--shell] [--detach]\n');
     return 1;
   }
   if (isLikelyCommandPrompt(prompt) && !hasFlag(ctx.parsed, "--force")) {
     process.stderr.write(
-      `"${prompt}" looks like a CLI command. Did you mean \`cowork ${prompt}\`?\nUse \`cowork run --force ${prompt}\` to run it as a task.\n`,
+      `"${prompt}" looks like a CLI command. Did you mean \`neoworker ${prompt}\`?\nUse \`neoworker run --force ${prompt}\` to run it as a task.\n`,
     );
     return 1;
   }
@@ -603,12 +604,12 @@ async function runTask(ctx: CommandContext): Promise<number> {
     }
     if (hasFlag(ctx.parsed, "--detach")) {
       process.stdout.write(`Created detached task: ${taskId}  ${task.title || buildTaskTitle(prompt)}\n`);
-      process.stdout.write(`Tail: cowork tasks attach ${taskId} --remote\n`);
-      process.stdout.write(`Cancel: cowork tasks cancel ${taskId} --remote\n`);
+      process.stdout.write(`Tail: neoworker tasks attach ${taskId} --remote\n`);
+      process.stdout.write(`Cancel: neoworker tasks cancel ${taskId} --remote\n`);
       return 0;
     }
     process.stdout.write(`Created task: ${formatTask(task)}\n`);
-    process.stdout.write(`Tail: cowork tail ${taskId}\n\n`);
+    process.stdout.write(`Tail: neoworker tail ${taskId}\n\n`);
     return await streamTask(client, taskId, Number(getFlag(ctx.parsed, "--limit") || 200));
   } finally {
     client.close();
@@ -621,7 +622,7 @@ function runDirectTaskProcess(ctx: CommandContext, prompt: string): Promise<numb
 
 async function runDirectDetachedTaskProcess(ctx: CommandContext, prompt: string): Promise<number> {
   const runtime = resolveDirectRuntime();
-  const readyFile = path.join(os.tmpdir(), `cowork-cli-detached-${randomUUID()}.json`);
+  const readyFile = path.join(os.tmpdir(), `neoworker-cli-detached-${randomUUID()}.json`);
   const directRunArgs = [
     ...buildDirectTaskArgs(ctx, prompt),
     "--detached-worker",
@@ -634,8 +635,8 @@ async function runDirectDetachedTaskProcess(ctx: CommandContext, prompt: string)
     detached: true,
     stdio: "ignore",
     env: runtime.usesElectron
-      ? { ...process.env, ELECTRON_RUN_AS_NODE: "1", COWORK_HEADLESS: "1" }
-      : { ...process.env, COWORK_HEADLESS: "1" },
+      ? { ...process.env, ELECTRON_RUN_AS_NODE: "1", NEOWORKER_HEADLESS: "1" }
+      : { ...process.env, NEOWORKER_HEADLESS: "1" },
   });
   child.unref();
   const ready = await waitForDetachedReadyFile(readyFile, 30000);
@@ -645,8 +646,8 @@ async function runDirectDetachedTaskProcess(ctx: CommandContext, prompt: string)
   }
   if (ready?.taskId) {
     process.stdout.write(`Created detached task: ${ready.taskId}  ${ready.title || prompt}\n`);
-    process.stdout.write(`Tail: cowork tasks attach ${ready.taskId}\n`);
-    process.stdout.write(`Cancel: cowork tasks cancel ${ready.taskId}\n`);
+    process.stdout.write(`Tail: neoworker tasks attach ${ready.taskId}\n`);
+    process.stdout.write(`Cancel: neoworker tasks cancel ${ready.taskId}\n`);
   } else {
     process.stdout.write("Started detached task runner. Task id was not available before timeout.\n");
   }
@@ -695,8 +696,8 @@ function runDirectCommandProcess(ctx: CommandContext, directArgs: string[]): Pro
       cwd: path.resolve(getFlag(ctx.parsed, "--cwd") || process.cwd()),
       stdio: "inherit",
       env: runtime.usesElectron
-        ? { ...process.env, ELECTRON_RUN_AS_NODE: "1", COWORK_HEADLESS: "1" }
-        : { ...process.env, COWORK_HEADLESS: "1" },
+        ? { ...process.env, ELECTRON_RUN_AS_NODE: "1", NEOWORKER_HEADLESS: "1" }
+        : { ...process.env, NEOWORKER_HEADLESS: "1" },
     });
     child.on("error", reject);
     child.on("close", (code, signal) => {
@@ -729,7 +730,7 @@ function resolveDirectRuntime(): {
 async function tail(ctx: CommandContext): Promise<number> {
   const taskId = ctx.parsed.rest[0];
   if (!taskId) {
-    process.stderr.write("Usage: cowork tail <taskId> [--limit <n>] [--json]\n");
+    process.stderr.write("Usage: neoworker tail <taskId> [--limit <n>] [--json]\n");
     return 1;
   }
   if (!hasFlag(ctx.parsed, "--remote")) {
@@ -769,7 +770,7 @@ async function approvals(ctx: CommandContext): Promise<number> {
 async function respondApproval(ctx: CommandContext, approved: boolean): Promise<number> {
   const approvalId = ctx.parsed.rest[0];
   if (!approvalId) {
-    process.stderr.write(`Usage: cowork ${approved ? "approve" : "reject"} <approvalId>\n`);
+    process.stderr.write(`Usage: neoworker ${approved ? "approve" : "reject"} <approvalId>\n`);
     return 1;
   }
   if (!hasFlag(ctx.parsed, "--remote")) {
@@ -801,7 +802,7 @@ function runLocalApprovalResponseProcess(
 
   const args = [
     runtime.appPath,
-    "--cowork-cli-approval-response",
+    "--neoworker-cli-approval-response",
     "--approval-id",
     approvalId,
     approved ? "--approved" : "--rejected",
@@ -820,7 +821,7 @@ function runLocalApprovalResponseProcess(
       clearTimeout(timeout);
       if (code === 0) {
         process.stdout.write(
-          `Sent ${approved ? "approval" : "rejection"} ${approvalId} to the running CoWork OS app.\n`,
+          `Sent ${approved ? "approval" : "rejection"} ${approvalId} to the running NeoWorker app.\n`,
         );
       }
       resolve(code);
@@ -832,7 +833,7 @@ function runLocalApprovalResponseProcess(
         // Best-effort.
       }
       process.stderr.write(
-        "No running CoWork OS desktop app accepted the local approval response. Open the app, then retry, or use --remote.\n",
+        "No running NeoWorker desktop app accepted the local approval response. Open the app, then retry, or use --remote.\n",
       );
       finish(1);
     }, 4000);
@@ -849,7 +850,7 @@ async function providers(ctx: CommandContext): Promise<number> {
     if (action === "add") {
       const providerType = ctx.parsed.rest[2] || getFlag(ctx.parsed, "--provider");
       if (!providerType) {
-        process.stderr.write("Usage: cowork providers fallback add <provider> [--model <model>]\n");
+        process.stderr.write("Usage: neoworker providers fallback add <provider> [--model <model>]\n");
         return 1;
       }
       return runDirectCommandProcess(ctx, [
@@ -862,12 +863,12 @@ async function providers(ctx: CommandContext): Promise<number> {
     if (action === "remove") {
       const providerType = ctx.parsed.rest[2] || getFlag(ctx.parsed, "--provider");
       if (!providerType) {
-        process.stderr.write("Usage: cowork providers fallback remove <provider>\n");
+        process.stderr.write("Usage: neoworker providers fallback remove <provider>\n");
         return 1;
       }
       return runDirectCommandProcess(ctx, ["--providers-fallback-remove", "--provider", providerType]);
     }
-    process.stderr.write("Usage: cowork providers fallback list|add|remove\n");
+    process.stderr.write("Usage: neoworker providers fallback list|add|remove\n");
     return 1;
   }
   if (!hasFlag(ctx.parsed, "--remote") && (sub === "list" || sub === "status")) {
@@ -876,7 +877,7 @@ async function providers(ctx: CommandContext): Promise<number> {
   if (!hasFlag(ctx.parsed, "--remote") && sub === "configure") {
     const providerType = ctx.parsed.rest[1] || getFlag(ctx.parsed, "--provider");
     if (!providerType) {
-      process.stderr.write("Usage: cowork providers configure <provider> [--api-key <key>] [--model <model>] [--base-url <url>]\n");
+      process.stderr.write("Usage: neoworker providers configure <provider> [--api-key <key>] [--model <model>] [--base-url <url>]\n");
       return 1;
     }
     return runDirectCommandProcess(ctx, [
@@ -902,7 +903,7 @@ async function providers(ctx: CommandContext): Promise<number> {
     if (sub === "configure") {
       const providerType = ctx.parsed.rest[1] || getFlag(ctx.parsed, "--provider");
       if (!providerType) {
-        process.stderr.write("Usage: cowork providers configure <provider> [--api-key <key>] [--model <model>] [--base-url <url>]\n");
+        process.stderr.write("Usage: neoworker providers configure <provider> [--api-key <key>] [--model <model>] [--base-url <url>]\n");
         return 1;
       }
       const apiKey = getFlag(ctx.parsed, "--api-key") || providerEnvKey(providerType);
@@ -917,7 +918,7 @@ async function providers(ctx: CommandContext): Promise<number> {
       printLinesOrJson(ctx, payload, [`Configured provider "${providerType}".`]);
       return 0;
     }
-    process.stderr.write("Usage: cowork providers list | cowork providers configure <provider>\n");
+    process.stderr.write("Usage: neoworker providers list | neoworker providers configure <provider>\n");
     return 1;
   } finally {
     client.close();
@@ -936,12 +937,12 @@ async function sessions(ctx: CommandContext): Promise<number> {
   }
   if (sub === "show") {
     const id = ctx.parsed.rest[1];
-    if (!id) return usageError("Usage: cowork sessions show <sessionId>");
+    if (!id) return usageError("Usage: neoworker sessions show <sessionId>");
     return runDirectCommandProcess(ctx, ["--sessions-show", "--session-id", id, "--limit", String(parseLimit(ctx, 200))]);
   }
   if (sub === "export") {
     const id = ctx.parsed.rest[1];
-    if (!id) return usageError("Usage: cowork sessions export <sessionId> [--output <file>]");
+    if (!id) return usageError("Usage: neoworker sessions export <sessionId> [--output <file>]");
     return runDirectCommandProcess(ctx, [
       "--sessions-export",
       "--session-id",
@@ -954,17 +955,17 @@ async function sessions(ctx: CommandContext): Promise<number> {
   if (sub === "rename") {
     const id = ctx.parsed.rest[1];
     const name = ctx.parsed.rest.slice(2).join(" ").trim() || getFlag(ctx.parsed, "--name");
-    if (!id || !name) return usageError("Usage: cowork sessions rename <sessionId> <name>");
+    if (!id || !name) return usageError("Usage: neoworker sessions rename <sessionId> <name>");
     return runDirectCommandProcess(ctx, ["--sessions-rename", "--session-id", id, "--name", name]);
   }
   if (sub === "archive") {
     const id = ctx.parsed.rest[1];
-    if (!id) return usageError("Usage: cowork sessions archive <sessionId>");
+    if (!id) return usageError("Usage: neoworker sessions archive <sessionId>");
     return runDirectCommandProcess(ctx, ["--sessions-archive", "--session-id", id]);
   }
   if (sub === "delete") {
     const id = ctx.parsed.rest[1];
-    if (!id) return usageError("Usage: cowork sessions delete <sessionId> --yes");
+    if (!id) return usageError("Usage: neoworker sessions delete <sessionId> --yes");
     return runDirectCommandProcess(ctx, ["--sessions-delete", "--session-id", id, ...(hasFlag(ctx.parsed, "--yes") ? ["--yes"] : [])]);
   }
   if (sub === "prune") {
@@ -978,7 +979,7 @@ async function sessions(ctx: CommandContext): Promise<number> {
       ...(hasFlag(ctx.parsed, "--vacuum") ? ["--vacuum"] : []),
     ]);
   }
-  process.stderr.write("Usage: cowork sessions list|show|export|rename|archive|delete|prune\n");
+  process.stderr.write("Usage: neoworker sessions list|show|export|rename|archive|delete|prune\n");
   return 1;
 }
 
@@ -996,12 +997,12 @@ async function tasks(ctx: CommandContext): Promise<number> {
     }
     if (sub === "cancel") {
       const taskId = ctx.parsed.rest[1] || getFlag(ctx.parsed, "--task-id");
-      if (!taskId) return usageError("Usage: cowork tasks cancel <taskId>");
+      if (!taskId) return usageError("Usage: neoworker tasks cancel <taskId>");
       return runDirectCommandProcess(ctx, ["--tasks-cancel", "--task-id", taskId]);
     }
     if (sub === "attach") {
       const taskId = ctx.parsed.rest[1] || getFlag(ctx.parsed, "--task-id");
-      if (!taskId) return usageError("Usage: cowork tasks attach <taskId>");
+      if (!taskId) return usageError("Usage: neoworker tasks attach <taskId>");
       return runDirectCommandProcess(ctx, [
         "--tasks-attach",
         "--task-id",
@@ -1022,7 +1023,7 @@ async function tasks(ctx: CommandContext): Promise<number> {
         String(parseLimit(ctx, 1000)),
       ]);
     }
-    return usageError("Usage: cowork tasks list|cancel|attach|stale|cleanup");
+    return usageError("Usage: neoworker tasks list|cancel|attach|stale|cleanup");
   }
 
   const client = await connectedClient(ctx);
@@ -1038,17 +1039,17 @@ async function tasks(ctx: CommandContext): Promise<number> {
     }
     if (sub === "cancel") {
       const taskId = ctx.parsed.rest[1] || getFlag(ctx.parsed, "--task-id");
-      if (!taskId) return usageError("Usage: cowork tasks cancel <taskId> --remote");
+      if (!taskId) return usageError("Usage: neoworker tasks cancel <taskId> --remote");
       const payload = await client.request(METHODS.TASK_CANCEL, { taskId });
       printLinesOrJson(ctx, payload, [`Cancelled task ${taskId}.`]);
       return 0;
     }
     if (sub === "attach") {
       const taskId = ctx.parsed.rest[1] || getFlag(ctx.parsed, "--task-id");
-      if (!taskId) return usageError("Usage: cowork tasks attach <taskId> --remote");
+      if (!taskId) return usageError("Usage: neoworker tasks attach <taskId> --remote");
       return await streamTask(client, taskId, parseLimit(ctx, 200), ctx.json);
     }
-    return usageError("Remote usage: cowork tasks list|cancel|attach --remote");
+    return usageError("Remote usage: neoworker tasks list|cancel|attach --remote");
   } finally {
     client.close();
   }
@@ -1060,10 +1061,10 @@ async function logs(ctx: CommandContext): Promise<number> {
   if (sub === "tail") return runDirectCommandProcess(ctx, ["--logs-tail", "--limit", String(parseLimit(ctx, 80))]);
   if (sub === "grep") {
     const query = ctx.parsed.rest.slice(1).join(" ").trim() || getFlag(ctx.parsed, "--query");
-    if (!query) return usageError("Usage: cowork logs grep <query>");
+    if (!query) return usageError("Usage: neoworker logs grep <query>");
     return runDirectCommandProcess(ctx, ["--logs-grep", "--query", query, "--limit", String(parseLimit(ctx, 80))]);
   }
-  process.stderr.write("Usage: cowork logs latest|tail|grep\n");
+  process.stderr.write("Usage: neoworker logs latest|tail|grep\n");
   return 1;
 }
 
@@ -1072,10 +1073,10 @@ async function tools(ctx: CommandContext): Promise<number> {
   if (sub === "list") return runDirectCommandProcess(ctx, ["--tools-list"]);
   if (sub === "info" || sub === "enable" || sub === "disable") {
     const target = ctx.parsed.rest[1] || getFlag(ctx.parsed, "--category") || getFlag(ctx.parsed, "--tool");
-    if (!target) return usageError(`Usage: cowork tools ${sub} <category-or-tool>`);
+    if (!target) return usageError(`Usage: neoworker tools ${sub} <category-or-tool>`);
     return runDirectCommandProcess(ctx, [`--tools-${sub}`, "--name", target]);
   }
-  process.stderr.write("Usage: cowork tools list|info|enable|disable\n");
+  process.stderr.write("Usage: neoworker tools list|info|enable|disable\n");
   return 1;
 }
 
@@ -1084,7 +1085,7 @@ async function mcp(ctx: CommandContext): Promise<number> {
   if (sub === "list") return runDirectCommandProcess(ctx, ["--mcp-list"]);
   if (sub === "add") {
     const name = getFlag(ctx.parsed, "--name") || ctx.parsed.rest[1];
-    if (!name) return usageError("Usage: cowork mcp add --name <name> (--command <cmd> | --url <url>)");
+    if (!name) return usageError("Usage: neoworker mcp add --name <name> (--command <cmd> | --url <url>)");
     return runDirectCommandProcess(ctx, [
       "--mcp-add",
       "--name",
@@ -1098,10 +1099,10 @@ async function mcp(ctx: CommandContext): Promise<number> {
   }
   if (sub === "remove" || sub === "enable" || sub === "disable" || sub === "test") {
     const id = ctx.parsed.rest[1] || getFlag(ctx.parsed, "--name");
-    if (!id && sub !== "test") return usageError(`Usage: cowork mcp ${sub} <serverId>`);
+    if (!id && sub !== "test") return usageError(`Usage: neoworker mcp ${sub} <serverId>`);
     return runDirectCommandProcess(ctx, [`--mcp-${sub}`, ...(id ? ["--name", id] : [])]);
   }
-  process.stderr.write("Usage: cowork mcp list|add|remove|enable|disable|test\n");
+  process.stderr.write("Usage: neoworker mcp list|add|remove|enable|disable|test\n");
   return 1;
 }
 
@@ -1110,18 +1111,18 @@ async function skills(ctx: CommandContext): Promise<number> {
   if (sub === "list") return runDirectCommandProcess(ctx, ["--skills-list", "--limit", String(parseLimit(ctx, 200))]);
   if (sub === "info") {
     const id = ctx.parsed.rest.slice(1).join(" ").trim();
-    if (!id) return usageError("Usage: cowork skills info <skillId-or-name>");
+    if (!id) return usageError("Usage: neoworker skills info <skillId-or-name>");
     return runDirectCommandProcess(ctx, ["--skills-info", "--name", id]);
   }
   if (sub === "audit") return runDirectCommandProcess(ctx, ["--skills-audit"]);
-  process.stderr.write("Usage: cowork skills list|info|audit\n");
+  process.stderr.write("Usage: neoworker skills list|info|audit\n");
   return 1;
 }
 
 async function models(ctx: CommandContext): Promise<number> {
   const sub = ctx.parsed.rest[0] || "list";
   if (sub === "list") return runDirectCommandProcess(ctx, ["--models-list", "--limit", String(parseLimit(ctx, 100))]);
-  process.stderr.write("Usage: cowork models list\n");
+  process.stderr.write("Usage: neoworker models list\n");
   return 1;
 }
 
@@ -1139,7 +1140,7 @@ async function backup(ctx: CommandContext): Promise<number> {
   }
   if (sub === "restore") {
     const file = ctx.parsed.rest[1] || getFlag(ctx.parsed, "--output");
-    if (!file) return usageError("Usage: cowork backup restore <backup.json> [--dry-run] [--yes]");
+    if (!file) return usageError("Usage: neoworker backup restore <backup.json> [--dry-run] [--yes]");
     return runDirectCommandProcess(ctx, [
       "--backup-restore",
       "--output",
@@ -1148,7 +1149,7 @@ async function backup(ctx: CommandContext): Promise<number> {
       ...(hasFlag(ctx.parsed, "--yes") ? ["--yes"] : []),
     ]);
   }
-  process.stderr.write("Usage: cowork backup create|restore\n");
+  process.stderr.write("Usage: neoworker backup create|restore\n");
   return 1;
 }
 
@@ -1165,23 +1166,23 @@ async function security(ctx: CommandContext): Promise<number> {
     }
     if (action === "remove") {
       const ruleId = ctx.parsed.rest[2] || getFlag(ctx.parsed, "--rule-id");
-      if (!ruleId) return usageError("Usage: cowork security rules remove <ruleId> --yes");
+      if (!ruleId) return usageError("Usage: neoworker security rules remove <ruleId> --yes");
       return runDirectCommandProcess(ctx, ["--security-rules-remove", "--rule-id", ruleId, ...(hasFlag(ctx.parsed, "--yes") ? ["--yes"] : [])]);
     }
   }
-  process.stderr.write("Usage: cowork security audit | cowork security rules list|remove\n");
+  process.stderr.write("Usage: neoworker security audit | neoworker security rules list|remove\n");
   return 1;
 }
 
 async function promptSize(ctx: CommandContext): Promise<number> {
   const text = ctx.parsed.rest.join(" ").trim();
-  if (!text) return usageError("Usage: cowork prompt-size <prompt text>");
+  if (!text) return usageError("Usage: neoworker prompt-size <prompt text>");
   return runDirectCommandProcess(ctx, ["--prompt-size", "--prompt", text]);
 }
 
 async function promptPreview(ctx: CommandContext): Promise<number> {
   const text = ctx.parsed.rest.join(" ").trim();
-  if (!text) return usageError("Usage: cowork prompt-preview <prompt text>");
+  if (!text) return usageError("Usage: neoworker prompt-preview <prompt text>");
   return runDirectCommandProcess(ctx, ["--prompt-preview", "--prompt", text]);
 }
 
@@ -1194,7 +1195,7 @@ function completions(ctx: CommandContext): number {
 async function dashboard(ctx: CommandContext): Promise<number> {
   const sub = ctx.parsed.rest[0] || "open";
   if (sub === "status") return runDirectCommandProcess(ctx, ["--dashboard-status"]);
-  if (sub !== "open") return usageError("Usage: cowork dashboard [open|status]");
+  if (sub !== "open") return usageError("Usage: neoworker dashboard [open|status]");
   return launchDesktopApp([]);
 }
 
@@ -1203,10 +1204,10 @@ async function openCommand(ctx: CommandContext): Promise<number> {
   if (target === "dashboard") return launchDesktopApp([]);
   if (target === "task") {
     const taskId = ctx.parsed.rest[1];
-    if (!taskId) return usageError("Usage: cowork open task <taskId>");
-    return launchDesktopApp([`cowork://task/${taskId}`]);
+    if (!taskId) return usageError("Usage: neoworker open task <taskId>");
+    return launchDesktopApp([`neoworker://task/${taskId}`]);
   }
-  return usageError("Usage: cowork open dashboard | cowork open task <taskId>");
+  return usageError("Usage: neoworker open dashboard | neoworker open task <taskId>");
 }
 
 async function connectedClient(ctx: CommandContext): Promise<ControlPlaneClient> {
@@ -1214,11 +1215,11 @@ async function connectedClient(ctx: CommandContext): Promise<ControlPlaneClient>
     const reason = ctx.discoveryError ? `\nAuto-discovery: ${ctx.discoveryError}` : "";
     throw new Error(
       [
-        "No local CoWork GUI/control-plane connection is available yet.",
+        "No local NeoWorker GUI/control-plane connection is available yet.",
         reason,
         "Fix:",
-        "  1. Make sure CoWork OS is running with Control Plane enabled.",
-        "  2. Or run `cowork login --token <control-plane-token>` once.",
+        "  1. Make sure NeoWorker is running with Control Plane enabled.",
+        "  2. Or run `neoworker login --token <control-plane-token>` once.",
       ]
         .filter(Boolean)
         .join("\n"),
@@ -1233,13 +1234,13 @@ async function connectedClient(ctx: CommandContext): Promise<ControlPlaneClient>
       const source = ctx.discoverySource ? `\nDiscovered from: ${ctx.discoverySource}` : "";
       throw new Error(
         [
-          `Found local CoWork GUI settings for ${ctx.connection.url}, but the Control Plane is not reachable.`,
+          `Found local NeoWorker GUI settings for ${ctx.connection.url}, but the Control Plane is not reachable.`,
           source,
           `Connection error: ${error instanceof Error ? error.message : String(error)}`,
           "Fix:",
-          "  1. In the CoWork OS desktop app, enable/start Control Plane, or restart the app after this update.",
-          "  2. Then run `cowork doctor`.",
-          "  3. As a fallback, run `cowork login --token <control-plane-token>` once.",
+          "  1. In the NeoWorker desktop app, enable/start Control Plane, or restart the app after this update.",
+          "  2. Then run `neoworker doctor`.",
+          "  3. As a fallback, run `neoworker login --token <control-plane-token>` once.",
         ]
           .filter(Boolean)
           .join("\n"),
@@ -1254,7 +1255,7 @@ function createClient(ctx: CommandContext): ControlPlaneClient {
   return new ControlPlaneClient({
     url: ctx.connection.url,
     token: ctx.connection.token,
-    deviceName: getFlag(ctx.parsed, "--device-name") || "cowork-cli",
+    deviceName: getFlag(ctx.parsed, "--device-name") || "neoworker-cli",
   });
 }
 
@@ -1270,7 +1271,7 @@ async function resolveWorkspaceId(client: ControlPlaneClient, ctx: CommandContex
   });
   if (match?.id) return match.id;
   if (hasFlag(ctx.parsed, "--no-create-workspace")) {
-    throw new Error(`No workspace found for ${cwd}. Run: cowork workspace create ${cwd}`);
+    throw new Error(`No workspace found for ${cwd}. Run: neoworker workspace create ${cwd}`);
   }
   const created = await client.request(METHODS.WORKSPACE_CREATE, {
     name: named || path.basename(cwd) || "Workspace",
@@ -1454,7 +1455,7 @@ function launchDesktopApp(extraArgs: string[]): Promise<number> {
     });
     child.on("error", reject);
     child.unref();
-    process.stdout.write("Opened CoWork OS desktop app.\n");
+    process.stdout.write("Opened NeoWorker desktop app.\n");
     resolve(0);
   });
 }
@@ -1488,18 +1489,18 @@ function renderCompletions(shell: string): string {
   ];
   if (shell === "bash") {
     return [
-      "_cowork_complete() {",
+      "_neoworker_complete() {",
       `  COMPREPLY=( $(compgen -W "${commands.join(" ")}" -- "\${COMP_WORDS[1]}") )`,
       "}",
-      "complete -F _cowork_complete cowork",
+      "complete -F _neoworker_complete neoworker",
       "",
     ].join("\n");
   }
   if (shell === "fish") {
-    return commands.map((command) => `complete -c cowork -f -a ${command}`).join("\n") + "\n";
+    return commands.map((command) => `complete -c neoworker -f -a ${command}`).join("\n") + "\n";
   }
   return [
-    "#compdef cowork",
+    "#compdef neoworker",
     `_arguments '1:command:(${commands.join(" ")})' '*::arg:_files'`,
     "",
   ].join("\n");
@@ -1531,47 +1532,47 @@ function handleError(error: unknown): number {
 function usage(): void {
   process.stdout.write(
     [
-      "CoWork OS CLI",
+      "NeoWorker CLI",
       "",
       "Local-first commands do not require the desktop Control Plane. Use --remote only when you intentionally want the WebSocket control-plane path.",
       "",
       "Usage:",
-      "  cowork",
-      "  cowork version",
-      "  cowork status",
-      "  cowork doctor",
-      "  cowork login --token <token> [--url ws://127.0.0.1:18789]",
-      "  cowork daemon start [--background]",
-      "  cowork workspace list",
-      "  cowork workspace create [path]",
-      '  cowork run "task prompt" [--cwd <path>] [--workspace-id <id>] [--shell] [--detach] [--force]',
-      '  cowork run "task prompt" --remote [--url <ws-url>] [--token <token>]',
-      "  cowork tail <taskId>",
-      "  cowork tasks list [--active] [--cli]",
-      "  cowork tasks cancel <taskId>",
-      "  cowork tasks attach <taskId>",
-      "  cowork tasks stale",
-      "  cowork tasks cleanup --interrupted-cli --yes",
-      "  cowork approvals",
-      "  cowork approve <approvalId>",
-      "  cowork reject <approvalId>",
-      "  cowork providers list",
-      "  cowork providers configure <provider> [--api-key <key>] [--model <model>]",
-      "  cowork providers fallback list|add|remove",
-      "  cowork sessions list|show|export|rename|archive|delete|prune",
-      "  cowork logs latest|tail|grep",
-      "  cowork tools list|info|enable|disable",
-      "  cowork mcp list|add|remove|enable|disable|test",
-      "  cowork skills list|info|audit",
-      "  cowork models list",
-      "  cowork backup create|restore",
-      "  cowork security audit",
-      "  cowork security rules list|remove",
-      "  cowork prompt-size <prompt text>",
-      "  cowork prompt-preview <prompt text>",
-      "  cowork completions zsh|bash|fish",
-      "  cowork dashboard [open|status]",
-      "  cowork open dashboard | cowork open task <taskId>",
+      "  neoworker",
+      "  neoworker version",
+      "  neoworker status",
+      "  neoworker doctor",
+      "  neoworker login --token <token> [--url ws://127.0.0.1:18789]",
+      "  neoworker daemon start [--background]",
+      "  neoworker workspace list",
+      "  neoworker workspace create [path]",
+      '  neoworker run "task prompt" [--cwd <path>] [--workspace-id <id>] [--shell] [--detach] [--force]',
+      '  neoworker run "task prompt" --remote [--url <ws-url>] [--token <token>]',
+      "  neoworker tail <taskId>",
+      "  neoworker tasks list [--active] [--cli]",
+      "  neoworker tasks cancel <taskId>",
+      "  neoworker tasks attach <taskId>",
+      "  neoworker tasks stale",
+      "  neoworker tasks cleanup --interrupted-cli --yes",
+      "  neoworker approvals",
+      "  neoworker approve <approvalId>",
+      "  neoworker reject <approvalId>",
+      "  neoworker providers list",
+      "  neoworker providers configure <provider> [--api-key <key>] [--model <model>]",
+      "  neoworker providers fallback list|add|remove",
+      "  neoworker sessions list|show|export|rename|archive|delete|prune",
+      "  neoworker logs latest|tail|grep",
+      "  neoworker tools list|info|enable|disable",
+      "  neoworker mcp list|add|remove|enable|disable|test",
+      "  neoworker skills list|info|audit",
+      "  neoworker models list",
+      "  neoworker backup create|restore",
+      "  neoworker security audit",
+      "  neoworker security rules list|remove",
+      "  neoworker prompt-size <prompt text>",
+      "  neoworker prompt-preview <prompt text>",
+      "  neoworker completions zsh|bash|fish",
+      "  neoworker dashboard [open|status]",
+      "  neoworker open dashboard | neoworker open task <taskId>",
       "",
       "Global flags:",
       "  --profile <name>       Use a saved CLI profile",
@@ -1580,8 +1581,8 @@ function usage(): void {
       "  --json                  Print JSON output",
       "",
       "Remote env:",
-      "  COWORK_CONTROL_PLANE_URL",
-      "  COWORK_CONTROL_PLANE_TOKEN",
+      "  NEOWORKER_CONTROL_PLANE_URL",
+      "  NEOWORKER_CONTROL_PLANE_TOKEN",
     ].join("\n"),
   );
 }

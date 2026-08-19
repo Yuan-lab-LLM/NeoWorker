@@ -1,5 +1,5 @@
 /**
- * Cron/Scheduled Task Types for CoWork OS
+ * Cron/Scheduled Task Types for NeoWorker
  */
 
 import type { ChannelType } from "../gateway/channels/types";

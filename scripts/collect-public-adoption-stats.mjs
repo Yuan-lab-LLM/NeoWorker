@@ -2,9 +2,9 @@ import fs from "fs/promises";
 import path from "path";
 import { spawnSync } from "child_process";
 
-const repoOwner = process.env.ADOPTION_STATS_REPO_OWNER || "CoWork-OS";
-const repoName = process.env.ADOPTION_STATS_REPO_NAME || "CoWork-OS";
-const npmPackage = process.env.ADOPTION_STATS_NPM_PACKAGE || "cowork-os";
+const repoOwner = process.env.ADOPTION_STATS_REPO_OWNER || "NeoWorker";
+const repoName = process.env.ADOPTION_STATS_REPO_NAME || "NeoWorker";
+const npmPackage = process.env.ADOPTION_STATS_NPM_PACKAGE || "neoworker";
 const args = new Set(process.argv.slice(2));
 const resetBaseline = args.has("--reset-baseline") || process.env.ADOPTION_STATS_RESET_BASELINE === "1";
 const repoRoot = process.cwd();
@@ -13,7 +13,7 @@ const latestPath = path.join(dataDir, "public-stats-latest.json");
 const historyPath = path.join(dataDir, "public-stats-history.jsonl");
 const token = process.env.ADOPTION_STATS_GITHUB_TOKEN || process.env.GITHUB_TOKEN || readGhToken();
 
-const userAgent = "cowork-os-public-adoption-stats";
+const userAgent = "neoworker-public-adoption-stats";
 
 function readGhToken() {
   if (process.env.ADOPTION_STATS_SKIP_GH_CLI_TOKEN === "1") return "";

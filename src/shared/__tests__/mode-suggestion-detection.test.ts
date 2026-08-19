@@ -25,6 +25,29 @@ describe("detectModeSuggestions", () => {
     expect(result[0].mode).toBe("analyze");
   });
 
+  it("detects the same planning and analysis modes for a Chinese prompt", () => {
+    const result = detectModeSuggestions(
+      "分析 CME Group 的现金创造效率与资本配置策略，重点考察经营现金流，并评估债务管理方案。",
+    );
+    const modes = result.map((suggestion) => suggestion.mode);
+
+    expect(result[0].mode).toBe("analyze");
+    expect(modes).toContain("analyze");
+    expect(modes).toContain("plan");
+  });
+
+  it.each([
+    ["请规划系统架构并给出路线图", "plan"],
+    ["上线生产环境前请谨慎验证", "verified"],
+    ["让多个智能体并行协作并集思广益", "collaborative"],
+    ["请构建登录页面并实现认证功能", "execute"],
+    ["这个偶发崩溃需要复现并查明根因", "debug"],
+  ] as const)("detects %s as %s mode", (prompt, expectedMode) => {
+    const result = detectModeSuggestions(prompt, { maxResults: 3 });
+
+    expect(result.map((suggestion) => suggestion.mode)).toContain(expectedMode);
+  });
+
   it("detects verified mode for production/deploy keywords", () => {
     const result = detectModeSuggestions("Deploy this to production carefully");
     expect(result.length).toBeGreaterThan(0);

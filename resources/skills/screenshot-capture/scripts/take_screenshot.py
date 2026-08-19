@@ -214,7 +214,7 @@ def capture_windows(output: Path, args: argparse.Namespace) -> list[Path]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Capture screenshots for CoWork OS.")
+    parser = argparse.ArgumentParser(description="Capture screenshots for NeoWorker.")
     parser.add_argument("--mode", choices=["default", "temp"], default="default")
     parser.add_argument("--path")
     parser.add_argument("--app")

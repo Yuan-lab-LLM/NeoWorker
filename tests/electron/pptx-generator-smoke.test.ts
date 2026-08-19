@@ -7,12 +7,12 @@ import { generatePPTX } from "../../src/electron/utils/document-generators/pptx-
 
 describe("pptx-generator smoke", () => {
   it("generates a varied editable PPTX package from richer slide definitions", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-pptx-smoke-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-pptx-smoke-"));
     const outputPath = path.join(dir, "varied.pptx");
 
     const result = await generatePPTX(outputPath, {
       title: "Varied Deck",
-      author: "CoWork OS",
+      author: "NeoWorker",
       visualMode: "editorial",
       styleBrief: "Use varied editorial structures.",
       brand: { name: "Acme", primaryColor: "#0E7490", accentColor: "#E11D48" },

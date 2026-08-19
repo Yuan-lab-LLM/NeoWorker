@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { translate, useLanguage } from "../i18n";
 
 const webviewPopupProps = { allowpopups: "true" } as Any;
 
@@ -8,6 +9,8 @@ interface BrowserViewProps {
 }
 
 export function BrowserView({ initialUrl, onBack }: BrowserViewProps) {
+  useLanguage();
+  const t = translate;
   const [url, setUrl] = useState(initialUrl || "");
   const [activeUrl, setActiveUrl] = useState(initialUrl || "");
   const webviewRef = useRef<Any>(null);
@@ -56,8 +59,8 @@ export function BrowserView({ initialUrl, onBack }: BrowserViewProps) {
           type="button"
           className="browser-toolbar-btn"
           onClick={onBack}
-          title="Back to app"
-          aria-label="Back to app"
+          title={t("browser.backToApp", "Back to app")}
+          aria-label={t("browser.backToApp", "Back to app")}
         >
           <svg
             aria-hidden="true"
@@ -70,14 +73,14 @@ export function BrowserView({ initialUrl, onBack }: BrowserViewProps) {
           >
             <polyline points="15 18 9 12 15 6" />
           </svg>
-          Back
+          {t("common.back", "Back")}
         </button>
         <button
           type="button"
           className="browser-toolbar-btn"
           onClick={() => webviewRef.current?.goBack()}
-          title="Back"
-          aria-label="Go back in browser history"
+          title={t("common.back", "Back")}
+          aria-label={t("browser.goBackHistory", "Go back in browser history")}
         >
           <svg
             aria-hidden="true"
@@ -95,8 +98,11 @@ export function BrowserView({ initialUrl, onBack }: BrowserViewProps) {
           type="button"
           className="browser-toolbar-btn"
           onClick={() => webviewRef.current?.goForward()}
-          title="Forward"
-          aria-label="Go forward in browser history"
+          title={t("browser.forward", "Forward")}
+          aria-label={t(
+            "browser.goForwardHistory",
+            "Go forward in browser history",
+          )}
         >
           <svg
             aria-hidden="true"
@@ -114,8 +120,8 @@ export function BrowserView({ initialUrl, onBack }: BrowserViewProps) {
           type="button"
           className="browser-toolbar-btn"
           onClick={() => webviewRef.current?.reload()}
-          title="Reload"
-          aria-label="Reload page"
+          title={t("browser.reload", "Reload")}
+          aria-label={t("browser.reloadPage", "Reload page")}
         >
           <svg
             aria-hidden="true"
@@ -136,16 +142,16 @@ export function BrowserView({ initialUrl, onBack }: BrowserViewProps) {
             value={url}
             onChange={(event) => setUrl(event.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Enter a URL..."
+            placeholder={t("browser.enterUrl", "Enter a URL...")}
           />
           <button
             type="button"
             className="browser-toolbar-btn primary"
             onClick={() => navigate()}
-            title="Go"
-            aria-label="Navigate to URL"
+            title={t("browser.go", "Go")}
+            aria-label={t("browser.navigateToUrl", "Navigate to URL")}
           >
-            Go
+            {t("browser.go", "Go")}
           </button>
         </div>
       </div>
@@ -159,7 +165,9 @@ export function BrowserView({ initialUrl, onBack }: BrowserViewProps) {
             webpreferences="contextIsolation=yes, nodeIntegration=no"
           />
         ) : (
-          <div className="browser-empty">Enter a URL above to start browsing.</div>
+          <div className="browser-empty">
+            {t("browser.empty", "Enter a URL above to start browsing.")}
+          </div>
         )}
       </div>
     </div>

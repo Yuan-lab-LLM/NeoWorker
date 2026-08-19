@@ -36,11 +36,19 @@ import type {
   EditableDocumentRun,
 } from "../../shared/document-preview";
 import { getDocumentFormatLabel } from "../../shared/document-formats";
+import { useDocumentZoom } from "../hooks/useDocumentZoom";
 import { useVoiceInput } from "../hooks/useVoiceInput";
+import { translate, useLanguage } from "../i18n";
 import { ModelDropdown } from "./MainContent";
-import type { SpreadsheetTurnContext } from "./SpreadsheetArtifactViewer";
+import { ArtifactFileTypeIcon } from "./ArtifactFileTypeIcon";
+import { ArtifactDownloadButton } from "./ArtifactDownloadButton";
+import {
+  ArtifactTurnProgressPanel,
+  type SpreadsheetTurnContext,
+} from "./ArtifactTurnProgressPanel";
 import { DocumentArtifactCard } from "./DocumentArtifactCard";
-import { ChevronDown } from "lucide-react";
+import { DocumentZoomControls } from "./DocumentZoomControls";
+import { PDFDocumentSurface } from "./PDFDocumentSurface";
 import "./artifact-viewers.css";
 
 type DocumentArtifactViewerMode = "sidebar" | "fullscreen";
@@ -60,7 +68,10 @@ type DocumentArtifactViewerProps = {
   onClose: () => void;
   onFullscreen: () => void;
   onExitFullscreen: () => void;
-  onSendMessage?: (message: string, images?: ImageAttachment[]) => Promise<void>;
+  onSendMessage?: (
+    message: string,
+    images?: ImageAttachment[],
+  ) => Promise<void>;
   selectedModelLabel?: string;
   selectedModel?: string;
   selectedProvider?: LLMProviderType;
@@ -82,18 +93,6 @@ type ViewerData = NonNullable<FileViewerResult["data"]>;
 
 function getFileName(filePath: string): string {
   return filePath.split(/[\\/]/).pop() || filePath;
-}
-
-function getDocumentViewerIconLabel(filePath: string, fileType?: ViewerData["fileType"]): string {
-  const lowerPath = filePath.toLowerCase();
-  if (
-    fileType === "markdown" ||
-    lowerPath.endsWith(".md") ||
-    lowerPath.endsWith(".markdown")
-  ) {
-    return "M";
-  }
-  return "W";
 }
 
 function formatAttachmentSize(size: number): string {
@@ -128,19 +127,20 @@ function buildFallbackPreview(data: ViewerData): DocumentPreview {
     text: data.content || "",
     canEdit: data.fileType === "docx",
     conversionStatus: data.content ? "native" : "unavailable",
-    conversionMessage: data.content ? undefined : "No in-app document preview is available.",
+    conversionMessage: undefined,
   };
 }
 
 function textToHtml(text: string): string {
   return text
     .split(/\n{2,}/)
-    .map((paragraph) =>
-      `<p>${paragraph
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/\n/g, "<br>")}</p>`,
+    .map(
+      (paragraph) =>
+        `<p>${paragraph
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\n/g, "<br>")}</p>`,
     )
     .join("");
 }
@@ -157,21 +157,26 @@ function blockText(block: EditableDocumentBlock): string {
   return block.runs?.map((run) => run.text).join("") || block.text || "";
 }
 
-function renderEditableDocumentHtml(blocks: EditableDocumentBlock[] | undefined): string {
+function renderEditableDocumentHtml(
+  blocks: EditableDocumentBlock[] | undefined,
+): string {
   if (!blocks?.length) return "";
   return blocks
     .map((block) => {
       const attrs = [
         block.id ? `data-block-id="${escapeHtml(block.id)}"` : "",
-        typeof block.order === "number" ? `data-block-order="${block.order}"` : "",
+        typeof block.order === "number"
+          ? `data-block-order="${block.order}"`
+          : "",
       ]
         .filter(Boolean)
         .join(" ");
       if (block.type === "table") {
         const rows = block.rows || [];
         return `<table ${attrs}>${rows
-          .map((row) =>
-            `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`,
+          .map(
+            (row) =>
+              `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`,
           )
           .join("")}</table>`;
       }
@@ -201,7 +206,9 @@ function extractRunsFromNode(
     underline: inherited.underline || tagName === "U",
   };
   if (tagName === "BR") return [{ ...next, text: "\n" }];
-  return Array.from(node.childNodes).flatMap((child) => extractRunsFromNode(child, next));
+  return Array.from(node.childNodes).flatMap((child) =>
+    extractRunsFromNode(child, next),
+  );
 }
 
 function collapseRuns(runs: EditableDocumentRun[]): EditableDocumentRun[] {
@@ -227,7 +234,9 @@ function blockFromElement(element: HTMLElement): EditableDocumentBlock[] {
   const tagName = element.tagName.toUpperCase();
   const blockIdentity = {
     id: element.dataset.blockId || undefined,
-    order: element.dataset.blockOrder ? Number(element.dataset.blockOrder) : undefined,
+    order: element.dataset.blockOrder
+      ? Number(element.dataset.blockOrder)
+      : undefined,
   };
   if (tagName === "UL" || tagName === "OL") {
     return Array.from(element.children)
@@ -235,7 +244,9 @@ function blockFromElement(element: HTMLElement): EditableDocumentBlock[] {
       .filter((child) => child.tagName.toUpperCase() === "LI")
       .map((child) => ({
         id: child.dataset.blockId || undefined,
-        order: child.dataset.blockOrder ? Number(child.dataset.blockOrder) : undefined,
+        order: child.dataset.blockOrder
+          ? Number(child.dataset.blockOrder)
+          : undefined,
         type: tagName === "UL" ? "bullet" : "numbered",
         runs: collapseRuns(extractRunsFromNode(child)),
       }));
@@ -253,9 +264,14 @@ function blockFromElement(element: HTMLElement): EditableDocumentBlock[] {
       },
     ];
   }
-  if (tagName === "DIV" && Array.from(element.children).some((child) =>
-    ["P", "H1", "H2", "H3", "H4", "H5", "H6", "UL", "OL", "TABLE"].includes(child.tagName.toUpperCase())
-  )) {
+  if (
+    tagName === "DIV" &&
+    Array.from(element.children).some((child) =>
+      ["P", "H1", "H2", "H3", "H4", "H5", "H6", "UL", "OL", "TABLE"].includes(
+        child.tagName.toUpperCase(),
+      ),
+    )
+  ) {
     return Array.from(element.children)
       .filter((child): child is HTMLElement => child instanceof HTMLElement)
       .flatMap(blockFromElement);
@@ -279,7 +295,9 @@ function blockFromElement(element: HTMLElement): EditableDocumentBlock[] {
   ];
 }
 
-function extractEditableDocumentBlocks(root: HTMLElement): EditableDocumentBlock[] {
+function extractEditableDocumentBlocks(
+  root: HTMLElement,
+): EditableDocumentBlock[] {
   const blocks = Array.from(root.children)
     .filter((child): child is HTMLElement => child instanceof HTMLElement)
     .flatMap(blockFromElement)
@@ -287,7 +305,9 @@ function extractEditableDocumentBlocks(root: HTMLElement): EditableDocumentBlock
       if (block.type === "table") return Boolean(block.rows?.length);
       return Boolean(block.runs?.some((run) => run.text.trim().length > 0));
     });
-  return blocks.length > 0 ? blocks : [{ type: "paragraph", runs: [{ text: "" }] }];
+  return blocks.length > 0
+    ? blocks
+    : [{ type: "paragraph", runs: [{ text: "" }] }];
 }
 
 export function DocumentArtifactViewer({
@@ -310,10 +330,13 @@ export function DocumentArtifactViewer({
   turnContext,
   refreshKey,
 }: DocumentArtifactViewerProps) {
+  useLanguage();
+  const t = translate;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fileData, setFileData] = useState<ViewerData | null>(null);
   const [copyMessage, setCopyMessage] = useState("");
+  const [pdfPageCount, setPdfPageCount] = useState(0);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editorInitializedKey, setEditorInitializedKey] = useState("");
@@ -324,19 +347,26 @@ export function DocumentArtifactViewer({
   >([]);
   const [attachmentError, setAttachmentError] = useState("");
   const [voiceNotice, setVoiceNotice] = useState("");
-  const [turnContextExpanded, setTurnContextExpanded] = useState(false);
+  const documentZoom = useDocumentZoom(filePath);
   const copyTimerRef = useRef<number | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
   const fileName = fileData?.fileName || getFileName(filePath);
-  const fullscreenLabel = mode === "fullscreen" ? "Exit full screen" : "Open document in full screen";
+  const fullscreenLabel =
+    mode === "fullscreen"
+      ? t("documentViewer.exitFullscreen", "Exit full screen")
+      : t("documentViewer.openFullscreen", "Open document in full screen");
   const voiceInput = useVoiceInput({
     onTranscript: (text) => {
       setVoiceNotice("");
-      setFullscreenMessage((current) => current ? `${current} ${text}` : text);
+      setFullscreenMessage((current) =>
+        current ? `${current} ${text}` : text,
+      );
     },
     onError: (message) => setVoiceNotice(message),
     onNotConfigured: () => {
-      setVoiceNotice("Voice input is not configured.");
+      setVoiceNotice(
+        t("common.voiceInputNotConfigured", "Voice input is not configured."),
+      );
       onOpenSettings?.("voice");
     },
   });
@@ -347,30 +377,47 @@ export function DocumentArtifactViewer({
     setError(null);
     setFileData(null);
     setCopyMessage("");
+    setPdfPageCount(0);
     setDirty(false);
     setEditorInitializedKey("");
 
     window.electronAPI
-      .readFileForViewer(filePath, workspacePath)
+      .readFileForViewer(filePath, workspacePath, {
+        includePdfBase64: true,
+        includePdfAnalysis: false,
+      })
       .then((result) => {
         if (cancelled) return;
         if (!result.success || !result.data) {
-          setError(result.error || "Failed to load document");
+          setError(
+            result.error ||
+              t("documentViewer.error.load", "Failed to load document"),
+          );
           return;
         }
         if (
           result.data.fileType !== "docx" &&
           result.data.fileType !== "document" &&
-          result.data.fileType !== "markdown"
+          result.data.fileType !== "markdown" &&
+          result.data.fileType !== "pdf"
         ) {
-          setError("File is not a Word-style document.");
+          setError(
+            t(
+              "documentViewer.error.notDocument",
+              "File is not a Word-style document.",
+            ),
+          );
           return;
         }
         setFileData(result.data);
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load document");
+          setError(
+            err instanceof Error
+              ? err.message
+              : t("documentViewer.error.load", "Failed to load document"),
+          );
         }
       })
       .finally(() => {
@@ -384,10 +431,12 @@ export function DocumentArtifactViewer({
 
   useEffect(() => {
     if (!copyMessage) return;
-    if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
+    if (copyTimerRef.current !== null)
+      window.clearTimeout(copyTimerRef.current);
     copyTimerRef.current = window.setTimeout(() => setCopyMessage(""), 2200);
     return () => {
-      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
+      if (copyTimerRef.current !== null)
+        window.clearTimeout(copyTimerRef.current);
     };
   }, [copyMessage]);
 
@@ -397,16 +446,23 @@ export function DocumentArtifactViewer({
   }, [fileData]);
 
   const formatLabel = preview?.format || getDocumentFormatLabel(fileName);
-  const canEditDirectly = Boolean(preview?.canEdit && fileData?.fileType === "docx");
+  const isPdfDocument =
+    fileData?.fileType === "pdf" || filePath.toLowerCase().endsWith(".pdf");
+  const resolvedPdfPageCount =
+    fileData?.pdfReviewSummary?.pageCount || pdfPageCount;
+  const canEditDirectly = Boolean(
+    preview?.canEdit && fileData?.fileType === "docx",
+  );
   const isMarkdownDocument = fileData?.fileType === "markdown";
-  const documentIconLabel = getDocumentViewerIconLabel(filePath, fileData?.fileType);
 
   useEffect(() => {
     if (!canEditDirectly || !preview || !editorRef.current) return;
     const key = `${filePath}:${preview.htmlContent || preview.text}`;
     if (editorInitializedKey === key) return;
     editorRef.current.innerHTML =
-      renderEditableDocumentHtml(preview.blocks as EditableDocumentBlock[] | undefined) ||
+      renderEditableDocumentHtml(
+        preview.blocks as EditableDocumentBlock[] | undefined,
+      ) ||
       preview.htmlContent ||
       textToHtml(preview.text || "");
     setEditorInitializedKey(key);
@@ -418,9 +474,9 @@ export function DocumentArtifactViewer({
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
-      setCopyMessage("Copied");
+      setCopyMessage(t("common.copied", "Copied"));
     } catch {
-      setCopyMessage("Copy failed");
+      setCopyMessage(t("common.copyFailed", "Copy failed"));
     }
   };
 
@@ -450,15 +506,21 @@ export function DocumentArtifactViewer({
         blocks,
       });
       if (!result.success || !result.data) {
-        setCopyMessage(result.error || "Save failed");
+        setCopyMessage(
+          result.error || t("documentViewer.saveFailed", "Save failed"),
+        );
         return;
       }
       setFileData(result.data);
       setDirty(false);
-      setCopyMessage("Saved");
+      setCopyMessage(t("common.saved", "Saved"));
       setEditorInitializedKey("");
     } catch (err: unknown) {
-      setCopyMessage(err instanceof Error ? err.message : "Save failed");
+      setCopyMessage(
+        err instanceof Error
+          ? err.message
+          : t("documentViewer.saveFailed", "Save failed"),
+      );
     } finally {
       setSaving(false);
     }
@@ -477,7 +539,12 @@ export function DocumentArtifactViewer({
         })),
       ]);
     } catch {
-      setAttachmentError("Failed to add attachments. Please try again.");
+      setAttachmentError(
+        t(
+          "common.attachments.addFailed",
+          "Failed to add attachments. Please try again.",
+        ),
+      );
     }
   }, [workspacePath]);
 
@@ -487,41 +554,57 @@ export function DocumentArtifactViewer({
     );
   }, []);
 
-  const buildMessageWithAttachments = useCallback(async (message: string) => {
-    if (fullscreenAttachments.length === 0) {
-      return { message, images: undefined as ImageAttachment[] | undefined };
-    }
+  const buildMessageWithAttachments = useCallback(
+    async (message: string) => {
+      if (fullscreenAttachments.length === 0) {
+        return { message, images: undefined as ImageAttachment[] | undefined };
+      }
 
-    const importedAttachments = workspaceId
-      ? await window.electronAPI.importFilesToWorkspace({
-          workspaceId,
-          files: fullscreenAttachments.map((attachment) => attachment.path),
-        })
-      : [];
-    const attachmentLines =
-      importedAttachments.length > 0
-        ? importedAttachments.map(
-            (attachment) => `- ${attachment.fileName} (${attachment.relativePath})`,
-          )
-        : fullscreenAttachments.map((attachment) => `- ${attachment.name} (${attachment.path})`);
-    const base = message || "Please review the attached files.";
-    const images = fullscreenAttachments
-      .filter(isImageAttachment)
-      .map((attachment) => ({
-        filePath: attachment.path,
-        mimeType: attachment.mimeType as ImageAttachment["mimeType"],
-        filename: attachment.name,
-        sizeBytes: attachment.size,
-      }));
-    return {
-      message: `${base}\n\nAttached files:\n${attachmentLines.join("\n")}`,
-      images: images.length > 0 ? images : undefined,
-    };
-  }, [fullscreenAttachments, workspaceId]);
+      const importedAttachments = workspaceId
+        ? await window.electronAPI.importFilesToWorkspace({
+            workspaceId,
+            files: fullscreenAttachments.map((attachment) => attachment.path),
+          })
+        : [];
+      const attachmentLines =
+        importedAttachments.length > 0
+          ? importedAttachments.map(
+              (attachment) =>
+                `- ${attachment.fileName} (${attachment.relativePath})`,
+            )
+          : fullscreenAttachments.map(
+              (attachment) => `- ${attachment.name} (${attachment.path})`,
+            );
+      const base =
+        message ||
+        t(
+          "common.attachments.reviewAttached",
+          "Please review the attached files.",
+        );
+      const images = fullscreenAttachments
+        .filter(isImageAttachment)
+        .map((attachment) => ({
+          filePath: attachment.path,
+          mimeType: attachment.mimeType as ImageAttachment["mimeType"],
+          filename: attachment.name,
+          sizeBytes: attachment.size,
+        }));
+      return {
+        message: `${base}\n\n${t("common.attachments.attachedFiles", "Attached files:")}\n${attachmentLines.join("\n")}`,
+        images: images.length > 0 ? images : undefined,
+      };
+    },
+    [fullscreenAttachments, workspaceId],
+  );
 
   const handleFullscreenSend = async () => {
     const message = fullscreenMessage.trim();
-    if ((!message && fullscreenAttachments.length === 0) || !onSendMessage || fullscreenSending) return;
+    if (
+      (!message && fullscreenAttachments.length === 0) ||
+      !onSendMessage ||
+      fullscreenSending
+    )
+      return;
     const previousMessage = fullscreenMessage;
     const previousAttachments = fullscreenAttachments;
     setFullscreenSending(true);
@@ -534,24 +617,90 @@ export function DocumentArtifactViewer({
     } catch {
       setFullscreenMessage(previousMessage);
       setFullscreenAttachments(previousAttachments);
-      setAttachmentError("Failed to send message. Please try again.");
+      setAttachmentError(
+        t(
+          "common.sendFailedRetry",
+          "Failed to send message. Please try again.",
+        ),
+      );
     } finally {
       setFullscreenSending(false);
     }
   };
 
   const renderDocumentBody = () => {
-    if (loading) return <div className="document-viewer-state">Loading document...</div>;
-    if (error) return <div className="document-viewer-state document-viewer-error">{error}</div>;
-    if (!preview) return <div className="document-viewer-state">No document preview available.</div>;
+    if (loading)
+      return (
+        <div className="document-viewer-state">
+          {t("documentViewer.loading", "Loading document...")}
+        </div>
+      );
+    if (error)
+      return (
+        <div className="document-viewer-state document-viewer-error">
+          {error}
+        </div>
+      );
+    if (isPdfDocument) {
+      if (!fileData?.pdfDataBase64) {
+        return (
+          <div className="document-viewer-state">
+            <strong>
+              {t("documentViewer.previewUnavailable", "Preview unavailable")}
+            </strong>
+            <p>
+              {t("fileViewer.pdf.noPreview", "PDF preview is not available.")}
+            </p>
+            <button
+              type="button"
+              className="document-viewer-tool-btn"
+              onClick={handleOpenExternal}
+            >
+              <ExternalLink size={14} />
+              {t("documentViewer.openExternally", "Open externally")}
+            </button>
+          </div>
+        );
+      }
+      return (
+        <PDFDocumentSurface
+          fileName={fileName}
+          pdfDataBase64={fileData.pdfDataBase64}
+          selection={null}
+          onSelectionChange={() => {}}
+          readOnly
+          onPageCountChange={setPdfPageCount}
+          maxScale={1.25}
+          zoom={documentZoom.zoomPercent / 100}
+        />
+      );
+    }
+    if (!preview)
+      return (
+        <div className="document-viewer-state">
+          {t("documentViewer.noPreview", "No document preview available.")}
+        </div>
+      );
     if (preview.previewMode === "unavailable") {
       return (
         <div className="document-viewer-state">
-          <strong>Preview unavailable</strong>
-          <p>{preview.conversionMessage || "Open this document in its native app to review it."}</p>
-          <button type="button" className="document-viewer-tool-btn" onClick={handleOpenExternal}>
+          <strong>
+            {t("documentViewer.previewUnavailable", "Preview unavailable")}
+          </strong>
+          <p>
+            {preview.conversionMessage ||
+              t(
+                "documentViewer.openNativeHint",
+                "Open this document in its native app to review it.",
+              )}
+          </p>
+          <button
+            type="button"
+            className="document-viewer-tool-btn"
+            onClick={handleOpenExternal}
+          >
             <ExternalLink size={14} />
-            Open externally
+            {t("documentViewer.openExternally", "Open externally")}
           </button>
         </div>
       );
@@ -562,6 +711,7 @@ export function DocumentArtifactViewer({
           <div
             ref={editorRef}
             className="document-editor-page"
+            style={{ zoom: `${documentZoom.zoomPercent}%` }}
             contentEditable
             suppressContentEditableWarning
             spellCheck
@@ -575,27 +725,117 @@ export function DocumentArtifactViewer({
       return (
         <div
           className="document-viewer-html"
+          style={{ zoom: `${documentZoom.zoomPercent}%` }}
           dangerouslySetInnerHTML={{ __html: preview.htmlContent }}
         />
       );
     }
     if (isMarkdownDocument) {
       return (
-        <div className="document-viewer-markdown markdown-content">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{preview.text || ""}</ReactMarkdown>
+        <div
+          className="document-viewer-markdown markdown-content"
+          style={{ zoom: `${documentZoom.zoomPercent}%` }}
+        >
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {preview.text || ""}
+          </ReactMarkdown>
         </div>
       );
     }
-    return <pre className="document-viewer-text">{preview.text || "Empty document."}</pre>;
+    return (
+      <pre
+        className="document-viewer-text"
+        style={{ zoom: `${documentZoom.zoomPercent}%` }}
+      >
+        {preview.text || t("documentViewer.empty", "Empty document.")}
+      </pre>
+    );
   };
 
   return (
-    <section className={`document-viewer document-viewer-${mode}`}>
-      <div className="document-viewer-tabbar">
+    <section
+      className={`document-viewer document-viewer-${mode} ${isPdfDocument ? "document-viewer-pdf" : ""}`}
+    >
+      <div
+        className={`document-viewer-tabbar ${isPdfDocument ? "is-compact" : ""}`}
+      >
         <div className="document-viewer-tab">
-          <span className="document-viewer-file-icon">{documentIconLabel}</span>
-          <span className="document-viewer-tab-title">{fileName}</span>
+          <ArtifactFileTypeIcon
+            filePath={filePath}
+            className="document-viewer-file-icon"
+            size={19}
+          />
+          {isPdfDocument ? (
+            <div className="document-viewer-tab-copy">
+              <span className="document-viewer-tab-title">{fileName}</span>
+              <span className="document-viewer-tab-meta">
+                {formatLabel}
+                {resolvedPdfPageCount ? (
+                  <span>
+                    {t("fileViewer.meta.pages", "{count} pages", {
+                      count: resolvedPdfPageCount,
+                    })}
+                  </span>
+                ) : null}
+              </span>
+            </div>
+          ) : (
+            <span className="document-viewer-tab-title">{fileName}</span>
+          )}
         </div>
+        {isPdfDocument ? (
+          <>
+            <DocumentZoomControls
+              value={documentZoom.zoomPercent}
+              onZoomIn={documentZoom.zoomIn}
+              onZoomOut={documentZoom.zoomOut}
+              onReset={documentZoom.resetZoom}
+              compact
+            />
+            <button
+              type="button"
+              className="document-viewer-tool-btn"
+              onClick={() => void handleCopyText()}
+              disabled={!preview?.text}
+              title={t("documentViewer.copyText", "Copy document text")}
+            >
+              <Copy size={14} />
+              <span className="document-viewer-tool-label">
+                {t("common.copy", "Copy")}
+              </span>
+            </button>
+            <button
+              type="button"
+              className="document-viewer-tool-btn"
+              onClick={handleOpenExternal}
+              title={t("documentViewer.openExternally", "Open externally")}
+            >
+              <ExternalLink size={14} />
+              <span className="document-viewer-tool-label">
+                {t("common.open", "Open")}
+              </span>
+            </button>
+            {copyMessage && (
+              <div className="document-viewer-save-message">{copyMessage}</div>
+            )}
+          </>
+        ) : null}
+        <button
+          type="button"
+          className="document-viewer-tool-btn"
+          onClick={handleShowInFinder}
+          title={t("common.openInFolder", "Open in folder")}
+        >
+          <FolderOpen size={14} />
+          <span className="document-viewer-tool-label">
+            {t("common.folder", "Folder")}
+          </span>
+        </button>
+        <ArtifactDownloadButton
+          filePath={filePath}
+          workspacePath={workspacePath}
+          className="document-viewer-download-btn"
+        />
         <button
           type="button"
           className="document-viewer-header-fullscreen"
@@ -603,189 +843,264 @@ export function DocumentArtifactViewer({
           title={fullscreenLabel}
           aria-label={fullscreenLabel}
         >
-          {mode === "fullscreen" ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          {mode === "fullscreen" ? (
+            <Minimize2 size={16} />
+          ) : (
+            <Maximize2 size={16} />
+          )}
         </button>
         <button
           type="button"
           className="document-viewer-close"
           onClick={onClose}
-          title="Close document"
+          title={t("documentViewer.close", "Close document")}
         >
           <X size={17} />
         </button>
       </div>
 
-      <div className={`document-viewer-titlebar ${canEditDirectly ? "is-editor-toolbar" : ""}`}>
-        {canEditDirectly ? (
-          <>
-            <button type="button" className="document-viewer-icon-tool" onClick={() => runEditorCommand("undo")} title="Undo">
-              <Undo2 size={15} />
-            </button>
-            <button type="button" className="document-viewer-icon-tool" onClick={() => runEditorCommand("redo")} title="Redo">
-              <Redo2 size={15} />
-            </button>
-            <select
-              className="document-viewer-select"
-              defaultValue="p"
-              onChange={(event) => runEditorCommand("formatBlock", event.target.value)}
-              title="Text style"
-            >
-              <option value="p">Normal text</option>
-              <option value="h1">Title</option>
-              <option value="h2">Heading</option>
-              <option value="h3">Subheading</option>
-            </select>
-            <select
-              className="document-viewer-select"
-              defaultValue="Arial"
-              onChange={(event) => runEditorCommand("fontName", event.target.value)}
-              title="Font"
-            >
-              <option value="Arial">Arial</option>
-              <option value="Helvetica">Helvetica</option>
-              <option value="Times New Roman">Times New Roman</option>
-              <option value="Georgia">Georgia</option>
-              <option value="Courier New">Courier New</option>
-            </select>
-            <button type="button" className="document-viewer-icon-tool" onClick={() => runEditorCommand("fontSize", "2")} title="Smaller text">-</button>
-            <button type="button" className="document-viewer-icon-tool" onClick={() => runEditorCommand("fontSize", "3")} title="Normal size">11</button>
-            <button type="button" className="document-viewer-icon-tool" onClick={() => runEditorCommand("fontSize", "4")} title="Larger text">+</button>
-            <button type="button" className="document-viewer-icon-tool" onClick={() => runEditorCommand("bold")} title="Bold">
-              <Bold size={15} />
-            </button>
-            <button type="button" className="document-viewer-icon-tool" onClick={() => runEditorCommand("italic")} title="Italic">
-              <Italic size={15} />
-            </button>
-            <button type="button" className="document-viewer-icon-tool" onClick={() => runEditorCommand("underline")} title="Underline">
-              <Underline size={15} />
-            </button>
-            <button type="button" className="document-viewer-icon-tool" onClick={() => runEditorCommand("justifyLeft")} title="Align left">
-              <AlignLeft size={15} />
-            </button>
-            <button type="button" className="document-viewer-icon-tool" onClick={() => runEditorCommand("insertUnorderedList")} title="Bulleted list">
-              <List size={15} />
-            </button>
-            <button type="button" className="document-viewer-icon-tool" onClick={() => runEditorCommand("insertOrderedList")} title="Numbered list">
-              <ListOrdered size={15} />
-            </button>
-            <button
-              type="button"
-              className="document-viewer-save-btn"
-              onClick={() => void handleSaveDocument()}
-              disabled={!dirty || saving}
-              title="Save document"
-            >
-              <Save size={15} />
-              {saving ? "Saving" : "Save"}
-            </button>
-            {copyMessage && <div className="document-viewer-save-message">{copyMessage}</div>}
-          </>
-        ) : (
-          <>
-            <div className="document-viewer-format">{formatLabel}</div>
-            <button
-              type="button"
-              className="document-viewer-tool-btn"
-              onClick={() => void handleCopyText()}
-              disabled={!preview?.text}
-              title="Copy document text"
-            >
-              <Copy size={14} />
-              Copy
-            </button>
-            <button
-              type="button"
-              className="document-viewer-tool-btn"
-              onClick={handleOpenExternal}
-              title="Open externally"
-            >
-              <ExternalLink size={14} />
-              Open
-            </button>
-            <button
-              type="button"
-              className="document-viewer-tool-btn"
-              onClick={handleShowInFinder}
-              title="Open in folder"
-            >
-              <FolderOpen size={14} />
-              Folder
-            </button>
-            {copyMessage && <div className="document-viewer-save-message">{copyMessage}</div>}
-          </>
-        )}
-      </div>
+      {!isPdfDocument && (
+        <div
+          className={`document-viewer-titlebar ${canEditDirectly ? "is-editor-toolbar" : ""}`}
+        >
+          {canEditDirectly ? (
+            <>
+              <button
+                type="button"
+                className="document-viewer-icon-tool"
+                onClick={() => runEditorCommand("undo")}
+                title={t("common.undo", "Undo")}
+              >
+                <Undo2 size={15} />
+              </button>
+              <button
+                type="button"
+                className="document-viewer-icon-tool"
+                onClick={() => runEditorCommand("redo")}
+                title={t("common.redo", "Redo")}
+              >
+                <Redo2 size={15} />
+              </button>
+              <select
+                className="document-viewer-select"
+                defaultValue="p"
+                onChange={(event) =>
+                  runEditorCommand("formatBlock", event.target.value)
+                }
+                title={t("documentViewer.textStyle", "Text style")}
+              >
+                <option value="p">
+                  {t("documentViewer.normalText", "Normal text")}
+                </option>
+                <option value="h1">
+                  {t("documentViewer.titleStyle", "Title")}
+                </option>
+                <option value="h2">
+                  {t("documentViewer.heading", "Heading")}
+                </option>
+                <option value="h3">
+                  {t("documentViewer.subheading", "Subheading")}
+                </option>
+              </select>
+              <select
+                className="document-viewer-select"
+                defaultValue="Arial"
+                onChange={(event) =>
+                  runEditorCommand("fontName", event.target.value)
+                }
+                title={t("documentViewer.font", "Font")}
+              >
+                <option value="Arial">Arial</option>
+                <option value="Helvetica">Helvetica</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Courier New">Courier New</option>
+              </select>
+              <button
+                type="button"
+                className="document-viewer-icon-tool"
+                onClick={() => runEditorCommand("fontSize", "2")}
+                title={t("documentViewer.smallerText", "Smaller text")}
+              >
+                -
+              </button>
+              <button
+                type="button"
+                className="document-viewer-icon-tool"
+                onClick={() => runEditorCommand("fontSize", "3")}
+                title={t("documentViewer.normalSize", "Normal size")}
+              >
+                11
+              </button>
+              <button
+                type="button"
+                className="document-viewer-icon-tool"
+                onClick={() => runEditorCommand("fontSize", "4")}
+                title={t("documentViewer.largerText", "Larger text")}
+              >
+                +
+              </button>
+              <button
+                type="button"
+                className="document-viewer-icon-tool"
+                onClick={() => runEditorCommand("bold")}
+                title={t("documentViewer.bold", "Bold")}
+              >
+                <Bold size={15} />
+              </button>
+              <button
+                type="button"
+                className="document-viewer-icon-tool"
+                onClick={() => runEditorCommand("italic")}
+                title={t("documentViewer.italic", "Italic")}
+              >
+                <Italic size={15} />
+              </button>
+              <button
+                type="button"
+                className="document-viewer-icon-tool"
+                onClick={() => runEditorCommand("underline")}
+                title={t("documentViewer.underline", "Underline")}
+              >
+                <Underline size={15} />
+              </button>
+              <button
+                type="button"
+                className="document-viewer-icon-tool"
+                onClick={() => runEditorCommand("justifyLeft")}
+                title={t("documentViewer.alignLeft", "Align left")}
+              >
+                <AlignLeft size={15} />
+              </button>
+              <button
+                type="button"
+                className="document-viewer-icon-tool"
+                onClick={() => runEditorCommand("insertUnorderedList")}
+                title={t("documentViewer.bulletedList", "Bulleted list")}
+              >
+                <List size={15} />
+              </button>
+              <button
+                type="button"
+                className="document-viewer-icon-tool"
+                onClick={() => runEditorCommand("insertOrderedList")}
+                title={t("documentViewer.numberedList", "Numbered list")}
+              >
+                <ListOrdered size={15} />
+              </button>
+              <button
+                type="button"
+                className="document-viewer-save-btn"
+                onClick={() => void handleSaveDocument()}
+                disabled={!dirty || saving}
+                title={t("documentViewer.saveDocument", "Save document")}
+              >
+                <Save size={15} />
+                {saving
+                  ? t("common.savingShort", "Saving")
+                  : t("common.save", "Save")}
+              </button>
+              <DocumentZoomControls
+                value={documentZoom.zoomPercent}
+                onZoomIn={documentZoom.zoomIn}
+                onZoomOut={documentZoom.zoomOut}
+                onReset={documentZoom.resetZoom}
+              />
+              {copyMessage && (
+                <div className="document-viewer-save-message">
+                  {copyMessage}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="document-viewer-format">{formatLabel}</div>
+              <DocumentZoomControls
+                value={documentZoom.zoomPercent}
+                onZoomIn={documentZoom.zoomIn}
+                onZoomOut={documentZoom.zoomOut}
+                onReset={documentZoom.resetZoom}
+              />
+              <button
+                type="button"
+                className="document-viewer-tool-btn"
+                onClick={() => void handleCopyText()}
+                disabled={!preview?.text}
+                title={t("documentViewer.copyText", "Copy document text")}
+              >
+                <Copy size={14} />
+                {t("common.copy", "Copy")}
+              </button>
+              <button
+                type="button"
+                className="document-viewer-tool-btn"
+                onClick={handleOpenExternal}
+                title={t("documentViewer.openExternally", "Open externally")}
+              >
+                <ExternalLink size={14} />
+                {t("common.open", "Open")}
+              </button>
+              {copyMessage && (
+                <div className="document-viewer-save-message">
+                  {copyMessage}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
-      <div className="document-viewer-content">{renderDocumentBody()}</div>
+      <div
+        ref={documentZoom.containerRef}
+        className="document-viewer-content"
+        data-zoom-percent={documentZoom.zoomPercent}
+      >
+        {renderDocumentBody()}
+      </div>
 
       {mode === "fullscreen" && onSendMessage && (
         <div className="spreadsheet-viewer-fullscreen-controls">
           {turnContext && (
-            <div
-              className={`spreadsheet-viewer-turn-frame ${
-                turnContextExpanded ? "expanded" : "collapsed"
-              }`}
-            >
-              <button
-                type="button"
-                className="spreadsheet-viewer-turn-header"
-                onClick={() => setTurnContextExpanded((current) => !current)}
-                aria-expanded={turnContextExpanded}
-              >
-                <span>{turnContext.statusLabel}</span>
-                <ChevronDown size={18} aria-hidden="true" />
-              </button>
-              {turnContextExpanded && (
-                <div className="spreadsheet-viewer-turn-body">
-                  <p>{turnContext.summary}</p>
-                  {turnContext.secondaryText && (
-                    <p className="spreadsheet-viewer-turn-secondary">
-                      {turnContext.secondaryText}
-                    </p>
-                  )}
-                  {turnContext.events && turnContext.events.length > 0 && (
-                    <div className="spreadsheet-viewer-turn-events">
-                      {turnContext.events.map((event) => (
-                        <div
-                          key={event.id}
-                          className={`spreadsheet-viewer-turn-event kind-${event.kind} ${
-                            event.tone ? `tone-${event.tone}` : ""
-                          }`}
-                        >
-                          <span className="spreadsheet-viewer-turn-event-text">
-                            {event.text}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <DocumentArtifactCard
-                    filePath={turnContext.artifactPath}
-                    workspacePath={workspacePath}
-                    onOpenViewer={onExitFullscreen}
-                  />
-                </div>
-              )}
-            </div>
+            <ArtifactTurnProgressPanel turnContext={turnContext}>
+              <DocumentArtifactCard
+                filePath={turnContext.artifactPath}
+                workspacePath={workspacePath}
+                onOpenViewer={onExitFullscreen}
+              />
+            </ArtifactTurnProgressPanel>
           )}
           <div className="spreadsheet-viewer-composer">
-            {(fullscreenAttachments.length > 0 || attachmentError || voiceNotice) && (
+            {(fullscreenAttachments.length > 0 ||
+              attachmentError ||
+              voiceNotice) && (
               <div className="attachment-panel spreadsheet-viewer-attachment-panel">
-                {attachmentError && <div className="attachment-error">{attachmentError}</div>}
-                {voiceNotice && <div className="attachment-error">{voiceNotice}</div>}
+                {attachmentError && (
+                  <div className="attachment-error">{attachmentError}</div>
+                )}
+                {voiceNotice && (
+                  <div className="attachment-error">{voiceNotice}</div>
+                )}
                 {fullscreenAttachments.length > 0 && (
                   <div className="attachment-list">
                     {fullscreenAttachments.map((attachment) => (
                       <div className="attachment-chip" key={attachment.id}>
-                        <span className="attachment-name" title={attachment.name}>
+                        <span
+                          className="attachment-name"
+                          title={attachment.name}
+                        >
                           {attachment.name}
                         </span>
-                        <span className="attachment-size">{formatAttachmentSize(attachment.size)}</span>
+                        <span className="attachment-size">
+                          {formatAttachmentSize(attachment.size)}
+                        </span>
                         <button
                           type="button"
                           className="attachment-remove"
                           onClick={() => removeAttachment(attachment.id)}
-                          title="Remove attachment"
+                          title={t(
+                            "common.attachments.remove",
+                            "Remove attachment",
+                          )}
                           disabled={fullscreenSending}
                         >
                           <X size={12} aria-hidden="true" />
@@ -801,8 +1116,11 @@ export function DocumentArtifactViewer({
                 <button
                   type="button"
                   className="attachment-btn attachment-btn-left"
-                  title="Attach files"
-                  aria-label="Attach files"
+                  title={t("common.attachments.attachFiles", "Attach files")}
+                  aria-label={t(
+                    "common.attachments.attachFiles",
+                    "Attach files",
+                  )}
                   onClick={() => void handleAttachFiles()}
                   disabled={fullscreenSending}
                 >
@@ -811,10 +1129,15 @@ export function DocumentArtifactViewer({
                 <div className="mention-autocomplete-wrapper">
                   <textarea
                     className="input-field input-textarea"
-                    placeholder="Ask for follow-up changes"
+                    placeholder={t(
+                      "artifactViewer.document.editPlaceholder",
+                      "Describe how you want to change this document",
+                    )}
                     value={fullscreenMessage}
                     rows={1}
-                    onChange={(event) => setFullscreenMessage(event.target.value)}
+                    onChange={(event) =>
+                      setFullscreenMessage(event.target.value)
+                    }
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
@@ -840,17 +1163,26 @@ export function DocumentArtifactViewer({
                       align="right"
                     />
                   ) : selectedModelLabel ? (
-                    <span className="spreadsheet-viewer-composer-model">{selectedModelLabel}</span>
+                    <span className="spreadsheet-viewer-composer-model">
+                      {selectedModelLabel}
+                    </span>
                   ) : null}
                   <button
                     type="button"
                     className={`voice-input-btn ${voiceInput.state}`}
                     onClick={() => void voiceInput.toggleRecording()}
-                    disabled={voiceInput.state === "processing" || fullscreenSending}
-                    title="Voice input"
+                    disabled={
+                      voiceInput.state === "processing" || fullscreenSending
+                    }
+                    title={t("common.voiceInput", "Voice input")}
                   >
                     {voiceInput.state === "recording" ? (
-                      <Square size={12} fill="currentColor" strokeWidth={0} aria-hidden="true" />
+                      <Square
+                        size={12}
+                        fill="currentColor"
+                        strokeWidth={0}
+                        aria-hidden="true"
+                      />
                     ) : (
                       <Mic size={16} aria-hidden="true" />
                     )}
@@ -860,10 +1192,11 @@ export function DocumentArtifactViewer({
                     className="lets-go-btn lets-go-btn-sm"
                     onClick={() => void handleFullscreenSend()}
                     disabled={
-                      (!fullscreenMessage.trim() && fullscreenAttachments.length === 0) ||
+                      (!fullscreenMessage.trim() &&
+                        fullscreenAttachments.length === 0) ||
                       fullscreenSending
                     }
-                    title="Send message"
+                    title={t("common.sendMessage", "Send message")}
                   >
                     <ArrowUp size={16} aria-hidden="true" />
                   </button>
@@ -871,15 +1204,21 @@ export function DocumentArtifactViewer({
               </div>
             </div>
             <div className="input-below-actions spreadsheet-viewer-composer-actions">
-              <span className="input-status-workspace">Work in a folder</span>
+              <span className="input-status-workspace">
+                {t("composer.workInFolder", "Work in a folder")}
+              </span>
               <span className="shell-toggle shell-toggle-inline enabled">
-                Shell
+                {t("composer.shell", "Shell")}
                 <span className="goal-mode-switch-track on">
                   <span className="goal-mode-switch-thumb" />
                 </span>
               </span>
-              <span className="input-status-mode">Execute</span>
-              <span className="input-status-mode">Auto</span>
+              <span className="input-status-mode">
+                {t("composer.mode.execute", "Execute")}
+              </span>
+              <span className="input-status-mode">
+                {t("composer.mode.auto", "Auto")}
+              </span>
             </div>
           </div>
         </div>

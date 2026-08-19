@@ -1,0 +1,3 @@
+import { n as e, t } from "./lectern-C5n5i7wc-CAVqK0eM.js";
+e();
+export { t as default };

@@ -32,12 +32,12 @@ Use cases:
 - "Figure it out" fallback orchestration for hard tasks
 - Location-aware local errands, nearby services, and walking route planning
 
-Cowork OS supports these via:
+NeoWorker OS supports these via:
 - Channels: Slack, iMessage, WhatsApp, Telegram, Email, etc.
 - Scheduling: `/schedule ...`, `/schedule here ...`, `schedule_task`, and task view `... > Add automation...`
 - Inbox + briefing commands: `/inbox`, `/brief [morning|today|tomorrow|week]`
 - Message box shortcuts: one `/` picker for app commands such as `/schedule`, `/clear`, `/plan`, `/cost`, and `/multitask`, plus skill-backed workflow aliases from plugin packs
-- Slash skill workflows: `/simplify [objective] ...` for quality passes, `/batch <objective> ...` for parallelizable migration/transform workflows, `/llm-wiki <objective> ...` for persistent research vaults, and CoWork Shortcuts aliases such as `/strategy`, `/batch-rename`, `/gmail-summary-drive`, `/multi-source-report`, and `/end-of-day-log`
+- Slash skill workflows: `/simplify [objective] ...` for quality passes, `/batch <objective> ...` for parallelizable migration/transform workflows, `/llm-wiki <objective> ...` for persistent research vaults, and NeoWorker Shortcuts aliases such as `/strategy`, `/batch-rename`, `/gmail-summary-drive`, `/multi-source-report`, and `/end-of-day-log`
 - Integrations: Notion, Gmail/Google Calendar through native or MCP-backed Google Workspace tools (if configured), Apple Calendar/Reminders (macOS)
 - Web automation: visible Browser Workbench / Browser V2 for normal-user site testing, with desktop/tablet/mobile viewport checks, snapshot refs, browser tools, diagnostics, screenshots, annotation, downloads/uploads, and fallback browser modes when explicitly needed
 - Location + Maps: `get_current_location` for desktop coordinates (macOS, Windows, Linux) + Maps MCP for nearby search, place details, walking routes, and ranked errand options
@@ -379,7 +379,7 @@ Command variants:
 ```
 /simplify review this plan for clarity and edge-case coverage.
 /batch migrate markdown architecture docs to the new naming standard --parallel 4 --domain writing --external confirm
-/llm-wiki build a research vault for CoWork OS competitors --mode ingest --path research/wiki/competitors
+/llm-wiki build a research vault for NeoWorker competitors --mode ingest --path research/wiki/competitors
 ```
 
 ### 13) Legal Deal Defense (Contract + Demand Letter + Counterpositions)
@@ -486,7 +486,7 @@ If a local Chromium-family browser is available, also export PDF from the same s
 If not, leave me with the source and output.pptx only and tell me what browser dependency is missing.
 ```
 
-After the task completes, open `output.pptx` from the task output card or Files panel to review it in CoWork's presentation viewer. The viewer shows slide text and speaker notes immediately, then loads cached or freshly rendered slide images in the background. Fullscreen mode keeps the follow-up composer visible so you can request deck changes; the preview refreshes after that follow-up completes and updates the deck.
+After the task completes, open `output.pptx` from the task output card or Files panel to review it in NeoWorker's presentation viewer. The viewer shows slide text and speaker notes immediately, then loads cached or freshly rendered slide images in the background. Fullscreen mode keeps the follow-up composer visible so you can request deck changes; the preview refreshes after that follow-up completes and updates the deck.
 
 ### 16) Everything Workbench: Generated Web Page Review
 
@@ -507,7 +507,7 @@ Build it after implementation so dist/index.html exists.
 Use local sample data only.
 ```
 
-After the task completes, open the generated `.html` file or built `dist/index.html` from the task output card. CoWork opens it in the web page artifact viewer: a sandboxed iframe in the resizable sidebar or fullscreen mode. Use fullscreen mode to request visual or behavior changes through the follow-up composer; the preview refreshes after the relevant HTML or build output is updated. If a React-style project exists without `dist`, `build`, or `out` HTML output, CoWork shows a build-output-needed state instead of auto-starting a dev server.
+After the task completes, open the generated `.html` file or built `dist/index.html` from the task output card. NeoWorker opens it in the web page artifact viewer: a sandboxed iframe in the resizable sidebar or fullscreen mode. Use fullscreen mode to request visual or behavior changes through the follow-up composer; the preview refreshes after the relevant HTML or build output is updated. If a React-style project exists without `dist`, `build`, or `out` HTML output, NeoWorker shows a build-output-needed state instead of auto-starting a dev server.
 
 ### 17) Everything Workbench: LaTeX Paper with Compiled PDF
 
@@ -523,7 +523,7 @@ If no TeX engine is installed, keep the .tex source and tell me which dependency
 
 Expected behavior:
 
-- CoWork writes the `.tex` file first so the source remains editable.
+- NeoWorker writes the `.tex` file first so the source remains editable.
 - It calls `compile_latex`, which uses an installed `tectonic`, `latexmk`, `xelatex`, `lualatex`, or `pdflatex` binary.
 - The task output pairs the `.tex` source and compiled PDF in one artifact workbench with Summary, source, and PDF tabs.
 
@@ -533,7 +533,7 @@ Prompt:
 ```
 Use the architecture-design skill to create a concept workflow for a two-story courtyard house.
 
-Create the project folder under .cowork/architecture-projects/courtyard-house.
+Create the project folder under .neoworker/architecture-projects/courtyard-house.
 Use Rhino for site/massing and floor-plan iteration, Blender for one exterior render, and ComfyUI only if the local API is available.
 Keep all artifacts in the project folder.
 Stop before any long render or source CAD overwrite unless I approve it.
@@ -544,16 +544,16 @@ Prompt (site reference to render):
 Use architecture-design to turn references/site-plan.png into a rough Rhino massing and Blender render.
 
 Copy the reference into the project folder before mutation.
-Set COWORK_ARCH_PROJECT_ROOT to the project folder.
+Set NEOWORKER_ARCH_PROJECT_ROOT to the project folder.
 Record each connector result in manifest.json.
 If Rhino, Blender, or ComfyUI is unavailable, continue with the available stages only and tell me what setup is missing.
 ```
 
 Expected behavior:
 
-- CoWork creates `.cowork/architecture-projects/<project-id>/` with `brief.json`, `manifest.json`, and stage folders.
+- NeoWorker creates `.neoworker/architecture-projects/<project-id>/` with `brief.json`, `manifest.json`, and stage folders.
 - Rhino, Blender, and ComfyUI tools are called only when their local connectors report healthy.
-- File paths stay under `COWORK_ARCH_PROJECT_ROOT`.
+- File paths stay under `NEOWORKER_ARCH_PROJECT_ROOT`.
 - Results are treated as concept design, not licensed architectural or engineering approval.
 
 ### 19) Nearby Errand Run (Location + Maps)

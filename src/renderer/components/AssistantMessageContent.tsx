@@ -1,8 +1,15 @@
 import { lazy, Suspense } from "react";
-import { InlineHtmlPreview, InlineHtmlSourcePreview } from "./InlineHtmlPreview";
+import {
+  InlineHtmlPreview,
+  InlineHtmlSourcePreview,
+} from "./InlineHtmlPreview";
 import { InlineVideoPreview } from "./InlineVideoPreview";
-import { normalizeInlineLists, unwrapMarkdownCodeBlocks } from "../utils/markdown-inline-lists";
+import {
+  normalizeInlineLists,
+  unwrapMarkdownCodeBlocks,
+} from "../utils/markdown-inline-lists";
 import { sanitizeToolCallTextFromAssistant } from "../../shared/tool-call-text-sanitizer";
+import { translate, useLanguage } from "../i18n";
 
 type AssistantMessageContentProps = {
   message: string;
@@ -41,11 +48,18 @@ type MessageSegment =
   | { type: "html"; directive: HtmlDirective; raw: string }
   | { type: "html_source"; html: string; title?: string; raw: string }
   | { type: "frame"; directive: FrameDirective; raw: string }
-  | { type: "frame_source"; html: string; directive: FrameDirective; raw: string }
+  | {
+      type: "frame_source";
+      html: string;
+      directive: FrameDirective;
+      raw: string;
+    }
   | { type: "html_error"; raw: string; error: string };
 
 const LazyMarkdownRenderer = lazy(() =>
-  import("./MarkdownRenderer").then((module) => ({ default: module.MarkdownRenderer })),
+  import("./MarkdownRenderer").then((module) => ({
+    default: module.MarkdownRenderer,
+  })),
 );
 
 function DeferredMarkdown({
@@ -56,8 +70,12 @@ function DeferredMarkdown({
   components?: unknown;
 }) {
   return (
-    <Suspense fallback={<span className="markdown-deferred-text">{children}</span>}>
-      <LazyMarkdownRenderer components={components}>{children}</LazyMarkdownRenderer>
+    <Suspense
+      fallback={<span className="markdown-deferred-text">{children}</span>}
+    >
+      <LazyMarkdownRenderer components={components}>
+        {children}
+      </LazyMarkdownRenderer>
     </Suspense>
   );
 }
@@ -65,26 +83,32 @@ function DeferredMarkdown({
 const VIDEO_DIRECTIVE_LINE_REGEX = /^\s*::video\{(.+)\}\s*$/;
 const HTML_DIRECTIVE_LINE_REGEX = /^\s*::html\{(.+)\}\s*$/;
 const FRAME_DIRECTIVE_LINE_REGEX = /^\s*::frame\{(.+)\}\s*$/;
-const RICH_FRAME_TAG_LINE_REGEX = /^\s*<rich-frame\b([^>]*)>(?:\s*<\/rich-frame>)?\s*$/i;
+const RICH_FRAME_TAG_LINE_REGEX =
+  /^\s*<rich-frame\b([^>]*)>(?:\s*<\/rich-frame>)?\s*$/i;
 const RICH_FRAME_CLOSE_LINE_REGEX = /^\s*<\/rich-frame>\s*$/i;
 const HTML_FENCE_START_REGEX = /^\s*```(?:html|HTML)\s*$/;
 const FENCE_END_REGEX = /^\s*```\s*$/;
 const DIRECTIVE_ATTR_REGEX = /(\w+)\s*=\s*("(?:[^"\\]|\\.)*"|true|false)/g;
-const HTML_ATTR_REGEX = /([a-z][a-z0-9_-]*)\s*=\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^\s"'=<>`]+)/gi;
+const HTML_ATTR_REGEX =
+  /([a-z][a-z0-9_-]*)\s*=\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^\s"'=<>`]+)/gi;
 const FRAME_KIND_REGEX = /^[a-z][a-z0-9_-]{0,32}$/i;
 const LONG_OSASCRIPT_MIN_CHARS = 220;
 const OSASCRIPT_START_REGEX = /\b(?:Command failed:\s*)?osascript\b/i;
 
 function normalizeCommandExcerptText(value: string): string {
   return value
-    .replace(/^\s*[-*]\s+(?=(?:Command failed:\s*)?osascript\b|Command failed:\s+osascript\b)/i, "")
+    .replace(
+      /^\s*[-*]\s+(?=(?:Command failed:\s*)?osascript\b|Command failed:\s+osascript\b)/i,
+      "",
+    )
     .trim();
 }
 
 export function isLongOsascriptCommandText(value: string): boolean {
   const normalized = normalizeCommandExcerptText(String(value || ""));
   if (!OSASCRIPT_START_REGEX.test(normalized)) return false;
-  const osascriptArgCount = normalized.match(/(?:^|\s)-e(?:\s|$)/g)?.length ?? 0;
+  const osascriptArgCount =
+    normalized.match(/(?:^|\s)-e(?:\s|$)/g)?.length ?? 0;
   return (
     normalized.length >= LONG_OSASCRIPT_MIN_CHARS ||
     osascriptArgCount >= 4 ||
@@ -122,7 +146,9 @@ function collectOsascriptCommandBlock(
 function isOsascriptContinuationLine(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) return false;
-  if (/^[-*]\s+(?:I|Next|Retry|Tool|Then|After|Because|Summary)\b/i.test(trimmed)) {
+  if (
+    /^[-*]\s+(?:I|Next|Retry|Tool|Then|After|Because|Summary)\b/i.test(trimmed)
+  ) {
     return false;
   }
   return (
@@ -142,11 +168,15 @@ export function OsascriptCommandExcerpt({
   text: string;
   label?: string;
 }) {
+  useLanguage();
+  const t = translate;
   return (
     <div className="assistant-command-excerpt" role="region" aria-label={label}>
       <div className="assistant-command-excerpt-header">
         <span>{label}</span>
-        <span className="assistant-command-excerpt-hint">Scrollable preview</span>
+        <span className="assistant-command-excerpt-hint">
+          {t("assistantMessage.scrollablePreview", "Scrollable preview")}
+        </span>
       </div>
       <div className="assistant-command-excerpt-scroll">
         <pre>
@@ -158,19 +188,19 @@ export function OsascriptCommandExcerpt({
 }
 
 function decodeQuotedValue(value: string): string {
-  if (!value.startsWith("\"") || !value.endsWith("\"")) return value;
-  return value.slice(1, -1).replace(/\\"/g, "\"").replace(/\\\\/g, "\\");
+  if (!value.startsWith('"') || !value.endsWith('"')) return value;
+  return value.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
 }
 
 function decodeHtmlAttrValue(value: string): string {
   const trimmed = value.trim();
   const quote = trimmed[0];
   const unquoted =
-    (quote === "\"" || quote === "'") && trimmed.endsWith(quote)
+    (quote === '"' || quote === "'") && trimmed.endsWith(quote)
       ? trimmed.slice(1, -1)
       : trimmed;
   return unquoted
-    .replace(/&quot;/gi, "\"")
+    .replace(/&quot;/gi, '"')
     .replace(/&#39;/g, "'")
     .replace(/&apos;/gi, "'")
     .replace(/&amp;/gi, "&")
@@ -222,7 +252,10 @@ function parseRichFrameTagDirective(line: string): MessageSegment {
       path: rawPath.trim(),
       title: parsed.title?.trim() || undefined,
       height: parsed.height?.trim() || undefined,
-      aspectRatio: parsed.aspectratio?.trim() || parsed["aspect-ratio"]?.trim() || undefined,
+      aspectRatio:
+        parsed.aspectratio?.trim() ||
+        parsed["aspect-ratio"]?.trim() ||
+        undefined,
       kind: normalizeFrameKind(parsed.kind),
       chrome: parsed.chrome === "true",
     },
@@ -237,7 +270,11 @@ function collectHtmlFence(
   while (fenceIndex < lines.length && lines[fenceIndex].trim().length === 0) {
     fenceIndex += 1;
   }
-  if (fenceIndex >= lines.length || !HTML_FENCE_START_REGEX.test(lines[fenceIndex])) return null;
+  if (
+    fenceIndex >= lines.length ||
+    !HTML_FENCE_START_REGEX.test(lines[fenceIndex])
+  )
+    return null;
 
   const htmlLines: string[] = [];
   let endIndex = fenceIndex + 1;
@@ -288,7 +325,11 @@ function parseVideoDirective(line: string): MessageSegment {
     };
   }
 
-  if (!seenKeys.has("path") || typeof parsed.path !== "string" || parsed.path.trim().length === 0) {
+  if (
+    !seenKeys.has("path") ||
+    typeof parsed.path !== "string" ||
+    parsed.path.trim().length === 0
+  ) {
     return {
       type: "video_error",
       raw: line,
@@ -302,7 +343,8 @@ function parseVideoDirective(line: string): MessageSegment {
     directive: {
       path: parsed.path.trim(),
       title: typeof parsed.title === "string" ? parsed.title.trim() : undefined,
-      poster: typeof parsed.poster === "string" ? parsed.poster.trim() : undefined,
+      poster:
+        typeof parsed.poster === "string" ? parsed.poster.trim() : undefined,
       muted: parsed.muted === true,
       loop: parsed.loop === true,
     },
@@ -346,7 +388,11 @@ function parseHtmlDirective(line: string): MessageSegment {
     };
   }
 
-  if (!seenKeys.has("path") || typeof parsed.path !== "string" || parsed.path.trim().length === 0) {
+  if (
+    !seenKeys.has("path") ||
+    typeof parsed.path !== "string" ||
+    parsed.path.trim().length === 0
+  ) {
     return {
       type: "html_error",
       raw: line,
@@ -411,7 +457,9 @@ function parseFrameDirective(
 
   if (
     requirePath &&
-    (!seenKeys.has("path") || typeof parsed.path !== "string" || parsed.path.trim().length === 0)
+    (!seenKeys.has("path") ||
+      typeof parsed.path !== "string" ||
+      parsed.path.trim().length === 0)
   ) {
     return {
       type: "html_error",
@@ -426,8 +474,12 @@ function parseFrameDirective(
     directive: {
       path: typeof parsed.path === "string" ? parsed.path.trim() : undefined,
       title: typeof parsed.title === "string" ? parsed.title.trim() : undefined,
-      height: typeof parsed.height === "string" ? parsed.height.trim() : undefined,
-      aspectRatio: typeof parsed.aspectRatio === "string" ? parsed.aspectRatio.trim() : undefined,
+      height:
+        typeof parsed.height === "string" ? parsed.height.trim() : undefined,
+      aspectRatio:
+        typeof parsed.aspectRatio === "string"
+          ? parsed.aspectRatio.trim()
+          : undefined,
       kind: normalizeFrameKind(parsed.kind),
       chrome: parsed.chrome === true,
     },
@@ -453,14 +505,25 @@ function getRenderableHtmlTitle(html: string): string | undefined {
 function looksLikeRenderableHtml(html: string): boolean {
   const trimmed = html.trim();
   if (trimmed.length < 80) return false;
-  if (!/<(?:!doctype|html|head|body|form|style|script|input|textarea|select|button)\b/i.test(trimmed)) {
+  if (
+    !/<(?:!doctype|html|head|body|form|style|script|input|textarea|select|button)\b/i.test(
+      trimmed,
+    )
+  ) {
     return false;
   }
-  return /<(?:form|input|textarea|select|button)\b/i.test(trimmed) || /<html\b/i.test(trimmed);
+  return (
+    /<(?:form|input|textarea|select|button)\b/i.test(trimmed) ||
+    /<html\b/i.test(trimmed)
+  );
 }
 
-export function parseAssistantMessageSegments(message: string): MessageSegment[] {
-  const sanitized = sanitizeToolCallTextFromAssistant(String(message || "")).text;
+export function parseAssistantMessageSegments(
+  message: string,
+): MessageSegment[] {
+  const sanitized = sanitizeToolCallTextFromAssistant(
+    String(message || ""),
+  ).text;
   const lines = sanitized.split("\n");
   const segments: MessageSegment[] = [];
   let markdownBuffer: string[] = [];
@@ -477,7 +540,10 @@ export function parseAssistantMessageSegments(message: string): MessageSegment[]
     if (HTML_FENCE_START_REGEX.test(line)) {
       const htmlLines: string[] = [];
       let endIndex = lineIndex + 1;
-      while (endIndex < lines.length && !FENCE_END_REGEX.test(lines[endIndex])) {
+      while (
+        endIndex < lines.length &&
+        !FENCE_END_REGEX.test(lines[endIndex])
+      ) {
         htmlLines.push(lines[endIndex]);
         endIndex += 1;
       }
@@ -544,7 +610,9 @@ export function parseAssistantMessageSegments(message: string): MessageSegment[]
             html: htmlFence.html,
             directive: {
               ...parsed.directive,
-              title: parsed.directive.title || getRenderableHtmlTitle(htmlFence.html),
+              title:
+                parsed.directive.title ||
+                getRenderableHtmlTitle(htmlFence.html),
             },
             raw: `${line}\n${htmlFence.raw}`,
           });
@@ -562,7 +630,10 @@ export function parseAssistantMessageSegments(message: string): MessageSegment[]
         markdownBuffer.push(line);
       } else {
         segments.push(parsed);
-        if (lineIndex + 1 < lines.length && RICH_FRAME_CLOSE_LINE_REGEX.test(lines[lineIndex + 1])) {
+        if (
+          lineIndex + 1 < lines.length &&
+          RICH_FRAME_CLOSE_LINE_REGEX.test(lines[lineIndex + 1])
+        ) {
           lineIndex += 1;
         }
       }
@@ -588,9 +659,14 @@ export function AssistantMessageContent({
       {segments.map((segment, index) => {
         if (segment.type === "markdown") {
           if (!segment.content.trim()) return null;
-          const normalizedContent = normalizeInlineLists(unwrapMarkdownCodeBlocks(segment.content));
+          const normalizedContent = normalizeInlineLists(
+            unwrapMarkdownCodeBlocks(segment.content),
+          );
           return (
-            <DeferredMarkdown key={`md-${index}`} components={markdownComponents}>
+            <DeferredMarkdown
+              key={`md-${index}`}
+              components={markdownComponents}
+            >
               {normalizedContent}
             </DeferredMarkdown>
           );
@@ -624,7 +700,10 @@ export function AssistantMessageContent({
 
         if (segment.type === "html_source") {
           return (
-            <div key={`html-source-${index}`} className="assistant-html-embed assistant-html-source-embed">
+            <div
+              key={`html-source-${index}`}
+              className="assistant-html-embed assistant-html-source-embed"
+            >
               <InlineHtmlSourcePreview
                 htmlContent={segment.html}
                 title={segment.title}
@@ -657,7 +736,11 @@ export function AssistantMessageContent({
           return (
             <div
               key={`directive-missing-workspace-${index}`}
-              className={segment.type === "video" ? "assistant-video-error" : "assistant-html-error"}
+              className={
+                segment.type === "video"
+                  ? "assistant-video-error"
+                  : "assistant-html-error"
+              }
             >
               {segment.type === "video"
                 ? "Video embeds require a workspace-backed file."
@@ -683,8 +766,14 @@ export function AssistantMessageContent({
         if (segment.type === "frame") {
           if (!segment.directive.path) {
             return (
-              <div key={`frame-missing-path-${index}`} className="assistant-html-error">
-                Frame embeds require a workspace-backed file.
+              <div
+                key={`frame-missing-path-${index}`}
+                className="assistant-html-error"
+              >
+                {translate(
+                  "assistantMessage.frameRequiresWorkspaceFile",
+                  "Frame embeds require a workspace-backed file.",
+                )}
               </div>
             );
           }

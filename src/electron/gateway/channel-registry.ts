@@ -25,6 +25,8 @@ import {
   TeamsConfig,
   GoogleChatConfig,
   FeishuConfig,
+  DingTalkConfig,
+  WeixinConfig,
   WeComConfig,
   MattermostConfig,
   MatrixConfig,
@@ -43,6 +45,8 @@ import { createSignalAdapter } from "./channels/signal";
 import { createTeamsAdapter } from "./channels/teams";
 import { createGoogleChatAdapter } from "./channels/google-chat";
 import { createFeishuAdapter } from "./channels/feishu";
+import { createDingTalkAdapter } from "./channels/dingtalk";
+import { createWeixinAdapter } from "./channels/weixin";
 import { createWeComAdapter } from "./channels/wecom";
 import { createMattermostAdapter } from "./channels/mattermost";
 import { createMatrixAdapter } from "./channels/matrix";
@@ -154,9 +158,7 @@ interface RegisteredChannel {
  * Channel registry events
  */
 export type ChannelRegistryEventType =
-  | "channel:registered"
-  | "channel:unregistered"
-  | "channel:updated";
+  "channel:registered" | "channel:unregistered" | "channel:updated";
 
 /**
  * Channel Registry - Singleton for managing channel types
@@ -407,7 +409,8 @@ export class ChannelRegistry extends EventEmitter {
             },
             ambientMode: {
               type: "boolean",
-              description: "Enable ambient ingestion (non-command messages are logged only)",
+              description:
+                "Enable ambient ingestion (non-command messages are logged only)",
               default: false,
             },
             deduplicationEnabled: {
@@ -532,7 +535,8 @@ export class ChannelRegistry extends EventEmitter {
             },
             cliPath: {
               type: "string",
-              description: 'Path to signal-cli executable (default: "signal-cli")',
+              description:
+                'Path to signal-cli executable (default: "signal-cli")',
             },
             dataDir: {
               type: "string",
@@ -670,7 +674,8 @@ export class ChannelRegistry extends EventEmitter {
       metadata: {
         type: "googlechat",
         displayName: "Google Chat",
-        description: "Google Chat integration using Google Chat API with service account",
+        description:
+          "Google Chat integration using Google Chat API with service account",
         icon: "💚",
         builtin: true,
         capabilities: {
@@ -730,7 +735,8 @@ export class ChannelRegistry extends EventEmitter {
       metadata: {
         type: "feishu",
         displayName: "Feishu / Lark",
-        description: "Feishu / Lark custom app integration using events and IM APIs",
+        description:
+          "Feishu / Lark custom app integration using events and IM APIs",
         icon: "🪽",
         builtin: true,
         capabilities: {
@@ -794,12 +800,131 @@ export class ChannelRegistry extends EventEmitter {
       factory: (config) => createFeishuAdapter(config as FeishuConfig),
     });
 
+    // DingTalk Stream mode
+    this.register({
+      metadata: {
+        type: "dingtalk",
+        displayName: "DingTalk",
+        description:
+          "DingTalk bot integration using the official Stream-mode SDK",
+        icon: "🔷",
+        builtin: true,
+        capabilities: {
+          sendMessage: true,
+          receiveMessage: true,
+          attachments: false,
+          reactions: false,
+          inlineKeyboards: false,
+          replyKeyboards: false,
+          polls: false,
+          voice: false,
+          video: false,
+          location: false,
+          editMessage: false,
+          deleteMessage: false,
+          typing: false,
+          readReceipts: false,
+          groups: true,
+          threads: false,
+          webhooks: false,
+          e2eEncryption: false,
+        },
+        configSchema: {
+          type: "object",
+          properties: {
+            clientId: {
+              type: "string",
+              description: "Client ID (AppKey) from DingTalk",
+              required: true,
+            },
+            clientSecret: {
+              type: "string",
+              description: "Client Secret (AppSecret) from DingTalk",
+              required: true,
+              secret: true,
+            },
+            displayName: {
+              type: "string",
+              description: "Bot display name",
+            },
+            responsePrefix: {
+              type: "string",
+              description: "Optional prefix added to bot replies",
+            },
+          },
+          required: ["clientId", "clientSecret"],
+        },
+      },
+      factory: (config) => createDingTalkAdapter(config as DingTalkConfig),
+    });
+
+    // Personal WeChat (iLink QR login)
+    this.register({
+      metadata: {
+        type: "weixin",
+        displayName: "WeChat",
+        description:
+          "Personal WeChat integration using Tencent iLink Bot QR login",
+        icon: "💬",
+        builtin: true,
+        capabilities: {
+          sendMessage: true,
+          receiveMessage: true,
+          attachments: true,
+          reactions: false,
+          inlineKeyboards: false,
+          replyKeyboards: false,
+          polls: false,
+          voice: false,
+          video: false,
+          location: false,
+          editMessage: false,
+          deleteMessage: false,
+          typing: false,
+          readReceipts: false,
+          groups: false,
+          threads: false,
+          webhooks: false,
+          e2eEncryption: false,
+        },
+        configSchema: {
+          type: "object",
+          properties: {
+            accountId: {
+              type: "string",
+              description: "iLink bot account ID returned after QR login",
+              required: true,
+            },
+            botToken: {
+              type: "string",
+              description: "iLink bot token returned after QR login",
+              required: true,
+              secret: true,
+            },
+            baseUrl: {
+              type: "string",
+              description: "Tencent iLink API base URL",
+              required: true,
+              default: "https://ilinkai.weixin.qq.com",
+            },
+            userId: {
+              type: "string",
+              description: "Bound WeChat user ID",
+            },
+          },
+          required: ["accountId", "botToken", "baseUrl"],
+        },
+      },
+      factory: (config) => createWeixinAdapter(config as WeixinConfig),
+    });
+
     // WeCom
     this.register({
       metadata: {
         type: "wecom",
         displayName: "WeCom",
-        description: "WeCom enterprise app integration using callback webhooks and app messaging",
+        description:
+          "WeCom enterprise app integration using callback webhooks and app messaging",
         icon: "🏢",
         builtin: true,
         capabilities: {
@@ -902,7 +1027,8 @@ export class ChannelRegistry extends EventEmitter {
           properties: {
             serverUrl: {
               type: "string",
-              description: "Mattermost server URL (e.g., https://mattermost.example.com)",
+              description:
+                "Mattermost server URL (e.g., https://mattermost.example.com)",
               required: true,
             },
             token: {
@@ -1146,7 +1272,8 @@ export class ChannelRegistry extends EventEmitter {
           properties: {
             serverUrl: {
               type: "string",
-              description: "BlueBubbles server URL (e.g., http://192.168.1.100:1234)",
+              description:
+                "BlueBubbles server URL (e.g., http://192.168.1.100:1234)",
               required: true,
             },
             password: {
@@ -1178,7 +1305,8 @@ export class ChannelRegistry extends EventEmitter {
           required: ["serverUrl", "password"],
         },
       },
-      factory: (config) => createBlueBubblesAdapter(config as BlueBubblesConfig),
+      factory: (config) =>
+        createBlueBubblesAdapter(config as BlueBubblesConfig),
     });
 
     // Email
@@ -1214,7 +1342,8 @@ export class ChannelRegistry extends EventEmitter {
           properties: {
             protocol: {
               type: "string",
-              description: 'Transport protocol: "imap-smtp" (default) or "loom"',
+              description:
+                'Transport protocol: "imap-smtp" (default) or "loom"',
               default: "imap-smtp",
             },
             authMethod: {
@@ -1224,7 +1353,8 @@ export class ChannelRegistry extends EventEmitter {
             },
             oauthProvider: {
               type: "string",
-              description: 'OAuth provider for email mode (currently "microsoft")',
+              description:
+                'OAuth provider for email mode (currently "microsoft")',
             },
             oauthClientId: {
               type: "string",
@@ -1259,7 +1389,8 @@ export class ChannelRegistry extends EventEmitter {
             },
             imapHost: {
               type: "string",
-              description: "IMAP server host (required for password-based IMAP/SMTP mode)",
+              description:
+                "IMAP server host (required for password-based IMAP/SMTP mode)",
             },
             imapPort: {
               type: "number",
@@ -1281,7 +1412,8 @@ export class ChannelRegistry extends EventEmitter {
             },
             password: {
               type: "string",
-              description: "Password or app password (required for IMAP/SMTP mode)",
+              description:
+                "Password or app password (required for IMAP/SMTP mode)",
               secret: true,
             },
             displayName: {
@@ -1364,7 +1496,8 @@ export class ChannelRegistry extends EventEmitter {
           properties: {
             commandPrefix: {
               type: "string",
-              description: 'Command prefix for mention trigger (default: "do:")',
+              description:
+                'Command prefix for mention trigger (default: "do:")',
               default: "do:",
             },
             allowedAuthors: {
@@ -1402,7 +1535,9 @@ export class ChannelRegistry extends EventEmitter {
 
     // Check platform compatibility
     if (metadata.platforms && !metadata.platforms.includes(process.platform)) {
-      logger.debug(`Channel ${metadata.type} not supported on ${process.platform}`);
+      logger.debug(
+        `Channel ${metadata.type} not supported on ${process.platform}`,
+      );
       return;
     }
 
@@ -1413,7 +1548,9 @@ export class ChannelRegistry extends EventEmitter {
 
     this.channels.set(metadata.type, entry);
     this.emit("channel:registered", { type: metadata.type, metadata });
-    logger.debug(`Channel registered: ${metadata.type} (${metadata.displayName})`);
+    logger.debug(
+      `Channel registered: ${metadata.type} (${metadata.displayName})`,
+    );
   }
 
   /**
@@ -1512,7 +1649,10 @@ export class ChannelRegistry extends EventEmitter {
   /**
    * Validate configuration for a channel type
    */
-  validateConfig(type: string, config: ChannelConfig): { valid: boolean; errors: string[] } {
+  validateConfig(
+    type: string,
+    config: ChannelConfig,
+  ): { valid: boolean; errors: string[] } {
     const entry = this.channels.get(type);
     if (!entry) {
       return { valid: false, errors: [`Unknown channel type: ${type}`] };
@@ -1527,7 +1667,11 @@ export class ChannelRegistry extends EventEmitter {
 
     // Check required fields
     for (const required of schema.required || []) {
-      if (!(required in config) || config[required] === undefined || config[required] === "") {
+      if (
+        !(required in config) ||
+        config[required] === undefined ||
+        config[required] === ""
+      ) {
         errors.push(`Missing required field: ${required}`);
       }
     }
@@ -1543,14 +1687,22 @@ export class ChannelRegistry extends EventEmitter {
       const actualType = Array.isArray(value) ? "array" : typeof value;
 
       if (expectedType !== actualType) {
-        errors.push(`Field ${key} should be ${expectedType}, got ${actualType}`);
+        errors.push(
+          `Field ${key} should be ${expectedType}, got ${actualType}`,
+        );
       }
     }
 
     if (type === "email") {
       const protocolValue =
-        typeof config.protocol === "string" ? config.protocol.trim().toLowerCase() : "";
-      if (protocolValue && protocolValue !== "imap-smtp" && protocolValue !== "loom") {
+        typeof config.protocol === "string"
+          ? config.protocol.trim().toLowerCase()
+          : "";
+      if (
+        protocolValue &&
+        protocolValue !== "imap-smtp" &&
+        protocolValue !== "loom"
+      ) {
         errors.push(`Invalid email protocol: ${config.protocol}`);
         return { valid: false, errors };
       }
@@ -1560,8 +1712,13 @@ export class ChannelRegistry extends EventEmitter {
         if (!config.loomBaseUrl) {
           errors.push("Missing required field: loomBaseUrl");
         }
-        if (typeof config.loomBaseUrl === "string" && !isSecureOrLocalLoomUrl(config.loomBaseUrl)) {
-          errors.push("Invalid LOOM base URL: must use HTTPS unless using localhost/127.0.0.1/::1");
+        if (
+          typeof config.loomBaseUrl === "string" &&
+          !isSecureOrLocalLoomUrl(config.loomBaseUrl)
+        ) {
+          errors.push(
+            "Invalid LOOM base URL: must use HTTPS unless using localhost/127.0.0.1/::1",
+          );
         }
         if (!config.loomAccessToken) {
           errors.push("Missing required field: loomAccessToken");
@@ -1575,7 +1732,10 @@ export class ChannelRegistry extends EventEmitter {
           try {
             assertSafeLoomMailboxFolder(config.loomMailboxFolder);
           } catch (error) {
-            const message = error instanceof Error ? error.message : "Invalid LOOM mailbox folder";
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Invalid LOOM mailbox folder";
             errors.push(message);
           }
         }
@@ -1585,8 +1745,11 @@ export class ChannelRegistry extends EventEmitter {
             ? config.authMethod.trim().toLowerCase()
             : "password";
         const oauthProvider =
-          typeof config.oauthProvider === "string" ? config.oauthProvider.trim().toLowerCase() : "";
-        const isMicrosoftOAuth = authMethod === "oauth" && oauthProvider === "microsoft";
+          typeof config.oauthProvider === "string"
+            ? config.oauthProvider.trim().toLowerCase()
+            : "";
+        const isMicrosoftOAuth =
+          authMethod === "oauth" && oauthProvider === "microsoft";
         if (!config.email) {
           errors.push("Missing required field: email");
         }
@@ -1612,11 +1775,20 @@ export class ChannelRegistry extends EventEmitter {
           }
         }
         if (authMethod !== "oauth") {
-          const unsupportedSetupMessage = getUnsupportedManualEmailSetupMessage({
-            email: typeof config.email === "string" ? config.email : undefined,
-            imapHost: typeof config.imapHost === "string" ? config.imapHost : undefined,
-            smtpHost: typeof config.smtpHost === "string" ? config.smtpHost : undefined,
-          });
+          const unsupportedSetupMessage = getUnsupportedManualEmailSetupMessage(
+            {
+              email:
+                typeof config.email === "string" ? config.email : undefined,
+              imapHost:
+                typeof config.imapHost === "string"
+                  ? config.imapHost
+                  : undefined,
+              smtpHost:
+                typeof config.smtpHost === "string"
+                  ? config.smtpHost
+                  : undefined,
+            },
+          );
           if (unsupportedSetupMessage) {
             errors.push(unsupportedSetupMessage);
           }
@@ -1630,7 +1802,9 @@ export class ChannelRegistry extends EventEmitter {
   /**
    * Get channels by capability
    */
-  getChannelsByCapability(capability: keyof ChannelCapabilities): ChannelMetadata[] {
+  getChannelsByCapability(
+    capability: keyof ChannelCapabilities,
+  ): ChannelMetadata[] {
     return Array.from(this.channels.values())
       .filter((e) => e.metadata.capabilities[capability])
       .map((e) => e.metadata);
@@ -1674,8 +1848,16 @@ export class ChannelRegistry extends EventEmitter {
   /**
    * Get channel status summary
    */
-  getStatusSummary(): Array<{ type: string; displayName: string; status: ChannelStatus }> {
-    const summary: Array<{ type: string; displayName: string; status: ChannelStatus }> = [];
+  getStatusSummary(): Array<{
+    type: string;
+    displayName: string;
+    status: ChannelStatus;
+  }> {
+    const summary: Array<{
+      type: string;
+      displayName: string;
+      status: ChannelStatus;
+    }> = [];
 
     for (const [type, entry] of this.channels) {
       const adapter = this.activeAdapters.get(type);
@@ -1691,4 +1873,5 @@ export class ChannelRegistry extends EventEmitter {
 }
 
 // Export singleton getter
-export const getChannelRegistry = (): ChannelRegistry => ChannelRegistry.getInstance();
+export const getChannelRegistry = (): ChannelRegistry =>
+  ChannelRegistry.getInstance();

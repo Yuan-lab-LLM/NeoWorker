@@ -1,6 +1,6 @@
 # ServiceNow MCP Connector (MVP)
 
-This connector exposes ServiceNow Table API endpoints to CoWork OS through MCP tools.
+This connector exposes ServiceNow Table API endpoints to NeoWorker through MCP tools.
 
 ## Requirements
 

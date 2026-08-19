@@ -2,7 +2,7 @@
  * ACP Agent Registry
  *
  * Manages the registry of ACP-capable agents, including both local
- * CoWork agent roles and remotely registered external agents.
+ * NeoWorker agent roles and remotely registered external agents.
  *
  * Local agents are derived from AgentRoleRepository entries.
  * Remote agents register via the acp.agent.register method.
@@ -112,7 +112,7 @@ export class ACPAgentRegistry {
       name: role.displayName,
       description: role.description || `${role.displayName} agent`,
       version: "1.0.0",
-      provider: "CoWork OS",
+      provider: "NeoWorker",
       icon: role.icon,
       capabilities,
       origin: "local",

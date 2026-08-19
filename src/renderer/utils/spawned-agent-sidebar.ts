@@ -5,5 +5,9 @@ export function resolveSpawnedAgentSidebarTask(
   selectedTaskId: string | null,
 ): Task | null {
   if (childTasks.length === 0) return null;
-  return childTasks.find((task) => task.id === selectedTaskId) ?? childTasks[0] ?? null;
+  return (
+    childTasks.find((task) => task.id === selectedTaskId) ??
+    childTasks[0] ??
+    null
+  );
 }

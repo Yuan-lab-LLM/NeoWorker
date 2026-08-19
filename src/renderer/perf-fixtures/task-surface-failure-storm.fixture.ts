@@ -124,7 +124,8 @@ events.push(
     message: "The latest usable result is summarized in the artifact.",
   }),
   makeEvent("terminal-1", 18_260, "task_completed", {
-    resultSummary: "Completed with repeated provider failures coalesced in live mode.",
+    resultSummary:
+      "Completed with repeated provider failures coalesced in live mode.",
   }),
 );
 

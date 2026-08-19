@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { VoiceState } from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 interface VoiceIndicatorProps {
   /** Whether voice mode is enabled */
@@ -18,6 +19,8 @@ export function VoiceIndicator({
   showWhenInactive = false,
   onClick,
 }: VoiceIndicatorProps) {
+  useLanguage();
+  const t = translate;
   const [voiceState, setVoiceState] = useState<VoiceState>({
     isActive: false,
     isListening: false,
@@ -60,12 +63,14 @@ export function VoiceIndicator({
   }
 
   const getStatusText = () => {
-    if (!enabled) return "Voice Disabled";
-    if (voiceState.isSpeaking) return "Speaking";
-    if (voiceState.isListening) return "Listening";
-    if (voiceState.isProcessing) return "Processing";
-    if (voiceState.isActive) return "Voice Ready";
-    return "Voice Inactive";
+    if (!enabled) return t("voiceIndicator.disabled", "Voice Disabled");
+    if (voiceState.isSpeaking) return t("voiceIndicator.speaking", "Speaking");
+    if (voiceState.isListening)
+      return t("voiceIndicator.listening", "Listening");
+    if (voiceState.isProcessing)
+      return t("voiceIndicator.processing", "Processing");
+    if (voiceState.isActive) return t("voiceIndicator.ready", "Voice Ready");
+    return t("voiceIndicator.inactive", "Voice Inactive");
   };
 
   const getStatusClass = () => {
@@ -110,7 +115,9 @@ export function VoiceIndicator({
 
       {/* Partial transcript preview */}
       {voiceState.partialTranscript && (
-        <div className="voice-indicator-transcript">{voiceState.partialTranscript}</div>
+        <div className="voice-indicator-transcript">
+          {voiceState.partialTranscript}
+        </div>
       )}
     </div>
   );
@@ -177,9 +184,24 @@ function SpeakingIcon({ audioLevel = 0 }: { audioLevel?: number }) {
       strokeLinejoin="round"
     >
       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-      <line x1="15" y1={12 - wave1Height / 2} x2="15" y2={12 + wave1Height / 2} />
-      <line x1="18" y1={12 - wave2Height / 2} x2="18" y2={12 + wave2Height / 2} />
-      <line x1="21" y1={12 - wave3Height / 2} x2="21" y2={12 + wave3Height / 2} />
+      <line
+        x1="15"
+        y1={12 - wave1Height / 2}
+        x2="15"
+        y2={12 + wave1Height / 2}
+      />
+      <line
+        x1="18"
+        y1={12 - wave2Height / 2}
+        x2="18"
+        y2={12 + wave2Height / 2}
+      />
+      <line
+        x1="21"
+        y1={12 - wave3Height / 2}
+        x2="21"
+        y2={12 + wave3Height / 2}
+      />
     </svg>
   );
 }
@@ -211,6 +233,8 @@ export function VoiceIndicatorMini({
   enabled?: boolean;
   onClick?: () => void;
 }) {
+  useLanguage();
+  const t = translate;
   const [voiceState, setVoiceState] = useState<VoiceState>({
     isActive: false,
     isListening: false,
@@ -249,13 +273,29 @@ export function VoiceIndicatorMini({
     <button
       className={`voice-indicator-mini ${getStatusClass()}`}
       onClick={onClick}
-      title={`Voice: ${getStatusClass()}`}
+      title={t("voiceIndicator.miniTitle", "Voice: {status}", {
+        status: getStatusClass(),
+      })}
     >
       {voiceState.isSpeaking ? (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
           <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-          <line x1="15" y1="9" x2="15" y2="15" stroke="currentColor" strokeWidth="2" />
-          <line x1="18" y1="7" x2="18" y2="17" stroke="currentColor" strokeWidth="2" />
+          <line
+            x1="15"
+            y1="9"
+            x2="15"
+            y2="15"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+          <line
+            x1="18"
+            y1="7"
+            x2="18"
+            y2="17"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
         </svg>
       ) : voiceState.isListening ? (
         <svg
@@ -278,7 +318,10 @@ export function VoiceIndicatorMini({
           stroke="currentColor"
           strokeWidth="2"
         >
-          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" opacity="0.5" />
+          <path
+            d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"
+            opacity="0.5"
+          />
           <path d="M19 10v2a7 7 0 0 1-14 0v-2" opacity="0.5" />
         </svg>
       )}

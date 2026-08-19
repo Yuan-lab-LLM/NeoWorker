@@ -11,14 +11,14 @@ function writeFile(filePath: string, content: string): void {
 }
 
 function kitPath(root: string, ...parts: string[]): string {
-  return path.join(root, ".cowork", ...parts);
+  return path.join(root, ".neoworker", ...parts);
 }
 
 describe("kit-status", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-kit-status-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-kit-status-"));
   });
 
   afterEach(() => {
@@ -34,11 +34,11 @@ describe("kit-status", () => {
     expect(status.missingCount).toBeGreaterThan(0);
     expect(status.lintWarningCount).toBe(0);
     expect(status.lintErrorCount).toBe(0);
-    expect(status.files.some((entry) => entry.relPath === path.join(".cowork", "AGENTS.md"))).toBe(true);
+    expect(status.files.some((entry) => entry.relPath === path.join(".neoworker", "AGENTS.md"))).toBe(true);
     expect(status.onboarding?.bootstrapPresent).toBe(false);
   });
 
-  it("does not report kit ready when only automated output folders exist under .cowork", async () => {
+  it("does not report kit ready when only automated output folders exist under .neoworker", async () => {
     fs.mkdirSync(kitPath(tmpDir, "automated-outputs", "task-123"), { recursive: true });
     writeFile(kitPath(tmpDir, "automated-outputs", "task-123", "report.md"), "# Auto output\n");
 
@@ -140,10 +140,10 @@ describe("kit-status", () => {
     );
 
     const status = await computeWorkspaceKitStatus(tmpDir, "workspace-2");
-    const tools = status.files.find((entry) => entry.relPath === path.join(".cowork", "TOOLS.md"));
-    const agents = status.files.find((entry) => entry.relPath === path.join(".cowork", "AGENTS.md"));
-    const bootstrap = status.files.find((entry) => entry.relPath === path.join(".cowork", "BOOTSTRAP.md"));
-    const design = status.files.find((entry) => entry.relPath === path.join(".cowork", "DESIGN.md"));
+    const tools = status.files.find((entry) => entry.relPath === path.join(".neoworker", "TOOLS.md"));
+    const agents = status.files.find((entry) => entry.relPath === path.join(".neoworker", "AGENTS.md"));
+    const bootstrap = status.files.find((entry) => entry.relPath === path.join(".neoworker", "BOOTSTRAP.md"));
+    const design = status.files.find((entry) => entry.relPath === path.join(".neoworker", "DESIGN.md"));
 
     expect(tools?.exists).toBe(true);
     expect(tools?.stale).toBe(true);

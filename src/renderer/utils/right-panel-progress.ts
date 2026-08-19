@@ -1,4 +1,5 @@
 import type { PlanStep, QueueStatus, Task } from "../../shared/types";
+import { localizeProgressText } from "./localized-progress-text";
 
 export type ProgressDisplayStep = PlanStep & {
   isOverflow?: boolean;
@@ -6,7 +7,9 @@ export type ProgressDisplayStep = PlanStep & {
   hiddenLabel?: string;
 };
 
-export function getQueueStatusSignature(queueStatus: QueueStatus | null | undefined): string {
+export function getQueueStatusSignature(
+  queueStatus: QueueStatus | null | undefined,
+): string {
   if (!queueStatus) return "none";
   return [
     queueStatus.runningCount,
@@ -19,12 +22,29 @@ export function getQueueStatusSignature(queueStatus: QueueStatus | null | undefi
 
 export function getPlanStepsSignature(planSteps: PlanStep[]): string {
   return planSteps
-    .map((step) => `${step.id}:${step.status}:${step.error ?? ""}:${step.description}`)
+    .map(
+      (step) =>
+        `${step.id}:${step.status}:${step.error ?? ""}:${step.description}`,
+    )
     .join("|");
 }
 
 export function getTaskListSignature(tasks: Task[]): string {
-  return tasks.map((task) => `${task.id}:${task.status}:${task.title || task.prompt}`).join("|");
+  return tasks
+    .map((task) => `${task.id}:${task.status}:${task.title || task.prompt}`)
+    .join("|");
+}
+
+export function shouldShowComposerProgress(args: {
+  taskStatus: Task["status"];
+  isTaskWorking: boolean;
+  planStepCount: number;
+}): boolean {
+  if (args.planStepCount <= 0) return false;
+  const taskHasEnded =
+    !args.isTaskWorking &&
+    ["completed", "failed", "cancelled"].includes(args.taskStatus);
+  return !taskHasEnded;
 }
 
 export function getProgressSectionMaterialSignature(args: {
@@ -69,10 +89,18 @@ function makeProgressOverflowStep(
   hiddenSteps: PlanStep[],
 ): ProgressDisplayStep {
   const hiddenCount = Math.max(0, endIndex - startIndex + 1);
-  const completedCount = hiddenSteps.filter((step) => step.status === "completed").length;
-  const failedCount = hiddenSteps.filter((step) => step.status === "failed").length;
-  const skippedCount = hiddenSteps.filter((step) => step.status === "skipped").length;
-  const pendingCount = hiddenSteps.filter((step) => step.status === "pending").length;
+  const completedCount = hiddenSteps.filter(
+    (step) => step.status === "completed",
+  ).length;
+  const failedCount = hiddenSteps.filter(
+    (step) => step.status === "failed",
+  ).length;
+  const skippedCount = hiddenSteps.filter(
+    (step) => step.status === "skipped",
+  ).length;
+  const pendingCount = hiddenSteps.filter(
+    (step) => step.status === "pending",
+  ).length;
   const status: PlanStep["status"] =
     failedCount > 0
       ? "failed"
@@ -91,26 +119,37 @@ function makeProgressOverflowStep(
         : pendingCount === hiddenCount
           ? `${hiddenCount} planned steps`
           : `${hiddenCount} more steps`;
+  const localizedDescriptor = localizeProgressText(descriptor);
   return {
     id: `progress-overflow-${startIndex}-${endIndex}`,
-    description: descriptor,
+    description: localizedDescriptor,
     status,
     isOverflow: true,
     hiddenCount,
-    hiddenLabel: descriptor,
+    hiddenLabel: localizedDescriptor,
   };
 }
 
-export function getVisibleProgressSteps(planSteps: PlanStep[]): ProgressDisplayStep[] {
+export function getVisibleProgressSteps(
+  planSteps: PlanStep[],
+): ProgressDisplayStep[] {
   if (planSteps.length <= MAX_VISIBLE_PROGRESS_STEPS) {
     return planSteps.map((step) => ({ ...step }));
   }
 
   const selected = new Set<number>();
-  const activeIndex = planSteps.findIndex((step) => step.status === "in_progress");
-  const firstPendingIndex = planSteps.findIndex((step) => step.status === "pending");
+  const activeIndex = planSteps.findIndex(
+    (step) => step.status === "in_progress",
+  );
+  const firstPendingIndex = planSteps.findIndex(
+    (step) => step.status === "pending",
+  );
   const anchorIndex =
-    activeIndex >= 0 ? activeIndex : firstPendingIndex >= 0 ? firstPendingIndex : planSteps.length - 1;
+    activeIndex >= 0
+      ? activeIndex
+      : firstPendingIndex >= 0
+        ? firstPendingIndex
+        : planSteps.length - 1;
 
   planSteps.forEach((step, index) => {
     if (step.status === "failed") selected.add(index);
@@ -118,7 +157,11 @@ export function getVisibleProgressSteps(planSteps: PlanStep[]): ProgressDisplayS
 
   const completedBeforeAnchor = planSteps
     .map((step, index) => ({ step, index }))
-    .filter(({ step, index }) => index < anchorIndex && (step.status === "completed" || step.status === "skipped"))
+    .filter(
+      ({ step, index }) =>
+        index < anchorIndex &&
+        (step.status === "completed" || step.status === "skipped"),
+    )
     .slice(-2);
   completedBeforeAnchor.forEach(({ index }) => selected.add(index));
 
@@ -126,18 +169,28 @@ export function getVisibleProgressSteps(planSteps: PlanStep[]): ProgressDisplayS
 
   const pendingAfterAnchor = planSteps
     .map((step, index) => ({ step, index }))
-    .filter(({ step, index }) => index > anchorIndex && step.status === "pending")
+    .filter(
+      ({ step, index }) => index > anchorIndex && step.status === "pending",
+    )
     .slice(0, 2);
   pendingAfterAnchor.forEach(({ index }) => selected.add(index));
 
   if (selected.size < MAX_VISIBLE_PROGRESS_STEPS) {
-    for (let index = 0; index < planSteps.length && selected.size < MAX_VISIBLE_PROGRESS_STEPS; index += 1) {
+    for (
+      let index = 0;
+      index < planSteps.length && selected.size < MAX_VISIBLE_PROGRESS_STEPS;
+      index += 1
+    ) {
       if (planSteps[index]?.status === "pending") selected.add(index);
     }
   }
 
   if (selected.size < MAX_VISIBLE_PROGRESS_STEPS) {
-    for (let index = planSteps.length - 1; index >= 0 && selected.size < MAX_VISIBLE_PROGRESS_STEPS; index -= 1) {
+    for (
+      let index = planSteps.length - 1;
+      index >= 0 && selected.size < MAX_VISIBLE_PROGRESS_STEPS;
+      index -= 1
+    ) {
       selected.add(index);
     }
   }

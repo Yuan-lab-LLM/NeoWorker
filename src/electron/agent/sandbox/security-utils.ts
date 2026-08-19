@@ -26,7 +26,7 @@ export function createSecureTempFile(
 ): { filePath: string; cleanup: () => void } {
   // Generate cryptographically random filename
   const randomBytes = crypto.randomBytes(16).toString("hex");
-  const filename = `cowork_${randomBytes}${extension}`;
+  const filename = `neoworker_${randomBytes}${extension}`;
   const tempDir = os.tmpdir();
 
   // Validate temp directory exists and is writable

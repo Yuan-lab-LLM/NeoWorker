@@ -18,15 +18,23 @@ const baseOption: IntegrationMentionOption = {
 
 describe("areIntegrationMentionOptionsEqual", () => {
   it("treats separately allocated but equivalent option lists as equal", () => {
-    expect(areIntegrationMentionOptionsEqual([baseOption], [{ ...baseOption }])).toBe(true);
+    expect(
+      areIntegrationMentionOptionsEqual([baseOption], [{ ...baseOption }]),
+    ).toBe(true);
   });
 
   it("detects changed nested option fields", () => {
     expect(
-      areIntegrationMentionOptionsEqual([baseOption], [{ ...baseOption, tools: ["search"] }]),
+      areIntegrationMentionOptionsEqual(
+        [baseOption],
+        [{ ...baseOption, tools: ["search"] }],
+      ),
     ).toBe(false);
     expect(
-      areIntegrationMentionOptionsEqual([baseOption], [{ ...baseOption, status: "configured" }]),
+      areIntegrationMentionOptionsEqual(
+        [baseOption],
+        [{ ...baseOption, status: "configured" }],
+      ),
     ).toBe(false);
   });
 });

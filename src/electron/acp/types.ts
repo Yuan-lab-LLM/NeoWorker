@@ -38,7 +38,7 @@ export interface ACPAgentCard {
   supportsStreaming?: boolean;
   /** Agent endpoint URL (for remote agents) */
   endpoint?: string;
-  /** Agent origin: 'local' (CoWork role) or 'remote' (external agent) */
+  /** Agent origin: 'local' (NeoWorker role) or 'remote' (external agent) */
   origin: "local" | "remote";
   /** The local agent role ID if origin is 'local' */
   localRoleId?: string;
@@ -96,7 +96,7 @@ export interface ACPMessage {
  * ACP Task - a task delegated from one agent to another
  */
 export interface ACPTask {
-  /** Unique task ID (maps to CoWork task ID for local agents) */
+  /** Unique task ID (maps to NeoWorker task ID for local agents) */
   id: string;
   /** ID of the agent that created/delegated the task */
   requesterId: string;
@@ -112,8 +112,8 @@ export interface ACPTask {
   result?: string;
   /** Error message (when failed) */
   error?: string;
-  /** Associated CoWork task ID (if delegated to a local agent) */
-  coworkTaskId?: string;
+  /** Associated NeoWorker task ID (if delegated to a local agent) */
+  neoworkerTaskId?: string;
   /** Remote task ID returned by an external agent endpoint */
   remoteTaskId?: string;
   /** Associated workspace ID */

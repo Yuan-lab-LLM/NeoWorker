@@ -1,0 +1,3 @@
+import { n as e, t } from "./phone-outgoing-D4l2kSQh-wv6YhRce.js";
+e();
+export { t as default };

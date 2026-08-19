@@ -2,12 +2,16 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const preloadPath = fileURLToPath(new URL("../../electron/preload.ts", import.meta.url));
+const preloadPath = fileURLToPath(
+  new URL("../../electron/preload.ts", import.meta.url),
+);
 
 describe("terminal preload bridge", () => {
   it("exposes the terminal tab APIs used by TerminalTabsDock", () => {
     const source = readFileSync(preloadPath, "utf8");
-    const bridgeStart = source.indexOf('contextBridge.exposeInMainWorld("electronAPI"');
+    const bridgeStart = source.indexOf(
+      'contextBridge.exposeInMainWorld("electronAPI"',
+    );
     const bridgeSource = source.slice(bridgeStart);
 
     expect(bridgeSource).toContain("listTerminalTabs:");

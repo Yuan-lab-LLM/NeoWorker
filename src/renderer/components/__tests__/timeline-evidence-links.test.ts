@@ -7,7 +7,9 @@ import { describe, expect, it } from "vitest";
 import type { TaskEvent } from "../../../shared/types";
 import { renderEventDetails } from "../MainContent/timeline-event-rendering";
 
-const mainContentStylesPath = fileURLToPath(new URL("../MainContent/main-content.css", import.meta.url));
+const mainContentStylesPath = fileURLToPath(
+  new URL("../MainContent/main-content.css", import.meta.url),
+);
 
 function makeEvidenceEvent(payload: Record<string, unknown>): TaskEvent {
   return {
@@ -27,14 +29,19 @@ describe("timeline evidence links", () => {
           evidenceId: "citation-1",
           sourceType: "url",
           sourceUrlOrPath: "https://www.example.com/research?id=1",
-          snippet: "A long source title that should be constrained to a single compact line.",
+          snippet:
+            "A long source title that should be constrained to a single compact line.",
           capturedAt: 1,
         },
       ],
     });
 
     const markup = renderToStaticMarkup(
-      React.createElement(React.Fragment, null, renderEventDetails(event, false, {})),
+      React.createElement(
+        React.Fragment,
+        null,
+        renderEventDetails(event, false, {}),
+      ),
     );
 
     expect(markup).toContain('class="evidence-event-link"');
@@ -67,7 +74,11 @@ describe("timeline evidence links", () => {
     });
 
     const markup = renderToStaticMarkup(
-      React.createElement(React.Fragment, null, renderEventDetails(event, false, {})),
+      React.createElement(
+        React.Fragment,
+        null,
+        renderEventDetails(event, false, {}),
+      ),
     );
 
     expect(markup).toContain(">google</span>");
@@ -82,6 +93,8 @@ describe("timeline evidence links", () => {
     expect(source).toMatch(
       /\.evidence-event-details-scroll\s*\{[^}]*max-height:\s*calc\(\(18px \* 5\) \+ \(4px \* 4\)\);/s,
     );
-    expect(source).toMatch(/\.evidence-event-details-scroll\s*\{[^}]*overflow-y:\s*auto;/s);
+    expect(source).toMatch(
+      /\.evidence-event-details-scroll\s*\{[^}]*overflow-y:\s*auto;/s,
+    );
   });
 });

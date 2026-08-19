@@ -32,10 +32,10 @@ export function readBearerToken(header: string | string[] | undefined): string |
 
 /**
  * Read a shared webhook secret from a request, preferring the explicit
- * `x-cowork-webhook-secret` header and falling back to a bearer token.
+ * `x-neoworker-webhook-secret` header and falling back to a bearer token.
  */
 export function readWebhookSecret(req: IncomingMessage): string | null {
-  const header = req.headers["x-cowork-webhook-secret"];
+  const header = req.headers["x-neoworker-webhook-secret"];
   if (typeof header === "string" && header.trim()) {
     return header.trim();
   }

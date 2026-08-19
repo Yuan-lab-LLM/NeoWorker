@@ -36,7 +36,7 @@ const DEFAULT_OPTIONS: Required<SandboxOptions> = {
 
 const PROTECTED_WORKSPACE_WRITE_RELATIVE_PATHS = [
   ".git",
-  ".cowork",
+  ".neoworker",
   ".env",
   ".env.local",
   ".env.production",
@@ -73,7 +73,10 @@ export class MacOSSandbox implements ISandbox {
     options: SandboxOptions = {},
   ): Promise<SandboxResult> {
     const opts = { ...DEFAULT_OPTIONS, ...options };
-    const cwd = opts.cwd || this.workspace.path;
+    // An omitted cwd means "run in the task workspace", not in the directory
+    // from which the Electron process happened to start. Using DEFAULT_OPTIONS.cwd
+    // here made executeCode() fail whenever the app cwd was outside the workspace.
+    const cwd = options.cwd || this.workspace.path;
     this.sandboxProfile = this.generateSandboxProfile(opts.allowNetwork === true);
 
     // Validate working directory is within allowed paths
@@ -149,14 +152,17 @@ export class MacOSSandbox implements ISandbox {
         }
       });
 
-      proc.on("close", (code) => {
+      proc.on("close", (code, signal) => {
         clearTimeout(timeoutHandle);
+        const terminationError = signal ? `Process terminated by signal ${signal}` : undefined;
         resolve({
           exitCode: code ?? 1,
           stdout,
-          stderr,
+          stderr: stderr || terminationError || "",
           killed,
           timedOut,
+          signal,
+          error: terminationError,
         });
       });
 
@@ -235,6 +241,37 @@ export class MacOSSandbox implements ISandbox {
       } catch (err) {
         console.warn(`[MacOSSandbox] Skipping unsafe read path: ${pathToAllow}`, err);
       }
+    }
+    return next;
+  }
+
+  /**
+   * sandbox-exec needs explicit access to every parent directory used while
+   * resolving an allowed path. On macOS 15, dyld also reads the root directory
+   * before launching Python/Node. Grant only the directory nodes themselves,
+   * never their unrelated descendants.
+   */
+  private appendReadAncestorRules(profile: string, pathsToAllow: string[]): string {
+    let next = profile;
+    const ancestors = new Set<string>();
+
+    for (const pathToAllow of pathsToAllow) {
+      try {
+        validatePathForSandboxProfile(pathToAllow);
+        let current = path.resolve(pathToAllow);
+        while (true) {
+          ancestors.add(current);
+          const parent = path.dirname(current);
+          if (parent === current) break;
+          current = parent;
+        }
+      } catch (err) {
+        console.warn(`[MacOSSandbox] Skipping unsafe ancestor path: ${pathToAllow}`, err);
+      }
+    }
+
+    for (const ancestor of ancestors) {
+      next += `(allow file-read* (literal "${escapeSandboxProfileString(ancestor)}"))\n`;
     }
     return next;
   }
@@ -408,6 +445,23 @@ export class MacOSSandbox implements ISandbox {
 ; Allow reading workspace
 (allow file-read* (subpath "${escapedWorkspace}"))
 `;
+    profile = this.appendReadAncestorRules(profile, [
+      "/usr/lib",
+      "/usr/bin",
+      "/bin",
+      "/usr/local",
+      "/System",
+      "/Library/Frameworks",
+      "/Applications/Xcode.app",
+      "/private/var/db",
+      "/dev/null",
+      "/dev/urandom",
+      "/dev/random",
+      "/private/tmp",
+      "/opt/homebrew",
+      ...workspaceAliases,
+      ...tempAliases,
+    ]);
     profile = this.appendReadSubpathRules(profile, workspaceAliases);
     profile = this.appendReadSubpathRules(profile, tempAliases);
 
@@ -460,6 +514,7 @@ export class MacOSSandbox implements ISandbox {
     const allowedPaths = permissions.allowedPaths || [];
     for (const allowedPath of allowedPaths) {
       const allowedPathAliases = this.getMacOSPathAliases(allowedPath);
+      profile = this.appendReadAncestorRules(profile, allowedPathAliases);
       profile = this.appendReadSubpathRules(profile, allowedPathAliases);
       if (permissions.write) profile = this.appendWriteSubpathRules(profile, allowedPathAliases);
     }

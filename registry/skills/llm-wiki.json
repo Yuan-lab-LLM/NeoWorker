@@ -54,7 +54,7 @@
   },
   "metadata": {
     "version": "1.1.0",
-    "author": "CoWork OS",
+    "author": "NeoWorker",
     "tags": [
       "llm-wiki",
       "knowledge-base",
@@ -88,7 +88,7 @@
       "examples": {
         "positive": [
           "Use the llm-wiki skill for this request.",
-          "/llm-wiki research CoWork OS competitors",
+          "/llm-wiki research NeoWorker competitors",
           "Build me an Obsidian-friendly research vault for this topic.",
           "Create a persistent markdown knowledge base instead of a one-off report."
         ],

@@ -11,6 +11,7 @@
 
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { useVirtualList, type VirtualItem } from "../hooks/useVirtualList";
+import { getVirtualScrollRequestIdentity } from "../utils/virtual-scroll-request";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,6 +42,15 @@ export interface VirtualListProps<T> {
   onScrollNearEnd?: () => void;
   /** Allow near-end callbacks before the user has scrolled, for explicit auto-fill use cases. */
   triggerNearEndOnMount?: boolean;
+  /** Keep the current scroll position when the item count changes. */
+  suppressAutoScrollOnItemsChange?: boolean;
+  /** Programmatically reveal an item, for example the currently selected session. */
+  scrollToIndex?: number | null;
+  /**
+   * Stable identity for an explicit scroll request. When provided, live item
+   * updates must not keep replaying the same request and stealing user scroll.
+   */
+  scrollRequestKey?: string | number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,19 +70,29 @@ export function VirtualList<T>({
   role = "list",
   onScrollNearEnd,
   triggerNearEndOnMount = false,
+  suppressAutoScrollOnItemsChange = false,
+  scrollToIndex = null,
+  scrollRequestKey = null,
 }: VirtualListProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nearEndTriggeredRef = useRef(false);
   const lastItemCountRef = useRef(items.length);
   const hasUserScrolledRef = useRef(false);
+  const lastHandledScrollRequestRef = useRef<string | null>(null);
 
-  const { virtualItems, totalHeight, isAtBottom } = useVirtualList({
+  const {
+    virtualItems,
+    totalHeight,
+    isAtBottom,
+    scrollToIndex: scrollToVirtualIndex,
+  } = useVirtualList({
     items,
     containerRef,
     getItemHeight,
     estimatedItemHeight,
     overscan,
     enabled,
+    suppressAutoScrollOnItemsChange,
   });
 
   useEffect(() => {
@@ -93,6 +113,30 @@ export function VirtualList<T>({
     nearEndTriggeredRef.current = true;
     onScrollNearEnd();
   }, [enabled, isAtBottom, onScrollNearEnd, triggerNearEndOnMount]);
+
+  useEffect(() => {
+    const requestIdentity = getVirtualScrollRequestIdentity(
+      enabled,
+      scrollToIndex,
+      items.length,
+      scrollRequestKey,
+    );
+    if (requestIdentity === null) {
+      lastHandledScrollRequestRef.current = null;
+      return;
+    }
+    if (scrollToIndex === null) return;
+    if (lastHandledScrollRequestRef.current === requestIdentity) return;
+
+    lastHandledScrollRequestRef.current = requestIdentity;
+    scrollToVirtualIndex(scrollToIndex);
+  }, [
+    enabled,
+    items.length,
+    scrollRequestKey,
+    scrollToIndex,
+    scrollToVirtualIndex,
+  ]);
 
   // ---- Non-virtual fallback -----------------------------------------------
 

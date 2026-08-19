@@ -58,7 +58,7 @@ if [[ "$SCAN_ALL" -eq 0 ]]; then
   exit 0
 fi
 
-SOCKET_DIR="${CoWork-OSS_TMUX_SOCKET_DIR:-${CoWork-OSSBOT_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/CoWork-OSS-tmux-sockets}}"
+SOCKET_DIR="${NeoWorker_TMUX_SOCKET_DIR:-${NeoWorkerBOT_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/NeoWorker-tmux-sockets}}"
 if [[ ! -d "$SOCKET_DIR" ]]; then
   echo "No socket directory found at: $SOCKET_DIR" >&2
   exit 1

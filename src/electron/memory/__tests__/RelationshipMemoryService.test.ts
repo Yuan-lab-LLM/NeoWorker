@@ -140,4 +140,19 @@ describe("RelationshipMemoryService task history capture", () => {
     expect(commitments).toHaveLength(1);
     expect(commitments[0]?.text).toContain("I need to send the deployment recap tomorrow morning");
   });
+
+  it("marks relationship memory as continuity-only and forbids task-scope inference", () => {
+    RelationshipMemoryService.recordTaskCompletion(
+      "Agricultural genomics review",
+      "Reviewed agricultural genomics competitors.",
+      "task-agri",
+      "manual",
+    );
+
+    const context = RelationshipMemoryService.buildPromptContext();
+
+    expect(context).toContain("continuity context only, never task scope");
+    expect(context).toContain("Do not infer the active workspace");
+    expect(context).toContain("ask one focused question");
+  });
 });

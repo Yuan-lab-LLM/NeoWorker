@@ -1,6 +1,17 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, ExternalLink, Loader2, Mail, Paperclip, Send, Trash2, X } from "lucide-react";
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  Loader2,
+  Mail,
+  Paperclip,
+  Send,
+  Trash2,
+  X,
+} from "lucide-react";
 import { extractMailboxComposeDraftInputFromText } from "../../shared/mailbox";
+import { translate, useLanguage } from "../i18n";
 import type {
   ChatInlineFrame,
   MailboxAccount,
@@ -44,7 +55,9 @@ function recipientToString(recipient: MailboxRecipientInput): string {
   return name ? `${name} <${email}>` : email;
 }
 
-export function formatRecipients(recipients: readonly MailboxRecipientInput[] = []): string {
+export function formatRecipients(
+  recipients: readonly MailboxRecipientInput[] = [],
+): string {
   return recipients.map(recipientToString).join(", ");
 }
 
@@ -65,7 +78,9 @@ export function parseRecipients(value: string): MailboxRecipientInput[] {
   return value
     .split(/[,;\n]+/)
     .map(parseRecipientToken)
-    .filter((recipient): recipient is MailboxRecipientInput => recipient !== null);
+    .filter(
+      (recipient): recipient is MailboxRecipientInput => recipient !== null,
+    );
 }
 
 function editableFromDraft(draft: MailboxComposeDraft): EditableDraftState {
@@ -79,7 +94,9 @@ function editableFromDraft(draft: MailboxComposeDraft): EditableDraftState {
   };
 }
 
-function buildDraftPatch(editable: EditableDraftState): MailboxComposeDraftPatch {
+function buildDraftPatch(
+  editable: EditableDraftState,
+): MailboxComposeDraftPatch {
   return {
     to: parseRecipients(editable.to),
     cc: parseRecipients(editable.cc),
@@ -91,10 +108,16 @@ function buildDraftPatch(editable: EditableDraftState): MailboxComposeDraftPatch
   };
 }
 
-export const extractAssistantMailDraft = extractMailboxComposeDraftInputFromText;
+export const extractAssistantMailDraft =
+  extractMailboxComposeDraftInputFromText;
 
 function draftStatusIsLocked(status: MailboxComposeDraftStatus): boolean {
-  return status === "queued" || status === "scheduled" || status === "sending" || status === "sent";
+  return (
+    status === "queued" ||
+    status === "scheduled" ||
+    status === "sending" ||
+    status === "sent"
+  );
 }
 
 function draftStatusIsTransient(status: MailboxComposeDraftStatus): boolean {
@@ -119,22 +142,22 @@ function providerLabel(provider?: MailboxProvider): string {
 function statusLabel(status: MailboxComposeDraftStatus): string {
   switch (status) {
     case "provider":
-      return "Draft saved";
+      return translate("mailCompose.status.draftSaved", "Draft saved");
     case "queued":
-      return "Queued";
+      return translate("mailCompose.status.queued", "Queued");
     case "scheduled":
-      return "Scheduled";
+      return translate("mailCompose.status.scheduled", "Scheduled");
     case "sending":
-      return "Sending";
+      return translate("mailCompose.status.sending", "Sending");
     case "sent":
-      return "Sent";
+      return translate("mailCompose.status.sent", "Sent");
     case "failed":
-      return "Failed";
+      return translate("mailCompose.status.failed", "Failed");
     case "discarded":
-      return "Discarded";
+      return translate("mailCompose.status.discarded", "Discarded");
     case "local":
     default:
-      return "Draft";
+      return translate("mailCompose.status.draft", "Draft");
   }
 }
 
@@ -152,12 +175,20 @@ function identitiesForAccount(
   clientState: MailboxClientState | null,
 ): MailboxIdentity[] {
   if (!account) return [];
-  return (clientState?.identities || []).filter((identity) => identity.accountId === account.id);
+  return (clientState?.identities || []).filter(
+    (identity) => identity.accountId === account.id,
+  );
 }
 
-export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailComposeFrameProps) {
+export const MailComposeFrame = memo(function MailComposeFrame({
+  frame,
+}: MailComposeFrameProps) {
+  useLanguage();
+  const t = translate;
   const [draft, setDraft] = useState<MailboxComposeDraft | null>(null);
-  const [clientState, setClientState] = useState<MailboxClientState | null>(null);
+  const [clientState, setClientState] = useState<MailboxClientState | null>(
+    null,
+  );
   const [editable, setEditable] = useState<EditableDraftState | null>(null);
   const [expandedCcBcc, setExpandedCcBcc] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -187,7 +218,11 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
         setExpandedCcBcc(nextDraft.cc.length > 0 || nextDraft.bcc.length > 0);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load the draft.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("mailCompose.error.loadDraft", "Could not load the draft."),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -205,17 +240,35 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
     return () => window.clearInterval(interval);
   }, [draft?.status, loadDraft]);
 
-  const account = useMemo(() => findAccount(frame, draft, clientState), [clientState, draft, frame]);
-  const identities = useMemo(() => identitiesForAccount(account, clientState), [account, clientState]);
+  const account = useMemo(
+    () => findAccount(frame, draft, clientState),
+    [clientState, draft, frame],
+  );
+  const identities = useMemo(
+    () => identitiesForAccount(account, clientState),
+    [account, clientState],
+  );
   const effectiveProvider = account?.provider || frame.provider;
   const locked = draft ? draftStatusIsLocked(draft.status) : true;
-  const sendCapabilityAvailable = account?.capabilities.includes("send") ?? true;
+  const sendCapabilityAvailable =
+    account?.capabilities.includes("send") ?? true;
   const hasRecipients = editable
-    ? parseRecipients(editable.to).length + parseRecipients(editable.cc).length + parseRecipients(editable.bcc).length > 0
+    ? parseRecipients(editable.to).length +
+        parseRecipients(editable.cc).length +
+        parseRecipients(editable.bcc).length >
+      0
     : false;
-  const sendDisabled = locked || isLoading || isSaving || isSending || !editable || !hasRecipients || !sendCapabilityAvailable;
+  const sendDisabled =
+    locked ||
+    isLoading ||
+    isSaving ||
+    isSending ||
+    !editable ||
+    !hasRecipients ||
+    !sendCapabilityAvailable;
   const fromLabel =
-    identities.find((identity) => identity.id === editable?.identityId)?.email ||
+    identities.find((identity) => identity.id === editable?.identityId)
+      ?.email ||
     account?.address ||
     providerLabel(effectiveProvider);
 
@@ -227,13 +280,20 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
       setIsSaving(true);
       setError(null);
       try {
-        const nextDraft = await window.electronAPI.updateMailboxDraft(draft.id, buildDraftPatch(nextEditable));
+        const nextDraft = await window.electronAPI.updateMailboxDraft(
+          draft.id,
+          buildDraftPatch(nextEditable),
+        );
         lastSavedSignatureRef.current = signature;
         dirtyRef.current = false;
         setDraft(nextDraft);
         return nextDraft;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not save draft changes.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : t("mailCompose.error.saveDraft", "Could not save draft changes."),
+        );
         throw err;
       } finally {
         setIsSaving(false);
@@ -255,7 +315,9 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
 
   const updateField = useCallback(
     (field: keyof EditableDraftState, value: string) => {
-      setEditable((current) => (current ? { ...current, [field]: value } : current));
+      setEditable((current) =>
+        current ? { ...current, [field]: value } : current,
+      );
     },
     [],
   );
@@ -267,7 +329,11 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not copy the draft body.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("mailCompose.error.copyBody", "Could not copy the draft body."),
+      );
     }
   }, [editable]);
 
@@ -276,12 +342,21 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
     setIsSending(true);
     setError(null);
     try {
-      const savedDraft = dirtyRef.current ? await persistEditable(editable) : draft;
-      if (!savedDraft) throw new Error("Draft is not available.");
+      const savedDraft = dirtyRef.current
+        ? await persistEditable(editable)
+        : draft;
+      if (!savedDraft)
+        throw new Error(
+          t("mailCompose.error.unavailable", "Draft is not available."),
+        );
       await window.electronAPI.sendMailboxDraft(savedDraft.id);
       await loadDraft();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send this draft.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("mailCompose.error.sendDraft", "Could not send this draft."),
+      );
     } finally {
       setIsSending(false);
     }
@@ -294,7 +369,14 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
       await window.electronAPI.discardMailboxDraft(draft.id);
       await loadDraft();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not discard this draft.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t(
+              "mailCompose.error.discardDraft",
+              "Could not discard this draft.",
+            ),
+      );
     }
   }, [draft, loadDraft]);
 
@@ -302,7 +384,7 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
     return (
       <div className="mail-compose-frame loading">
         <Loader2 size={16} className="mail-compose-spin" aria-hidden="true" />
-        <span>Loading compose draft...</span>
+        <span>{t("mailCompose.loading", "Loading compose draft...")}</span>
       </div>
     );
   }
@@ -311,7 +393,12 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
     return (
       <div className="mail-compose-frame unavailable">
         <Mail size={16} aria-hidden="true" />
-        <span>This compose draft is no longer available.</span>
+        <span>
+          {t(
+            "mailCompose.noLongerAvailable",
+            "This compose draft is no longer available.",
+          )}
+        </span>
       </div>
     );
   }
@@ -319,24 +406,45 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
   const primaryStatus = statusLabel(draft.status);
   const sendLabel =
     draft.status === "queued" || draft.status === "scheduled"
-      ? "Queued"
+      ? t("mailCompose.status.queued", "Queued")
       : draft.status === "sent"
-        ? "Sent"
-        : `Send as ${providerLabel(effectiveProvider)}`;
+        ? t("mailCompose.status.sent", "Sent")
+        : t("mailCompose.sendAs", "Send as {provider}", {
+            provider: providerLabel(effectiveProvider),
+          });
 
   return (
-    <section className={`mail-compose-frame status-${draft.status}`} aria-label="Email compose draft">
+    <section
+      className={`mail-compose-frame status-${draft.status}`}
+      aria-label={t("mailCompose.aria", "Email compose draft")}
+    >
       <div className="mail-compose-toolbar">
         <div className="mail-compose-title">
           <Mail size={15} aria-hidden="true" />
           <span>{primaryStatus}</span>
-          <span className="mail-compose-provider">from {fromLabel}</span>
+          <span className="mail-compose-provider">
+            {t("mailCompose.fromProvider", "from {from}", { from: fromLabel })}
+          </span>
         </div>
         <div className="mail-compose-actions">
-          <button type="button" className="mail-compose-icon-btn" onClick={handleCopyBody} title="Copy body">
-            {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
+          <button
+            type="button"
+            className="mail-compose-icon-btn"
+            onClick={handleCopyBody}
+            title={t("mailCompose.copyBody", "Copy body")}
+          >
+            {copied ? (
+              <Check size={15} aria-hidden="true" />
+            ) : (
+              <Copy size={15} aria-hidden="true" />
+            )}
           </button>
-          <button type="button" className="mail-compose-icon-btn" title="Open in mailbox" disabled>
+          <button
+            type="button"
+            className="mail-compose-icon-btn"
+            title={t("mailCompose.openMailbox", "Open in mailbox")}
+            disabled
+          >
             <ExternalLink size={15} aria-hidden="true" />
           </button>
           <button
@@ -344,10 +452,21 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
             className="mail-compose-send-btn"
             onClick={handleSend}
             disabled={sendDisabled}
-            title={!sendCapabilityAvailable ? "This mailbox account cannot send email yet." : undefined}
+            title={
+              !sendCapabilityAvailable
+                ? t(
+                    "mailCompose.cannotSendYet",
+                    "This mailbox account cannot send email yet.",
+                  )
+                : undefined
+            }
           >
             {isSending ? (
-              <Loader2 size={15} className="mail-compose-spin" aria-hidden="true" />
+              <Loader2
+                size={15}
+                className="mail-compose-spin"
+                aria-hidden="true"
+              />
             ) : draft.status === "sent" ? (
               <Check size={15} aria-hidden="true" />
             ) : (
@@ -361,16 +480,23 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
       <div className="mail-compose-fields">
         {identities.length > 1 && (
           <label className="mail-compose-field">
-            <span>From</span>
+            <span>{t("mailCompose.from", "From")}</span>
             <select
               value={editable.identityId}
               disabled={locked}
-              onChange={(event) => updateField("identityId", event.target.value)}
+              onChange={(event) =>
+                updateField("identityId", event.target.value)
+              }
             >
-              <option value="">{account?.address || "Default identity"}</option>
+              <option value="">
+                {account?.address ||
+                  t("mailCompose.defaultIdentity", "Default identity")}
+              </option>
               {identities.map((identity) => (
                 <option key={identity.id} value={identity.id}>
-                  {identity.displayName ? `${identity.displayName} <${identity.email}>` : identity.email}
+                  {identity.displayName
+                    ? `${identity.displayName} <${identity.email}>`
+                    : identity.email}
                 </option>
               ))}
             </select>
@@ -378,7 +504,7 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
         )}
 
         <label className="mail-compose-field recipients">
-          <span>To</span>
+          <span>{t("mailCompose.to", "To")}</span>
           <input
             value={editable.to}
             disabled={locked}
@@ -386,7 +512,12 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
             placeholder="recipient@example.com"
           />
           {!expandedCcBcc && (
-            <button type="button" className="mail-compose-cc-toggle" onClick={() => setExpandedCcBcc(true)} disabled={locked}>
+            <button
+              type="button"
+              className="mail-compose-cc-toggle"
+              onClick={() => setExpandedCcBcc(true)}
+              disabled={locked}
+            >
               Cc/Bcc
             </button>
           )}
@@ -396,13 +527,25 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
           <>
             <label className="mail-compose-field">
               <span>Cc</span>
-              <input value={editable.cc} disabled={locked} onChange={(event) => updateField("cc", event.target.value)} />
+              <input
+                value={editable.cc}
+                disabled={locked}
+                onChange={(event) => updateField("cc", event.target.value)}
+              />
             </label>
             <label className="mail-compose-field">
               <span>Bcc</span>
-              <input value={editable.bcc} disabled={locked} onChange={(event) => updateField("bcc", event.target.value)} />
+              <input
+                value={editable.bcc}
+                disabled={locked}
+                onChange={(event) => updateField("bcc", event.target.value)}
+              />
               {!editable.cc && !editable.bcc && !locked && (
-                <button type="button" className="mail-compose-cc-toggle close" onClick={() => setExpandedCcBcc(false)}>
+                <button
+                  type="button"
+                  className="mail-compose-cc-toggle close"
+                  onClick={() => setExpandedCcBcc(false)}
+                >
                   <X size={13} aria-hidden="true" />
                 </button>
               )}
@@ -411,18 +554,25 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
         )}
 
         <label className="mail-compose-field subject">
-          <span>Subject</span>
-          <input value={editable.subject} disabled={locked} onChange={(event) => updateField("subject", event.target.value)} />
+          <span>{t("mailCompose.subject", "Subject")}</span>
+          <input
+            value={editable.subject}
+            disabled={locked}
+            onChange={(event) => updateField("subject", event.target.value)}
+          />
         </label>
 
         <label className="mail-compose-body">
-          <span className="sr-only">Body</span>
+          <span className="sr-only">{t("mailCompose.body", "Body")}</span>
           <textarea
             value={editable.bodyText}
             disabled={locked}
             onChange={(event) => updateField("bodyText", event.target.value)}
             rows={8}
-            placeholder="Write your email..."
+            placeholder={t(
+              "mailCompose.bodyPlaceholder",
+              "Write your email...",
+            )}
           />
         </label>
       </div>
@@ -443,15 +593,29 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
           {error ? (
             <span className="mail-compose-error">{error}</span>
           ) : isSaving ? (
-            <span>Saving...</span>
+            <span>{t("common.saving", "Saving...")}</span>
           ) : !hasRecipients ? (
-            <span>Add at least one recipient before sending.</span>
+            <span>
+              {t(
+                "mailCompose.addRecipient",
+                "Add at least one recipient before sending.",
+              )}
+            </span>
           ) : !sendCapabilityAvailable ? (
-            <span>Connect a send-capable mailbox account to send this draft.</span>
+            <span>
+              {t(
+                "mailCompose.connectSendCapable",
+                "Connect a send-capable mailbox account to send this draft.",
+              )}
+            </span>
           ) : draft.latestError ? (
             <span className="mail-compose-error">{draft.latestError}</span>
           ) : (
-            <span>{locked ? primaryStatus : "Saved locally"}</span>
+            <span>
+              {locked
+                ? primaryStatus
+                : t("mailCompose.savedLocally", "Saved locally")}
+            </span>
           )}
         </div>
         <button
@@ -461,7 +625,11 @@ export const MailComposeFrame = memo(function MailComposeFrame({ frame }: MailCo
           disabled={draft.status === "sent" || draft.status === "discarded"}
         >
           <Trash2 size={14} aria-hidden="true" />
-          <span>{draft.status === "queued" || draft.status === "scheduled" ? "Undo send" : "Discard"}</span>
+          <span>
+            {draft.status === "queued" || draft.status === "scheduled"
+              ? t("mailCompose.undoSend", "Undo send")
+              : t("mailCompose.discard", "Discard")}
+          </span>
         </button>
       </div>
     </section>
@@ -475,9 +643,14 @@ export const AutoMailComposeFrame = memo(function AutoMailComposeFrame({
   sourceUserMessage,
   allowCreate,
 }: AutoMailComposeFrameProps) {
+  useLanguage();
+  const t = translate;
   const [frame, setFrame] = useState<ChatInlineFrame | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const storageKey = eventId && taskId ? `cowork:mail-compose-frame:${taskId}:${eventId}` : null;
+  const storageKey =
+    eventId && taskId
+      ? `neoworker:mail-compose-frame:${taskId}:${eventId}`
+      : null;
   const draftInput = useMemo(
     () => extractAssistantMailDraft(assistantMessage, sourceUserMessage),
     [assistantMessage, sourceUserMessage],
@@ -505,8 +678,12 @@ export const AutoMailComposeFrame = memo(function AutoMailComposeFrame({
       try {
         setError(null);
         const draft = await window.electronAPI.createMailboxDraft(draftInput);
-        const state = await window.electronAPI.getMailboxClientState().catch(() => null);
-        const account = state?.accounts.find((item) => item.id === draft.accountId);
+        const state = await window.electronAPI
+          .getMailboxClientState()
+          .catch(() => null);
+        const account = state?.accounts.find(
+          (item) => item.id === draft.accountId,
+        );
         const nextFrame: ChatInlineFrame = {
           kind: "mail_compose",
           draftId: draft.id,
@@ -521,7 +698,14 @@ export const AutoMailComposeFrame = memo(function AutoMailComposeFrame({
         setFrame(nextFrame);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Could not create a sendable mailbox draft.");
+          setError(
+            err instanceof Error
+              ? err.message
+              : t(
+                  "mailCompose.error.createDraft",
+                  "Could not create a sendable mailbox draft.",
+                ),
+          );
         }
       }
     })();

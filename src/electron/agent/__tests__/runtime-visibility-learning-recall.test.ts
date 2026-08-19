@@ -20,7 +20,7 @@ describe("RuntimeVisibilityService learning + recall", () => {
         prompt: "Ship the feature",
       } as Any,
       outcome: "pending_review",
-      summary: "Cowork captured the outcome and promoted a skill proposal.",
+      summary: "NeoWorker captured the outcome and promoted a skill proposal.",
       memoryCaptured: true,
       playbookReinforced: true,
       skillProposal: {
@@ -101,7 +101,7 @@ describe("RuntimeVisibilityService learning + recall", () => {
         displayId: "1",
         appName: "VS Code",
         windowTitle: "alpha.ts",
-        imagePath: "/workspace/.cowork/chronicle/assets/alpha.png",
+        imagePath: "/workspace/.neoworker/chronicle/assets/alpha.png",
         localTextSnippet: "alpha screen context",
         confidence: 0.77,
         usedFallback: false,

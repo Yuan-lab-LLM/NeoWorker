@@ -1,9 +1,11 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { X } from "lucide-react";
 
 import { fixUnclosedBold } from "../utils/markdown-inline-lists";
 import { buildPauseBannerPreview } from "../utils/pause-banner-summary";
+import { translate, useLanguage } from "../i18n";
 
 type TaskPauseBannerProps = {
   message?: string | null;
@@ -27,13 +29,22 @@ const LOW_SIGNAL_REASON_CODES = new Set([
   "missing_required_workspace_artifact",
 ]);
 
-const REQUIRED_DECISION_REASON_CODES = new Set(["required_decision", "required_decision_followup"]);
+const REQUIRED_DECISION_REASON_CODES = new Set([
+  "required_decision",
+  "required_decision_followup",
+]);
 
-function isLowSignalPauseMessage(message: string, reasonCode?: string | null): boolean {
+function isLowSignalPauseMessage(
+  message: string,
+  reasonCode?: string | null,
+): boolean {
   const lower = message.trim().toLowerCase();
   if (!lower) return true;
   if (reasonCode && lower === reasonCode.trim().toLowerCase()) return true;
-  return LOW_SIGNAL_REASON_CODES.has(lower) || lower === "paused - awaiting user input";
+  return (
+    LOW_SIGNAL_REASON_CODES.has(lower) ||
+    lower === "paused - awaiting user input"
+  );
 }
 
 function hasConcreteDecisionRequest(message: string): boolean {
@@ -42,13 +53,17 @@ function hasConcreteDecisionRequest(message: string): boolean {
   if (/[?]/u.test(lower)) return true;
   return (
     /\b(?:reply|respond)\s+with\b/i.test(lower) ||
-    /\bneed\s+your\s+(?:input|approval|confirmation|decision|choice|answer)\b/i.test(lower) ||
+    /\bneed\s+your\s+(?:input|approval|confirmation|decision|choice|answer)\b/i.test(
+      lower,
+    ) ||
     /\b(?:choose|pick|select|confirm|specify|provide|clarify)\b/i.test(lower) ||
     /\b(?:tell me|let me know)\b/i.test(lower) ||
     /\b(?:should i|do you want|would you like|which option|which path|which file|which approach)\b/i.test(
       lower,
     ) ||
-    /\b(?:before i can|cannot continue|can't continue|unable to continue)\b/i.test(lower)
+    /\b(?:before i can|cannot continue|can't continue|unable to continue)\b/i.test(
+      lower,
+    )
   );
 }
 
@@ -61,45 +76,82 @@ function getPauseBannerCopy(
     reasonCode === "shell_permission_still_disabled"
   ) {
     return {
-      title: "Shell access is needed to continue.",
-      instruction:
+      title: translate(
+        "taskPause.shellNeeded.title",
+        "Shell access is needed to continue.",
+      ),
+      instruction: translate(
+        "taskPause.shellNeeded.instruction",
         "Enable shell to let me run commands, or continue without it and I’ll use a limited path.",
+      ),
     };
   }
   if (reasonCode === "skill_parameters") {
     return {
-      title: "Skill needs one more detail.",
-      instruction: "Reply below with the requested value, or stop this task here.",
+      title: translate(
+        "taskPause.skillParameters.title",
+        "Skill needs one more detail.",
+      ),
+      instruction: translate(
+        "taskPause.skillParameters.instruction",
+        "Reply below with the requested value, or stop this task here.",
+      ),
     };
   }
   if (reasonCode === "missing_required_workspace_artifact") {
     return {
-      title: "A required file is missing.",
-      instruction: "Attach the missing file or tell me where to find it, or stop this task here.",
+      title: translate(
+        "taskPause.missingFile.title",
+        "A required file is missing.",
+      ),
+      instruction: translate(
+        "taskPause.missingFile.instruction",
+        "Attach the missing file or tell me where to find it, or stop this task here.",
+      ),
     };
   }
-  if (reasonCode === "user_action_required_failure" || reasonCode === "user_action_required_tool") {
+  if (
+    reasonCode === "user_action_required_failure" ||
+    reasonCode === "user_action_required_tool"
+  ) {
     return {
-      title: "I need your decision to continue.",
-      instruction: "Reply with what you want me to do next, or stop this task here.",
+      title: translate(
+        "taskPause.userAction.title",
+        "I need your decision to continue.",
+      ),
+      instruction: translate(
+        "taskPause.userAction.instruction",
+        "Reply with what you want me to do next, or stop this task here.",
+      ),
     };
   }
   if (reasonCode && REQUIRED_DECISION_REASON_CODES.has(reasonCode)) {
     if (displayMessage && !hasConcreteDecisionRequest(displayMessage)) {
       return {
-        title: "Paused after an update.",
-        instruction:
+        title: translate("taskPause.update.title", "Paused after an update."),
+        instruction: translate(
+          "taskPause.update.instruction",
           "I don't see a specific decision request here. Reply with changes to guide the task, or type continue to let it proceed.",
+        ),
       };
     }
     return {
-      title: "Decision needed to continue.",
-      instruction: "Reply with your choice or answer, or stop this task here.",
+      title: translate(
+        "taskPause.decision.title",
+        "Decision needed to continue.",
+      ),
+      instruction: translate(
+        "taskPause.decision.instruction",
+        "Reply with your choice or answer, or stop this task here.",
+      ),
     };
   }
   return {
-    title: "Task paused.",
-    instruction: "Reply below with the missing detail or next instruction, or stop this task here.",
+    title: translate("taskPause.default.title", "Task paused."),
+    instruction: translate(
+      "taskPause.default.instruction",
+      "Reply below with the missing detail or next instruction, or stop this task here.",
+    ),
   };
 }
 
@@ -128,7 +180,10 @@ export function TaskPauseBannerDetailsContent({
 }) {
   return (
     <div className="task-pause-details-text markdown-content">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={markdownComponents}
+      >
         {message}
       </ReactMarkdown>
     </div>
@@ -143,16 +198,21 @@ export function TaskPauseBanner({
   onEnableShell,
   onContinueWithoutShell,
 }: TaskPauseBannerProps) {
+  useLanguage();
+  const t = translate;
   const [showDetails, setShowDetails] = useState(false);
-  const [pendingAction, setPendingAction] = useState<"enable_shell" | "continue_without_shell" | null>(
-    null,
-  );
+  const [pendingAction, setPendingAction] = useState<
+    "enable_shell" | "continue_without_shell" | null
+  >(null);
   const detailsTitleId = useId();
   const normalizedMessage = typeof message === "string" ? message.trim() : "";
   const displayMessage = isLowSignalPauseMessage(normalizedMessage, reasonCode)
     ? ""
     : normalizedMessage;
-  const preview = useMemo(() => buildPauseBannerPreview(displayMessage), [displayMessage]);
+  const preview = useMemo(
+    () => buildPauseBannerPreview(displayMessage),
+    [displayMessage],
+  );
   const inlineMarkdownComponents = useMemo(
     () => buildInlineMarkdownComponents(markdownComponents),
     [markdownComponents],
@@ -167,7 +227,8 @@ export function TaskPauseBanner({
       ? copy.title
       : copy.title;
   const waitingForShellPermission =
-    reasonCode === "shell_permission_required" || reasonCode === "shell_permission_still_disabled";
+    reasonCode === "shell_permission_required" ||
+    reasonCode === "shell_permission_still_disabled";
 
   useEffect(() => {
     setShowDetails(false);
@@ -210,7 +271,10 @@ export function TaskPauseBanner({
           <strong>{title}</strong>
           {displayMessage && (
             <span className="task-status-banner-detail task-status-banner-summary">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={inlineMarkdownComponents}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={inlineMarkdownComponents}
+              >
                 {fixUnclosedBold(preview.summary)}
               </ReactMarkdown>
             </span>
@@ -223,10 +287,14 @@ export function TaskPauseBanner({
               <button
                 type="button"
                 className="task-status-banner-primary-btn"
-                onClick={() => void runBannerAction("enable_shell", onEnableShell)}
+                onClick={() =>
+                  void runBannerAction("enable_shell", onEnableShell)
+                }
                 disabled={pendingAction !== null}
               >
-                {pendingAction === "enable_shell" ? "Enabling shell..." : "Enable shell"}
+                {pendingAction === "enable_shell"
+                  ? t("taskPause.action.enablingShell", "Enabling shell...")
+                  : t("taskPause.action.enableShell", "Enable shell")}
               </button>
             )}
             {waitingForShellPermission && onContinueWithoutShell && (
@@ -234,13 +302,19 @@ export function TaskPauseBanner({
                 type="button"
                 className="task-status-banner-secondary-btn"
                 onClick={() =>
-                  void runBannerAction("continue_without_shell", onContinueWithoutShell)
+                  void runBannerAction(
+                    "continue_without_shell",
+                    onContinueWithoutShell,
+                  )
                 }
                 disabled={pendingAction !== null}
               >
                 {pendingAction === "continue_without_shell"
-                  ? "Continuing..."
-                  : "Continue without shell"}
+                  ? t("taskPause.action.continuing", "Continuing...")
+                  : t(
+                      "taskPause.action.continueWithoutShell",
+                      "Continue without shell",
+                    )}
               </button>
             )}
             {preview.showDetails && (
@@ -250,7 +324,7 @@ export function TaskPauseBanner({
                 onClick={() => setShowDetails(true)}
                 disabled={pendingAction !== null}
               >
-                View details
+                {t("taskPause.action.viewDetails", "View details")}
               </button>
             )}
             {onStopTask && (
@@ -258,10 +332,10 @@ export function TaskPauseBanner({
                 type="button"
                 className="task-status-banner-stop-btn"
                 onClick={onStopTask}
-                title="Stop task"
+                title={t("taskPause.action.stopTask", "Stop task")}
                 disabled={pendingAction !== null}
               >
-                Stop task
+                {t("taskPause.action.stopTask", "Stop task")}
               </button>
             )}
           </div>
@@ -278,14 +352,16 @@ export function TaskPauseBanner({
             aria-labelledby={detailsTitleId}
           >
             <div className="modal-header">
-              <h2 id={detailsTitleId}>Pause details</h2>
+              <h2 id={detailsTitleId}>
+                {t("taskPause.details.title", "Pause details")}
+              </h2>
               <button
                 type="button"
                 className="modal-close"
                 onClick={() => setShowDetails(false)}
-                aria-label="Close details"
+                aria-label={t("taskPause.details.close", "Close details")}
               >
-                ×
+                <X size={17} aria-hidden="true" />
               </button>
             </div>
             <div className="modal-body">

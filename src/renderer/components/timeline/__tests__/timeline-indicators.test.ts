@@ -54,7 +54,10 @@ describe("timeline indicators", () => {
 
   it("uses sub-stage groupLabel for FIX stage when present", () => {
     const indicator = resolveTimelineIndicator(
-      makeEvent("timeline_group_started", { stage: "FIX", groupLabel: "Preparing workspace" }),
+      makeEvent("timeline_group_started", {
+        stage: "FIX",
+        groupLabel: "Preparing workspace",
+      }),
     );
     expect(indicator.label).toBe("Preparing workspace");
   });
@@ -67,7 +70,9 @@ describe("timeline indicators", () => {
   });
 
   it("maps progress updates to spinning Loader2 active icon", () => {
-    const indicator = resolveTimelineIndicator(makeEvent("timeline_step_updated", { message: "Working" }));
+    const indicator = resolveTimelineIndicator(
+      makeEvent("timeline_step_updated", { message: "Working" }),
+    );
     expect(indicator.icon).toBe(Loader2);
     expect(indicator.tone).toBe("active");
     expect(indicator.spin).toBe(true);
@@ -108,7 +113,9 @@ describe("timeline indicators", () => {
   });
 
   it("maps retry starts to RotateCcw active icon", () => {
-    const indicator = resolveTimelineIndicator(makeEvent("retry_started", { attempt: 2 }));
+    const indicator = resolveTimelineIndicator(
+      makeEvent("retry_started", { attempt: 2 }),
+    );
     expect(indicator.icon).toBe(RotateCcw);
     expect(indicator.tone).toBe("active");
   });
@@ -134,18 +141,24 @@ describe("timeline indicators", () => {
   });
 
   it("falls back to Circle neutral icon for unknown event types", () => {
-    const indicator = resolveTimelineIndicator(makeEvent("log", { message: "debug" }));
+    const indicator = resolveTimelineIndicator(
+      makeEvent("log", { message: "debug" }),
+    );
     expect(indicator.icon).toBe(Circle);
     expect(indicator.tone).toBe("neutral");
   });
 
   it("shows branch stub for non-stage group ids", () => {
-    const event = makeEvent("timeline_step_started", { groupId: "tools:parallel" });
+    const event = makeEvent("timeline_step_started", {
+      groupId: "tools:parallel",
+    });
     expect(shouldShowTimelineBranchStub(event)).toBe(true);
   });
 
   it("hides branch stub for stage group ids", () => {
-    const event = makeEvent("timeline_step_started", { groupId: "stage:build" });
+    const event = makeEvent("timeline_step_started", {
+      groupId: "stage:build",
+    });
     expect(shouldShowTimelineBranchStub(event)).toBe(false);
   });
 });

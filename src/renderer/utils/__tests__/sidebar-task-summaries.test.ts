@@ -45,13 +45,18 @@ describe("sidebar task summaries", () => {
       agentConfig: { collaborativeMode: true },
     });
 
-    const [merged] = mergeSidebarTaskSummariesWithExisting([existing], [summary]);
+    const [merged] = mergeSidebarTaskSummariesWithExisting(
+      [existing],
+      [summary],
+    );
 
     expect(merged.rawPrompt).toBe("Raw prompt");
     expect(merged.userPrompt).toBe("User prompt");
     expect(merged.resultSummary).toBe("Rich result");
     expect(merged.semanticSummary).toBe("Rich semantic");
-    expect(merged.bestKnownOutcome).toMatchObject({ resultSummary: "Rich outcome" });
+    expect(merged.bestKnownOutcome).toMatchObject({
+      resultSummary: "Rich outcome",
+    });
     expect(merged.sidebarPromptPreview).toBe("Preview");
     expect(merged.agentConfig).toMatchObject({
       autonomousMode: true,
@@ -60,15 +65,27 @@ describe("sidebar task summaries", () => {
   });
 
   it("keeps the selected task when a refreshed first sidebar page omits it", () => {
-    const selected = createTask({ id: "selected", title: "Selected", rawPrompt: "Keep me" });
+    const selected = createTask({
+      id: "selected",
+      title: "Selected",
+      rawPrompt: "Keep me",
+    });
     const firstPage = [
       createTask({ id: "newer-1", title: "Newer 1" }),
       createTask({ id: "newer-2", title: "Newer 2" }),
     ];
 
-    const merged = mergeSidebarInitialPageWithSelectedTask([selected], firstPage, "selected");
+    const merged = mergeSidebarInitialPageWithSelectedTask(
+      [selected],
+      firstPage,
+      "selected",
+    );
 
-    expect(merged.map((task) => task.id)).toEqual(["newer-1", "newer-2", "selected"]);
+    expect(merged.map((task) => task.id)).toEqual([
+      "newer-1",
+      "newer-2",
+      "selected",
+    ]);
     expect(merged.at(-1)?.rawPrompt).toBe("Keep me");
   });
 
@@ -84,7 +101,9 @@ describe("sidebar task summaries", () => {
       ),
     ).toBe(true);
 
-    expect(shouldHydrateTaskSummary(createTask({ rawPrompt: "Raw prompt" }))).toBe(false);
+    expect(
+      shouldHydrateTaskSummary(createTask({ rawPrompt: "Raw prompt" })),
+    ).toBe(false);
   });
 
   it("records hydration attempts only through the success helper and prunes stale keys", () => {
@@ -96,15 +115,25 @@ describe("sidebar task summaries", () => {
       sidebarPromptPreview: "Preview",
     });
     const keys = new Set<string>([
-      getTaskHydrationAttemptKey("stale-task", createTask({ id: "stale-task" })),
+      getTaskHydrationAttemptKey(
+        "stale-task",
+        createTask({ id: "stale-task" }),
+      ),
     ]);
 
     expect(hasTaskHydrationAttempted(keys, "task-1", summary)).toBe(false);
 
-    recordTaskHydrationAttemptSuccess(keys, "task-1", summary, new Set(["task-1"]));
+    recordTaskHydrationAttemptSuccess(
+      keys,
+      "task-1",
+      summary,
+      new Set(["task-1"]),
+    );
 
     expect(hasTaskHydrationAttempted(keys, "task-1", summary)).toBe(true);
-    expect(Array.from(keys).every((key) => !key.startsWith("stale-task:"))).toBe(true);
+    expect(
+      Array.from(keys).every((key) => !key.startsWith("stale-task:")),
+    ).toBe(true);
   });
 
   it("bounds hydration attempt keys by dropping oldest entries", () => {

@@ -96,7 +96,7 @@ Execution behavior is controlled by `heartbeatProfile`, not `autonomyLevel`.
 | `operator` | Awareness plus checklist and proactive review. Can surface suggestions and run light maintenance paths. |
 | `dispatcher` | Full escalation profile. Can create heartbeat tasks, runbooks, and cron handoffs. |
 
-This also controls whether `.cowork/HEARTBEAT.md` is actionable. The file is a recurring maintenance checklist input, not general task context.
+This also controls whether `.neoworker/HEARTBEAT.md` is actionable. The file is a recurring maintenance checklist input, not general task context.
 
 ## Proactive Tasks And `HEARTBEAT.md`
 
@@ -117,7 +117,7 @@ Execution modes are:
 | `dispatch` | Requires Dispatch before visible work happens |
 | `cron_handoff` | Should be handed off to an exact-time or heavyweight scheduler/runbook |
 
-`.cowork/HEARTBEAT.md` is parsed into structured checklist items and cached by workspace revision. Pulse evaluates the cached checklist state instead of reparsing the file on every run.
+`.neoworker/HEARTBEAT.md` is parsed into structured checklist items and cached by workspace revision. Pulse evaluates the cached checklist state instead of reparsing the file on every run.
 
 ## Dispatch Guardrails
 

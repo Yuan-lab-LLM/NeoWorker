@@ -84,7 +84,10 @@ describe("task output summary utilities", () => {
     const events: TaskEvent[] = [
       makeEvent(
         "timeline_artifact_emitted",
-        { path: "/workspace/artifacts/final-report.pdf", label: "final-report.pdf" },
+        {
+          path: "/workspace/artifacts/final-report.pdf",
+          label: "final-report.pdf",
+        },
         55,
       ),
     ];
@@ -156,7 +159,9 @@ describe("task output summary utilities", () => {
   });
 
   it("formats filename-only labels and output folder context", () => {
-    expect(getFileName("artifacts/legal/negotiation-analysis")).toBe("negotiation-analysis");
+    expect(getFileName("artifacts/legal/negotiation-analysis")).toBe(
+      "negotiation-analysis",
+    );
     const nestedSummary = sanitizeTaskOutputSummary({
       created: ["artifacts/legal/negotiation-analysis.md"],
     });
@@ -169,8 +174,32 @@ describe("task output summary utilities", () => {
   });
 
   it("returns null when no output file evidence exists", () => {
-    const events: TaskEvent[] = [makeEvent("step_completed", { message: "done" }, 60)];
+    const events: TaskEvent[] = [
+      makeEvent("step_completed", { message: "done" }, 60),
+    ];
     expect(deriveTaskOutputSummaryFromEvents(events)).toBeNull();
+  });
+
+  it("uses the final destination after a generated file is moved", () => {
+    const events: TaskEvent[] = [
+      makeEvent(
+        "artifact_created",
+        { path: "/tmp/marketing-plan.pdf", mimeType: "application/pdf" },
+        60,
+      ),
+      makeEvent(
+        "file_modified",
+        {
+          from: "marketing-plan.pdf",
+          to: ".neoworker/automated-outputs/task-123/output/marketing/marketing-plan.pdf",
+        },
+        70,
+      ),
+    ];
+
+    expect(deriveTaskOutputSummaryFromEvents(events)?.created).toEqual([
+      ".neoworker/automated-outputs/task-123/output/marketing/marketing-plan.pdf",
+    ]);
   });
 
   it("sanitizes payload summaries and enforces fallback defaults", () => {
@@ -197,7 +226,10 @@ describe("task output summary utilities", () => {
       },
       70,
     );
-    const fromPayload = resolveTaskOutputSummaryFromCompletionEvent(completionWithPayload, []);
+    const fromPayload = resolveTaskOutputSummaryFromCompletionEvent(
+      completionWithPayload,
+      [],
+    );
     expect(fromPayload?.primaryOutputPath).toBe("artifacts/final.md");
 
     const completionWithoutPayload = makeEvent("task_completed", {}, 80);
@@ -233,6 +265,35 @@ describe("task output summary utilities", () => {
     expect(summary?.primaryOutputPath).toBe("artifacts/preserved.md");
   });
 
+  it("does not revive a phantom artifact when completion explicitly verified no output", () => {
+    const completionWithEmptySummary = makeEvent(
+      "task_completed",
+      {
+        outputSummary: {
+          created: [],
+          outputCount: 0,
+          folders: [],
+        },
+      },
+      90,
+    );
+    const fallbackEvents = [
+      makeEvent(
+        "file_created",
+        { path: "SESSION_CHECKLIST_usecase-draft-reply.pdf" },
+        75,
+      ),
+      completionWithEmptySummary,
+    ];
+
+    expect(
+      resolveTaskOutputSummaryFromCompletionEvent(
+        completionWithEmptySummary,
+        fallbackEvents,
+      ),
+    ).toBeNull();
+  });
+
   it("filters directory paths out of completion payload summaries", () => {
     const completionWithDirectories = makeEvent(
       "task_completed",
@@ -246,17 +307,50 @@ describe("task output summary utilities", () => {
       100,
     );
 
-    const summary = resolveTaskOutputSummaryFromCompletionEvent(completionWithDirectories, [
-      makeEvent("file_created", { path: "notes", type: "directory" }, 10),
-      makeEvent("file_created", { path: "raw", type: "directory" }, 20),
-      makeEvent("file_created", { path: "LLM Wiki", type: "directory" }, 30),
+    const summary = resolveTaskOutputSummaryFromCompletionEvent(
       completionWithDirectories,
-    ]);
+      [
+        makeEvent("file_created", { path: "notes", type: "directory" }, 10),
+        makeEvent("file_created", { path: "raw", type: "directory" }, 20),
+        makeEvent("file_created", { path: "LLM Wiki", type: "directory" }, 30),
+        completionWithDirectories,
+      ],
+    );
 
     expect(summary).not.toBeNull();
     expect(summary?.created).toEqual(["LLM Wiki/overview.md"]);
     expect(summary?.primaryOutputPath).toBe("LLM Wiki/overview.md");
     expect(summary?.outputCount).toBe(1);
     expect(summary?.folders).toEqual(["LLM Wiki"]);
+  });
+
+  it("filters presentation workflow internals from output summaries", () => {
+    const summary = deriveTaskOutputSummaryFromEvents([
+      makeEvent(
+        "file_created",
+        {
+          path: "artifacts/skills/task-1/presentation-studio/presentation-studio/theme.json",
+        },
+        10,
+      ),
+      makeEvent(
+        "file_created",
+        {
+          path: "artifacts/skills/task-1/presentation-studio/presentation-studio/slides/slide-01.mjs",
+        },
+        20,
+      ),
+      makeEvent(
+        "file_created",
+        {
+          path: "artifacts/skills/task-1/presentation-studio/presentation-studio/output/presentation.pptx",
+        },
+        30,
+      ),
+    ]);
+
+    expect(summary?.created).toEqual([
+      "artifacts/skills/task-1/presentation-studio/presentation-studio/output/presentation.pptx",
+    ]);
   });
 });

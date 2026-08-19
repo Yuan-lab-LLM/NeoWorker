@@ -1,6 +1,6 @@
 # Chat Mode
 
-Chat mode is the direct conversational path in CoWork OS.
+Chat mode is the direct conversational path in NeoWorker.
 
 It is intentionally different from task execution modes:
 
@@ -10,7 +10,7 @@ It is intentionally different from task execution modes:
 - **Same-session follow-ups** stay in the current conversation
 - **Explicit only**: chat mode is used only when `executionMode` is set to `"chat"`
 
-There is one narrow exception: if a chat turn includes uploaded PDF attachment metadata and the user asks for content that goes beyond the compact excerpt, CoWork promotes that turn to read-only analysis mode so the document parser can read the attached PDF. This does not enable mutating tools.
+There is one narrow exception: if a chat turn includes uploaded PDF attachment metadata and the user asks for content that goes beyond the compact excerpt, NeoWorker promotes that turn to read-only analysis mode so the document parser can read the attached PDF. This does not enable mutating tools.
 
 Side Chat also uses chat execution mode internally, but it is a separate right-side session type with a parent-task boundary. See [Side Chat](side-chat.md).
 
@@ -37,9 +37,9 @@ Use chat mode when you want a normal assistant conversation:
 - keep the same context
 - get a direct answer without task planning or tool use
 
-If you want CoWork OS to execute work, create artifacts, or use tools, use one of the task modes instead.
+If you want NeoWorker to execute work, create artifacts, or use tools, use one of the task modes instead.
 
-If you attach a PDF and ask CoWork to summarize it, answer questions from it, extract clauses, compare sections, or transform it into another format, CoWork may leave direct chat for that turn and use read-only analysis so it can inspect the full document safely.
+If you attach a PDF and ask NeoWorker to summarize it, answer questions from it, extract clauses, compare sections, or transform it into another format, NeoWorker may leave direct chat for that turn and use read-only analysis so it can inspect the full document safely.
 
 ## Side Chat Relationship
 

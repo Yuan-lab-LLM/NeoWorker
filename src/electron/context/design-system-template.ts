@@ -2,7 +2,7 @@ export function buildDefaultDesignSystemMarkdown(): string {
   return [
     "---",
     "name: Workspace Design System",
-    "description: Shared visual source of truth for CoWork OS frontend work in this workspace.",
+    "description: Shared visual source of truth for NeoWorker frontend work in this workspace.",
     "colors:",
     "  background: \"#0f1115\"",
     "  surface: \"#171a21\"",

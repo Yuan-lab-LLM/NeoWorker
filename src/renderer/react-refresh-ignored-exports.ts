@@ -45,7 +45,9 @@ window.__getReactRefreshIgnoredExports = (context) => {
   if (!normalizedId.endsWith("/components/MainContent.tsx")) {
     return previous;
   }
-  return Array.from(new Set([...previous, ...MAIN_CONTENT_REFRESH_IGNORED_EXPORTS]));
+  return Array.from(
+    new Set([...previous, ...MAIN_CONTENT_REFRESH_IGNORED_EXPORTS]),
+  );
 };
 
 export {};

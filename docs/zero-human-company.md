@@ -1,6 +1,6 @@
 # Zero-Human Company Operations
 
-CoWork OS can be configured as a founder-operated autonomous company shell: a small team of persistent AI operators that continuously review goals, generate work, execute tasks, and surface outcomes through Mission Control.
+NeoWorker can be configured as a founder-operated autonomous company shell: a small team of persistent AI operators that continuously review goals, generate work, execute tasks, and surface outcomes through Mission Control.
 
 This is not a claim that the product removes human judgment from all business operations. The design target is "human-directed, agent-operated" execution:
 
@@ -8,18 +8,14 @@ This is not a claim that the product removes human judgment from all business op
 - agents turn strategy into ongoing operational work
 - Mission Control provides visibility into planning, execution, and review
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-2.webp" alt="Company operations dashboard" width="700">
-  <br><em>Company workspaces track goals, operator agents, and autonomous operating loops.</em>
-</p>
 
 ---
 
 ## What This Feature Is
 
-The zero-human-company workflow is a composition of existing CoWork OS subsystems:
+The zero-human-company workflow is a composition of existing NeoWorker subsystems:
 
-- `Workspace Kit` provides durable company context in `.cowork/`
+- `Workspace Kit` provides durable company context in `.neoworker/`
 - `Settings > Companies` provides the control surface for creating companies, editing the company graph, and linking operators
 - `Digital Twins` provide optional persistent operator personas
 - `Automation Profiles` attach always-on ownership to the selected operator roles
@@ -37,7 +33,7 @@ Together, these create an operating loop where company goals become planner-mana
 
 ### 1. Company Context Layer
 
-The `venture_operator` workspace kit preset seeds structured company memory into `.cowork/`:
+The `venture_operator` workspace kit preset seeds structured company memory into `.neoworker/`:
 
 - `COMPANY.md`
 - `OPERATIONS.md`
@@ -82,7 +78,7 @@ It periodically examines company goals, projects, and open issues, then:
 
 ### 4. Execution Layer
 
-Planner-created work does not use a special runtime. It flows through the same task runtime as the rest of CoWork OS:
+Planner-created work does not use a special runtime. It flows through the same task runtime as the rest of NeoWorker:
 
 - planning
 - execution
@@ -119,7 +115,7 @@ Mission Control exposes the operating loop through:
 
 Digital twins are the main way to instantiate company operators as persona presets. The ZHC workflow uses the same activation flow as any other twin, but swaps in venture/operator personas and company-aware prompts.
 
-When a twin is created from company context, CoWork OS now persists the company assignment on the resulting `AgentRole`. That lets the product consistently show:
+When a twin is created from company context, NeoWorker now persists the company assignment on the resulting `AgentRole`. That lets the product consistently show:
 
 - which operators belong to which company
 - company-scoped operator sections in `Settings > Digital Twins`
@@ -142,7 +138,7 @@ In practice, `Settings > Companies` is now the first screen to open for company 
 
 ### Workspace Kit
 
-The ZHC setup depends heavily on `.cowork/` files. The workspace kit is the durable strategy and operating-memory layer for the company.
+The ZHC setup depends heavily on `.neoworker/` files. The workspace kit is the durable strategy and operating-memory layer for the company.
 
 ### Heartbeat Maintenance
 
@@ -233,7 +229,7 @@ flowchart LR
 
 Operational sequence:
 
-1. You define company context in `.cowork/`.
+1. You define company context in `.neoworker/`.
 2. You create or select the company shell in `Settings > Companies`.
 3. You activate operator agents from venture-oriented persona templates.
 4. Those twins are persisted with company assignment.
@@ -365,7 +361,7 @@ Use this when you want the smallest setup that still demonstrates the full loop.
 1. Create or select a real git-backed workspace.
 2. Go to `Settings` -> `Memory Hub`.
 3. Initialize `Venture operator kit`.
-4. Fill in `.cowork/COMPANY.md`, `.cowork/OPERATIONS.md`, `.cowork/KPIS.md`, `.cowork/PRIORITIES.md`, and `.cowork/HEARTBEAT.md`.
+4. Fill in `.neoworker/COMPANY.md`, `.neoworker/OPERATIONS.md`, `.neoworker/KPIS.md`, `.neoworker/PRIORITIES.md`, and `.neoworker/HEARTBEAT.md`.
 5. Go to `Settings` -> `Companies`.
 6. Create or select the company you want to operate.
 7. Add the first goals and projects if you already know them.
@@ -395,7 +391,7 @@ Expected result:
 
 Optional next step:
 
-- add a dedicated remote execution machine in **Devices** if you want company tasks to run away from the primary desktop while still being monitored from the same CoWork instance
+- add a dedicated remote execution machine in **Devices** if you want company tasks to run away from the primary desktop while still being monitored from the same NeoWorker instance
 
 ### Recommended Team Recipe
 
@@ -542,7 +538,7 @@ Use `Customer Ops Lead` to:
 
 For solo operators, this is the most natural use:
 
-- strategy lives in `.cowork/`
+- strategy lives in `.neoworker/`
 - operators continuously generate and route work
 - Mission Control becomes the founder dashboard
 

@@ -32,7 +32,7 @@ Use commands in busy groups so normal conversation does not become task input.
 ## Best Practices
 
 - Use a dedicated app for the tenant or business unit.
-- Keep bot access scoped to the spaces where CoWork should operate.
+- Keep bot access scoped to the spaces where NeoWorker should operate.
 - Use command-first workflows in busy groups.
 - Keep sensitive approvals in direct chats.
 - Use scheduled summaries for recurring operational reporting.

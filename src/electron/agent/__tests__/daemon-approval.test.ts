@@ -487,6 +487,112 @@ describe("AgentDaemon.requestApproval auto-approve controls", () => {
     expect(daemonLike.pendingApprovals.size).toBe(1);
   });
 
+  it("auto-approves trusted workspace visual reads from a private WeChat task", async () => {
+    const approvalRepo = {
+      create: vi.fn().mockReturnValue({ id: "approval-weixin-visual" }),
+      update: vi.fn(),
+    };
+    const runtime = {
+      recordPermissionSuccess: vi.fn(),
+      hasActiveTemporaryPermissionGrant: vi.fn().mockReturnValue(false),
+    };
+    const evaluatePermissionRequest = vi.fn().mockReturnValue({
+      evaluation: {
+        decision: "ask",
+        reason: { type: "mode", mode: "default", summary: "Prompt for export." },
+      },
+      promptDetails: {
+        reason: { type: "mode", mode: "default", summary: "Prompt for export." },
+        scopePreview: "tool read_pdf_visual",
+        suggestedActions: [],
+        securityContext: {
+          directSource: {
+            path: "report.pdf",
+            sourceKind: "workspace_native",
+            trustLevel: "trusted",
+          },
+          recentUntrustedContentRead: false,
+        },
+      },
+      scope: { kind: "tool", toolName: "read_pdf_visual" },
+      trackingKey: "tool:read_pdf_visual",
+      runtime,
+      workspace: undefined,
+    });
+
+    const daemonLike = {
+      sessionAutoApproveAll: false,
+      approvalRepo,
+      logEvent: vi.fn(),
+      updateTask: vi.fn(),
+      evaluatePermissionRequest,
+      canSessionAutoApproveType: AgentDaemon.prototype["canSessionAutoApproveType"],
+      canAutoReviewApprove: AgentDaemon.prototype["canAutoReviewApprove"],
+      isAutoReviewSafeCommand: AgentDaemon.prototype["isAutoReviewSafeCommand"],
+      taskRepo: {
+        findById: vi.fn().mockReturnValue({
+          agentConfig: {
+            originChannel: "weixin",
+            gatewayContext: "private",
+          },
+        }),
+      },
+      pendingApprovals: new Map(),
+    } as Any;
+
+    const approved = await AgentDaemon.prototype.requestApproval.call(
+      daemonLike,
+      "task-weixin-visual",
+      "data_export",
+      "Approve visual analysis",
+      { tool: "read_pdf_visual", params: { path: "report.pdf" } },
+    );
+
+    expect(approved).toBe(true);
+    expect(approvalRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "approved",
+        type: "data_export",
+      }),
+    );
+    expect(runtime.recordPermissionSuccess).toHaveBeenCalledWith("tool:read_pdf_visual");
+    expect(daemonLike.pendingApprovals.size).toBe(0);
+  });
+
+  it("keeps approval for untrusted WeChat attachments used by visual tools", () => {
+    const daemonLike = {
+      taskRepo: {
+        findById: vi.fn().mockReturnValue({
+          agentConfig: {
+            originChannel: "weixin",
+            gatewayContext: "private",
+          },
+        }),
+      },
+    } as Any;
+
+    const result = AgentDaemon.prototype["canAutoReviewApprove"].call(
+      daemonLike,
+      "task-weixin-attachment",
+      "data_export",
+      {
+        tool: "analyze_image",
+        permissionPrompt: {
+          securityContext: {
+            directSource: {
+              path: ".neoworker/inbox/attachments/weixin/photo.png",
+              sourceKind: "channel_attachment",
+              trustLevel: "untrusted",
+            },
+            recentUntrustedContentRead: true,
+          },
+        },
+      },
+    );
+
+    expect(result).toEqual({ approved: false });
+  });
+
   it("does not session auto-approve computer_use even when session auto-approve is enabled", async () => {
     vi.useFakeTimers();
 
@@ -690,7 +796,7 @@ describe("AgentDaemon.requestApproval auto-approve controls", () => {
       "appendWorkspacePermissionManifestRule",
     ).mockReturnValue({
       success: true,
-      manifestPath: "/tmp/workspace-4/.cowork/policy/permissions.json",
+      manifestPath: "/tmp/workspace-4/.neoworker/policy/permissions.json",
     });
 
     const result = await AgentDaemon.prototype.respondToApproval.call(
@@ -713,6 +819,185 @@ describe("AgentDaemon.requestApproval auto-approve controls", () => {
     expect(daemonLike.approvalRepo.update).toHaveBeenCalledWith("approval-4", "approved");
 
     manifestSpy.mockRestore();
+  });
+
+  it("recovers a persisted approval when the in-memory waiter was lost", async () => {
+    const approval = {
+      id: "approval-recovered-after-restart",
+      taskId: "task-recovered-after-restart",
+      type: "run_command",
+      description: "Approve command",
+      details: {
+        approvalMode: "single_bundle",
+        permissionPrompt: {
+          scope: { kind: "tool", toolName: "run_command" },
+          scopePreview: "tool run_command",
+          reason: { type: "mode", mode: "default", summary: "Approval required." },
+          suggestedActions: [],
+        },
+      },
+      status: "pending",
+      requestedAt: Date.now(),
+    };
+    const task = {
+      id: approval.taskId,
+      status: "blocked",
+      terminalStatus: "awaiting_approval",
+    };
+    const updateTask = vi.fn();
+    const resumeInterruptedTask = vi.fn().mockResolvedValue(undefined);
+    const daemonLike = {
+      pendingApprovals: new Map(),
+      recoveredApprovalGrants: new Map(),
+      activeTasks: new Map(),
+      approvalRepo: {
+        findById: vi.fn().mockReturnValue(approval),
+        findPendingByTaskId: vi.fn().mockReturnValue([]),
+        update: vi.fn(),
+      },
+      taskRepo: {
+        findById: vi.fn().mockReturnValue(task),
+      },
+      updateTask,
+      logEvent: vi.fn(),
+      persistApprovalActionRule: vi.fn().mockReturnValue({ effect: "allow" }),
+      resumeInterruptedTask,
+      rememberRecoveredApprovalGrant:
+        AgentDaemon.prototype["rememberRecoveredApprovalGrant"],
+      recoverPersistedApproval: AgentDaemon.prototype["recoverPersistedApproval"],
+    } as Any;
+
+    const result = await AgentDaemon.prototype.respondToApproval.call(
+      daemonLike,
+      approval.id,
+      true,
+      "allow_once",
+    );
+
+    expect(result).toBe("handled");
+    expect(daemonLike.approvalRepo.update).toHaveBeenCalledWith(approval.id, "approved");
+    expect(updateTask).toHaveBeenCalledWith(
+      task.id,
+      expect.objectContaining({
+        status: "interrupted",
+        terminalStatus: undefined,
+      }),
+    );
+    expect(daemonLike.recoveredApprovalGrants.get(task.id)).toEqual([
+      {
+        approval,
+        action: "allow_once",
+      },
+    ]);
+    expect(resumeInterruptedTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: task.id,
+        status: "interrupted",
+      }),
+    );
+  });
+
+  it("returns the cached not-found result instead of masking it as a duplicate", async () => {
+    const findById = vi.fn().mockReturnValue(null);
+    const daemonLike = {
+      pendingApprovals: new Map(),
+      approvalRepo: { findById },
+      recoverPersistedApproval: AgentDaemon.prototype["recoverPersistedApproval"],
+    } as Any;
+
+    const first = await AgentDaemon.prototype.respondToApproval.call(
+      daemonLike,
+      "approval-missing-cache-contract",
+      true,
+      "allow_once",
+    );
+    const second = await AgentDaemon.prototype.respondToApproval.call(
+      daemonLike,
+      "approval-missing-cache-contract",
+      true,
+      "allow_once",
+    );
+
+    expect(first).toBe("not_found");
+    expect(second).toBe("not_found");
+    expect(findById).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a recovered task blocked until every persisted approval is resolved", async () => {
+    const approval = {
+      id: "approval-recovered-with-another-pending",
+      taskId: "task-recovered-with-another-pending",
+      type: "run_command",
+      description: "Approve command",
+      details: {
+        permissionPrompt: {
+          scope: { kind: "tool", toolName: "run_command" },
+          scopePreview: "tool run_command",
+          reason: { type: "mode", mode: "default", summary: "Approval required." },
+          suggestedActions: [],
+        },
+      },
+      status: "pending",
+      requestedAt: Date.now(),
+    };
+    const task = {
+      id: approval.taskId,
+      status: "blocked",
+      terminalStatus: "awaiting_approval",
+    };
+    const updateTask = vi.fn();
+    const logEvent = vi.fn();
+    const resumeInterruptedTask = vi.fn().mockResolvedValue(undefined);
+    const daemonLike = {
+      pendingApprovals: new Map(),
+      recoveredApprovalGrants: new Map(),
+      activeTasks: new Map(),
+      approvalRepo: {
+        findById: vi.fn().mockReturnValue(approval),
+        findPendingByTaskId: vi.fn().mockReturnValue([
+          {
+            ...approval,
+            id: "approval-still-pending",
+          },
+        ]),
+        update: vi.fn(),
+      },
+      taskRepo: {
+        findById: vi.fn().mockReturnValue(task),
+      },
+      updateTask,
+      logEvent,
+      persistApprovalActionRule: vi.fn().mockReturnValue({ effect: "allow" }),
+      resumeInterruptedTask,
+      rememberRecoveredApprovalGrant:
+        AgentDaemon.prototype["rememberRecoveredApprovalGrant"],
+      recoverPersistedApproval: AgentDaemon.prototype["recoverPersistedApproval"],
+    } as Any;
+
+    const result = await AgentDaemon.prototype.respondToApproval.call(
+      daemonLike,
+      approval.id,
+      true,
+      "allow_once",
+    );
+
+    expect(result).toBe("handled");
+    expect(updateTask).toHaveBeenCalledWith(
+      task.id,
+      expect.objectContaining({
+        status: "blocked",
+        terminalStatus: "awaiting_approval",
+      }),
+    );
+    expect(logEvent).toHaveBeenCalledWith(
+      task.id,
+      "task_status",
+      expect.objectContaining({
+        status: "blocked",
+        pendingApprovalCount: 1,
+      }),
+    );
+    expect(resumeInterruptedTask).not.toHaveBeenCalled();
   });
 });
 

@@ -36,6 +36,184 @@ afterEach(() => {
 });
 
 describe("LLMProviderFactory custom provider config resolution", () => {
+  it("uses the configured display name for an OpenAI-compatible provider", () => {
+    const modelStatus = LLMProviderFactory.getProviderModelStatus({
+      providerType: "openai-compatible",
+      modelKey: "intelligence",
+      openaiCompatible: {
+        displayName: "Intelligence",
+        model: "intelligence",
+      },
+    });
+
+    expect(modelStatus.models).toContainEqual(expect.objectContaining({
+      key: "intelligence",
+      displayName: "intelligence",
+      description: "Intelligence model",
+    }));
+  });
+
+  it("uses the saved model name for legacy OpenAI-compatible configurations", () => {
+    const modelStatus = LLMProviderFactory.getProviderModelStatus({
+      providerType: "openai-compatible",
+      modelKey: "intelligence",
+      openaiCompatible: { model: "intelligence" },
+    });
+
+    expect(modelStatus.models).toContainEqual(expect.objectContaining({
+      key: "intelligence",
+      description: "intelligence model",
+    }));
+  });
+
+  it("updates generic cached OpenAI-compatible labels to the saved provider name", () => {
+    const modelStatus = LLMProviderFactory.getProviderModelStatus({
+      providerType: "openai-compatible",
+      modelKey: "intelligence",
+      openaiCompatible: {
+        displayName: "积算平台",
+        model: "intelligence",
+      },
+      cachedOpenAICompatibleModels: [
+        {
+          key: "intelligence",
+          displayName: "intelligence",
+          description: "OpenAI-Compatible model",
+        },
+      ],
+    });
+
+    expect(modelStatus.models).toContainEqual(expect.objectContaining({
+      key: "intelligence",
+      description: "积算平台 model",
+    }));
+  });
+
+  it("only exposes providers that have a configured model in the chat picker", () => {
+    vi.spyOn(LLMProviderFactory, "loadSettings").mockReturnValue({
+      providerType: "deepseek",
+      modelKey: "deepseek-v4-flash",
+      deepseek: {
+        apiKey: "deepseek-key",
+        model: "deepseek-v4-flash",
+      },
+      openaiCompatible: {
+        displayName: "积算平台",
+        baseUrl: "https://api.example.com/v1",
+        model: "intelligence",
+      },
+      bedrock: {
+        region: "us-east-1",
+        useDefaultCredentials: true,
+      },
+      ollama: { baseUrl: "http://localhost:11434" },
+      providerModelRegistry: {
+        deepseek: { models: ["deepseek-v4-flash"] },
+        "openai-compatible": { models: ["intelligence"] },
+      },
+    } as never);
+
+    const configured = LLMProviderFactory.getAvailableProviders().filter(
+      (provider) => provider.configured,
+    );
+
+    expect(configured.map((provider) => provider.type)).toEqual([
+      "deepseek",
+      "openai-compatible",
+    ]);
+    expect(configured.find((provider) => provider.type === "openai-compatible"))
+      .toMatchObject({ name: "积算平台" });
+  });
+
+  it("does not expose Claude from a legacy global default and a stray credential", () => {
+    vi.spyOn(LLMProviderFactory, "loadSettings").mockReturnValue({
+      providerType: "deepseek",
+      modelKey: "deepseek-v4-flash",
+      deepseek: {
+        apiKey: "deepseek-key",
+        model: "deepseek-v4-flash",
+      },
+      anthropic: {
+        apiKey: "legacy-anthropic-key",
+        authMethod: "api_key",
+      },
+      cachedAnthropicModels: [
+        {
+          key: "opus-4-6",
+          displayName: "Opus 4.6",
+          description: "Previously discovered Claude model",
+        },
+      ],
+      providerModelRegistry: {
+        deepseek: { models: ["deepseek-v4-flash"] },
+      },
+    } as never);
+
+    const providers = LLMProviderFactory.getAvailableProviders();
+
+    expect(
+      providers.find((provider) => provider.type === "anthropic")?.configured,
+    ).toBe(false);
+    expect(
+      providers.find((provider) => provider.type === "deepseek")?.configured,
+    ).toBe(true);
+  });
+
+  it("exposes Claude after the user explicitly enables a Claude model", () => {
+    vi.spyOn(LLMProviderFactory, "loadSettings").mockReturnValue({
+      providerType: "deepseek",
+      modelKey: "deepseek-v4-flash",
+      deepseek: {
+        apiKey: "deepseek-key",
+        model: "deepseek-v4-flash",
+      },
+      anthropic: {
+        apiKey: "anthropic-key",
+        authMethod: "api_key",
+      },
+      providerModelRegistry: {
+        deepseek: { models: ["deepseek-v4-flash"] },
+        anthropic: {
+          models: ["sonnet-4-6"],
+          enabled: { "sonnet-4-6": true },
+        },
+      },
+    } as never);
+
+    expect(
+      LLMProviderFactory.getAvailableProviders().find(
+        (provider) => provider.type === "anthropic",
+      )?.configured,
+    ).toBe(true);
+  });
+
+  it("keeps a valid legacy Kimi model visible beside a newer provider registry", () => {
+    vi.spyOn(LLMProviderFactory, "loadSettings").mockReturnValue({
+      providerType: "deepseek",
+      modelKey: "deepseek-v4-flash",
+      deepseek: {
+        apiKey: "deepseek-key",
+        model: "deepseek-v4-flash",
+      },
+      kimi: {
+        apiKey: "kimi-key",
+        model: "kimi-k3",
+      },
+      providerModelRegistry: {
+        deepseek: { models: ["deepseek-v4-flash"] },
+      },
+    } as never);
+
+    const configured = LLMProviderFactory.getAvailableProviders().filter(
+      (provider) => provider.configured,
+    );
+
+    expect(configured.map((provider) => provider.type)).toEqual([
+      "deepseek",
+      "kimi",
+    ]);
+  });
+
   it("logs when falling back from resolved alias to providerType config", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const customProviders: Record<string, CustomProviderConfig> = {

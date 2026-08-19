@@ -1,8 +1,8 @@
 /**
  * Extension System Types
  *
- * Defines the plugin manifest schema and interfaces for the CoWork extension system.
- * Extensions are loaded from cowork.plugin.json files and can provide:
+ * Defines the plugin manifest schema and interfaces for the NeoWorker extension system.
+ * Extensions are loaded from neoworker.plugin.json files and can provide:
  * - Channel adapters (messaging platforms)
  * - Tools (agent capabilities)
  * - Providers (LLM, search, etc.)
@@ -12,7 +12,7 @@ import { ChannelAdapter, ChannelConfig } from "../gateway/channels/types";
 import type { CapabilitySecurityReport } from "../../shared/types";
 
 /**
- * Plugin manifest schema (cowork.plugin.json)
+ * Plugin manifest schema (neoworker.plugin.json)
  */
 export interface PluginManifest {
   /** Unique plugin identifier (e.g., "signal", "matrix") */
@@ -36,8 +36,8 @@ export interface PluginManifest {
   /** Plugin homepage/repository URL */
   homepage?: string;
 
-  /** Minimum CoWork version required */
-  coworkVersion?: string;
+  /** Minimum NeoWorker version required */
+  neoworkerVersion?: string;
 
   /** Plugin type */
   type: PluginType;
@@ -133,7 +133,7 @@ export interface AgentRoleDefinition {
  * The path is relative to the plugin directory and must contain SKILL.md.
  */
 export interface SkillDirectoryDefinition {
-  /** Skill ID exposed to the CoWork skill loader */
+  /** Skill ID exposed to the NeoWorker skill loader */
   id: string;
   /** Relative directory containing SKILL.md */
   path: string;
@@ -262,7 +262,7 @@ export interface PluginCapabilities {
  * Plugin API provided to plugins during registration
  */
 export interface PluginAPI {
-  /** CoWork runtime environment */
+  /** NeoWorker runtime environment */
   runtime: PluginRuntime;
 
   /** Register a channel adapter */
@@ -297,7 +297,7 @@ export interface PluginAPI {
  * Plugin runtime environment
  */
 export interface PluginRuntime {
-  /** CoWork version */
+  /** NeoWorker version */
   version: string;
 
   /** Platform (darwin, linux, win32) */

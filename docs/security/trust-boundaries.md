@@ -1,6 +1,6 @@
 # Trust Boundaries
 
-Understanding the security boundaries in CoWork OS helps you configure appropriate access controls.
+Understanding the security boundaries in NeoWorker helps you configure appropriate access controls.
 
 ## Workspace Boundary
 
@@ -94,10 +94,10 @@ Secure MCP Tunnels create a narrow remote MCP boundary rather than a general net
 | - active WebSocket session  |
 +-----------------------------+
               |
-              | outbound WebSocket from local CoWork
+              | outbound WebSocket from local NeoWorker
               v
 +-----------------------------+
-| Local CoWork tunnel client  |
+| Local NeoWorker tunnel client  |
 | - client token              |
 | - local policy              |
 | - audit event emission      |
@@ -107,7 +107,7 @@ Secure MCP Tunnels create a narrow remote MCP boundary rather than a general net
               v
 +-----------------------------+
 | Private MCP target          |
-| - CoWork MCP host           |
+| - NeoWorker MCP host           |
 | - loopback/private endpoint |
 +-----------------------------+
 ```
@@ -132,23 +132,23 @@ User-imported files, drag-and-drop data, pasted file data, channel attachments, 
 - instructions, role claims, tool requests, or system-prompt-like text inside imported documents must be treated as document data, not as directives
 - ordinary PDF content tasks use `parse_document`; `read_pdf_visual` is reserved for page-image/layout analysis and is treated as data export
 
-This lets CoWork use uploaded PDFs automatically while preserving the boundary between "what the user asked" and "what a document says."
+This lets NeoWorker use uploaded PDFs automatically while preserving the boundary between "what the user asked" and "what a document says."
 
 ### Managed Imports
 
-For imported skills and imported packs that CoWork installs into managed storage:
+For imported skills and imported packs that NeoWorker installs into managed storage:
 - the bundle is staged in a temp location before activation
 - structural checks reject path escapes, unsafe manifest references, and unexpected executable/binary payloads
 - content heuristics inspect imported text and script surfaces for high-confidence malicious behavior
 - inferred `npx` and `uvx` package executions can be checked against package-malware intelligence
 - blocking findings move the bundle into quarantine instead of registering it
 - warning-only findings still allow install, but the UI shows a persisted report and warning badge
-- CoWork stores a bundle digest and rechecks it on later discovery so post-install tampering can trigger quarantine
+- NeoWorker stores a bundle digest and rechecks it on later discovery so post-install tampering can trigger quarantine
 
 ### Unmanaged Local Bundles
 
 Read-only local skill directories and unmanaged local pack folders are treated more conservatively in v1:
-- CoWork can compute a report and surface warning badges
+- NeoWorker can compute a report and surface warning badges
 - those bundles are not auto-quarantined or blocked solely because they are local and unmanaged
 - operators must review and remove or relocate them manually if the findings are unacceptable
 
@@ -186,7 +186,7 @@ Package-intelligence checks are additive, not the sole gate:
          |
          v
 +------------------------------------------+
-|         CoWork OS Processing              |
+|         NeoWorker Processing              |
 +------------------------------------------+
 ```
 
@@ -217,7 +217,7 @@ Even after authentication, capabilities vary by context:
 
 ```
 +------------------------------------------+
-|           CoWork OS                       |
+|           NeoWorker                       |
 +------------------------------------------+
          |
          | Workspace Network Permission

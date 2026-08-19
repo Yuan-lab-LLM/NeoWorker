@@ -31,7 +31,7 @@ function printHelp() {
       "- step_state_mismatch_rate = 0",
       "",
       "Env overrides:",
-      "- COWORK_DB_PATH",
+      "- NEOWORKER_DB_PATH",
       "- TIMELINE_DROP_RATE_MAX (default: 0.001)",
       "- TIMELINE_ORDER_VIOLATION_RATE_MAX (default: 0)",
       "- TIMELINE_STEP_STATE_MISMATCH_RATE_MAX (default: 0)",
@@ -67,9 +67,9 @@ if (args.help) {
   process.exit(0);
 }
 
-const resolvedDbPathRaw = args.db || process.env.COWORK_DB_PATH || "";
+const resolvedDbPathRaw = args.db || process.env.NEOWORKER_DB_PATH || "";
 if (!resolvedDbPathRaw) {
-  fail("missing DB path; pass --db or set COWORK_DB_PATH");
+  fail("missing DB path; pass --db or set NEOWORKER_DB_PATH");
 }
 const resolvedDbPath = path.resolve(resolvedDbPathRaw);
 if (!fs.existsSync(resolvedDbPath)) {
@@ -108,13 +108,13 @@ ORDER BY COALESCE(seq, timestamp) ASC, timestamp ASC;
 const result = runSqlite(resolvedDbPath, query);
 if (result.status !== 0) {
   const sqliteError = String(result.stderr || result.stdout || "").trim();
-  if (isTruthyEnv(process.env.COWORK_EVAL_ALLOW_EMPTY) && /no such table:\s*task_events/i.test(sqliteError)) {
+  if (isTruthyEnv(process.env.NEOWORKER_EVAL_ALLOW_EMPTY) && /no such table:\s*task_events/i.test(sqliteError)) {
     process.stdout.write(
       [
         "timeline-reliability-gate: summary",
         "- completions_checked: 0",
         "- completions_enforced: 0",
-        "- note: empty eval database has no task_events table; allowed by COWORK_EVAL_ALLOW_EMPTY",
+        "- note: empty eval database has no task_events table; allowed by NEOWORKER_EVAL_ALLOW_EMPTY",
         "timeline-reliability-gate: PASS",
       ].join("\n") + "\n",
     );
@@ -129,13 +129,13 @@ const lines = (result.stdout || "")
   .filter(Boolean);
 
 if (lines.length === 0) {
-  if (isTruthyEnv(process.env.COWORK_EVAL_ALLOW_EMPTY)) {
+  if (isTruthyEnv(process.env.NEOWORKER_EVAL_ALLOW_EMPTY)) {
     process.stdout.write(
       [
         "timeline-reliability-gate: summary",
         "- completions_checked: 0",
         "- completions_enforced: 0",
-        "- note: empty eval database allowed by COWORK_EVAL_ALLOW_EMPTY",
+        "- note: empty eval database allowed by NEOWORKER_EVAL_ALLOW_EMPTY",
         "timeline-reliability-gate: PASS",
       ].join("\n") + "\n",
     );

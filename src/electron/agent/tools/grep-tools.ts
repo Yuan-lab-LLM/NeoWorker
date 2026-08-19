@@ -371,7 +371,7 @@ export class GrepTools {
     // Limit recursion depth
     if (depth > 50) return;
 
-    // Enforce per-project access for `.cowork/projects/*`
+    // Enforce per-project access for `.neoworker/projects/*`
     if (await this.isDeniedByProjectAccess(currentPath, agentRoleId, projectAccessCache)) {
       return;
     }
@@ -393,7 +393,7 @@ export class GrepTools {
       "venv",
       ".venv",
       "release",
-      ".cowork",
+      ".neoworker",
       "out",
       ".cache",
       ".parcel-cache",

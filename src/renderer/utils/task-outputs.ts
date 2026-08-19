@@ -1,6 +1,7 @@
 import { Task, TaskEvent, TaskOutputSummary } from "../../shared/types";
 import { getEffectiveTaskEventType } from "./task-event-compat";
 import { extractAssistantMediaDirectives } from "./assistant-media-directives";
+import { isUserVisibleTaskArtifactPath } from "./task-artifact-visibility";
 
 function normalizePath(raw: string): string {
   return raw.trim().replace(/\\/g, "/");
@@ -16,7 +17,12 @@ function toUniqueNormalizedPaths(values: unknown[]): string[] {
   for (const value of values) {
     if (!isNonEmptyString(value)) continue;
     const normalized = normalizePath(value);
-    if (!normalized || seen.has(normalized)) continue;
+    if (
+      !normalized ||
+      !isUserVisibleTaskArtifactPath(normalized) ||
+      seen.has(normalized)
+    )
+      continue;
     seen.add(normalized);
     out.push(normalized);
   }
@@ -48,6 +54,35 @@ function mapToSortedPaths(map: Map<string, number>): string[] {
     .map(([filePath]) => filePath);
 }
 
+function getPathBasename(filePath: string): string {
+  const normalized = normalizePath(filePath);
+  return normalized.split("/").filter(Boolean).pop() || normalized;
+}
+
+function replaceCreatedPathAfterMove(
+  created: Map<string, number>,
+  fromPath: string,
+  toPath: string,
+  timestamp: number,
+): void {
+  const normalizedFrom = normalizePath(fromPath);
+  const normalizedTo = normalizePath(toPath);
+  if (created.has(normalizedFrom)) {
+    created.delete(normalizedFrom);
+  } else {
+    const sourceBasename = getPathBasename(normalizedFrom);
+    let latestMatch: { path: string; timestamp: number } | null = null;
+    for (const [candidatePath, candidateTimestamp] of created) {
+      if (getPathBasename(candidatePath) !== sourceBasename) continue;
+      if (!latestMatch || candidateTimestamp > latestMatch.timestamp) {
+        latestMatch = { path: candidatePath, timestamp: candidateTimestamp };
+      }
+    }
+    if (latestMatch) created.delete(latestMatch.path);
+  }
+  created.set(normalizedTo, timestamp);
+}
+
 function collectDirectoryPaths(events: TaskEvent[] | undefined): Set<string> {
   const directoryPaths = new Set<string>();
   if (!Array.isArray(events) || events.length === 0) return directoryPaths;
@@ -68,7 +103,9 @@ function stripDirectoriesFromSummary(
 ): TaskOutputSummary | null {
   if (!summary || directoryPaths.size === 0) return summary;
 
-  const created = summary.created.filter((filePath) => !directoryPaths.has(normalizePath(filePath)));
+  const created = summary.created.filter(
+    (filePath) => !directoryPaths.has(normalizePath(filePath)),
+  );
   const modifiedFallback = (summary.modifiedFallback || []).filter(
     (filePath) => !directoryPaths.has(normalizePath(filePath)),
   );
@@ -79,7 +116,9 @@ function stripDirectoriesFromSummary(
     ? normalizePath(summary.primaryOutputPath)
     : "";
   const primaryOutputPath =
-    normalizedPrimary && effective.includes(normalizedPrimary) ? normalizedPrimary : effective[0];
+    normalizedPrimary && effective.includes(normalizedPrimary)
+      ? normalizedPrimary
+      : effective[0];
 
   return {
     created,
@@ -90,7 +129,10 @@ function stripDirectoriesFromSummary(
   };
 }
 
-function buildSummary(created: string[], modifiedFallback: string[]): TaskOutputSummary | null {
+function buildSummary(
+  created: string[],
+  modifiedFallback: string[],
+): TaskOutputSummary | null {
   const effective = created.length > 0 ? created : modifiedFallback;
   if (effective.length === 0) return null;
 
@@ -103,7 +145,9 @@ function buildSummary(created: string[], modifiedFallback: string[]): TaskOutput
   };
 }
 
-export function sanitizeTaskOutputSummary(raw: unknown): TaskOutputSummary | null {
+export function sanitizeTaskOutputSummary(
+  raw: unknown,
+): TaskOutputSummary | null {
   if (!raw || typeof raw !== "object") return null;
   const candidate = raw as {
     created?: unknown[];
@@ -113,7 +157,9 @@ export function sanitizeTaskOutputSummary(raw: unknown): TaskOutputSummary | nul
     folders?: unknown[];
   };
 
-  const created = toUniqueNormalizedPaths(Array.isArray(candidate.created) ? candidate.created : []);
+  const created = toUniqueNormalizedPaths(
+    Array.isArray(candidate.created) ? candidate.created : [],
+  );
   const modifiedFallback = toUniqueNormalizedPaths(
     Array.isArray(candidate.modifiedFallback) ? candidate.modifiedFallback : [],
   );
@@ -124,7 +170,9 @@ export function sanitizeTaskOutputSummary(raw: unknown): TaskOutputSummary | nul
     ? normalizePath(candidate.primaryOutputPath)
     : "";
   const primaryOutputPath =
-    providedPrimary && effective.includes(providedPrimary) ? providedPrimary : effective[0];
+    providedPrimary && effective.includes(providedPrimary)
+      ? providedPrimary
+      : effective[0];
   const foldersFromPayload = toUniqueNormalizedPaths(
     Array.isArray(candidate.folders) ? candidate.folders : [],
   );
@@ -140,11 +188,16 @@ export function sanitizeTaskOutputSummary(raw: unknown): TaskOutputSummary | nul
     ...(modifiedFallback.length > 0 ? { modifiedFallback } : {}),
     primaryOutputPath,
     outputCount,
-    folders: foldersFromPayload.length > 0 ? foldersFromPayload : deriveFolders(effective),
+    folders:
+      foldersFromPayload.length > 0
+        ? foldersFromPayload
+        : deriveFolders(effective),
   };
 }
 
-export function deriveTaskOutputSummaryFromEvents(events: TaskEvent[]): TaskOutputSummary | null {
+export function deriveTaskOutputSummaryFromEvents(
+  events: TaskEvent[],
+): TaskOutputSummary | null {
   const created = new Map<string, number>();
   const modified = new Map<string, number>();
 
@@ -154,6 +207,7 @@ export function deriveTaskOutputSummaryFromEvents(events: TaskEvent[]): TaskOutp
       const path = event.payload?.path;
       if (!isNonEmptyString(path)) continue;
       if (event.payload?.type === "directory") continue;
+      if (!isUserVisibleTaskArtifactPath(path)) continue;
       created.set(normalizePath(path), event.timestamp || Date.now());
       continue;
     }
@@ -161,6 +215,7 @@ export function deriveTaskOutputSummaryFromEvents(events: TaskEvent[]): TaskOutp
     if (effectiveType === "artifact_created") {
       const path = event.payload?.path;
       if (!isNonEmptyString(path)) continue;
+      if (!isUserVisibleTaskArtifactPath(path)) continue;
       created.set(normalizePath(path), event.timestamp || Date.now());
       continue;
     }
@@ -168,21 +223,43 @@ export function deriveTaskOutputSummaryFromEvents(events: TaskEvent[]): TaskOutp
     if (event.type === "timeline_artifact_emitted") {
       const path = event.payload?.path;
       if (!isNonEmptyString(path)) continue;
+      if (!isUserVisibleTaskArtifactPath(path)) continue;
       created.set(normalizePath(path), event.timestamp || Date.now());
       continue;
     }
 
     if (effectiveType === "file_modified") {
-      const path = event.payload?.path || event.payload?.to || event.payload?.from;
+      const path =
+        event.payload?.path || event.payload?.to || event.payload?.from;
       if (!isNonEmptyString(path)) continue;
-      modified.set(normalizePath(path), event.timestamp || Date.now());
+      if (!isUserVisibleTaskArtifactPath(path)) continue;
+      const timestamp = event.timestamp || Date.now();
+      if (
+        isNonEmptyString(event.payload?.from) &&
+        isNonEmptyString(event.payload?.to)
+      ) {
+        replaceCreatedPathAfterMove(
+          created,
+          event.payload.from,
+          event.payload.to,
+          timestamp,
+        );
+        modified.delete(normalizePath(event.payload.from));
+      } else {
+        modified.set(normalizePath(path), timestamp);
+      }
       continue;
     }
 
     if (effectiveType === "assistant_message") {
-      const message = typeof event.payload?.message === "string" ? event.payload.message : "";
+      const message =
+        typeof event.payload?.message === "string" ? event.payload.message : "";
       for (const directive of extractAssistantMediaDirectives(message)) {
-        created.set(normalizePath(directive.path), event.timestamp || Date.now());
+        if (!isUserVisibleTaskArtifactPath(directive.path)) continue;
+        created.set(
+          normalizePath(directive.path),
+          event.timestamp || Date.now(),
+        );
       }
       continue;
     }
@@ -198,7 +275,11 @@ export function deriveTaskOutputSummaryFromEvents(events: TaskEvent[]): TaskOutp
       for (const text of candidateTexts) {
         if (typeof text !== "string" || text.trim().length === 0) continue;
         for (const directive of extractAssistantMediaDirectives(text)) {
-          created.set(normalizePath(directive.path), event.timestamp || Date.now());
+          if (!isUserVisibleTaskArtifactPath(directive.path)) continue;
+          created.set(
+            normalizePath(directive.path),
+            event.timestamp || Date.now(),
+          );
         }
       }
     }
@@ -215,12 +296,20 @@ export function resolveTaskOutputSummaryFromCompletionEvent(
 ): TaskOutputSummary | null {
   if (event.type !== "task_completed") return null;
   const directoryPaths = collectDirectoryPaths(fallbackEvents);
+  const hasAuthoritativeOutputSummary =
+    event.payload?.outputSummary !== null &&
+    typeof event.payload?.outputSummary === "object" &&
+    !Array.isArray(event.payload?.outputSummary);
 
   const fromPayload = stripDirectoriesFromSummary(
     sanitizeTaskOutputSummary(event.payload?.outputSummary),
     directoryPaths,
   );
   if (fromPayload) return fromPayload;
+  // New completions include a summary even when it is empty. That explicitly
+  // means no file was verified on disk, so do not revive a stale event as a
+  // clickable-but-broken artifact preview.
+  if (hasAuthoritativeOutputSummary) return null;
 
   const fromBestKnownOutcome = stripDirectoriesFromSummary(
     sanitizeTaskOutputSummary(event.payload?.bestKnownOutcome?.outputSummary),
@@ -235,7 +324,9 @@ export function resolveTaskOutputSummaryFromCompletionEvent(
   return null;
 }
 
-export function hasTaskOutputs(summary: TaskOutputSummary | null | undefined): summary is TaskOutputSummary {
+export function hasTaskOutputs(
+  summary: TaskOutputSummary | null | undefined,
+): summary is TaskOutputSummary {
   return !!summary && summary.outputCount > 0;
 }
 
@@ -270,17 +361,23 @@ export function getFileName(filePath: string): string {
   return idx >= 0 ? normalized.slice(idx + 1) : normalized;
 }
 
-export function getPrimaryOutputFileName(summary: TaskOutputSummary | null | undefined): string {
+export function getPrimaryOutputFileName(
+  summary: TaskOutputSummary | null | undefined,
+): string {
   if (!summary?.primaryOutputPath) return "";
   return getFileName(summary.primaryOutputPath);
 }
 
-export function getPrimaryOutputFolder(summary: TaskOutputSummary | null | undefined): string {
+export function getPrimaryOutputFolder(
+  summary: TaskOutputSummary | null | undefined,
+): string {
   if (!summary?.primaryOutputPath) return ".";
   return getParentFolder(summary.primaryOutputPath);
 }
 
-export function formatOutputLocationLabel(summary: TaskOutputSummary | null | undefined): string {
+export function formatOutputLocationLabel(
+  summary: TaskOutputSummary | null | undefined,
+): string {
   const primaryFolder = getPrimaryOutputFolder(summary);
   return primaryFolder === "." ? "Workspace root" : `${primaryFolder}/`;
 }

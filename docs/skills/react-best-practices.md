@@ -1,6 +1,6 @@
 # React Best Practices Skill
 
-`react-best-practices` is a bundled CoWork OS skill for React and Next.js implementation work.
+`react-best-practices` is a bundled NeoWorker skill for React and Next.js implementation work.
 
 It is designed for:
 
@@ -21,7 +21,7 @@ It is not the right tool for:
 
 ## What The Skill Does
 
-The bundled skill brings Vercel's React and Next.js performance guidance into CoWork's normal skill runtime.
+The bundled skill brings Vercel's React and Next.js performance guidance into NeoWorker's normal skill runtime.
 
 It focuses on:
 
@@ -65,7 +65,7 @@ Good requests usually include:
 
 ## Invocation Model
 
-`react-best-practices` follows CoWork's additive skill runtime.
+`react-best-practices` follows NeoWorker's additive skill runtime.
 
 - The original task stays canonical.
 - The skill adds React and Next.js implementation guidance.

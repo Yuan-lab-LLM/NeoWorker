@@ -13,6 +13,7 @@ import {
 import mammoth from "mammoth";
 import { extractPptxContentFromFile } from "../../utils/pptx-extractor";
 import { extractPdfText } from "../../utils/pdf-text";
+import { repairHiddenHtmlContent } from "../../utils/html-content-visibility";
 import {
   detectWorkspacePathAlias,
   shouldRewriteWorkspaceAliasPath,
@@ -23,14 +24,15 @@ import {
   shouldUseManagedAutomatedOutput,
 } from "../managed-output-paths";
 import {
-  ensureCoWorkPrivatePathsExcluded,
-  isCoWorkPrivateGeneratedPath,
+  ensureNeoWorkerPrivatePathsExcluded,
+  isNeoWorkerPrivateGeneratedPath,
 } from "../workspace-private-paths";
 import {
   buildSensitiveSourceRefForPath,
   buildUntrustedContentBanner,
   isUntrustedExternalSource,
 } from "../security/export-permission-context";
+import { assertMacOsTrashReadable } from "./macos-trash-access";
 
 // Limits to prevent context overflow
 const DEFAULT_READ_WINDOW_CHARS = 300 * 1024; // 300KB default read window
@@ -79,7 +81,7 @@ export class FileTools {
     private daemon: AgentDaemon,
     private taskId: string,
   ) {
-    ensureCoWorkPrivatePathsExcluded(workspace.path);
+    ensureNeoWorkerPrivatePathsExcluded(workspace.path);
   }
 
   /**
@@ -87,7 +89,7 @@ export class FileTools {
    */
   setWorkspace(workspace: Workspace): void {
     this.workspace = workspace;
-    ensureCoWorkPrivatePathsExcluded(workspace.path);
+    ensureNeoWorkerPrivatePathsExcluded(workspace.path);
   }
 
   setWorkspacePathAliasPolicy(policy: WorkspacePathAliasPolicy | undefined): void {
@@ -378,6 +380,7 @@ export class FileTools {
   ): string {
     const normalizedInput = typeof inputPath === "string" && inputPath.trim().length > 0 ? inputPath : ".";
     const homeExpandedInput = this.expandHomeShortcutPath(normalizedInput);
+    assertMacOsTrashReadable(homeExpandedInput);
     if (homeExpandedInput !== normalizedInput) {
       this.daemon.logEvent(this.taskId, "home_path_expanded", {
         tool: toolName,
@@ -584,7 +587,7 @@ export class FileTools {
     }
 
     const redirectedPath = buildManagedAutomatedOutputPath(this.taskId, workspaceRelative);
-    ensureCoWorkPrivatePathsExcluded(this.workspace.path);
+    ensureNeoWorkerPrivatePathsExcluded(this.workspace.path);
     this.daemon.logEvent(this.taskId, "log", {
       message: `Redirected automated task output to managed zone: ${workspaceRelative} -> ${redirectedPath}`,
       source: "managed_output_policy",
@@ -936,6 +939,42 @@ export class FileTools {
   ): Promise<string | null> {
     if (!path.isAbsolute(absolutePath)) return null;
 
+    // Skill instructions sometimes lose the intermediate `skills/` segment
+    // after conversation compaction (for example
+    // .../Contents/Resources/presentation-studio/SKILL.md). Recover only when
+    // the corresponding bundled skill file really exists. This is read-only and
+    // still passes through the normal workspace/symlink permission checks.
+    const normalizedAbsolute = absolutePath.replace(/\\/g, "/");
+    const resourcesMarker = "/Contents/Resources/";
+    const markerIndex = normalizedAbsolute.toLowerCase().indexOf(resourcesMarker.toLowerCase());
+    if (markerIndex >= 0) {
+      const originalResourcesRoot = normalizedAbsolute.slice(
+        0,
+        markerIndex + resourcesMarker.length - 1,
+      );
+      const suffix = normalizedAbsolute.slice(markerIndex + resourcesMarker.length);
+      const processResourcesPath = String((process as NodeJS.Process & { resourcesPath?: string }).resourcesPath || "").trim();
+      const resourceRoots = Array.from(
+        new Set([originalResourcesRoot, processResourcesPath].filter(Boolean)),
+      );
+      const suffixCandidates = suffix.toLowerCase().startsWith("skills/")
+        ? [suffix]
+        : [path.posix.join("skills", suffix), suffix];
+      for (const root of resourceRoots) {
+        for (const candidateSuffix of suffixCandidates) {
+          const candidate = path.join(root, ...candidateSuffix.split("/").filter(Boolean));
+          if (!(await this.pathLooksLikeReadableFile(candidate))) continue;
+          this.daemon.logEvent(this.taskId, "log", {
+            message: `Recovered bundled skill read path: ${absolutePath} -> ${candidate}`,
+            originalPath: absolutePath,
+            resolvedPath: currentResolvedPath,
+            recoveredPath: candidate,
+          });
+          return candidate;
+        }
+      }
+    }
+
     const normalizedWorkspace = path.resolve(this.workspace.path);
     for (const candidate of this.getWorkspaceReadRecoveryCandidates(absolutePath, normalizedWorkspace)) {
       if (!(await this.pathLooksLikeReadableFile(candidate))) continue;
@@ -1195,8 +1234,8 @@ export class FileTools {
       () => this.maybeRedirectAutomatedOutputPath(relativePath),
     );
     const requestedPath = redirected.requestedPath;
-    if (isCoWorkPrivateGeneratedPath(requestedPath)) {
-      ensureCoWorkPrivatePathsExcluded(this.workspace.path);
+    if (isNeoWorkerPrivateGeneratedPath(requestedPath)) {
+      ensureNeoWorkerPrivatePathsExcluded(this.workspace.path);
     }
 
     this.checkPermission("write");
@@ -1211,8 +1250,15 @@ export class FileTools {
       this.enforceRootPackageFileSafety(fullPath, content),
     );
 
+    const requestedExtension = path.extname(requestedPath).toLowerCase();
+    const visibilityRepair =
+      requestedExtension === ".html" || requestedExtension === ".htm"
+        ? repairHiddenHtmlContent(content)
+        : { content, repaired: false, reasons: [] };
+    const finalContent = visibilityRepair.content;
+
     // Check file size against guardrail limits
-    const contentSizeBytes = Buffer.byteLength(content, "utf-8");
+    const contentSizeBytes = Buffer.byteLength(finalContent, "utf-8");
     const sizeCheck = GuardrailManager.isFileSizeExceeded(contentSizeBytes);
     if (sizeCheck.exceeded) {
       throw new Error(
@@ -1229,15 +1275,17 @@ export class FileTools {
 
       // Write file
       await this.runWriteFilePhase("write file contents", requestedPath, options, (signal) =>
-        fs.writeFile(fullPath, content, { encoding: "utf-8", signal }),
+        fs.writeFile(fullPath, finalContent, { encoding: "utf-8", signal }),
       );
 
       // Build content preview (full content up to 20KB cap)
       const MAX_PREVIEW_CHARS = 20_000;
-      const lines = content.split("\n");
+      const lines = finalContent.split("\n");
       let preview =
-        content.length > MAX_PREVIEW_CHARS ? content.slice(0, MAX_PREVIEW_CHARS) : content;
-      const previewTruncated = content.length > MAX_PREVIEW_CHARS;
+        finalContent.length > MAX_PREVIEW_CHARS
+          ? finalContent.slice(0, MAX_PREVIEW_CHARS)
+          : finalContent;
+      const previewTruncated = finalContent.length > MAX_PREVIEW_CHARS;
       const ext = path.extname(requestedPath).toLowerCase().replace(".", "");
       const reportedPath =
         getWorkspaceRelativePosixPath(this.workspace.path, fullPath) || requestedPath;
@@ -1245,11 +1293,13 @@ export class FileTools {
       // Log artifact
       this.daemon.logEvent(this.taskId, "file_created", {
         path: reportedPath,
-        size: content.length,
+        size: finalContent.length,
         lineCount: lines.length,
         contentPreview: preview,
         previewTruncated,
         language: ext,
+        visibilityRepairApplied: visibilityRepair.repaired,
+        visibilityRepairReasons: visibilityRepair.reasons,
       });
 
       return {
@@ -1607,6 +1657,7 @@ export class FileTools {
       await fs.mkdir(path.dirname(newFullPath), { recursive: true });
 
       await fs.rename(oldFullPath, newFullPath);
+      this.daemon.relocateArtifact(this.taskId, oldFullPath, newFullPath);
 
       this.daemon.logEvent(this.taskId, "file_modified", {
         action: "rename",
@@ -1637,8 +1688,8 @@ export class FileTools {
 
     const redirected = await this.maybeRedirectAutomatedOutputPath(destPath);
     const requestedDestPath = redirected.requestedPath;
-    if (isCoWorkPrivateGeneratedPath(requestedDestPath)) {
-      ensureCoWorkPrivatePathsExcluded(this.workspace.path);
+    if (isNeoWorkerPrivateGeneratedPath(requestedDestPath)) {
+      ensureNeoWorkerPrivatePathsExcluded(this.workspace.path);
     }
 
     this.checkPermission("read");
@@ -1774,8 +1825,8 @@ export class FileTools {
 
     const redirected = await this.maybeRedirectAutomatedOutputPath(relativePath);
     const requestedPath = redirected.requestedPath;
-    if (isCoWorkPrivateGeneratedPath(requestedPath)) {
-      ensureCoWorkPrivatePathsExcluded(this.workspace.path);
+    if (isNeoWorkerPrivateGeneratedPath(requestedPath)) {
+      ensureNeoWorkerPrivatePathsExcluded(this.workspace.path);
     }
 
     this.checkPermission("write");

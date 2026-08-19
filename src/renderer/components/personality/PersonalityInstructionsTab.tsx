@@ -4,6 +4,8 @@ import type {
   BehavioralRule,
   ExpertiseArea,
 } from "../../../shared/types";
+import { translate, useLanguage } from "../../i18n";
+import { PersonalityTabHeader } from "./PersonalityTabHeader";
 
 interface PersonalityInstructionsTabProps {
   config: PersonalityConfigV2;
@@ -12,7 +14,12 @@ interface PersonalityInstructionsTabProps {
   saving: boolean;
 }
 
-const RULE_TYPES: BehavioralRule["type"][] = ["always", "never", "prefer", "avoid"];
+const RULE_TYPES: BehavioralRule["type"][] = [
+  "always",
+  "never",
+  "prefer",
+  "avoid",
+];
 
 export function PersonalityInstructionsTab({
   config,
@@ -20,10 +27,14 @@ export function PersonalityInstructionsTab({
   onSave,
   saving,
 }: PersonalityInstructionsTabProps) {
-  const [newRuleType, setNewRuleType] = useState<BehavioralRule["type"]>("always");
+  useLanguage();
+  const t = translate;
+  const [newRuleType, setNewRuleType] =
+    useState<BehavioralRule["type"]>("always");
   const [newRuleText, setNewRuleText] = useState("");
   const [newExpertiseDomain, setNewExpertiseDomain] = useState("");
-  const [newExpertiseLevel, setNewExpertiseLevel] = useState<ExpertiseArea["level"]>("proficient");
+  const [newExpertiseLevel, setNewExpertiseLevel] =
+    useState<ExpertiseArea["level"]>("proficient");
 
   const addRule = () => {
     if (!newRuleText.trim()) return;
@@ -77,59 +88,93 @@ export function PersonalityInstructionsTab({
 
   return (
     <div className="personality-instructions-tab settings-section">
-      <h3>Instructions</h3>
-      <p className="settings-description">
-        Custom instructions and behavioral rules.
-      </p>
+      <PersonalityTabHeader
+        title={t("personality.instructions.title", "Instructions")}
+        description={t(
+          "personality.instructions.description",
+          "Custom instructions and behavioral rules.",
+        )}
+      />
 
-      <div className="form-group">
-        <label htmlFor="about-user">About the user</label>
-        <p className="style-hint">What should the assistant know about you?</p>
-        <textarea
-          id="about-user"
-          className="settings-textarea"
-          placeholder="e.g. Senior fullstack dev, prefers functional patterns"
-          value={config.customInstructions?.aboutUser ?? ""}
-          onChange={(e) =>
-            onUpdate({
-              customInstructions: {
-                ...config.customInstructions,
-                aboutUser: e.target.value,
-              },
-            })
-          }
-          rows={3}
-        />
-      </div>
+      <div className="personality-instructions-card">
+        <div className="personality-instructions-grid">
+          <div className="form-group">
+            <label htmlFor="about-user">
+              {t("personality.instructions.aboutUser", "About the user")}
+            </label>
+            <p className="style-hint">
+              {t(
+                "personality.instructions.aboutUserHint",
+                "What should the assistant know about you?",
+              )}
+            </p>
+            <textarea
+              id="about-user"
+              className="settings-textarea"
+              placeholder={t(
+                "personality.instructions.aboutUserPlaceholder",
+                "e.g. Senior fullstack dev, prefers functional patterns",
+              )}
+              value={config.customInstructions?.aboutUser ?? ""}
+              onChange={(e) =>
+                onUpdate({
+                  customInstructions: {
+                    ...config.customInstructions,
+                    aboutUser: e.target.value,
+                  },
+                })
+              }
+              rows={4}
+            />
+          </div>
 
-      <div className="form-group">
-        <label htmlFor="response-guidance">Response guidance</label>
-        <p className="style-hint">How should the assistant respond?</p>
-        <textarea
-          id="response-guidance"
-          className="settings-textarea"
-          placeholder="e.g. Be opinionated. Don't hedge."
-          value={config.customInstructions?.responseGuidance ?? ""}
-          onChange={(e) =>
-            onUpdate({
-              customInstructions: {
-                ...config.customInstructions,
-                responseGuidance: e.target.value,
-              },
-            })
-          }
-          rows={3}
-        />
-      </div>
+          <div className="form-group">
+            <label htmlFor="response-guidance">
+              {t(
+                "personality.instructions.responseGuidance",
+                "Response guidance",
+              )}
+            </label>
+            <p className="style-hint">
+              {t(
+                "personality.instructions.responseGuidanceHint",
+                "How should the assistant respond?",
+              )}
+            </p>
+            <textarea
+              id="response-guidance"
+              className="settings-textarea"
+              placeholder={t(
+                "personality.instructions.responseGuidancePlaceholder",
+                "e.g. Be opinionated. Don't hedge.",
+              )}
+              value={config.customInstructions?.responseGuidance ?? ""}
+              onChange={(e) =>
+                onUpdate({
+                  customInstructions: {
+                    ...config.customInstructions,
+                    responseGuidance: e.target.value,
+                  },
+                })
+              }
+              rows={4}
+            />
+          </div>
+        </div>
 
-      <div className="form-group">
-        <button className="button-primary" onClick={onSave} disabled={saving}>
-          {saving ? "Saving..." : "Save Instructions"}
-        </button>
+        <div className="personality-card-actions">
+          <button className="button-primary" onClick={onSave} disabled={saving}>
+            {saving
+              ? t("personality.common.saving", "Saving...")
+              : t("personality.instructions.save", "Save Instructions")}
+          </button>
+        </div>
       </div>
 
       <div className="behavioral-rules">
-        <h4>Behavioral Rules</h4>
+        <h4>
+          {t("personality.instructions.behavioralRules", "Behavioral Rules")}
+        </h4>
         <div className="rules-list">
           {(config.rules ?? []).map((r) => (
             <div key={r.id} className="rule-item">
@@ -145,7 +190,7 @@ export function PersonalityInstructionsTab({
                 className="button-small rule-remove"
                 onClick={() => removeRule(r.id)}
               >
-                Remove
+                {t("personality.common.remove", "Remove")}
               </button>
             </div>
           ))}
@@ -153,18 +198,23 @@ export function PersonalityInstructionsTab({
         <div className="add-rule-row">
           <select
             value={newRuleType}
-            onChange={(e) => setNewRuleType(e.target.value as BehavioralRule["type"])}
+            onChange={(e) =>
+              setNewRuleType(e.target.value as BehavioralRule["type"])
+            }
           >
             {RULE_TYPES.map((t) => (
               <option key={t} value={t}>
-                {t.toUpperCase()}
+                {translate(`personality.ruleType.${t}`, t.toUpperCase())}
               </option>
             ))}
           </select>
           <input
             type="text"
             className="settings-input"
-            placeholder="e.g. Explain your reasoning step by step"
+            placeholder={t(
+              "personality.instructions.rulePlaceholder",
+              "e.g. Explain your reasoning step by step",
+            )}
             value={newRuleText}
             onChange={(e) => setNewRuleText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addRule()}
@@ -175,17 +225,19 @@ export function PersonalityInstructionsTab({
             onClick={addRule}
             disabled={!newRuleText.trim()}
           >
-            Add
+            {t("personality.common.add", "Add")}
           </button>
         </div>
       </div>
 
       <div className="expertise-tags">
-        <h4>Expertise Areas</h4>
+        <h4>
+          {t("personality.instructions.expertiseAreas", "Expertise Areas")}
+        </h4>
         <div className="expertise-tag-list">
           {(config.expertise ?? []).map((e) => (
             <span key={e.id} className="expertise-tag">
-              {e.domain} ({e.level})
+              {e.domain} ({t(`personality.expertise.${e.level}`, e.level)})
               <button
                 type="button"
                 className="tag-remove"
@@ -200,7 +252,10 @@ export function PersonalityInstructionsTab({
           <input
             type="text"
             className="settings-input"
-            placeholder="e.g. TypeScript, React"
+            placeholder={t(
+              "personality.instructions.expertisePlaceholder",
+              "e.g. TypeScript, React",
+            )}
             value={newExpertiseDomain}
             onChange={(e) => setNewExpertiseDomain(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addExpertise()}
@@ -211,9 +266,15 @@ export function PersonalityInstructionsTab({
               setNewExpertiseLevel(e.target.value as ExpertiseArea["level"])
             }
           >
-            <option value="familiar">Familiar</option>
-            <option value="proficient">Proficient</option>
-            <option value="expert">Expert</option>
+            <option value="familiar">
+              {t("personality.expertise.familiar", "Familiar")}
+            </option>
+            <option value="proficient">
+              {t("personality.expertise.proficient", "Proficient")}
+            </option>
+            <option value="expert">
+              {t("personality.expertise.expert", "Expert")}
+            </option>
           </select>
           <button
             type="button"
@@ -221,7 +282,7 @@ export function PersonalityInstructionsTab({
             onClick={addExpertise}
             disabled={!newExpertiseDomain.trim()}
           >
-            Add
+            {t("personality.common.add", "Add")}
           </button>
         </div>
       </div>

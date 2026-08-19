@@ -1,6 +1,6 @@
 # Security Configuration Guide
 
-This guide covers how to configure security settings in CoWork OS.
+This guide covers how to configure security settings in NeoWorker.
 
 ## Channel Security Modes
 
@@ -146,7 +146,7 @@ Common mode choices:
 - `dangerous_only` - recommended when you want fewer interruptions without fully disabling review; safe reads/edits and conservative read/test shell commands auto-run, while risky or ambiguous actions still prompt
 - `dont_ask` / `bypass_permissions` - high-autonomy modes for trusted environments only, but export-sensitive actions still require explicit approval
 
-Workspace-local rules are stored in SQLite and mirrored to `.cowork/policy/permissions.json`.
+Workspace-local rules are stored in SQLite and mirrored to `.neoworker/policy/permissions.json`.
 Removing a workspace rule updates both storage locations when possible.
 
 ### Export-Sensitive Operations
@@ -242,8 +242,8 @@ Rate limits are automatic and not configurable:
 ## Audit Logging
 
 All messages and actions are logged automatically:
-- Location: `~/Library/Application Support/cowork-os/`
-- Database: `cowork-os.db`
+- Location: `~/Library/Application Support/neoworker/`
+- Database: `neoworker.db`
 - Tables: `audit_log`, `channel_messages`
 
 ## Verification Checklist

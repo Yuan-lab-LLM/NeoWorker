@@ -1,0 +1,3 @@
+import { n as e, t } from "./frame-D0Z7fKiW-DyB0yjKs.js";
+t();
+export { e as default };

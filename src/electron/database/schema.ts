@@ -8,6 +8,7 @@ import {
   sanitizeTimelinePayloadForStorage,
   TIMELINE_PAYLOAD_STORAGE_BYTE_LIMIT,
 } from "../agent/timeline-payload-sanitizer";
+import { LEGACY_USER_DATA_LAYOUTS } from "../migrations/legacy-brand-compat";
 
 const schemaLogger = createLogger("DatabaseManager");
 const STARTUP_PHASE_WARN_MS = 250;
@@ -35,13 +36,13 @@ export class DatabaseManager {
     this.ensureRestrictedDirectory(userDataPath);
     logStartupPhase("restrict-user-data-directory", phaseStartedAt);
 
-    // Run migration from old cowork-oss directory before opening database
+    // Migrate pre-NeoWorker user data before opening the current database.
     phaseStartedAt = Date.now();
     this.migrateFromLegacyDirectory(userDataPath);
     logStartupPhase("legacy-directory-migration-check", phaseStartedAt);
 
     phaseStartedAt = Date.now();
-    const dbPath = path.join(userDataPath, "cowork-os.db");
+    const dbPath = path.join(userDataPath, "neoworker.db");
     this.db = new Database(dbPath);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("busy_timeout = 5000");
@@ -698,35 +699,45 @@ export class DatabaseManager {
   }
 
   // Migration version - increment this to force re-migration for users with partial migrations
-  private static readonly MIGRATION_VERSION = 2;
+  private static readonly MIGRATION_VERSION = 4;
 
   /**
-   * Migrate data from the old cowork-oss directory to the new cowork-os directory.
-   * This ensures users don't lose their data when upgrading.
+   * Copy pre-rebrand data into the NeoWorker user-data directory.
+   * Existing healthy NeoWorker data always wins; legacy sources only fill gaps.
    */
   private migrateFromLegacyDirectory(newDataPath: string): void {
-    // Normalize path - remove trailing slash if present
-    const normalizedNewPath = newDataPath.replace(/\/+$/, "");
-
-    // Determine the old directory path
-    // Handle both 'cowork-os' and 'cowork-os/' patterns
-    const oldDataPath = normalizedNewPath.replace(/cowork-os$/, "cowork-oss");
-
-    // Verify the replacement actually happened (paths should be different)
-    if (oldDataPath === normalizedNewPath) {
-      schemaLogger.warn("Cannot determine legacy path from:", newDataPath);
-      return;
+    const normalizedNewPath = path.resolve(newDataPath);
+    let neoWorkerRoot = normalizedNewPath;
+    while (
+      path.basename(neoWorkerRoot).toLowerCase() !== "neoworker" &&
+      path.dirname(neoWorkerRoot) !== neoWorkerRoot
+    ) {
+      neoWorkerRoot = path.dirname(neoWorkerRoot);
     }
+    if (path.basename(neoWorkerRoot).toLowerCase() !== "neoworker") return;
 
-    // Check if old directory exists
-    if (!fs.existsSync(oldDataPath)) {
-      schemaLogger.debug("No legacy directory found at:", oldDataPath);
-      return; // No legacy data to migrate
-    }
+    const appDataRoot = path.dirname(neoWorkerRoot);
+    const profileRelativePath = path.relative(neoWorkerRoot, normalizedNewPath);
+    const seenLegacyPaths = new Set<string>();
+    const legacySources = LEGACY_USER_DATA_LAYOUTS.flatMap((layout) =>
+      layout.directoryNames.map((directoryName) => ({
+        layout,
+        dataPath: path.resolve(appDataRoot, directoryName, profileRelativePath),
+      })),
+    ).filter(({ dataPath }) => {
+      const key = process.platform === "win32" || process.platform === "darwin"
+        ? dataPath.toLowerCase()
+        : dataPath;
+      if (key === normalizedNewPath.toLowerCase() || seenLegacyPaths.has(key)) return false;
+      seenLegacyPaths.add(key);
+      return fs.existsSync(dataPath) && fs.statSync(dataPath).isDirectory();
+    });
 
-    const newDbPath = path.join(normalizedNewPath, "cowork-os.db");
-    const oldDbPath = path.join(oldDataPath, "cowork-oss.db");
-    const migrationMarker = path.join(normalizedNewPath, ".migrated-from-cowork-oss");
+    if (legacySources.length === 0) return;
+
+    const newDbPath = path.join(normalizedNewPath, "neoworker.db");
+    const newMachineIdPath = path.join(normalizedNewPath, ".neoworker-machine-id");
+    const migrationMarker = path.join(normalizedNewPath, ".legacy-brand-migration.json");
 
     // Check if migration already completed with current version
     if (fs.existsSync(migrationMarker)) {
@@ -736,49 +747,44 @@ export class DatabaseManager {
         if (markerData.version >= DatabaseManager.MIGRATION_VERSION) {
           return; // Already migrated with current or newer version
         }
-        schemaLogger.info("Re-running migration (version upgrade)...");
+        schemaLogger.info("Re-running legacy brand migration (version upgrade)...");
       } catch {
-        // Old format marker (just a date string) - re-run migration
-        schemaLogger.info("Re-running migration (old marker format)...");
+        schemaLogger.info("Re-running legacy brand migration (invalid marker)...");
       }
     }
-
-    schemaLogger.info("Migrating data from cowork-oss to cowork-os...");
-    schemaLogger.info("Old path:", oldDataPath);
-    schemaLogger.info("New path:", normalizedNewPath);
 
     let migrationSuccessful = true;
     const migratedFiles: string[] = [];
     const migratedDirs: string[] = [];
+    const migratedSources: string[] = [];
 
     try {
-      // Ensure new directory exists
-      if (!fs.existsSync(normalizedNewPath)) {
-        fs.mkdirSync(normalizedNewPath, { recursive: true });
-      }
+      fs.mkdirSync(normalizedNewPath, { recursive: true });
 
-      // 1. Migrate database if old exists and new doesn't (or new is smaller)
-      if (fs.existsSync(oldDbPath)) {
-        const oldDbSize = fs.statSync(oldDbPath).size;
-        const oldDbHealthy = this.databasePassesIntegrityCheck(oldDbPath);
-        const newDbExists = fs.existsSync(newDbPath);
-        const newDbSize = newDbExists ? fs.statSync(newDbPath).size : 0;
-        const newDbHealthy = newDbExists ? this.databasePassesIntegrityCheck(newDbPath) : false;
-
-        if (!oldDbHealthy) {
-          schemaLogger.warn("Legacy database failed integrity_check, skipping copy:", oldDbPath);
-        } else if (!newDbExists || !newDbHealthy || oldDbSize > newDbSize) {
-          schemaLogger.info(
-            `Copying database (old: ${oldDbSize} bytes, new: ${newDbSize} bytes, newHealthy: ${newDbHealthy})...`,
-          );
-          fs.copyFileSync(oldDbPath, newDbPath);
-          migratedFiles.push("cowork-os.db");
-        } else {
-          schemaLogger.info("Database already exists, passed integrity_check, and is not smaller. Skipping copy.");
+      // Pick the largest healthy legacy database only when the NeoWorker database
+      // is absent or unreadable. This avoids overwriting newer NeoWorker work.
+      const newDbHealthy = this.databasePassesIntegrityCheck(newDbPath);
+      if (!newDbHealthy) {
+        const databaseCandidates = legacySources
+          .flatMap(({ layout, dataPath }) =>
+            layout.databaseNames.map((databaseName) => path.join(dataPath, databaseName)),
+          )
+          .filter((candidate, index, all) =>
+            all.indexOf(candidate) === index && this.databasePassesIntegrityCheck(candidate),
+          )
+          .sort((left, right) => fs.statSync(right).size - fs.statSync(left).size);
+        const sourceDbPath = databaseCandidates[0];
+        if (sourceDbPath) {
+          fs.copyFileSync(sourceDbPath, newDbPath);
+          for (const suffix of ["-wal", "-shm"]) {
+            const sidecar = `${sourceDbPath}${suffix}`;
+            if (fs.existsSync(sidecar)) fs.copyFileSync(sidecar, `${newDbPath}${suffix}`);
+          }
+          migratedFiles.push("neoworker.db");
+          migratedSources.push(path.dirname(sourceDbPath));
         }
       }
 
-      // 2. Migrate settings files - copy if old exists and (new doesn't exist OR old is larger)
       const settingsFiles = [
         "appearance-settings.json",
         "builtin-tools-settings.json",
@@ -792,69 +798,57 @@ export class DatabaseManager {
         "search-settings.json",
       ];
 
-      for (const file of settingsFiles) {
-        const oldFile = path.join(oldDataPath, file);
-        const newFile = path.join(normalizedNewPath, file);
-
-        if (fs.existsSync(oldFile)) {
-          const oldSize = fs.statSync(oldFile).size;
-          const newExists = fs.existsSync(newFile);
-          const newSize = newExists ? fs.statSync(newFile).size : 0;
-
-          // Copy if new doesn't exist, or old file is larger (has more data)
-          if (!newExists || oldSize > newSize) {
-            schemaLogger.info(
-              `[DatabaseManager] Migrating ${file} (old: ${oldSize} bytes, new: ${newSize} bytes)...`,
-            );
-            fs.copyFileSync(oldFile, newFile);
+      for (const { layout, dataPath } of legacySources) {
+        for (const file of settingsFiles) {
+          const sourceFile = path.join(dataPath, file);
+          const destinationFile = path.join(normalizedNewPath, file);
+          if (fs.existsSync(sourceFile) && !fs.existsSync(destinationFile)) {
+            fs.copyFileSync(sourceFile, destinationFile);
             migratedFiles.push(file);
+            migratedSources.push(dataPath);
+          }
+        }
+
+        if (!fs.existsSync(newMachineIdPath)) {
+          const legacyMachineId = layout.machineIdNames
+            .map((fileName) => path.join(dataPath, fileName))
+            .find((candidate) => fs.existsSync(candidate));
+          if (legacyMachineId) {
+            fs.copyFileSync(legacyMachineId, newMachineIdPath);
+            migratedFiles.push(".neoworker-machine-id");
+            migratedSources.push(dataPath);
+          }
+        }
+
+        for (const directory of ["skills", "whatsapp-auth", "cron", "canvas", "notifications"]) {
+          const sourceDirectory = path.join(dataPath, directory);
+          if (!fs.existsSync(sourceDirectory) || !fs.statSync(sourceDirectory).isDirectory()) continue;
+          const before = this.countFilesRecursive(path.join(normalizedNewPath, directory));
+          this.copyDirectoryRecursive(sourceDirectory, path.join(normalizedNewPath, directory));
+          const after = this.countFilesRecursive(path.join(normalizedNewPath, directory));
+          if (after > before) {
+            migratedDirs.push(directory);
+            migratedSources.push(dataPath);
           }
         }
       }
 
-      // 3. Migrate directories (skills, whatsapp-auth, cron, canvas, notifications)
-      const directories = ["skills", "whatsapp-auth", "cron", "canvas", "notifications"];
-
-      for (const dir of directories) {
-        const oldDir = path.join(oldDataPath, dir);
-        const newDir = path.join(normalizedNewPath, dir);
-
-        if (fs.existsSync(oldDir) && fs.statSync(oldDir).isDirectory()) {
-          const oldDirCount = this.countFilesRecursive(oldDir);
-          const newDirExists = fs.existsSync(newDir);
-          const newDirCount = newDirExists ? this.countFilesRecursive(newDir) : 0;
-
-          // Copy if new doesn't exist, is empty, or has significantly fewer files
-          if (!newDirExists || newDirCount === 0 || oldDirCount > newDirCount * 2) {
-            schemaLogger.info(
-              `[DatabaseManager] Migrating ${dir}/ (old: ${oldDirCount} files, new: ${newDirCount} files)...`,
-            );
-            this.copyDirectoryRecursive(oldDir, newDir);
-            migratedDirs.push(dir);
-          }
-        }
-      }
-
-      // Create migration marker with version info
       const markerData = {
         version: DatabaseManager.MIGRATION_VERSION,
         timestamp: new Date().toISOString(),
-        migratedFiles,
-        migratedDirs,
+        migratedFiles: [...new Set(migratedFiles)],
+        migratedDirs: [...new Set(migratedDirs)],
+        migratedSources: [...new Set(migratedSources)],
       };
       fs.writeFileSync(migrationMarker, JSON.stringify(markerData, null, 2));
-
-      schemaLogger.info("Migration completed successfully.");
-      schemaLogger.info("Migrated files:", migratedFiles);
-      schemaLogger.info("Migrated directories:", migratedDirs);
+      schemaLogger.info("Legacy brand data migration completed.", markerData);
     } catch (error) {
-      schemaLogger.error("Migration failed:", error);
+      schemaLogger.error("Legacy brand data migration failed:", error);
       migrationSuccessful = false;
-      // Don't create marker if migration failed - allows retry on next startup
     }
 
     if (!migrationSuccessful) {
-      schemaLogger.warn("Migration incomplete - will retry on next startup");
+      schemaLogger.warn("Legacy brand data migration incomplete; it will retry on next startup.");
     }
   }
 
@@ -944,7 +938,7 @@ export class DatabaseManager {
 
       if (entry.isDirectory()) {
         this.copyDirectoryRecursive(srcPath, destPath);
-      } else {
+      } else if (!fs.existsSync(destPath)) {
         fs.copyFileSync(srcPath, destPath);
       }
     }
@@ -959,6 +953,7 @@ export class DatabaseManager {
         path TEXT NOT NULL UNIQUE,
         created_at INTEGER NOT NULL,
         last_used_at INTEGER,
+        archived_at INTEGER,
         permissions TEXT NOT NULL
       );
 
@@ -1663,6 +1658,50 @@ export class DatabaseManager {
         FOREIGN KEY (channel_id) REFERENCES channels(id),
         FOREIGN KEY (session_id) REFERENCES channel_sessions(id),
         FOREIGN KEY (user_id) REFERENCES channel_users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS task_provenance (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        relation TEXT NOT NULL CHECK (relation IN ('direct', 'follow_up', 'inherited')),
+        source_kind TEXT NOT NULL,
+        provider_key TEXT,
+        provider_label TEXT,
+        source_ref TEXT,
+        external_id TEXT,
+        actor_json TEXT,
+        conversation_json TEXT,
+        excerpt TEXT,
+        excerpt_truncated INTEGER NOT NULL DEFAULT 0,
+        attachments_json TEXT NOT NULL DEFAULT '[]',
+        open_target_json TEXT,
+        occurred_at INTEGER NOT NULL,
+        metadata_json TEXT,
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_task_provenance_task_time
+        ON task_provenance(task_id, occurred_at ASC, created_at ASC);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_task_provenance_dedupe
+        ON task_provenance(
+          task_id,
+          source_kind,
+          COALESCE(provider_key, ''),
+          external_id
+        )
+        WHERE external_id IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS task_access_policies (
+        task_id TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+        revision INTEGER NOT NULL DEFAULT 1,
+        connector_ids_json TEXT NOT NULL DEFAULT '[]',
+        workspace_scopes_json TEXT NOT NULL DEFAULT '[]',
+        allowed_tools_json TEXT,
+        blocked_tools_json TEXT,
+        permission_mode TEXT,
+        shell_access INTEGER NOT NULL DEFAULT 0,
+        effective_from_turn INTEGER,
+        updated_at INTEGER NOT NULL
       );
 
       -- Channel indexes
@@ -2788,6 +2827,13 @@ export class DatabaseManager {
     // Migration: Add last_used_at to workspaces for recency ordering
     try {
       this.db.exec("ALTER TABLE workspaces ADD COLUMN last_used_at INTEGER");
+    } catch {
+      // Column already exists, ignore
+    }
+
+    // Migration: archived projects stay on disk but can be hidden from the active project list.
+    try {
+      this.db.exec("ALTER TABLE workspaces ADD COLUMN archived_at INTEGER");
     } catch {
       // Column already exists, ignore
     }
@@ -6406,7 +6452,7 @@ export class DatabaseManager {
           status TEXT NOT NULL,
           result TEXT,
           error TEXT,
-          cowork_task_id TEXT,
+          neoworker_task_id TEXT,
           remote_task_id TEXT,
           workspace_id TEXT,
           created_at INTEGER NOT NULL,

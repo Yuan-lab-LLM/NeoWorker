@@ -1,4 +1,5 @@
 const WORD_DOCUMENT_ARTIFACT_EXTENSIONS = new Set([
+  ".pdf",
   ".md",
   ".markdown",
   ".docx",
@@ -13,6 +14,7 @@ const WORD_DOCUMENT_ARTIFACT_EXTENSIONS = new Set([
 ]);
 
 const IN_APP_DOCUMENT_PREVIEW_EXTENSIONS = new Set([
+  ".pdf",
   ".md",
   ".markdown",
   ".docx",
@@ -28,6 +30,7 @@ const IN_APP_DOCUMENT_PREVIEW_EXTENSIONS = new Set([
 const EDITABLE_DOCUMENT_EXTENSIONS = new Set([".docx"]);
 
 const WORD_DOCUMENT_MIME_TYPES = new Set([
+  "application/pdf",
   "application/msword",
   "application/rtf",
   "text/markdown",
@@ -50,6 +53,8 @@ export function getDocumentFileExtension(filePath: string): string {
 export function getDocumentFormatLabel(filePath: string): string {
   const extension = getDocumentFileExtension(filePath);
   switch (extension) {
+    case ".pdf":
+      return "PDF";
     case ".md":
       return "MD";
     case ".markdown":

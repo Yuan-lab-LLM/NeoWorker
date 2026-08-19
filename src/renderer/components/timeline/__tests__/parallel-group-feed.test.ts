@@ -1,9 +1,12 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import type { ParallelGroupProjection } from "../parallel-group-projection";
 import { ParallelGroupFeed } from "../ParallelGroupFeed";
+import { applyPersistedLanguage } from "../../../i18n";
 
 function render(element: React.ReactElement): string {
   return renderToStaticMarkup(element);
@@ -41,6 +44,10 @@ function makeGroup(
 }
 
 describe("ParallelGroupFeed", () => {
+  beforeEach(() => {
+    applyPersistedLanguage("en");
+  });
+
   it("renders active groups expanded with lane rows", () => {
     const markup = render(
       React.createElement(ParallelGroupFeed, {
@@ -53,6 +60,40 @@ describe("ParallelGroupFeed", () => {
     expect(markup).toContain("Running 2 tasks in parallel");
     expect(markup).toContain("Fetching a web page");
     expect(markup).toContain("Searching the web");
+  });
+
+  it("renders unavailable candidate sources as neutral skipped rows", () => {
+    applyPersistedLanguage("zh-CN");
+    const markup = render(
+      React.createElement(ParallelGroupFeed, {
+        group: makeGroup({
+          status: "completed",
+          lanes: [
+            {
+              laneKey: "missing",
+              toolName: "web_fetch",
+              title: "Skipped unavailable source: run.ai/missing",
+              status: "skipped",
+              startedAt: 1001,
+            },
+            {
+              laneKey: "working",
+              toolName: "web_fetch",
+              title: "Fetched KAYTUS",
+              status: "completed",
+              startedAt: 1002,
+            },
+          ],
+        }),
+        timeLabel: "12:01",
+        formatTime: () => "12:01",
+        defaultExpanded: true,
+      }),
+    );
+
+    expect(markup).toContain("已跳过不可用来源：run.ai/missing");
+    expect(markup).toContain("parallel-group-feed-lane-dot tone-neutral");
+    expect(markup).not.toContain("tone-error");
   });
 
   it("renders an image generation frame while generate_image is running", () => {
@@ -220,6 +261,29 @@ describe("ParallelGroupFeed", () => {
 
     expect(markup).toBe("");
     expect(markup).not.toContain("0 parallel tasks completed");
+  });
+
+  it("keeps every hook ahead of the empty-lane return used by streaming groups", () => {
+    const source = readFileSync(
+      fileURLToPath(new URL("../ParallelGroupFeed.tsx", import.meta.url)),
+      "utf8",
+    );
+    const componentBody = source.slice(
+      source.indexOf("export function ParallelGroupFeed"),
+    );
+    const emptyLaneReturnIndex = componentBody.indexOf(
+      "if (group.lanes.length === 0)",
+    );
+    const hookIndexes = Array.from(
+      componentBody.matchAll(/\buse(?:State|Effect|Memo)\s*\(/g),
+      (match) => match.index,
+    );
+
+    expect(emptyLaneReturnIndex).toBeGreaterThan(0);
+    expect(hookIndexes.length).toBeGreaterThanOrEqual(4);
+    expect(hookIndexes.every((index) => index < emptyLaneReturnIndex)).toBe(
+      true,
+    );
   });
 
   it("uses the single lane title instead of a stored semantic label", () => {

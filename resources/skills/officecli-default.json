@@ -1,0 +1,34 @@
+{
+  "id": "officecli-default",
+  "name": "Office 文档工具",
+  "description": "NeoWorker 内置的 Word、Excel 和 PowerPoint 创建、检查、修改与预览引擎。",
+  "icon": "📄",
+  "category": "Guidelines",
+  "type": "guideline",
+  "priority": 2,
+  "prompt": "## Office 文档工具（内部由 OfficeCLI 实现）\n\n- NeoWorker 已内置并验证 Office 文档工具；不要下载、安装或要求用户配置。\n- OfficeCLI 只是内部实现名。在任何用户可见的计划步骤、进度、状态和最终回复中，中文统一称为“Office工具”，英文统一称为“Office tools”；除代码命令和技术调试信息外，不要显示“OfficeCLI”。\n- 处理 DOCX、XLSX、PPTX 时，默认使用 NeoWorker 的 Office 创建工具完成结构化生成，并以返回的 qualityCheck 作为最终质量门槛。\n- 读取、检查或修改现有 Office 文件时，优先通过 run_command 调用 `officecli`；不确定命令或属性时先运行 `officecli help`，不要猜测参数。\n- 编辑流程优先使用 Office工具的 L1 读取、L2 DOM 编辑；只有 DOM 无法表达时才使用 raw XML。\n- 在其他程序读取文件、交付或上传前运行 `officecli close <file>`；随后执行 `officecli validate <file> --json`、`officecli view <file> issues --json`，必要时生成 HTML 预览。\n- qualityCheck 为 failed 或 issues 时必须修复后重验；只有 Office工具确实无法启动时才使用内置兼容回退，并明确说明未完成 Office工具质检。",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "version": "1.0.143",
+    "homepage": "https://github.com/iOfficeAI/OfficeCLI",
+    "routing": {
+      "useWhen": "Use whenever NeoWorker creates, reads, checks, or modifies Word, Excel, or PowerPoint files.",
+      "dontUseWhen": "Do not apply to PDF-only, Markdown-only, or plain-text tasks unless an Office file is also involved.",
+      "outputs": "A validated DOCX, XLSX, or PPTX artifact with Office tools quality evidence.",
+      "successCriteria": "The Office artifact exists, passes structural validation, has its issue report reviewed, and is flushed before delivery.",
+      "examples": {
+        "positive": [
+          "生成一份 Word 报告",
+          "创建一个 Excel 分析表",
+          "帮我做一份 PowerPoint",
+          "检查这个 PPT 有没有文字溢出"
+        ],
+        "negative": ["写一段 Markdown", "生成纯文本摘要", "只创建 PDF 文件"]
+      }
+    },
+    "authoring": {
+      "complexity": "medium"
+    }
+  }
+}

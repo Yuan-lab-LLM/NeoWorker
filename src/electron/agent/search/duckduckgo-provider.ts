@@ -7,6 +7,38 @@ import {
   SearchType,
 } from "./types";
 
+type SearchFetch = typeof fetch;
+
+function getElectronNetFetch(): SearchFetch | null {
+  try {
+    // DuckDuckGo is often unreachable through Node's undici network path on
+    // proxied macOS networks, while Electron's Chromium network stack honors
+    // the system proxy. Keep the provider usable outside Electron by falling
+    // back to the regular global fetch implementation.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // oxlint-disable-next-line typescript-eslint(no-require-imports)
+    const electron = require("electron") as Any;
+    const netFetch = electron?.net?.fetch;
+    return typeof netFetch === "function" ? netFetch.bind(electron.net) : null;
+  } catch {
+    return null;
+  }
+}
+
+function describeNetworkError(error: Any): string {
+  const cause = error?.cause;
+  const code = cause?.code || error?.code;
+  const detail = cause?.message || error?.message;
+
+  if (code === "UND_ERR_CONNECT_TIMEOUT" || error?.name === "AbortError") {
+    return "DuckDuckGo connection timed out. Check your network or proxy settings and try again.";
+  }
+
+  return detail
+    ? `DuckDuckGo connection failed: ${detail}`
+    : "Failed to connect to DuckDuckGo";
+}
+
 /**
  * DuckDuckGo HTML search provider (free, no API key required).
  * Scrapes https://html.duckduckgo.com/html/ for results.
@@ -49,15 +81,37 @@ export class DuckDuckGoProvider implements SearchProvider {
     const timeout = setTimeout(() => controller.abort(), 15000);
 
     try {
-      const response = await fetch(this.baseUrl, {
+      const requestInit: RequestInit = {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
-          "User-Agent": "CoWorkOS/1.0",
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
         },
         body: params.toString(),
         signal: controller.signal,
-      });
+      };
+
+      const electronFetch = getElectronNetFetch();
+      let response: Response;
+
+      try {
+        response = await (electronFetch || globalThis.fetch)(this.baseUrl, requestInit);
+      } catch (primaryError: Any) {
+        // Outside Electron there is no Chromium fetch. Inside Electron, retry
+        // with Node fetch only when the Chromium request itself fails.
+        if (!electronFetch) throw primaryError;
+        try {
+          response = await globalThis.fetch(this.baseUrl, requestInit);
+        } catch (fallbackError: Any) {
+          throw new Error(describeNetworkError(fallbackError), {
+            cause: fallbackError,
+          });
+        }
+      }
 
       clearTimeout(timeout);
 
@@ -77,9 +131,10 @@ export class DuckDuckGoProvider implements SearchProvider {
     } catch (error: Any) {
       clearTimeout(timeout);
       if (error.name === "AbortError") {
-        throw new Error("DuckDuckGo request timed out");
+        throw new Error(describeNetworkError(error), { cause: error });
       }
-      throw error;
+      if (error.message?.startsWith("DuckDuckGo")) throw error;
+      throw new Error(describeNetworkError(error), { cause: error });
     }
   }
 

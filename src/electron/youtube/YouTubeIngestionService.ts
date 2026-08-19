@@ -154,7 +154,7 @@ export class YouTubeIngestionService {
   ) {}
 
   private cacheDir(videoId: string): string {
-    return path.join(this.workspacePath, ".cowork", "youtube", videoId);
+    return path.join(this.workspacePath, ".neoworker", "youtube", videoId);
   }
 
   private async runYtDlp(args: string[]): Promise<{ stdout: string; stderr: string }> {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Globe, Copy, Check } from "lucide-react";
+import { translate, useLanguage } from "../i18n";
 
 interface WebAccessConfig {
   enabled: boolean;
@@ -18,6 +19,8 @@ interface WebAccessStatus {
 }
 
 export const WebAccessSettingsPanel: React.FC = () => {
+  useLanguage();
+  const t = translate;
   const [config, setConfig] = useState<WebAccessConfig>({
     enabled: false,
     port: 3847,
@@ -76,18 +79,23 @@ export const WebAccessSettingsPanel: React.FC = () => {
 
   return (
     <div className="settings-section">
-      <h2 className="settings-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <h2
+        className="settings-title"
+        style={{ display: "flex", alignItems: "center", gap: 8 }}
+      >
         <Globe size={18} />
-        Web Access
+        {t("webAccess.title", "Web Access")}
       </h2>
       <p className="settings-description">
-        Access CoWork OS from any browser on your network. When enabled, the UI is served over HTTP
-        with token authentication.
+        {t(
+          "webAccess.description",
+          "Access NeoWorker from any browser on your network. When enabled, the UI is served over HTTP with token authentication.",
+        )}
       </p>
 
       <div className="settings-group">
         <label className="settings-toggle-row">
-          <span>Enable Web Access</span>
+          <span>{t("webAccess.enable", "Enable Web Access")}</span>
           <input
             type="checkbox"
             checked={config.enabled}
@@ -98,7 +106,7 @@ export const WebAccessSettingsPanel: React.FC = () => {
         {config.enabled && (
           <>
             <div className="settings-field">
-              <label>Port</label>
+              <label>{t("webAccess.port", "Port")}</label>
               <input
                 type="number"
                 value={config.port}
@@ -110,8 +118,15 @@ export const WebAccessSettingsPanel: React.FC = () => {
             </div>
 
             <div className="settings-field">
-              <label>Access URL</label>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+              <label>{t("webAccess.accessUrl", "Access URL")}</label>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 13,
+                }}
+              >
                 <code
                   style={{
                     padding: "4px 8px",
@@ -123,13 +138,17 @@ export const WebAccessSettingsPanel: React.FC = () => {
                 >
                   {accessUrl}
                 </code>
-                {status?.running && <span style={{ color: "#22c55e", fontSize: 11 }}>Running</span>}
+                {status?.running && (
+                  <span style={{ color: "#22c55e", fontSize: 11 }}>
+                    {t("webAccess.running", "Running")}
+                  </span>
+                )}
               </div>
             </div>
 
             {config.token && (
               <div className="settings-field">
-                <label>Access Token</label>
+                <label>{t("webAccess.accessToken", "Access Token")}</label>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <code
                     style={{
@@ -162,7 +181,9 @@ export const WebAccessSettingsPanel: React.FC = () => {
                     }}
                   >
                     {copied ? <Check size={12} /> : <Copy size={12} />}
-                    {copied ? "Copied" : "Copy"}
+                    {copied
+                      ? t("webAccess.copied", "Copied")
+                      : t("webAccess.copy", "Copy")}
                   </button>
                 </div>
               </div>
@@ -170,11 +191,23 @@ export const WebAccessSettingsPanel: React.FC = () => {
 
             {status && (
               <div className="settings-field">
-                <label>Status</label>
+                <label>{t("webAccess.status", "Status")}</label>
                 <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                  {status.connectedClients} connected client(s)
+                  {t(
+                    "webAccess.connectedClients",
+                    "{count} connected client(s)",
+                    {
+                      count: status.connectedClients,
+                    },
+                  )}
                   {status.startedAt && (
-                    <> &middot; Started {new Date(status.startedAt).toLocaleTimeString()}</>
+                    <>
+                      {" "}
+                      &middot;{" "}
+                      {t("webAccess.started", "Started {time}", {
+                        time: new Date(status.startedAt).toLocaleTimeString(),
+                      })}
+                    </>
                   )}
                 </div>
               </div>

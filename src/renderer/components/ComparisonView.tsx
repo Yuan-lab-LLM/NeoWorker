@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { translate, useLanguage } from "../i18n";
 
 interface ComparisonTaskResult {
   taskId: string;
@@ -33,7 +34,12 @@ interface ComparisonViewProps {
   onSelectTask?: (taskId: string) => void;
 }
 
-export function ComparisonView({ sessionId, onSelectTask }: ComparisonViewProps) {
+export function ComparisonView({
+  sessionId,
+  onSelectTask,
+}: ComparisonViewProps) {
+  useLanguage();
+  const t = translate;
   const [session, setSession] = useState<ComparisonSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +50,10 @@ export function ComparisonView({ sessionId, onSelectTask }: ComparisonViewProps)
       setSession(s ?? null);
       setError(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load comparison session";
+      const message =
+        err instanceof Error
+          ? err.message
+          : t("comparison.error.load", "Failed to load comparison session");
       setError(message);
     } finally {
       setLoading(false);
@@ -68,7 +77,10 @@ export function ComparisonView({ sessionId, onSelectTask }: ComparisonViewProps)
       await window.electronAPI.cancelComparison(sessionId);
       await loadSession();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to cancel comparison";
+      const message =
+        err instanceof Error
+          ? err.message
+          : t("comparison.error.cancel", "Failed to cancel comparison");
       setError(message);
     }
   };
@@ -83,16 +95,22 @@ export function ComparisonView({ sessionId, onSelectTask }: ComparisonViewProps)
 
   if (loading) {
     return (
-      <div className="comparison-view" style={{ padding: "24px", opacity: 0.6 }}>
-        Loading comparison session...
+      <div
+        className="comparison-view"
+        style={{ padding: "24px", opacity: 0.6 }}
+      >
+        {t("comparison.loading", "Loading comparison session...")}
       </div>
     );
   }
 
   if (!session) {
     return (
-      <div className="comparison-view" style={{ padding: "24px", opacity: 0.6 }}>
-        Comparison session not found.
+      <div
+        className="comparison-view"
+        style={{ padding: "24px", opacity: 0.6 }}
+      >
+        {t("comparison.notFound", "Comparison session not found.")}
       </div>
     );
   }
@@ -119,10 +137,12 @@ export function ComparisonView({ sessionId, onSelectTask }: ComparisonViewProps)
               fontWeight: 600,
             }}
           >
-            {session.status}
+            {t(`comparison.status.${session.status}`, session.status)}
           </span>
           <span style={{ opacity: 0.6, fontSize: "0.875rem" }}>
-            {session.taskIds.length} agents
+            {t("comparison.agentCount", "{count} agents", {
+              count: session.taskIds.length,
+            })}
           </span>
           {isRunning && (
             <button
@@ -137,18 +157,22 @@ export function ComparisonView({ sessionId, onSelectTask }: ComparisonViewProps)
                 fontSize: "0.75rem",
               }}
             >
-              Cancel
+              {t("common.cancel", "Cancel")}
             </button>
           )}
         </div>
       </div>
 
       <div style={{ marginBottom: "16px", opacity: 0.8 }}>
-        <strong>Prompt:</strong> {session.prompt}
+        <strong>{t("comparison.prompt", "Prompt")}:</strong> {session.prompt}
       </div>
 
       {error && (
-        <div style={{ marginBottom: "16px", color: "var(--color-error, #f87171)" }}>{error}</div>
+        <div
+          style={{ marginBottom: "16px", color: "var(--color-error, #f87171)" }}
+        >
+          {error}
+        </div>
       )}
 
       {results.length > 0 ? (
@@ -159,7 +183,8 @@ export function ComparisonView({ sessionId, onSelectTask }: ComparisonViewProps)
               style={{
                 padding: "16px",
                 borderRadius: "8px",
-                backgroundColor: "var(--color-bg-elevated, rgba(255,255,255,0.05))",
+                backgroundColor:
+                  "var(--color-bg-elevated, rgba(255,255,255,0.05))",
                 border: "1px solid var(--color-border)",
                 cursor: onSelectTask ? "pointer" : "default",
               }}
@@ -188,7 +213,7 @@ export function ComparisonView({ sessionId, onSelectTask }: ComparisonViewProps)
                     color: "#000",
                   }}
                 >
-                  {result.status}
+                  {t(`comparison.status.${result.status}`, result.status)}
                 </span>
               </div>
 
@@ -229,24 +254,44 @@ export function ComparisonView({ sessionId, onSelectTask }: ComparisonViewProps)
                 }}
               >
                 <div>
-                  <div style={{ opacity: 0.6 }}>Files</div>
+                  <div style={{ opacity: 0.6 }}>
+                    {t("comparison.files", "Files")}
+                  </div>
                   <div style={{ fontWeight: 600 }}>{result.filesChanged}</div>
                 </div>
                 <div>
-                  <div style={{ opacity: 0.6 }}>Added</div>
-                  <div style={{ fontWeight: 600, color: "var(--color-success, #34d399)" }}>
+                  <div style={{ opacity: 0.6 }}>
+                    {t("comparison.added", "Added")}
+                  </div>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      color: "var(--color-success, #34d399)",
+                    }}
+                  >
                     +{result.linesAdded}
                   </div>
                 </div>
                 <div>
-                  <div style={{ opacity: 0.6 }}>Removed</div>
-                  <div style={{ fontWeight: 600, color: "var(--color-error, #f87171)" }}>
+                  <div style={{ opacity: 0.6 }}>
+                    {t("comparison.removed", "Removed")}
+                  </div>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      color: "var(--color-error, #f87171)",
+                    }}
+                  >
                     -{result.linesRemoved}
                   </div>
                 </div>
                 <div>
-                  <div style={{ opacity: 0.6 }}>Duration</div>
-                  <div style={{ fontWeight: 600 }}>{formatDuration(result.duration)}</div>
+                  <div style={{ opacity: 0.6 }}>
+                    {t("comparison.duration", "Duration")}
+                  </div>
+                  <div style={{ fontWeight: 600 }}>
+                    {formatDuration(result.duration)}
+                  </div>
                 </div>
               </div>
 
@@ -268,11 +313,14 @@ export function ComparisonView({ sessionId, onSelectTask }: ComparisonViewProps)
         </div>
       ) : isRunning ? (
         <div style={{ opacity: 0.6, textAlign: "center", padding: "32px" }}>
-          Agents are working... Results will appear here when tasks complete.
+          {t(
+            "comparison.working",
+            "Agents are working... Results will appear here when tasks complete.",
+          )}
         </div>
       ) : (
         <div style={{ opacity: 0.6, textAlign: "center", padding: "32px" }}>
-          No results available.
+          {t("comparison.noResults", "No results available.")}
         </div>
       )}
     </div>

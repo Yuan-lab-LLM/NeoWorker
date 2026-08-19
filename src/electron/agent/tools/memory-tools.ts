@@ -249,7 +249,7 @@ export class MemoryTools {
   }): Promise<{
     success: boolean;
     entryId?: string;
-    updatedFile?: ".cowork/USER.md" | ".cowork/MEMORY.md";
+    updatedFile?: ".neoworker/USER.md" | ".neoworker/MEMORY.md";
     staged?: boolean;
     pendingId?: string;
     message?: string;

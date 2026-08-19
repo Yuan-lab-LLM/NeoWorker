@@ -23,7 +23,7 @@ vi.mock("../../settings/personality-manager", () => ({
   PersonalityManager: {
     getPersonalityPrompt: vi.fn().mockReturnValue(""),
     getPersonalityPromptById: vi.fn().mockReturnValue(""),
-    getIdentityPrompt: vi.fn().mockReturnValue("You are Cowork."),
+    getIdentityPrompt: vi.fn().mockReturnValue("You are NeoWorker."),
   },
 }));
 
@@ -98,6 +98,79 @@ describe("TaskExecutor plan parsing", () => {
     vi.clearAllMocks();
   });
 
+  it("drops leaked internal checklist policy from user-visible plan steps", async () => {
+    const executor = createPlanExecutor({
+      usage: { inputTokens: 1, outputTokens: 2 },
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            description: "Research the reported issue",
+            steps: [
+              {
+                id: "1",
+                description:
+                  "Mark checklist progress immediately when work starts or completes.",
+              },
+              {
+                id: "2",
+                description: "Inspect the failing HTTP request and report the cause.",
+              },
+            ],
+          }),
+        },
+      ],
+    });
+
+    await executor.createPlan();
+
+    expect(executor.plan.steps.map((step: Any) => step.description)).toEqual([
+      "Inspect the failing HTTP request and report the cause.",
+    ]);
+  });
+
+  it("drops every exact strategy-context line instead of relying on fixed policy wording", async () => {
+    const leakedPolicy =
+      "Do not infer the active workspace, company, industry, topic, or any missing task parameter from this memory.";
+    const futurePolicy = "A future policy sentence whose wording is not hard-coded.";
+    const executor = createPlanExecutor({
+      usage: { inputTokens: 1, outputTokens: 2 },
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            description: "Compare the requested products",
+            steps: [
+              { id: "1", description: leakedPolicy },
+              { id: "2", description: futurePolicy },
+              {
+                id: "3",
+                description: `Try an alternative toolchain or different input strategy for: ${leakedPolicy}`,
+              },
+              { id: "4", description: "Research and compare the three named products." },
+            ],
+          }),
+        },
+      ],
+    });
+    executor.task.rawPrompt = "Compare product A, product B, and product C.";
+    executor.task.prompt = [
+      executor.task.rawPrompt,
+      "",
+      "[AGENT_STRATEGY_CONTEXT_V1]",
+      "relationship_memory:",
+      `- ${leakedPolicy}`,
+      `- ${futurePolicy}`,
+      "[/AGENT_STRATEGY_CONTEXT_V1]",
+    ].join("\n");
+
+    await executor.createPlan();
+
+    expect(executor.plan.steps.map((step: Any) => step.description)).toEqual([
+      "Research and compare the three named products.",
+    ]);
+  });
+
   it("routes execution plan creation through the strong model profile when using profile routing", async () => {
     const response = {
       usage: { inputTokens: 1, outputTokens: 2 },
@@ -122,6 +195,87 @@ describe("TaskExecutor plan parsing", () => {
     await expect(executor.createPlan()).rejects.toThrow("Request cancelled");
 
     expect(executor.emitEvent).not.toHaveBeenCalledWith("llm_error", expect.anything());
+  });
+
+  it("continues with a local execution plan when remote planning times out", async () => {
+    const executor = createPlanExecutor({
+      usage: { inputTokens: 0, outputTokens: 0 },
+      content: [],
+    });
+    executor.task.title = "Analyze the repository";
+    executor.task.prompt = "Inspect the repository and summarize the root cause.";
+    executor.task.rawPrompt = executor.task.prompt;
+    executor.callLLMWithRetry = vi.fn().mockRejectedValue(
+      Object.assign(new Error("Plan creation timed out after 75s"), {
+        code: "NEOWORKER_LLM_TIMEOUT",
+        retryable: true,
+        retryKind: "request_timeout",
+      }),
+    );
+
+    await executor.createPlan();
+
+    expect(executor.plan.steps).toHaveLength(1);
+    expect(executor.plan.steps[0]).toEqual(
+      expect.objectContaining({
+        kind: "primary",
+        status: "pending",
+        description: expect.stringContaining("Inspect the repository"),
+      }),
+    );
+    expect(executor.emitEvent).toHaveBeenCalledWith(
+      "plan_created",
+      expect.objectContaining({
+        source: "local_fallback",
+        retryKind: "request_timeout",
+      }),
+    );
+    expect(executor.emitEvent).not.toHaveBeenCalledWith(
+      "llm_error",
+      expect.anything(),
+    );
+  });
+
+  it("skips remote planning for a focused low-complexity live lookup", async () => {
+    const executor = createPlanExecutor({
+      usage: { inputTokens: 1, outputTokens: 1 },
+      content: [],
+    });
+    executor.task.title = "帮我查询一下本周六北京到沈阳的航班情况";
+    executor.task.prompt = executor.task.title;
+    executor.task.rawPrompt = executor.task.title;
+    executor.task.userPrompt = executor.task.title;
+    executor.task.agentConfig = {
+      executionMode: "execute",
+      taskDomain: "general",
+      taskStrategySnapshot: {
+        taskIntent: "execution",
+        conversationMode: "task",
+        executionMode: "execute",
+        taskDomain: "general",
+        directResponseMode: "none",
+        preflightGates: [],
+        workflowMode: "none",
+        confidence: 0.85,
+        overrides: [],
+      },
+    };
+
+    await executor.createPlan();
+
+    expect(executor.callLLMWithRetry).not.toHaveBeenCalled();
+    expect(executor.plan.steps).toEqual([
+      expect.objectContaining({
+        id: "1",
+        kind: "primary",
+        status: "pending",
+        description: executor.task.title,
+      }),
+    ]);
+    expect(executor.emitEvent).toHaveBeenCalledWith(
+      "plan_created",
+      expect.objectContaining({ source: "direct_lookup" }),
+    );
   });
 
   it("uses a direct one-step plan for simple image generation prompts", async () => {
@@ -390,6 +544,81 @@ describe("TaskExecutor plan parsing", () => {
     expect(result.blockedResult?.error).toContain("Code-first UI task mode is active");
   });
 
+  it("keeps explicitly requested Office artifact tools visible during an analysis step", () => {
+    const executor = createPlanExecutor({
+      usage: { inputTokens: 1, outputTokens: 2 },
+      content: [],
+    });
+    const prompt = "分析交通银行股票，并分别生成 PPT、PDF、Word 文档";
+    executor.task.title = prompt;
+    executor.task.prompt = prompt;
+    executor.task.rawPrompt = prompt;
+    executor.currentStepId = "1";
+    executor.plan = {
+      description: "Plan",
+      steps: [
+        {
+          id: "1",
+          description: "收集交通银行行情、财务与估值资料",
+          status: "pending",
+        },
+      ],
+    };
+    executor.resolveStepExecutionContract = vi.fn().mockReturnValue({
+      requiresMutation: false,
+      requiredTools: new Set<string>(),
+      requiredExtensions: [],
+      requiresArtifactEvidence: false,
+    });
+    executor.isVerificationStepForCompletion = vi.fn().mockReturnValue(false);
+    executor.getEffectiveTaskDomain = vi.fn().mockReturnValue("research");
+
+    const scoped = executor
+      .applyStepScopedToolPolicy([
+        { name: "web_search" },
+        { name: "http_request" },
+        { name: "create_document" },
+        { name: "generate_document" },
+        { name: "create_presentation" },
+        { name: "generate_presentation" },
+        { name: "create_spreadsheet" },
+      ])
+      .map((tool: Any) => tool.name);
+
+    expect(scoped).toEqual([
+      "web_search",
+      "http_request",
+      "create_document",
+      "generate_document",
+      "create_presentation",
+      "generate_presentation",
+    ]);
+  });
+
+  it("blocks guessed localhost Office service probes for artifact tasks", () => {
+    const executor = createPlanExecutor({
+      usage: { inputTokens: 1, outputTokens: 2 },
+      content: [],
+    });
+    const prompt = "分析交通银行股票，并生成 PPT、PDF、Word 文档";
+    executor.task.title = prompt;
+    executor.task.prompt = prompt;
+    executor.task.rawPrompt = prompt;
+
+    for (const url of [
+      "http://127.0.0.1:19999/health",
+      "http://localhost:38745/officecli/help",
+    ]) {
+      const result = executor.applyPreToolUsePolicyHook({
+        toolName: "http_request",
+        input: { url },
+        stepMode: undefined,
+      });
+      expect(result.blockedResult?.error).toContain("built into NeoWorker");
+      expect(result.blockedResult?.error).toContain("create_document");
+    }
+  });
+
   it("allows browser tools for web page design and troubleshooting prompts", () => {
     const executor = createPlanExecutor({
       usage: { inputTokens: 1, outputTokens: 2 },
@@ -443,7 +672,7 @@ describe("TaskExecutor plan parsing", () => {
         { type: "text", text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}' },
       ],
     });
-    const prompt = "generate an image of a cool avatar of a snow leopard for cowork os app";
+    const prompt = "generate an image of a cool avatar of a snow leopard for neoworker os app";
     executor.task.title = "Create avatar";
     executor.task.prompt = prompt;
     executor.task.rawPrompt = prompt;
@@ -470,7 +699,7 @@ describe("TaskExecutor plan parsing", () => {
         { type: "text", text: '{"description":"P","steps":[{"id":"1","description":"Do the thing"}]}' },
       ],
     });
-    const rawPrompt = 'generate an image of a cool avatar of a snow leopard for "cowork os" app';
+    const rawPrompt = 'generate an image of a cool avatar of a snow leopard for "neoworker os" app';
     executor.task.title = "Create snow leopard avatar";
     executor.task.rawPrompt = undefined;
     executor.task.userPrompt = undefined;
@@ -504,12 +733,12 @@ image_generation_contract:
       content: [
         {
           type: "text",
-          text: '{"description":"P","steps":[{"id":"1","description":"Research CoWork OS context"},{"id":"2","description":"Generate the infographic image"}]}',
+          text: '{"description":"P","steps":[{"id":"1","description":"Research NeoWorker context"},{"id":"2","description":"Generate the infographic image"}]}',
         },
       ],
     });
-    const prompt = "create an infographic about cowork os";
-    executor.task.title = "Create CoWork OS infographic";
+    const prompt = "create an infographic about neoworker os";
+    executor.task.title = "Create NeoWorker infographic";
     executor.task.prompt = prompt;
     executor.task.rawPrompt = prompt;
 
@@ -552,7 +781,7 @@ image_generation_contract:
       ],
     });
     const prompt =
-      'can you combine two videos and save it as a new video named "Cowork OS Gmail"';
+      'can you combine two videos and save it as a new video named "NeoWorker OS Gmail"';
     executor.task.title = prompt;
     executor.task.prompt = prompt;
     executor.task.rawPrompt = prompt;
@@ -615,7 +844,7 @@ image_generation_contract:
       ],
     });
     const prompt =
-      'can you combine two videos and save it as a new video named "Cowork OS Gmail"\n\n' +
+      'can you combine two videos and save it as a new video named "NeoWorker OS Gmail"\n\n' +
       "the longer video should be the first and the other should come after it";
     executor.task.title = prompt;
     executor.task.prompt = prompt;
@@ -627,7 +856,7 @@ image_generation_contract:
       "Supported likely formats: `.mp4`, `.mov`, `.m4v`, `.webm`, `.avi`.",
     );
     expect(executor.plan.steps.at(-1).description).toBe(
-      "Create the final combined video file `Cowork OS Gmail.mp4` with the longer source video first.",
+      "Create the final combined video file `NeoWorker OS Gmail.mp4` with the longer source video first.",
     );
   });
 
@@ -772,6 +1001,7 @@ image_generation_contract:
       ],
     };
     const executor = createPlanExecutor(response);
+    executor.buildDirectHtmlArtifactPlan = vi.fn().mockReturnValue(null);
     const prompt = [
       "Research and compare two GitHub repositories: Hermes Agent and OpenClaw.",
       "Step 1: Find their GitHub pages and collect current stats.",
@@ -1010,7 +1240,7 @@ image_generation_contract:
         {
           type: "text",
           text:
-            '{}【analysis to=skill_list code:\n{"description":"Compare the most recent OpenClaw changes against CoWork OS and identify a short list of feasible updates to adopt.","steps":[{"id":"1","description":"Inspect available project assistance capabilities.","status":"pending"}]}',
+            '{}【analysis to=skill_list code:\n{"description":"Compare the most recent OpenClaw changes against NeoWorker and identify a short list of feasible updates to adopt.","steps":[{"id":"1","description":"Inspect available project assistance capabilities.","status":"pending"}]}',
         },
       ],
     };
@@ -1018,7 +1248,7 @@ image_generation_contract:
 
     await executor.createPlan();
 
-    expect(executor.plan?.description).toBe("Compare the most recent OpenClaw changes against CoWork OS and identify a short list of feasible updates to adopt.");
+    expect(executor.plan?.description).toBe("Compare the most recent OpenClaw changes against NeoWorker and identify a short list of feasible updates to adopt.");
     expect(executor.plan?.steps?.[0]?.description).toBe("Inspect available project assistance capabilities.");
   });
 
@@ -1071,7 +1301,7 @@ image_generation_contract:
               {
                 id: "1",
                 description:
-                  'I will analyze the workspace brief. [TOOL_CALL]{tool => "read_file", args => {"path":".cowork/workspace-example-community-packs.md"}}[/TOOL_CALL]',
+                  'I will analyze the workspace brief. [TOOL_CALL]{tool => "read_file", args => {"path":".neoworker/workspace-example-community-packs.md"}}[/TOOL_CALL]',
               },
               {
                 id: "2",
@@ -1090,6 +1320,48 @@ image_generation_contract:
     expect(executor.plan?.description).toBe("Execution plan");
     expect(executor.plan?.steps?.[0]?.description).toBe("I will analyze the workspace brief.");
     expect(executor.plan?.steps?.[1]?.description).toBe("Step 2");
+  });
+
+  it("drops copied strategy and relationship-memory entries from executable plans", async () => {
+    const response = {
+      usage: { inputTokens: 10, outputTokens: 20 },
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            description: "Newsletter digest plan",
+            steps: [
+              {
+                id: "1",
+                description: "Directly answer the user question before any deep expansion.",
+              },
+              {
+                id: "2",
+                description:
+                  "Completed task: 整理今天待办. Outcome: A previous task referenced 2026_汽车与智驾行业作战材料.pptx.",
+              },
+              {
+                id: "3",
+                description:
+                  "Fetch the selected newsletter source and summarize the latest messages with links and next actions.",
+              },
+            ],
+          }),
+        },
+      ],
+    };
+    const executor = createPlanExecutor(response);
+    executor.task.title = "生成 newsletter 摘要";
+    executor.task.prompt = "拉取 newsletter 消息并生成摘要。";
+    executor.task.rawPrompt = executor.task.prompt;
+
+    await executor.createPlan();
+
+    const descriptions = executor.plan?.steps?.map((step: Any) => step.description) || [];
+    expect(descriptions).toContain(
+      "Fetch the selected newsletter source and summarize the latest messages with links and next actions.",
+    );
+    expect(descriptions.some((description: string) => /^(Completed task:|Directly answer the user question)/.test(description))).toBe(false);
   });
 
   it("appends a Playwright QA verification step for web-app shipping prompts", async () => {
@@ -1154,7 +1426,7 @@ image_generation_contract:
 
     expect(
       executor.detectVisualQARequirement(
-        "CoWork OS is an Electron app with a Vite renderer. Make sure the app works correctly.",
+        "NeoWorker is an Electron app with a Vite renderer. Make sure the app works correctly.",
       ),
     ).toBe(false);
   });

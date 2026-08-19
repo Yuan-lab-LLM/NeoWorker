@@ -14,12 +14,13 @@ import type {
   RetryQuarantinedImportResult,
 } from "../../shared/types";
 import type { DeclarativeConnector, PluginManifest } from "../extensions/types";
+import { findPluginManifestPath } from "../extensions/manifest-file";
 import { createLogger } from "../utils/logger";
 import { getUserDataDir } from "../utils/user-data-dir";
 
 const logger = createLogger("CapabilityBundleSecurity");
 
-const PACK_REPORT_FILENAME = ".cowork-security.json";
+const PACK_REPORT_FILENAME = ".neoworker-security.json";
 const SKILL_REPORT_SUFFIX = ".security.json";
 const QUARANTINE_PAYLOAD_DIR = "payload";
 const QUARANTINE_METADATA_FILENAME = "metadata.json";
@@ -639,9 +640,13 @@ export class CapabilityBundleSecurityService {
     const findings: CapabilitySecurityFinding[] = [];
     const packages = new Map<string, PackageCandidate>();
     const texts: Array<{ path: string; content: string }> = [];
-    const manifestPath = path.join(context.rootDir, "cowork.plugin.json");
+    const manifestPath = findPluginManifestPath(context.rootDir);
+    if (!manifestPath) {
+      throw new Error(`Plugin manifest not found in ${context.rootDir}`);
+    }
+    const manifestLabel = path.basename(manifestPath);
     const manifestContent = fs.readFileSync(manifestPath, "utf-8");
-    texts.push({ path: "cowork.plugin.json", content: manifestContent });
+    texts.push({ path: manifestLabel, content: manifestContent });
 
     if (context.manifest.main) {
       const resolvedMain = path.resolve(context.rootDir, context.manifest.main);
@@ -649,7 +654,7 @@ export class CapabilityBundleSecurityService {
         addFinding(findings, {
           code: "manifest-path-escape",
           severity: "critical",
-          path: "cowork.plugin.json",
+          path: manifestLabel,
           message: "Plugin main entry resolves outside the plugin root.",
           detail: context.manifest.main,
         });
@@ -1086,7 +1091,7 @@ export class CapabilityBundleSecurityService {
         {
           code: "digest-mismatch",
           severity: "critical",
-          path: "cowork.plugin.json",
+          path: "neoworker.plugin.json",
           message: "Managed plugin pack changed after its last approved scan.",
         },
       ]);
@@ -1231,7 +1236,8 @@ export class CapabilityBundleSecurityService {
       };
     }
 
-    const manifest = readJsonFile<PluginManifest>(path.join(payloadDir, "cowork.plugin.json"));
+    const manifestPath = findPluginManifestPath(payloadDir);
+    const manifest = manifestPath ? readJsonFile<PluginManifest>(manifestPath) : null;
     if (!manifest || !metadata.activePackDir) {
       return {
         success: false,

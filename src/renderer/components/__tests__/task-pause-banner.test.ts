@@ -2,7 +2,10 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { TaskPauseBanner, TaskPauseBannerDetailsContent } from "../TaskPauseBanner";
+import {
+  TaskPauseBanner,
+  TaskPauseBannerDetailsContent,
+} from "../TaskPauseBanner";
 
 describe("TaskPauseBanner", () => {
   it("renders explicit shell action buttons for shell permission pauses", () => {
@@ -38,13 +41,15 @@ describe("TaskPauseBanner", () => {
     const markup = renderToStaticMarkup(
       React.createElement(TaskPauseBanner, {
         message:
-          "Almarion, executed. I tightened the article so it is explicitly about CoWork OS as a local-first desktop AI coworker runtime.",
+          "Almarion, executed. I tightened the article so it is explicitly about NeoWorker as a local-first desktop AI coworker runtime.",
         reasonCode: "required_decision",
       }),
     );
 
     expect(markup).toContain("Paused after an update.");
-    expect(markup).toContain("I don&#x27;t see a specific decision request here");
+    expect(markup).toContain(
+      "I don&#x27;t see a specific decision request here",
+    );
     expect(markup).toContain("type continue to let it proceed");
   });
 
@@ -104,7 +109,8 @@ describe("TaskPauseBanner", () => {
   it("renders markdown formatting in the details content", () => {
     const markup = renderToStaticMarkup(
       React.createElement(TaskPauseBannerDetailsContent, {
-        message: "Need your confirmation.\n\n## Recommended next step\n\n- Ship the fix\n- Re-test the modal",
+        message:
+          "Need your confirmation.\n\n## Recommended next step\n\n- Ship the fix\n- Re-test the modal",
         markdownComponents: {},
       }),
     );

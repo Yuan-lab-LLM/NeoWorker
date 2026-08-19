@@ -20,7 +20,7 @@ vi.mock("../mention-tools", () => {
 
 describe("ToolRegistry MCP screenshot naming", () => {
   it("saves MCP inline image content using input.name as <name>.png and returns the saved filename", async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-mcp-img-"));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-mcp-img-"));
 
     const { ToolRegistry } = await import("../registry");
 

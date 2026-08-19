@@ -1,0 +1,542 @@
+/* Email provider selection is intentionally scoped to the expanded channel row.
+ * The shared settings layout uses a two-column form grid, while this entry point
+ * needs to use the full row for a compact, responsive provider matrix. */
+.channel-config-expanded-content .email-settings {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+
+.channel-config-expanded-content .email-settings > .settings-section {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  padding: 18px;
+}
+
+.channel-config-expanded-content .email-settings .email-provider-picker {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.channel-config-expanded-content .email-settings .email-connect-intro {
+  grid-column: 1 / -1;
+  padding: 23px 25px 21px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 28px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--color-accent) 6%, transparent),
+      transparent 52%
+    ),
+    var(--color-bg-elevated);
+}
+
+.channel-config-expanded-content .email-settings .email-connect-intro > div:first-child {
+  min-width: 0;
+}
+
+.channel-config-expanded-content .email-settings .email-connect-intro > div:first-child > span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color-accent);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.channel-config-expanded-content .email-settings .email-connect-intro h3 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.channel-config-expanded-content .email-settings .email-connect-intro p {
+  max-width: 62ch;
+  margin: 7px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.channel-config-expanded-content .email-settings .email-connect-assurance {
+  width: min(255px, 38%);
+  flex: none;
+  padding: 10px 11px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 9px;
+  color: var(--color-accent);
+  background: var(--color-bg-secondary);
+}
+
+.channel-config-expanded-content .email-settings .email-connect-assurance > svg {
+  margin-top: 1px;
+  flex: none;
+}
+
+.channel-config-expanded-content .email-settings .email-connect-assurance > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.channel-config-expanded-content .email-settings .email-connect-assurance strong {
+  color: var(--color-text-primary);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.channel-config-expanded-content .email-settings .email-connect-assurance small {
+  color: var(--color-text-muted);
+  font-size: 9.5px;
+  line-height: 1.4;
+}
+
+.channel-config-expanded-content .email-settings .email-provider-group {
+  grid-column: 1 / -1;
+  padding: 19px 24px 22px;
+}
+
+.channel-config-expanded-content .email-settings .email-provider-group-secondary {
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border-subtle);
+  background: color-mix(
+    in srgb,
+    var(--color-bg-secondary) 58%,
+    var(--color-bg-elevated)
+  );
+}
+
+.channel-config-expanded-content .email-settings .email-provider-group-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.channel-config-expanded-content .email-settings .email-provider-group-heading h4 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.channel-config-expanded-content .email-settings .email-provider-group-heading p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 9.8px;
+}
+
+.channel-config-expanded-content .email-settings .email-provider-grid {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  align-items: stretch;
+  justify-content: stretch;
+  width: 100%;
+  min-width: 0;
+  gap: 10px 12px;
+  margin-top: 11px;
+}
+
+.channel-config-expanded-content .email-settings .email-provider-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 66px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  text-align: left;
+  box-shadow: none;
+  transition:
+    border-color 0.14s ease,
+    background-color 0.14s ease;
+}
+
+.channel-config-expanded-content .email-settings .email-provider-card:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 34%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 5%, var(--color-bg-secondary));
+}
+
+.channel-config-expanded-content .email-settings .email-provider-card:hover .email-provider-card-arrow {
+  color: var(--color-accent);
+  transform: translateX(2px);
+}
+
+.channel-config-expanded-content .email-settings .email-provider-card.recommended {
+  border-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 3%, var(--color-bg-secondary));
+}
+
+.channel-config-expanded-content .email-settings .email-provider-card:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
+.channel-config-expanded-content .email-settings .email-provider-card-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+}
+
+.channel-config-expanded-content .email-settings .email-provider-card-info {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.channel-config-expanded-content .email-settings .email-provider-card-name-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.channel-config-expanded-content .email-settings .email-provider-card-name {
+  overflow: visible;
+  color: var(--color-text-primary);
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.channel-config-expanded-content .email-settings .email-provider-card-desc {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  line-height: 1.35;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.channel-config-expanded-content .email-settings .email-provider-card-badge {
+  padding: 2px 5px;
+  border-radius: 5px;
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 9%, var(--color-bg-elevated));
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.channel-config-expanded-content .email-settings .email-provider-card-arrow {
+  flex: none;
+  color: var(--color-text-muted);
+  transition:
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+@media (max-width: 900px) {
+  .channel-config-expanded-content .email-settings .email-connect-intro {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .channel-config-expanded-content .email-settings .email-connect-assurance {
+    width: 100%;
+  }
+
+  .channel-config-expanded-content .email-settings .email-provider-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .channel-config-expanded-content .email-settings .email-connect-intro,
+  .channel-config-expanded-content .email-settings .email-provider-group {
+    padding: 17px;
+  }
+
+  .channel-config-expanded-content .email-settings .email-provider-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .channel-config-expanded-content .email-settings .email-provider-group-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+}
+
+/* Provider dialogs share the same compact form rhythm. OAuth-specific help is
+ * disclosed only when needed so Outlook stays as approachable as Gmail. */
+.email-provider-modal {
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(86dvh, 760px);
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.email-provider-modal .mcp-modal-header {
+  min-height: 64px;
+  box-sizing: border-box;
+  padding: 16px 22px;
+}
+
+.email-provider-modal .email-modal-header-content {
+  gap: 12px;
+}
+
+.email-provider-modal .email-modal-header-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.email-provider-modal .mcp-modal-header h3 {
+  color: var(--color-text-primary);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+}
+
+.email-provider-modal .mcp-modal-content {
+  padding: 20px 22px 22px;
+  scrollbar-gutter: stable;
+}
+
+.email-provider-modal .mcp-modal-content .settings-field {
+  margin-bottom: 14px;
+}
+
+.email-provider-modal .settings-field label {
+  margin-bottom: 6px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.email-provider-modal .settings-input {
+  min-height: 40px;
+  box-sizing: border-box;
+  border-color: var(--color-border);
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  box-shadow: none;
+}
+
+.email-provider-modal .settings-input:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--color-text-muted) 30%,
+    var(--color-border)
+  );
+}
+
+.email-provider-modal .settings-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.email-provider-modal .settings-hint {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.email-provider-modal code {
+  border-radius: 4px;
+  padding: 1px 4px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.94em;
+}
+
+.email-provider-modal-oauth .email-oauth-setup {
+  margin: 10px 0 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: color-mix(
+    in srgb,
+    var(--color-bg-secondary) 72%,
+    var(--color-bg-elevated)
+  );
+}
+
+.email-provider-modal-oauth .email-oauth-setup summary {
+  position: relative;
+  display: flex;
+  min-height: 40px;
+  box-sizing: border-box;
+  align-items: center;
+  padding: 9px 36px 9px 12px;
+  color: var(--color-text-secondary);
+  font-size: 11.5px;
+  font-weight: 650;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.email-provider-modal-oauth .email-oauth-setup summary::-webkit-details-marker {
+  display: none;
+}
+
+.email-provider-modal-oauth .email-oauth-setup summary::after {
+  position: absolute;
+  top: 50%;
+  right: 15px;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  content: "";
+  transform: translateY(-65%) rotate(45deg);
+  transition: transform 140ms ease;
+}
+
+.email-provider-modal-oauth .email-oauth-setup[open] summary::after {
+  transform: translateY(-35%) rotate(225deg);
+}
+
+.email-provider-modal-oauth .email-oauth-setup summary:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-hover);
+}
+
+.email-provider-modal-oauth .email-oauth-setup-body {
+  border-top: 1px solid var(--color-border-subtle);
+  padding: 13px 14px 14px;
+  background: var(--color-bg-elevated);
+}
+
+.email-provider-modal-oauth .email-oauth-setup-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.48;
+}
+
+.email-provider-modal-oauth .email-oauth-setup-list strong {
+  color: var(--color-text-secondary);
+  font-weight: 650;
+}
+
+.email-provider-modal-oauth .email-oauth-setup-note {
+  margin: 11px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.email-provider-modal-oauth .email-oauth-advanced-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 12px;
+}
+
+.email-provider-modal-oauth .email-oauth-advanced-grid .settings-field {
+  min-width: 0;
+}
+
+.email-provider-modal-oauth .email-oauth-connect-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  padding: 11px 12px;
+  background: color-mix(
+    in srgb,
+    var(--color-bg-secondary) 66%,
+    var(--color-bg-elevated)
+  );
+}
+
+.email-provider-modal-oauth .email-oauth-connect-button {
+  min-height: 34px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.email-provider-modal-oauth .email-oauth-connect-copy {
+  min-width: 0;
+}
+
+.email-provider-modal-oauth .email-oauth-connect-copy .settings-hint {
+  margin-top: 0;
+}
+
+.email-provider-modal-oauth .email-oauth-connected {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.email-provider-modal .email-modal-footer {
+  min-height: 64px;
+  box-sizing: border-box;
+  align-items: center;
+  padding: 12px 22px;
+  background: var(--color-bg-elevated);
+}
+
+.email-provider-modal .email-modal-footer > button {
+  min-height: 36px;
+  border-radius: 9px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+@media (max-width: 560px) {
+  .email-provider-modal {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+    border-radius: 14px;
+  }
+
+  .email-provider-modal .mcp-modal-header,
+  .email-provider-modal .mcp-modal-content,
+  .email-provider-modal .email-modal-footer {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .email-provider-modal-oauth .email-oauth-advanced-grid,
+  .email-provider-modal-oauth .email-oauth-connect-field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .email-provider-modal-oauth .email-oauth-connect-button {
+    width: 100%;
+  }
+}

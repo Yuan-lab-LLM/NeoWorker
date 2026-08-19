@@ -15,12 +15,15 @@ const ACTIVE_WORK_EVENT_TYPES: EventType[] = [
   "llm_streaming",
 ];
 
-const TERMINAL_WORK_EVENT_TYPES = new Set<EventType | "task_paused" | "task_cancelled">([
+const TERMINAL_WORK_EVENT_TYPES = new Set<
+  EventType | "task_paused" | "task_cancelled" | "follow_up_failed"
+>([
   "task_paused",
   "approval_requested",
   "task_completed",
   "task_cancelled",
   "follow_up_completed",
+  "follow_up_failed",
 ]);
 
 function isActiveWorkSignal(event: TaskEvent, effectiveType: string): boolean {
@@ -58,7 +61,13 @@ export function isTaskActivelyWorking(
       if (event.taskId !== task.id) continue;
       const effectiveType = getEffectiveTaskEventType(event);
       if (
-        TERMINAL_WORK_EVENT_TYPES.has(effectiveType as EventType | "task_paused" | "task_cancelled")
+        TERMINAL_WORK_EVENT_TYPES.has(
+          effectiveType as
+            | EventType
+            | "task_paused"
+            | "task_cancelled"
+            | "follow_up_failed",
+        )
       ) {
         return false;
       }
@@ -89,7 +98,13 @@ export function isTaskActivelyWorking(
     const effectiveType = getEffectiveTaskEventType(event);
 
     if (
-      TERMINAL_WORK_EVENT_TYPES.has(effectiveType as EventType | "task_paused" | "task_cancelled")
+      TERMINAL_WORK_EVENT_TYPES.has(
+        effectiveType as
+          | EventType
+          | "task_paused"
+          | "task_cancelled"
+          | "follow_up_failed",
+      )
     ) {
       return false;
     }

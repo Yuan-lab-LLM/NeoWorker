@@ -21,14 +21,14 @@ function wasKilled(res) {
 }
 
 async function main() {
-  const maxAttemptsRaw = process.env.COWORK_SETUP_NATIVE_ATTEMPTS || "3";
+  const maxAttemptsRaw = process.env.NEOWORKER_SETUP_NATIVE_ATTEMPTS || "3";
   const maxAttempts = Math.max(1, Number.parseInt(maxAttemptsRaw, 10) || 3);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     if (attempt > 1) {
       const delayMs = Math.min(10_000, 1_000 * Math.pow(2, attempt - 1));
       console.log(
-        `\n[cowork] Native setup was killed; retrying (attempt ${attempt}/${maxAttempts}) in ${Math.round(
+        `\n[neoworker] Native setup was killed; retrying (attempt ${attempt}/${maxAttempts}) in ${Math.round(
           delayMs / 1000
         )}s...`
       );
@@ -52,7 +52,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("[cowork] setup:native driver failed:", err);
+  console.error("[neoworker] setup:native driver failed:", err);
   process.exit(1);
 });
 

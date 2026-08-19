@@ -28,7 +28,7 @@ export interface SkillEvalReport {
   createdAt: number;
 }
 
-const EVAL_REPORT_DIR = path.join(".cowork", "skills", "evals");
+const EVAL_REPORT_DIR = path.join(".neoworker", "skills", "evals");
 
 function normalize(text: string): string {
   return text.toLowerCase().replace(/\s+/g, " ").trim();

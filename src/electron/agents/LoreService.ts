@@ -18,11 +18,11 @@ type WorkspaceState = {
   flushTimer: ReturnType<typeof setTimeout> | null;
 };
 
-const KIT_DIRNAME = ".cowork";
+const KIT_DIRNAME = ".neoworker";
 const LORE_PATH = path.join(KIT_DIRNAME, "LORE.md");
 
-const AUTO_LORE_START = "<!-- cowork:auto:lore:start -->";
-const AUTO_LORE_END = "<!-- cowork:auto:lore:end -->";
+const AUTO_LORE_START = "<!-- neoworker:auto:lore:start -->";
+const AUTO_LORE_END = "<!-- neoworker:auto:lore:end -->";
 
 const FLUSH_DEBOUNCE_MS = 12_000;
 const STARTUP_REBUILD_LIMIT = 2500;
@@ -112,11 +112,18 @@ export class LoreService {
     this.workspaceRepo = new WorkspaceRepository(db);
   }
 
-  async start(agentDaemon: AgentDaemon): Promise<void> {
+  async start(
+    agentDaemon: AgentDaemon,
+    options: { rebuildRecentTasks?: boolean } = {},
+  ): Promise<void> {
     if (this.started) return;
     this.started = true;
     this.agentDaemon = agentDaemon;
     agentDaemon.on("task_completed", this.onTaskCompleted);
+
+    if (options.rebuildRecentTasks === false) {
+      return;
+    }
 
     // Best-effort rebuild so LORE.md isn't blank after restarts.
     try {

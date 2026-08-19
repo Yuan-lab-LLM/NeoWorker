@@ -27,12 +27,12 @@ export function parsePositiveInteger(value, fallback) {
 export function parseRetentionConfig(env = process.env) {
   return {
     retentionDays: parsePositiveInteger(
-      env.COWORK_DEV_LOG_RETENTION_DAYS,
+      env.NEOWORKER_DEV_LOG_RETENTION_DAYS,
       DEFAULT_DEV_LOG_RETENTION_DAYS,
     ),
-    minRuns: parsePositiveInteger(env.COWORK_DEV_LOG_MIN_RUNS, DEFAULT_DEV_LOG_MIN_RUNS),
+    minRuns: parsePositiveInteger(env.NEOWORKER_DEV_LOG_MIN_RUNS, DEFAULT_DEV_LOG_MIN_RUNS),
     maxBytes:
-      parsePositiveInteger(env.COWORK_DEV_LOG_MAX_MB, DEFAULT_DEV_LOG_MAX_MB) * 1024 * 1024,
+      parsePositiveInteger(env.NEOWORKER_DEV_LOG_MAX_MB, DEFAULT_DEV_LOG_MAX_MB) * 1024 * 1024,
   };
 }
 

@@ -10,7 +10,7 @@ The 0.5.15 release adds a visible operator-facing runtime layer for learning, re
 
 ### Runtime visibility and operator insight
 
-- **Learning progression**: task completion can now emit a structured "What Cowork learned" progression covering memory capture, playbook reinforcement, skill proposal state, evidence links, and pending human-review actions.
+- **Learning progression**: task completion can now emit a structured "What NeoWorker learned" progression covering memory capture, playbook reinforcement, skill proposal state, evidence links, and pending human-review actions.
 - **Unified recall**: operators can search tasks, task messages, files, workspace notes, memory entries, and knowledge-graph context from one recall surface instead of switching between separate search paths.
 - **Persistent shell sessions**: eligible non-interactive shell commands can now reuse shell state across a task or workspace, preserving cwd, env deltas, and aliases for longer operator workflows.
 - **Routing observability**: the runtime now exposes active provider/model selection, route reasons, fallback chains, and override state through task events and settings surfaces.
@@ -27,7 +27,7 @@ The 0.5.15 release adds a visible operator-facing runtime layer for learning, re
 ### Skill Store and external skills
 
 - **ClawHub search and install**: the desktop app can now search ClawHub directly, show result metadata, and install skills from result cards or ClawHub URLs.
-- **External import paths**: skill imports now support Git repositories, raw manifest URLs, and raw `SKILL.md` entry points in addition to the curated CoWork registry.
+- **External import paths**: skill imports now support Git repositories, raw manifest URLs, and raw `SKILL.md` entry points in addition to the curated NeoWorker registry.
 - **Managed install flow**: imported skills are copied into the managed skills directory and then treated like first-class managed skills instead of one-off external blobs.
 - **Registry backend hardening**: the skill registry now validates larger import flows, ZIP bundles, file-count/size limits, and source normalization, with expanded test coverage around external installs.
 

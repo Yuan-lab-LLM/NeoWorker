@@ -9,7 +9,7 @@ export interface StarterMission {
 }
 
 export const LLM_WIKI_GUI_PROMPT =
-  "Build a persistent Obsidian-friendly research vault in this workspace. If I have not given the topic yet, ask me for it first. Preserve raw sources, create linked notes, keep the index, inbox, and log current, and file durable answers or visuals back into the vault.";
+  "Help me build a persistent Markdown research library in the current NeoWorker workspace. First ask for the topic, scope, and preferred sources. Then create a clear folder structure, preserve raw sources, create linked notes, keep the index, inbox, and research log current, and save durable answers or visuals back into the workspace.";
 
 export const LLM_WIKI_QUERY_GUI_PROMPT =
   "Use the research vault in this workspace to answer a question. If I have not asked the question yet, ask me for it first. Search the vault before branching outward and file durable syntheses back into queries/ or comparisons/.";
@@ -18,7 +18,7 @@ export const LLM_WIKI_AUDIT_GUI_PROMPT =
   "Audit the research vault in this workspace for broken links, orphan notes, weak pages, stale content, missing source capture, and missing output opportunities. Put concrete follow-up work into inbox.md.";
 
 export const LLM_WIKI_EXPLORE_GUI_PROMPT =
-  "Use the research vault in this workspace to identify the 5 most interesting unexplored connections between existing topics. Explain why each connection matters, what evidence already exists in the vault, what is still missing, and file durable follow-up ideas into inbox.md or queries/.";
+  "Use the research library in the current NeoWorker workspace to identify the 5 most interesting unexplored connections between existing topics. Explain why each connection matters, what evidence already exists, what is still missing, and save durable follow-up ideas into inbox.md or queries/.";
 
 export const LLM_WIKI_BRIEF_GUI_PROMPT =
   "Use the research vault in this workspace to write an executive briefing on a topic I give you. If I have not named the topic yet, ask me for it first. Answer from the vault first, cite the relevant vault pages, and save the briefing back into outputs/ or queries/ if it is worth keeping.";
@@ -26,7 +26,7 @@ export const LLM_WIKI_BRIEF_GUI_PROMPT =
 /**
  * Starter missions shown during onboarding and on the welcome screen.
  * Each mission provides an actionable, one-click task that demonstrates
- * CoWork OS capabilities immediately.
+ * NeoWorker capabilities immediately.
  */
 export const STARTER_MISSIONS: StarterMission[] = [
   {

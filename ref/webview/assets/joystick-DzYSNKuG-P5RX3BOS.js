@@ -1,0 +1,3 @@
+import { n as e, t } from "./joystick-DzYSNKuG-CUqFqubQ.js";
+t();
+export { e as default };

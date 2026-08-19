@@ -96,7 +96,7 @@ const shouldExposeCanvasApi = (() => {
 
 if (shouldExposeCanvasApi) {
   // Expose the API to trusted canvas:// content only
-  contextBridge.exposeInMainWorld("coworkCanvas", canvasAPI);
+  contextBridge.exposeInMainWorld("neoworkerCanvas", canvasAPI);
   console.log("[CanvasPreload] Canvas preload script loaded (canvas://)");
 } else {
   console.log("[CanvasPreload] Canvas preload script loaded (no API exposed)");

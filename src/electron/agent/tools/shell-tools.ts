@@ -52,7 +52,7 @@ function stripScriptControlCodes(text: string): string {
 const MAX_TIMEOUT = 5 * 60 * 1000; // 5 minutes max
 const DEFAULT_TIMEOUT = 60 * 1000; // 1 minute default
 const MAX_OUTPUT_SIZE = 100 * 1024; // 100KB max output
-const UNSANDBOXED_SHELL_OVERRIDE_ENV = "COWORK_ALLOW_UNSANDBOXED_SHELL";
+const UNSANDBOXED_SHELL_OVERRIDE_ENV = "NEOWORKER_ALLOW_UNSANDBOXED_SHELL";
 
 const SHELL_OUTPUT_REDACTION_PATTERNS: Array<{ pattern: RegExp; replacement: string }> = [
   {

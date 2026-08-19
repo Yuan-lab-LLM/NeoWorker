@@ -30,7 +30,10 @@ function truncatePayload(payload: unknown): string {
   }
 }
 
-export function RawEventDrawer({ rawEventIds, allEvents }: RawEventDrawerProps) {
+export function RawEventDrawer({
+  rawEventIds,
+  allEvents,
+}: RawEventDrawerProps) {
   const [open, setOpen] = useState(false);
 
   const events = rawEventIds
@@ -53,12 +56,18 @@ export function RawEventDrawer({ rawEventIds, allEvents }: RawEventDrawerProps) 
         <div className="raw-event-drawer-body" role="region">
           {events.map((event) => (
             <div key={event.id} className="raw-event-row">
-              <span className="raw-event-time">{formatTimestamp(event.timestamp)}</span>
+              <span className="raw-event-time">
+                {formatTimestamp(event.timestamp)}
+              </span>
               <span className="raw-event-type">{event.type}</span>
               {event.status && (
-                <span className={`raw-event-status status-${event.status}`}>{event.status}</span>
+                <span className={`raw-event-status status-${event.status}`}>
+                  {event.status}
+                </span>
               )}
-              <pre className="raw-event-payload">{truncatePayload(event.payload)}</pre>
+              <pre className="raw-event-payload">
+                {truncatePayload(event.payload)}
+              </pre>
             </div>
           ))}
         </div>

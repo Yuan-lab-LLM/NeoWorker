@@ -1,10 +1,4 @@
-import {
-  ipcMain,
-  shell,
-  BrowserWindow,
-  app as _app,
-  nativeTheme,
-} from "electron";
+import { ipcMain, shell, BrowserWindow, dialog, app as _app } from "electron";
 import { normalizeTaskEvents } from "../agent/timeline/timeline-normalizer";
 import * as path from "path";
 import * as fs from "fs/promises";
@@ -56,7 +50,10 @@ import { AgentMailAdminService } from "../agentmail/AgentMailAdminService";
 import { AgentMailRealtimeService } from "../agentmail/AgentMailRealtimeService";
 import { ManagedSessionService } from "../managed/ManagedSessionService";
 import { AgentTemplateService } from "../managed/AgentTemplateService";
-import { AgentBuilderService, type AgentBuilderInventory } from "../managed/AgentBuilderService";
+import {
+  AgentBuilderService,
+  type AgentBuilderInventory,
+} from "../managed/AgentBuilderService";
 import { ImageGenProfileService } from "../managed/ImageGenProfileService";
 import { EverydayAgentService } from "../everyday-agent/EverydayAgentService";
 import { setupEverydayAgentHandlers } from "./everyday-agent-handlers";
@@ -73,10 +70,10 @@ function isEnvFlagEnabled(name: string): boolean {
 
 function shouldDisableBackgroundAutostart(): boolean {
   return (
-    isEnvFlagEnabled("COWORK_STARTUP_QUIET") ||
-    isEnvFlagEnabled("COWORK_PROFILE_QUIET") ||
+    isEnvFlagEnabled("NEOWORKER_STARTUP_QUIET") ||
+    isEnvFlagEnabled("NEOWORKER_PROFILE_QUIET") ||
     /^(0|false|no|off)$/i.test(
-      String(process.env.COWORK_BACKGROUND_AUTOSTART || "").trim(),
+      String(process.env.NEOWORKER_BACKGROUND_AUTOSTART || "").trim(),
     )
   );
 }
@@ -93,8 +90,15 @@ import {
   LLMModelRepository,
   WorkspacePermissionRuleRepository,
   ChannelSpecializationRepository,
+  TaskProvenanceRepository,
+  TaskAccessPolicyRepository,
+  TaskAccessPolicyConflictError,
 } from "../database/repositories";
-import { SessionRetentionService } from "../sessions/SessionRetentionService";
+import { ControlPlaneCoreService } from "../control-plane/ControlPlaneCoreService";
+import {
+  SessionRetentionService,
+  TASK_TRASH_RETENTION_MS,
+} from "../sessions/SessionRetentionService";
 import { AgentRoleRepository } from "../agents/AgentRoleRepository";
 import { ActivityRepository } from "../activity/ActivityRepository";
 import { MentionRepository } from "../agents/MentionRepository";
@@ -110,6 +114,10 @@ import { buildSubagentDisplayName } from "../agents/subagent-display-names";
 import { selectAgentsForTask } from "../agents/capabilityMatcher";
 import { TaskLabelRepository } from "../database/TaskLabelRepository";
 import { WorkingStateRepository } from "../agents/WorkingStateRepository";
+import {
+  findUniqueViewerArtifactByBasename,
+  shouldRequireViewerWorkspaceContainment,
+} from "./viewer-path-access";
 import { ContextPolicyManager } from "../gateway/context-policy";
 import { OnboardingProfileService } from "../onboarding/OnboardingProfileService";
 import type { ApplyOnboardingProfileRequest } from "../../shared/onboarding";
@@ -127,6 +135,7 @@ import {
   Workspace,
   AgentRole as _AgentRole,
   Task,
+  ArchivedTaskRecord,
   BoardColumn as _BoardColumn,
   XSettingsData,
   NotionSettingsData,
@@ -163,8 +172,10 @@ import {
   TaskEventDetailRequest,
   TaskEventDetailResult,
   TaskTimelinePageRequest,
+  TaskAccessPolicy,
 } from "../../shared/types";
 import { isTerminalTaskStatus } from "../../shared/task-status";
+import { deriveTaskAccessSummary } from "../../shared/task-access";
 import type { MailboxCommitmentState } from "../../shared/mailbox";
 import * as os from "os";
 import { AgentDaemon } from "../agent/daemon";
@@ -188,12 +199,17 @@ import { normalizeTerminalAttachInput } from "../terminal/terminal-input-policy"
 import { HealthManager } from "../health/HealthManager";
 import { ChannelGateway } from "../gateway";
 import { CHANNEL_TYPES } from "../gateway/channels/types";
+import {
+  pollWeixinQrStatus,
+  requestWeixinQrCode,
+} from "../gateway/channels/weixin";
 import { updateManager } from "../updater";
 import { rateLimiter, RATE_LIMIT_CONFIGS } from "../utils/rate-limiter";
 import { toPublicChannel } from "./channel-config-sanitizer";
 import { buildSavedLLMSettings } from "./llm-settings-save";
 import { buildTaskExportJson } from "../reports/task-export";
 import { listIntegrationMentionOptions } from "../integrations/integration-mention-options";
+import { loadPolicies } from "../admin/policies";
 import { ProfileManager } from "../profiles/ProfileManager";
 import { PermissionSettingsManager } from "../security/permission-settings-manager";
 import {
@@ -206,7 +222,12 @@ import {
   TaskCreateSchema,
   TaskRenameSchema,
   TaskWorkspaceUpdateSchema,
+  TaskProjectUpdateSchema,
   TaskMessageSchema,
+  TaskFollowUpQueueListSchema,
+  TaskFollowUpQueueUpdateSchema,
+  TaskFollowUpQueueReorderSchema,
+  TaskFollowUpQueueRemoveSchema,
   FileImportSchema,
   FileImportDataSchema,
   DocumentEditorOpenSessionSchema,
@@ -234,7 +255,6 @@ import {
   ChannelSpecializationUpdateSchema,
   ChannelSpecializationResolveSchema,
   GuardrailSettingsSchema,
-  InfraSettingsSchema,
   EmailChannelConfigSchema,
   UUIDSchema,
   WorkspaceIdSchema,
@@ -263,7 +283,10 @@ import {
   ProviderBaseUrlSchema,
 } from "../utils/validation";
 import { GuardrailManager } from "../guardrails/guardrail-manager";
-import { AppearanceManager, getDevLogCaptureEnabled } from "../settings/appearance-manager";
+import {
+  AppearanceManager,
+  getDevLogCaptureEnabled,
+} from "../settings/appearance-manager";
 import { MemoryFeaturesManager } from "../settings/memory-features-manager";
 import { PersonalityManager } from "../settings/personality-manager";
 import { NotionSettingsManager } from "../settings/notion-manager";
@@ -314,7 +337,7 @@ import { MCPRegistryManager } from "../mcp/registry/MCPRegistryManager";
 import { getChannelRegistry as _getChannelRegistry } from "../gateway/channel-registry";
 import type { MCPSettings, MCPServerConfig } from "../mcp/types";
 import { MCPHostServer } from "../mcp/host/MCPHostServer";
-import { CoWorkHostProvider } from "../mcp/host/CoWorkHostProvider";
+import { NeoWorkerHostProvider } from "../mcp/host/NeoWorkerHostProvider";
 import { SecureMcpTunnelSettingsManager } from "../tunnels/settings";
 import { SecureMcpTunnelSupervisor } from "../tunnels/TunnelSupervisor";
 import { BuiltinToolsSettingsManager } from "../agent/tools/builtin-settings";
@@ -377,9 +400,6 @@ import {
 } from "../context/kit-status";
 import { buildDefaultDesignSystemMarkdown } from "../context/design-system-template";
 import { writeKitFileWithSnapshot } from "../context/kit-revisions";
-import { InfraManager } from "../infra/infra-manager";
-import { InfraSettingsManager } from "../infra/infra-settings";
-import { WalletManager } from "../infra/wallet/wallet-manager";
 import { RelationshipMemoryService } from "../memory/RelationshipMemoryService";
 import { AdaptiveStyleEngine } from "../memory/AdaptiveStyleEngine";
 import type { MemorySettings } from "../database/repositories";
@@ -397,8 +417,13 @@ import { getCouncilService } from "../council";
 import {
   createUniqueScopedTempWorkspaceDirectorySync,
   ensureTempWorkspaceDirectoryPathSync,
+  migrateLegacyTempWorkspaceDirectorySync,
   pruneTempWorkspaces,
 } from "../utils/temp-workspace";
+import {
+  resolveDurableTempArtifactPath,
+  resolveDurableTempWorkspaceRoot,
+} from "../utils/durable-temp-artifact";
 import type { TriggerEvent } from "../triggers/types";
 import { isTempWorkspaceInScope } from "../utils/temp-workspace-scope";
 import {
@@ -415,6 +440,7 @@ type FileViewerRequestOptions = {
   imageOcrMaxChars?: number;
   includeImageContent?: boolean;
   includePdfBase64?: boolean;
+  includePdfAnalysis?: boolean;
   presentationRenderMode?: PptxPreviewRenderMode;
 };
 type MacSystemSettingsTarget = "microphone" | "dictation";
@@ -446,74 +472,160 @@ function buildPptxContentFromPreview(preview: PptxPresentationPreview): string {
 }
 
 const execFileAsync = promisify(execFile);
-const SupermemorySettingsInputSchema = z.object({
-  enabled: z.boolean(),
-  apiKey: z.string().trim().max(500).optional(),
-  baseUrl: z
-    .string()
-    .trim()
-    .url()
-    .refine((value) => {
-      try {
-        const parsed = new URL(value);
-        return parsed.protocol === "https:" && parsed.hostname === "api.supermemory.ai";
-      } catch {
-        return false;
-      }
-    }, "Supermemory base URL must be https://api.supermemory.ai")
-    .optional(),
-  containerTagTemplate: z.string().trim().min(1).max(200).optional(),
-  includeProfileInPrompt: z.boolean().optional(),
-  mirrorMemoryWrites: z.boolean().optional(),
-  searchMode: z.enum(["hybrid", "memories"]).optional(),
-  rerank: z.boolean().optional(),
-  threshold: z.number().min(0).max(1).optional(),
-  customContainers: z
-    .array(
-      z.object({
-        tag: z.string().trim().min(1).max(100),
-        description: z.string().trim().max(240).optional(),
-      }).strict(),
-    )
-    .max(50)
-    .optional(),
-}).strict();
-const MemoryObservationStringArraySchema = z.array(z.string().trim().min(1).max(240)).max(12);
-const MemoryObservationPatchSchema = z.object({
-  title: z.string().trim().min(1).max(160).optional(),
-  subtitle: z.string().trim().max(200).optional(),
-  narrative: z.string().trim().min(1).max(2_000).optional(),
-  facts: MemoryObservationStringArraySchema.optional(),
-  concepts: MemoryObservationStringArraySchema.optional(),
-  filesRead: MemoryObservationStringArraySchema.optional(),
-  filesModified: MemoryObservationStringArraySchema.optional(),
-  tools: MemoryObservationStringArraySchema.optional(),
-  sourceEventIds: MemoryObservationStringArraySchema.optional(),
-  privacyState: z.enum(["normal", "private", "redacted", "suppressed"]).optional(),
-}).strict();
-const MemoryObservationUpdateSchema = z.object({
-  workspaceId: WorkspaceIdSchema,
-  memoryId: StringIdSchema,
-  patch: MemoryObservationPatchSchema,
-}).strict();
-const MemoryObservationMutationSchema = z.object({
-  workspaceId: WorkspaceIdSchema,
-  memoryId: StringIdSchema,
-}).strict();
+const SupermemorySettingsInputSchema = z
+  .object({
+    enabled: z.boolean(),
+    apiKey: z.string().trim().max(500).optional(),
+    baseUrl: z
+      .string()
+      .trim()
+      .url()
+      .refine((value) => {
+        try {
+          const parsed = new URL(value);
+          return (
+            parsed.protocol === "https:" &&
+            parsed.hostname === "api.supermemory.ai"
+          );
+        } catch {
+          return false;
+        }
+      }, "Supermemory base URL must be https://api.supermemory.ai")
+      .optional(),
+    containerTagTemplate: z.string().trim().min(1).max(200).optional(),
+    includeProfileInPrompt: z.boolean().optional(),
+    mirrorMemoryWrites: z.boolean().optional(),
+    searchMode: z.enum(["hybrid", "memories"]).optional(),
+    rerank: z.boolean().optional(),
+    threshold: z.number().min(0).max(1).optional(),
+    customContainers: z
+      .array(
+        z
+          .object({
+            tag: z.string().trim().min(1).max(100),
+            description: z.string().trim().max(240).optional(),
+          })
+          .strict(),
+      )
+      .max(50)
+      .optional(),
+  })
+  .strict();
+const MemoryObservationStringArraySchema = z
+  .array(z.string().trim().min(1).max(240))
+  .max(12);
+const MemoryObservationPatchSchema = z
+  .object({
+    title: z.string().trim().min(1).max(160).optional(),
+    subtitle: z.string().trim().max(200).optional(),
+    narrative: z.string().trim().min(1).max(2_000).optional(),
+    facts: MemoryObservationStringArraySchema.optional(),
+    concepts: MemoryObservationStringArraySchema.optional(),
+    filesRead: MemoryObservationStringArraySchema.optional(),
+    filesModified: MemoryObservationStringArraySchema.optional(),
+    tools: MemoryObservationStringArraySchema.optional(),
+    sourceEventIds: MemoryObservationStringArraySchema.optional(),
+    privacyState: z
+      .enum(["normal", "private", "redacted", "suppressed"])
+      .optional(),
+  })
+  .strict();
+const MemoryObservationUpdateSchema = z
+  .object({
+    workspaceId: WorkspaceIdSchema,
+    memoryId: StringIdSchema,
+    patch: MemoryObservationPatchSchema,
+  })
+  .strict();
+const TaskProvenanceListSchema = z
+  .object({
+    taskId: z.string().uuid(),
+    limit: z.number().int().min(1).max(200).optional(),
+    offset: z.number().int().min(0).max(100_000).optional(),
+  })
+  .strict();
+const TaskProvenanceOpenSchema = z
+  .object({
+    taskId: z.string().uuid(),
+    provenanceId: z.string().uuid(),
+  })
+  .strict();
+const TaskAccessGetSchema = z
+  .object({
+    taskId: z.string().uuid(),
+  })
+  .strict();
+const TaskAccessUpdateSchema = z
+  .object({
+    taskId: z.string().uuid(),
+    expectedRevision: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+    patch: z
+      .object({
+        connectorIds: z
+          .array(z.string().trim().min(1).max(200))
+          .max(100)
+          .optional(),
+        workspaceScopes: z
+          .array(
+            z
+              .object({
+                workspaceId: z.string().trim().min(1).max(200),
+                rootPath: z.string().trim().max(4096).optional(),
+                access: z.enum(["read", "write"]),
+                primary: z.boolean().optional(),
+              })
+              .strict(),
+          )
+          .max(20)
+          .optional(),
+        permissionMode: z
+          .enum([
+            "default",
+            "plan",
+            "dangerous_only",
+            "accept_edits",
+            "dont_ask",
+            "bypass_permissions",
+          ])
+          .optional(),
+        shellAccess: z.boolean().optional(),
+      })
+      .strict(),
+  })
+  .strict();
+const MemoryObservationMutationSchema = z
+  .object({
+    workspaceId: WorkspaceIdSchema,
+    memoryId: StringIdSchema,
+  })
+  .strict();
 const MemoryObservationRedactSchema = MemoryObservationMutationSchema.extend({
   replacement: z.string().trim().min(1).max(500).optional(),
 }).strict();
 const MemoryObservationPromoteSchema = MemoryObservationMutationSchema.extend({
   target: z.enum(["user", "workspace"]).optional(),
-  kind: z.enum(["identity", "preference", "constraint", "workflow_rule", "project_fact", "active_commitment"]).optional(),
+  kind: z
+    .enum([
+      "identity",
+      "preference",
+      "constraint",
+      "workflow_rule",
+      "project_fact",
+      "active_commitment",
+    ])
+    .optional(),
 }).strict();
-const MemoryObservationDetailsSchema = z.object({
-  workspaceId: WorkspaceIdSchema,
-  ids: z.array(StringIdSchema).min(1).max(25),
-}).strict();
-const MemoryObservationRebuildSchema = z.object({
-  force: z.boolean().optional(),
-}).strict();
+const MemoryObservationDetailsSchema = z
+  .object({
+    workspaceId: WorkspaceIdSchema,
+    ids: z.array(StringIdSchema).min(1).max(25),
+  })
+  .strict();
+const MemoryObservationRebuildSchema = z
+  .object({
+    force: z.boolean().optional(),
+  })
+  .strict();
 const logger = createLogger("IPC");
 const IPC_SELECTED_TASK_PAYLOAD_WARNING_BYTES = 1024 * 1024;
 const IPC_SINGLE_EVENT_PAYLOAD_WARNING_BYTES = 1024 * 1024;
@@ -526,7 +638,9 @@ const COLLABORATIVE_CHILD_TIMELINE_EVENT_TYPES = [
 ] as const;
 
 function isIpcPerfTelemetryEnabled(): boolean {
-  return process.env.COWORK_DEV_LOG_CAPTURE === "1" || getDevLogCaptureEnabled();
+  return (
+    process.env.NEOWORKER_DEV_LOG_CAPTURE === "1" || getDevLogCaptureEnabled()
+  );
 }
 
 function getSerializedByteSize(value: unknown): number {
@@ -589,7 +703,7 @@ function warnLargeTaskEventPayloads(
 const ProfileNameSchema = z.string().trim().min(1).max(80);
 const VIDEO_PREVIEW_CACHE_DIR = path.join(
   os.tmpdir(),
-  "cowork-video-preview-cache",
+  "neoworker-video-preview-cache",
 );
 const VIDEO_PREVIEW_FFMPEG_TIMEOUT_MS = 60_000;
 const MAX_TRANSCODED_VIDEO_PREVIEW_SIZE = 64 * 1024 * 1024;
@@ -954,7 +1068,11 @@ function validateOptionalProviderApiKey(
   apiKey: string | undefined,
   providerLabel: string,
 ): string | undefined {
-  return validateInput(ProviderApiKeySchema, apiKey, `${providerLabel} API key`);
+  return validateInput(
+    ProviderApiKeySchema,
+    apiKey,
+    `${providerLabel} API key`,
+  );
 }
 
 async function validateOptionalProviderBaseUrl(
@@ -988,6 +1106,18 @@ rateLimiter.configure(
   RATE_LIMIT_CONFIGS.expensive,
 );
 rateLimiter.configure(
+  IPC_CHANNELS.TASK_FOLLOW_UP_QUEUE_LIST,
+  RATE_LIMIT_CONFIGS.standard,
+);
+rateLimiter.configure(
+  IPC_CHANNELS.TASK_FOLLOW_UP_QUEUE_UPDATE,
+  RATE_LIMIT_CONFIGS.limited,
+);
+rateLimiter.configure(
+  IPC_CHANNELS.TASK_FOLLOW_UP_QUEUE_REMOVE,
+  RATE_LIMIT_CONFIGS.limited,
+);
+rateLimiter.configure(
   IPC_CHANNELS.TASK_STEP_FEEDBACK,
   RATE_LIMIT_CONFIGS.limited,
 );
@@ -997,11 +1127,34 @@ rateLimiter.configure(
   IPC_CHANNELS.TASK_FORK_SESSION,
   RATE_LIMIT_CONFIGS.limited,
 );
-rateLimiter.configure(IPC_CHANNELS.TASK_UPDATE_WORKSPACE, RATE_LIMIT_CONFIGS.limited);
+rateLimiter.configure(
+  IPC_CHANNELS.TASK_UPDATE_WORKSPACE,
+  RATE_LIMIT_CONFIGS.limited,
+);
+rateLimiter.configure(
+  IPC_CHANNELS.TASK_UPDATE_PROJECT,
+  RATE_LIMIT_CONFIGS.limited,
+);
 rateLimiter.configure(IPC_CHANNELS.TASK_PIN, RATE_LIMIT_CONFIGS.limited);
 rateLimiter.configure(
   IPC_CHANNELS.TASK_EXPORT_JSON,
   RATE_LIMIT_CONFIGS.standard,
+);
+rateLimiter.configure(
+  IPC_CHANNELS.TASK_PROVENANCE_LIST,
+  RATE_LIMIT_CONFIGS.frequent,
+);
+rateLimiter.configure(
+  IPC_CHANNELS.TASK_PROVENANCE_OPEN,
+  RATE_LIMIT_CONFIGS.standard,
+);
+rateLimiter.configure(
+  IPC_CHANNELS.TASK_ACCESS_GET,
+  RATE_LIMIT_CONFIGS.frequent,
+);
+rateLimiter.configure(
+  IPC_CHANNELS.TASK_ACCESS_UPDATE,
+  RATE_LIMIT_CONFIGS.limited,
 );
 rateLimiter.configure(
   IPC_CHANNELS.SUGGESTIONS_LIST,
@@ -1031,10 +1184,7 @@ rateLimiter.configure(
   IPC_CHANNELS.SUGGESTIONS_EDIT,
   RATE_LIMIT_CONFIGS.limited,
 );
-rateLimiter.configure(
-  IPC_CHANNELS.SUGGESTIONS_ACT,
-  RATE_LIMIT_CONFIGS.limited,
-);
+rateLimiter.configure(IPC_CHANNELS.SUGGESTIONS_ACT, RATE_LIMIT_CONFIGS.limited);
 rateLimiter.configure(
   IPC_CHANNELS.LLM_SAVE_SETTINGS,
   RATE_LIMIT_CONFIGS.limited,
@@ -1246,13 +1396,17 @@ function looksLikeCodeMultitaskRequest(text: string): boolean {
   return codeCue.test(text);
 }
 
-async function resolveWorkspaceContainedCwd(workspacePath: string, cwd?: string): Promise<string> {
+async function resolveWorkspaceContainedCwd(
+  workspacePath: string,
+  cwd?: string,
+): Promise<string> {
   const workspaceRealPath = await fs.realpath(workspacePath);
-  const candidate = !cwd || cwd === "."
-    ? workspaceRealPath
-    : path.isAbsolute(cwd)
-      ? cwd
-      : path.resolve(workspaceRealPath, cwd);
+  const candidate =
+    !cwd || cwd === "."
+      ? workspaceRealPath
+      : path.isAbsolute(cwd)
+        ? cwd
+        : path.resolve(workspaceRealPath, cwd);
   const candidateRealPath = await fs.realpath(candidate);
   const relative = path.relative(workspaceRealPath, candidateRealPath);
   if (relative && (relative.startsWith("..") || path.isAbsolute(relative))) {
@@ -1263,7 +1417,9 @@ async function resolveWorkspaceContainedCwd(workspacePath: string, cwd?: string)
 
 function assertTerminalShellAllowed(workspace: Workspace): void {
   if (workspace.permissions?.shell !== true) {
-    throw new Error("Shell permission is required for terminal tabs in this workspace.");
+    throw new Error(
+      "Shell permission is required for terminal tabs in this workspace.",
+    );
   }
 }
 
@@ -1285,7 +1441,9 @@ async function approveTerminalCommand(params: {
     );
   }
   if (/\bapply_patch\b/.test(params.command)) {
-    throw new Error("Terminal tabs cannot invoke apply_patch. Use the apply_patch tool directly.");
+    throw new Error(
+      "Terminal tabs cannot invoke apply_patch. Use the apply_patch tool directly.",
+    );
   }
   const approved = await params.agentDaemon.requestApproval(
     taskId,
@@ -1304,7 +1462,7 @@ async function approveTerminalCommand(params: {
 }
 
 function findCompletionTokenStart(line: string, cursor: number): number {
-  let quote: "'" | "\"" | null = null;
+  let quote: "'" | '"' | null = null;
   let escaped = false;
   for (let index = 0; index < cursor; index += 1) {
     const char = line[index];
@@ -1320,7 +1478,7 @@ function findCompletionTokenStart(line: string, cursor: number): number {
       if (char === quote) quote = null;
       continue;
     }
-    if (char === "'" || char === "\"") {
+    if (char === "'" || char === '"') {
       quote = char;
     }
   }
@@ -1341,7 +1499,7 @@ function findCompletionTokenStart(line: string, cursor: number): number {
       if (char === quote) quote = null;
       continue;
     }
-    if (char === "'" || char === "\"") {
+    if (char === "'" || char === '"') {
       quote = char;
       continue;
     }
@@ -1353,7 +1511,7 @@ function findCompletionTokenStart(line: string, cursor: number): number {
 function unquoteCompletionToken(token: string): string {
   if (
     (token.startsWith("'") && token.endsWith("'")) ||
-    (token.startsWith("\"") && token.endsWith("\""))
+    (token.startsWith('"') && token.endsWith('"'))
   ) {
     return token.slice(1, -1);
   }
@@ -1364,7 +1522,7 @@ function quoteCompletionToken(value: string, originalToken: string): string {
   if (originalToken.startsWith("'")) {
     return `'${value.replace(/'/g, "'\\''")}`;
   }
-  if (originalToken.startsWith("\"")) {
+  if (originalToken.startsWith('"')) {
     return `"${value.replace(/(["\\$`])/g, "\\$1")}`;
   }
   return value.replace(/([\s"'\\$`!])/g, "\\$1");
@@ -1395,35 +1553,47 @@ async function completeTerminalInput(params: {
     ? path.join(os.homedir(), token.slice(1))
     : token;
   const hasPathSeparator = /[\\/]/.test(expandedToken);
-  const isCommandPosition = params.line.slice(0, tokenStart).trim().length === 0;
+  const isCommandPosition =
+    params.line.slice(0, tokenStart).trim().length === 0;
   const isEmptyToken = rawToken.length === 0;
   const candidateDir = hasPathSeparator
     ? path.resolve(params.cwd, path.dirname(expandedToken))
     : params.cwd;
-  const entryPrefix = hasPathSeparator ? path.basename(expandedToken) : expandedToken;
+  const entryPrefix = hasPathSeparator
+    ? path.basename(expandedToken)
+    : expandedToken;
 
   let matches: string[];
   if (isCommandPosition && !hasPathSeparator && !isEmptyToken) {
-    const pathDirs = (process.env.PATH || "").split(path.delimiter).filter(Boolean);
+    const pathDirs = (process.env.PATH || "")
+      .split(path.delimiter)
+      .filter(Boolean);
     const names = new Set<string>();
-    await Promise.all(pathDirs.map(async (dir) => {
-      try {
-        const entries = await fs.readdir(dir);
-        await Promise.all(entries.map(async (entry) => {
-          if (!entry.startsWith(entryPrefix)) return;
-          try {
-            const stat = await fs.stat(path.join(dir, entry));
-            if (stat.isFile() && (process.platform === "win32" || (stat.mode & 0o111) !== 0)) {
-              names.add(`${entry} `);
-            }
-          } catch {
-            // Ignore vanished PATH entries.
-          }
-        }));
-      } catch {
-        // Ignore unreadable PATH entries.
-      }
-    }));
+    await Promise.all(
+      pathDirs.map(async (dir) => {
+        try {
+          const entries = await fs.readdir(dir);
+          await Promise.all(
+            entries.map(async (entry) => {
+              if (!entry.startsWith(entryPrefix)) return;
+              try {
+                const stat = await fs.stat(path.join(dir, entry));
+                if (
+                  stat.isFile() &&
+                  (process.platform === "win32" || (stat.mode & 0o111) !== 0)
+                ) {
+                  names.add(`${entry} `);
+                }
+              } catch {
+                // Ignore vanished PATH entries.
+              }
+            }),
+          );
+        } catch {
+          // Ignore unreadable PATH entries.
+        }
+      }),
+    );
     matches = Array.from(names).sort((a, b) => a.localeCompare(b));
   } else {
     let entries: string[];
@@ -1433,20 +1603,18 @@ async function completeTerminalInput(params: {
       return { line: params.line, cursor, matches: [], completed: false };
     }
 
-    matches = (
-      await Promise.all(
-        entries
-          .filter((entry) => entry.startsWith(entryPrefix))
-          .sort((a, b) => a.localeCompare(b))
-          .map(async (entry) => {
-            try {
-              const stat = await fs.stat(path.join(candidateDir, entry));
-              return `${entry}${stat.isDirectory() ? path.sep : ""}`;
-            } catch {
-              return entry;
-            }
-          }),
-      )
+    matches = await Promise.all(
+      entries
+        .filter((entry) => entry.startsWith(entryPrefix))
+        .sort((a, b) => a.localeCompare(b))
+        .map(async (entry) => {
+          try {
+            const stat = await fs.stat(path.join(candidateDir, entry));
+            return `${entry}${stat.isDirectory() ? path.sep : ""}`;
+          } catch {
+            return entry;
+          }
+        }),
     );
   }
   if (matches.length === 0) {
@@ -1454,11 +1622,12 @@ async function completeTerminalInput(params: {
   }
 
   const prefix = commonPrefix(matches);
-  const replacementName = matches.length === 1
-    ? matches[0] || ""
-    : prefix.length > entryPrefix.length
-      ? prefix
-      : entryPrefix;
+  const replacementName =
+    matches.length === 1
+      ? matches[0] || ""
+      : prefix.length > entryPrefix.length
+        ? prefix
+        : entryPrefix;
   if (replacementName === entryPrefix && matches.length > 1) {
     return { line: params.line, cursor, matches, completed: false };
   }
@@ -1467,7 +1636,9 @@ async function completeTerminalInput(params: {
     ? path.join(path.dirname(expandedToken), replacementName)
     : replacementName;
   const replacement = quoteCompletionToken(
-    matches.length === 1 && !replacementName.endsWith(path.sep) && !replacementName.endsWith(" ")
+    matches.length === 1 &&
+      !replacementName.endsWith(path.sep) &&
+      !replacementName.endsWith(" ")
       ? `${replacementPath} `
       : replacementPath,
     rawToken,
@@ -1496,8 +1667,13 @@ async function planMultitaskLanes(prompt: string, laneCount: number) {
       modelId: selection.modelId,
     });
   } catch (error) {
-    logger.warn("[TASK_CREATE] Multitask lane LLM planning unavailable, using fallback:", error);
-    return await MultitaskLanePlanner.plan(prompt, { requestedLaneCount: laneCount });
+    logger.warn(
+      "[TASK_CREATE] Multitask lane LLM planning unavailable, using fallback:",
+      error,
+    );
+    return await MultitaskLanePlanner.plan(prompt, {
+      requestedLaneCount: laneCount,
+    });
   }
 }
 
@@ -1527,6 +1703,21 @@ export async function setupIpcHandlers(
   const db = dbManager.getDatabase();
   const workspaceRepo = new WorkspaceRepository(db);
   const taskRepo = new TaskRepository(db);
+  const taskProvenanceRepo = new TaskProvenanceRepository(db);
+  const taskAccessPolicyRepo = new TaskAccessPolicyRepository(db);
+  const readTaskAccessConnectors = () =>
+    listIntegrationMentionOptions(
+      (gateway
+        ? gateway.getChannels().map((channel) => toPublicChannel(channel))
+        : []) as Parameters<typeof listIntegrationMentionOptions>[0],
+    ).map((option) => ({
+      id: option.id,
+      name: option.label,
+      icon: option.iconKey,
+      status: option.source === "mcp" ? option.status : "connected",
+      tools: option.tools,
+    }));
+  const controlPlaneCore = new ControlPlaneCoreService(db);
   const taskEventRepo = new TaskEventRepository(db);
   const taskSessionMetadataRepo = new TaskSessionMetadataRepository(db);
   const sessionRetentionService = new SessionRetentionService(
@@ -1561,10 +1752,12 @@ export async function setupIpcHandlers(
   const mailboxService = new MailboxService(db, {
     autoSync: !shouldDisableBackgroundAutostart(),
   });
-  const agentMailRealtimeService = new AgentMailRealtimeService(db, mailboxService);
-  const agentMailAdminService = new AgentMailAdminService(
+  const agentMailRealtimeService = new AgentMailRealtimeService(
     db,
-    () => agentMailRealtimeService.getRuntimeStatus(),
+    mailboxService,
+  );
+  const agentMailAdminService = new AgentMailAdminService(db, () =>
+    agentMailRealtimeService.getRuntimeStatus(),
   );
   agentMailRealtimeService.start();
   const contextPolicyManager = new ContextPolicyManager(db);
@@ -1678,21 +1871,27 @@ export async function setupIpcHandlers(
     if (path.isAbsolute(normalizedInput)) {
       addCandidate(normalizedInput);
       if (hasWorkspace) {
+        const durablePath = resolveDurableTempArtifactPath({
+          userDataPath: getUserDataDir(),
+          workspacePath: normalizedWorkspace,
+          artifactPath: normalizedInput,
+        });
+        if (durablePath) addCandidate(durablePath);
         if (basename && basename !== "." && basename !== "..") {
           addCandidate(path.join(normalizedWorkspace, basename));
-          addCandidate(path.join(normalizedWorkspace, ".cowork", basename));
+          addCandidate(path.join(normalizedWorkspace, ".neoworker", basename));
           addCandidate(path.join(normalizedWorkspace, "artifacts", basename));
         }
 
-        // If a legacy absolute path points into ".cowork/" or "artifacts/", remap to active workspace.
+        // If a legacy absolute path points into ".neoworker/" or "artifacts/", remap to active workspace.
         const segments = normalizedInput.split(/[\\/]+/).filter(Boolean);
-        const coworkIdx = segments.lastIndexOf(".cowork");
-        if (coworkIdx >= 0 && coworkIdx < segments.length - 1) {
+        const neoworkerIdx = segments.lastIndexOf(".neoworker");
+        if (neoworkerIdx >= 0 && neoworkerIdx < segments.length - 1) {
           addCandidate(
             path.join(
               normalizedWorkspace,
-              ".cowork",
-              ...segments.slice(coworkIdx + 1),
+              ".neoworker",
+              ...segments.slice(neoworkerIdx + 1),
             ),
           );
         }
@@ -1713,17 +1912,33 @@ export async function setupIpcHandlers(
     if (hasWorkspace) {
       addCandidate(path.join(normalizedWorkspace, normalizedInput));
 
+      const durablePath = resolveDurableTempArtifactPath({
+        userDataPath: getUserDataDir(),
+        workspacePath: normalizedWorkspace,
+        artifactPath: normalizedInput,
+      });
+      if (durablePath) addCandidate(durablePath);
+
       if (!hasParentTraversal) {
         addCandidate(
-          path.join(normalizedWorkspace, ".cowork", normalizedRelativeInput),
+          path.join(normalizedWorkspace, ".neoworker", normalizedRelativeInput),
         );
         addCandidate(
           path.join(normalizedWorkspace, "artifacts", normalizedRelativeInput),
         );
 
+        if (basename && basename !== "." && basename !== "..") {
+          addCandidate(
+            path.join(normalizedWorkspace, ".neoworker", "tmp", basename),
+          );
+          addCandidate(
+            path.join(normalizedWorkspace, ".neoworker", "artifacts", basename),
+          );
+        }
+
         if (basename && basename !== normalizedRelativeInput) {
           addCandidate(path.join(normalizedWorkspace, basename));
-          addCandidate(path.join(normalizedWorkspace, ".cowork", basename));
+          addCandidate(path.join(normalizedWorkspace, ".neoworker", basename));
           addCandidate(path.join(normalizedWorkspace, "artifacts", basename));
         }
       }
@@ -1738,7 +1953,11 @@ export async function setupIpcHandlers(
     filePath: string,
     workspacePath?: string,
     options?: { requireWorkspaceContainment?: boolean },
-  ): Promise<{ resolvedPath: string | null; realPath: string | null; attemptedPaths: string[] }> => {
+  ): Promise<{
+    resolvedPath: string | null;
+    realPath: string | null;
+    attemptedPaths: string[];
+  }> => {
     const requireWorkspaceContainment =
       options?.requireWorkspaceContainment === true;
     const candidates = buildViewerPathCandidates(filePath, workspacePath);
@@ -1770,6 +1989,32 @@ export async function setupIpcHandlers(
       return { resolvedPath: candidate, realPath, attemptedPaths };
     }
 
+    // A valid generated file may have been moved after its lifecycle event was
+    // persisted. Recover only an exact, unique basename from known artifact
+    // roots; never fall back to a merely similar filename.
+    if (workspaceRoot) {
+      const recoveredPath = await findUniqueViewerArtifactByBasename(
+        filePath,
+        workspaceRoot,
+      );
+      if (recoveredPath && !attemptedPaths.includes(recoveredPath)) {
+        if (
+          !requireWorkspaceContainment ||
+          isPathWithinWorkspace(recoveredPath, workspaceRoot)
+        ) {
+          attemptedPaths.push(recoveredPath);
+          const realPath = requireWorkspaceContainment
+            ? await resolveRealPathWithinWorkspace(recoveredPath, workspaceRoot)
+            : await fs.realpath(recoveredPath);
+          return {
+            resolvedPath: recoveredPath,
+            realPath,
+            attemptedPaths,
+          };
+        }
+      }
+    }
+
     if (
       requireWorkspaceContainment &&
       attemptedPaths.length === 0 &&
@@ -1779,6 +2024,24 @@ export async function setupIpcHandlers(
     }
 
     return { resolvedPath: null, realPath: null, attemptedPaths };
+  };
+
+  const requireViewerWorkspaceContainment = (
+    workspacePath: string,
+  ): boolean => {
+    const normalizedWorkspacePath = path.resolve(
+      normalizePotentialPath(workspacePath),
+    );
+    const workspace =
+      workspaceRepo.findByPath(workspacePath) ||
+      workspaceRepo
+        .findAll()
+        .find(
+          (item) =>
+            path.resolve(normalizePotentialPath(item.path)) ===
+            normalizedWorkspacePath,
+        );
+    return shouldRequireViewerWorkspaceContainment(workspace);
   };
 
   const listFilesRecursiveSync = (
@@ -1808,7 +2071,8 @@ export async function setupIpcHandlers(
     return output;
   };
 
-  const normalizeUiPath = (rawPath: string): string => rawPath.replace(/\\/g, "/");
+  const normalizeUiPath = (rawPath: string): string =>
+    rawPath.replace(/\\/g, "/");
 
   const buildLlmWikiVaultEntry = (
     filePath: string,
@@ -1816,7 +2080,9 @@ export async function setupIpcHandlers(
     section: "root" | "page" | "query" | "output" | "raw",
   ) => {
     const stat = fsSync.statSync(filePath);
-    const relativePath = normalizeUiPath(path.relative(workspaceRoot, filePath));
+    const relativePath = normalizeUiPath(
+      path.relative(workspaceRoot, filePath),
+    );
     const baseName = path.basename(filePath);
     const parentName = path.basename(path.dirname(filePath));
     const name =
@@ -1841,7 +2107,8 @@ export async function setupIpcHandlers(
   ) => {
     const workspaceRoot = path.resolve(normalizePotentialPath(workspacePath));
     const rawVaultPath =
-      typeof requestedVaultPath === "string" && requestedVaultPath.trim().length > 0
+      typeof requestedVaultPath === "string" &&
+      requestedVaultPath.trim().length > 0
         ? requestedVaultPath
         : "research/wiki";
     const vaultPath = path.isAbsolute(rawVaultPath)
@@ -1852,7 +2119,8 @@ export async function setupIpcHandlers(
       throw new Error("Access denied: vault path is outside the workspace");
     }
 
-    const displayPath = normalizeUiPath(path.relative(workspaceRoot, vaultPath)) || ".";
+    const displayPath =
+      normalizeUiPath(path.relative(workspaceRoot, vaultPath)) || ".";
     const emptySummary = {
       exists: false,
       vaultPath,
@@ -1870,33 +2138,57 @@ export async function setupIpcHandlers(
       recentRawSources: [],
     };
 
-    if (!fsSync.existsSync(vaultPath) || !fsSync.statSync(vaultPath).isDirectory()) {
+    if (
+      !fsSync.existsSync(vaultPath) ||
+      !fsSync.statSync(vaultPath).isDirectory()
+    ) {
       return emptySummary;
     }
 
     const rootFiles = ["index.md", "inbox.md", "log.md", "SCHEMA.md"]
       .map((relativePath) => path.join(vaultPath, relativePath))
-      .filter((filePath) => fsSync.existsSync(filePath) && fsSync.statSync(filePath).isFile())
-      .map((filePath) => buildLlmWikiVaultEntry(filePath, workspaceRoot, "root"));
+      .filter(
+        (filePath) =>
+          fsSync.existsSync(filePath) && fsSync.statSync(filePath).isFile(),
+      )
+      .map((filePath) =>
+        buildLlmWikiVaultEntry(filePath, workspaceRoot, "root"),
+      );
 
-    const pageDirs = ["concepts", "entities", "projects", "comparisons", "maps"];
+    const pageDirs = [
+      "concepts",
+      "entities",
+      "projects",
+      "comparisons",
+      "maps",
+    ];
     const pageFiles = pageDirs.flatMap((dirName) =>
       listFilesRecursiveSync(path.join(vaultPath, dirName), (filePath) =>
         filePath.toLowerCase().endsWith(".md"),
       ),
     );
-    const queryFiles = listFilesRecursiveSync(path.join(vaultPath, "queries"), (filePath) =>
-      filePath.toLowerCase().endsWith(".md"),
+    const queryFiles = listFilesRecursiveSync(
+      path.join(vaultPath, "queries"),
+      (filePath) => filePath.toLowerCase().endsWith(".md"),
     );
-    const outputFiles = listFilesRecursiveSync(path.join(vaultPath, "outputs"), (filePath) => {
-      const lower = filePath.toLowerCase();
-      return (lower.endsWith(".md") || lower.endsWith(".svg")) && !lower.endsWith(".meta.json");
-    });
-    const rawFiles = listFilesRecursiveSync(path.join(vaultPath, "raw"), (filePath) => {
-      const lower = filePath.toLowerCase();
-      const base = path.basename(lower);
-      return base !== "source.json" && !base.endsWith(".source.json");
-    });
+    const outputFiles = listFilesRecursiveSync(
+      path.join(vaultPath, "outputs"),
+      (filePath) => {
+        const lower = filePath.toLowerCase();
+        return (
+          (lower.endsWith(".md") || lower.endsWith(".svg")) &&
+          !lower.endsWith(".meta.json")
+        );
+      },
+    );
+    const rawFiles = listFilesRecursiveSync(
+      path.join(vaultPath, "raw"),
+      (filePath) => {
+        const lower = filePath.toLowerCase();
+        const base = path.basename(lower);
+        return base !== "source.json" && !base.endsWith(".source.json");
+      },
+    );
 
     const sortByMtimeDesc = (
       left: { mtimeMs: number },
@@ -1915,19 +2207,27 @@ export async function setupIpcHandlers(
       },
       rootFiles,
       recentPages: pageFiles
-        .map((filePath) => buildLlmWikiVaultEntry(filePath, workspaceRoot, "page"))
+        .map((filePath) =>
+          buildLlmWikiVaultEntry(filePath, workspaceRoot, "page"),
+        )
         .sort(sortByMtimeDesc)
         .slice(0, 6),
       recentQueries: queryFiles
-        .map((filePath) => buildLlmWikiVaultEntry(filePath, workspaceRoot, "query"))
+        .map((filePath) =>
+          buildLlmWikiVaultEntry(filePath, workspaceRoot, "query"),
+        )
         .sort(sortByMtimeDesc)
         .slice(0, 4),
       recentOutputs: outputFiles
-        .map((filePath) => buildLlmWikiVaultEntry(filePath, workspaceRoot, "output"))
+        .map((filePath) =>
+          buildLlmWikiVaultEntry(filePath, workspaceRoot, "output"),
+        )
         .sort(sortByMtimeDesc)
         .slice(0, 4),
       recentRawSources: rawFiles
-        .map((filePath) => buildLlmWikiVaultEntry(filePath, workspaceRoot, "raw"))
+        .map((filePath) =>
+          buildLlmWikiVaultEntry(filePath, workspaceRoot, "raw"),
+        )
         .sort(sortByMtimeDesc)
         .slice(0, 4),
     };
@@ -1938,7 +2238,9 @@ export async function setupIpcHandlers(
   ): Promise<string | undefined> => {
     let tempDir: string | undefined;
     try {
-      tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-pdf-thumb-"));
+      tempDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), "neoworker-pdf-thumb-"),
+      );
       const outputPrefix = path.join(tempDir, "page-1");
       await execFileAsync(
         "pdftoppm",
@@ -1971,7 +2273,7 @@ export async function setupIpcHandlers(
     }
   };
 
-  const MANAGED_IMAGE_TEMP_PREFIX = "cowork-image-";
+  const MANAGED_IMAGE_TEMP_PREFIX = "neoworker-image-";
 
   const isManagedImageTempFile = (filePath: string): boolean => {
     if (!path.isAbsolute(filePath)) {
@@ -2038,7 +2340,10 @@ export async function setupIpcHandlers(
     write: true,
     delete: true,
     network: true,
-    shell: existing?.permissions?.shell ?? false,
+    // Home sessions use an isolated NeoWorker-owned directory. Keep command
+    // execution available there; the normal permission/approval policy still
+    // governs each run_command invocation.
+    shell: true,
     unrestrictedFileAccess: true,
   });
 
@@ -2084,6 +2389,42 @@ export async function setupIpcHandlers(
     };
   };
 
+  const normalizeExistingTempWorkspacePath = (existing: Workspace): string => {
+    try {
+      return ensureTempWorkspaceDirectoryPathSync(
+        tempWorkspaceRoot,
+        existing.path,
+      );
+    } catch (currentPathError) {
+      try {
+        const migrated = migrateLegacyTempWorkspaceDirectorySync(
+          tempWorkspaceRoot,
+          existing.path,
+          "ui",
+        );
+        logger.info("Migrated legacy temp workspace into NeoWorker root", {
+          workspaceId: existing.id,
+          destination: migrated.path,
+        });
+        return migrated.path;
+      } catch (migrationError) {
+        const created = createUniqueScopedTempWorkspaceDirectorySync(
+          tempWorkspaceRoot,
+          "ui",
+        );
+        logger.warn(
+          "Replaced unusable temp workspace path with a fresh NeoWorker workspace",
+          {
+            workspaceId: existing.id,
+            currentPathError: String(currentPathError),
+            migrationError: String(migrationError),
+          },
+        );
+        return created.path;
+      }
+    }
+  };
+
   // Temp workspace management
   // Creates isolated temp workspaces so each new session can use its own folder.
   const getOrCreateTempWorkspace = async (options?: {
@@ -2099,7 +2440,7 @@ export async function setupIpcHandlers(
       if (existingTemp) {
         workspace = await ensureTempWorkspace(
           existingTemp.id,
-          existingTemp.path,
+          normalizeExistingTempWorkspacePath(existingTemp),
           existingTemp,
         );
       } else {
@@ -2107,7 +2448,10 @@ export async function setupIpcHandlers(
           tempWorkspaceRoot,
           "ui",
         );
-        workspace = await ensureTempWorkspace(created.workspaceId, created.path);
+        workspace = await ensureTempWorkspace(
+          created.workspaceId,
+          created.path,
+        );
       }
     } else {
       const created = createUniqueScopedTempWorkspaceDirectorySync(
@@ -2133,15 +2477,18 @@ export async function setupIpcHandlers(
     return workspace;
   };
 
-  ipcMain.handle(IPC_CHANNELS.RENDERER_PERF_LOG, async (_event, payload: unknown) => {
-    const line = `[RendererPerf] ${stringifyRendererPerfPayload(payload)}`;
-    if (rendererPerfLogLevel(payload) === "info") {
-      logger.info(line);
-    } else {
-      logger.debug(line);
-    }
-    return { success: true };
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.RENDERER_PERF_LOG,
+    async (_event, payload: unknown) => {
+      const line = `[RendererPerf] ${stringifyRendererPerfPayload(payload)}`;
+      if (rendererPerfLogLevel(payload) === "info") {
+        logger.info(line);
+      } else {
+        logger.debug(line);
+      }
+      return { success: true };
+    },
+  );
 
   // File handlers - open files and show in Finder
   ipcMain.handle(
@@ -2156,7 +2503,8 @@ export async function setupIpcHandlers(
         filePath,
         workspacePath,
         {
-          requireWorkspaceContainment: true,
+          requireWorkspaceContainment:
+            requireViewerWorkspaceContainment(workspacePath),
         },
       );
       if (!resolvedPath) {
@@ -2169,7 +2517,12 @@ export async function setupIpcHandlers(
 
   ipcMain.handle(
     IPC_CHANNELS.FILE_OPEN_WITH_APP,
-    async (_, filePath: string, workspacePath: string | undefined, appName: string) => {
+    async (
+      _,
+      filePath: string,
+      workspacePath: string | undefined,
+      appName: string,
+    ) => {
       if (!workspacePath) {
         throw new Error("Workspace path is required for file operations");
       }
@@ -2193,7 +2546,8 @@ export async function setupIpcHandlers(
         filePath,
         workspacePath,
         {
-          requireWorkspaceContainment: true,
+          requireWorkspaceContainment:
+            requireViewerWorkspaceContainment(workspacePath),
         },
       );
       if (!resolvedPath) {
@@ -2224,7 +2578,8 @@ export async function setupIpcHandlers(
         filePath,
         workspacePath,
         {
-          requireWorkspaceContainment: true,
+          requireWorkspaceContainment:
+            requireViewerWorkspaceContainment(workspacePath),
         },
       );
       if (!resolvedPath) {
@@ -2235,6 +2590,58 @@ export async function setupIpcHandlers(
     },
   );
 
+  ipcMain.handle(
+    IPC_CHANNELS.FILE_DOWNLOAD,
+    async (_, filePath: string, workspacePath?: string) => {
+      if (!workspacePath) {
+        throw new Error("Workspace path is required for file operations");
+      }
+
+      const { resolvedPath, realPath } = await resolveExistingPathForViewer(
+        filePath,
+        workspacePath,
+        {
+          requireWorkspaceContainment:
+            requireViewerWorkspaceContainment(workspacePath),
+        },
+      );
+      if (!resolvedPath) {
+        throw new Error("File not found");
+      }
+
+      const sourcePath = realPath || resolvedPath;
+      const stats = await fs.stat(sourcePath);
+      if (!stats.isFile()) {
+        throw new Error("Only files can be downloaded");
+      }
+
+      const options: Electron.SaveDialogOptions = {
+        defaultPath: path.join(
+          _app.getPath("downloads"),
+          path.basename(sourcePath),
+        ),
+      };
+      const parentWindow = BrowserWindow.getFocusedWindow();
+      const result = parentWindow
+        ? await dialog.showSaveDialog(parentWindow, options)
+        : await dialog.showSaveDialog(options);
+
+      if (result.canceled || !result.filePath) {
+        return { success: false, canceled: true };
+      }
+
+      if (path.resolve(result.filePath) !== path.resolve(sourcePath)) {
+        await fs.copyFile(sourcePath, result.filePath);
+      }
+
+      return {
+        success: true,
+        canceled: false,
+        savedPath: result.filePath,
+      };
+    },
+  );
+
   const getValidatedYoutubeWorkspacePath = (
     workspaceId: unknown,
     options: { requireNetwork?: boolean } = {},
@@ -2242,7 +2649,8 @@ export async function setupIpcHandlers(
     const id = validateInput(WorkspaceIdSchema, workspaceId, "workspace id");
     const workspace = workspaceRepo.findById(id);
     if (!workspace) throw new Error(`Workspace not found: ${id}`);
-    if (!workspace.permissions.read) throw new Error("Read permission not granted for workspace");
+    if (!workspace.permissions.read)
+      throw new Error("Read permission not granted for workspace");
     if (options.requireNetwork && !workspace.permissions.network) {
       throw new Error("Network permission not granted for workspace");
     }
@@ -2251,8 +2659,19 @@ export async function setupIpcHandlers(
 
   ipcMain.handle(
     IPC_CHANNELS.YOUTUBE_INGEST_VIDEO,
-    async (_, data: { workspaceId: string; url: string; language?: string; force?: boolean }) => {
-      checkRateLimit(IPC_CHANNELS.YOUTUBE_INGEST_VIDEO, RATE_LIMIT_CONFIGS.expensive);
+    async (
+      _,
+      data: {
+        workspaceId: string;
+        url: string;
+        language?: string;
+        force?: boolean;
+      },
+    ) => {
+      checkRateLimit(
+        IPC_CHANNELS.YOUTUBE_INGEST_VIDEO,
+        RATE_LIMIT_CONFIGS.expensive,
+      );
       const payload = validateInput(
         z.object({
           workspaceId: WorkspaceIdSchema,
@@ -2263,31 +2682,46 @@ export async function setupIpcHandlers(
         data,
         "YouTube ingest request",
       );
-      const workspacePath = getValidatedYoutubeWorkspacePath(payload.workspaceId, {
-        requireNetwork: true,
-      });
-      return new YouTubeIngestionService(payload.workspaceId, workspacePath).ingest(payload);
+      const workspacePath = getValidatedYoutubeWorkspacePath(
+        payload.workspaceId,
+        {
+          requireNetwork: true,
+        },
+      );
+      return new YouTubeIngestionService(
+        payload.workspaceId,
+        workspacePath,
+      ).ingest(payload);
     },
   );
 
   ipcMain.handle(
     IPC_CHANNELS.YOUTUBE_ASK_VIDEO,
-    async (_, data: {
-      workspaceId: string;
-      question: string;
-      url?: string;
-      videoIds?: string[];
-      language?: string;
-      limit?: number;
-      force?: boolean;
-    }) => {
-      checkRateLimit(IPC_CHANNELS.YOUTUBE_ASK_VIDEO, RATE_LIMIT_CONFIGS.standard);
+    async (
+      _,
+      data: {
+        workspaceId: string;
+        question: string;
+        url?: string;
+        videoIds?: string[];
+        language?: string;
+        limit?: number;
+        force?: boolean;
+      },
+    ) => {
+      checkRateLimit(
+        IPC_CHANNELS.YOUTUBE_ASK_VIDEO,
+        RATE_LIMIT_CONFIGS.standard,
+      );
       const payload = validateInput(
         z.object({
           workspaceId: WorkspaceIdSchema,
           question: z.string().trim().min(1).max(2000),
           url: z.string().trim().min(1).max(2000).optional(),
-          videoIds: z.array(z.string().trim().min(1).max(32)).max(20).optional(),
+          videoIds: z
+            .array(z.string().trim().min(1).max(32))
+            .max(20)
+            .optional(),
           language: z.string().trim().min(2).max(12).optional(),
           limit: z.number().int().min(1).max(20).optional(),
           force: z.boolean().optional(),
@@ -2295,22 +2729,41 @@ export async function setupIpcHandlers(
         data,
         "YouTube ask request",
       );
-      const workspacePath = getValidatedYoutubeWorkspacePath(payload.workspaceId, {
-        requireNetwork: Boolean(payload.url),
-      });
-      return new YouTubeQuestionService(payload.workspaceId, workspacePath).ask(payload);
+      const workspacePath = getValidatedYoutubeWorkspacePath(
+        payload.workspaceId,
+        {
+          requireNetwork: Boolean(payload.url),
+        },
+      );
+      return new YouTubeQuestionService(payload.workspaceId, workspacePath).ask(
+        payload,
+      );
     },
   );
 
   ipcMain.handle(
     IPC_CHANNELS.YOUTUBE_SEARCH_SEGMENTS,
-    async (_, data: { workspaceId: string; query: string; videoIds?: string[]; limit?: number }) => {
-      checkRateLimit(IPC_CHANNELS.YOUTUBE_SEARCH_SEGMENTS, RATE_LIMIT_CONFIGS.standard);
+    async (
+      _,
+      data: {
+        workspaceId: string;
+        query: string;
+        videoIds?: string[];
+        limit?: number;
+      },
+    ) => {
+      checkRateLimit(
+        IPC_CHANNELS.YOUTUBE_SEARCH_SEGMENTS,
+        RATE_LIMIT_CONFIGS.standard,
+      );
       const payload = validateInput(
         z.object({
           workspaceId: WorkspaceIdSchema,
           query: z.string().trim().min(1).max(1000),
-          videoIds: z.array(z.string().trim().min(1).max(32)).max(50).optional(),
+          videoIds: z
+            .array(z.string().trim().min(1).max(32))
+            .max(50)
+            .optional(),
           limit: z.number().int().min(1).max(50).optional(),
         }),
         data,
@@ -2327,7 +2780,10 @@ export async function setupIpcHandlers(
   ipcMain.handle(
     IPC_CHANNELS.YOUTUBE_LIST_VIDEOS,
     async (_, data: { workspaceId: string; limit?: number }) => {
-      checkRateLimit(IPC_CHANNELS.YOUTUBE_LIST_VIDEOS, RATE_LIMIT_CONFIGS.standard);
+      checkRateLimit(
+        IPC_CHANNELS.YOUTUBE_LIST_VIDEOS,
+        RATE_LIMIT_CONFIGS.standard,
+      );
       const payload = validateInput(
         z.object({
           workspaceId: WorkspaceIdSchema,
@@ -2339,7 +2795,10 @@ export async function setupIpcHandlers(
       getValidatedYoutubeWorkspacePath(payload.workspaceId);
       return {
         ok: true,
-        videos: YouTubeTranscriptStore.listVideos(payload.workspaceId, payload.limit ?? 50),
+        videos: YouTubeTranscriptStore.listVideos(
+          payload.workspaceId,
+          payload.limit ?? 50,
+        ),
       };
     },
   );
@@ -2463,16 +2922,20 @@ export async function setupIpcHandlers(
         imageOcrMaxChars,
         includeImageContent = true,
         includePdfBase64 = false,
+        includePdfAnalysis = true,
         presentationRenderMode = "full",
       } = data;
 
       if (!workspacePath || !workspacePath.trim()) {
-        throw new Error("Workspace path is required for file preview operations");
+        throw new Error(
+          "Workspace path is required for file preview operations",
+        );
       }
 
       const { resolvedPath, realPath, attemptedPaths } =
         await resolveExistingPathForViewer(filePath, workspacePath, {
-          requireWorkspaceContainment: true,
+          requireWorkspaceContainment:
+            requireViewerWorkspaceContainment(workspacePath),
         });
       if (!resolvedPath) {
         const attempted =
@@ -2563,7 +3026,14 @@ export async function setupIpcHandlers(
           ".ico",
         ];
         const videoExtensions = [".mp4", ".webm"];
-        const audioExtensions = [".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac"];
+        const audioExtensions = [
+          ".mp3",
+          ".wav",
+          ".ogg",
+          ".m4a",
+          ".flac",
+          ".aac",
+        ];
 
         if (ext === ".md" || ext === ".markdown") return "markdown";
         if (ext === ".html" || ext === ".htm") return "html";
@@ -2578,7 +3048,8 @@ export async function setupIpcHandlers(
           ext === ".odt" ||
           ext === ".ott" ||
           ext === ".pages"
-        ) return "document";
+        )
+          return "document";
         if (ext === ".pdf") return "pdf";
         if (
           ext === ".pptx" ||
@@ -2588,9 +3059,11 @@ export async function setupIpcHandlers(
           ext === ".potm" ||
           ext === ".ppsx" ||
           ext === ".ppsm"
-        ) return "pptx";
+        )
+          return "pptx";
         if (ext === ".xlsx" || ext === ".xls" || ext === ".xlsm") return "xlsx";
-        if (ext === ".json" || ext === ".jsonl" || ext === ".geojson") return "json";
+        if (ext === ".json" || ext === ".jsonl" || ext === ".geojson")
+          return "json";
         if (ext === ".csv" || ext === ".tsv") return "csv";
         if (imageExtensions.includes(ext)) return "image";
         if (videoExtensions.includes(ext)) return "video";
@@ -2615,7 +3088,12 @@ export async function setupIpcHandlers(
             ...packageJson.dependencies,
             ...packageJson.devDependencies,
           };
-          if ("react" in deps || "react-dom" in deps || "vite" in deps || "next" in deps) {
+          if (
+            "react" in deps ||
+            "react-dom" in deps ||
+            "vite" in deps ||
+            "next" in deps
+          ) {
             fileType = "html";
           }
         } catch {
@@ -2671,7 +3149,10 @@ export async function setupIpcHandlers(
           error: "Spreadsheet too large for extraction (max 20MB)",
         };
       }
-      if ((fileType === "docx" || fileType === "document") && stats.size > MAX_DOCUMENT_VIEWER_SIZE) {
+      if (
+        (fileType === "docx" || fileType === "document") &&
+        stats.size > MAX_DOCUMENT_VIEWER_SIZE
+      ) {
         return {
           success: false,
           error: "Document too large for preview (max 25MB)",
@@ -2751,16 +3232,18 @@ export async function setupIpcHandlers(
           }
 
           case "pdf": {
-            const pdfReview = await extractPdfReviewData(fileReadPath, {
-              maxPages: 12,
-              maxCharsPerPage: 1800,
-              maxOcrPages: 4,
-              includeOcr: true,
-            });
-            content = pdfReview.content;
-            pdfReviewSummary = pdfReview;
-            pdfThumbnailDataUrl =
-              await renderPdfFirstPageThumbnail(fileReadPath);
+            if (includePdfAnalysis) {
+              const pdfReview = await extractPdfReviewData(fileReadPath, {
+                maxPages: 12,
+                maxCharsPerPage: 1800,
+                maxOcrPages: 4,
+                includeOcr: true,
+              });
+              content = pdfReview.content;
+              pdfReviewSummary = pdfReview;
+              pdfThumbnailDataUrl =
+                await renderPdfFirstPageThumbnail(fileReadPath);
+            }
             if (includePdfBase64 && stats.size <= MAX_PDF_BASE64_SIZE) {
               const buffer = await fs.readFile(fileReadPath);
               pdfDataBase64 = buffer.toString("base64");
@@ -2798,8 +3281,7 @@ export async function setupIpcHandlers(
           case "audio": {
             mimeType =
               ((mime.lookup(fileReadPath) || undefined) as
-                | string
-                | undefined) || undefined;
+                string | undefined) || undefined;
             if (!mimeType || !mimeType.startsWith("audio/")) {
               const fallbackByExt: Record<string, string> = {
                 ".mp3": "audio/mpeg",
@@ -2837,8 +3319,7 @@ export async function setupIpcHandlers(
           case "video": {
             mimeType =
               ((mime.lookup(fileReadPath) || undefined) as
-                | string
-                | undefined) || undefined;
+                string | undefined) || undefined;
             if (
               !mimeType ||
               (mimeType !== "video/mp4" && mimeType !== "video/webm")
@@ -2878,24 +3359,35 @@ export async function setupIpcHandlers(
           }
 
           case "html": {
-            webPreview = await buildWebPagePreviewFromPath(fileReadPath, workspacePath);
+            webPreview = await buildWebPagePreviewFromPath(
+              fileReadPath,
+              workspacePath,
+            );
             htmlContent = webPreview.htmlContent;
             content = null; // HTML content is in htmlContent
             break;
           }
 
           case "pptx": {
-            presentationPreview = await getSharedPptxPreviewService().buildPreview({
-              filePath: fileReadPath,
-              workspaceRoot: workspacePath,
-              renderMode: presentationRenderMode,
-            });
+            presentationPreview =
+              await getSharedPptxPreviewService().buildPreview({
+                filePath: fileReadPath,
+                workspaceRoot: workspacePath,
+                allowedRoots: [
+                  resolveDurableTempWorkspaceRoot({
+                    userDataPath: getUserDataDir(),
+                    workspacePath,
+                  }),
+                ],
+                renderMode: presentationRenderMode,
+              });
             content = buildPptxContentFromPreview(presentationPreview);
             break;
           }
 
           case "xlsx": {
-            spreadsheetPreview = await buildSpreadsheetPreviewFromFile(fileReadPath);
+            spreadsheetPreview =
+              await buildSpreadsheetPreviewFromFile(fileReadPath);
             content = spreadsheetPreviewToTsv(spreadsheetPreview);
             break;
           }
@@ -2961,22 +3453,25 @@ export async function setupIpcHandlers(
             .findAll()
             .find(
               (item) =>
-                path.resolve(normalizePotentialPath(item.path)) === requestedWorkspacePath,
+                path.resolve(normalizePotentialPath(item.path)) ===
+                requestedWorkspacePath,
             );
       if (!workspace) {
-        throw new Error("A registered workspace is required for spreadsheet edits");
+        throw new Error(
+          "A registered workspace is required for spreadsheet edits",
+        );
       }
       const workspacePath = workspace.path;
-      const { resolvedPath, realPath, attemptedPaths } = await resolveExistingPathForViewer(
-        filePath,
-        workspacePath,
-        {
-          requireWorkspaceContainment: true,
-        },
-      );
+      const { resolvedPath, realPath, attemptedPaths } =
+        await resolveExistingPathForViewer(filePath, workspacePath, {
+          requireWorkspaceContainment:
+            requireViewerWorkspaceContainment(workspacePath),
+        });
       if (!resolvedPath) {
         const attempted =
-          attemptedPaths.length > 0 ? ` (tried ${attemptedPaths.length} location(s))` : "";
+          attemptedPaths.length > 0
+            ? ` (tried ${attemptedPaths.length} location(s))`
+            : "";
         return {
           success: false,
           error: `File not found: ${filePath}${attempted}`,
@@ -2996,7 +3491,8 @@ export async function setupIpcHandlers(
       ) {
         return {
           success: false,
-          error: "Only XLSX, XLSM, CSV, and TSV files can be opened in workbook mode",
+          error:
+            "Only XLSX, XLSM, CSV, and TSV files can be opened in workbook mode",
         };
       }
       if (
@@ -3094,16 +3590,16 @@ export async function setupIpcHandlers(
         return { success: false, error: "Spreadsheet data is missing" };
       }
 
-      const { resolvedPath, realPath, attemptedPaths } = await resolveExistingPathForViewer(
-        filePath,
-        workspacePath,
-        {
-          requireWorkspaceContainment: true,
-        },
-      );
+      const { resolvedPath, realPath, attemptedPaths } =
+        await resolveExistingPathForViewer(filePath, workspacePath, {
+          requireWorkspaceContainment:
+            requireViewerWorkspaceContainment(workspacePath),
+        });
       if (!resolvedPath) {
         const attempted =
-          attemptedPaths.length > 0 ? ` (tried ${attemptedPaths.length} location(s))` : "";
+          attemptedPaths.length > 0
+            ? ` (tried ${attemptedPaths.length} location(s))`
+            : "";
         return {
           success: false,
           error: `File not found: ${filePath}${attempted}`,
@@ -3119,12 +3615,14 @@ export async function setupIpcHandlers(
       ) {
         return {
           success: false,
-          error: "Only XLSX, CSV, and TSV files can be edited in the spreadsheet viewer",
+          error:
+            "Only XLSX, CSV, and TSV files can be edited in the spreadsheet viewer",
         };
       }
 
       try {
-        const isDelimitedSpreadsheet = extension === ".csv" || extension === ".tsv";
+        const isDelimitedSpreadsheet =
+          extension === ".csv" || extension === ".tsv";
         const spreadsheetPreview = isDelimitedSpreadsheet
           ? await writeDelimitedSpreadsheetPreviewToFile(
               fileWritePath,
@@ -3137,7 +3635,9 @@ export async function setupIpcHandlers(
           data: {
             path: resolvedPath,
             fileName: path.basename(fileWritePath),
-            fileType: isDelimitedSpreadsheet ? ("csv" as const) : ("xlsx" as const),
+            fileType: isDelimitedSpreadsheet
+              ? ("csv" as const)
+              : ("xlsx" as const),
             content: spreadsheetPreviewToTsv(spreadsheetPreview),
             spreadsheetPreview,
             size: (await fs.stat(fileWritePath)).size,
@@ -3170,14 +3670,16 @@ export async function setupIpcHandlers(
         return { success: false, error: "Document edit data is missing" };
       }
 
-      const { resolvedPath, realPath, attemptedPaths } = await resolveExistingPathForViewer(
-        filePath,
-        workspacePath,
-        { requireWorkspaceContainment: true },
-      );
+      const { resolvedPath, realPath, attemptedPaths } =
+        await resolveExistingPathForViewer(filePath, workspacePath, {
+          requireWorkspaceContainment:
+            requireViewerWorkspaceContainment(workspacePath),
+        });
       if (!resolvedPath) {
         const attempted =
-          attemptedPaths.length > 0 ? ` (tried ${attemptedPaths.length} location(s))` : "";
+          attemptedPaths.length > 0
+            ? ` (tried ${attemptedPaths.length} location(s))`
+            : "";
         return {
           success: false,
           error: `File not found: ${filePath}${attempted}`,
@@ -3189,13 +3691,15 @@ export async function setupIpcHandlers(
       if (extension !== ".docx") {
         return {
           success: false,
-          error: "Only DOCX files can be edited directly in the document viewer",
+          error:
+            "Only DOCX files can be edited directly in the document viewer",
         };
       }
 
       try {
         await writeEditableDocumentBlocksToDocxFile(fileWritePath, blocks);
-        const documentPreview = await buildDocumentPreviewFromFile(fileWritePath);
+        const documentPreview =
+          await buildDocumentPreviewFromFile(fileWritePath);
         return {
           success: true,
           data: {
@@ -3234,7 +3738,10 @@ export async function setupIpcHandlers(
         data,
         "llm-wiki vault request",
       );
-      return collectLlmWikiVaultSummary(payload.workspacePath, payload.vaultPath);
+      return collectLlmWikiVaultSummary(
+        payload.workspacePath,
+        payload.vaultPath,
+      );
     },
   );
 
@@ -3287,7 +3794,7 @@ export async function setupIpcHandlers(
         if (uploadRoot) return uploadRoot;
         uploadRoot = path.join(
           workspace.path,
-          ".cowork",
+          ".neoworker",
           "uploads",
           `${Date.now()}`,
         );
@@ -3320,8 +3827,7 @@ export async function setupIpcHandlers(
         }
 
         const mimeType = (mime.lookup(absolutePath) || undefined) as
-          | string
-          | undefined;
+          string | undefined;
 
         if (isPathWithinWorkspace(absolutePath, workspace.path)) {
           results.push({
@@ -3425,7 +3931,7 @@ export async function setupIpcHandlers(
 
       const uploadRoot = path.join(
         workspace.path,
-        ".cowork",
+        ".neoworker",
         "uploads",
         `${Date.now()}`,
       );
@@ -3531,7 +4037,9 @@ export async function setupIpcHandlers(
     IPC_CHANNELS.MAILBOX_SYNC,
     async (event, data?: { limit?: number; source?: "auto" | "manual" }) => {
       assertTrustedMailboxSender(event);
-      return mailboxService.sync(data?.limit, { source: data?.source || "manual" });
+      return mailboxService.sync(data?.limit, {
+        source: data?.source || "manual",
+      });
     },
   );
 
@@ -3569,11 +4077,17 @@ export async function setupIpcHandlers(
         todayBucket:
           typeof data?.todayBucket === "string" ? data.todayBucket : undefined,
         domainCategory:
-          typeof data?.domainCategory === "string" ? data.domainCategory : undefined,
+          typeof data?.domainCategory === "string"
+            ? data.domainCategory
+            : undefined,
         hasAttachment:
-          typeof data?.hasAttachment === "boolean" ? data.hasAttachment : undefined,
+          typeof data?.hasAttachment === "boolean"
+            ? data.hasAttachment
+            : undefined,
         attachmentQuery:
-          typeof data?.attachmentQuery === "string" ? data.attachmentQuery : undefined,
+          typeof data?.attachmentQuery === "string"
+            ? data.attachmentQuery
+            : undefined,
         sortBy:
           data?.sortBy === "recent"
             ? "recent"
@@ -3721,19 +4235,28 @@ export async function setupIpcHandlers(
     );
   });
 
-  ipcMain.handle(IPC_CHANNELS.MAILBOX_TODAY_DIGEST, async (event, data?: Any) => {
-    assertTrustedMailboxSender(event);
-    return mailboxService.getMailboxTodayDigest({
-      limitPerBucket: typeof data?.limitPerBucket === "number" ? data.limitPerBucket : undefined,
-    });
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MAILBOX_TODAY_DIGEST,
+    async (event, data?: Any) => {
+      assertTrustedMailboxSender(event);
+      return mailboxService.getMailboxTodayDigest({
+        limitPerBucket:
+          typeof data?.limitPerBucket === "number"
+            ? data.limitPerBucket
+            : undefined,
+      });
+    },
+  );
 
-  ipcMain.handle(IPC_CHANNELS.MAILBOX_SENDER_CLEANUP_DIGEST, async (event, data?: Any) => {
-    assertTrustedMailboxSender(event);
-    return mailboxService.getMailboxSenderCleanupDigest({
-      limit: typeof data?.limit === "number" ? data.limit : undefined,
-    });
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MAILBOX_SENDER_CLEANUP_DIGEST,
+    async (event, data?: Any) => {
+      assertTrustedMailboxSender(event);
+      return mailboxService.getMailboxSenderCleanupDigest({
+        limit: typeof data?.limit === "number" ? data.limit : undefined,
+      });
+    },
+  );
 
   ipcMain.handle(IPC_CHANNELS.MAILBOX_ASK, async (event, data?: Any) => {
     assertTrustedMailboxSender(event);
@@ -3743,11 +4266,15 @@ export async function setupIpcHandlers(
         {
           query: typeof data?.query === "string" ? data.query : "",
           limit: typeof data?.limit === "number" ? data.limit : undefined,
-          includeAnswer: typeof data?.includeAnswer === "boolean" ? data.includeAnswer : undefined,
+          includeAnswer:
+            typeof data?.includeAnswer === "boolean"
+              ? data.includeAnswer
+              : undefined,
           runId,
         },
         {
-          onAskEvent: (askEvent) => event.sender.send(IPC_CHANNELS.MAILBOX_ASK_EVENT, askEvent),
+          onAskEvent: (askEvent) =>
+            event.sender.send(IPC_CHANNELS.MAILBOX_ASK_EVENT, askEvent),
         },
       );
     } catch (error) {
@@ -3766,82 +4293,119 @@ export async function setupIpcHandlers(
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.MAILBOX_ATTACHMENT_EXTRACT_TEXT, async (event, data?: Any) => {
-    assertTrustedMailboxSender(event);
-    const attachmentId = typeof data?.attachmentId === "string" ? data.attachmentId : "";
-    if (!attachmentId) throw new Error("Missing mailbox attachment id");
-    return mailboxService.extractMailboxAttachmentText(attachmentId);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MAILBOX_ATTACHMENT_EXTRACT_TEXT,
+    async (event, data?: Any) => {
+      assertTrustedMailboxSender(event);
+      const attachmentId =
+        typeof data?.attachmentId === "string" ? data.attachmentId : "";
+      if (!attachmentId) throw new Error("Missing mailbox attachment id");
+      return mailboxService.extractMailboxAttachmentText(attachmentId);
+    },
+  );
 
-  ipcMain.handle(IPC_CHANNELS.MAILBOX_CREATE_DRAFT, async (event, data?: Any) => {
-    assertTrustedMailboxSender(event);
-    return mailboxService.createMailboxDraft({
-      accountId: typeof data?.accountId === "string" ? data.accountId : undefined,
-      threadId: typeof data?.threadId === "string" ? data.threadId : undefined,
-      mode:
-        data?.mode === "reply" || data?.mode === "reply_all" || data?.mode === "forward"
-          ? data.mode
-          : "new",
-      subject: typeof data?.subject === "string" ? data.subject : undefined,
-      bodyText: typeof data?.bodyText === "string" ? data.bodyText : undefined,
-      bodyHtml: typeof data?.bodyHtml === "string" ? data.bodyHtml : undefined,
-      to: Array.isArray(data?.to) ? data.to : undefined,
-      cc: Array.isArray(data?.cc) ? data.cc : undefined,
-      bcc: Array.isArray(data?.bcc) ? data.bcc : undefined,
-      identityId: typeof data?.identityId === "string" ? data.identityId : undefined,
-      signatureId: typeof data?.signatureId === "string" ? data.signatureId : undefined,
-    });
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MAILBOX_CREATE_DRAFT,
+    async (event, data?: Any) => {
+      assertTrustedMailboxSender(event);
+      return mailboxService.createMailboxDraft({
+        accountId:
+          typeof data?.accountId === "string" ? data.accountId : undefined,
+        threadId:
+          typeof data?.threadId === "string" ? data.threadId : undefined,
+        mode:
+          data?.mode === "reply" ||
+          data?.mode === "reply_all" ||
+          data?.mode === "forward"
+            ? data.mode
+            : "new",
+        subject: typeof data?.subject === "string" ? data.subject : undefined,
+        bodyText:
+          typeof data?.bodyText === "string" ? data.bodyText : undefined,
+        bodyHtml:
+          typeof data?.bodyHtml === "string" ? data.bodyHtml : undefined,
+        to: Array.isArray(data?.to) ? data.to : undefined,
+        cc: Array.isArray(data?.cc) ? data.cc : undefined,
+        bcc: Array.isArray(data?.bcc) ? data.bcc : undefined,
+        identityId:
+          typeof data?.identityId === "string" ? data.identityId : undefined,
+        signatureId:
+          typeof data?.signatureId === "string" ? data.signatureId : undefined,
+      });
+    },
+  );
 
-  ipcMain.handle(IPC_CHANNELS.MAILBOX_UPDATE_DRAFT, async (event, data?: Any) => {
-    assertTrustedMailboxSender(event);
-    const draftId = typeof data?.draftId === "string" ? data.draftId : "";
-    if (!draftId) throw new Error("Missing mailbox draft id");
-    return mailboxService.updateMailboxDraft(draftId, {
-      subject: typeof data?.patch?.subject === "string" ? data.patch.subject : undefined,
-      bodyText: typeof data?.patch?.bodyText === "string" ? data.patch.bodyText : undefined,
-      bodyHtml:
-        typeof data?.patch?.bodyHtml === "string" || data?.patch?.bodyHtml === null
-          ? data.patch.bodyHtml
-          : undefined,
-      to: Array.isArray(data?.patch?.to) ? data.patch.to : undefined,
-      cc: Array.isArray(data?.patch?.cc) ? data.patch.cc : undefined,
-      bcc: Array.isArray(data?.patch?.bcc) ? data.patch.bcc : undefined,
-      identityId:
-        typeof data?.patch?.identityId === "string" || data?.patch?.identityId === null
-          ? data.patch.identityId
-          : undefined,
-      signatureId:
-        typeof data?.patch?.signatureId === "string" || data?.patch?.signatureId === null
-          ? data.patch.signatureId
-          : undefined,
-      scheduledAt:
-        typeof data?.patch?.scheduledAt === "number" || data?.patch?.scheduledAt === null
-          ? data.patch.scheduledAt
-          : undefined,
-    });
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MAILBOX_UPDATE_DRAFT,
+    async (event, data?: Any) => {
+      assertTrustedMailboxSender(event);
+      const draftId = typeof data?.draftId === "string" ? data.draftId : "";
+      if (!draftId) throw new Error("Missing mailbox draft id");
+      return mailboxService.updateMailboxDraft(draftId, {
+        subject:
+          typeof data?.patch?.subject === "string"
+            ? data.patch.subject
+            : undefined,
+        bodyText:
+          typeof data?.patch?.bodyText === "string"
+            ? data.patch.bodyText
+            : undefined,
+        bodyHtml:
+          typeof data?.patch?.bodyHtml === "string" ||
+          data?.patch?.bodyHtml === null
+            ? data.patch.bodyHtml
+            : undefined,
+        to: Array.isArray(data?.patch?.to) ? data.patch.to : undefined,
+        cc: Array.isArray(data?.patch?.cc) ? data.patch.cc : undefined,
+        bcc: Array.isArray(data?.patch?.bcc) ? data.patch.bcc : undefined,
+        identityId:
+          typeof data?.patch?.identityId === "string" ||
+          data?.patch?.identityId === null
+            ? data.patch.identityId
+            : undefined,
+        signatureId:
+          typeof data?.patch?.signatureId === "string" ||
+          data?.patch?.signatureId === null
+            ? data.patch.signatureId
+            : undefined,
+        scheduledAt:
+          typeof data?.patch?.scheduledAt === "number" ||
+          data?.patch?.scheduledAt === null
+            ? data.patch.scheduledAt
+            : undefined,
+      });
+    },
+  );
 
-  ipcMain.handle(IPC_CHANNELS.MAILBOX_ADD_DRAFT_ATTACHMENT, async (event, data?: Any) => {
-    assertTrustedMailboxSender(event);
-    const draftId = typeof data?.draftId === "string" ? data.draftId : "";
-    if (!draftId) throw new Error("Missing mailbox draft id");
-    const input = data?.input || {};
-    return mailboxService.addMailboxDraftAttachment(draftId, {
-      path: typeof input?.path === "string" ? input.path : "",
-      filename: typeof input?.filename === "string" ? input.filename : undefined,
-      mimeType: typeof input?.mimeType === "string" ? input.mimeType : undefined,
-    });
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MAILBOX_ADD_DRAFT_ATTACHMENT,
+    async (event, data?: Any) => {
+      assertTrustedMailboxSender(event);
+      const draftId = typeof data?.draftId === "string" ? data.draftId : "";
+      if (!draftId) throw new Error("Missing mailbox draft id");
+      const input = data?.input || {};
+      return mailboxService.addMailboxDraftAttachment(draftId, {
+        path: typeof input?.path === "string" ? input.path : "",
+        filename:
+          typeof input?.filename === "string" ? input.filename : undefined,
+        mimeType:
+          typeof input?.mimeType === "string" ? input.mimeType : undefined,
+      });
+    },
+  );
 
-  ipcMain.handle(IPC_CHANNELS.MAILBOX_REMOVE_DRAFT_ATTACHMENT, async (event, data?: Any) => {
-    assertTrustedMailboxSender(event);
-    const draftId = typeof data?.draftId === "string" ? data.draftId : "";
-    const attachmentId = typeof data?.attachmentId === "string" ? data.attachmentId : "";
-    if (!draftId) throw new Error("Missing mailbox draft id");
-    if (!attachmentId) throw new Error("Missing mailbox draft attachment id");
-    return mailboxService.removeMailboxDraftAttachment(draftId, attachmentId);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MAILBOX_REMOVE_DRAFT_ATTACHMENT,
+    async (event, data?: Any) => {
+      assertTrustedMailboxSender(event);
+      const draftId = typeof data?.draftId === "string" ? data.draftId : "";
+      const attachmentId =
+        typeof data?.attachmentId === "string" ? data.attachmentId : "";
+      if (!draftId) throw new Error("Missing mailbox draft id");
+      if (!attachmentId) throw new Error("Missing mailbox draft attachment id");
+      return mailboxService.removeMailboxDraftAttachment(draftId, attachmentId);
+    },
+  );
 
   ipcMain.handle(IPC_CHANNELS.MAILBOX_SEND_DRAFT, async (event, data?: Any) => {
     assertTrustedMailboxSender(event);
@@ -3850,59 +4414,83 @@ export async function setupIpcHandlers(
     return mailboxService.sendMailboxDraft(draftId);
   });
 
-  ipcMain.handle(IPC_CHANNELS.MAILBOX_SCHEDULE_SEND, async (event, data?: Any) => {
-    assertTrustedMailboxSender(event);
-    const draftId = typeof data?.draftId === "string" ? data.draftId : "";
-    const scheduledAt = typeof data?.scheduledAt === "number" ? data.scheduledAt : 0;
-    if (!draftId) throw new Error("Missing mailbox draft id");
-    return mailboxService.scheduleMailboxSend(draftId, scheduledAt);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MAILBOX_SCHEDULE_SEND,
+    async (event, data?: Any) => {
+      assertTrustedMailboxSender(event);
+      const draftId = typeof data?.draftId === "string" ? data.draftId : "";
+      const scheduledAt =
+        typeof data?.scheduledAt === "number" ? data.scheduledAt : 0;
+      if (!draftId) throw new Error("Missing mailbox draft id");
+      return mailboxService.scheduleMailboxSend(draftId, scheduledAt);
+    },
+  );
 
-  ipcMain.handle(IPC_CHANNELS.MAILBOX_UPDATE_CLIENT_SETTINGS, async (event, data?: Any) => {
-    assertTrustedMailboxSender(event);
-    return mailboxService.updateMailboxClientSettings({
-      remoteContentPolicy:
-        data?.remoteContentPolicy === "load" || data?.remoteContentPolicy === "block" || data?.remoteContentPolicy === "ask"
-          ? data.remoteContentPolicy
-          : undefined,
-      sendDelaySeconds: typeof data?.sendDelaySeconds === "number" ? data.sendDelaySeconds : undefined,
-      syncRecentDays: typeof data?.syncRecentDays === "number" ? data.syncRecentDays : undefined,
-      attachmentCache:
-        data?.attachmentCache === "metadata_on_demand" ||
-        data?.attachmentCache === "recent_cache" ||
-        data?.attachmentCache === "never_cache"
-          ? data.attachmentCache
-          : undefined,
-      notifications:
-        data?.notifications === "all" ||
-        data?.notifications === "priority" ||
-        data?.notifications === "needs_reply" ||
-        data?.notifications === "off"
-          ? data.notifications
-          : undefined,
-    });
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MAILBOX_UPDATE_CLIENT_SETTINGS,
+    async (event, data?: Any) => {
+      assertTrustedMailboxSender(event);
+      return mailboxService.updateMailboxClientSettings({
+        remoteContentPolicy:
+          data?.remoteContentPolicy === "load" ||
+          data?.remoteContentPolicy === "block" ||
+          data?.remoteContentPolicy === "ask"
+            ? data.remoteContentPolicy
+            : undefined,
+        sendDelaySeconds:
+          typeof data?.sendDelaySeconds === "number"
+            ? data.sendDelaySeconds
+            : undefined,
+        syncRecentDays:
+          typeof data?.syncRecentDays === "number"
+            ? data.syncRecentDays
+            : undefined,
+        attachmentCache:
+          data?.attachmentCache === "metadata_on_demand" ||
+          data?.attachmentCache === "recent_cache" ||
+          data?.attachmentCache === "never_cache"
+            ? data.attachmentCache
+            : undefined,
+        notifications:
+          data?.notifications === "all" ||
+          data?.notifications === "priority" ||
+          data?.notifications === "needs_reply" ||
+          data?.notifications === "off"
+            ? data.notifications
+            : undefined,
+      });
+    },
+  );
 
-  ipcMain.handle(IPC_CHANNELS.MAILBOX_RETRY_ACTION, async (event, data?: Any) => {
-    assertTrustedMailboxSender(event);
-    const actionId = typeof data?.actionId === "string" ? data.actionId : "";
-    if (!actionId) throw new Error("Missing mailbox action id");
-    return mailboxService.retryMailboxAction(actionId);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MAILBOX_RETRY_ACTION,
+    async (event, data?: Any) => {
+      assertTrustedMailboxSender(event);
+      const actionId = typeof data?.actionId === "string" ? data.actionId : "";
+      if (!actionId) throw new Error("Missing mailbox action id");
+      return mailboxService.retryMailboxAction(actionId);
+    },
+  );
 
-  ipcMain.handle(IPC_CHANNELS.MAILBOX_DISCARD_COMPOSE_DRAFT, async (event, data?: Any) => {
-    assertTrustedMailboxSender(event);
-    const draftId = typeof data?.draftId === "string" ? data.draftId : "";
-    if (!draftId) throw new Error("Missing mailbox draft id");
-    return mailboxService.discardMailboxDraft(draftId);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MAILBOX_DISCARD_COMPOSE_DRAFT,
+    async (event, data?: Any) => {
+      assertTrustedMailboxSender(event);
+      const draftId = typeof data?.draftId === "string" ? data.draftId : "";
+      if (!draftId) throw new Error("Missing mailbox draft id");
+      return mailboxService.discardMailboxDraft(draftId);
+    },
+  );
 
-  ipcMain.handle(IPC_CHANNELS.MAILBOX_UNDO_ACTION, async (event, data?: Any) => {
-    assertTrustedMailboxSender(event);
-    const actionId = typeof data?.actionId === "string" ? data.actionId : "";
-    if (!actionId) throw new Error("Missing mailbox action id");
-    return mailboxService.undoMailboxAction(actionId);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MAILBOX_UNDO_ACTION,
+    async (event, data?: Any) => {
+      assertTrustedMailboxSender(event);
+      const actionId = typeof data?.actionId === "string" ? data.actionId : "";
+      if (!actionId) throw new Error("Missing mailbox action id");
+      return mailboxService.undoMailboxAction(actionId);
+    },
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.MAILBOX_SUMMARIZE_THREAD,
@@ -4337,8 +4925,7 @@ export async function setupIpcHandlers(
         label: typeof data?.label === "string" ? data.label : undefined,
         folderId:
           typeof data?.folderId === "string" ? data.folderId : undefined,
-        labelId:
-          typeof data?.labelId === "string" ? data.labelId : undefined,
+        labelId: typeof data?.labelId === "string" ? data.labelId : undefined,
         snoozeUntil:
           typeof data?.snoozeUntil === "number" ? data.snoozeUntil : undefined,
         draftId: typeof data?.draftId === "string" ? data.draftId : undefined,
@@ -4354,12 +4941,11 @@ export async function setupIpcHandlers(
           data?.messageMode === "forward"
             ? data.messageMode
             : undefined,
-        messageTo:
-          Array.isArray(data?.messageTo) ? data.messageTo : undefined,
-        messageCc:
-          Array.isArray(data?.messageCc) ? data.messageCc : undefined,
-        messageBcc:
-          Array.isArray(data?.messageBcc) ? data.messageBcc : undefined,
+        messageTo: Array.isArray(data?.messageTo) ? data.messageTo : undefined,
+        messageCc: Array.isArray(data?.messageCc) ? data.messageCc : undefined,
+        messageBcc: Array.isArray(data?.messageBcc)
+          ? data.messageBcc
+          : undefined,
         messageSubject:
           typeof data?.messageSubject === "string"
             ? data.messageSubject
@@ -4468,9 +5054,19 @@ export async function setupIpcHandlers(
     const { name, path: workspacePath, permissions } = validated;
 
     const resolvedPath = path.resolve(workspacePath);
-    const PROTECTED_ROOTS = ["/", "/etc", "/usr", "/bin", "/sbin", "/System", "/Library"];
+    const PROTECTED_ROOTS = [
+      "/",
+      "/etc",
+      "/usr",
+      "/bin",
+      "/sbin",
+      "/System",
+      "/Library",
+    ];
     if (PROTECTED_ROOTS.includes(resolvedPath)) {
-      throw new Error(`Cannot create a workspace at a protected system path: "${resolvedPath}".`);
+      throw new Error(
+        `Cannot create a workspace at a protected system path: "${resolvedPath}".`,
+      );
     }
 
     // Check if workspace with this path already exists
@@ -4491,16 +5087,38 @@ export async function setupIpcHandlers(
       shell: permissionSettings.defaultShellEnabled,
     };
 
-    return workspaceRepo.create(name, resolvedPath, permissions ?? defaultPermissions);
-  });
-
-  ipcMain.handle(IPC_CHANNELS.WORKSPACE_LIST, async () => {
-    // Filter out temp workspaces from user workspace lists.
-    const allWorkspaces = workspaceRepo.findAll();
-    return allWorkspaces.filter(
-      (workspace) => !workspace.isTemp && !isTempWorkspaceId(workspace.id),
+    return workspaceRepo.create(
+      name,
+      resolvedPath,
+      permissions ?? defaultPermissions,
     );
   });
+
+  ipcMain.handle(
+    IPC_CHANNELS.WORKSPACE_LIST,
+    async (_, options?: { includeArchived?: boolean }) => {
+      // Filter out temp workspaces from user workspace lists.
+      const allWorkspaces = workspaceRepo.findAll();
+      return allWorkspaces.filter(
+        (workspace) =>
+          !workspace.isTemp &&
+          !isTempWorkspaceId(workspace.id) &&
+          (options?.includeArchived === true || !workspace.archivedAt),
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.WORKSPACE_SET_ARCHIVED,
+    async (_, id: string, archived: boolean) => {
+      const workspace = workspaceRepo.findById(id);
+      if (!workspace || workspace.isTemp || isTempWorkspaceId(workspace.id)) {
+        throw new Error("No project is available to archive.");
+      }
+      workspaceRepo.updateArchivedAt(id, archived ? Date.now() : undefined);
+      return workspaceRepo.findById(id);
+    },
+  );
 
   // Get or create the temp workspace (used when no workspace is selected)
   ipcMain.handle(
@@ -4581,12 +5199,17 @@ export async function setupIpcHandlers(
       data: {
         workspacePath: string;
       },
-    ): Promise<{ success: true; data: GithubPullRequestReviewSummary } | { success: false; error: string }> => {
+    ): Promise<
+      | { success: true; data: GithubPullRequestReviewSummary }
+      | { success: false; error: string }
+    > => {
       try {
         if (!data?.workspacePath?.trim()) {
           return { success: false, error: "Workspace path is required." };
         }
-        const summary = await GitHubReviewService.getReviewSummary(data.workspacePath);
+        const summary = await GitHubReviewService.getReviewSummary(
+          data.workspacePath,
+        );
         return { success: true, data: summary };
       } catch (error: Any) {
         return {
@@ -4605,13 +5228,25 @@ export async function setupIpcHandlers(
         workspacePath: string;
         threadIds?: string[];
       },
-    ): Promise<{ success: true; prompt: string; summary: GithubPullRequestReviewSummary } | { success: false; error: string }> => {
+    ): Promise<
+      | {
+          success: true;
+          prompt: string;
+          summary: GithubPullRequestReviewSummary;
+        }
+      | { success: false; error: string }
+    > => {
       try {
         if (!data?.workspacePath?.trim()) {
           return { success: false, error: "Workspace path is required." };
         }
-        const summary = await GitHubReviewService.getReviewSummary(data.workspacePath);
-        const prompt = GitHubReviewService.buildAddressPrompt(summary, data.threadIds || []);
+        const summary = await GitHubReviewService.getReviewSummary(
+          data.workspacePath,
+        );
+        const prompt = GitHubReviewService.buildAddressPrompt(
+          summary,
+          data.threadIds || [],
+        );
         return { success: true, prompt, summary };
       } catch (error: Any) {
         return {
@@ -4632,6 +5267,16 @@ export async function setupIpcHandlers(
     },
   );
 
+  const ensureTerminalWorkspacePath = (workspace: Workspace): string => {
+    if (workspace.isTemp || isTempWorkspaceId(workspace.id)) {
+      return ensureTempWorkspaceDirectoryPathSync(
+        tempWorkspaceRoot,
+        workspace.path,
+      );
+    }
+    return workspace.path;
+  };
+
   ipcMain.handle(
     IPC_CHANNELS.TERMINAL_TAB_CREATE,
     async (
@@ -4645,10 +5290,11 @@ export async function setupIpcHandlers(
       const workspace = workspaceRepo.findById(data?.workspaceId);
       if (!workspace) throw new Error("Workspace not found.");
       assertTerminalShellAllowed(workspace);
-      const cwd = await resolveWorkspaceContainedCwd(workspace.path, data.cwd);
+      const workspacePath = ensureTerminalWorkspacePath(workspace);
+      const cwd = await resolveWorkspaceContainedCwd(workspacePath, data.cwd);
       return TerminalPtyManager.getInstance().createTab({
         workspaceId: workspace.id,
-        workspacePath: workspace.path,
+        workspacePath,
         cwd,
         title: data.title,
       });
@@ -4676,12 +5322,17 @@ export async function setupIpcHandlers(
       }
       const taskId = typeof data.taskId === "string" ? data.taskId.trim() : "";
       if (!taskId || !taskRepo.findById(taskId)) {
-        throw new Error("A valid task id is required to run terminal tab commands.");
+        throw new Error(
+          "A valid task id is required to run terminal tab commands.",
+        );
       }
-      const cwd = await resolveWorkspaceContainedCwd(workspace.path, data.cwd);
+      const workspacePath = ensureTerminalWorkspacePath(workspace);
+      const cwd = await resolveWorkspaceContainedCwd(workspacePath, data.cwd);
       const timeoutMs = data.timeoutMs || 60 * 60 * 1000;
       const manager = TerminalPtyManager.getInstance();
-      const tab = manager.listTabs(workspace.id).find((session) => session.id === data.tabId);
+      const tab = manager
+        .listTabs(workspace.id)
+        .find((session) => session.id === data.tabId);
       if (!tab) {
         throw new Error("Terminal tab not found for workspace.");
       }
@@ -4719,12 +5370,17 @@ export async function setupIpcHandlers(
 
   ipcMain.handle(
     IPC_CHANNELS.TERMINAL_TAB_WRITE,
-    async (event, data: { tabId: string; workspaceId: string; input: string }): Promise<ShellSessionInfo> => {
+    async (
+      event,
+      data: { tabId: string; workspaceId: string; input: string },
+    ): Promise<ShellSessionInfo> => {
       const workspace = workspaceRepo.findById(data?.workspaceId);
       if (!workspace) throw new Error("Workspace not found.");
       assertTerminalShellAllowed(workspace);
       const manager = TerminalPtyManager.getInstance();
-      const tab = manager.listTabs(workspace.id).find((session) => session.id === data.tabId);
+      const tab = manager
+        .listTabs(workspace.id)
+        .find((session) => session.id === data.tabId);
       if (!tab) throw new Error("Terminal tab not found for workspace.");
       const input = normalizeTerminalAttachInput(data?.input);
       manager.attachTerminalTabOutput(
@@ -4748,12 +5404,17 @@ export async function setupIpcHandlers(
 
   ipcMain.handle(
     IPC_CHANNELS.TERMINAL_TAB_RESIZE,
-    async (_, data: { tabId: string; workspaceId: string; cols: number; rows: number }): Promise<ShellSessionInfo> => {
+    async (
+      _,
+      data: { tabId: string; workspaceId: string; cols: number; rows: number },
+    ): Promise<ShellSessionInfo> => {
       const workspace = workspaceRepo.findById(data?.workspaceId);
       if (!workspace) throw new Error("Workspace not found.");
       assertTerminalShellAllowed(workspace);
       const manager = TerminalPtyManager.getInstance();
-      const tab = manager.listTabs(workspace.id).find((session) => session.id === data.tabId);
+      const tab = manager
+        .listTabs(workspace.id)
+        .find((session) => session.id === data.tabId);
       if (!tab) throw new Error("Terminal tab not found for workspace.");
       return manager.resizeTab(data.tabId, data.cols, data.rows);
     },
@@ -4763,23 +5424,37 @@ export async function setupIpcHandlers(
     IPC_CHANNELS.TERMINAL_TAB_COMPLETE,
     async (
       _,
-      data: { tabId: string; workspaceId: string; line: string; cursor: number; cwd?: string },
+      data: {
+        tabId: string;
+        workspaceId: string;
+        line: string;
+        cursor: number;
+        cwd?: string;
+      },
     ): Promise<TerminalTabCompletionResult> => {
       const workspace = workspaceRepo.findById(data?.workspaceId);
       if (!workspace) throw new Error("Workspace not found.");
       assertTerminalShellAllowed(workspace);
       const manager = TerminalPtyManager.getInstance();
-      const tab = manager.listTabs(workspace.id).find((session) => session.id === data.tabId);
+      const tab = manager
+        .listTabs(workspace.id)
+        .find((session) => session.id === data.tabId);
       if (!tab) throw new Error("Terminal tab not found for workspace.");
-      let cwd = workspace.path;
+      const workspacePath = ensureTerminalWorkspacePath(workspace);
+      let cwd = workspacePath;
       try {
-        cwd = await resolveWorkspaceContainedCwd(workspace.path, data.cwd || tab.cwd);
+        cwd = await resolveWorkspaceContainedCwd(
+          workspacePath,
+          data.cwd || tab.cwd,
+        );
       } catch {
-        cwd = await resolveWorkspaceContainedCwd(workspace.path);
+        cwd = await resolveWorkspaceContainedCwd(workspacePath);
       }
       return completeTerminalInput({
         line: String(data.line || ""),
-        cursor: Number.isFinite(data.cursor) ? data.cursor : String(data.line || "").length,
+        cursor: Number.isFinite(data.cursor)
+          ? data.cursor
+          : String(data.line || "").length,
         cwd,
       });
     },
@@ -4787,12 +5462,17 @@ export async function setupIpcHandlers(
 
   ipcMain.handle(
     IPC_CHANNELS.TERMINAL_TAB_STOP,
-    async (_, data: { tabId: string; workspaceId: string }): Promise<ShellSessionInfo | null> => {
+    async (
+      _,
+      data: { tabId: string; workspaceId: string },
+    ): Promise<ShellSessionInfo | null> => {
       const workspace = workspaceRepo.findById(data?.workspaceId);
       if (!workspace) throw new Error("Workspace not found.");
       assertTerminalShellAllowed(workspace);
       const manager = TerminalPtyManager.getInstance();
-      const tab = manager.listTabs(workspace.id).find((session) => session.id === data.tabId);
+      const tab = manager
+        .listTabs(workspace.id)
+        .find((session) => session.id === data.tabId);
       if (!tab) throw new Error("Terminal tab not found for workspace.");
       return manager.stopTab(data.tabId);
     },
@@ -4800,12 +5480,17 @@ export async function setupIpcHandlers(
 
   ipcMain.handle(
     IPC_CHANNELS.TERMINAL_TAB_CLOSE,
-    async (_, data: { tabId: string; workspaceId: string }): Promise<ShellSessionInfo | null> => {
+    async (
+      _,
+      data: { tabId: string; workspaceId: string },
+    ): Promise<ShellSessionInfo | null> => {
       const workspace = workspaceRepo.findById(data?.workspaceId);
       if (!workspace) throw new Error("Workspace not found.");
       assertTerminalShellAllowed(workspace);
       const manager = TerminalPtyManager.getInstance();
-      const tab = manager.listTabs(workspace.id).find((session) => session.id === data.tabId);
+      const tab = manager
+        .listTabs(workspace.id)
+        .find((session) => session.id === data.tabId);
       if (!tab) throw new Error("Terminal tab not found for workspace.");
       return manager.closeTab(data.tabId);
     },
@@ -4819,11 +5504,36 @@ export async function setupIpcHandlers(
       title,
       prompt,
       workspaceId,
+      projectId,
+      companyId,
+      sessionId,
       budgetTokens,
       budgetCost,
+      assignedAgentRoleId,
       agentConfig,
       images: validatedImages,
     } = validated;
+    if (projectId) {
+      const project = controlPlaneCore.getProject(projectId);
+      if (!project) throw new Error(`Project not found: ${projectId}`);
+      if (project.status !== "active" || project.archivedAt) {
+        throw new Error("New work can only be created in an active project.");
+      }
+      const isLinkedWorkspace = controlPlaneCore
+        .listProjectWorkspaces(projectId)
+        .some((link) => link.workspaceId === workspaceId);
+      if (!isLinkedWorkspace) {
+        throw new Error(
+          "The selected workspace is not linked to this project.",
+        );
+      }
+    }
+    if (assignedAgentRoleId) {
+      const assignedRole = agentRoleRepo.findById(assignedAgentRoleId);
+      if (!assignedRole || !assignedRole.isActive) {
+        throw new Error("The selected agent is unavailable.");
+      }
+    }
     let normalizedAgentConfig: AgentConfig | undefined = agentConfig
       ? {
           ...agentConfig,
@@ -4836,10 +5546,16 @@ export async function setupIpcHandlers(
       prompt,
       status: "pending",
       workspaceId,
+      projectId,
+      companyId,
       budgetTokens,
       budgetCost,
+      assignedAgentRoleId,
       agentConfig: normalizedAgentConfig,
     });
+    const resolvedSessionId = sessionId || task.id;
+    taskRepo.update(task.id, { sessionId: resolvedSessionId });
+    task.sessionId = resolvedSessionId;
 
     if (!isTempWorkspaceId(workspaceId)) {
       try {
@@ -4902,7 +5618,7 @@ export async function setupIpcHandlers(
           const { members, leader } = await selectAgentsForTask(
             fullText,
             activeRoles,
-            isMultitask ? multitaskLaneCount : requestedCount ?? undefined,
+            isMultitask ? multitaskLaneCount : (requestedCount ?? undefined),
           );
 
           if (isMultitask && looksLikeCodeMultitaskRequest(fullText)) {
@@ -4999,10 +5715,7 @@ export async function setupIpcHandlers(
           // Kick off the orchestrator (spawns child tasks for each item)
           void teamOrchestrator.tickRun(run.id, "auto_collaborative");
         } catch (error: Any) {
-          logger.error(
-            "[TASK_CREATE] Auto-collaborative setup failed:",
-            error,
-          );
+          logger.error("[TASK_CREATE] Auto-collaborative setup failed:", error);
           // Fall back to normal execution
           try {
             await agentDaemon.startTask(task, validatedImages);
@@ -5124,6 +5837,269 @@ export async function setupIpcHandlers(
     return task;
   });
 
+  ipcMain.handle(IPC_CHANNELS.TASK_PROVENANCE_LIST, async (_, input) => {
+    checkRateLimit(IPC_CHANNELS.TASK_PROVENANCE_LIST);
+    const validated = validateInput(
+      TaskProvenanceListSchema,
+      input,
+      "task provenance list",
+    );
+    if (!taskRepo.findById(validated.taskId)) {
+      return [];
+    }
+    return taskProvenanceRepo
+      .listRecentByTaskId(
+        validated.taskId,
+        validated.limit ?? 20,
+        validated.offset ?? 0,
+      )
+      .map((record) => ({
+        ...record,
+        metadata: undefined,
+        openTarget: record.openTarget
+          ? {
+              kind: record.openTarget.kind,
+              available: Boolean(record.openTarget.locator),
+            }
+          : undefined,
+      }));
+  });
+
+  ipcMain.handle(IPC_CHANNELS.TASK_PROVENANCE_OPEN, async (_, input) => {
+    checkRateLimit(IPC_CHANNELS.TASK_PROVENANCE_OPEN);
+    const validated = validateInput(
+      TaskProvenanceOpenSchema,
+      input,
+      "task provenance open",
+    );
+    const record = taskProvenanceRepo.findByIdForTask(
+      validated.taskId,
+      validated.provenanceId,
+    );
+    if (!record) {
+      return { opened: false, reason: "source-not-found" };
+    }
+    if (
+      record.openTarget?.kind !== "external_url" ||
+      !record.openTarget.locator
+    ) {
+      return { opened: false, reason: "source-unavailable" };
+    }
+
+    let target: URL;
+    try {
+      target = new URL(record.openTarget.locator);
+    } catch {
+      return { opened: false, reason: "unsafe-url" };
+    }
+    if (target.protocol !== "https:" && target.protocol !== "http:") {
+      return { opened: false, reason: "unsafe-url" };
+    }
+
+    try {
+      await shell.openExternal(target.toString());
+      return { opened: true };
+    } catch (error) {
+      logger.warn("Failed to open task provenance target:", error);
+      return { opened: false, reason: "open-failed" };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.TASK_ACCESS_GET, async (_, input) => {
+    checkRateLimit(IPC_CHANNELS.TASK_ACCESS_GET);
+    const validated = validateInput(
+      TaskAccessGetSchema,
+      input,
+      "task access get",
+    );
+    const task = taskRepo.findById(validated.taskId);
+    if (!task) {
+      throw new Error("Task not found");
+    }
+    const connectors = readTaskAccessConnectors();
+    const events = taskEventRepo.findAccessUsageByTaskId(task.id);
+    const workspace = workspaceRepo.findById(task.workspaceId);
+    return deriveTaskAccessSummary({
+      task,
+      workspace,
+      connectors,
+      events,
+      policy: taskAccessPolicyRepo.get(task.id),
+    });
+  });
+
+  ipcMain.handle(IPC_CHANNELS.TASK_ACCESS_UPDATE, async (_, input) => {
+    checkRateLimit(IPC_CHANNELS.TASK_ACCESS_UPDATE);
+    const validated = validateInput(
+      TaskAccessUpdateSchema,
+      input,
+      "task access update",
+    );
+    const task = taskRepo.findById(validated.taskId);
+    if (!task) throw new Error("Task not found");
+    const workspace = workspaceRepo.findById(task.workspaceId);
+    if (!workspace) throw new Error("Workspace not found");
+
+    const connectors = readTaskAccessConnectors();
+    const events = taskEventRepo.findAccessUsageByTaskId(task.id);
+    const derived = deriveTaskAccessSummary({
+      task,
+      workspace,
+      connectors,
+      events,
+      policy: taskAccessPolicyRepo.get(task.id),
+    });
+    let current = taskAccessPolicyRepo.get(task.id);
+    let expectedRevision = validated.expectedRevision;
+    if (!current) {
+      if (expectedRevision !== 0)
+        throw new Error("TASK_ACCESS_REVISION_CONFLICT");
+      current = taskAccessPolicyRepo.createInitial(task.id, {
+        connectorIds: derived.policy.connectorIds,
+        workspaceScopes: derived.policy.workspaceScopes,
+        allowedTools: derived.policy.allowedTools,
+        blockedTools: derived.policy.blockedTools,
+        permissionMode: derived.policy.permissionMode,
+        shellAccess: derived.policy.shellAccess,
+        updatedAt: Date.now(),
+      });
+      expectedRevision = current.revision;
+    }
+
+    const patch: Partial<
+      Pick<
+        TaskAccessPolicy,
+        | "connectorIds"
+        | "workspaceScopes"
+        | "blockedTools"
+        | "permissionMode"
+        | "shellAccess"
+      >
+    > = { ...validated.patch };
+    if (patch.workspaceScopes) {
+      patch.workspaceScopes = patch.workspaceScopes.map((scope) => {
+        if (scope.workspaceId !== workspace.id) {
+          throw new Error(
+            "Workspace is outside this task's allowed project scope",
+          );
+        }
+        if (!workspace.permissions.read) {
+          throw new Error(
+            "Workspace read access is blocked by the global policy",
+          );
+        }
+        if (scope.access === "write" && !workspace.permissions.write) {
+          throw new Error(
+            "Workspace write access is blocked by the global policy",
+          );
+        }
+        return { ...scope, rootPath: workspace.path, primary: true };
+      });
+    }
+    if (patch.shellAccess === true && !workspace.permissions.shell) {
+      throw new Error("Shell access is blocked by the workspace policy");
+    }
+    if (patch.permissionMode) {
+      const allowedModes = loadPolicies().runtime.allowedPermissionModes;
+      if (
+        allowedModes.length > 0 &&
+        !allowedModes.includes(patch.permissionMode)
+      ) {
+        throw new Error(
+          "Permission mode is blocked by the administrator policy",
+        );
+      }
+      if (
+        (patch.permissionMode === "dont_ask" ||
+          patch.permissionMode === "bypass_permissions") &&
+        current.permissionMode !== patch.permissionMode
+      ) {
+        throw new Error(
+          "High-risk permission modes require the existing approval flow",
+        );
+      }
+    }
+
+    if (patch.connectorIds) {
+      const availableById = new Map(
+        connectors.map((connector) => [connector.id, connector]),
+      );
+      for (const connectorId of patch.connectorIds) {
+        const connector = availableById.get(connectorId);
+        if (!connector) {
+          throw new Error(`Connector is unavailable: ${connectorId}`);
+        }
+        if (connector.status !== "connected") {
+          throw new Error(`Connector is not connected: ${connectorId}`);
+        }
+      }
+
+      const selected = new Set(patch.connectorIds);
+      const connectorToolNames = new Set(
+        connectors.flatMap((connector) => connector.tools),
+      );
+      const originalRestrictions = new Set(
+        task.agentConfig?.toolRestrictions || [],
+      );
+      const nextBlocked = new Set(
+        (current.blockedTools || []).filter(
+          (toolName) =>
+            !connectorToolNames.has(toolName) ||
+            originalRestrictions.has(toolName),
+        ),
+      );
+      for (const connector of connectors) {
+        for (const toolName of connector.tools) {
+          if (!selected.has(connector.id)) nextBlocked.add(toolName);
+        }
+      }
+      patch.blockedTools = Array.from(nextBlocked).slice(0, 100);
+    }
+
+    const effectiveFromTurn = Math.max(
+      1,
+      (task.lifetimeTurnsUsed ||
+        task.budgetUsage?.lifetimeTurns ||
+        task.budgetUsage?.turns ||
+        0) + 1,
+    );
+    try {
+      const policy = taskAccessPolicyRepo.update(task.id, expectedRevision, {
+        ...patch,
+        effectiveFromTurn,
+      });
+      taskEventRepo.create({
+        taskId: task.id,
+        timestamp: Date.now(),
+        type: "timeline_step_updated",
+        legacyType: "task_access_updated" as Any,
+        actor: "system",
+        stepId: "task_access_policy",
+        status: "completed",
+        payload: {
+          revision: policy.revision,
+          changedFields: Object.keys(patch),
+          effectiveFromTurn,
+          message:
+            "Task access policy updated; changes apply from the next turn.",
+        },
+        schemaVersion: 2,
+      });
+      return deriveTaskAccessSummary({
+        task,
+        workspace,
+        connectors,
+        events,
+        policy,
+      });
+    } catch (error) {
+      if (error instanceof TaskAccessPolicyConflictError) {
+        throw new Error("TASK_ACCESS_REVISION_CONFLICT");
+      }
+      throw error;
+    }
+  });
+
   ipcMain.handle(
     IPC_CHANNELS.TASK_LIST,
     async (
@@ -5131,6 +6107,7 @@ export async function setupIpcHandlers(
       opts?: {
         limit?: number;
         offset?: number;
+        projectId?: string;
         prioritizeSidebar?: boolean;
         includeArchivedSessions?: boolean;
         excludeSources?: Array<NonNullable<Task["source"]>>;
@@ -5148,12 +6125,23 @@ export async function setupIpcHandlers(
       const offset =
         typeof opts?.offset === "number" && opts.offset >= 0 ? opts.offset : 0;
       const startedAt = Date.now();
-      const tasks = taskRepo.findAll(limit, offset, {
-        prioritizeSidebar: opts?.prioritizeSidebar === true,
-        includeArchivedSessions: opts?.includeArchivedSessions !== false,
-        excludeSources: opts?.excludeSources,
-        cursor: opts?.cursor,
-      });
+      const projectId =
+        typeof opts?.projectId === "string" ? opts.projectId.trim() : "";
+      const tasks = projectId
+        ? taskRepo.findByProjectId(
+            projectId,
+            limit,
+            offset,
+            opts?.includeArchivedSessions === true,
+          )
+        : taskRepo.findAll(limit, offset, {
+            prioritizeSidebar: opts?.prioritizeSidebar === true,
+            // Archived sessions are the task trash. Keep them out of every normal
+            // task surface unless an internal caller explicitly asks for them.
+            includeArchivedSessions: opts?.includeArchivedSessions === true,
+            excludeSources: opts?.excludeSources,
+            cursor: opts?.cursor,
+          });
       const dbMs = Date.now() - startedAt;
       const jsonStartedAt = Date.now();
       const serializedBytes = getSerializedByteSize(tasks);
@@ -5350,12 +6338,15 @@ export async function setupIpcHandlers(
       checkRateLimit(IPC_CHANNELS.TASK_FORK_SESSION);
       const validated = validateInput(ForkSessionSchema, data, "fork session");
       const fromEventId =
-        typeof validated.fromEventId === "string" && validated.fromEventId.trim().length > 0
+        typeof validated.fromEventId === "string" &&
+        validated.fromEventId.trim().length > 0
           ? validated.fromEventId.trim()
           : undefined;
       return agentDaemon.forkTaskSession({
         taskId: validated.taskId,
-        ...(typeof validated.prompt === "string" ? { prompt: validated.prompt } : {}),
+        ...(typeof validated.prompt === "string"
+          ? { prompt: validated.prompt }
+          : {}),
         ...(typeof validated.branchLabel === "string"
           ? { branchLabel: validated.branchLabel }
           : {}),
@@ -5401,8 +6392,52 @@ export async function setupIpcHandlers(
 
   ipcMain.handle(IPC_CHANNELS.TASK_UPDATE_WORKSPACE, async (_, data) => {
     checkRateLimit(IPC_CHANNELS.TASK_UPDATE_WORKSPACE);
-    const validated = validateInput(TaskWorkspaceUpdateSchema, data, "task workspace update");
-    return agentDaemon.updateTaskWorkspace(validated.taskId, validated.workspaceId);
+    const validated = validateInput(
+      TaskWorkspaceUpdateSchema,
+      data,
+      "task workspace update",
+    );
+    const task = taskRepo.findById(validated.taskId);
+    if (!task) throw new Error(`Task not found: ${validated.taskId}`);
+    if (task.projectId) {
+      const isLinkedWorkspace = controlPlaneCore
+        .listProjectWorkspaces(task.projectId)
+        .some((link) => link.workspaceId === validated.workspaceId);
+      if (!isLinkedWorkspace) {
+        throw new Error(
+          "Link this workspace to the project before moving the task.",
+        );
+      }
+    }
+    return agentDaemon.updateTaskWorkspace(
+      validated.taskId,
+      validated.workspaceId,
+    );
+  });
+
+  ipcMain.handle(IPC_CHANNELS.TASK_UPDATE_PROJECT, async (_, data) => {
+    checkRateLimit(IPC_CHANNELS.TASK_UPDATE_PROJECT);
+    const validated = validateInput(
+      TaskProjectUpdateSchema,
+      data,
+      "task project update",
+    );
+    const task = taskRepo.findById(validated.taskId);
+    if (!task) throw new Error(`Task not found: ${validated.taskId}`);
+
+    const project = controlPlaneCore.getProject(validated.projectId);
+    if (!project || project.status === "archived") {
+      throw new Error(
+        "Choose an active project before adding this conversation.",
+      );
+    }
+    const isLinkedWorkspace = controlPlaneCore
+      .listProjectWorkspaces(validated.projectId)
+      .some((link) => link.workspaceId === task.workspaceId);
+    if (!isLinkedWorkspace) {
+      throw new Error("Link the conversation workspace to the project first.");
+    }
+    return agentDaemon.updateTaskProject(validated.taskId, validated.projectId);
   });
 
   ipcMain.handle(IPC_CHANNELS.TASK_PIN, async (_, id: string) => {
@@ -5422,6 +6457,44 @@ export async function setupIpcHandlers(
       throw new Error(`Task not found: ${validated}`);
     }
     return sessionRetentionService.archiveSession(task.sessionId || task.id);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.TASK_UNARCHIVE, async (_, id: string) => {
+    const validated = validateInput(UUIDSchema, id, "task ID");
+    const task = taskRepo.findById(validated);
+    if (!task) {
+      throw new Error(`Task not found: ${validated}`);
+    }
+    return sessionRetentionService.unarchiveSession(task.sessionId || task.id);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.TASK_LIST_ARCHIVED, async () => {
+    const now = Date.now();
+    return sessionRetentionService
+      .listSessions({ includeArchived: true, limit: 500 })
+      .filter(
+        (summary) =>
+          typeof summary.archivedAt === "number" &&
+          now - summary.archivedAt <= TASK_TRASH_RETENTION_MS,
+      )
+      .flatMap((summary): ArchivedTaskRecord[] => {
+        const latestTask = sessionRetentionService
+          .tasksForSession(summary.id, 10000)
+          .sort(
+            (left, right) =>
+              (right.updatedAt || right.createdAt) -
+              (left.updatedAt || left.createdAt),
+          )[0];
+        if (!latestTask || !summary.archivedAt) return [];
+        return [
+          {
+            task: latestTask,
+            sessionId: summary.id,
+            archivedAt: summary.archivedAt,
+            expiresAt: summary.archivedAt + TASK_TRASH_RETENTION_MS,
+          },
+        ];
+      });
   });
 
   ipcMain.handle(IPC_CHANNELS.TASK_DELETE, async (_, id: string) => {
@@ -5506,12 +6579,14 @@ export async function setupIpcHandlers(
         events.sort((a, b) => a.timestamp - b.timestamp);
       }
     }
-    const result = events.length > maxEvents ? events.slice(-maxEvents) : events;
+    const result =
+      events.length > maxEvents ? events.slice(-maxEvents) : events;
     const dbMs = Date.now() - startedAt;
     const jsonStartedAt = Date.now();
     const serializedBytes = getSerializedByteSize(result);
     const jsonMs = Date.now() - jsonStartedAt;
-    const { payloadBytes, largestEventPayloadBytes } = summarizeEventPayloads(result);
+    const { payloadBytes, largestEventPayloadBytes } =
+      summarizeEventPayloads(result);
     logIpcPerf(IPC_CHANNELS.TASK_EVENTS, {
       taskId,
       rowCount: result.length,
@@ -5536,7 +6611,8 @@ export async function setupIpcHandlers(
     IPC_CHANNELS.TASK_TIMELINE_PAGE,
     async (_, request: TaskTimelinePageRequest) => {
       const startedAt = Date.now();
-      const taskId = typeof request?.taskId === "string" ? request.taskId.trim() : "";
+      const taskId =
+        typeof request?.taskId === "string" ? request.taskId.trim() : "";
       const task = taskId ? taskRepo.findById(taskId) : undefined;
       const childTaskIds =
         task?.agentConfig?.collaborativeMode || task?.agentConfig?.multiLlmMode
@@ -5551,7 +6627,9 @@ export async function setupIpcHandlers(
         ...(childTaskIds.length > 0
           ? {
               additionalTaskIds: childTaskIds,
-              additionalTaskEventTypes: [...COLLABORATIVE_CHILD_TIMELINE_EVENT_TYPES],
+              additionalTaskEventTypes: [
+                ...COLLABORATIVE_CHILD_TIMELINE_EVENT_TYPES,
+              ],
             }
           : {}),
       });
@@ -5586,10 +6664,15 @@ export async function setupIpcHandlers(
 
   ipcMain.handle(
     IPC_CHANNELS.TASK_EVENT_DETAIL,
-    async (_, request: TaskEventDetailRequest): Promise<TaskEventDetailResult> => {
+    async (
+      _,
+      request: TaskEventDetailRequest,
+    ): Promise<TaskEventDetailResult> => {
       const startedAt = Date.now();
-      const taskId = typeof request?.taskId === "string" ? request.taskId.trim() : "";
-      const eventId = typeof request?.eventId === "string" ? request.eventId.trim() : "";
+      const taskId =
+        typeof request?.taskId === "string" ? request.taskId.trim() : "";
+      const eventId =
+        typeof request?.eventId === "string" ? request.eventId.trim() : "";
       const task = taskId ? taskRepo.findById(taskId) : undefined;
       const childTaskIds =
         task?.agentConfig?.collaborativeMode || task?.agentConfig?.multiLlmMode
@@ -5600,7 +6683,9 @@ export async function setupIpcHandlers(
         ...(childTaskIds.length > 0
           ? {
               additionalTaskIds: childTaskIds,
-              additionalTaskEventTypes: [...COLLABORATIVE_CHILD_TIMELINE_EVENT_TYPES],
+              additionalTaskEventTypes: [
+                ...COLLABORATIVE_CHILD_TIMELINE_EVENT_TYPES,
+              ],
             }
           : {}),
       });
@@ -5623,7 +6708,8 @@ export async function setupIpcHandlers(
             channel: IPC_CHANNELS.TASK_EVENT_DETAIL,
             eventId,
             payloadBytes: result.payloadBytes,
-            singleEventPayloadWarningBytes: IPC_SINGLE_EVENT_PAYLOAD_WARNING_BYTES,
+            singleEventPayloadWarningBytes:
+              IPC_SINGLE_EVENT_PAYLOAD_WARNING_BYTES,
           })}`,
         );
       }
@@ -5644,7 +6730,8 @@ export async function setupIpcHandlers(
       const jsonStartedAt = Date.now();
       const serializedBytes = getSerializedByteSize(timeline);
       const jsonMs = Date.now() - jsonStartedAt;
-      const { payloadBytes, largestEventPayloadBytes } = summarizeEventPayloads(sorted);
+      const { payloadBytes, largestEventPayloadBytes } =
+        summarizeEventPayloads(sorted);
       logIpcPerf(IPC_CHANNELS.TASK_SEMANTIC_TIMELINE, {
         taskId,
         rowCount: sorted.length,
@@ -5823,38 +6910,115 @@ export async function setupIpcHandlers(
     const validated = validateInput(TaskMessageSchema, data, "task message");
     const validatedImages = validated.images;
     try {
-	      const result = await agentDaemon.sendMessage(
-	        validated.taskId,
-	        validated.message,
-	        validatedImages,
-	        validated.quotedAssistantMessage,
-	        {
-	          ...(validated.permissionMode ? { permissionMode: validated.permissionMode } : {}),
-	          ...(validated.shellAccess !== undefined ? { shellAccess: validated.shellAccess } : {}),
-	          ...(validated.integrationMentions !== undefined
-	            ? { integrationMentions: validated.integrationMentions }
-	            : {}),
-	        },
-	      );
+      const result = await agentDaemon.sendMessage(
+        validated.taskId,
+        validated.message,
+        validatedImages,
+        validated.quotedAssistantMessage,
+        {
+          ...(validated.activeArtifactContext
+            ? { activeArtifactContext: validated.activeArtifactContext }
+            : {}),
+          ...(validated.executionMode
+            ? { executionMode: validated.executionMode }
+            : {}),
+          ...(validated.taskDomain ? { taskDomain: validated.taskDomain } : {}),
+          ...(validated.requestedSkillId
+            ? { requestedSkillId: validated.requestedSkillId }
+            : {}),
+          ...(validated.permissionMode
+            ? { permissionMode: validated.permissionMode }
+            : {}),
+          ...(validated.shellAccess !== undefined
+            ? { shellAccess: validated.shellAccess }
+            : {}),
+          ...(validated.integrationMentions !== undefined
+            ? { integrationMentions: validated.integrationMentions }
+            : {}),
+        },
+      );
       // If the message was queued for a running executor, the executor owns
       // the image data now — skip temp file cleanup so it can read them later.
       if (!result.queued) {
         await cleanupTaskImageTempFiles(validatedImages);
       }
+      return result;
     } catch (err) {
       await cleanupTaskImageTempFiles(validatedImages);
       throw err;
     }
   });
 
+  ipcMain.handle(IPC_CHANNELS.TASK_FOLLOW_UP_QUEUE_LIST, async (_, data) => {
+    checkRateLimit(IPC_CHANNELS.TASK_FOLLOW_UP_QUEUE_LIST);
+    const validated = validateInput(
+      TaskFollowUpQueueListSchema,
+      data,
+      "task follow-up queue list",
+    );
+    return agentDaemon.listQueuedFollowUps(validated.taskId);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.TASK_FOLLOW_UP_QUEUE_UPDATE, async (_, data) => {
+    checkRateLimit(IPC_CHANNELS.TASK_FOLLOW_UP_QUEUE_UPDATE);
+    const validated = validateInput(
+      TaskFollowUpQueueUpdateSchema,
+      data,
+      "task follow-up queue update",
+    );
+    return agentDaemon.updateQueuedFollowUp(
+      validated.taskId,
+      validated.queueId,
+      validated.message,
+    );
+  });
+
+  ipcMain.handle(IPC_CHANNELS.TASK_FOLLOW_UP_QUEUE_REORDER, async (_, data) => {
+    checkRateLimit(IPC_CHANNELS.TASK_FOLLOW_UP_QUEUE_REORDER);
+    const validated = validateInput(
+      TaskFollowUpQueueReorderSchema,
+      data,
+      "task follow-up queue reorder",
+    );
+    return agentDaemon.reorderQueuedFollowUps(
+      validated.taskId,
+      validated.queueIds,
+    );
+  });
+
+  ipcMain.handle(IPC_CHANNELS.TASK_FOLLOW_UP_QUEUE_REMOVE, async (_, data) => {
+    checkRateLimit(IPC_CHANNELS.TASK_FOLLOW_UP_QUEUE_REMOVE);
+    const validated = validateInput(
+      TaskFollowUpQueueRemoveSchema,
+      data,
+      "task follow-up queue remove",
+    );
+    const result = agentDaemon.removeQueuedFollowUp(
+      validated.taskId,
+      validated.queueId,
+    );
+    if (result.removed && result.images?.length) {
+      await cleanupTaskImageTempFiles(result.images);
+    }
+    return { removed: result.removed };
+  });
+
   // Approval handlers
+  ipcMain.handle(IPC_CHANNELS.APPROVAL_LIST_PENDING, async (_, rawLimit) => {
+    const limit =
+      typeof rawLimit === "number" && Number.isFinite(rawLimit)
+        ? Math.min(200, Math.max(1, Math.floor(rawLimit)))
+        : 100;
+    return agentDaemon.listPendingApprovals(limit);
+  });
+
   ipcMain.handle(IPC_CHANNELS.APPROVAL_RESPOND, async (_, data) => {
     const validated = validateInput(
       ApprovalResponseSchema,
       data,
       "approval response",
     );
-    await agentDaemon.respondToApproval(
+    return agentDaemon.respondToApproval(
       validated.approvalId,
       validated.approved ?? validated.action?.startsWith("allow_") === true,
       validated.action,
@@ -5918,10 +7082,13 @@ export async function setupIpcHandlers(
 
   // Agents Hub handlers
   const toManagedRoutinePayload = (
-    input: ReturnType<ManagedSessionService["buildManagedAgentRoutineDefinition"]>,
+    input: ReturnType<
+      ManagedSessionService["buildManagedAgentRoutineDefinition"]
+    >,
     agentId: string,
   ): RoutineCreate => {
-    const triggerId = input.trigger.id || `managed:${input.trigger.type}:${Date.now()}`;
+    const triggerId =
+      input.trigger.id || `managed:${input.trigger.type}:${Date.now()}`;
     let trigger: RoutineTrigger;
     switch (input.trigger.type) {
       case "schedule":
@@ -6016,72 +7183,115 @@ export async function setupIpcHandlers(
       connectorPolicy: { mode: "prefer", connectorIds: [] },
     };
   };
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_LIST_IPC, async (_, params?: Any) => {
-    return managedSessionService.listAgents(params);
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_GET_IPC, async (_, agentId: string) => {
-    return managedSessionService.getAgent(agentId) || null;
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_RUNTIME_TOOL_CATALOG_IPC, async (_, agentId: string) => {
-    return managedSessionService.getRuntimeToolCatalog(agentId);
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_CREATE_IPC, async (_, request: Any) => {
-    return managedSessionService.createAgent(request);
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_UPDATE_IPC, async (_, request: Any) => {
-    if (!request?.agentId) throw new Error("agentId is required");
-    return managedSessionService.updateAgent(request.agentId, request);
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_ARCHIVE_IPC, async (_, agentId: string) => {
-    return (await managedSessionService.archiveAgent(agentId)) || null;
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_PUBLISH_IPC, async (_, agentId: string) => {
-    return (await managedSessionService.publishAgent(agentId)) || null;
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_SUSPEND_IPC, async (_, agentId: string) => {
-    return (await managedSessionService.suspendAgent(agentId)) || null;
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_ROUTINE_LIST_IPC, async (_, agentId: string) => {
-    return managedSessionService.listManagedAgentRoutines(agentId);
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_ROUTINE_CREATE_IPC, async (_, request: Any) => {
-    const routineService = getRoutineService();
-    if (!routineService) throw new Error("Routine service is not available");
-    const prepared = managedSessionService.buildManagedAgentRoutineDefinition(request);
-    const routine = await routineService.create(
-      toManagedRoutinePayload(prepared, request.agentId),
-    );
-    managedSessionService.syncManagedAgentRoutineRefs(request.agentId);
-    const created = managedSessionService
-      .listManagedAgentRoutines(request.agentId)
-      .find((entry) => entry.id === routine.id);
-    if (!created) throw new Error("Failed to create managed agent routine");
-    const workspaceId = managedSessionService.getEnvironment(prepared.environmentId)?.config.workspaceId;
-    if (workspaceId) {
-      (managedSessionService as Any).appendAudit?.({
-        agentId: request.agentId,
-        workspaceId,
-        action: "routine_created",
-        summary: `Created routine ${created.name}`,
-        metadata: { routineId: created.id, triggerType: created.trigger.type },
-      });
-    }
-    return created;
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_ROUTINE_UPDATE_IPC, async (_, request: Any) => {
-    const routineService = getRoutineService();
-    if (!routineService) throw new Error("Routine service is not available");
-    const existing = routineService.get(request.routineId);
-    if (!existing) throw new Error(`Routine not found: ${request.routineId}`);
-    const prepared = managedSessionService.buildManagedAgentRoutineDefinition(request);
-    await routineService.update(request.routineId, toManagedRoutinePayload(prepared, request.agentId));
-    managedSessionService.syncManagedAgentRoutineRefs(request.agentId);
-    const updated = managedSessionService
-      .listManagedAgentRoutines(request.agentId)
-      .find((entry) => entry.id === request.routineId);
-    if (!updated) throw new Error("Failed to update managed agent routine");
-    return updated;
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_LIST_IPC,
+    async (_, params?: Any) => {
+      return managedSessionService.listAgents(params);
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_GET_IPC,
+    async (_, agentId: string) => {
+      return managedSessionService.getAgent(agentId) || null;
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_RUNTIME_TOOL_CATALOG_IPC,
+    async (_, agentId: string) => {
+      return managedSessionService.getRuntimeToolCatalog(agentId);
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_CREATE_IPC,
+    async (_, request: Any) => {
+      return managedSessionService.createAgent(request);
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_UPDATE_IPC,
+    async (_, request: Any) => {
+      if (!request?.agentId) throw new Error("agentId is required");
+      return managedSessionService.updateAgent(request.agentId, request);
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_ARCHIVE_IPC,
+    async (_, agentId: string) => {
+      return (await managedSessionService.archiveAgent(agentId)) || null;
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_PUBLISH_IPC,
+    async (_, agentId: string) => {
+      return (await managedSessionService.publishAgent(agentId)) || null;
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_SUSPEND_IPC,
+    async (_, agentId: string) => {
+      return (await managedSessionService.suspendAgent(agentId)) || null;
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_ROUTINE_LIST_IPC,
+    async (_, agentId: string) => {
+      return managedSessionService.listManagedAgentRoutines(agentId);
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_ROUTINE_CREATE_IPC,
+    async (_, request: Any) => {
+      const routineService = getRoutineService();
+      if (!routineService) throw new Error("Routine service is not available");
+      const prepared =
+        managedSessionService.buildManagedAgentRoutineDefinition(request);
+      const routine = await routineService.create(
+        toManagedRoutinePayload(prepared, request.agentId),
+      );
+      managedSessionService.syncManagedAgentRoutineRefs(request.agentId);
+      const created = managedSessionService
+        .listManagedAgentRoutines(request.agentId)
+        .find((entry) => entry.id === routine.id);
+      if (!created) throw new Error("Failed to create managed agent routine");
+      const workspaceId = managedSessionService.getEnvironment(
+        prepared.environmentId,
+      )?.config.workspaceId;
+      if (workspaceId) {
+        (managedSessionService as Any).appendAudit?.({
+          agentId: request.agentId,
+          workspaceId,
+          action: "routine_created",
+          summary: `Created routine ${created.name}`,
+          metadata: {
+            routineId: created.id,
+            triggerType: created.trigger.type,
+          },
+        });
+      }
+      return created;
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_ROUTINE_UPDATE_IPC,
+    async (_, request: Any) => {
+      const routineService = getRoutineService();
+      if (!routineService) throw new Error("Routine service is not available");
+      const existing = routineService.get(request.routineId);
+      if (!existing) throw new Error(`Routine not found: ${request.routineId}`);
+      const prepared =
+        managedSessionService.buildManagedAgentRoutineDefinition(request);
+      await routineService.update(
+        request.routineId,
+        toManagedRoutinePayload(prepared, request.agentId),
+      );
+      managedSessionService.syncManagedAgentRoutineRefs(request.agentId);
+      const updated = managedSessionService
+        .listManagedAgentRoutines(request.agentId)
+        .find((entry) => entry.id === request.routineId);
+      if (!updated) throw new Error("Failed to update managed agent routine");
+      return updated;
+    },
+  );
   ipcMain.handle(
     IPC_CHANNELS.MANAGED_AGENT_ROUTINE_DELETE_IPC,
     async (_, payload: { agentId: string; routineId: string }) => {
@@ -6092,122 +7302,201 @@ export async function setupIpcHandlers(
       return removed;
     },
   );
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_INSIGHTS_GET_IPC, async (_, agentId: string) => {
-    return managedSessionService.getAgentInsights(agentId);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_INSIGHTS_GET_IPC,
+    async (_, agentId: string) => {
+      return managedSessionService.getAgentInsights(agentId);
+    },
+  );
   ipcMain.handle(
     IPC_CHANNELS.MANAGED_AGENT_AUDIT_LIST_IPC,
     async (_, payload: { agentId: string; limit?: number }) => {
-      return managedSessionService.listAuditEntries(payload.agentId, payload.limit);
+      return managedSessionService.listAuditEntries(
+        payload.agentId,
+        payload.limit,
+      );
     },
   );
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_SLACK_HEALTH_GET_IPC, async (_, agentId: string) => {
-    return managedSessionService.getSlackDeploymentHealth(agentId);
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_CONVERT_ROLE_IPC, async (_, request: Any) => {
-    const routineService = getRoutineService();
-    const converted = managedSessionService.convertAgentRoleToManagedAgent(request);
-    const routines = routineService
-      ? await Promise.all(
-          converted.routineDrafts.map((draft) =>
-            routineService.create(
-              toManagedRoutinePayload(
-                managedSessionService.buildManagedAgentRoutineDefinition(draft),
-                draft.agentId,
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_SLACK_HEALTH_GET_IPC,
+    async (_, agentId: string) => {
+      return managedSessionService.getSlackDeploymentHealth(agentId);
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_CONVERT_ROLE_IPC,
+    async (_, request: Any) => {
+      const routineService = getRoutineService();
+      const converted =
+        managedSessionService.convertAgentRoleToManagedAgent(request);
+      const routines = routineService
+        ? await Promise.all(
+            converted.routineDrafts.map((draft) =>
+              routineService.create(
+                toManagedRoutinePayload(
+                  managedSessionService.buildManagedAgentRoutineDefinition(
+                    draft,
+                  ),
+                  draft.agentId,
+                ),
               ),
             ),
-          ),
-        )
-      : [];
-    managedSessionService.syncManagedAgentRoutineRefs(converted.agent.id);
-    return {
-      agent: converted.agent,
-      version: converted.version,
-      environment: converted.environment,
-      routines: managedSessionService.listManagedAgentRoutines(converted.agent.id),
-      sourceType: converted.sourceType,
-      sourceId: converted.sourceId,
-    };
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_CONVERT_AUTOMATION_IPC, async (_, request: Any) => {
-    const routineService = getRoutineService();
-    const converted = managedSessionService.convertAutomationProfileToManagedAgent(request);
-    if (routineService) {
-      for (const draft of converted.routineDrafts) {
-        await routineService.create(
-          toManagedRoutinePayload(
-            managedSessionService.buildManagedAgentRoutineDefinition(draft),
-            draft.agentId,
-          ),
-        );
+          )
+        : [];
+      managedSessionService.syncManagedAgentRoutineRefs(converted.agent.id);
+      return {
+        agent: converted.agent,
+        version: converted.version,
+        environment: converted.environment,
+        routines: managedSessionService.listManagedAgentRoutines(
+          converted.agent.id,
+        ),
+        sourceType: converted.sourceType,
+        sourceId: converted.sourceId,
+      };
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_CONVERT_AUTOMATION_IPC,
+    async (_, request: Any) => {
+      const routineService = getRoutineService();
+      const converted =
+        managedSessionService.convertAutomationProfileToManagedAgent(request);
+      if (routineService) {
+        for (const draft of converted.routineDrafts) {
+          await routineService.create(
+            toManagedRoutinePayload(
+              managedSessionService.buildManagedAgentRoutineDefinition(draft),
+              draft.agentId,
+            ),
+          );
+        }
       }
-    }
-    managedSessionService.syncManagedAgentRoutineRefs(converted.agent.id);
-    return {
-      agent: converted.agent,
-      version: converted.version,
-      environment: converted.environment,
-      routines: managedSessionService.listManagedAgentRoutines(converted.agent.id),
-      sourceType: converted.sourceType,
-      sourceId: converted.sourceId,
-    };
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_ENVIRONMENT_LIST_IPC, async (_, params?: Any) => {
-    return managedSessionService.listEnvironments(params);
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_ENVIRONMENT_GET_IPC, async (_, environmentId: string) => {
-    return managedSessionService.getEnvironment(environmentId) || null;
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_ENVIRONMENT_CREATE_IPC, async (_, request: Any) => {
-    return managedSessionService.createEnvironment(request);
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_ENVIRONMENT_UPDATE_IPC, async (_, request: Any) => {
-    if (!request?.environmentId) throw new Error("environmentId is required");
-    return managedSessionService.updateEnvironment(request.environmentId, request) || null;
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_ENVIRONMENT_ARCHIVE_IPC, async (_, environmentId: string) => {
-    return managedSessionService.archiveEnvironment(environmentId) || null;
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_SESSION_LIST_IPC, async (_, params?: Any) => {
-    return managedSessionService.listSessions(params);
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_SESSION_GET_IPC, async (_, sessionId: string) => {
-    return managedSessionService.getSession(sessionId) || null;
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_SESSION_CREATE_IPC, async (_, request: Any) => {
-    return managedSessionService.createSession(request);
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_SESSION_SEND_USER_MESSAGE_IPC, async (_, request: Any) => {
-    if (!request?.sessionId) throw new Error("sessionId is required");
-    return managedSessionService.sendUserMessage(request.sessionId, request.content || []);
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_SESSION_RESUME_IPC, async (_, sessionId: string) => {
-    return managedSessionService.resumeSession(sessionId);
-  });
-  ipcMain.handle(IPC_CHANNELS.MANAGED_SESSION_CANCEL_IPC, async (_, sessionId: string) => {
-    return managedSessionService.cancelSession(sessionId);
-  });
+      managedSessionService.syncManagedAgentRoutineRefs(converted.agent.id);
+      return {
+        agent: converted.agent,
+        version: converted.version,
+        environment: converted.environment,
+        routines: managedSessionService.listManagedAgentRoutines(
+          converted.agent.id,
+        ),
+        sourceType: converted.sourceType,
+        sourceId: converted.sourceId,
+      };
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_ENVIRONMENT_LIST_IPC,
+    async (_, params?: Any) => {
+      return managedSessionService.listEnvironments(params);
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_ENVIRONMENT_GET_IPC,
+    async (_, environmentId: string) => {
+      return managedSessionService.getEnvironment(environmentId) || null;
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_ENVIRONMENT_CREATE_IPC,
+    async (_, request: Any) => {
+      return managedSessionService.createEnvironment(request);
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_ENVIRONMENT_UPDATE_IPC,
+    async (_, request: Any) => {
+      if (!request?.environmentId) throw new Error("environmentId is required");
+      return (
+        managedSessionService.updateEnvironment(
+          request.environmentId,
+          request,
+        ) || null
+      );
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_ENVIRONMENT_ARCHIVE_IPC,
+    async (_, environmentId: string) => {
+      return managedSessionService.archiveEnvironment(environmentId) || null;
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_SESSION_LIST_IPC,
+    async (_, params?: Any) => {
+      return managedSessionService.listSessions(params);
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_SESSION_GET_IPC,
+    async (_, sessionId: string) => {
+      return managedSessionService.getSession(sessionId) || null;
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_SESSION_CREATE_IPC,
+    async (_, request: Any) => {
+      return managedSessionService.createSession(request);
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_SESSION_SEND_USER_MESSAGE_IPC,
+    async (_, request: Any) => {
+      if (!request?.sessionId) throw new Error("sessionId is required");
+      return managedSessionService.sendUserMessage(
+        request.sessionId,
+        request.content || [],
+      );
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_SESSION_RESUME_IPC,
+    async (_, sessionId: string) => {
+      return managedSessionService.resumeSession(sessionId);
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_SESSION_CANCEL_IPC,
+    async (_, sessionId: string) => {
+      return managedSessionService.cancelSession(sessionId);
+    },
+  );
   ipcMain.handle(
     IPC_CHANNELS.MANAGED_SESSION_EVENTS_LIST_IPC,
     async (_, payload: { sessionId: string; limit?: number }) => {
-      return managedSessionService.listSessionEvents(payload.sessionId, payload.limit);
+      return managedSessionService.listSessionEvents(
+        payload.sessionId,
+        payload.limit,
+      );
     },
   );
-  ipcMain.handle(IPC_CHANNELS.MANAGED_SESSION_WORKPAPER_GET_IPC, async (_, sessionId: string) => {
-    return managedSessionService.getSessionWorkpaper(sessionId);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_SESSION_WORKPAPER_GET_IPC,
+    async (_, sessionId: string) => {
+      return managedSessionService.getSessionWorkpaper(sessionId);
+    },
+  );
   ipcMain.handle(
     IPC_CHANNELS.MANAGED_SESSION_GENERATE_AUDIO_SUMMARY,
     async (_, payload: { sessionId: string; config?: Any }) => {
-      return managedSessionService.generateAudioSummary(payload.sessionId, payload.config);
+      return managedSessionService.generateAudioSummary(
+        payload.sessionId,
+        payload.config,
+      );
     },
   );
-  ipcMain.handle(IPC_CHANNELS.AGENT_WORKSPACE_MEMBERSHIP_LIST_IPC, async (_, workspaceId?: string) => {
-    return managedSessionService.listWorkspaceMemberships(workspaceId);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.AGENT_WORKSPACE_MEMBERSHIP_LIST_IPC,
+    async (_, workspaceId?: string) => {
+      return managedSessionService.listWorkspaceMemberships(workspaceId);
+    },
+  );
   ipcMain.handle(
     IPC_CHANNELS.AGENT_WORKSPACE_MEMBERSHIP_UPDATE_IPC,
-    async (_, request: { workspaceId: string; principalId: string; role: string }) => {
+    async (
+      _,
+      request: { workspaceId: string; principalId: string; role: string },
+    ) => {
       return managedSessionService.updateWorkspaceMembership({
         workspaceId: request.workspaceId,
         principalId: request.principalId,
@@ -6218,7 +7507,9 @@ export async function setupIpcHandlers(
   ipcMain.handle(
     IPC_CHANNELS.AGENT_WORKSPACE_PERMISSION_SNAPSHOT_IPC,
     async (_, payload: { workspaceId: string; principalId?: string }) => {
-      return managedSessionService.getMyWorkspacePermissions(payload.workspaceId);
+      return managedSessionService.getMyWorkspacePermissions(
+        payload.workspaceId,
+      );
     },
   );
   ipcMain.handle(IPC_CHANNELS.AGENT_TEMPLATE_LIST, async () => {
@@ -6227,16 +7518,25 @@ export async function setupIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.IMAGE_GEN_PROFILE_LIST, async () => {
     return imageGenProfileService.list();
   });
-  ipcMain.handle(IPC_CHANNELS.IMAGE_GEN_PROFILE_CREATE, async (_, request: Any) => {
-    return imageGenProfileService.create(request);
-  });
-  ipcMain.handle(IPC_CHANNELS.IMAGE_GEN_PROFILE_UPDATE, async (_, request: Any) => {
-    if (!request?.id) throw new Error("id is required");
-    return imageGenProfileService.update(request.id, request);
-  });
-  ipcMain.handle(IPC_CHANNELS.IMAGE_GEN_PROFILE_DELETE, async (_, id: string) => {
-    return imageGenProfileService.delete(id);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.IMAGE_GEN_PROFILE_CREATE,
+    async (_, request: Any) => {
+      return imageGenProfileService.create(request);
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.IMAGE_GEN_PROFILE_UPDATE,
+    async (_, request: Any) => {
+      if (!request?.id) throw new Error("id is required");
+      return imageGenProfileService.update(request.id, request);
+    },
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.IMAGE_GEN_PROFILE_DELETE,
+    async (_, id: string) => {
+      return imageGenProfileService.delete(id);
+    },
+  );
 
   // Skill handlers
   ipcMain.handle(IPC_CHANNELS.SKILL_LIST, async () => {
@@ -6511,59 +7811,78 @@ export async function setupIpcHandlers(
   const capabilitySecurityService = getCapabilityBundleSecurityService();
   const { getPluginRegistry } = await import("../extensions/registry");
 
-  const buildAgentBuilderInventory = async (): Promise<AgentBuilderInventory> => {
-    await ensureCustomSkillLoaderInitialized();
-    const pluginRegistry = getPluginRegistry();
-    try {
-      await pluginRegistry.initialize();
-    } catch (error) {
-      logger.warn("[AgentsHub] Failed to initialize plugin registry for builder inventory:", error);
-    }
-    return {
-      templates: agentTemplateService.list(),
-      skills: customSkillLoader.listSkills(),
-      pluginPacks:
-        typeof pluginRegistry.getPluginsByType === "function"
-          ? pluginRegistry.getPluginsByType("pack")
+  const buildAgentBuilderInventory =
+    async (): Promise<AgentBuilderInventory> => {
+      await ensureCustomSkillLoaderInitialized();
+      const pluginRegistry = getPluginRegistry();
+      try {
+        await pluginRegistry.initialize();
+      } catch (error) {
+        logger.warn(
+          "[AgentsHub] Failed to initialize plugin registry for builder inventory:",
+          error,
+        );
+      }
+      return {
+        templates: agentTemplateService.list(),
+        skills: customSkillLoader.listSkills(),
+        pluginPacks:
+          typeof pluginRegistry.getPluginsByType === "function"
+            ? pluginRegistry.getPluginsByType("pack")
+            : [],
+        mcpServers: MCPSettingsManager.getSettingsForDisplay().servers,
+        channels: gateway
+          ? gateway.getChannels().map((channel) => toPublicChannel(channel))
           : [],
-      mcpServers: MCPSettingsManager.getSettingsForDisplay().servers,
-      channels: gateway ? gateway.getChannels().map((channel) => toPublicChannel(channel)) : [],
-      workspaces: workspaceRepo.findAll(),
-      agentRoles: agentRoleRepo.findAll(false),
-      runtimeToolFamilies: [
-        "communication",
-        "search",
-        "files",
-        "documents",
-        "memory",
-        "browser",
-        "shell",
-        "images",
-        "computer-use",
-      ],
+        workspaces: workspaceRepo.findAll(),
+        agentRoles: agentRoleRepo.findAll(false),
+        runtimeToolFamilies: [
+          "communication",
+          "search",
+          "files",
+          "documents",
+          "memory",
+          "browser",
+          "shell",
+          "images",
+          "computer-use",
+        ],
+      };
     };
-  };
 
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_GENERATE_PLAN_IPC, async (_, request: Any) => {
-    const prompt = typeof request?.prompt === "string" ? request.prompt.trim() : "";
-    if (!prompt) throw new Error("Prompt is required");
-    return agentBuilderService.generatePlan(
-      {
-        prompt,
-        workspaceId: typeof request?.workspaceId === "string" ? request.workspaceId : undefined,
-      },
-      await buildAgentBuilderInventory(),
-    );
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_GENERATE_PLAN_IPC,
+    async (_, request: Any) => {
+      const prompt =
+        typeof request?.prompt === "string" ? request.prompt.trim() : "";
+      if (!prompt) throw new Error("Prompt is required");
+      return agentBuilderService.generatePlan(
+        {
+          prompt,
+          workspaceId:
+            typeof request?.workspaceId === "string"
+              ? request.workspaceId
+              : undefined,
+        },
+        await buildAgentBuilderInventory(),
+      );
+    },
+  );
 
-  ipcMain.handle(IPC_CHANNELS.MANAGED_AGENT_CREATE_FROM_PLAN_IPC, async (_, request: Any) => {
-    if (!request?.plan) throw new Error("Builder plan is required");
-    return managedSessionService.createAgentFromBuilderPlan({
-      plan: request.plan,
-      workspaceId: typeof request.workspaceId === "string" ? request.workspaceId : undefined,
-      activate: request.activate !== false,
-    });
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MANAGED_AGENT_CREATE_FROM_PLAN_IPC,
+    async (_, request: Any) => {
+      if (!request?.plan) throw new Error("Builder plan is required");
+      return managedSessionService.createAgentFromBuilderPlan({
+        plan: request.plan,
+        workspaceId:
+          typeof request.workspaceId === "string"
+            ? request.workspaceId
+            : undefined,
+        activate: request.activate !== false,
+      });
+    },
+  );
 
   ipcMain.handle(IPC_CHANNELS.IMPORT_SECURITY_LIST_QUARANTINED, async () => {
     return capabilitySecurityService.listQuarantinedImports();
@@ -6650,6 +7969,19 @@ export async function setupIpcHandlers(
       const resolvedProviderType = resolveCustomProviderId(providerType);
       const settings = LLMProviderFactory.loadSettings();
       const updatedSettings = { ...settings };
+      const mutableUpdatedSettings = updatedSettings as Any;
+
+      if (mutableUpdatedSettings.providerModelRegistry) {
+        const nextRegistry = {
+          ...mutableUpdatedSettings.providerModelRegistry,
+        };
+        delete nextRegistry[resolvedProviderType];
+        if (resolvedProviderType === "kimi-code") {
+          delete nextRegistry["kimi-coding"];
+        }
+        mutableUpdatedSettings.providerModelRegistry =
+          Object.keys(nextRegistry).length > 0 ? nextRegistry : undefined;
+      }
 
       const clearCustomProviderConfig = (providerId: string) => {
         if (!updatedSettings.customProviders) return;
@@ -6777,7 +8109,9 @@ export async function setupIpcHandlers(
       xaiTokenExpiresAt = settings.xai?.tokenExpiresAt;
       xaiTokenEndpoint = settings.xai?.tokenEndpoint;
     }
-    const resolvedProviderType = resolveCustomProviderId(validatedConfig.providerType);
+    const resolvedProviderType = resolveCustomProviderId(
+      validatedConfig.providerType,
+    );
     const customProviderConfig =
       validatedConfig.customProviders?.[resolvedProviderType] ||
       validatedConfig.customProviders?.[validatedConfig.providerType];
@@ -6805,18 +8139,29 @@ export async function setupIpcHandlers(
       validatedConfig.openaiCompatible?.baseUrl,
       { providerLabel: "OpenAI-compatible provider", allowLoopback: true },
     );
+    const deepseekBaseUrl = await validateOptionalProviderBaseUrl(
+      validatedConfig.deepseek?.baseUrl,
+      { providerLabel: "DeepSeek" },
+    );
     const providerBaseUrl = await validateOptionalProviderBaseUrl(
       customProviderConfig?.baseUrl,
-      { providerLabel: `Custom provider ${resolvedProviderType}`, allowLoopback: true },
+      {
+        providerLabel: `Custom provider ${resolvedProviderType}`,
+        allowLoopback: true,
+      },
     );
     const anthropicCredential =
       validatedConfig.anthropic?.authMethod === "subscription"
-        ? validatedConfig.anthropic?.subscriptionToken || validatedConfig.anthropic?.apiKey
+        ? validatedConfig.anthropic?.subscriptionToken ||
+          validatedConfig.anthropic?.apiKey
         : validatedConfig.anthropic?.authMethod === "api_key"
-          ? validatedConfig.anthropic?.apiKey || validatedConfig.anthropic?.subscriptionToken
-          : validatedConfig.anthropic?.subscriptionToken || validatedConfig.anthropic?.apiKey;
+          ? validatedConfig.anthropic?.apiKey ||
+            validatedConfig.anthropic?.subscriptionToken
+          : validatedConfig.anthropic?.subscriptionToken ||
+            validatedConfig.anthropic?.apiKey;
     const azureDeployment =
-      validatedConfig.azure?.deployment || validatedConfig.azure?.deployments?.[0];
+      validatedConfig.azure?.deployment ||
+      validatedConfig.azure?.deployments?.[0];
     const azureAnthropicDeployment =
       validatedConfig.azureAnthropic?.deployment ||
       validatedConfig.azureAnthropic?.deployments?.[0];
@@ -6852,6 +8197,11 @@ export async function setupIpcHandlers(
         "OpenRouter",
       ),
       openrouterBaseUrl,
+      deepseekApiKey: validateOptionalProviderApiKey(
+        validatedConfig.deepseek?.apiKey,
+        "DeepSeek",
+      ),
+      deepseekBaseUrl,
       openaiApiKey: validatedConfig.openai?.apiKey,
       openaiAccessToken,
       openaiRefreshToken,
@@ -6865,16 +8215,27 @@ export async function setupIpcHandlers(
       azureAnthropicEndpoint: validatedConfig.azureAnthropic?.endpoint,
       azureAnthropicDeployment: azureAnthropicDeployment,
       azureAnthropicApiVersion: validatedConfig.azureAnthropic?.apiVersion,
-      groqApiKey: validateOptionalProviderApiKey(validatedConfig.groq?.apiKey, "Groq"),
+      groqApiKey: validateOptionalProviderApiKey(
+        validatedConfig.groq?.apiKey,
+        "Groq",
+      ),
       groqBaseUrl,
-      xaiApiKey: validateOptionalProviderApiKey(validatedConfig.xai?.apiKey, "xAI"),
+      xaiApiKey: validateOptionalProviderApiKey(
+        validatedConfig.xai?.apiKey,
+        "xAI",
+      ),
       xaiAccessToken,
       xaiRefreshToken,
       xaiTokenExpiresAt,
       xaiTokenEndpoint,
       xaiBaseUrl,
-      kimiApiKey: validateOptionalProviderApiKey(validatedConfig.kimi?.apiKey, "Kimi"),
+      kimiApiKey: validateOptionalProviderApiKey(
+        validatedConfig.kimi?.apiKey,
+        "Kimi",
+      ),
       kimiBaseUrl,
+      openaiCompatibleDisplayName:
+        validatedConfig.openaiCompatible?.displayName,
       openaiCompatibleApiKey: validateOptionalProviderApiKey(
         validatedConfig.openaiCompatible?.apiKey,
         "OpenAI-compatible provider",
@@ -6918,13 +8279,21 @@ export async function setupIpcHandlers(
   ipcMain.handle(
     IPC_CHANNELS.LLM_GET_PROVIDER_MODELS,
     async (_, providerType: string) => {
+      const availableProvider = LLMProviderFactory.getAvailableProviders().find(
+        (provider) => provider.type === providerType,
+      );
+      if (!availableProvider?.configured) {
+        return [];
+      }
       const settings = LLMProviderFactory.loadSettings();
       const modifiedSettings = {
         ...settings,
         providerType: providerType as Any,
       };
-      const modelStatus =
-        LLMProviderFactory.getProviderModelStatus(modifiedSettings);
+      const modelStatus = LLMProviderFactory.getSelectableProviderModelStatus(
+        modifiedSettings,
+        providerType as Any,
+      );
       return modelStatus.models;
     },
   );
@@ -6944,7 +8313,10 @@ export async function setupIpcHandlers(
       );
       const validatedOverrides = overrides
         ? {
-            apiKey: validateOptionalProviderApiKey(overrides.apiKey, validatedProviderType),
+            apiKey: validateOptionalProviderApiKey(
+              overrides.apiKey,
+              validatedProviderType,
+            ),
             baseUrl: await validateOptionalProviderBaseUrl(overrides.baseUrl, {
               providerLabel: validatedProviderType,
               allowLoopback: true,
@@ -6959,36 +8331,44 @@ export async function setupIpcHandlers(
   );
 
   // Set the current model (persists selection across sessions)
-  ipcMain.handle(IPC_CHANNELS.LLM_SET_MODEL, async (_, selection: string | {
-    providerType?: string;
-    modelKey: string;
-    reasoningEffort?: LLMReasoningEffort;
-  }) => {
-    const modelKey =
-      typeof selection === "string" ? selection : selection?.modelKey;
-    if (typeof modelKey !== "string" || !modelKey.trim()) {
-      throw new Error("modelKey is required");
-    }
-    const settings = LLMProviderFactory.loadSettings();
-    const providerType =
-      typeof selection === "string"
-        ? settings.providerType
-        : (selection.providerType as Any) || settings.providerType;
-    let updatedSettings = LLMProviderFactory.applyModelSelection(
-      settings,
-      modelKey.trim(),
-      providerType,
-    );
-    if (typeof selection !== "string" && selection.reasoningEffort) {
-      updatedSettings = LLMProviderFactory.applyReasoningEffortSelection(
-        updatedSettings,
+  ipcMain.handle(
+    IPC_CHANNELS.LLM_SET_MODEL,
+    async (
+      _,
+      selection:
+        | string
+        | {
+            providerType?: string;
+            modelKey: string;
+            reasoningEffort?: LLMReasoningEffort;
+          },
+    ) => {
+      const modelKey =
+        typeof selection === "string" ? selection : selection?.modelKey;
+      if (typeof modelKey !== "string" || !modelKey.trim()) {
+        throw new Error("modelKey is required");
+      }
+      const settings = LLMProviderFactory.loadSettings();
+      const providerType =
+        typeof selection === "string"
+          ? settings.providerType
+          : (selection.providerType as Any) || settings.providerType;
+      let updatedSettings = LLMProviderFactory.applyModelSelection(
+        settings,
+        modelKey.trim(),
         providerType,
-        selection.reasoningEffort,
       );
-    }
-    LLMProviderFactory.saveSettings(updatedSettings);
-    return { success: true };
-  });
+      if (typeof selection !== "string" && selection.reasoningEffort) {
+        updatedSettings = LLMProviderFactory.applyReasoningEffortSelection(
+          updatedSettings,
+          providerType,
+          selection.reasoningEffort,
+        );
+      }
+      LLMProviderFactory.saveSettings(updatedSettings);
+      return { success: true };
+    },
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.LLM_GET_ANTHROPIC_MODELS,
@@ -7212,53 +8592,56 @@ export async function setupIpcHandlers(
   );
 
   // OpenAI OAuth handlers
-  ipcMain.handle(IPC_CHANNELS.LLM_OPENAI_OAUTH_START, async (_, options?: { persist?: boolean }) => {
-    checkRateLimit(IPC_CHANNELS.LLM_OPENAI_OAUTH_START);
-    logger.info("[IPC] Starting OpenAI OAuth flow with pi-ai SDK...");
+  ipcMain.handle(
+    IPC_CHANNELS.LLM_OPENAI_OAUTH_START,
+    async (_, options?: { persist?: boolean }) => {
+      checkRateLimit(IPC_CHANNELS.LLM_OPENAI_OAUTH_START);
+      logger.info("[IPC] Starting OpenAI OAuth flow with pi-ai SDK...");
 
-    try {
-      const oauth = new OpenAIOAuth();
-      const tokens = await oauth.authenticate();
+      try {
+        const oauth = new OpenAIOAuth();
+        const tokens = await oauth.authenticate();
 
-      const shouldPersist = options?.persist !== false;
-      if (shouldPersist) {
-        // Save tokens to settings
-        const settings = LLMProviderFactory.loadSettings();
-        settings.openai = {
-          ...settings.openai,
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          tokenExpiresAt: tokens.expires_at,
-          accountId: tokens.accountId,
+        const shouldPersist = options?.persist !== false;
+        if (shouldPersist) {
+          // Save tokens to settings
+          const settings = LLMProviderFactory.loadSettings();
+          settings.openai = {
+            ...settings.openai,
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token,
+            tokenExpiresAt: tokens.expires_at,
+            accountId: tokens.accountId,
+            email: tokens.email,
+            authMethod: "oauth",
+            // Clear API key when using OAuth
+            apiKey: undefined,
+          };
+          LLMProviderFactory.saveSettings(settings);
+          LLMProviderFactory.clearCache();
+        }
+
+        logger.info("[IPC] OpenAI OAuth successful");
+
+        return {
+          success: true,
           email: tokens.email,
-          authMethod: "oauth",
-          // Clear API key when using OAuth
-          apiKey: undefined,
+          tokens: shouldPersist
+            ? undefined
+            : {
+                accessToken: tokens.access_token,
+                refreshToken: tokens.refresh_token,
+                tokenExpiresAt: tokens.expires_at,
+                accountId: tokens.accountId,
+                email: tokens.email,
+              },
         };
-        LLMProviderFactory.saveSettings(settings);
-        LLMProviderFactory.clearCache();
+      } catch (error: Any) {
+        logger.error("[IPC] OpenAI OAuth failed:", error.message);
+        return { success: false, error: error.message };
       }
-
-      logger.info("[IPC] OpenAI OAuth successful");
-
-      return {
-        success: true,
-        email: tokens.email,
-        tokens: shouldPersist
-          ? undefined
-          : {
-              accessToken: tokens.access_token,
-              refreshToken: tokens.refresh_token,
-              tokenExpiresAt: tokens.expires_at,
-              accountId: tokens.accountId,
-              email: tokens.email,
-            },
-      };
-    } catch (error: Any) {
-      logger.error("[IPC] OpenAI OAuth failed:", error.message);
-      return { success: false, error: error.message };
-    }
-  });
+    },
+  );
 
   ipcMain.handle(IPC_CHANNELS.LLM_OPENAI_OAUTH_LOGOUT, async () => {
     checkRateLimit(IPC_CHANNELS.LLM_OPENAI_OAUTH_LOGOUT);
@@ -7585,13 +8968,20 @@ export async function setupIpcHandlers(
       const existing = GoogleWorkspaceSettingsManager.loadSettings();
       const normalize = (value?: string) => (value || "").trim();
       const normalizeScopes = (value?: string[]) =>
-        (value || []).map((scope) => scope.trim()).filter(Boolean).sort().join(" ");
+        (value || [])
+          .map((scope) => scope.trim())
+          .filter(Boolean)
+          .sort()
+          .join(" ");
       const oauthConfigChanged =
         normalize(existing.clientId) !== normalize(validated.clientId) ||
-        normalize(existing.clientSecret) !== normalize(validated.clientSecret) ||
+        normalize(existing.clientSecret) !==
+          normalize(validated.clientSecret) ||
         existing.connectionMode !== validated.connectionMode ||
         normalizeScopes(existing.scopes) !== normalizeScopes(validated.scopes);
-      const normalizeAccounts = (accounts?: GoogleWorkspaceSettingsData["accounts"]) =>
+      const normalizeAccounts = (
+        accounts?: GoogleWorkspaceSettingsData["accounts"],
+      ) =>
         JSON.stringify(
           (accounts || [])
             .map((account) => ({
@@ -7605,8 +8995,10 @@ export async function setupIpcHandlers(
         );
       const tokenPayloadChanged =
         normalize(existing.accessToken) !== normalize(validated.accessToken) ||
-        normalize(existing.refreshToken) !== normalize(validated.refreshToken) ||
-        normalizeAccounts(existing.accounts) !== normalizeAccounts(validated.accounts) ||
+        normalize(existing.refreshToken) !==
+          normalize(validated.refreshToken) ||
+        normalizeAccounts(existing.accounts) !==
+          normalizeAccounts(validated.accounts) ||
         normalizeGoogleAccountEmail(existing.activeAccountEmail) !==
           normalizeGoogleAccountEmail(validated.activeAccountEmail);
       const nextSettings =
@@ -7657,7 +9049,9 @@ export async function setupIpcHandlers(
     async (_, payload) => {
       checkRateLimit(IPC_CHANNELS.GOOGLE_WORKSPACE_OAUTH_START);
       const settings = GoogleWorkspaceSettingsManager.loadSettings();
-      return startGoogleWorkspaceOAuth(resolveGoogleWorkspaceOAuthRequest(payload || {}, settings));
+      return startGoogleWorkspaceOAuth(
+        resolveGoogleWorkspaceOAuthRequest(payload || {}, settings),
+      );
     },
   );
 
@@ -7666,7 +9060,10 @@ export async function setupIpcHandlers(
     async (_, payload) => {
       checkRateLimit(IPC_CHANNELS.GOOGLE_WORKSPACE_OAUTH_GET_LINK);
       const settings = GoogleWorkspaceSettingsManager.loadSettings();
-      const oauthRequest = resolveGoogleWorkspaceOAuthRequest(payload || {}, settings);
+      const oauthRequest = resolveGoogleWorkspaceOAuthRequest(
+        payload || {},
+        settings,
+      );
       const url = await startGoogleWorkspaceOAuthGetLink(
         oauthRequest,
         async (result) => {
@@ -7688,13 +9085,15 @@ export async function setupIpcHandlers(
                 refreshToken: result.refreshToken,
                 tokenExpiresAt,
                 scopes: result.scopes ?? existing.scopes,
-                connectionMode: oauthRequest?.connectionMode ?? existing.connectionMode,
+                connectionMode:
+                  oauthRequest?.connectionMode ?? existing.connectionMode,
                 connectedAt: Date.now(),
               })
             : {
                 ...existing,
                 enabled: true,
-                connectionMode: oauthRequest?.connectionMode ?? existing.connectionMode,
+                connectionMode:
+                  oauthRequest?.connectionMode ?? existing.connectionMode,
                 accessToken: result.accessToken,
                 refreshToken: result.refreshToken ?? existing.refreshToken,
                 tokenExpiresAt,
@@ -7746,55 +9145,73 @@ export async function setupIpcHandlers(
     return agentMailAdminService.listPods();
   });
 
-  ipcMain.handle(IPC_CHANNELS.AGENTMAIL_GET_WORKSPACE_BINDING, async (_, workspaceId) => {
-    checkRateLimit(IPC_CHANNELS.AGENTMAIL_GET_WORKSPACE_BINDING);
-    const validatedWorkspaceId = validateInput(
-      WorkspaceIdSchema,
-      workspaceId,
-      "agentmail workspaceId",
-    ) as string;
-    return agentMailAdminService.getWorkspaceBinding(validatedWorkspaceId);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.AGENTMAIL_GET_WORKSPACE_BINDING,
+    async (_, workspaceId) => {
+      checkRateLimit(IPC_CHANNELS.AGENTMAIL_GET_WORKSPACE_BINDING);
+      const validatedWorkspaceId = validateInput(
+        WorkspaceIdSchema,
+        workspaceId,
+        "agentmail workspaceId",
+      ) as string;
+      return agentMailAdminService.getWorkspaceBinding(validatedWorkspaceId);
+    },
+  );
 
-  ipcMain.handle(IPC_CHANNELS.AGENTMAIL_BIND_WORKSPACE_POD, async (_, payload) => {
-    checkRateLimit(IPC_CHANNELS.AGENTMAIL_BIND_WORKSPACE_POD);
-    const validated = validateInput(
-      z.object({
-        workspaceId: WorkspaceIdSchema,
-        podId: StringIdSchema,
-      }),
-      payload,
-      "agentmail bind workspace pod",
-    ) as { workspaceId: string; podId: string };
-    const result = await agentMailAdminService.bindWorkspacePod(validated.workspaceId, validated.podId);
-    agentMailRealtimeService.refreshSubscriptions();
-    return result;
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.AGENTMAIL_BIND_WORKSPACE_POD,
+    async (_, payload) => {
+      checkRateLimit(IPC_CHANNELS.AGENTMAIL_BIND_WORKSPACE_POD);
+      const validated = validateInput(
+        z.object({
+          workspaceId: WorkspaceIdSchema,
+          podId: StringIdSchema,
+        }),
+        payload,
+        "agentmail bind workspace pod",
+      ) as { workspaceId: string; podId: string };
+      const result = await agentMailAdminService.bindWorkspacePod(
+        validated.workspaceId,
+        validated.podId,
+      );
+      agentMailRealtimeService.refreshSubscriptions();
+      return result;
+    },
+  );
 
-  ipcMain.handle(IPC_CHANNELS.AGENTMAIL_CREATE_WORKSPACE_POD, async (_, payload) => {
-    checkRateLimit(IPC_CHANNELS.AGENTMAIL_CREATE_WORKSPACE_POD);
-    const validated = validateInput(
-      z.object({
-        workspaceId: WorkspaceIdSchema,
-        podName: z.string().max(200).optional(),
-      }),
-      payload,
-      "agentmail create workspace pod",
-    ) as { workspaceId: string; podName?: string };
-    const result = await agentMailAdminService.createWorkspacePod(validated.workspaceId, validated.podName);
-    agentMailRealtimeService.refreshSubscriptions();
-    return result;
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.AGENTMAIL_CREATE_WORKSPACE_POD,
+    async (_, payload) => {
+      checkRateLimit(IPC_CHANNELS.AGENTMAIL_CREATE_WORKSPACE_POD);
+      const validated = validateInput(
+        z.object({
+          workspaceId: WorkspaceIdSchema,
+          podName: z.string().max(200).optional(),
+        }),
+        payload,
+        "agentmail create workspace pod",
+      ) as { workspaceId: string; podName?: string };
+      const result = await agentMailAdminService.createWorkspacePod(
+        validated.workspaceId,
+        validated.podName,
+      );
+      agentMailRealtimeService.refreshSubscriptions();
+      return result;
+    },
+  );
 
-  ipcMain.handle(IPC_CHANNELS.AGENTMAIL_LIST_INBOXES, async (_, workspaceId) => {
-    checkRateLimit(IPC_CHANNELS.AGENTMAIL_LIST_INBOXES);
-    const validatedWorkspaceId = validateInput(
-      WorkspaceIdSchema,
-      workspaceId,
-      "agentmail list inboxes workspaceId",
-    ) as string;
-    return agentMailAdminService.listInboxes(validatedWorkspaceId);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.AGENTMAIL_LIST_INBOXES,
+    async (_, workspaceId) => {
+      checkRateLimit(IPC_CHANNELS.AGENTMAIL_LIST_INBOXES);
+      const validatedWorkspaceId = validateInput(
+        WorkspaceIdSchema,
+        workspaceId,
+        "agentmail list inboxes workspaceId",
+      ) as string;
+      return agentMailAdminService.listInboxes(validatedWorkspaceId);
+    },
+  );
 
   ipcMain.handle(IPC_CHANNELS.AGENTMAIL_CREATE_INBOX, async (_, payload) => {
     checkRateLimit(IPC_CHANNELS.AGENTMAIL_CREATE_INBOX);
@@ -7815,7 +9232,10 @@ export async function setupIpcHandlers(
       displayName?: string;
       clientId?: string;
     };
-    const result = await agentMailAdminService.createInbox(validated.workspaceId, validated);
+    const result = await agentMailAdminService.createInbox(
+      validated.workspaceId,
+      validated,
+    );
     agentMailRealtimeService.refreshSubscriptions();
     return result;
   });
@@ -7831,9 +9251,13 @@ export async function setupIpcHandlers(
       payload,
       "agentmail update inbox",
     ) as { workspaceId: string; inboxId: string; displayName: string };
-    return agentMailAdminService.updateInbox(validated.workspaceId, validated.inboxId, {
-      displayName: validated.displayName,
-    });
+    return agentMailAdminService.updateInbox(
+      validated.workspaceId,
+      validated.inboxId,
+      {
+        displayName: validated.displayName,
+      },
+    );
   });
 
   ipcMain.handle(IPC_CHANNELS.AGENTMAIL_DELETE_INBOX, async (_, payload) => {
@@ -7846,20 +9270,26 @@ export async function setupIpcHandlers(
       payload,
       "agentmail delete inbox",
     ) as { workspaceId: string; inboxId: string };
-    const result = await agentMailAdminService.deleteInbox(validated.workspaceId, validated.inboxId);
+    const result = await agentMailAdminService.deleteInbox(
+      validated.workspaceId,
+      validated.inboxId,
+    );
     agentMailRealtimeService.refreshSubscriptions();
     return result;
   });
 
-  ipcMain.handle(IPC_CHANNELS.AGENTMAIL_LIST_DOMAINS, async (_, workspaceId) => {
-    checkRateLimit(IPC_CHANNELS.AGENTMAIL_LIST_DOMAINS);
-    const validatedWorkspaceId = validateInput(
-      WorkspaceIdSchema,
-      workspaceId,
-      "agentmail list domains workspaceId",
-    ) as string;
-    return agentMailAdminService.listDomains(validatedWorkspaceId);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.AGENTMAIL_LIST_DOMAINS,
+    async (_, workspaceId) => {
+      checkRateLimit(IPC_CHANNELS.AGENTMAIL_LIST_DOMAINS);
+      const validatedWorkspaceId = validateInput(
+        WorkspaceIdSchema,
+        workspaceId,
+        "agentmail list domains workspaceId",
+      ) as string;
+      return agentMailAdminService.listDomains(validatedWorkspaceId);
+    },
+  );
 
   ipcMain.handle(IPC_CHANNELS.AGENTMAIL_CREATE_DOMAIN, async (_, payload) => {
     checkRateLimit(IPC_CHANNELS.AGENTMAIL_CREATE_DOMAIN);
@@ -7885,7 +9315,10 @@ export async function setupIpcHandlers(
       payload,
       "agentmail verify domain",
     ) as { workspaceId: string; domainId: string };
-    return agentMailAdminService.verifyDomain(validated.workspaceId, validated.domainId);
+    return agentMailAdminService.verifyDomain(
+      validated.workspaceId,
+      validated.domainId,
+    );
   });
 
   ipcMain.handle(IPC_CHANNELS.AGENTMAIL_DELETE_DOMAIN, async (_, payload) => {
@@ -7898,137 +9331,178 @@ export async function setupIpcHandlers(
       payload,
       "agentmail delete domain",
     ) as { workspaceId: string; domainId: string };
-    return agentMailAdminService.deleteDomain(validated.workspaceId, validated.domainId);
-  });
-
-  ipcMain.handle(IPC_CHANNELS.AGENTMAIL_LIST_LIST_ENTRIES, async (_, payload) => {
-    checkRateLimit(IPC_CHANNELS.AGENTMAIL_LIST_LIST_ENTRIES);
-    const validated = validateInput(
-      z.object({
-        workspaceId: WorkspaceIdSchema,
-        inboxId: z.string().max(255).optional(),
-        direction: z.enum(["receive", "reply", "send"]).optional(),
-        listType: z.enum(["allow", "block"]).optional(),
-      }),
-      payload,
-      "agentmail list entries",
-    ) as {
-      workspaceId: string;
-      inboxId?: string;
-      direction?: AgentMailListEntry["direction"];
-      listType?: AgentMailListEntry["listType"];
-    };
-    return agentMailAdminService.listListEntries(validated.workspaceId, validated);
-  });
-
-  ipcMain.handle(IPC_CHANNELS.AGENTMAIL_CREATE_LIST_ENTRY, async (_, payload) => {
-    checkRateLimit(IPC_CHANNELS.AGENTMAIL_CREATE_LIST_ENTRY);
-    const validated = validateInput(
-      z.object({
-        workspaceId: WorkspaceIdSchema,
-        inboxId: z.string().max(255).optional(),
-        direction: z.enum(["receive", "reply", "send"]),
-        listType: z.enum(["allow", "block"]),
-        entry: z.string().max(255),
-        reason: z.string().max(500).optional(),
-      }),
-      payload,
-      "agentmail create list entry",
-    ) as {
-      workspaceId: string;
-      inboxId?: string;
-      direction: AgentMailListEntry["direction"];
-      listType: AgentMailListEntry["listType"];
-      entry: string;
-      reason?: string;
-    };
-    return agentMailAdminService.createListEntry(validated.workspaceId, validated);
-  });
-
-  ipcMain.handle(IPC_CHANNELS.AGENTMAIL_DELETE_LIST_ENTRY, async (_, payload) => {
-    checkRateLimit(IPC_CHANNELS.AGENTMAIL_DELETE_LIST_ENTRY);
-    const validated = validateInput(
-      z.object({
-        workspaceId: WorkspaceIdSchema,
-        inboxId: z.string().max(255).optional(),
-        direction: z.enum(["receive", "reply", "send"]),
-        listType: z.enum(["allow", "block"]),
-        entry: z.string().max(255),
-      }),
-      payload,
-      "agentmail delete list entry",
-    ) as {
-      workspaceId: string;
-      inboxId?: string;
-      direction: AgentMailListEntry["direction"];
-      listType: AgentMailListEntry["listType"];
-      entry: string;
-    };
-    return agentMailAdminService.deleteListEntry(validated.workspaceId, validated);
-  });
-
-  ipcMain.handle(IPC_CHANNELS.AGENTMAIL_LIST_INBOX_API_KEYS, async (_, payload) => {
-    checkRateLimit(IPC_CHANNELS.AGENTMAIL_LIST_INBOX_API_KEYS);
-    const validated = validateInput(
-      z.object({
-        workspaceId: WorkspaceIdSchema,
-        inboxId: z.string().max(255),
-      }),
-      payload,
-      "agentmail list inbox api keys",
-    ) as { workspaceId: string; inboxId: string };
-    return agentMailAdminService.listInboxApiKeys(validated.workspaceId, validated.inboxId);
-  });
-
-  ipcMain.handle(IPC_CHANNELS.AGENTMAIL_CREATE_INBOX_API_KEY, async (_, payload) => {
-    checkRateLimit(IPC_CHANNELS.AGENTMAIL_CREATE_INBOX_API_KEY);
-    const validated = validateInput(
-      z.object({
-        workspaceId: WorkspaceIdSchema,
-        inboxId: z.string().max(255),
-        name: z.string().max(255).optional(),
-        permissions: z.record(z.string(), z.boolean()).optional(),
-      }),
-      payload,
-      "agentmail create inbox api key",
-    ) as {
-      workspaceId: string;
-      inboxId: string;
-      name?: string;
-      permissions?: Record<string, boolean>;
-    };
-    return agentMailAdminService.createInboxApiKey(validated.workspaceId, validated.inboxId, validated);
-  });
-
-  ipcMain.handle(IPC_CHANNELS.AGENTMAIL_DELETE_INBOX_API_KEY, async (_, payload) => {
-    checkRateLimit(IPC_CHANNELS.AGENTMAIL_DELETE_INBOX_API_KEY);
-    const validated = validateInput(
-      z.object({
-        workspaceId: WorkspaceIdSchema,
-        inboxId: z.string().max(255),
-        apiKeyId: z.string().max(255),
-      }),
-      payload,
-      "agentmail delete inbox api key",
-    ) as { workspaceId: string; inboxId: string; apiKeyId: string };
-    return agentMailAdminService.deleteInboxApiKey(
+    return agentMailAdminService.deleteDomain(
       validated.workspaceId,
-      validated.inboxId,
-      validated.apiKeyId,
+      validated.domainId,
     );
   });
 
-  ipcMain.handle(IPC_CHANNELS.AGENTMAIL_REFRESH_WORKSPACE, async (_, workspaceId) => {
-    checkRateLimit(IPC_CHANNELS.AGENTMAIL_REFRESH_WORKSPACE);
-    const validatedWorkspaceId = validateInput(
-      WorkspaceIdSchema,
-      workspaceId,
-      "agentmail refresh workspaceId",
-    ) as string;
-    const result = await agentMailAdminService.refreshWorkspace(validatedWorkspaceId);
-    agentMailRealtimeService.refreshSubscriptions();
-    return result;
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.AGENTMAIL_LIST_LIST_ENTRIES,
+    async (_, payload) => {
+      checkRateLimit(IPC_CHANNELS.AGENTMAIL_LIST_LIST_ENTRIES);
+      const validated = validateInput(
+        z.object({
+          workspaceId: WorkspaceIdSchema,
+          inboxId: z.string().max(255).optional(),
+          direction: z.enum(["receive", "reply", "send"]).optional(),
+          listType: z.enum(["allow", "block"]).optional(),
+        }),
+        payload,
+        "agentmail list entries",
+      ) as {
+        workspaceId: string;
+        inboxId?: string;
+        direction?: AgentMailListEntry["direction"];
+        listType?: AgentMailListEntry["listType"];
+      };
+      return agentMailAdminService.listListEntries(
+        validated.workspaceId,
+        validated,
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.AGENTMAIL_CREATE_LIST_ENTRY,
+    async (_, payload) => {
+      checkRateLimit(IPC_CHANNELS.AGENTMAIL_CREATE_LIST_ENTRY);
+      const validated = validateInput(
+        z.object({
+          workspaceId: WorkspaceIdSchema,
+          inboxId: z.string().max(255).optional(),
+          direction: z.enum(["receive", "reply", "send"]),
+          listType: z.enum(["allow", "block"]),
+          entry: z.string().max(255),
+          reason: z.string().max(500).optional(),
+        }),
+        payload,
+        "agentmail create list entry",
+      ) as {
+        workspaceId: string;
+        inboxId?: string;
+        direction: AgentMailListEntry["direction"];
+        listType: AgentMailListEntry["listType"];
+        entry: string;
+        reason?: string;
+      };
+      return agentMailAdminService.createListEntry(
+        validated.workspaceId,
+        validated,
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.AGENTMAIL_DELETE_LIST_ENTRY,
+    async (_, payload) => {
+      checkRateLimit(IPC_CHANNELS.AGENTMAIL_DELETE_LIST_ENTRY);
+      const validated = validateInput(
+        z.object({
+          workspaceId: WorkspaceIdSchema,
+          inboxId: z.string().max(255).optional(),
+          direction: z.enum(["receive", "reply", "send"]),
+          listType: z.enum(["allow", "block"]),
+          entry: z.string().max(255),
+        }),
+        payload,
+        "agentmail delete list entry",
+      ) as {
+        workspaceId: string;
+        inboxId?: string;
+        direction: AgentMailListEntry["direction"];
+        listType: AgentMailListEntry["listType"];
+        entry: string;
+      };
+      return agentMailAdminService.deleteListEntry(
+        validated.workspaceId,
+        validated,
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.AGENTMAIL_LIST_INBOX_API_KEYS,
+    async (_, payload) => {
+      checkRateLimit(IPC_CHANNELS.AGENTMAIL_LIST_INBOX_API_KEYS);
+      const validated = validateInput(
+        z.object({
+          workspaceId: WorkspaceIdSchema,
+          inboxId: z.string().max(255),
+        }),
+        payload,
+        "agentmail list inbox api keys",
+      ) as { workspaceId: string; inboxId: string };
+      return agentMailAdminService.listInboxApiKeys(
+        validated.workspaceId,
+        validated.inboxId,
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.AGENTMAIL_CREATE_INBOX_API_KEY,
+    async (_, payload) => {
+      checkRateLimit(IPC_CHANNELS.AGENTMAIL_CREATE_INBOX_API_KEY);
+      const validated = validateInput(
+        z.object({
+          workspaceId: WorkspaceIdSchema,
+          inboxId: z.string().max(255),
+          name: z.string().max(255).optional(),
+          permissions: z.record(z.string(), z.boolean()).optional(),
+        }),
+        payload,
+        "agentmail create inbox api key",
+      ) as {
+        workspaceId: string;
+        inboxId: string;
+        name?: string;
+        permissions?: Record<string, boolean>;
+      };
+      return agentMailAdminService.createInboxApiKey(
+        validated.workspaceId,
+        validated.inboxId,
+        validated,
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.AGENTMAIL_DELETE_INBOX_API_KEY,
+    async (_, payload) => {
+      checkRateLimit(IPC_CHANNELS.AGENTMAIL_DELETE_INBOX_API_KEY);
+      const validated = validateInput(
+        z.object({
+          workspaceId: WorkspaceIdSchema,
+          inboxId: z.string().max(255),
+          apiKeyId: z.string().max(255),
+        }),
+        payload,
+        "agentmail delete inbox api key",
+      ) as { workspaceId: string; inboxId: string; apiKeyId: string };
+      return agentMailAdminService.deleteInboxApiKey(
+        validated.workspaceId,
+        validated.inboxId,
+        validated.apiKeyId,
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.AGENTMAIL_REFRESH_WORKSPACE,
+    async (_, workspaceId) => {
+      checkRateLimit(IPC_CHANNELS.AGENTMAIL_REFRESH_WORKSPACE);
+      const validatedWorkspaceId = validateInput(
+        WorkspaceIdSchema,
+        workspaceId,
+        "agentmail refresh workspaceId",
+      ) as string;
+      const result =
+        await agentMailAdminService.refreshWorkspace(validatedWorkspaceId);
+      agentMailRealtimeService.refreshSubscriptions();
+      return result;
+    },
+  );
 
   // Dropbox Settings handlers
   ipcMain.handle(IPC_CHANNELS.DROPBOX_GET_SETTINGS, async () => {
@@ -8118,8 +9592,25 @@ export async function setupIpcHandlers(
     return gateway.getChannels().map((ch) => toPublicChannel(ch));
   });
 
+  ipcMain.handle(IPC_CHANNELS.WEIXIN_LOGIN_START, async () => {
+    checkRateLimit(IPC_CHANNELS.WEIXIN_LOGIN_START);
+    return requestWeixinQrCode();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.WEIXIN_LOGIN_POLL, async (_, qrcode: unknown) => {
+    checkRateLimit(IPC_CHANNELS.WEIXIN_LOGIN_POLL);
+    const validated = validateInput(
+      z.string().trim().min(1).max(500),
+      qrcode,
+      "WeChat QR code",
+    );
+    return pollWeixinQrStatus(validated);
+  });
+
   ipcMain.handle(IPC_CHANNELS.INTEGRATION_MENTION_OPTIONS, async () => {
-    const channels = gateway ? gateway.getChannels().map((ch) => toPublicChannel(ch)) : [];
+    const channels = gateway
+      ? gateway.getChannels().map((ch) => toPublicChannel(ch))
+      : [];
     return listIntegrationMentionOptions(
       channels as Parameters<typeof listIntegrationMentionOptions>[0],
     );
@@ -8397,6 +9888,46 @@ export async function setupIpcHandlers(
       return toPublicChannel(channel, "connecting");
     }
 
+    if (validated.type === "dingtalk") {
+      const channel = await gateway.addDingTalkChannel(
+        validated.name,
+        validated.dingtalkClientId!,
+        validated.dingtalkClientSecret!,
+        validated.securityMode || "pairing",
+      );
+
+      try {
+        // DingTalk uses a client-initiated Stream connection, so credentials
+        // can be verified immediately without a public webhook.
+        await gateway.enableChannel(channel.id);
+      } catch (error) {
+        await gateway.removeChannel(channel.id).catch(() => undefined);
+        throw error;
+      }
+
+      return toPublicChannel(
+        gateway.getChannel(channel.id) || channel,
+        "connected",
+      );
+    }
+
+    if (validated.type === "weixin") {
+      const channel = await gateway.addWeixinChannel(
+        validated.name,
+        validated.weixinAccountId!,
+        validated.weixinBotToken!,
+        validated.weixinBaseUrl!,
+        validated.weixinUserId,
+        validated.securityMode || "pairing",
+      );
+
+      gateway.enableChannel(channel.id).catch((err) => {
+        logger.error("Failed to enable WeChat channel:", err);
+      });
+
+      return toPublicChannel(channel, "connecting");
+    }
+
     if (validated.type === "wecom") {
       const channel = await gateway.addWeComChannel(
         validated.name,
@@ -8503,19 +10034,18 @@ export async function setupIpcHandlers(
     }
     if (validated.config !== undefined) {
       const compactConfig = Object.fromEntries(
-        Object.entries(validated.config).filter(([, value]) => value !== undefined),
+        Object.entries(validated.config).filter(
+          ([, value]) => value !== undefined,
+        ),
       );
       const mergedConfig = { ...channel.config, ...compactConfig };
-      if (
-        "supervisor" in compactConfig
-      ) {
+      if ("supervisor" in compactConfig) {
         const nextSupervisor = compactConfig.supervisor;
         mergedConfig.supervisor =
           nextSupervisor && typeof nextSupervisor === "object"
             ? {
                 ...((channel.config?.supervisor as
-                  | Record<string, unknown>
-                  | undefined) || {}),
+                  Record<string, unknown> | undefined) || {}),
                 ...nextSupervisor,
               }
             : nextSupervisor;
@@ -8599,7 +10129,7 @@ export async function setupIpcHandlers(
       await gateway.sendMessage(
         resolvedType as Any,
         data.chatId,
-        "Test delivery from CoWork OS",
+        "Test delivery from NeoWorker",
         {
           channelDbId: data.channelDbId,
           parseMode: "text",
@@ -8685,8 +10215,7 @@ export async function setupIpcHandlers(
       "guardrail settings",
     );
     GuardrailManager.saveSettings(validated);
-    GuardrailManager.clearCache();
-    return { success: true };
+    return { success: true, settings: GuardrailManager.loadSettings() };
   });
 
   ipcMain.handle(IPC_CHANNELS.GUARDRAIL_GET_DEFAULTS, async () => {
@@ -8769,17 +10298,17 @@ export async function setupIpcHandlers(
     return AppearanceManager.loadSettings();
   });
 
-  ipcMain.handle(IPC_CHANNELS.APPEARANCE_GET_RUNTIME_INFO, async () => {
-    return {
-      prefersReducedTransparency: nativeTheme.prefersReducedTransparency,
-      devLogCaptureEnabled: getDevLogCaptureEnabled(),
-    };
-  });
+  ipcMain.handle(IPC_CHANNELS.APPEARANCE_GET_RUNTIME_INFO, async () => ({
+    devLogCaptureEnabled: getDevLogCaptureEnabled(),
+  }));
 
-  ipcMain.handle(IPC_CHANNELS.APPEARANCE_SAVE_SETTINGS, async (_, settings) => {
-    AppearanceManager.saveSettings(settings);
-    return { success: true };
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.APPEARANCE_SAVE_SETTINGS,
+    async (_event, settings) => {
+      AppearanceManager.saveSettings(settings);
+      return { success: true };
+    },
+  );
 
   // Personality Settings handlers
   // Subscribe to PersonalityManager events to broadcast changes to UI
@@ -9800,11 +11329,13 @@ export async function setupIpcHandlers(
     IPC_CHANNELS.USAGE_INSIGHTS_GET,
     async (_, workspaceId: string, periodDays?: number) => {
       checkRateLimit(IPC_CHANNELS.USAGE_INSIGHTS_GET);
-      // Allow "__all__" sentinel for cross-workspace aggregation
+      // Allow empty workspace IDs and "__all__" for cross-workspace aggregation.
+      const requestedWorkspaceId =
+        typeof workspaceId === "string" ? workspaceId.trim() : "";
       const validatedWorkspaceId =
-        workspaceId === "__all__"
+        !requestedWorkspaceId || requestedWorkspaceId === "__all__"
           ? null
-          : validateInput(UUIDSchema, workspaceId, "workspace ID");
+          : validateInput(UUIDSchema, requestedWorkspaceId, "workspace ID");
       // Clamp period to a reasonable range to prevent excessive DB scans
       const clampedPeriod = Math.min(
         Math.max(Math.round(periodDays ?? 7), 1),
@@ -9821,10 +11352,12 @@ export async function setupIpcHandlers(
     IPC_CHANNELS.USAGE_INSIGHTS_EARLIEST,
     async (_, workspaceId: string) => {
       checkRateLimit(IPC_CHANNELS.USAGE_INSIGHTS_EARLIEST);
+      const requestedWorkspaceId =
+        typeof workspaceId === "string" ? workspaceId.trim() : "";
       const validatedWorkspaceId =
-        workspaceId === "__all__"
+        !requestedWorkspaceId || requestedWorkspaceId === "__all__"
           ? null
-          : validateInput(UUIDSchema, workspaceId, "workspace ID");
+          : validateInput(UUIDSchema, requestedWorkspaceId, "workspace ID");
       const { UsageInsightsService } =
         await import("../reports/UsageInsightsService");
       const service = new UsageInsightsService(db);
@@ -10168,7 +11701,9 @@ export async function setupIpcHandlers(
       );
       return uniqueWorkspaceIds.map((workspaceId) => ({
         workspaceId,
-        suggestions: allSuggestions.filter((suggestion) => suggestion.workspaceId === workspaceId),
+        suggestions: allSuggestions.filter(
+          (suggestion) => suggestion.workspaceId === workspaceId,
+        ),
       }));
     },
   );
@@ -10239,7 +11774,12 @@ export async function setupIpcHandlers(
 
   ipcMain.handle(
     IPC_CHANNELS.SUGGESTIONS_SNOOZE,
-    async (_, workspaceId: string, suggestionId: string, snoozedUntil: number) => {
+    async (
+      _,
+      workspaceId: string,
+      suggestionId: string,
+      snoozedUntil: number,
+    ) => {
       checkRateLimit(IPC_CHANNELS.SUGGESTIONS_SNOOZE);
       const validatedWorkspaceId = validateInput(
         WorkspaceIdSchema,
@@ -10268,7 +11808,12 @@ export async function setupIpcHandlers(
 
   ipcMain.handle(
     IPC_CHANNELS.SUGGESTIONS_EDIT,
-    async (_, workspaceId: string, suggestionId: string, editedPrompt: string) => {
+    async (
+      _,
+      workspaceId: string,
+      suggestionId: string,
+      editedPrompt: string,
+    ) => {
       checkRateLimit(IPC_CHANNELS.SUGGESTIONS_EDIT);
       const validatedWorkspaceId = validateInput(
         WorkspaceIdSchema,
@@ -10453,7 +11998,11 @@ export async function setupIpcHandlers(
       if (typeof workspaceId !== "string" || workspaceId.trim().length === 0) {
         return [];
       }
-      const validated = validateInput(WorkspaceIdSchema, workspaceId, "workspace ID");
+      const validated = validateInput(
+        WorkspaceIdSchema,
+        workspaceId,
+        "workspace ID",
+      );
       return taskLabelRepo.list({ workspaceId: validated });
     },
   );
@@ -10614,10 +12163,7 @@ export async function setupIpcHandlers(
         contextType as "dm" | "group",
         {
           securityMode: options.securityMode as
-            | "open"
-            | "allowlist"
-            | "pairing"
-            | undefined,
+            "open" | "allowlist" | "pairing" | undefined,
           toolRestrictions: options.toolRestrictions,
         },
       );
@@ -10685,10 +12231,16 @@ export async function setupIpcHandlers(
       if (!gateway?.getChannel(validated.channelId)) {
         throw new Error("Channel not found");
       }
-      if (validated.workspaceId && !workspaceRepo.findById(validated.workspaceId)) {
+      if (
+        validated.workspaceId &&
+        !workspaceRepo.findById(validated.workspaceId)
+      ) {
         throw new Error("Workspace not found");
       }
-      if (validated.agentRoleId && !agentRoleRepo.findById(validated.agentRoleId)) {
+      if (
+        validated.agentRoleId &&
+        !agentRoleRepo.findById(validated.agentRoleId)
+      ) {
         throw new Error("Agent role not found");
       }
       return channelSpecializationRepo.upsert(validated);
@@ -10704,10 +12256,16 @@ export async function setupIpcHandlers(
         data,
         "channel specialization update",
       );
-      if (validated.workspaceId && !workspaceRepo.findById(validated.workspaceId)) {
+      if (
+        validated.workspaceId &&
+        !workspaceRepo.findById(validated.workspaceId)
+      ) {
         throw new Error("Workspace not found");
       }
-      if (validated.agentRoleId && !agentRoleRepo.findById(validated.agentRoleId)) {
+      if (
+        validated.agentRoleId &&
+        !agentRoleRepo.findById(validated.agentRoleId)
+      ) {
         throw new Error("Agent role not found");
       }
       const updated = channelSpecializationRepo.update(validated);
@@ -10768,9 +12326,6 @@ export async function setupIpcHandlers(
   // MCP handlers
   setupMCPHandlers();
 
-  // Infrastructure handlers
-  setupInfraHandlers();
-
   // Scraping (Scrapling) handlers
   setupScrapingHandlers();
 
@@ -10783,7 +12338,7 @@ export async function setupIpcHandlers(
   // Hooks (Webhooks & Gmail Pub/Sub) handlers
   await setupHooksHandlers(agentDaemon);
 
-  // Workspace kit (.cowork) handlers
+  // Workspace kit (.neoworker) handlers
   setupKitHandlers(workspaceRepo, agentDaemon);
 
   // Memory system handlers
@@ -10986,7 +12541,7 @@ function ensureMCPHostProvider(): void {
   const hostArtifactRepo = new ArtifactRepository(hostDb);
   const mcpClientManager = MCPClientManager.getInstance();
   hostServer.setToolProvider(
-    new CoWorkHostProvider({
+    new NeoWorkerHostProvider({
       workspaceRepo: hostWorkspaceRepo,
       taskRepo: hostTaskRepo,
       taskEventRepo: hostTaskEventRepo,
@@ -11005,10 +12560,23 @@ function ensureMCPHostProvider(): void {
 
 const SecureMcpTunnelPolicySchema = z
   .object({
-    allowedTools: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+    allowedTools: z
+      .array(z.string().trim().min(1).max(200))
+      .max(100)
+      .optional(),
     readOnly: z.boolean().optional(),
-    maxRequestBytes: z.number().int().min(1024).max(10 * 1024 * 1024).optional(),
-    maxResponseBytes: z.number().int().min(1024).max(25 * 1024 * 1024).optional(),
+    maxRequestBytes: z
+      .number()
+      .int()
+      .min(1024)
+      .max(10 * 1024 * 1024)
+      .optional(),
+    maxResponseBytes: z
+      .number()
+      .int()
+      .min(1024)
+      .max(25 * 1024 * 1024)
+      .optional(),
     requestTimeoutMs: z.number().int().min(1000).max(300000).optional(),
   })
   .optional();
@@ -11016,9 +12584,9 @@ const SecureMcpTunnelPolicySchema = z
 const SecureMcpTunnelCreateSchema = z.object({
   name: z.string().trim().min(1).max(200),
   relayUrl: z.string().url().max(500),
-  targetType: z.enum(["cowork-host", "http"]),
+  targetType: z.enum(["neoworker-host", "http"]),
   targetUrl: z.string().url().max(500).optional(),
-  coworkHostPort: z.number().int().min(1024).max(65535).optional(),
+  neoworkerHostPort: z.number().int().min(1024).max(65535).optional(),
   clientToken: z.string().max(2000).optional(),
   callerToken: z.string().max(2000).optional(),
   policy: SecureMcpTunnelPolicySchema,
@@ -11034,9 +12602,9 @@ function setupSecureMcpTunnelHandlers(): void {
   // (create/update/delete) stays available so the settings UI can prepare
   // tunnels before the flag is set; tokens persist encrypted via safeStorage.
   const assertSecureMcpTunnelsEnabled = (): void => {
-    if (process.env.COWORK_SECURE_MCP_TUNNELS !== "1") {
+    if (process.env.NEOWORKER_SECURE_MCP_TUNNELS !== "1") {
       throw new Error(
-        "Secure MCP tunnels are disabled. Set COWORK_SECURE_MCP_TUNNELS=1 to enable.",
+        "Secure MCP tunnels are disabled. Set NEOWORKER_SECURE_MCP_TUNNELS=1 to enable.",
       );
     }
   };
@@ -11054,63 +12622,86 @@ function setupSecureMcpTunnelHandlers(): void {
     return SecureMcpTunnelSettingsManager.addTunnel(validated);
   });
 
-  ipcMain.handle(IPC_CHANNELS.SECURE_MCP_TUNNELS_UPDATE, async (_, id: string, updates) => {
-    const validatedId = validateInput(UUIDSchema, id, "secure MCP tunnel ID");
-    const validatedUpdates = validateInput(
-      SecureMcpTunnelUpdateSchema,
-      updates,
-      "secure MCP tunnel update",
-    );
-    const updated = SecureMcpTunnelSettingsManager.updateTunnel(validatedId, validatedUpdates);
-    if (!updated) {
-      throw new Error("Secure MCP tunnel not found");
-    }
-    return updated;
-  });
-
-  ipcMain.handle(IPC_CHANNELS.SECURE_MCP_TUNNELS_DELETE, async (_, id: string) => {
-    const validatedId = validateInput(UUIDSchema, id, "secure MCP tunnel ID");
-    await supervisor.stopTunnel(validatedId);
-    return { success: SecureMcpTunnelSettingsManager.removeTunnel(validatedId) };
-  });
-
-  ipcMain.handle(IPC_CHANNELS.SECURE_MCP_TUNNELS_START, async (_, id: string) => {
-    assertSecureMcpTunnelsEnabled();
-    const validatedId = validateInput(UUIDSchema, id, "secure MCP tunnel ID");
-    const tunnel = SecureMcpTunnelSettingsManager.getTunnel(validatedId);
-    if (!tunnel) {
-      throw new Error("Secure MCP tunnel not found");
-    }
-    if (tunnel.targetType === "cowork-host") {
-      ensureMCPHostProvider();
-      const hostServer = MCPHostServer.getInstance();
-      const desiredPort = tunnel.coworkHostPort || 3333;
-      if (
-        hostServer.isRunning() &&
-        (hostServer.getTransportMode() !== "http" || hostServer.getHttpPort() !== desiredPort)
-      ) {
-        await hostServer.stop();
+  ipcMain.handle(
+    IPC_CHANNELS.SECURE_MCP_TUNNELS_UPDATE,
+    async (_, id: string, updates) => {
+      const validatedId = validateInput(UUIDSchema, id, "secure MCP tunnel ID");
+      const validatedUpdates = validateInput(
+        SecureMcpTunnelUpdateSchema,
+        updates,
+        "secure MCP tunnel update",
+      );
+      const updated = SecureMcpTunnelSettingsManager.updateTunnel(
+        validatedId,
+        validatedUpdates,
+      );
+      if (!updated) {
+        throw new Error("Secure MCP tunnel not found");
       }
-      if (!hostServer.isRunning()) {
-        await hostServer.startHttp(desiredPort);
-      }
-    }
-    return supervisor.startTunnel(validatedId);
-  });
+      return updated;
+    },
+  );
 
-  ipcMain.handle(IPC_CHANNELS.SECURE_MCP_TUNNELS_STOP, async (_, id: string) => {
-    const validatedId = validateInput(UUIDSchema, id, "secure MCP tunnel ID");
-    return supervisor.stopTunnel(validatedId);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.SECURE_MCP_TUNNELS_DELETE,
+    async (_, id: string) => {
+      const validatedId = validateInput(UUIDSchema, id, "secure MCP tunnel ID");
+      await supervisor.stopTunnel(validatedId);
+      return {
+        success: SecureMcpTunnelSettingsManager.removeTunnel(validatedId),
+      };
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.SECURE_MCP_TUNNELS_START,
+    async (_, id: string) => {
+      assertSecureMcpTunnelsEnabled();
+      const validatedId = validateInput(UUIDSchema, id, "secure MCP tunnel ID");
+      const tunnel = SecureMcpTunnelSettingsManager.getTunnel(validatedId);
+      if (!tunnel) {
+        throw new Error("Secure MCP tunnel not found");
+      }
+      if (tunnel.targetType === "neoworker-host") {
+        ensureMCPHostProvider();
+        const hostServer = MCPHostServer.getInstance();
+        const desiredPort = tunnel.neoworkerHostPort || 3333;
+        if (
+          hostServer.isRunning() &&
+          (hostServer.getTransportMode() !== "http" ||
+            hostServer.getHttpPort() !== desiredPort)
+        ) {
+          await hostServer.stop();
+        }
+        if (!hostServer.isRunning()) {
+          await hostServer.startHttp(desiredPort);
+        }
+      }
+      return supervisor.startTunnel(validatedId);
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.SECURE_MCP_TUNNELS_STOP,
+    async (_, id: string) => {
+      const validatedId = validateInput(UUIDSchema, id, "secure MCP tunnel ID");
+      return supervisor.stopTunnel(validatedId);
+    },
+  );
 
   ipcMain.handle(IPC_CHANNELS.SECURE_MCP_TUNNELS_GET_STATUS, async () => {
     return supervisor.getStatuses();
   });
 
-  ipcMain.handle(IPC_CHANNELS.SECURE_MCP_TUNNELS_GET_AUDIT, async (_, id?: string) => {
-    const validatedId = id ? validateInput(UUIDSchema, id, "secure MCP tunnel ID") : undefined;
-    return supervisor.getAuditEvents(validatedId);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.SECURE_MCP_TUNNELS_GET_AUDIT,
+    async (_, id?: string) => {
+      const validatedId = id
+        ? validateInput(UUIDSchema, id, "secure MCP tunnel ID")
+        : undefined;
+      return supervisor.getAuditEvents(validatedId);
+    },
+  );
 }
 
 function setupMCPHandlers(): void {
@@ -11143,7 +12734,10 @@ function setupMCPHandlers(): void {
   void secureTunnelSupervisor.startEnabledTunnels();
   secureTunnelSupervisor.on("status", (statuses) => {
     BrowserWindow.getAllWindows().forEach((window) => {
-      window.webContents.send(IPC_CHANNELS.SECURE_MCP_TUNNELS_STATUS_CHANGE, statuses);
+      window.webContents.send(
+        IPC_CHANNELS.SECURE_MCP_TUNNELS_STATUS_CHANGE,
+        statuses,
+      );
     });
   });
 
@@ -11353,7 +12947,9 @@ function setupMCPHandlers(): void {
         Number.isFinite(requestedPort) &&
         requestedPort >= 1024
       ) {
-        const { authToken } = await hostServer.startHttp(Math.floor(requestedPort));
+        const { authToken } = await hostServer.startHttp(
+          Math.floor(requestedPort),
+        );
         return {
           success: true,
           transport: "http",
@@ -11409,9 +13005,12 @@ function setupMCPHandlers(): void {
     return BuiltinToolsSettingsManager.getToolsByCategory();
   });
 
-  ipcMain.handle(IPC_CHANNELS.CHRONICLE_GET_SETTINGS, async (): Promise<ChronicleSettings> => {
-    return ChronicleSettingsManager.loadSettings();
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.CHRONICLE_GET_SETTINGS,
+    async (): Promise<ChronicleSettings> => {
+      return ChronicleSettingsManager.loadSettings();
+    },
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.CHRONICLE_SAVE_SETTINGS,
@@ -11423,9 +13022,12 @@ function setupMCPHandlers(): void {
     },
   );
 
-  ipcMain.handle(IPC_CHANNELS.CHRONICLE_GET_STATUS, async (): Promise<ChronicleCaptureStatus> => {
-    return ChronicleCaptureService.getInstance().getStatus();
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.CHRONICLE_GET_STATUS,
+    async (): Promise<ChronicleCaptureStatus> => {
+      return ChronicleCaptureService.getInstance().getStatus();
+    },
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.CHRONICLE_QUERY_RECENT_CONTEXT,
@@ -11454,11 +13056,14 @@ function setupMCPHandlers(): void {
         limit?: number;
       },
     ) => {
-      const workspace = new WorkspaceRepository(DatabaseManager.getInstance().getDatabase()).findById(
-        String(input?.workspaceId || ""),
-      );
+      const workspace = new WorkspaceRepository(
+        DatabaseManager.getInstance().getDatabase(),
+      ).findById(String(input?.workspaceId || ""));
       if (!workspace) return [];
-      return ChronicleObservationRepository.list(workspace.path, input?.limit || 50);
+      return ChronicleObservationRepository.list(
+        workspace.path,
+        input?.limit || 50,
+      );
     },
   );
 
@@ -11471,13 +13076,14 @@ function setupMCPHandlers(): void {
         observationId: string;
       },
     ) => {
-      const workspace = new WorkspaceRepository(DatabaseManager.getInstance().getDatabase()).findById(
-        String(input?.workspaceId || ""),
-      );
+      const workspace = new WorkspaceRepository(
+        DatabaseManager.getInstance().getDatabase(),
+      ).findById(String(input?.workspaceId || ""));
       if (!workspace) return { success: false };
-      const record = ChronicleObservationRepository.listSync(workspace.path, 10_000).find(
-        (entry) => entry.id === input?.observationId,
-      );
+      const record = ChronicleObservationRepository.listSync(
+        workspace.path,
+        10_000,
+      ).find((entry) => entry.id === input?.observationId);
       if (record?.memoryId) {
         MemoryService.deleteEntries(workspace.id, [record.memoryId]);
       }
@@ -11492,12 +13098,17 @@ function setupMCPHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.CHRONICLE_CLEAR_OBSERVATIONS,
     async (_, input: { workspaceId: string }) => {
-      const workspace = new WorkspaceRepository(DatabaseManager.getInstance().getDatabase()).findById(
-        String(input?.workspaceId || ""),
-      );
+      const workspace = new WorkspaceRepository(
+        DatabaseManager.getInstance().getDatabase(),
+      ).findById(String(input?.workspaceId || ""));
       if (!workspace) return { success: false };
-      const observations = ChronicleObservationRepository.listSync(workspace.path, 10_000);
-      const memoryIds = observations.map((entry) => entry.memoryId).filter(Boolean) as string[];
+      const observations = ChronicleObservationRepository.listSync(
+        workspace.path,
+        10_000,
+      );
+      const memoryIds = observations
+        .map((entry) => entry.memoryId)
+        .filter(Boolean) as string[];
       if (memoryIds.length > 0) {
         MemoryService.deleteEntries(workspace.id, memoryIds);
       }
@@ -11512,7 +13123,8 @@ function setupMCPHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.COMPUTER_USE_GET_STATUS, async () => {
     const sm = ComputerUseSessionManager.getInstance();
-    const helperStatus = await ComputerUseHelperRuntime.getInstance().getStatus();
+    const helperStatus =
+      await ComputerUseHelperRuntime.getInstance().getStatus();
     return {
       activeTaskId: sm.getActiveTaskId(),
       platform: helperStatus.platform,
@@ -11532,14 +13144,18 @@ function setupMCPHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.COMPUTER_USE_OPEN_ACCESSIBILITY, async () => {
     if (process.platform === "darwin") {
-      await ComputerUseHelperRuntime.getInstance().openPermissionPane("accessibility");
+      await ComputerUseHelperRuntime.getInstance().openPermissionPane(
+        "accessibility",
+      );
     }
     return { success: true };
   });
 
   ipcMain.handle(IPC_CHANNELS.COMPUTER_USE_OPEN_SCREEN_RECORDING, async () => {
     if (process.platform === "darwin") {
-      await ComputerUseHelperRuntime.getInstance().openPermissionPane("screenRecording");
+      await ComputerUseHelperRuntime.getInstance().openPermissionPane(
+        "screenRecording",
+      );
     }
     return { success: true };
   });
@@ -11565,96 +13181,6 @@ function setupMCPHandlers(): void {
   // =====================
   setupCronHandlers();
   setupCouncilHandlers();
-}
-
-/**
- * Set up Infrastructure IPC handlers
- */
-function setupInfraHandlers(): void {
-  rateLimiter.configure(
-    IPC_CHANNELS.INFRA_SAVE_SETTINGS,
-    RATE_LIMIT_CONFIGS.limited,
-  );
-  rateLimiter.configure(IPC_CHANNELS.INFRA_SETUP, RATE_LIMIT_CONFIGS.expensive);
-  rateLimiter.configure(IPC_CHANNELS.INFRA_RESET, RATE_LIMIT_CONFIGS.expensive);
-
-  ipcMain.handle(IPC_CHANNELS.INFRA_GET_STATUS, async () => {
-    return InfraManager.getInstance().getStatus();
-  });
-
-  ipcMain.handle(IPC_CHANNELS.INFRA_GET_SETTINGS, async () => {
-    return InfraSettingsManager.loadSettings();
-  });
-
-  ipcMain.handle(IPC_CHANNELS.INFRA_SAVE_SETTINGS, async (_, settings) => {
-    checkRateLimit(IPC_CHANNELS.INFRA_SAVE_SETTINGS);
-    const validated = validateInput(
-      InfraSettingsSchema,
-      settings,
-      "Infrastructure settings",
-    );
-    InfraSettingsManager.saveSettings(validated);
-    InfraSettingsManager.clearCache();
-    // Re-apply settings to providers
-    await InfraManager.getInstance().applySettings(validated);
-    return { success: true };
-  });
-
-  ipcMain.handle(IPC_CHANNELS.INFRA_SETUP, async () => {
-    checkRateLimit(IPC_CHANNELS.INFRA_SETUP);
-    return InfraManager.getInstance().setup();
-  });
-
-  ipcMain.handle(IPC_CHANNELS.INFRA_GET_WALLET, async () => {
-    return InfraManager.getInstance().getWalletInfo();
-  });
-
-  ipcMain.handle(IPC_CHANNELS.INFRA_WALLET_RESTORE, async () => {
-    const settings = InfraSettingsManager.loadSettings();
-    if (settings.wallet.provider === "coinbase_agentic") {
-      await InfraManager.getInstance().applySettings(settings);
-      const wallet =
-        await InfraManager.getInstance().getWalletInfoWithBalance();
-      return {
-        success: !!wallet?.address,
-        address: wallet?.address || undefined,
-        status: wallet?.address ? "ok" : "no_wallet",
-      };
-    }
-
-    // Attempt to migrate/restore wallet
-    const check = WalletManager.startupCheck();
-    return {
-      success: !!check.address,
-      address: check.address || undefined,
-      status: check.status,
-    };
-  });
-
-  ipcMain.handle(IPC_CHANNELS.INFRA_WALLET_VERIFY, async () => {
-    const settings = InfraSettingsManager.loadSettings();
-    if (settings.wallet.provider === "coinbase_agentic") {
-      await InfraManager.getInstance().applySettings(settings);
-      const wallet =
-        await InfraManager.getInstance().getWalletInfoWithBalance();
-      return {
-        status: wallet?.address ? "ok" : "no_wallet",
-        address: wallet?.address || undefined,
-      };
-    }
-
-    const hasWallet = WalletManager.hasWallet();
-    return {
-      status: hasWallet ? "ok" : "no_wallet",
-      address: WalletManager.getAddress() || undefined,
-    };
-  });
-
-  ipcMain.handle(IPC_CHANNELS.INFRA_RESET, async () => {
-    checkRateLimit(IPC_CHANNELS.INFRA_RESET);
-    await InfraManager.getInstance().reset();
-    return { success: true };
-  });
 }
 
 /**
@@ -12100,7 +13626,10 @@ function setupNotificationHandlers(): void {
   const overlayManager = NotificationOverlayManager.getInstance();
 
   // Clicking a notification brings the main window to focus and opens the task.
-  const handleNotificationClick = (_notificationId: string, taskId?: string) => {
+  const handleNotificationClick = (
+    _notificationId: string,
+    taskId?: string,
+  ) => {
     const mainWin = getMainWindow();
     if (mainWin && !mainWin.isDestroyed()) {
       if (mainWin.isMinimized()) mainWin.restore();
@@ -12251,7 +13780,11 @@ let hookAgentDispatchObserver:
       workspaceId?: string;
       taskId?: string;
       metadata?: Record<string, string>;
-      response?: { statusCode?: number; message?: string; includeTaskId?: boolean };
+      response?: {
+        statusCode?: number;
+        message?: string;
+        includeTaskId?: boolean;
+      };
     }) => void)
   | null = null;
 
@@ -12276,7 +13809,11 @@ export function setHookAgentDispatchObserver(
         workspaceId?: string;
         taskId?: string;
         metadata?: Record<string, string>;
-        response?: { statusCode?: number; message?: string; includeTaskId?: boolean };
+        response?: {
+          statusCode?: number;
+          message?: string;
+          includeTaskId?: boolean;
+        };
       }) => void)
     | null,
 ): void {
@@ -12298,8 +13835,8 @@ async function setupHooksHandlers(agentDaemon: AgentDaemon): Promise<void> {
 
   const getHooksRuntimeSettings = () => {
     const settings = HooksSettingsManager.loadSettings();
-    const forceEnabled = process.env.COWORK_HOOKS_AUTOSTART === "1";
-    const tokenOverride = process.env.COWORK_HOOKS_TOKEN?.trim();
+    const forceEnabled = process.env.NEOWORKER_HOOKS_AUTOSTART === "1";
+    const tokenOverride = process.env.NEOWORKER_HOOKS_TOKEN?.trim();
     // Runtime-only overrides to simplify local/CI automation. Values are NOT persisted.
     return {
       ...settings,
@@ -12371,8 +13908,12 @@ async function setupHooksHandlers(agentDaemon: AgentDaemon): Promise<void> {
           statusCode: action.response?.statusCode,
           body: {
             success: true,
-            ...(action.response?.message ? { message: action.response.message } : {}),
-            ...((action.response?.includeTaskId ?? true) ? { taskId: result.taskId } : {}),
+            ...(action.response?.message
+              ? { message: action.response.message }
+              : {}),
+            ...((action.response?.includeTaskId ?? true)
+              ? { taskId: result.taskId }
+              : {}),
           },
         };
       },
@@ -12798,13 +14339,13 @@ function broadcastPersonalitySettingsChanged(settings: Any): void {
 }
 
 /**
- * Set up Workspace Kit (.cowork) IPC handlers
+ * Set up Workspace Kit (.neoworker) IPC handlers
  */
 function setupKitHandlers(
   workspaceRepo: WorkspaceRepository,
   agentDaemon: AgentDaemon,
 ): void {
-  const kitDirName = ".cowork";
+  const kitDirName = ".neoworker";
 
   const getLocalDateStamp = (now: Date): string => {
     const yyyy = String(now.getFullYear());
@@ -12880,8 +14421,8 @@ function setupKitHandlers(
         content:
           `# Workspace Rules\n\n` +
           `## Coordination\n` +
-          `- Keep durable context in .cowork/MEMORY.md\n` +
-          `- For project work, log in .cowork/projects/<project>/CONTEXT.md\n` +
+          `- Keep durable context in .neoworker/MEMORY.md\n` +
+          `- For project work, log in .neoworker/projects/<project>/CONTEXT.md\n` +
           `- Prefer small, well-scoped changes and leave clear notes\n\n` +
           `## Quality Bar\n` +
           `- Be explicit about assumptions and constraints\n` +
@@ -12998,7 +14539,7 @@ function setupKitHandlers(
           `## Autonomy Defaults\n` +
           `- Act on low-stakes implementation details without asking.\n` +
           `- State assumptions when they matter, then keep moving.\n` +
-          `- Treat .cowork/RULES.md and .cowork/OPERATIONS.md as authoritative for approvals, permissions, and escalation boundaries.\n\n` +
+          `- Treat .neoworker/RULES.md and .neoworker/OPERATIONS.md as authoritative for approvals, permissions, and escalation boundaries.\n\n` +
           `## Quality Bar\n` +
           `- Working software beats documentation polish.\n` +
           `- Concrete next steps beat abstract strategy.\n` +
@@ -13018,7 +14559,7 @@ function setupKitHandlers(
           `# Operational Rules\n\n` +
           `- [ ] Requires approval for irreversible actions, external spend, and production-impacting changes\n` +
           `- [ ] Confirm ambiguous destructive actions before proceeding\n` +
-          `- [ ] Record durable decisions in .cowork/MEMORY.md or project CONTEXT.md\n` +
+          `- [ ] Record durable decisions in .neoworker/MEMORY.md or project CONTEXT.md\n` +
           `- [ ] Surface blockers, assumptions, and risks explicitly\n`,
       },
       {
@@ -13038,11 +14579,11 @@ function setupKitHandlers(
           `# Vibes\n\n` +
           `Current energy and mode for this workspace. Updated by the agent based on cues.\n\n` +
           `## Current\n` +
-          `<!-- cowork:auto:vibes:start -->\n` +
+          `<!-- neoworker:auto:vibes:start -->\n` +
           `- Mode: default\n` +
           `- Energy: balanced\n` +
           `- Notes: Ready to work\n` +
-          `<!-- cowork:auto:vibes:end -->\n\n` +
+          `<!-- neoworker:auto:vibes:end -->\n\n` +
           `## User Preferences\n` +
           `- \n`,
       },
@@ -13053,9 +14594,9 @@ function setupKitHandlers(
           `This file is workspace-local and can be auto-updated by the system.\n` +
           `It captures shared history between the human and the assistant.\n\n` +
           `## Milestones\n` +
-          `<!-- cowork:auto:lore:start -->\n` +
+          `<!-- neoworker:auto:lore:start -->\n` +
           `- (none)\n` +
-          `<!-- cowork:auto:lore:end -->\n\n` +
+          `<!-- neoworker:auto:lore:end -->\n\n` +
           `## Notes\n` +
           `- \n`,
       },
@@ -13063,13 +14604,13 @@ function setupKitHandlers(
         relPath: path.join(kitDirName, "BOOTSTRAP.md"),
         content:
           `# First-Run Guide\n\n` +
-          `1. Fill in \`.cowork/USER.md\` (who you are, preferences).\n` +
-          `2. Fill in \`.cowork/IDENTITY.md\` and \`.cowork/SOUL.md\` (how the assistant should act).\n` +
-          `3. Add durable rules/constraints to \`.cowork/MEMORY.md\`.\n` +
-          `4. Fill in \`.cowork/COMPANY.md\`, \`.cowork/OPERATIONS.md\`, and \`.cowork/KPIS.md\`.\n` +
-          `5. Add recurring checks to \`.cowork/HEARTBEAT.md\`.\n` +
-          `6. If using Discord supervisor mode, define review and escalation policy in \`.cowork/SUPERVISOR.md\`.\n` +
-          `7. Review \`.cowork/VIBES.md\` and \`.cowork/LORE.md\` over time.\n\n` +
+          `1. Fill in \`.neoworker/USER.md\` (who you are, preferences).\n` +
+          `2. Fill in \`.neoworker/IDENTITY.md\` and \`.neoworker/SOUL.md\` (how the assistant should act).\n` +
+          `3. Add durable rules/constraints to \`.neoworker/MEMORY.md\`.\n` +
+          `4. Fill in \`.neoworker/COMPANY.md\`, \`.neoworker/OPERATIONS.md\`, and \`.neoworker/KPIS.md\`.\n` +
+          `5. Add recurring checks to \`.neoworker/HEARTBEAT.md\`.\n` +
+          `6. If using Discord supervisor mode, define review and escalation policy in \`.neoworker/SUPERVISOR.md\`.\n` +
+          `7. Review \`.neoworker/VIBES.md\` and \`.neoworker/LORE.md\` over time.\n\n` +
           (isVenturePreset
             ? `Suggested next step for venture mode: activate a founder-office or operator twin and link each active project to a workspace.\n\n`
             : ``) +
@@ -13107,7 +14648,7 @@ function setupKitHandlers(
         content:
           `# Gateway Router Rules (Optional)\n\n` +
           `You can add a workspace-local message triage script at:\n` +
-          `- \`.cowork/router/rules.monty\`\n\n` +
+          `- \`.neoworker/router/rules.monty\`\n\n` +
           `This runs before a message is forwarded to the agent (regular messages only, not slash commands).\n` +
           `It can be used to:\n` +
           `- ignore low-signal messages ("ok", "thanks")\n` +
@@ -13135,7 +14676,7 @@ function setupKitHandlers(
         content:
           `# Tool Policy Hook (Optional)\n\n` +
           `You can add a workspace-local tool policy script at:\n` +
-          `- \`.cowork/policy/tools.monty\`\n\n` +
+          `- \`.neoworker/policy/tools.monty\`\n\n` +
           `This runs before each tool call.\n\n` +
           `Input is available as \`input\` and includes:\n` +
           `- input['tool'] (tool name)\n` +
@@ -13163,9 +14704,9 @@ function setupKitHandlers(
           `## Preferences\n` +
           `- (add preferred defaults and conventions here)\n\n` +
           `## Auto Learnings\n` +
-          `<!-- cowork:auto:memory:start -->\n` +
+          `<!-- neoworker:auto:memory:start -->\n` +
           `- (none)\n` +
-          `<!-- cowork:auto:memory:end -->\n\n` +
+          `<!-- neoworker:auto:memory:end -->\n\n` +
           `## Known Constraints\n` +
           `- (add constraints and guardrails here)\n`,
       },
@@ -13178,10 +14719,10 @@ function setupKitHandlers(
           `## Daily\n` +
           (isVenturePreset
             ? `- Review open loops, priority issues, and due customer commitments\n` +
-              `- Check KPI deltas and write notable changes into .cowork/KPIS.md\n` +
-              `- Summarize key decisions into .cowork/MEMORY.md\n\n`
+              `- Check KPI deltas and write notable changes into .neoworker/KPIS.md\n` +
+              `- Summarize key decisions into .neoworker/MEMORY.md\n\n`
             : `- Review open loops and next actions\n` +
-              `- Summarize key decisions into .cowork/MEMORY.md\n\n`) +
+              `- Summarize key decisions into .neoworker/MEMORY.md\n\n`) +
           `## Weekly\n` +
           (isVenturePreset
             ? `- Review team performance and update autonomy levels if needed\n` +
@@ -13234,9 +14775,9 @@ function setupKitHandlers(
           `This file is workspace-local and can be auto-updated by agents.\n` +
           `Use it to track entities/topics that show up across multiple agents, contradictions, and amplified opportunities.\n\n` +
           `## Signals (Last 24h)\n` +
-          `<!-- cowork:auto:signals:start -->\n` +
+          `<!-- neoworker:auto:signals:start -->\n` +
           `- (none)\n` +
-          `<!-- cowork:auto:signals:end -->\n\n` +
+          `<!-- neoworker:auto:signals:end -->\n\n` +
           `## Conflicts / Contradictions\n` +
           `- \n\n` +
           `## Notes\n` +
@@ -13249,9 +14790,9 @@ function setupKitHandlers(
           `This file is workspace-local and can be auto-updated by the system.\n` +
           `Use it to capture rejection reasons and durable preference patterns.\n\n` +
           `## Patterns\n` +
-          `<!-- cowork:auto:mistakes:start -->\n` +
+          `<!-- neoworker:auto:mistakes:start -->\n` +
           `- (none)\n` +
-          `<!-- cowork:auto:mistakes:end -->\n\n` +
+          `<!-- neoworker:auto:mistakes:end -->\n\n` +
           `## Notes\n` +
           `- \n`,
       },
@@ -13286,12 +14827,12 @@ function setupKitHandlers(
         relPath: path.join(kitDirName, "memory", `${stamp}.md`),
         content:
           `# Daily Log (${stamp})\n\n` +
-          `<!-- cowork:auto:daily:start -->\n` +
+          `<!-- neoworker:auto:daily:start -->\n` +
           `## Open Loops\n\n` +
           `## Next Actions\n\n` +
           `## Decisions\n\n` +
           `## Summary\n\n` +
-          `<!-- cowork:auto:daily:end -->\n\n` +
+          `<!-- neoworker:auto:daily:end -->\n\n` +
           `## Notes\n` +
           `- \n`,
       },
@@ -13345,16 +14886,16 @@ function setupKitHandlers(
     if (!cron) return;
 
     const markers = {
-      hourly: "cowork:kit:memory:hourly:v1",
-      daily: "cowork:kit:memory:daily:v1",
-      weekly: "cowork:kit:memory:weekly:v1",
+      hourly: "neoworker:kit:memory:hourly:v1",
+      daily: "neoworker:kit:memory:daily:v1",
+      weekly: "neoworker:kit:memory:weekly:v1",
     } as const;
 
     const buildHourlyPrompt = () =>
       [
         "You are the scheduled hourly memory digest for this workspace.",
         "",
-        "Goal: preserve continuity by writing a structured hourly summary to `.cowork/memory/hourly/{{date}}.md`.",
+        "Goal: preserve continuity by writing a structured hourly summary to `.neoworker/memory/hourly/{{date}}.md`.",
         "",
         "Steps:",
         "1) Call tool `task_events` with:",
@@ -13369,12 +14910,12 @@ function setupKitHandlers(
         '   - "Kit: Daily Context Sync"',
         '   - "Kit: Weekly Synthesis"',
         "3) Produce a concise structured summary ONLY from the tool output (do not hallucinate).",
-        "4) Ensure `.cowork/memory/hourly/{{date}}.md` exists. If missing, create it with:",
+        "4) Ensure `.neoworker/memory/hourly/{{date}}.md` exists. If missing, create it with:",
         "   - `# Hourly Log ({{date}})`",
         "   - a blank line",
-        "   - `<!-- cowork:auto:hourly:start -->`",
-        "   - `<!-- cowork:auto:hourly:end -->`",
-        "5) Insert a new entry immediately before `<!-- cowork:auto:hourly:end -->` (do not modify anything outside the markers).",
+        "   - `<!-- neoworker:auto:hourly:start -->`",
+        "   - `<!-- neoworker:auto:hourly:end -->`",
+        "5) Insert a new entry immediately before `<!-- neoworker:auto:hourly:end -->` (do not modify anything outside the markers).",
         "",
         "Entry format (must match):",
         "### <local timestamp YYYY-MM-DD HH:MM> ({{prev_run}} -> {{now}})",
@@ -13399,7 +14940,7 @@ function setupKitHandlers(
       [
         "You are the scheduled daily context sync for this workspace.",
         "",
-        "Goal: consolidate today's work into `.cowork/memory/{{date}}.md` without destroying manual notes.",
+        "Goal: consolidate today's work into `.neoworker/memory/{{date}}.md` without destroying manual notes.",
         "",
         "Steps:",
         "1) Call tool `task_events` with:",
@@ -13412,9 +14953,9 @@ function setupKitHandlers(
         '   - "Kit: Daily Context Sync"',
         '   - "Kit: Weekly Synthesis"',
         "3) Summarize ONLY from the tool output (do not hallucinate). Focus on: open loops, next actions, decisions, and a short narrative summary.",
-        "4) Update `.cowork/memory/{{date}}.md` by upserting an auto section delimited by these markers:",
-        "   - `<!-- cowork:auto:daily:start -->`",
-        "   - `<!-- cowork:auto:daily:end -->`",
+        "4) Update `.neoworker/memory/{{date}}.md` by upserting an auto section delimited by these markers:",
+        "   - `<!-- neoworker:auto:daily:start -->`",
+        "   - `<!-- neoworker:auto:daily:end -->`",
         "   If the file or markers are missing, create/append them; do not remove or rewrite other content.",
         "",
         "Auto section body format (must match):",
@@ -13437,7 +14978,7 @@ function setupKitHandlers(
       [
         "You are the scheduled weekly synthesis for this workspace.",
         "",
-        "Goal: distill compounding learnings and next-week focus, then update `.cowork/MEMORY.md` (auto section) and write a weekly report file.",
+        "Goal: distill compounding learnings and next-week focus, then update `.neoworker/MEMORY.md` (auto section) and write a weekly report file.",
         "",
         "Steps:",
         "1) Call tool `task_events` with:",
@@ -13445,20 +14986,20 @@ function setupKitHandlers(
         "   - limit: 500",
         `   - workspace_id: "${workspaceId}"`,
         "   - include_payload: true",
-        "2) Read `.cowork/MISTAKES.md` to ground preference patterns in actual recorded feedback.",
-        "3) Write a weekly report to `.cowork/memory/weekly/{{date}}.md` with:",
+        "2) Read `.neoworker/MISTAKES.md` to ground preference patterns in actual recorded feedback.",
+        "3) Write a weekly report to `.neoworker/memory/weekly/{{date}}.md` with:",
         "   - Wins (what shipped / moved forward)",
         "   - Misses (what stalled / why)",
         "   - Patterns (approval/rejection themes)",
         "   - Process updates (what to do differently)",
         "   - Next week focus (top 3)",
-        "4) Update `.cowork/MEMORY.md` by upserting an auto section delimited by:",
-        "   - `<!-- cowork:auto:memory:start -->`",
-        "   - `<!-- cowork:auto:memory:end -->`",
+        "4) Update `.neoworker/MEMORY.md` by upserting an auto section delimited by:",
+        "   - `<!-- neoworker:auto:memory:start -->`",
+        "   - `<!-- neoworker:auto:memory:end -->`",
         "   Keep it to 5-15 bullets, only durable learnings and preferences (no daily noise).",
         "",
         "Constraints:",
-        "- Do not hallucinate; ground everything in tool output and `.cowork/MISTAKES.md`.",
+        "- Do not hallucinate; ground everything in tool output and `.neoworker/MISTAKES.md`.",
         '- Ignore events from tasks titled "Kit: Hourly Memory Digest" / "Kit: Daily Context Sync" / "Kit: Weekly Synthesis".',
         "",
         "Return 1-3 sentences confirming the write (do not paste the full report).",
@@ -13747,9 +15288,9 @@ function setupKitHandlers(
       checkRateLimit(IPC_CHANNELS.KIT_OPEN_FILE, RATE_LIMIT_CONFIGS.limited);
       const workspacePath = getWorkspacePath(args.workspaceId);
 
-      // Sanitize relPath: must start with .cowork/ and not escape it
+      // Sanitize relPath: must start with .neoworker/ and not escape it
       const relPath = (args.relPath || "").replace(/\\/g, "/").trim();
-      if (!relPath.startsWith(".cowork/") || relPath.includes("..")) {
+      if (!relPath.startsWith(".neoworker/") || relPath.includes("..")) {
         throw new Error("Invalid relPath");
       }
 
@@ -13957,7 +15498,8 @@ function setupMemoryHandlers(): void {
         }
         const recentTask = previewTaskRepo.findByWorkspace(workspaceId, 1)[0];
         const taskPrompt =
-          typeof recentTask?.prompt === "string" && recentTask.prompt.trim().length > 0
+          typeof recentTask?.prompt === "string" &&
+          recentTask.prompt.trim().length > 0
             ? recentTask.prompt
             : "Current workspace memory preview";
         return MemorySynthesizer.buildLayerPreview(
@@ -13986,30 +15528,43 @@ function setupMemoryHandlers(): void {
           Math.max(1, Math.min(200, Number(data?.limit || 100))),
         );
       } catch (error) {
-        logger.error("[MemoryWriteApprovals] Failed to list pending writes:", error);
+        logger.error(
+          "[MemoryWriteApprovals] Failed to list pending writes:",
+          error,
+        );
         return [];
       }
     },
   );
 
-  ipcMain.handle(IPC_CHANNELS.MEMORY_WRITE_APPROVALS_GET, async (_event, id: string) => {
-    try {
-      if (typeof id !== "string" || !id.trim()) return null;
-      return MemoryWriteGate.findPendingForDisplay(id.trim()) || null;
-    } catch (error) {
-      logger.error("[MemoryWriteApprovals] Failed to get pending write:", error);
-      return null;
-    }
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MEMORY_WRITE_APPROVALS_GET,
+    async (_event, id: string) => {
+      try {
+        if (typeof id !== "string" || !id.trim()) return null;
+        return MemoryWriteGate.findPendingForDisplay(id.trim()) || null;
+      } catch (error) {
+        logger.error(
+          "[MemoryWriteApprovals] Failed to get pending write:",
+          error,
+        );
+        return null;
+      }
+    },
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.MEMORY_WRITE_APPROVALS_APPROVE,
     async (_event, data: { id: string; workspaceId?: string }) => {
-      checkRateLimit(IPC_CHANNELS.MEMORY_WRITE_APPROVALS_APPROVE, RATE_LIMIT_CONFIGS.limited);
+      checkRateLimit(
+        IPC_CHANNELS.MEMORY_WRITE_APPROVALS_APPROVE,
+        RATE_LIMIT_CONFIGS.limited,
+      );
       const id = typeof data?.id === "string" ? data.id.trim() : "";
       if (!id) throw new Error("Pending memory write id is required.");
       return MemoryWriteGate.applyPending(id, {
-        workspaceId: typeof data?.workspaceId === "string" ? data.workspaceId : undefined,
+        workspaceId:
+          typeof data?.workspaceId === "string" ? data.workspaceId : undefined,
         reviewedBy: "user",
       });
     },
@@ -14017,14 +15572,22 @@ function setupMemoryHandlers(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.MEMORY_WRITE_APPROVALS_REJECT,
-    async (_event, data: { id: string; workspaceId?: string; reason?: string }) => {
-      checkRateLimit(IPC_CHANNELS.MEMORY_WRITE_APPROVALS_REJECT, RATE_LIMIT_CONFIGS.limited);
+    async (
+      _event,
+      data: { id: string; workspaceId?: string; reason?: string },
+    ) => {
+      checkRateLimit(
+        IPC_CHANNELS.MEMORY_WRITE_APPROVALS_REJECT,
+        RATE_LIMIT_CONFIGS.limited,
+      );
       const id = typeof data?.id === "string" ? data.id.trim() : "";
       if (!id) throw new Error("Pending memory write id is required.");
       return MemoryWriteGate.rejectForDisplay(id, {
-        workspaceId: typeof data?.workspaceId === "string" ? data.workspaceId : undefined,
+        workspaceId:
+          typeof data?.workspaceId === "string" ? data.workspaceId : undefined,
         reviewedBy: "user",
-        resolution: typeof data?.reason === "string" ? data.reason.trim() : undefined,
+        resolution:
+          typeof data?.reason === "string" ? data.reason.trim() : undefined,
       });
     },
   );
@@ -14062,21 +15625,27 @@ function setupMemoryHandlers(): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.SUPERMEMORY_SAVE_SETTINGS, async (_event, settings: Any) => {
-    checkRateLimit(IPC_CHANNELS.SUPERMEMORY_SAVE_SETTINGS, RATE_LIMIT_CONFIGS.limited);
-    try {
-      const validated = validateInput(
-        SupermemorySettingsInputSchema,
-        settings,
-        "supermemory settings",
+  ipcMain.handle(
+    IPC_CHANNELS.SUPERMEMORY_SAVE_SETTINGS,
+    async (_event, settings: Any) => {
+      checkRateLimit(
+        IPC_CHANNELS.SUPERMEMORY_SAVE_SETTINGS,
+        RATE_LIMIT_CONFIGS.limited,
       );
-      SupermemoryService.saveSettings(validated);
-      return { success: true };
-    } catch (error) {
-      logger.error("[Supermemory] Failed to save settings:", error);
-      throw error;
-    }
-  });
+      try {
+        const validated = validateInput(
+          SupermemorySettingsInputSchema,
+          settings,
+          "supermemory settings",
+        );
+        SupermemoryService.saveSettings(validated);
+        return { success: true };
+      } catch (error) {
+        logger.error("[Supermemory] Failed to save settings:", error);
+        throw error;
+      }
+    },
+  );
 
   ipcMain.handle(IPC_CHANNELS.SUPERMEMORY_TEST_CONNECTION, async () => {
     try {
@@ -14085,7 +15654,10 @@ function setupMemoryHandlers(): void {
       logger.error("[Supermemory] Failed to test connection:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to reach Supermemory",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to reach Supermemory",
       };
     }
   });
@@ -14095,7 +15667,11 @@ function setupMemoryHandlers(): void {
     IPC_CHANNELS.MEMORY_SEARCH,
     async (_, data: { workspaceId: string; query: string; limit?: number }) => {
       try {
-        return await MemoryService.searchAsync(data.workspaceId, data.query, data.limit);
+        return await MemoryService.searchAsync(
+          data.workspaceId,
+          data.query,
+          data.limit,
+        );
       } catch (error) {
         logger.error("[Memory] Failed to search:", error);
         return [];
@@ -14140,7 +15716,15 @@ function setupMemoryHandlers(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.MEMORY_OBSERVATIONS_TIMELINE,
-    async (_, data: { workspaceId: string; memoryId?: string; query?: string; windowSize?: number }) => {
+    async (
+      _,
+      data: {
+        workspaceId: string;
+        memoryId?: string;
+        query?: string;
+        windowSize?: number;
+      },
+    ) => {
       try {
         return MemoryObservationService.timeline(data);
       } catch (error) {
@@ -14150,47 +15734,105 @@ function setupMemoryHandlers(): void {
     },
   );
 
-  ipcMain.handle(IPC_CHANNELS.MEMORY_OBSERVATIONS_DETAILS, async (_, data: unknown) => {
-    try {
-      const validated = validateInput(MemoryObservationDetailsSchema, data, "memory observation details");
-      return MemoryObservationService.details(validated.ids, validated.workspaceId);
-    } catch (error) {
-      logger.error("[MemoryObservations] Failed to get details:", error);
-      return [];
-    }
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MEMORY_OBSERVATIONS_DETAILS,
+    async (_, data: unknown) => {
+      try {
+        const validated = validateInput(
+          MemoryObservationDetailsSchema,
+          data,
+          "memory observation details",
+        );
+        return MemoryObservationService.details(
+          validated.ids,
+          validated.workspaceId,
+        );
+      } catch (error) {
+        logger.error("[MemoryObservations] Failed to get details:", error);
+        return [];
+      }
+    },
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.MEMORY_OBSERVATIONS_UPDATE,
     async (_, data: unknown) => {
-      checkRateLimit(IPC_CHANNELS.MEMORY_OBSERVATIONS_UPDATE, RATE_LIMIT_CONFIGS.limited);
-      const validated = validateInput(MemoryObservationUpdateSchema, data, "memory observation update");
-      return MemoryObservationService.update(validated.workspaceId, validated.memoryId, validated.patch);
+      checkRateLimit(
+        IPC_CHANNELS.MEMORY_OBSERVATIONS_UPDATE,
+        RATE_LIMIT_CONFIGS.limited,
+      );
+      const validated = validateInput(
+        MemoryObservationUpdateSchema,
+        data,
+        "memory observation update",
+      );
+      return MemoryObservationService.update(
+        validated.workspaceId,
+        validated.memoryId,
+        validated.patch,
+      );
     },
   );
 
-  ipcMain.handle(IPC_CHANNELS.MEMORY_OBSERVATIONS_DELETE, async (_, data: unknown) => {
-    checkRateLimit(IPC_CHANNELS.MEMORY_OBSERVATIONS_DELETE, RATE_LIMIT_CONFIGS.limited);
-    const validated = validateInput(MemoryObservationMutationSchema, data, "memory observation delete");
-    return { success: MemoryObservationService.delete(validated.workspaceId, validated.memoryId) };
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.MEMORY_OBSERVATIONS_DELETE,
+    async (_, data: unknown) => {
+      checkRateLimit(
+        IPC_CHANNELS.MEMORY_OBSERVATIONS_DELETE,
+        RATE_LIMIT_CONFIGS.limited,
+      );
+      const validated = validateInput(
+        MemoryObservationMutationSchema,
+        data,
+        "memory observation delete",
+      );
+      return {
+        success: MemoryObservationService.delete(
+          validated.workspaceId,
+          validated.memoryId,
+        ),
+      };
+    },
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.MEMORY_OBSERVATIONS_REDACT,
     async (_, data: unknown) => {
-      checkRateLimit(IPC_CHANNELS.MEMORY_OBSERVATIONS_REDACT, RATE_LIMIT_CONFIGS.limited);
-      const validated = validateInput(MemoryObservationRedactSchema, data, "memory observation redact");
-      return MemoryObservationService.redact(validated.workspaceId, validated.memoryId, validated.replacement);
+      checkRateLimit(
+        IPC_CHANNELS.MEMORY_OBSERVATIONS_REDACT,
+        RATE_LIMIT_CONFIGS.limited,
+      );
+      const validated = validateInput(
+        MemoryObservationRedactSchema,
+        data,
+        "memory observation redact",
+      );
+      return MemoryObservationService.redact(
+        validated.workspaceId,
+        validated.memoryId,
+        validated.replacement,
+      );
     },
   );
 
   ipcMain.handle(
     IPC_CHANNELS.MEMORY_OBSERVATIONS_PROMOTE,
     async (_, data: unknown) => {
-      checkRateLimit(IPC_CHANNELS.MEMORY_OBSERVATIONS_PROMOTE, RATE_LIMIT_CONFIGS.limited);
-      const validated = validateInput(MemoryObservationPromoteSchema, data, "memory observation promote");
-      const detail = MemoryObservationService.details([validated.memoryId], validated.workspaceId)[0];
-      if (!detail) return { success: false, error: "Memory observation not found" };
+      checkRateLimit(
+        IPC_CHANNELS.MEMORY_OBSERVATIONS_PROMOTE,
+        RATE_LIMIT_CONFIGS.limited,
+      );
+      const validated = validateInput(
+        MemoryObservationPromoteSchema,
+        data,
+        "memory observation promote",
+      );
+      const detail = MemoryObservationService.details(
+        [validated.memoryId],
+        validated.workspaceId,
+      )[0];
+      if (!detail)
+        return { success: false, error: "Memory observation not found" };
       return CuratedMemoryService.curate({
         workspaceId: detail.workspaceId,
         taskId: detail.taskId,
@@ -14206,10 +15848,18 @@ function setupMemoryHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.MEMORY_OBSERVATIONS_REBUILD_METADATA,
     async (_event, data?: unknown) => {
-      checkRateLimit(IPC_CHANNELS.MEMORY_OBSERVATIONS_REBUILD_METADATA, RATE_LIMIT_CONFIGS.limited);
-      const validated = data === undefined
-        ? undefined
-        : validateInput(MemoryObservationRebuildSchema, data, "memory observation metadata rebuild");
+      checkRateLimit(
+        IPC_CHANNELS.MEMORY_OBSERVATIONS_REBUILD_METADATA,
+        RATE_LIMIT_CONFIGS.limited,
+      );
+      const validated =
+        data === undefined
+          ? undefined
+          : validateInput(
+              MemoryObservationRebuildSchema,
+              data,
+              "memory observation metadata rebuild",
+            );
       return MemoryObservationService.startBackfill(validated?.force === true);
     },
   );
@@ -14432,11 +16082,7 @@ function setupMemoryHandlers(): void {
       _,
       data?: {
         layer?:
-          | "identity"
-          | "preferences"
-          | "context"
-          | "history"
-          | "commitments";
+          "identity" | "preferences" | "context" | "history" | "commitments";
         includeDone?: boolean;
         limit?: number;
       },
@@ -14874,12 +16520,12 @@ function setupMemoryHandlers(): void {
   logger.debug("[Memory] Handlers initialized");
 
   // === Migration Status Handlers ===
-  // These handlers help show one-time notifications after app migration (cowork-oss → cowork-os)
+  // These handlers show one-time notifications after a pre-NeoWorker migration.
 
   const userDataPath = getUserDataDir();
   const migrationMarkerPath = path.join(
     userDataPath,
-    ".migrated-from-cowork-oss",
+    ".migrated-from-neoworker",
   );
   const notificationDismissedPath = path.join(
     userDataPath,
@@ -14951,7 +16597,7 @@ function setupMemoryHandlers(): void {
     if (typeof author !== "string") return undefined;
     const trimmed = author.trim();
     if (!trimmed) return undefined;
-    return /^cowork-oss$/i.test(trimmed) ? "CoWork OS" : trimmed;
+    return /^neoworker$/i.test(trimmed) ? "NeoWorker" : trimmed;
   };
 
   // List all extensions
@@ -14964,6 +16610,7 @@ function setupMemoryHandlers(): void {
         displayName: p.manifest.displayName,
         version: p.manifest.version,
         description: p.manifest.description,
+        icon: p.manifest.icon,
         author: normalizePluginAuthor(p.manifest.author),
         type: p.manifest.type,
         state: p.state,
@@ -14990,6 +16637,7 @@ function setupMemoryHandlers(): void {
         displayName: plugin.manifest.displayName,
         version: plugin.manifest.version,
         description: plugin.manifest.description,
+        icon: plugin.manifest.icon,
         author: normalizePluginAuthor(plugin.manifest.author),
         type: plugin.manifest.type,
         state: plugin.state,
@@ -15081,6 +16729,7 @@ function setupMemoryHandlers(): void {
         displayName: p.manifest.displayName,
         version: p.manifest.version,
         description: p.manifest.description,
+        icon: p.manifest.icon,
         type: p.manifest.type,
         state: p.state,
       }));

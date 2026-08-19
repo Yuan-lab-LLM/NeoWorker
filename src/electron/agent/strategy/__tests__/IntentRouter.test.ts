@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { IntentRouter } from "../IntentRouter";
 
 describe("IntentRouter", () => {
+  it("routes Chinese greetings and identity questions to companion chat", () => {
+    const routed = IntentRouter.route("你好啊。你是谁啊", "你好啊。你是谁啊");
+
+    expect(routed.intent).toBe("chat");
+    expect(routed.conversationMode).toBe("chat");
+    expect(routed.signals).toContain("casual-greeting");
+    expect(routed.signals).toContain("small-talk");
+  });
+
   it("ignores AGENT_STRATEGY_CONTEXT blocks when scoring intent", () => {
     const rawPrompt = "hello";
     const decoratedPrompt = `${rawPrompt}
@@ -107,6 +116,18 @@ bounded_research=true
     expect(routed.signals).toContain("needs-tool-inspection");
   });
 
+  it.each([
+    "北京今天天气怎么样？",
+    "帮我查看一下浪潮信息股票今天的情况",
+    "查一下 000977.SZ 的最新行情",
+    "你去查一下",
+  ])("routes Chinese live lookup requests to tool-backed execution: %s", (prompt) => {
+    const routed = IntentRouter.route(prompt, prompt);
+    expect(routed.intent).toBe("execution");
+    expect(routed.conversationMode).toBe("task");
+    expect(routed.signals).toContain("needs-tool-inspection");
+  });
+
   it("routes SSH connectivity troubleshooting prompts to execution in operations domain", () => {
     const prompt = [
       "This is the azure VM private address but I cannot connect to it",
@@ -140,7 +161,7 @@ bounded_research=true
   it("routes app avatar image prompts as image creation", () => {
     const routed = IntentRouter.route(
       "Create avatar",
-      "generate an image of a cool avatar of a snow leopard for cowork os app",
+      "generate an image of a cool avatar of a snow leopard for neoworker os app",
     );
     expect(routed.intent).toBe("execution");
     expect(routed.signals).toContain("image-creation-intent");
@@ -168,8 +189,8 @@ bounded_research=true
 
   it("does not let feature-language 'what if' force thinking intent", () => {
     const prompt =
-      'Build CoworkOS distro and start implementation; include a "what if" mode in the installer wizard.';
-    const routed = IntentRouter.route("CoworkOS", prompt);
+      'Build NeoWorkerOS distro and start implementation; include a "what if" mode in the installer wizard.';
+    const routed = IntentRouter.route("NeoWorkerOS", prompt);
     expect(routed.intent).not.toBe("thinking");
     expect(routed.intent).not.toBe("advice");
   });

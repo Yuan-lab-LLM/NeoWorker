@@ -15,6 +15,78 @@ import { buildOpenAIPromptCacheFields } from "./prompt-cache";
 
 const OPENCODE_GO_KIMI_MAX_COMPLETION_TOKENS = 32_768;
 
+const RETRYABLE_HTTP_STATUSES = new Set([
+  408, 409, 425, 429, 500, 502, 503, 504, 507, 522, 523, 524,
+]);
+
+const RETRYABLE_TRANSPORT_CODES = new Set([
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ECONNREFUSED",
+  "EPIPE",
+  "ECONNABORTED",
+  "ERR_STREAM_PREMATURE_CLOSE",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_SOCKET",
+]);
+
+export class OpenAICompatibleProviderError extends Error {
+  readonly status?: number;
+  readonly code?: string;
+  readonly retryable: boolean;
+  readonly retryKind?: "malformed_response";
+  readonly providerName: string;
+  override readonly cause?: unknown;
+
+  constructor(
+    message: string,
+    options: {
+      providerName: string;
+      status?: number;
+      code?: string;
+      retryable: boolean;
+      retryKind?: "malformed_response";
+      cause?: unknown;
+    },
+  ) {
+    super(message);
+    this.name = "OpenAICompatibleProviderError";
+    this.providerName = options.providerName;
+    this.status = options.status;
+    this.code = options.code;
+    this.retryable = options.retryable;
+    this.retryKind = options.retryKind;
+    this.cause = options.cause;
+  }
+}
+
+function getTransportErrorCode(error: Any): string | undefined {
+  const code = error?.code || error?.cause?.code;
+  return typeof code === "string" && code.trim()
+    ? code.trim().toUpperCase()
+    : undefined;
+}
+
+function isRetryableTransportError(error: Any): boolean {
+  const code = getTransportErrorCode(error);
+  if (code && RETRYABLE_TRANSPORT_CODES.has(code)) return true;
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    message.includes("fetch failed") ||
+    message.includes("network") ||
+    message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("socket hang up") ||
+    message.includes("connection reset") ||
+    message.includes("stream disconnected") ||
+    message.includes("unexpected eof") ||
+    message.includes("terminated")
+  );
+}
+
 function joinUrl(baseUrl: string, path: string): string {
   const trimmedBase = baseUrl.replace(/\/+$/, "");
   const trimmedPath = path.startsWith("/") ? path : `/${path}`;
@@ -120,7 +192,10 @@ export class OpenAICompatibleProvider implements LLMProvider {
     return this.isKimiK2Model(model) ? "max_completion_tokens" : "max_tokens";
   }
 
-  private getMaxOutputTokens(model: string, requestedMaxTokens: number): number {
+  private getMaxOutputTokens(
+    model: string,
+    requestedMaxTokens: number,
+  ): number {
     if (
       this.isOpenCodeGoEndpoint() &&
       this.isKimiK2Model(model) &&
@@ -150,7 +225,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     if (!tools?.length || !this.isKimiK2Model(model)) return {};
 
     // Kimi K2.5/K2.6 thinking-mode tool turns require provider-specific
-    // reasoning_content replay. CoWork's provider-agnostic transcript does not
+    // reasoning_content replay. NeoWorker's provider-agnostic transcript does not
     // retain that field, so disable thinking only for tool calls.
     return { thinking: { type: "disabled" } };
   }
@@ -158,7 +233,8 @@ export class OpenAICompatibleProvider implements LLMProvider {
   private getErrorMessage(errorData: Any): string | undefined {
     if (!errorData || typeof errorData !== "object") return undefined;
     if (typeof errorData.error === "string") return errorData.error;
-    if (typeof errorData.error?.message === "string") return errorData.error.message;
+    if (typeof errorData.error?.message === "string")
+      return errorData.error.message;
     if (typeof errorData.message === "string") return errorData.message;
     return undefined;
   }
@@ -166,10 +242,14 @@ export class OpenAICompatibleProvider implements LLMProvider {
   async createMessage(request: LLMRequest): Promise<LLMResponse> {
     const caps = PROVIDER_IMAGE_CAPS[this.type];
     const supportsImages = caps?.supportsImages === true;
-    const messages = toOpenAICompatibleMessages(request.messages, request.system, {
-      supportsImages,
-      systemBlocks: request.systemBlocks,
-    });
+    const messages = toOpenAICompatibleMessages(
+      request.messages,
+      request.system,
+      {
+        supportsImages,
+        systemBlocks: request.systemBlocks,
+      },
+    );
 
     try {
       const model = this.normalizeModelForEndpoint(
@@ -212,13 +292,32 @@ export class OpenAICompatibleProvider implements LLMProvider {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = this.getErrorMessage(errorData);
-        throw new Error(
+        throw new OpenAICompatibleProviderError(
           `${this.providerName} API error: ${response.status} ${response.statusText}` +
             (errorMessage ? ` - ${errorMessage}` : ""),
+          {
+            providerName: this.providerName,
+            status: response.status,
+            code: `HTTP_${response.status}`,
+            retryable: RETRYABLE_HTTP_STATUSES.has(response.status),
+          },
         );
       }
 
-      const data = (await response.json()) as Any;
+      let data: Any;
+      try {
+        data = (await response.json()) as Any;
+      } catch (error: Any) {
+        throw new OpenAICompatibleProviderError(
+          `${this.providerName} API returned an invalid or truncated response`,
+          {
+            providerName: this.providerName,
+            code: "INVALID_JSON_RESPONSE",
+            retryable: true,
+            cause: error,
+          },
+        );
+      }
       return fromOpenAICompatibleResponse(data);
     } catch (error: Any) {
       if (error.name === "AbortError" || error.message?.includes("aborted")) {
@@ -226,9 +325,34 @@ export class OpenAICompatibleProvider implements LLMProvider {
         throw new Error("Request cancelled");
       }
 
+      if (!(error instanceof OpenAICompatibleProviderError)) {
+        const code = getTransportErrorCode(error);
+        const malformedToolArguments = code === "MALFORMED_TOOL_ARGUMENTS";
+        error = new OpenAICompatibleProviderError(
+          `${this.providerName} API request failed: ${error?.message || "Unknown transport error"}`,
+          {
+            providerName: this.providerName,
+            code: code || "TRANSPORT_ERROR",
+            // Parser failures happen after a successful HTTP response, so
+            // they are not transport errors. Preserve their structured
+            // retryability instead of accidentally turning them terminal.
+            retryable:
+              error?.retryable === true ||
+              malformedToolArguments ||
+              isRetryableTransportError(error),
+            ...(malformedToolArguments
+              ? { retryKind: "malformed_response" as const }
+              : {}),
+            cause: error,
+          },
+        );
+      }
+
       console.error(`[${this.providerName}] API error:`, {
         message: error.message,
         status: error.status,
+        code: error.code,
+        retryable: error.retryable,
       });
       throw error;
     }
@@ -297,7 +421,8 @@ export class OpenAICompatibleProvider implements LLMProvider {
       }));
     } catch (error: Any) {
       // ECONNREFUSED means the local server simply isn't running yet — not an error worth logging loudly
-      const isOffline = error?.cause?.code === "ECONNREFUSED" || error?.code === "ECONNREFUSED";
+      const isOffline =
+        error?.cause?.code === "ECONNREFUSED" || error?.code === "ECONNREFUSED";
       if (!isOffline) {
         console.error(`[${this.providerName}] Failed to fetch models:`, error);
       }

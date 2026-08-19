@@ -55,7 +55,7 @@ const IMPLEMENTATION_LANES: ImprovementVariantLane[] = [
   "test_first",
   "guardrail_hardening",
 ];
-const COWORK_WORKSPACE_SCORE_THRESHOLD = 18;
+const NEOWORKER_WORKSPACE_SCORE_THRESHOLD = 18;
 
 export class ImprovementLoopService {
   private readonly workspaceRepo: WorkspaceRepository;
@@ -799,9 +799,9 @@ export class ImprovementLoopService {
   }
 
   private resolveExecutionWorkspace(candidate: ImprovementCandidate, sourceWorkspace: Workspace): Workspace {
-    const canonicalCoworkWorkspace = this.findCanonicalCoworkWorkspace();
-    if (canonicalCoworkWorkspace) return canonicalCoworkWorkspace;
-    if (this.isLikelyCoworkCodeWorkspace(sourceWorkspace)) return sourceWorkspace;
+    const canonicalNeoWorkerWorkspace = this.findCanonicalNeoWorkerWorkspace();
+    if (canonicalNeoWorkerWorkspace) return canonicalNeoWorkerWorkspace;
+    if (this.isLikelyNeoWorkerCodeWorkspace(sourceWorkspace)) return sourceWorkspace;
     const alternatives = this.workspaceRepo
       .findAll()
       .filter((workspace) => workspace.id !== sourceWorkspace.id)
@@ -811,18 +811,18 @@ export class ImprovementLoopService {
 
     const bestAlternative = alternatives[0];
 
-    if (sourceWorkspace.isTemp && bestAlternative && bestAlternative.score >= COWORK_WORKSPACE_SCORE_THRESHOLD) {
+    if (sourceWorkspace.isTemp && bestAlternative && bestAlternative.score >= NEOWORKER_WORKSPACE_SCORE_THRESHOLD) {
       return bestAlternative.workspace;
     }
 
-    if (!this.candidateExplicitlyTargetsCowork(candidate)) return sourceWorkspace;
+    if (!this.candidateExplicitlyTargetsNeoWorker(candidate)) return sourceWorkspace;
 
     return bestAlternative?.workspace || sourceWorkspace;
   }
 
-  private findCanonicalCoworkWorkspace(): Workspace | undefined {
+  private findCanonicalNeoWorkerWorkspace(): Workspace | undefined {
     const workspaces = this.workspaceRepo.findAll();
-    const preferredPath = this.getPreferredCoworkRepoPath();
+    const preferredPath = this.getPreferredNeoWorkerRepoPath();
 
     if (preferredPath) {
       const exactMatch = workspaces.find(
@@ -833,7 +833,7 @@ export class ImprovementLoopService {
 
     return workspaces
       .map((workspace) => ({ workspace, score: this.scoreExecutionWorkspace(workspace, this.buildWorkspaceScoringCandidate(workspace)) }))
-      .filter((entry) => entry.score >= COWORK_WORKSPACE_SCORE_THRESHOLD)
+      .filter((entry) => entry.score >= NEOWORKER_WORKSPACE_SCORE_THRESHOLD)
       .sort(
         (a, b) =>
           b.score - a.score ||
@@ -842,8 +842,8 @@ export class ImprovementLoopService {
       )[0]?.workspace;
   }
 
-  private getPreferredCoworkRepoPath(): string | undefined {
-    const explicit = process.env.COWORK_SELF_IMPROVEMENT_REPO;
+  private getPreferredNeoWorkerRepoPath(): string | undefined {
+    const explicit = process.env.NEOWORKER_SELF_IMPROVEMENT_REPO;
     if (typeof explicit === "string" && explicit.trim().length > 0) {
       return path.resolve(explicit.trim());
     }
@@ -862,8 +862,8 @@ export class ImprovementLoopService {
       fingerprint: "",
       source: "task_failure",
       status: "open",
-      title: "CoWork OS self-improvement",
-      summary: "CoWork OS source workspace for PR-based self-improvement.",
+      title: "NeoWorker self-improvement",
+      summary: "NeoWorker source workspace for PR-based self-improvement.",
       severity: 0,
       recurrenceCount: 0,
       fixabilityScore: 0,
@@ -884,21 +884,21 @@ export class ImprovementLoopService {
     const packageJson = this.readPackageMetadata(workspace.path);
     const packageName = packageJson?.name?.toLowerCase?.() || "";
 
-    if (workspaceName.includes("cowork")) score += 6;
-    if (workspacePath.includes("/cowork")) score += 6;
-    if (packageName.includes("cowork")) score += 10;
+    if (workspaceName.includes("neoworker")) score += 6;
+    if (workspacePath.includes("/neoworker")) score += 6;
+    if (packageName.includes("neoworker")) score += 10;
     if (fs.existsSync(path.join(workspace.path, "src", "electron"))) score += 4;
     if (fs.existsSync(path.join(workspace.path, "src", "renderer"))) score += 4;
     if (fs.existsSync(path.join(workspace.path, "logs", "dev-latest.log"))) score += 2;
     if (fs.existsSync(path.join(workspace.path, ".git"))) score += 1;
-    if (candidateText.includes("cowork") && (workspaceName.includes("cowork") || packageName.includes("cowork"))) {
+    if (candidateText.includes("neoworker") && (workspaceName.includes("neoworker") || packageName.includes("neoworker"))) {
       score += 4;
     }
 
     return score;
   }
 
-  private candidateExplicitlyTargetsCowork(candidate: ImprovementCandidate): boolean {
+  private candidateExplicitlyTargetsNeoWorker(candidate: ImprovementCandidate): boolean {
     const parts = [
       candidate.title,
       candidate.summary,
@@ -909,12 +909,12 @@ export class ImprovementLoopService {
       .join(" ")
       .toLowerCase();
     if (!text) return false;
-    return /\bcowork\b|\bcowork os\b|src\/electron|src\/renderer|dev-latest\.log|electron app|renderer\b/.test(text);
+    return /\bneoworker\b|\bneoworker os\b|src\/electron|src\/renderer|dev-latest\.log|electron app|renderer\b/.test(text);
   }
 
-  private isLikelyCoworkCodeWorkspace(workspace: Workspace): boolean {
+  private isLikelyNeoWorkerCodeWorkspace(workspace: Workspace): boolean {
     const score = this.scoreExecutionWorkspace(workspace, this.buildWorkspaceScoringCandidate(workspace));
-    return score >= COWORK_WORKSPACE_SCORE_THRESHOLD;
+    return score >= NEOWORKER_WORKSPACE_SCORE_THRESHOLD;
   }
 
   private buildReplaySet(candidate: ImprovementCandidate, settings: ImprovementLoopSettings) {

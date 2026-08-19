@@ -1,10 +1,10 @@
 # Security Guide for End Users
 
-This document explains the security model, permissions, and considerations for users who clone and run CoWork OS on their machines.
+This document explains the security model, permissions, and considerations for users who clone and run NeoWorker on their machines.
 
 ## Overview
 
-CoWork OS is an AI-powered task automation tool that can execute actions on your behalf. By design, it has capabilities that require careful consideration:
+NeoWorker is an AI-powered task automation tool that can execute actions on your behalf. By design, it has capabilities that require careful consideration:
 
 - Execute shell commands
 - Read and write files
@@ -42,7 +42,7 @@ You can approve or deny each request individually.
 
 ### Configurable Guardrails
 
-CoWork OS includes configurable guardrails in **Settings > Guardrails** to limit what the agent can do:
+NeoWorker includes configurable guardrails in **Settings > Guardrails** to limit what the agent can do:
 
 | Guardrail | Description | Default |
 |-----------|-------------|---------|
@@ -100,14 +100,14 @@ This prevents unintended browsing during automation tasks.
 
 ### Workspace Kit Project Access Rules
 
-If a workspace contains a `.cowork/projects/<projectId>/ACCESS.md` file, built-in tools enforce per-project access based on the task's assigned agent role:
+If a workspace contains a `.neoworker/projects/<projectId>/ACCESS.md` file, built-in tools enforce per-project access based on the task's assigned agent role:
 
 - `## Allow` and `## Deny` sections accept agent role IDs (one per line prefixed with `-`).
 - Use `all` to match every agent role.
 - Deny wins over allow.
 
 Enforcement applies to:
-- File/edit/grep/search tools when the path is inside `.cowork/projects/<projectId>/...`
+- File/edit/grep/search tools when the path is inside `.neoworker/projects/<projectId>/...`
 - Workspace-kit context injection (denied projects are excluded from injected context)
 
 Important: shell commands are not subject to these per-project access rules. Keep shell permission disabled unless you explicitly need it, and review shell approvals carefully.
@@ -138,7 +138,7 @@ The app includes Playwright for web automation:
 | Execute JavaScript | Within page context only |
 | Mode | Headless by default |
 
-**User agent**: `CoWork OS Browser Automation`
+**User agent**: `NeoWorker Browser Automation`
 
 ---
 
@@ -177,7 +177,7 @@ The app connects to these services based on your configuration:
 
 ### No Telemetry
 
-CoWork OS does **not**:
+NeoWorker does **not**:
 - Send usage analytics
 - Track user behavior
 - Phone home to any server
@@ -195,14 +195,14 @@ All settings are now stored encrypted in the database using the `SecureSettingsR
 
 | Data | Location | Encryption |
 |------|----------|------------|
-| All Settings | `app.getPath('userData')/cowork-os.db` | OS Keychain + AES-256 |
-| Database | `app.getPath('userData')/cowork-os.db` | Settings encrypted per-category |
-| Machine ID | `app.getPath('userData')/.cowork-machine-id` | Stable identifier for encryption |
+| All Settings | `app.getPath('userData')/neoworker.db` | OS Keychain + AES-256 |
+| Database | `app.getPath('userData')/neoworker.db` | Settings encrypted per-category |
+| Machine ID | `app.getPath('userData')/.neoworker-machine-id` | Stable identifier for encryption |
 
 Typical `userData` locations:
-- macOS: `~/Library/Application Support/cowork-os/`
-- Linux: `~/.config/cowork-os/`
-- Windows: `%APPDATA%\\cowork-os\\`
+- macOS: `~/Library/Application Support/neoworker/`
+- Linux: `~/.config/neoworker/`
+- Windows: `%APPDATA%\\neoworker\\`
 
 ### Encryption Layers
 
@@ -252,7 +252,7 @@ Each stored setting includes:
 - Channel message history (incoming/outgoing message content for configured channels)
 - **All encrypted settings** (API keys, preferences, configurations)
 
-Everything is stored **locally** on your machine. CoWork OS does not upload your database or message history to any CoWork OS servers.
+Everything is stored **locally** on your machine. NeoWorker does not upload your database or message history to any NeoWorker servers.
 
 ### API Key Security
 
@@ -384,7 +384,7 @@ git diff HEAD..origin/main
 
 ## Threat Model
 
-### What CoWork OS Protects Against
+### What NeoWorker Protects Against
 
 | Threat | Protection |
 |--------|------------|
@@ -453,7 +453,7 @@ See [SECURITY.md](SECURITY.md) for full details.
 
 ## Advanced Security Framework (v0.3.8.7+)
 
-CoWork OS includes a comprehensive security framework inspired by formal verification techniques.
+NeoWorker includes a comprehensive security framework inspired by formal verification techniques.
 
 ### Tool Groups & Risk Levels
 
@@ -575,7 +575,7 @@ Test files:
 
 ## Summary
 
-CoWork OS is designed with security in mind:
+NeoWorker is designed with security in mind:
 
 | Aspect | Status |
 |--------|--------|
@@ -596,7 +596,7 @@ CoWork OS is designed with security in mind:
 ### Guardrails Settings Location
 
 All guardrail settings can be configured at:
-- **Database**: Stored encrypted in `app.getPath('userData')/cowork-os.db` (category: `guardrails`)
+- **Database**: Stored encrypted in `app.getPath('userData')/neoworker.db` (category: `guardrails`)
 - **UI**: Settings (gear icon) → Guardrails tab
 
 ### Settings Migration

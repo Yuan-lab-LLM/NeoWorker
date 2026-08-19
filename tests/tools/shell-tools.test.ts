@@ -69,7 +69,7 @@ describe('ShellTools auto-approval', () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
-    delete process.env.COWORK_ALLOW_UNSANDBOXED_SHELL;
+    delete process.env.NEOWORKER_ALLOW_UNSANDBOXED_SHELL;
     (mockDaemon.requestApproval as any).mockReset().mockResolvedValue(true);
     (mockDaemon.logEvent as any).mockReset();
     sandboxMocks.sandbox.execute.mockReset().mockImplementation(async (command: string) => ({
@@ -327,7 +327,7 @@ describe('ShellTools auto-approval', () => {
       exitCode: 0,
       stdout: 'later command returned ok',
       stderr:
-        "/bin/sh: line 1: 12345 Abort trap: 6 sandbox-exec -f /tmp/cowork.sb /bin/sh -c mkdir -p out\n",
+        "/bin/sh: line 1: 12345 Abort trap: 6 sandbox-exec -f /tmp/neoworker.sb /bin/sh -c mkdir -p out\n",
       killed: false,
       timedOut: false,
     });
@@ -510,7 +510,7 @@ describe('ShellTools auto-approval', () => {
   });
 
   it('allows explicit unsandboxed development fallback when requested', async () => {
-    process.env.COWORK_ALLOW_UNSANDBOXED_SHELL = '1';
+    process.env.NEOWORKER_ALLOW_UNSANDBOXED_SHELL = '1';
     vi.mocked(loadPolicies).mockReturnValueOnce({
       version: 1,
       updatedAt: new Date().toISOString(),
@@ -547,7 +547,7 @@ describe('ShellTools auto-approval', () => {
       'shell_sandbox_bypassed',
       expect.objectContaining({
         reason: 'no_os_sandbox_available',
-        overrideEnv: 'COWORK_ALLOW_UNSANDBOXED_SHELL',
+        overrideEnv: 'NEOWORKER_ALLOW_UNSANDBOXED_SHELL',
       })
     );
   });

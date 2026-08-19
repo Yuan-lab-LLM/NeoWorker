@@ -1,0 +1,3 @@
+import { n as e, t } from "./chart-column-CNosIUOf-D5XE9Wsd.js";
+e();
+export { t as default };

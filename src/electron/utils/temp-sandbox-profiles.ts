@@ -16,8 +16,8 @@ export interface PruneTempSandboxProfilesResult {
 
 const DEFAULT_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
 const SANDBOX_PROFILE_FILE_PATTERNS = [
-  /^cowork_sandbox_\d+\.sb$/i, // Legacy SandboxRunner profile naming
-  /^cowork_[a-f0-9]{32}\.sb$/i, // Security utils temp profile naming
+  /^neoworker_sandbox_\d+\.sb$/i, // Legacy SandboxRunner profile naming
+  /^neoworker_[a-f0-9]{32}\.sb$/i, // Security utils temp profile naming
 ];
 
 const isSandboxProfileFile = (fileName: string): boolean =>

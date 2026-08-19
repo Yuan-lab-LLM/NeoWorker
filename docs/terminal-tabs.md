@@ -1,8 +1,8 @@
 # Terminal Tabs
 
-Terminal Tabs turn CoWork OS into a real developer workbench instead of a chat app that occasionally runs shell commands. They give each workspace an interactive terminal dock inside the desktop app, backed by the operating system's native pseudoterminal layer and rendered with xterm.js.
+Terminal Tabs turn NeoWorker into a real developer workbench instead of a chat app that occasionally runs shell commands. They give each workspace an interactive terminal dock inside the desktop app, backed by the operating system's native pseudoterminal layer and rendered with xterm.js.
 
-This is one of the larger steps toward CoWork OS as a GUI-first AI super app and everything app: coding, agent execution, browser testing, documents, spreadsheets, presentations, inbox, automations, devices, and now full terminal work can stay in one governed workspace.
+This is one of the larger steps toward NeoWorker as a GUI-first AI super app and everything app: coding, agent execution, browser testing, documents, spreadsheets, presentations, inbox, automations, devices, and now full terminal work can stay in one governed workspace.
 
 ## What users get
 
@@ -11,22 +11,22 @@ This is one of the larger steps toward CoWork OS as a GUI-first AI super app and
 - **In-app dock placement**: the terminal opens under the message box and pushes the main work area and right sidebar upward, so it behaves like another first-class work surface instead of a floating popup.
 - **Native shell behavior**: macOS launches the user's login shell through `node-pty`; Windows launches `cmd.exe` through the Windows PTY backend.
 - **Resizable terminal grid**: xterm.js measures the visible dock and sends column/row changes to the PTY so full-screen terminal UIs and wrapping behave like a normal terminal.
-- **Prompt cleanup**: macOS zsh prompts are adjusted to show cwd-only prompts such as `cowork %`; Windows `cmd.exe` uses a cwd prompt such as `C:\Users\mesut\project>`.
+- **Prompt cleanup**: macOS zsh prompts are adjusted to show cwd-only prompts such as `neoworker %`; Windows `cmd.exe` uses a cwd prompt such as `C:\Users\mesut\project>`.
 - **Cwd-aware tabs**: tab labels use the current directory when the shell emits cwd metadata. The macOS zsh integration emits OSC-7 cwd updates without writing setup commands into the visible terminal.
 - **Link handling**: xterm web-link support makes URLs in terminal output clickable where the renderer allows it.
 
 ## Why it matters
 
-Before this capability, CoWork could run shell commands and preserve shell-session state, but the user-facing terminal surface was custom-rendered. That made every terminal behavior a possible product-specific edge case: redraws, Tab completion, Ctrl+C, interactive CLI login flows, prompt rendering, and process control all needed bespoke handling.
+Before this capability, NeoWorker could run shell commands and preserve shell-session state, but the user-facing terminal surface was custom-rendered. That made every terminal behavior a possible product-specific edge case: redraws, Tab completion, Ctrl+C, interactive CLI login flows, prompt rendering, and process control all needed bespoke handling.
 
 The new model uses the same architecture used by mature Electron developer tools:
 
 - xterm.js owns terminal rendering and keyboard behavior in the renderer.
 - node-pty owns the OS pseudoterminal session in Electron.
 - The shell running inside the PTY owns prompts, command editing, completion, signals, and interactive program behavior.
-- CoWork owns workspace routing, tab lifecycle, approvals, dock placement, and visibility.
+- NeoWorker owns workspace routing, tab lifecycle, approvals, dock placement, and visibility.
 
-That division is the important product shift. CoWork can keep the terminal inside the super-app workspace without trying to impersonate a terminal itself.
+That division is the important product shift. NeoWorker can keep the terminal inside the super-app workspace without trying to impersonate a terminal itself.
 
 ## Architecture
 
@@ -81,7 +81,7 @@ Current Windows limitation: `cmd.exe` does not have a clean zsh-style prompt hoo
 ## Reliability and packaging notes
 
 - `node-pty` native files are unpacked from Electron ASAR so PTY helpers can run in packaged builds.
-- On macOS, CoWork repairs the bundled `spawn-helper` executable bit when npm installs with scripts disabled.
+- On macOS, NeoWorker repairs the bundled `spawn-helper` executable bit when npm installs with scripts disabled.
 - Output replay is sent only on first attach per renderer, avoiding duplicate prompt/output redraws while still preserving terminal history when the dock remounts.
 - xterm CSS is isolated from app-wide typography so letter spacing, word spacing, and text transforms do not leak into terminal rendering.
 

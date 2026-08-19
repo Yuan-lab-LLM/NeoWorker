@@ -49,6 +49,47 @@ export interface ActiveContextData {
   skills: { id: string; name: string; icon: string }[];
 }
 
+export async function readActiveContextData(): Promise<ActiveContextData> {
+  await PluginRegistry.getInstance().initialize();
+  const connectors: ActiveContextData["connectors"] = [];
+  const skills: ActiveContextData["skills"] = [];
+
+  try {
+    const mcpManager = MCPClientManager.getInstance();
+    const statuses = mcpManager.getStatus();
+    const settings = MCPSettingsManager.loadSettings();
+    const prefix = settings.toolNamePrefix || "mcp_";
+    for (const status of statuses) {
+      const serverTools = mcpManager.getServerTools(status.id);
+      connectors.push({
+        id: status.id,
+        name: status.name,
+        icon: resolveConnectorIcon(status),
+        status: status.status,
+        tools: serverTools.map((tool) => `${prefix}${tool.name}`),
+      });
+    }
+  } catch {
+    // MCP may not be initialized yet. The summary remains fail-closed and shows no connector grants.
+  }
+
+  try {
+    const skillLoader = getCustomSkillLoader();
+    await skillLoader.initialize();
+    for (const skill of skillLoader.listTaskSkills().slice(0, 50)) {
+      skills.push({
+        id: skill.id,
+        name: skill.name,
+        icon: skill.icon || "⚡",
+      });
+    }
+  } catch {
+    // Skill loading is best effort for the read-only context summary.
+  }
+
+  return { connectors, skills };
+}
+
 function titleFromSkillId(id: string): string {
   return (
     id
@@ -349,46 +390,6 @@ export function setupPluginPackHandlers(): void {
 
   // Get active context (connected MCP servers + enabled skills)
   ipcMain.handle(IPC_CHANNELS.PLUGIN_PACK_GET_CONTEXT, async (): Promise<ActiveContextData> => {
-    await ensureRegistryInitialized();
-    const connectors: ActiveContextData["connectors"] = [];
-    const skills: ActiveContextData["skills"] = [];
-
-    // Get connected MCP servers
-    try {
-      const mcpManager = MCPClientManager.getInstance();
-      const statuses = mcpManager.getStatus();
-      const settings = MCPSettingsManager.loadSettings();
-      const prefix = settings.toolNamePrefix || "mcp_";
-      for (const s of statuses) {
-        const serverTools = mcpManager.getServerTools(s.id);
-        connectors.push({
-          id: s.id,
-          name: s.name,
-          icon: resolveConnectorIcon(s),
-          status: s.status,
-          tools: serverTools.map((t) => `${prefix}${t.name}`),
-        });
-      }
-    } catch {
-      // MCP not initialized yet
-    }
-
-    // Get enabled skills from active packs
-    try {
-      const skillLoader = getCustomSkillLoader();
-      await skillLoader.initialize();
-      const allSkills = skillLoader.listTaskSkills();
-      for (const s of allSkills.slice(0, 50)) {
-        skills.push({
-          id: s.id,
-          name: s.name,
-          icon: s.icon || "⚡",
-        });
-      }
-    } catch {
-      // Skill loader not initialized yet
-    }
-
-    return { connectors, skills };
+    return readActiveContextData();
   });
 }

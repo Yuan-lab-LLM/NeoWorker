@@ -2,30 +2,17 @@ import type { UiTimelineEvent } from "./timeline-events";
 import type { ChatInlineFrame } from "./mailbox";
 
 // Core types shared between main and renderer processes
+export const DEFAULT_ASSISTANT_NAME = "NeoWorker";
 
 // Theme and Appearance types
 export type ThemeMode = "light" | "dark" | "system";
-export type VisualTheme = "terminal" | "warm" | "oblivion";
-export type AccentColor =
-  | "cyan"
-  | "blue"
-  | "purple"
-  | "pink"
-  | "rose"
-  | "orange"
-  | "green"
-  | "teal"
-  | "coral";
 export type UiDensity = "focused" | "full" | "power";
 export type TimelineVerbosity = "summary" | "verbose";
 
 export interface AppearanceSettings {
   themeMode: ThemeMode;
-  visualTheme: VisualTheme;
-  accentColor: AccentColor;
-  transparencyEffectsEnabled?: boolean;
-  uiDensity?: UiDensity;
   timelineVerbosity?: TimelineVerbosity;
+  timelineVerbosityConfigured?: boolean;
   devRunLoggingEnabled?: boolean; // Persist npm run dev stdout/stderr to logs/
   homeResearchVaultEnabled?: boolean;
   homeNextActionsEnabled?: boolean;
@@ -33,7 +20,7 @@ export interface AppearanceSettings {
   disclaimerAccepted?: boolean;
   onboardingCompleted?: boolean;
   onboardingCompletedAt?: string; // ISO timestamp of when onboarding was completed
-  assistantName?: string; // User-chosen name for the assistant (default: "CoWork")
+  assistantName?: string; // User-chosen name for the assistant (default: "NeoWorker")
 }
 
 // Tray (Menu Bar) Settings
@@ -48,7 +35,7 @@ export interface TraySettings {
 
 // Global memory feature toggles (applies across workspaces)
 export interface MemoryFeaturesSettings {
-  /** Inject `.cowork/*` context pack into the agent prompt (workspace-scoped files). */
+  /** Inject `.neoworker/*` context pack into the agent prompt (workspace-scoped files). */
   contextPackInjectionEnabled: boolean;
   /** Allow the heartbeat system to perform memory maintenance tasks. */
   heartbeatMaintenanceEnabled: boolean;
@@ -62,7 +49,7 @@ export interface MemoryFeaturesSettings {
   temporalKnowledgeEnabled?: boolean;
   /** Rebuild execution prompts from explicit prompt-stack layers. */
   promptStackV2Enabled?: boolean;
-  /** Serve memory via file-backed index/topic layers under `.cowork/memory/`. */
+  /** Serve memory via file-backed index/topic layers under `.neoworker/memory/`. */
   layeredMemoryEnabled?: boolean;
   /** Persist append-only transcript spans and lightweight checkpoints. */
   transcriptStoreEnabled?: boolean;
@@ -88,12 +75,13 @@ export interface MemoryFeaturesSettings {
   curatedMemoryEnabled?: boolean;
   /** Allow transcript/session recall as an explicit tool surface. */
   sessionRecallEnabled?: boolean;
-  /** Allow explicit topic-pack loading from `.cowork/memory/topics`. */
+  /** Allow explicit topic-pack loading from `.neoworker/memory/topics`. */
   topicMemoryEnabled?: boolean;
   /** Keep legacy archive memory out of default prompt injection. */
   defaultArchiveInjectionEnabled?: boolean;
   /** Require approval before durable memory writes are committed. */
-  memoryWriteApprovalMode?: "off" | "curated_only" | "external_only" | "background_only" | "all";
+  memoryWriteApprovalMode?:
+    "off" | "curated_only" | "external_only" | "background_only" | "all";
   /** Promote only explicit/high-signal facts into curated memory. */
   autoPromoteToCuratedMemoryEnabled?: boolean;
   /** Store structured sidecar metadata for archive memories. */
@@ -104,7 +92,8 @@ export interface MemoryFeaturesSettings {
   memoryInspectorEnabled?: boolean;
 }
 
-export type MemoryWriteApprovalStatus = "pending" | "applying" | "applied" | "rejected" | "failed";
+export type MemoryWriteApprovalStatus =
+  "pending" | "applying" | "applied" | "rejected" | "failed";
 
 export interface MemoryWriteApprovalItem {
   id: string;
@@ -127,9 +116,11 @@ export interface MemoryWriteApprovalItem {
   resolution?: string;
 }
 
-export type MemoryObservationPrivacyState = "normal" | "private" | "redacted" | "suppressed";
+export type MemoryObservationPrivacyState =
+  "normal" | "private" | "redacted" | "suppressed";
 export type MemoryObservationGeneratedBy = "capture" | "migration" | "manual";
-export type MemoryObservationMigrationStatus = "current" | "backfilled" | "failed";
+export type MemoryObservationMigrationStatus =
+  "current" | "backfilled" | "failed";
 
 export interface MemoryObservationMetadata {
   memoryId: string;
@@ -271,10 +262,7 @@ export interface MemoryLayerPreviewPayload {
 }
 
 export type VerbatimQuoteSourceType =
-  | "transcript_span"
-  | "task_message"
-  | "memory"
-  | "workspace_markdown";
+  "transcript_span" | "task_message" | "memory" | "workspace_markdown";
 
 export interface VerbatimQuoteSearchResult {
   id: string;
@@ -434,11 +422,7 @@ export type AwarenessWakeReason =
   | "due_soon";
 
 export type GoalStateStatus =
-  | "observed"
-  | "active"
-  | "blocked"
-  | "completed"
-  | "stale";
+  "observed" | "active" | "blocked" | "completed" | "stale";
 
 export interface GoalState {
   id: string;
@@ -636,7 +620,7 @@ export interface UpdateUserFactRequest {
   pinned?: boolean;
 }
 
-// Workspace Kit (.cowork) helpers (workspace-scoped, file-based context)
+// Workspace Kit (.neoworker) helpers (workspace-scoped, file-based context)
 export interface WorkspaceKitIssue {
   level: "error" | "warning";
   code: string;
@@ -685,18 +669,6 @@ export interface WorkspaceKitProjectCreateRequest {
 
 export type WorkspaceKitTemplatePreset = "default" | "venture_operator";
 
-export const ACCENT_COLORS: { id: AccentColor; label: string }[] = [
-  { id: "cyan", label: "Cyan" },
-  { id: "blue", label: "Blue" },
-  { id: "purple", label: "Purple" },
-  { id: "pink", label: "Pink" },
-  { id: "rose", label: "Rose" },
-  { id: "orange", label: "Orange" },
-  { id: "green", label: "Green" },
-  { id: "teal", label: "Teal" },
-  { id: "coral", label: "Coral" },
-];
-
 export type TaskStatus =
   | "pending"
   | "queued"
@@ -710,17 +682,12 @@ export type TaskStatus =
   | "interrupted";
 
 export type VerificationOutcome =
-  | "pass"
-  | "fail_blocking"
-  | "pending_user_action"
-  | "warn_non_blocking";
+  "pass" | "fail_blocking" | "pending_user_action" | "warn_non_blocking";
 
 export type VerificationScope = "high_risk" | "normal";
 
 export type VerificationEvidenceMode =
-  | "agent_observable"
-  | "user_observable"
-  | "time_blocked";
+  "agent_observable" | "user_observable" | "time_blocked";
 
 export const TASK_ERROR_CODES = {
   TURN_LIMIT_EXCEEDED: "TURN_LIMIT_EXCEEDED",
@@ -936,19 +903,12 @@ export type TimelineEventStatus =
   | "cancelled";
 
 export type TimelineEventActor =
-  | "system"
-  | "agent"
-  | "user"
-  | "tool"
-  | "subagent";
+  "system" | "agent" | "user" | "tool" | "subagent";
 
 export type TimelineStage = "DISCOVER" | "BUILD" | "VERIFY" | "FIX" | "DELIVER";
 
 export type OrchestrationGraphRunStatus =
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  "running" | "completed" | "failed" | "cancelled";
 
 export type OrchestrationGraphNodeStatus =
   | "pending"
@@ -968,10 +928,7 @@ export type OrchestrationGraphNodeKind =
   | "acp_task";
 
 export type OrchestrationDispatchTarget =
-  | "native_child_task"
-  | "local_role"
-  | "remote_acp"
-  | "external_runtime";
+  "native_child_task" | "local_role" | "remote_acp" | "external_runtime";
 
 export interface OrchestrationGraphRun {
   id: string;
@@ -1047,10 +1004,7 @@ export interface OrchestrationNodeNotification {
 }
 
 export type WorkerRoleKind =
-  | "researcher"
-  | "implementer"
-  | "verifier"
-  | "synthesizer";
+  "researcher" | "implementer" | "verifier" | "synthesizer";
 export type DelegationWorkerRole = WorkerRoleKind | "auto";
 
 export type VerificationVerdict = "PASS" | "FAIL" | "PARTIAL";
@@ -1081,10 +1035,7 @@ export interface WorkerPromptContext {
 }
 
 export type RuntimeToolConcurrencyClass =
-  | "exclusive"
-  | "read_parallel"
-  | "side_effect_parallel"
-  | "serial_only";
+  "exclusive" | "read_parallel" | "side_effect_parallel" | "serial_only";
 
 export type RuntimeToolInterruptBehavior = "cancel" | "block";
 
@@ -1137,14 +1088,9 @@ export interface RuntimeToolMetadata {
 }
 
 export type SessionChecklistItemKind =
-  | "implementation"
-  | "verification"
-  | "other";
+  "implementation" | "verification" | "other";
 export type SessionChecklistItemStatus =
-  | "pending"
-  | "in_progress"
-  | "completed"
-  | "blocked";
+  "pending" | "in_progress" | "completed" | "blocked";
 
 export interface SessionChecklistItem {
   id: string;
@@ -1172,11 +1118,7 @@ export type ToolPolicyStage =
   | "approval";
 
 export type ToolPolicyStageDecision =
-  | "allow"
-  | "defer"
-  | "deny"
-  | "require_approval"
-  | "skip";
+  "allow" | "defer" | "deny" | "require_approval" | "skip";
 
 export interface ToolPolicyTraceEntry {
   stage: ToolPolicyStage;
@@ -1211,9 +1153,7 @@ export type PermissionRuleSource =
   | "legacy_builtin_settings";
 
 export type PermissionPersistenceDestination =
-  | "session"
-  | "workspace"
-  | "profile";
+  "session" | "workspace" | "profile";
 
 export type PermissionRuleScope =
   | {
@@ -1426,7 +1366,8 @@ export interface ToolResultEnvelope {
 
 export interface EvidenceRef {
   evidenceId: string;
-  sourceType: "url" | "file" | "tool_output" | "user_input" | "screen_context" | "other";
+  sourceType:
+    "url" | "file" | "tool_output" | "user_input" | "screen_context" | "other";
   sourceUrlOrPath: string;
   snippet?: string;
   capturedAt: number;
@@ -1601,11 +1542,7 @@ export type ApprovalType =
  * Higher levels require more permissions/approval
  */
 export type ToolRiskLevel =
-  | "read"
-  | "write"
-  | "destructive"
-  | "system"
-  | "network";
+  "read" | "write" | "destructive" | "system" | "network";
 
 /**
  * Tool groups for policy-based access control
@@ -1998,18 +1935,11 @@ export interface SuccessCriteria {
 export type AgentType = "main" | "sub" | "parallel";
 export type ConversationMode = "task" | "chat" | "hybrid" | "think";
 export type ExecutionMode =
-  | "execute"
-  | "chat"
-  | "plan"
-  | "analyze"
-  | "verified"
-  | "debug";
+  "execute" | "chat" | "plan" | "analyze" | "verified" | "debug";
 export type ExecutionModeSource = "user" | "strategy" | "auto_promote";
 
 export type ExternalRuntimePermissionMode =
-  | "approve-reads"
-  | "approve-all"
-  | "deny-all";
+  "approve-reads" | "approve-all" | "deny-all";
 export type ExternalRuntimeAgent = "codex" | "claude";
 
 export interface ExternalRuntimeConfig {
@@ -2022,22 +1952,12 @@ export interface ExternalRuntimeConfig {
 }
 export type TurnBudgetPolicy = "hard_window" | "adaptive_unbounded";
 export type VerificationArtifactPathPolicy =
-  | "require_existing"
-  | "inline_if_missing"
-  | "always_inline";
+  "require_existing" | "inline_if_missing" | "always_inline";
 export type WorkspacePathAliasPolicy =
-  | "rewrite_and_retry"
-  | "strict_fail"
-  | "disabled";
+  "rewrite_and_retry" | "strict_fail" | "disabled";
 export type TaskPathRootPolicy = "pin_and_rewrite" | "strict_fail" | "disabled";
 export type TaskDomain =
-  | "auto"
-  | "code"
-  | "research"
-  | "operations"
-  | "writing"
-  | "general"
-  | "media";
+  "auto" | "code" | "research" | "operations" | "writing" | "general" | "media";
 export type ToolDecision = "allow" | "deny" | "ask";
 export type LlmProfile = "strong" | "cheap";
 export type ReviewPolicy = "off" | "balanced" | "strict";
@@ -2054,15 +1974,10 @@ export type TaskStrategyIntent =
   | "redirect";
 
 export type DirectResponseMode =
-  | "none"
-  | "companion"
-  | "terminal_quick_answer"
-  | "brief_status_then_execute";
+  "none" | "companion" | "terminal_quick_answer" | "brief_status_then_execute";
 
 export type PreflightGate =
-  | "preflight_framing"
-  | "workspace_selection"
-  | "artifact_presence";
+  "preflight_framing" | "workspace_selection" | "artifact_presence";
 
 export type WorkflowMode = "none" | "workflow" | "deep_work";
 
@@ -2093,7 +2008,8 @@ export interface TaskStrategySnapshot {
  */
 export type EntropySweepPolicy = "off" | "balanced" | "strict";
 export type TaskRiskLevel = "low" | "medium" | "high";
-export type PersistentTaskGoalStatus = "active" | "paused" | "completed" | "cleared";
+export type PersistentTaskGoalStatus =
+  "active" | "paused" | "completed" | "cleared";
 
 export interface PersistentTaskGoalConfig {
   objective: string;
@@ -2164,6 +2080,8 @@ export interface AgentConfig {
   cli?: CliTaskOwnership;
   /** User-selected integration mentions for soft tool-routing guidance. */
   integrationMentions?: IntegrationMentionSelection[];
+  /** Skill selected through a structured UI affordance, kept out of the user-visible prompt. */
+  requestedSkillId?: string;
   /** Optional origin channel that created the task (used for channel-aware gating) */
   originChannel?: ChannelType;
   /** Resolved gateway specialization record that shaped the task. */
@@ -2305,7 +2223,7 @@ export interface AgentConfig {
   reviewPolicy?: ReviewPolicy;
   /**
    * Optional post-completion entropy sweep (stale docs, contradictions, dead-code hints).
-   * When omitted, resolved from COWORK_ENTROPY_SWEEP_DEFAULT env or mirrors reviewPolicy.
+   * When omitted, resolved from NEOWORKER_ENTROPY_SWEEP_DEFAULT env or mirrors reviewPolicy.
    */
   entropySweepPolicy?: EntropySweepPolicy;
   /**
@@ -2380,7 +2298,7 @@ export interface AgentConfig {
 }
 
 export interface CliTaskOwnership {
-  owner: "cowork-run";
+  owner: "neoworker-run";
   runId: string;
   pid: number;
   startedAt: number;
@@ -2397,12 +2315,7 @@ export interface CliTaskOwnership {
  * Used by ModelCapabilityRegistry to select the best model for a task type.
  */
 export type ModelCapability =
-  | "code"
-  | "math"
-  | "research"
-  | "vision"
-  | "fast"
-  | "long_context";
+  "code" | "math" | "research" | "vision" | "fast" | "long_context";
 
 /** Memory tier for three-tier promotion system */
 export type MemoryTier = "short" | "medium" | "long";
@@ -2454,6 +2367,145 @@ export interface ResearchWorkflowConfig {
   judge?: ResearchPhaseModelOverride;
   /** Emit executor events suitable for semantic timeline / progress UI */
   emitSemanticProgress?: boolean;
+}
+
+export type TaskProvenanceSourceKind =
+  | "manual"
+  | "gateway_message"
+  | "mail_thread"
+  | "connector_record"
+  | "automation_run"
+  | "api_request"
+  | "hook_event"
+  | "system_generated";
+
+export type TaskProvenanceRelation = "direct" | "follow_up" | "inherited";
+
+export interface TaskProvenanceActor {
+  id?: string;
+  displayName?: string;
+  username?: string;
+  kind: "user" | "bot" | "system" | "automation" | "unknown";
+}
+
+export interface TaskProvenanceConversation {
+  id?: string;
+  label?: string;
+  threadId?: string;
+  isGroup?: boolean;
+}
+
+export interface TaskProvenanceAttachment {
+  name: string;
+  mimeType?: string;
+  size?: number;
+  artifactId?: string;
+}
+
+export interface TaskProvenanceOpenTarget {
+  kind:
+    | "external_url"
+    | "gateway_message"
+    | "mail_thread"
+    | "connector_record"
+    | "automation_run"
+    | "none";
+  locator?: string;
+  /** Renderer-safe capability signal. The locator itself remains main-process only. */
+  available?: boolean;
+}
+
+/**
+ * A durable, display-safe record describing the input that created or advanced a task.
+ * This is intentionally separate from Task.source (creation mode) and task access policy.
+ */
+export interface TaskProvenanceRecord {
+  id: string;
+  taskId: string;
+  relation: TaskProvenanceRelation;
+  sourceKind: TaskProvenanceSourceKind;
+  providerKey?: string;
+  providerLabel?: string;
+  sourceRef?: string;
+  externalId?: string;
+  actor?: TaskProvenanceActor;
+  conversation?: TaskProvenanceConversation;
+  excerpt?: string;
+  excerptTruncated?: boolean;
+  attachments: TaskProvenanceAttachment[];
+  openTarget?: TaskProvenanceOpenTarget;
+  occurredAt: number;
+  createdAt: number;
+  metadata?: Record<string, unknown>;
+}
+
+/** Bounded source signal embedded in list summaries to avoid per-row provenance IPC. */
+export interface TaskProvenanceSummary {
+  sourceKind: TaskProvenanceSourceKind;
+  providerKey?: string;
+  providerLabel?: string;
+  count: number;
+}
+
+export type TaskAccessCapabilityState =
+  "available" | "allowed" | "used" | "blocked" | "unavailable";
+
+export interface TaskAccessConnector {
+  id: string;
+  label: string;
+  iconKey?: string;
+  state: TaskAccessCapabilityState;
+  toolNames?: string[];
+  reason?: string;
+  reasonCode?:
+    | "used_disconnected"
+    | "disconnected"
+    | "network_blocked"
+    | "tools_blocked"
+    | "outside_allowlist"
+    | "available_not_selected"
+    | "selected_unavailable"
+    | "selected_blocked";
+}
+
+export interface TaskAccessWorkspaceScope {
+  workspaceId: string;
+  rootPath?: string;
+  access: "read" | "write";
+  primary?: boolean;
+}
+
+export interface TaskAccessPolicy {
+  taskId: string;
+  revision: number;
+  connectorIds: string[];
+  workspaceScopes: TaskAccessWorkspaceScope[];
+  allowedTools?: string[];
+  blockedTools?: string[];
+  permissionMode?: PermissionMode;
+  shellAccess: boolean;
+  effectiveFromTurn?: number;
+  updatedAt: number;
+}
+
+export interface TaskAccessSummary {
+  policy: TaskAccessPolicy;
+  connectors: TaskAccessConnector[];
+  usedSkillIds: string[];
+  usedToolNames: string[];
+  referencedFiles: string[];
+  stale?: boolean;
+}
+
+export interface OutcomeTemplate {
+  id: string;
+  title: string;
+  outcome: string;
+  prompt: string;
+  requiredConnectorIds?: string[];
+  requiredWorkspace?: boolean;
+  requestedSkillId?: string;
+  category: "document" | "research" | "automation" | "operations" | "analysis";
 }
 
 export interface Task {
@@ -2517,6 +2569,7 @@ export interface Task {
     | "symphony"
     | "managed_agent_panel"
     | "side_chat";
+  provenanceSummary?: TaskProvenanceSummary;
   // Strategy/routing controls
   strategyLock?: boolean; // When true, do not re-route intent at runtime
   budgetProfile?: "balanced" | "strict" | "aggressive";
@@ -2537,10 +2590,7 @@ export interface Task {
   awaitingUserInputReasonCode?: string;
   retryReason?: "success_criteria_failed" | "explicit_retry_policy";
   recoveryClass?:
-    | "user_blocker"
-    | "local_runtime"
-    | "provider_quota"
-    | "external_unknown";
+    "user_blocker" | "local_runtime" | "provider_quota" | "external_unknown";
   toolDisabledScope?: "provider" | "global";
   budgetUsage?: {
     turns: number;
@@ -2571,11 +2621,16 @@ export interface Task {
   billingCode?: string; // Billing/cost attribution code
 }
 
+/** A task session that has been moved to the recoverable task trash. */
+export interface ArchivedTaskRecord {
+  task: Task;
+  sessionId: string;
+  archivedAt: number;
+  expiresAt: number;
+}
+
 export type SkillApplicationTrigger =
-  | "slash"
-  | "planner"
-  | "model"
-  | "explicit_hint";
+  "slash" | "planner" | "model" | "explicit_hint";
 
 export interface PendingSkillParameterCollection {
   skillId: string;
@@ -2660,7 +2715,7 @@ export interface WorktreeInfo {
   workspaceId: string;
   repoPath?: string; // Absolute path to the git repository root
   worktreePath: string; // Absolute path to the worktree directory
-  branchName: string; // e.g., "cowork/fix-login-bug-a1b2c3"
+  branchName: string; // e.g., "neoworker/fix-login-bug-a1b2c3"
   baseBranch: string; // Branch the worktree was created from (e.g., "main")
   baseCommit: string; // SHA of the commit the worktree was created from
   status: WorktreeStatus;
@@ -2688,33 +2743,25 @@ export interface WorktreeSettings {
   enabled: boolean; // Master toggle (default: false)
   autoCommitOnComplete: boolean; // Auto-commit when task completes (default: true)
   autoCleanOnMerge: boolean; // Remove worktree after successful merge (default: true)
-  branchPrefix: string; // Default: "cowork/"
-  commitMessagePrefix: string; // Default: "[cowork] "
+  branchPrefix: string; // Default: "neoworker/"
+  commitMessagePrefix: string; // Default: "[neoworker] "
 }
 
 export const DEFAULT_WORKTREE_SETTINGS: WorktreeSettings = {
   enabled: false,
   autoCommitOnComplete: true,
   autoCleanOnMerge: true,
-  branchPrefix: "cowork/",
-  commitMessagePrefix: "[cowork] ",
+  branchPrefix: "neoworker/",
+  commitMessagePrefix: "[neoworker] ",
 };
 
 // ============ Self-Improvement Types ============
 
 export type ImprovementCandidateSource =
-  | "task_failure"
-  | "verification_failure"
-  | "user_feedback"
-  | "dev_log";
+  "task_failure" | "verification_failure" | "user_feedback" | "dev_log";
 
 export type ImprovementCandidateStatus =
-  | "open"
-  | "running"
-  | "review"
-  | "parked"
-  | "resolved"
-  | "dismissed";
+  "open" | "running" | "review" | "parked" | "resolved" | "dismissed";
 
 export type ImprovementCandidateReadiness =
   | "ready"
@@ -2725,11 +2772,7 @@ export type ImprovementCandidateReadiness =
   | "unknown";
 
 export type ImprovementRunStatus =
-  | "queued"
-  | "running"
-  | "passed"
-  | "failed"
-  | "cancelled";
+  "queued" | "running" | "passed" | "failed" | "cancelled";
 
 export type ImprovementReviewStatus = "pending" | "accepted" | "dismissed";
 export type ImprovementPromotionMode = "merge" | "github_pr";
@@ -2925,10 +2968,7 @@ export interface ImprovementRunEvaluation {
 }
 
 export type ImprovementVariantLane =
-  | "minimal_patch"
-  | "test_first"
-  | "root_cause"
-  | "guardrail_hardening";
+  "minimal_patch" | "test_first" | "root_cause" | "guardrail_hardening";
 
 export type ImprovementCampaignStatus =
   | "queued"
@@ -2946,11 +2986,7 @@ export type ImprovementCampaignStatus =
   | "failed";
 
 export type ImprovementVariantStatus =
-  | "queued"
-  | "running"
-  | "passed"
-  | "failed"
-  | "cancelled";
+  "queued" | "running" | "passed" | "failed" | "cancelled";
 
 export interface ImprovementReplayCase {
   id: string;
@@ -3190,11 +3226,27 @@ export interface QuotedAssistantMessage {
   truncated?: boolean;
 }
 
+export type ActiveArtifactKind =
+  "spreadsheet" | "document" | "presentation" | "webpage";
+
+/** Artifact that was open when the user submitted a follow-up from an artifact workbench. */
+export interface ActiveArtifactContext {
+  kind: ActiveArtifactKind;
+  path: string;
+}
+
 /** Follow-up payload sent to an existing task. */
 export interface TaskFollowUpInput {
   message: string;
   images?: ImageAttachment[];
   quotedAssistantMessage?: QuotedAssistantMessage;
+  activeArtifactContext?: ActiveArtifactContext;
+  /** Mode selected in the composer for this follow-up turn. */
+  executionMode?: ExecutionMode;
+  /** Domain selected in the composer for this follow-up turn. */
+  taskDomain?: TaskDomain;
+  /** Skill explicitly selected for the next turn of the current task. */
+  requestedSkillId?: string;
   permissionMode?: PermissionMode;
   shellAccess?: boolean;
   /**
@@ -3203,6 +3255,15 @@ export interface TaskFollowUpInput {
    */
   agentConfigOverride?: AgentConfig;
   integrationMentions?: IntegrationMentionSelection[];
+}
+
+/** User-visible follow-up waiting for the current task turn to finish. */
+export interface TaskQueuedFollowUp {
+  id: string;
+  taskId: string;
+  message: string;
+  createdAt: number;
+  attachmentCount: number;
 }
 
 export interface TaskEvent {
@@ -3327,18 +3388,9 @@ export interface ListTaskTraceRunsRequest {
 
 export type TaskTraceTab = "transcript" | "debug";
 export type TaskTraceRowActor =
-  | "user"
-  | "agent"
-  | "tool"
-  | "model"
-  | "result"
-  | "system";
+  "user" | "agent" | "tool" | "model" | "result" | "system";
 export type TaskTraceBadgeTone =
-  | "neutral"
-  | "active"
-  | "success"
-  | "warning"
-  | "error";
+  "neutral" | "active" | "success" | "warning" | "error";
 
 export interface TaskTraceBadge {
   label: string;
@@ -3535,12 +3587,7 @@ export interface UnifiedRecallResponse {
 
 export type ShellSessionScope = "task" | "workspace" | "tab";
 export type ShellSessionStatus =
-  | "inactive"
-  | "active"
-  | "running"
-  | "resetting"
-  | "ended"
-  | "fallback";
+  "inactive" | "active" | "running" | "resetting" | "ended" | "fallback";
 
 export interface ShellSessionInfo {
   id: string;
@@ -3599,10 +3646,7 @@ export interface TerminalTabOutputEvent {
 }
 
 export type GithubReviewThreadState =
-  | "open"
-  | "resolved"
-  | "outdated"
-  | "unknown";
+  "open" | "resolved" | "outdated" | "unknown";
 
 export interface GithubPullRequestReviewComment {
   id: string;
@@ -3817,18 +3861,10 @@ export interface Artifact {
 }
 
 export type AnnotationSurfaceType =
-  | "browser"
-  | "diff"
-  | "file"
-  | "artifact"
-  | "message";
+  "browser" | "diff" | "file" | "artifact" | "message";
 
 export type AnnotationStatus =
-  | "open"
-  | "addressing"
-  | "addressed"
-  | "resolved"
-  | "dismissed";
+  "open" | "addressing" | "addressed" | "resolved" | "dismissed";
 
 export interface AnnotationViewportRef {
   width: number;
@@ -3989,10 +4025,7 @@ export interface PdfReviewPageSummary {
 }
 
 export type PdfReviewExtractionMode =
-  | "native"
-  | "ocrmypdf"
-  | "page-ocr"
-  | "fallback";
+  "native" | "ocrmypdf" | "page-ocr" | "fallback";
 
 export interface PdfReviewSummary {
   pageCount: number;
@@ -4060,6 +4093,7 @@ export interface Workspace {
   path: string;
   createdAt: number;
   lastUsedAt?: number;
+  archivedAt?: number;
   permissions: WorkspacePermissions;
   isTemp?: boolean; // True for the auto-created temp workspace
 }
@@ -4068,7 +4102,7 @@ export interface Workspace {
 export const TEMP_WORKSPACE_ID = "__temp_workspace__";
 export const TEMP_WORKSPACE_ID_PREFIX = "__temp_workspace__:";
 export const TEMP_WORKSPACE_NAME = "Temporary Workspace";
-export const TEMP_WORKSPACE_ROOT_DIR_NAME = "cowork-os-temp";
+export const TEMP_WORKSPACE_ROOT_DIR_NAME = "neoworker-temp";
 
 export function isTempWorkspaceId(id: string | null | undefined): boolean {
   if (typeof id !== "string") return false;
@@ -4254,6 +4288,9 @@ export interface ApprovalResponse {
   action?: ApprovalResponseAction;
 }
 
+export type ApprovalResponseStatus =
+  "handled" | "duplicate" | "not_found" | "in_progress";
+
 export interface RequestUserInputOption {
   label: string;
   description: string;
@@ -4296,11 +4333,7 @@ export interface Skill {
   name: string;
   description: string;
   category:
-    | "document"
-    | "spreadsheet"
-    | "presentation"
-    | "organizer"
-    | "custom";
+    "document" | "spreadsheet" | "presentation" | "organizer" | "custom";
   prompt: string;
   scriptPath?: string;
   parameters?: Record<string, Any>;
@@ -4347,11 +4380,7 @@ export type HeartbeatStatus = "idle" | "running" | "sleeping" | "error";
 export type HeartbeatProfile = "observer" | "operator" | "dispatcher";
 export type HeartbeatRunType = "pulse" | "dispatch";
 export type HeartbeatDispatchKind =
-  | "silent"
-  | "suggestion"
-  | "task"
-  | "runbook"
-  | "cron_handoff";
+  "silent" | "suggestion" | "task" | "runbook" | "cron_handoff";
 export type HeartbeatPulseResultKind =
   | "idle"
   | "deferred"
@@ -4410,10 +4439,7 @@ export interface AgentToolRestrictions {
 }
 
 export type CompanyLoopType =
-  | "monitor"
-  | "work_generation"
-  | "execution"
-  | "review";
+  "monitor" | "work_generation" | "execution" | "review";
 
 export type CompanyOutputType =
   | "status_digest"
@@ -4529,11 +4555,7 @@ export interface UpdateAutomationProfileRequest {
 }
 
 export type CoreTraceSourceSurface =
-  | "heartbeat"
-  | "subconscious"
-  | "memory"
-  | "trigger"
-  | "device";
+  "heartbeat" | "subconscious" | "memory" | "trigger" | "device";
 
 export type CoreTraceKind =
   | "pulse_cycle"
@@ -4543,11 +4565,7 @@ export type CoreTraceKind =
   | "harness_experiment"
   | "regression_eval";
 
-export type CoreTraceStatus =
-  | "running"
-  | "completed"
-  | "failed"
-  | "skipped";
+export type CoreTraceStatus = "running" | "completed" | "failed" | "skipped";
 
 export type CoreTracePhase =
   | "start"
@@ -4583,10 +4601,7 @@ export type CoreMemoryCandidateType =
   | "invalidates_prior";
 
 export type CoreMemoryCandidateStatus =
-  | "proposed"
-  | "accepted"
-  | "rejected"
-  | "merged";
+  "proposed" | "accepted" | "rejected" | "merged";
 
 export interface CoreTrace {
   id: string;
@@ -4688,7 +4703,10 @@ export interface ListCoreMemoryCandidatesRequest {
 
 export interface ReviewCoreMemoryCandidateRequest {
   id: string;
-  status: Extract<CoreMemoryCandidateStatus, "accepted" | "rejected" | "merged">;
+  status: Extract<
+    CoreMemoryCandidateStatus,
+    "accepted" | "rejected" | "merged"
+  >;
   resolution?: string;
 }
 
@@ -4699,22 +4717,12 @@ export interface ListCoreMemoryDistillRunsRequest {
 }
 
 export type DreamingScopeKind =
-  | "workspace"
-  | "agent_role"
-  | "topic"
-  | "recent_sessions";
+  "workspace" | "agent_role" | "topic" | "recent_sessions";
 
 export type DreamingTriggerSource =
-  | "heartbeat"
-  | "task_completion"
-  | "manual"
-  | "system";
+  "heartbeat" | "task_completion" | "manual" | "system";
 
-export type DreamingRunStatus =
-  | "running"
-  | "completed"
-  | "failed"
-  | "skipped";
+export type DreamingRunStatus = "running" | "completed" | "failed" | "skipped";
 
 export type DreamingCandidateAction =
   | "curated_add"
@@ -4736,11 +4744,7 @@ export type DreamingCandidateTarget =
   | "suggestion_policy";
 
 export type DreamingCandidateStatus =
-  | "proposed"
-  | "accepted"
-  | "rejected"
-  | "applied"
-  | "merged";
+  "proposed" | "accepted" | "rejected" | "applied" | "merged";
 
 export interface DreamingRun {
   id: string;
@@ -4795,7 +4799,10 @@ export interface ListDreamingCandidatesRequest {
 
 export interface ReviewDreamingCandidateRequest {
   id: string;
-  status: Extract<DreamingCandidateStatus, "accepted" | "rejected" | "merged" | "applied">;
+  status: Extract<
+    DreamingCandidateStatus,
+    "accepted" | "rejected" | "merged" | "applied"
+  >;
   resolution?: string;
 }
 
@@ -4821,28 +4828,15 @@ export type CoreFailureCategory =
 export type CoreFailureSeverity = "low" | "medium" | "high" | "critical";
 
 export type CoreFailureRecordStatus =
-  | "open"
-  | "clustered"
-  | "resolved"
-  | "archived";
+  "open" | "clustered" | "resolved" | "archived";
 
 export type CoreFailureClusterStatus =
-  | "open"
-  | "stable"
-  | "evaluating"
-  | "resolved"
-  | "dismissed";
+  "open" | "stable" | "evaluating" | "resolved" | "dismissed";
 
-export type CoreEvalCaseStatus =
-  | "draft"
-  | "active"
-  | "failing"
-  | "archived";
+export type CoreEvalCaseStatus = "draft" | "active" | "failing" | "archived";
 
 export type CoreExperimentChangeKind =
-  | "automation_profile"
-  | "subconscious_settings"
-  | "memory_policy";
+  "automation_profile" | "subconscious_settings" | "memory_policy";
 
 export type CoreExperimentStatus =
   | "proposed"
@@ -4976,7 +4970,10 @@ export interface ListCoreFailureClustersRequest {
 
 export interface ReviewCoreFailureClusterRequest {
   id: string;
-  status: Extract<CoreFailureClusterStatus, "stable" | "resolved" | "dismissed">;
+  status: Extract<
+    CoreFailureClusterStatus,
+    "stable" | "resolved" | "dismissed"
+  >;
   rootCauseSummary?: string;
 }
 
@@ -5228,19 +5225,10 @@ export interface UpdateAgentTeamMemberRequest {
 }
 
 export type AgentTeamRunStatus =
-  | "pending"
-  | "running"
-  | "paused"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
 
 export type AgentTeamRunPhase =
-  | "dispatch"
-  | "think"
-  | "execute"
-  | "synthesize"
-  | "complete";
+  "dispatch" | "think" | "execute" | "synthesize" | "complete";
 
 export interface AgentTeamRun {
   id: string;
@@ -5266,11 +5254,7 @@ export interface CreateAgentTeamRunRequest {
 }
 
 export type AgentTeamItemStatus =
-  | "todo"
-  | "in_progress"
-  | "blocked"
-  | "done"
-  | "failed";
+  "todo" | "in_progress" | "blocked" | "done" | "failed";
 
 export interface AgentTeamItem {
   id: string;
@@ -5393,7 +5377,8 @@ export interface ManagedAgentConversionProvenance {
   migratedAt: number;
 }
 
-export type AgentWorkspaceRole = "viewer" | "operator" | "builder" | "publisher" | "admin";
+export type AgentWorkspaceRole =
+  "viewer" | "operator" | "builder" | "publisher" | "admin";
 
 export interface AgentWorkspaceMembership {
   id: string;
@@ -5611,7 +5596,7 @@ export interface ManagedAgentVersion {
   createdAt: number;
 }
 
-export type ManagedEnvironmentKind = "cowork_local";
+export type ManagedEnvironmentKind = "neoworker_local";
 export type ManagedEnvironmentStatus = "active" | "archived";
 
 export interface ManagedEnvironmentConfig {
@@ -5667,11 +5652,11 @@ export interface ManagedSession {
   completedAt?: number;
 }
 
-export type ManagedSessionSurface = "runtime" | "agent_panel" | "studio_preview";
+export type ManagedSessionSurface =
+  "runtime" | "agent_panel" | "studio_preview";
 
 export type ManagedSessionInputContent =
-  | { type: "text"; text: string }
-  | { type: "file"; artifactId: string };
+  { type: "text"; text: string } | { type: "file"; artifactId: string };
 
 export interface ManagedSessionCreateInput {
   agentId: string;
@@ -5725,10 +5710,7 @@ export type ManagedAgentToolFamily =
 export type ManagedAgentRuntimeToolSurface = "chatgpt" | "slack";
 
 export type ManagedAgentRuntimeToolApprovalBehavior =
-  | "no_approval"
-  | "auto_approve"
-  | "require_approval"
-  | "workspace_policy";
+  "no_approval" | "auto_approve" | "require_approval" | "workspace_policy";
 
 export interface ManagedAgentRuntimeToolCatalogEntry {
   name: string;
@@ -5814,7 +5796,8 @@ export interface AgentBuilderRoutinePlan {
   trigger: ManagedAgentRoutineTriggerConfig;
 }
 
-export type AgentBuilderSelectionRequirementKind = "integration" | "tool" | "skill";
+export type AgentBuilderSelectionRequirementKind =
+  "integration" | "tool" | "skill";
 
 export interface AgentBuilderSelectionOption {
   id: string;
@@ -5987,7 +5970,13 @@ export interface AgentTemplate {
   tagline?: string;
   icon: string;
   color: string;
-  category: "operations" | "support" | "planning" | "research" | "engineering" | "finance";
+  category:
+    | "operations"
+    | "support"
+    | "planning"
+    | "research"
+    | "engineering"
+    | "finance";
   featured?: boolean;
   systemPrompt: string;
   executionMode: ManagedAgentExecutionMode;
@@ -6049,9 +6038,7 @@ export interface CreateAgentThoughtRequest {
 /** Event payload for team thought IPC events */
 export interface TeamThoughtEvent {
   type:
-    | "team_thought_added"
-    | "team_thought_updated"
-    | "team_thought_streaming";
+    "team_thought_added" | "team_thought_updated" | "team_thought_streaming";
   timestamp: number;
   runId: string;
   thought: AgentThought;
@@ -6401,11 +6388,7 @@ export interface PersonaTemplateCognitiveOffloadConfig {
  * Category for persona template gallery grouping
  */
 export type PersonaTemplateCategory =
-  | "engineering"
-  | "management"
-  | "product"
-  | "data"
-  | "operations";
+  "engineering" | "management" | "product" | "data" | "operations";
 
 /**
  * A persona template defines a pre-built digital twin configuration.
@@ -6663,10 +6646,7 @@ export interface HeartbeatResult {
 }
 
 export type HeartbeatDecisionMode =
-  | "silent"
-  | "inbox_suggestion"
-  | "task_creation"
-  | "nudge";
+  "silent" | "inbox_suggestion" | "task_creation" | "nudge";
 
 export type HeartbeatSignalFamily =
   | "urgent_interrupt"
@@ -6776,11 +6756,7 @@ export interface HeartbeatEvent {
  * Board column for task organization (Kanban)
  */
 export type BoardColumn =
-  | "backlog"
-  | "todo"
-  | "in_progress"
-  | "review"
-  | "done";
+  "backlog" | "todo" | "in_progress" | "review" | "done";
 
 /**
  * Board column definitions for UI
@@ -6974,10 +6950,7 @@ export type MentionType = "request" | "handoff" | "review" | "fyi";
  * Status of a mention
  */
 export type MentionStatus =
-  | "pending"
-  | "acknowledged"
-  | "completed"
-  | "dismissed";
+  "pending" | "acknowledged" | "completed" | "dismissed";
 
 /**
  * An @mention from one agent to another
@@ -7036,24 +7009,13 @@ export interface DiscordSupervisorConfig {
 }
 
 export type SupervisorProtocolIntent =
-  | "status_request"
-  | "review_request"
-  | "escalation_notice"
-  | "ack";
+  "status_request" | "review_request" | "escalation_notice" | "ack";
 
 export type SupervisorExchangeStatus =
-  | "open"
-  | "acknowledged"
-  | "escalated"
-  | "closed"
-  | "ignored";
+  "open" | "acknowledged" | "escalated" | "closed" | "ignored";
 
 export type SupervisorActorKind =
-  | "peer"
-  | "worker"
-  | "supervisor"
-  | "human"
-  | "system";
+  "peer" | "worker" | "supervisor" | "human" | "system";
 
 export interface SupervisorEvidenceRef {
   channelId: string;
@@ -7113,113 +7075,6 @@ export interface SupervisorExchangeEvent {
   exchange: SupervisorExchange;
 }
 
-// ============ Infrastructure Types ============
-
-export interface WalletInfo {
-  address: string;
-  network: string;
-  balanceUsdc?: string;
-}
-
-export interface InfraSandboxInfo {
-  id: string;
-  name?: string;
-  status: "running" | "stopped" | "error";
-  createdAt: number;
-  region?: string;
-}
-
-export type InfraProviderStatus =
-  | "connected"
-  | "disconnected"
-  | "error"
-  | "not_configured";
-
-export interface InfraStatus {
-  enabled: boolean;
-  wallet?: WalletInfo;
-  walletFileExists?: boolean;
-  providers: {
-    e2b: InfraProviderStatus;
-    domains: InfraProviderStatus;
-    wallet: InfraProviderStatus;
-  };
-  activeSandboxes: number;
-  error?: string;
-}
-
-export interface InfraSettings {
-  enabled: boolean;
-  showWalletInSidebar: boolean;
-  e2b: {
-    apiKey: string;
-    defaultRegion: string;
-  };
-  domains: {
-    provider: "namecheap";
-    apiKey: string;
-    username: string;
-    clientIp: string;
-  };
-  wallet: {
-    enabled: boolean;
-    provider: "local" | "coinbase_agentic";
-    coinbase: {
-      enabled: boolean;
-      signerEndpoint: string;
-      network: "base-mainnet" | "base-sepolia";
-      accountId: string;
-    };
-  };
-  payments: {
-    requireApproval: boolean;
-    maxAutoApproveUsd: number;
-    hardLimitUsd: number;
-    allowedHosts: string[];
-  };
-  enabledCategories: {
-    sandbox: boolean;
-    domains: boolean;
-    payments: boolean;
-  };
-}
-
-export const DEFAULT_INFRA_SETTINGS: InfraSettings = {
-  enabled: false,
-  showWalletInSidebar: true,
-  e2b: {
-    apiKey: "",
-    defaultRegion: "us-east-1",
-  },
-  domains: {
-    provider: "namecheap",
-    apiKey: "",
-    username: "",
-    clientIp: "",
-  },
-  wallet: {
-    enabled: true,
-    provider: "local",
-    coinbase: {
-      enabled: false,
-      signerEndpoint: "",
-      network: "base-mainnet",
-      accountId: "",
-    },
-  },
-  payments: {
-    requireApproval: true,
-    maxAutoApproveUsd: 1.0,
-    hardLimitUsd: 100.0,
-    allowedHosts: [],
-  },
-  enabledCategories: {
-    sandbox: true,
-    domains: true,
-    payments: true,
-  },
-};
-
 // ─── Proactive Suggestions ──────────────────────────────────────
 
 export type SuggestionType =
@@ -7263,9 +7118,9 @@ export interface ProactiveSuggestion {
 
 export const EVERYDAY_AGENT_CONSENT_VERSION = 1;
 export const EVERYDAY_AGENT_DEFAULT_PROFILE_ID = "default";
-export const EVERYDAY_AGENT_DEFAULT_MANAGED_AGENT_ID = "cowork-everyday-agent";
+export const EVERYDAY_AGENT_DEFAULT_MANAGED_AGENT_ID = "neoworker-everyday-agent";
 export const EVERYDAY_AGENT_DEFAULT_MANAGED_ENVIRONMENT_ID =
-  "cowork-everyday-agent-local";
+  "neoworker-everyday-agent-local";
 
 export type EverydayCapabilityBundle =
   | "inbox"
@@ -7292,9 +7147,7 @@ export type EverydayActionRisk =
   | "credential_sensitive";
 
 export type EverydayApprovalPosture =
-  | "review_first"
-  | "trusted_patterns"
-  | "review_only";
+  "review_first" | "trusted_patterns" | "review_only";
 
 export type EverydayReceiptStatus =
   | "executed"
@@ -7306,11 +7159,7 @@ export type EverydayReceiptStatus =
   | "approved";
 
 export type EverydayPreviewStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "expired"
-  | "blocked";
+  "pending" | "approved" | "rejected" | "expired" | "blocked";
 
 export interface EverydayCapabilityBundleDefinition {
   id: EverydayCapabilityBundle;
@@ -7352,7 +7201,8 @@ export const EVERYDAY_AGENT_CAPABILITY_BUNDLES: EverydayCapabilityBundleDefiniti
     {
       id: "files",
       label: "Files",
-      description: "Read local workspace files and suggest cleanup or organization.",
+      description:
+        "Read local workspace files and suggest cleanup or organization.",
       surfaces: ["Task Timeline", "Home"],
       defaultEnabled: false,
       sensitiveRisks: ["destructive", "data_export"],
@@ -7386,7 +7236,8 @@ export const EVERYDAY_AGENT_CAPABILITY_BUNDLES: EverydayCapabilityBundleDefiniti
     {
       id: "memory",
       label: "Memory",
-      description: "Propose reviewable memories from accepted work and outcomes.",
+      description:
+        "Propose reviewable memories from accepted work and outcomes.",
       surfaces: ["Memory", "Home"],
       defaultEnabled: true,
       sensitiveRisks: ["data_export"],
@@ -7412,7 +7263,8 @@ export const EVERYDAY_AGENT_CAPABILITY_BUNDLES: EverydayCapabilityBundleDefiniti
     {
       id: "automations",
       label: "Automations",
-      description: "Create, dry-run, monitor, pause, and revoke trusted routines.",
+      description:
+        "Create, dry-run, monitor, pause, and revoke trusted routines.",
       surfaces: ["Routines", "Home"],
       defaultEnabled: true,
       sensitiveRisks: ["execute_sensitive", "destructive"],
@@ -7471,12 +7323,7 @@ export interface EverydayBrowserProfilePolicy {
 export interface EverydayPauseScope {
   id?: string;
   kind:
-    | "global"
-    | "capability"
-    | "connector"
-    | "workspace"
-    | "device"
-    | "channel";
+    "global" | "capability" | "connector" | "workspace" | "device" | "channel";
   capability?: EverydayCapabilityBundle;
   targetId?: string;
   reason?: string;
@@ -7493,7 +7340,10 @@ export interface EverydayAgentProfile {
   consentDeclinedAt?: number;
   managedAgentId?: string;
   managedEnvironmentId?: string;
-  capabilitySettings: Record<EverydayCapabilityBundle, EverydayCapabilitySetting>;
+  capabilitySettings: Record<
+    EverydayCapabilityBundle,
+    EverydayCapabilitySetting
+  >;
   connectorAllowlists: Record<string, EverydayConnectorAllowlistEntry>;
   workspaceScopes: string[];
   accountScopes: Record<string, string[]>;
@@ -7564,7 +7414,10 @@ export interface EverydayAgentUpdateProfileRequest {
   capabilitySettings?: Partial<
     Record<EverydayCapabilityBundle, Partial<EverydayCapabilitySetting>>
   >;
-  connectorAllowlists?: Record<string, Partial<EverydayConnectorAllowlistEntry>>;
+  connectorAllowlists?: Record<
+    string,
+    Partial<EverydayConnectorAllowlistEntry>
+  >;
   workspaceScopes?: string[];
   accountScopes?: Record<string, string[]>;
   approvalPosture?: EverydayApprovalPosture;
@@ -7781,6 +7634,10 @@ export const IPC_CHANNELS = {
   TASK_GET: "task:get",
   TASK_LIST: "task:list",
   TASK_LIST_SIDEBAR: "task:listSidebar",
+  TASK_PROVENANCE_LIST: "task:provenance:list",
+  TASK_PROVENANCE_OPEN: "task:provenance:open",
+  TASK_ACCESS_GET: "task:access:get",
+  TASK_ACCESS_UPDATE: "task:access:update",
   TASK_TIMELINE_PAGE: "task:timelinePage",
   TASK_EVENT_DETAIL: "task:eventDetail",
   TASK_EXPORT_JSON: "task:exportJSON",
@@ -7793,9 +7650,12 @@ export const IPC_CHANNELS = {
   TASK_FORK_SESSION: "task:forkSession",
   TASK_RENAME: "task:rename",
   TASK_ARCHIVE: "task:archive",
+  TASK_UNARCHIVE: "task:unarchive",
+  TASK_LIST_ARCHIVED: "task:listArchived",
   TASK_DELETE: "task:delete",
   DIALOG_SELECT_FOLDER: "dialog:selectFolder",
   DIALOG_SELECT_FILES: "dialog:selectFiles",
+  DIALOG_SELECT_SAVE_PATH: "dialog:selectSavePath",
   WINDOW_MINIMIZE: "window:minimize",
   WINDOW_MAXIMIZE: "window:maximize",
   WINDOW_CLOSE: "window:close",
@@ -7804,6 +7664,7 @@ export const IPC_CHANNELS = {
   FILE_OPEN: "file:open",
   FILE_OPEN_WITH_APP: "file:openWithApp",
   FILE_SHOW_IN_FINDER: "file:showInFinder",
+  FILE_DOWNLOAD: "file:download",
   FILE_READ_FOR_VIEWER: "file:readForViewer",
   FILE_UPDATE_SPREADSHEET: "file:updateSpreadsheet",
   FILE_UPDATE_DOCUMENT: "file:updateDocument",
@@ -7828,7 +7689,8 @@ export const IPC_CHANNELS = {
   BROWSER_WORKBENCH_STATUS: "browserWorkbench:status",
   BROWSER_WORKBENCH_SCREENSHOT: "browserWorkbench:screenshot",
   BROWSER_WORKBENCH_INSPECT_POINT: "browserWorkbench:inspectPoint",
-  BROWSER_WORKBENCH_RESOLVE_ANNOTATION_TARGETS: "browserWorkbench:resolveAnnotationTargets",
+  BROWSER_WORKBENCH_RESOLVE_ANNOTATION_TARGETS:
+    "browserWorkbench:resolveAnnotationTargets",
   BROWSER_WORKBENCH_OPEN_REQUEST: "browserWorkbench:openRequest",
   BROWSER_WORKBENCH_CURSOR: "browserWorkbench:cursor",
   BROWSER_WORKBENCH_VIEWPORT: "browserWorkbench:viewport",
@@ -7961,7 +7823,8 @@ export const IPC_CHANNELS = {
   AUTOMATION_PROFILE_ATTACH: "automationProfile:attach",
   AUTOMATION_PROFILE_DETACH: "automationProfile:detach",
   AUTOMATION_PROFILE_LIST_HEARTBEAT_RUNS: "automationProfile:listHeartbeatRuns",
-  AUTOMATION_PROFILE_LIST_SUBCONSCIOUS_RUNS: "automationProfile:listSubconsciousRuns",
+  AUTOMATION_PROFILE_LIST_SUBCONSCIOUS_RUNS:
+    "automationProfile:listSubconsciousRuns",
   CORE_TRACE_LIST: "coreTrace:list",
   CORE_TRACE_GET: "coreTrace:get",
   CORE_TRACE_LIST_BY_PROFILE: "coreTrace:listByProfile",
@@ -8028,7 +7891,12 @@ export const IPC_CHANNELS = {
   MC_PROJECT_LIST: "missionControl:projectList",
   MC_PROJECT_GET: "missionControl:projectGet",
   MC_PROJECT_CREATE: "missionControl:projectCreate",
+  MC_PROJECT_CREATE_WITH_WORKSPACE: "missionControl:projectCreateWithWorkspace",
   MC_PROJECT_UPDATE: "missionControl:projectUpdate",
+  MC_PROJECT_WORKSPACE_LIST: "missionControl:projectWorkspaceList",
+  MC_PROJECT_WORKSPACE_LINK: "missionControl:projectWorkspaceLink",
+  MC_PROJECT_WORKSPACE_UNLINK: "missionControl:projectWorkspaceUnlink",
+  MC_PROJECT_WORKSPACE_SET_PRIMARY: "missionControl:projectWorkspaceSetPrimary",
   MC_ISSUE_LIST: "missionControl:issueList",
   MC_ISSUE_GET: "missionControl:issueGet",
   MC_ISSUE_CREATE: "missionControl:issueCreate",
@@ -8132,7 +8000,7 @@ export const IPC_CHANNELS = {
   EVERYDAY_AGENT_PREVIEW_ACTION: "everydayAgent:previewAction",
   EVERYDAY_AGENT_APPROVE_ACTION: "everydayAgent:approveAction",
 
-  // Workspace Kit (.cowork)
+  // Workspace Kit (.neoworker)
   KIT_GET_STATUS: "kit:getStatus",
   KIT_INIT: "kit:init",
   KIT_APPLY_ONBOARDING_PROFILE: "kit:applyOnboardingProfile",
@@ -8188,10 +8056,15 @@ export const IPC_CHANNELS = {
   TASK_LEARNING_PROGRESS: "task:learningProgress",
   TASK_LEARNING_EVENT: "task:learningEvent",
   TASK_SEND_MESSAGE: "task:sendMessage",
+  TASK_FOLLOW_UP_QUEUE_LIST: "task:followUpQueue:list",
+  TASK_FOLLOW_UP_QUEUE_UPDATE: "task:followUpQueue:update",
+  TASK_FOLLOW_UP_QUEUE_REORDER: "task:followUpQueue:reorder",
+  TASK_FOLLOW_UP_QUEUE_REMOVE: "task:followUpQueue:remove",
   TASK_STEP_FEEDBACK: "task:stepFeedback", // Send feedback on an in-progress step
   TASK_SEND_STDIN: "task:sendStdin", // Send stdin input to running command
   TASK_KILL_COMMAND: "task:killCommand", // Kill running command (Ctrl+C)
   TASK_UPDATE_WORKSPACE: "task:updateWorkspace",
+  TASK_UPDATE_PROJECT: "task:updateProject",
   SHELL_SESSION_EVENT: "shell:sessionEvent",
   SHELL_SESSION_GET: "shell:sessionGet",
   SHELL_SESSION_LIST: "shell:sessionList",
@@ -8205,12 +8078,14 @@ export const IPC_CHANNELS = {
   WORKSPACE_SELECT: "workspace:select",
   WORKSPACE_LIST: "workspace:list",
   WORKSPACE_CREATE: "workspace:create",
+  WORKSPACE_SET_ARCHIVED: "workspace:setArchived",
   WORKSPACE_UPDATE_PERMISSIONS: "workspace:updatePermissions",
   WORKSPACE_TOUCH: "workspace:touch",
   WORKSPACE_GET_TEMP: "workspace:getTemp", // Get or create temp workspace
   WORKSPACE_PRUNE_TEMP: "workspace:pruneTemp", // Check or delete unused temp workspaces
 
   // Approval operations
+  APPROVAL_LIST_PENDING: "approval:listPending",
   APPROVAL_RESPOND: "approval:respond",
   APPROVAL_SESSION_AUTO_APPROVE_SET: "approval:sessionAutoApprove:set",
   APPROVAL_SESSION_AUTO_APPROVE_GET: "approval:sessionAutoApprove:get",
@@ -8305,6 +8180,8 @@ export const IPC_CHANNELS = {
   GATEWAY_GENERATE_PAIRING: "gateway:generatePairing",
   GATEWAY_MESSAGE: "gateway:message",
   GATEWAY_USERS_UPDATED: "gateway:users-updated",
+  WEIXIN_LOGIN_START: "weixin:loginStart",
+  WEIXIN_LOGIN_POLL: "weixin:loginPoll",
 
   // Search Settings
   SEARCH_GET_SETTINGS: "search:getSettings",
@@ -8497,17 +8374,6 @@ export const IPC_CHANNELS = {
   // MCP Events
   MCP_SERVER_STATUS_CHANGE: "mcp:serverStatusChange",
 
-  // Infrastructure
-  INFRA_GET_STATUS: "infra:getStatus",
-  INFRA_GET_SETTINGS: "infra:getSettings",
-  INFRA_SAVE_SETTINGS: "infra:saveSettings",
-  INFRA_SETUP: "infra:setup",
-  INFRA_GET_WALLET: "infra:getWallet",
-  INFRA_WALLET_RESTORE: "infra:walletRestore",
-  INFRA_WALLET_VERIFY: "infra:walletVerify",
-  INFRA_RESET: "infra:reset",
-  INFRA_STATUS_CHANGE: "infra:statusChange",
-
   // Scraping (Scrapling integration)
   SCRAPING_GET_SETTINGS: "scraping:getSettings",
   SCRAPING_SAVE_SETTINGS: "scraping:saveSettings",
@@ -8640,7 +8506,8 @@ export const IPC_CHANNELS = {
   MANAGED_SESSION_GENERATE_AUDIO_SUMMARY: "managedSession:generateAudioSummary",
   AGENT_WORKSPACE_MEMBERSHIP_LIST_IPC: "agentWorkspaceMembership:listIpc",
   AGENT_WORKSPACE_MEMBERSHIP_UPDATE_IPC: "agentWorkspaceMembership:updateIpc",
-  AGENT_WORKSPACE_PERMISSION_SNAPSHOT_IPC: "agentWorkspacePermission:snapshotIpc",
+  AGENT_WORKSPACE_PERMISSION_SNAPSHOT_IPC:
+    "agentWorkspacePermission:snapshotIpc",
   AGENT_TEMPLATE_LIST: "agentTemplate:list",
   IMAGE_GEN_PROFILE_LIST: "imageGenProfile:list",
   IMAGE_GEN_PROFILE_CREATE: "imageGenProfile:create",
@@ -9047,6 +8914,14 @@ export interface CustomProviderConfig {
   reasoningEffort?: LLMReasoningEffort;
 }
 
+export interface LLMProviderModelRegistryEntry {
+  /** User-configured model IDs for a provider. Unlike cached models, these are intentional selections. */
+  models?: string[];
+  /** Per-model enable state. Missing entries are treated as enabled. */
+  enabled?: Record<string, boolean>;
+  updatedAt?: number;
+}
+
 export interface ProviderFailoverSettings {
   fallbackProviders?: LLMProviderFallbackConfig[];
   failoverPrimaryRetryCooldownSeconds?: number;
@@ -9096,10 +8971,7 @@ export type LLMReasoningEffort = OpenAIReasoningEffort | AzureReasoningEffort;
 export type LLMTextVerbosity = "low" | "medium" | "high";
 
 export type PromptCacheSurface =
-  | "executor"
-  | "followUps"
-  | "chatMode"
-  | "sideCalls";
+  "executor" | "followUps" | "chatMode" | "sideCalls";
 
 export interface PromptCachingSettings {
   mode?: "auto" | "off";
@@ -9209,6 +9081,7 @@ export interface LLMSettingsData {
     model?: string;
   } & ProviderRoutingSettings;
   openaiCompatible?: {
+    displayName?: string;
     apiKey?: string;
     baseUrl?: string;
     model?: string;
@@ -9225,11 +9098,13 @@ export interface LLMSettingsData {
   /** Text-to-image model selection. Default tried first; backup used on failure. */
   imageGeneration?: {
     /** Primary provider route. Leave unset for automatic provider selection. */
-    defaultProvider?: "openai" | "openai-codex" | "azure" | "openrouter" | "gemini";
+    defaultProvider?:
+      "openai" | "openai-codex" | "azure" | "openrouter" | "gemini";
     /** Primary model: GPT Image (OpenAI/Azure/OpenRouter) or nano-banana-2 (Gemini) */
     defaultModel?: "gpt-image-2" | "gpt-image-1.5" | "nano-banana-2";
     /** Fallback provider route. Leave unset for automatic provider fallback. */
-    backupProvider?: "openai" | "openai-codex" | "azure" | "openrouter" | "gemini";
+    backupProvider?:
+      "openai" | "openai-codex" | "azure" | "openrouter" | "gemini";
     /** Fallback model when default fails */
     backupModel?: "gpt-image-2" | "gpt-image-1.5" | "nano-banana-2";
     /** Provider attempt timeouts in seconds. Defaults to 300 seconds per provider. */
@@ -9321,6 +9196,7 @@ export interface LLMSettingsData {
   cachedDeepSeekModels?: CachedModelInfo[];
   cachedPiModels?: CachedModelInfo[];
   cachedOpenAICompatibleModels?: CachedModelInfo[];
+  providerModelRegistry?: Record<string, LLMProviderModelRegistryEntry>;
   customProviders?: Record<string, CustomProviderConfig>;
 }
 
@@ -9363,13 +9239,12 @@ export type ChannelType =
   | "teams"
   | "googlechat"
   | "feishu"
+  | "dingtalk"
+  | "weixin"
   | "wecom"
   | "x";
 export type ChannelStatus =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "error";
+  "disconnected" | "connecting" | "connected" | "error";
 export type SecurityMode = "open" | "allowlist" | "pairing";
 
 /**
@@ -9470,10 +9345,7 @@ export interface ChannelData {
     supervisor?: DiscordSupervisorConfig;
     progressRelayMode?: "minimal" | "curated";
     groupRoutingMode?:
-      | "all"
-      | "mentionsOnly"
-      | "mentionsOrCommands"
-      | "commandsOnly";
+      "all" | "mentionsOnly" | "mentionsOrCommands" | "commandsOnly";
     trustedGroupMemoryOptIn?: boolean;
     sendReadReceipts?: boolean;
     deduplicationEnabled?: boolean;
@@ -9517,10 +9389,7 @@ export interface AddChannelRequest {
   allowedNumbers?: string[];
   selfChatMode?: boolean;
   groupRoutingMode?:
-    | "all"
-    | "mentionsOnly"
-    | "mentionsOrCommands"
-    | "commandsOnly";
+    "all" | "mentionsOnly" | "mentionsOrCommands" | "commandsOnly";
   telegramAllowedGroupChatIds?: string[];
   trustedGroupMemoryOptIn?: boolean;
   sendReadReceipts?: boolean;
@@ -9606,6 +9475,14 @@ export interface AddChannelRequest {
   feishuAppSecret?: string;
   feishuVerificationToken?: string;
   feishuEncryptKey?: string;
+  // DingTalk Stream-specific fields
+  dingtalkClientId?: string;
+  dingtalkClientSecret?: string;
+  // Personal WeChat (iLink QR login) fields
+  weixinAccountId?: string;
+  weixinBotToken?: string;
+  weixinBaseUrl?: string;
+  weixinUserId?: string;
   // WeCom-specific fields
   wecomCorpId?: string;
   wecomAgentId?: number;
@@ -9629,10 +9506,7 @@ export interface UpdateChannelRequest {
     supervisor?: DiscordSupervisorConfig;
     progressRelayMode?: "minimal" | "curated";
     groupRoutingMode?:
-      | "all"
-      | "mentionsOnly"
-      | "mentionsOrCommands"
-      | "commandsOnly";
+      "all" | "mentionsOnly" | "mentionsOrCommands" | "commandsOnly";
     trustedGroupMemoryOptIn?: boolean;
     sendReadReceipts?: boolean;
     deduplicationEnabled?: boolean;
@@ -9649,14 +9523,10 @@ export interface TestChannelResult {
 }
 
 // Extension / Plugin types
-export type ExtensionType = "channel" | "tool" | "provider" | "integration";
+export type ExtensionType =
+  "channel" | "tool" | "provider" | "integration" | "pack";
 export type ExtensionState =
-  | "loading"
-  | "loaded"
-  | "registered"
-  | "active"
-  | "error"
-  | "disabled";
+  "loading" | "loaded" | "registered" | "active" | "error" | "disabled";
 
 export interface ExtensionCapabilities {
   sendMessage?: boolean;
@@ -9675,6 +9545,7 @@ export interface ExtensionData {
   displayName: string;
   version: string;
   description: string;
+  icon?: string;
   author?: string;
   type: ExtensionType;
   state: ExtensionState;
@@ -9691,10 +9562,7 @@ export interface ExtensionConfig {
 
 // Webhook Tunnel types
 export type TunnelProvider =
-  | "ngrok"
-  | "tailscale"
-  | "cloudflare"
-  | "localtunnel";
+  "ngrok" | "tailscale" | "cloudflare" | "localtunnel";
 export type TunnelStatus = "stopped" | "starting" | "running" | "error";
 
 export interface TunnelConfig {
@@ -9717,13 +9585,9 @@ export interface TunnelStatusData {
   startedAt?: number;
 }
 
-export type SecureMcpTunnelTargetType = "cowork-host" | "http";
+export type SecureMcpTunnelTargetType = "neoworker-host" | "http";
 export type SecureMcpTunnelConnectionState =
-  | "stopped"
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "error";
+  "stopped" | "connecting" | "connected" | "reconnecting" | "error";
 
 export interface SecureMcpTunnelPolicy {
   allowedTools: string[];
@@ -9740,7 +9604,7 @@ export interface SecureMcpTunnelDisplayConfig {
   relayUrl: string;
   targetType: SecureMcpTunnelTargetType;
   targetUrl?: string;
-  coworkHostPort?: number;
+  neoworkerHostPort?: number;
   policy: SecureMcpTunnelPolicy;
   createdAt: number;
   updatedAt: number;
@@ -9782,12 +9646,7 @@ export interface SecureMcpTunnelAuditEvent {
 
 // Search Provider types
 export type SearchProviderType =
-  | "tavily"
-  | "exa"
-  | "brave"
-  | "serpapi"
-  | "google"
-  | "duckduckgo";
+  "tavily" | "exa" | "brave" | "serpapi" | "google" | "duckduckgo";
 export type SearchType = "web" | "news" | "images";
 export type WebSearchMode = "disabled" | "cached" | "live";
 
@@ -9965,10 +9824,7 @@ export interface AgentMailConnectionTestResult {
 }
 
 export type AgentMailRealtimeConnectionState =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "error";
+  "disconnected" | "connecting" | "connected" | "error";
 
 export interface AgentMailStatus {
   configured: boolean;
@@ -10242,11 +10098,7 @@ export const DEFAULT_BLOCKED_COMMAND_PATTERNS = [
 export type ReputationProvider = "virustotal";
 
 export type ReputationVerdict =
-  | "clean"
-  | "unknown"
-  | "suspicious"
-  | "malicious"
-  | "error";
+  "clean" | "unknown" | "suspicious" | "malicious" | "error";
 
 export type ReputationAction = "allow" | "warn" | "block";
 
@@ -10422,6 +10274,7 @@ export interface ToastNotification {
 export interface SkillParameter {
   name: string;
   type: "string" | "number" | "boolean" | "select";
+  input?: "text" | "file" | "folder";
   description: string;
   required?: boolean;
   default?: string | number | boolean;
@@ -10566,7 +10419,7 @@ export interface SkillRegistryEntry {
   name: string;
   description: string;
   version: string;
-  source?: "cowork" | "clawhub";
+  source?: "neoworker" | "clawhub";
   author?: string;
   downloads?: number;
   stars?: number;
@@ -10605,12 +10458,7 @@ export type CapabilitySecurityVerdict = "clean" | "warning" | "quarantined";
 export type CapabilitySecuritySeverity = "info" | "warning" | "critical";
 
 export type CapabilitySecurityImportSource =
-  | "registry"
-  | "clawhub"
-  | "url"
-  | "git"
-  | "managed"
-  | "unmanaged-local";
+  "registry" | "clawhub" | "url" | "git" | "managed" | "unmanaged-local";
 
 export interface CapabilitySecurityFinding {
   code: string;
@@ -10672,7 +10520,7 @@ export interface RetryQuarantinedImportResult {
 }
 
 export interface SkillsConfig {
-  skillsDirectory: string; // Default: ~/Library/Application Support/cowork-os/skills/
+  skillsDirectory: string; // Default: ~/Library/Application Support/neoworker/skills/
   externalSkillDirectories?: string[];
   enabledSkillIds: string[];
   registryUrl?: string; // Default: https://skill-hub.com
@@ -10727,19 +10575,10 @@ export type AutomationRunSource =
   | "memory_dreaming";
 
 export type AutomationRunUsefulness =
-  | "actionable"
-  | "informational"
-  | "low_value"
-  | "failed";
+  "actionable" | "informational" | "low_value" | "failed";
 
 export type AutomationRunTrigger =
-  | "startup"
-  | "schedule"
-  | "manual"
-  | "heartbeat"
-  | "hook"
-  | "cron"
-  | "api";
+  "startup" | "schedule" | "manual" | "heartbeat" | "hook" | "cron" | "api";
 
 export interface AutomationRunEvidenceRef {
   type: string;
@@ -11001,13 +10840,7 @@ export type NodePlatform = "ios" | "android" | "macos" | "linux" | "windows";
  * Node capability categories
  */
 export type NodeCapabilityType =
-  | "camera"
-  | "location"
-  | "screen"
-  | "sms"
-  | "voice"
-  | "canvas"
-  | "system";
+  "camera" | "location" | "screen" | "sms" | "voice" | "canvas" | "system";
 
 /**
  * Standard node commands
@@ -11230,11 +11063,7 @@ export interface SmsSendResult {
  * SSH tunnel connection state
  */
 export type SSHTunnelState =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "error";
+  "disconnected" | "connecting" | "connected" | "reconnecting" | "error";
 
 /**
  * SSH tunnel configuration for remote gateway access
@@ -11333,23 +11162,11 @@ export const LOCAL_MANAGED_DEVICE_NODE_ID = "local:this-device";
 
 export type ManagedDeviceRole = "local" | "remote";
 export type ManagedDevicePurpose =
-  | "primary"
-  | "work"
-  | "personal"
-  | "automation"
-  | "archive"
-  | "general";
+  "primary" | "work" | "personal" | "automation" | "archive" | "general";
 export type ManagedDeviceTransport =
-  | "local"
-  | "direct"
-  | "ssh"
-  | "tailscale"
-  | "unknown";
+  "local" | "direct" | "ssh" | "tailscale" | "unknown";
 export type ManagedDeviceAttentionState =
-  | "none"
-  | "info"
-  | "warning"
-  | "critical";
+  "none" | "info" | "warning" | "critical";
 
 export interface ManagedDeviceStorageSummary {
   totalBytes?: number;
@@ -11414,7 +11231,7 @@ export interface ManagedDeviceSummary {
     arch?: string;
     node?: string;
     electron?: string;
-    coworkVersion?: string;
+    neoworkerVersion?: string;
     cwd?: string;
     userDataDir?: string;
     activeProfileId?: string;
@@ -12208,12 +12025,7 @@ export const ANALOGY_DOMAINS: Record<
  * Context modes for context-dependent personality behavior
  */
 export type ContextMode =
-  | "coding"
-  | "chat"
-  | "planning"
-  | "writing"
-  | "research"
-  | "all";
+  "coding" | "chat" | "planning" | "writing" | "research" | "all";
 
 /**
  * Composable personality trait with intensity slider.
@@ -12616,7 +12428,7 @@ export function createTraitsFromPreset(presetId: string): PersonalityTrait[] {
  */
 export const DEFAULT_PERSONALITY_CONFIG_V2: PersonalityConfigV2 = {
   version: 2,
-  agentName: "CoWork",
+  agentName: DEFAULT_ASSISTANT_NAME,
   traits: createDefaultTraits(),
   rules: [],
   style: DEFAULT_COMMUNICATION_STYLE,
@@ -12931,6 +12743,15 @@ export interface ProjectCreateInput {
   archivedAt?: number | null;
 }
 
+export interface ProjectCreateWithWorkspaceInput extends ProjectCreateInput {
+  workspaceId: string;
+}
+
+export interface ProjectCreateWithWorkspaceResult {
+  project: Project;
+  link: ProjectWorkspaceLink;
+}
+
 export interface ProjectUpdate {
   companyId?: string;
   goalId?: string | null;
@@ -13050,12 +12871,7 @@ export interface HeartbeatRun {
   dispatchKind?: HeartbeatDispatchKind;
   reason?: string;
   status:
-    | "queued"
-    | "running"
-    | "completed"
-    | "failed"
-    | "cancelled"
-    | "interrupted";
+    "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
   summary?: string;
   error?: string;
   metadata?: Record<string, unknown>;
@@ -13123,16 +12939,9 @@ export interface CompanyImportResult {
 export type CompanyPackageSourceKind = "local" | "git" | "github";
 export type CompanyPackageTrustLevel = "local" | "trusted" | "untrusted";
 export type CompanyPackageSourceStatus =
-  | "ready"
-  | "needs_attention"
-  | "imported";
+  "ready" | "needs_attention" | "imported";
 export type CompanyPackageManifestKind =
-  | "company"
-  | "team"
-  | "agent"
-  | "project"
-  | "task"
-  | "skill";
+  "company" | "team" | "agent" | "project" | "task" | "skill";
 export type CompanyGraphNodeKind = CompanyPackageManifestKind;
 export type CompanyGraphEdgeKind =
   | "contains"
@@ -13144,23 +12953,11 @@ export type CompanyGraphEdgeKind =
   | "assigned_to"
   | "related_to_project";
 export type CompanySyncStatus =
-  | "in_sync"
-  | "diverged"
-  | "local_override"
-  | "unlinked";
+  "in_sync" | "diverged" | "local_override" | "unlinked";
 export type CompanyImportAction =
-  | "create"
-  | "update"
-  | "link"
-  | "skip"
-  | "conflict"
-  | "warning";
+  "create" | "update" | "link" | "skip" | "conflict" | "warning";
 export type CompanyRuntimeEntityKind =
-  | "company"
-  | "goal"
-  | "project"
-  | "issue"
-  | "agent_role";
+  "company" | "goal" | "project" | "issue" | "agent_role";
 
 export interface CompanyPackageSource {
   id: string;
@@ -13297,10 +13094,7 @@ export interface CompanyPackageImportResult {
 
 export type AutonomyPolicyPreset = "manual" | "safe_autonomy" | "founder_edge";
 export type HumanInputPolicy =
-  | "none"
-  | "hard_blockers"
-  | "structured_plan"
-  | "legacy_interactive";
+  "none" | "hard_blockers" | "structured_plan" | "legacy_interactive";
 
 export interface OperationalAutonomyPolicy {
   preset: AutonomyPolicyPreset;
@@ -13530,18 +13324,10 @@ export interface CompanyCommandCenterSummary {
 }
 
 export type MissionControlCategory =
-  | "attention"
-  | "work"
-  | "reviews"
-  | "learnings"
-  | "awareness"
-  | "evidence";
+  "attention" | "work" | "reviews" | "learnings" | "awareness" | "evidence";
 
 export type MissionControlSeverity =
-  | "action_needed"
-  | "monitor_only"
-  | "successful"
-  | "failed";
+  "action_needed" | "monitor_only" | "successful" | "failed";
 
 export type MissionControlEvidenceSource =
   | "activity_feed"

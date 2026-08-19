@@ -1,0 +1,3 @@
+import { n as e, t } from "./coffee-BxStMf3z-DicgfMrw.js";
+t();
+export { e as default };

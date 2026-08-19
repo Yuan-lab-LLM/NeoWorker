@@ -25,7 +25,7 @@ export class ScratchpadTools {
     if (workspacePath) {
       this.checkpointPath = path.join(
         workspacePath,
-        ".cowork",
+        ".neoworker",
         `scratchpad-${taskId.slice(0, 12)}.json`,
       );
       this.restoreFromDisk();

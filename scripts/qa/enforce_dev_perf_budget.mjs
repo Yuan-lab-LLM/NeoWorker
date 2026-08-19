@@ -9,18 +9,18 @@ const logPath = logArg
   ? path.resolve(logArg)
   : path.join(repoRoot, "logs", "dev-latest.jsonl");
 const allowEmpty =
-  cliArgs.includes("--allow-empty") || process.env.COWORK_PERF_ALLOW_EMPTY === "1";
-const minSamples = readBudget("COWORK_PERF_MIN_SAMPLES", 1);
-const maxAgeMs = readOptionalNumberArg("--max-age-ms") ?? readOptionalBudget("COWORK_PERF_LOG_MAX_AGE_MS");
+  cliArgs.includes("--allow-empty") || process.env.NEOWORKER_PERF_ALLOW_EMPTY === "1";
+const minSamples = readBudget("NEOWORKER_PERF_MIN_SAMPLES", 1);
+const maxAgeMs = readOptionalNumberArg("--max-age-ms") ?? readOptionalBudget("NEOWORKER_PERF_LOG_MAX_AGE_MS");
 
 const budget = {
-  sidebarReceiveP95Ms: readBudget("COWORK_PERF_SIDEBAR_RECEIVE_P95_MS", 250),
-  taskHeaderReadyP95Ms: readBudget("COWORK_PERF_TASK_HEADER_READY_P95_MS", 120),
-  timelineDataReceivedP95Ms: readBudget("COWORK_PERF_TIMELINE_DATA_RECEIVED_P95_MS", 900),
-  timelineFirstRowsP95Ms: readBudget("COWORK_PERF_TIMELINE_FIRST_ROWS_P95_MS", 1200),
-  timelinePageDbP95Ms: readBudget("COWORK_PERF_TIMELINE_PAGE_DB_P95_MS", 150),
-  timelinePageSerializedP95Bytes: readBudget("COWORK_PERF_TIMELINE_PAGE_SERIALIZED_P95_BYTES", 768 * 1024),
-  timelinePageSerializedMaxBytes: readBudget("COWORK_PERF_TIMELINE_PAGE_SERIALIZED_MAX_BYTES", 1024 * 1024),
+  sidebarReceiveP95Ms: readBudget("NEOWORKER_PERF_SIDEBAR_RECEIVE_P95_MS", 250),
+  taskHeaderReadyP95Ms: readBudget("NEOWORKER_PERF_TASK_HEADER_READY_P95_MS", 120),
+  timelineDataReceivedP95Ms: readBudget("NEOWORKER_PERF_TIMELINE_DATA_RECEIVED_P95_MS", 900),
+  timelineFirstRowsP95Ms: readBudget("NEOWORKER_PERF_TIMELINE_FIRST_ROWS_P95_MS", 1200),
+  timelinePageDbP95Ms: readBudget("NEOWORKER_PERF_TIMELINE_PAGE_DB_P95_MS", 150),
+  timelinePageSerializedP95Bytes: readBudget("NEOWORKER_PERF_TIMELINE_PAGE_SERIALIZED_P95_BYTES", 768 * 1024),
+  timelinePageSerializedMaxBytes: readBudget("NEOWORKER_PERF_TIMELINE_PAGE_SERIALIZED_MAX_BYTES", 1024 * 1024),
 };
 
 function readBudget(name, fallback) {

@@ -4,12 +4,12 @@ import { spawnSync } from "child_process";
 
 const isMac = process.platform === "darwin";
 const packagePath = join(process.cwd(), "native", "location-helper-macos");
-const executableName = "CoWorkLocationHelper";
+const executableName = "NeoWorkerLocationHelper";
 const buildOutput = join(packagePath, ".build", "release", executableName);
 const swiftCacheRoot =
-  process.env.COWORK_LOCATION_SWIFTPM_CACHE_DIR ||
+  process.env.NEOWORKER_LOCATION_SWIFTPM_CACHE_DIR ||
   join(packagePath, ".build", "swiftpm-cache");
-const swiftHome = process.env.COWORK_LOCATION_SWIFTPM_HOME || join(swiftCacheRoot, "home");
+const swiftHome = process.env.NEOWORKER_LOCATION_SWIFTPM_HOME || join(swiftCacheRoot, "home");
 const swiftSharedCache = join(swiftCacheRoot, "shared-cache");
 const swiftConfigPath = join(swiftCacheRoot, "configuration");
 const swiftSecurityPath = join(swiftCacheRoot, "security");
@@ -21,8 +21,8 @@ const appContents = join(appBundle, "Contents");
 const appMacOS = join(appContents, "MacOS");
 const appExecutable = join(appMacOS, executableName);
 const bundleIdentifier =
-  process.env.COWORK_LOCATION_HELPER_BUNDLE_IDENTIFIER || "com.cowork-os.location-helper";
-const appName = "CoWork Location Helper";
+  process.env.NEOWORKER_LOCATION_HELPER_BUNDLE_IDENTIFIER || "com.neoworker.location-helper";
+const appName = "NeoWorker Location Helper";
 const pkgInfo = "APPL????\n";
 const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -53,11 +53,11 @@ const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
   <key>CFBundleVersion</key>
   <string>1</string>
   <key>NSLocationWhenInUseUsageDescription</key>
-  <string>CoWork OS uses your current location once to answer nearby places and walking route requests.</string>
+  <string>NeoWorker uses your current location once to answer nearby places and walking route requests.</string>
   <key>NSLocationUsageDescription</key>
-  <string>CoWork OS uses your current location once to answer nearby places and walking route requests.</string>
+  <string>NeoWorker uses your current location once to answer nearby places and walking route requests.</string>
   <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-  <string>CoWork OS uses your current location once to answer nearby places and walking route requests.</string>
+  <string>NeoWorker uses your current location once to answer nearby places and walking route requests.</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>NSPrincipalClass</key>
@@ -131,7 +131,7 @@ writeFileSync(join(appContents, "PkgInfo"), pkgInfo);
 copyFileSync(buildOutput, appExecutable);
 chmodSync(appExecutable, 0o755);
 
-const entitlements = join(packagePath, "CoWorkLocationHelper.entitlements");
+const entitlements = join(packagePath, "NeoWorkerLocationHelper.entitlements");
 const codesign = spawnSync(
   "codesign",
   ["--force", "--sign", "-", "--options", "runtime", "--entitlements", entitlements, appBundle],

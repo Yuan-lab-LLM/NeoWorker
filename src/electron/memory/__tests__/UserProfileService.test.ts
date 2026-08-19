@@ -131,12 +131,28 @@ describe("UserProfileService", () => {
   });
 
   it("honors explicit requests not to push back", () => {
-    UserProfileService.ingestUserMessage("Please don't push back on small product ideas.", "task-1");
+    UserProfileService.ingestUserMessage(
+      "Please don't push back on small product ideas.",
+      "task-1",
+    );
 
     expect(mocks.storedProfile.facts).toHaveLength(1);
     expect(mocks.storedProfile.facts[0]?.category).toBe("operating");
     expect(mocks.storedProfile.facts[0]?.value).toBe(
       "Pushback: keep challenges low-friction unless the risk or waste is material.",
     );
+  });
+
+  it("forbids profile memory from filling missing task scope", () => {
+    UserProfileService.addFact({
+      category: "work",
+      value: "Works on agricultural genomics",
+      source: "manual",
+    });
+
+    const context = UserProfileService.buildPromptContext();
+
+    expect(context).toContain("Never infer the active workspace");
+    expect(context).toContain("otherwise ask one focused question");
   });
 });

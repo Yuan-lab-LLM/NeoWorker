@@ -1,10 +1,10 @@
 # LLM Wiki
 
-CoWork OS ships `llm-wiki` as a bundled, first-class research-vault workflow.
+NeoWorker ships `llm-wiki` as a bundled, first-class research-vault workflow.
 
 It is inspired by **Andrej Karpathy's LLM Wiki / raw-folder knowledgebase concept**: keep raw source material, build durable linked notes on top of it, and make the result easy for both humans and agents to navigate.
 
-In CoWork, that idea is implemented as a deterministic research-vault runtime: GUI prompts, starter cards, and slash syntax all land on the same workspace-local vault convention instead of staying as one-off chat output.
+In NeoWorker, that idea is implemented as a deterministic research-vault runtime: GUI prompts, starter cards, and slash syntax all land on the same workspace-local vault convention instead of staying as one-off chat output.
 
 ## What it does
 
@@ -47,7 +47,7 @@ Core behavior:
 - runs a deterministic analyzer to report vault topology and maintenance gaps
 - can expose the default vault in the GUI welcome screen as a browsable surface when the optional home widget is enabled
 
-## Why it is first-class in CoWork
+## Why it is first-class in NeoWorker
 
 `llm-wiki` is not treated as a loose skill invocation.
 
@@ -72,7 +72,7 @@ Examples:
 
 ```text
 Build a persistent Obsidian-friendly research vault for GRPO papers
-Create a research vault about CoWork OS competitors
+Create a research vault about NeoWorker competitors
 Audit my research vault for stale pages and broken links
 Use the research vault in this workspace to answer a question
 Build a persistent Obsidian-friendly research vault in this workspace. If I have not given the topic yet, ask me for it first.
@@ -80,7 +80,7 @@ Build a persistent Obsidian-friendly research vault in this workspace. If I have
 
 Natural research-vault prompts route deterministically into `llm-wiki`.
 
-If the request clearly asks for a vault but does not yet include the topic, CoWork starts the `llm-wiki` workflow and asks one short scoping question before doing durable ingest work.
+If the request clearly asks for a vault but does not yet include the topic, NeoWorker starts the `llm-wiki` workflow and asks one short scoping question before doing durable ingest work.
 
 ## Command syntax
 
@@ -99,7 +99,7 @@ Notes:
 Examples:
 
 ```text
-/llm-wiki research CoWork OS competitors
+/llm-wiki research NeoWorker competitors
 /llm-wiki transformer RL papers --mode ingest --path research/wiki/rl
 /llm-wiki --mode init --path research/wiki
 /llm-wiki --mode lint --path "Research Vault"
@@ -191,7 +191,7 @@ When the home widget is enabled, the vault is easier to inspect and showcase wit
 
 ## Prompt library
 
-Useful GUI-first prompts, adapted to CoWork:
+Useful GUI-first prompts, adapted to NeoWorker:
 
 ```text
 Build a persistent Obsidian-friendly research vault in this workspace. If I have not given the topic yet, ask me for it first.
@@ -241,7 +241,7 @@ When `--obsidian auto` or `--obsidian on` is used, the skill optimizes for:
 - image references such as `![[diagram.png]]`
 - durable markdown pages that remain readable outside Obsidian
 
-CoWork does **not** create `.obsidian/` settings unless explicitly asked.
+NeoWorker does **not** create `.obsidian/` settings unless explicitly asked.
 
 ## Output artifacts
 

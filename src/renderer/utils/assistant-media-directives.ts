@@ -6,23 +6,28 @@ export type AssistantMediaDirective = {
 const VIDEO_DIRECTIVE_LINE_REGEX = /^\s*::video\{(.+)\}\s*$/;
 const HTML_DIRECTIVE_LINE_REGEX = /^\s*::html\{(.+)\}\s*$/;
 const FRAME_DIRECTIVE_LINE_REGEX = /^\s*::frame\{(.+)\}\s*$/;
-const RICH_FRAME_TAG_LINE_REGEX = /^\s*<rich-frame\b([^>]*)>(?:\s*<\/rich-frame>)?\s*$/i;
+const RICH_FRAME_TAG_LINE_REGEX =
+  /^\s*<rich-frame\b([^>]*)>(?:\s*<\/rich-frame>)?\s*$/i;
 const DIRECTIVE_ATTR_REGEX = /(\w+)\s*=\s*("(?:[^"\\]|\\.)*"|true|false)/g;
-const HTML_ATTR_REGEX = /([a-z][a-z0-9_-]*)\s*=\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^\s"'=<>`]+)/gi;
+const HTML_ATTR_REGEX =
+  /([a-z][a-z0-9_-]*)\s*=\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^\s"'=<>`]+)/gi;
 
 function decodeQuotedValue(value: string): string {
-  if (!value.startsWith("\"") || !value.endsWith("\"")) return value;
-  return value.slice(1, -1).replace(/\\"/g, "\"").replace(/\\\\/g, "\\");
+  if (!value.startsWith('"') || !value.endsWith('"')) return value;
+  return value.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
 }
 
 function decodeHtmlAttrValue(value: string): string {
   const trimmed = value.trim();
   const quote = trimmed[0];
   const unquoted =
-    (quote === "\"" || quote === "'") && trimmed.endsWith(quote)
+    (quote === '"' || quote === "'") && trimmed.endsWith(quote)
       ? trimmed.slice(1, -1)
       : trimmed;
-  return unquoted.replace(/&quot;/gi, "\"").replace(/&#39;/g, "'").replace(/&amp;/gi, "&");
+  return unquoted
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/gi, "&");
 }
 
 function parseDirectiveLine(
@@ -84,7 +89,9 @@ function parseRichFrameTagLine(line: string): AssistantMediaDirective | null {
   return { type: "frame", path: path.trim() };
 }
 
-export function extractAssistantMediaDirectives(message: string): AssistantMediaDirective[] {
+export function extractAssistantMediaDirectives(
+  message: string,
+): AssistantMediaDirective[] {
   const directives: AssistantMediaDirective[] = [];
   const lines = String(message || "").split("\n");
 

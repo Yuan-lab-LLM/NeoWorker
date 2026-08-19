@@ -64,9 +64,9 @@ const ACTIVE_PATH_CONTEXT_WINDOW = 4;
 // Messages that begin with one of these tags are treated as "pinned" and should
 // survive compaction. (They are system-generated context blocks, not normal chat turns.)
 const PINNED_MESSAGE_TAG_PREFIXES = [
-  "<cowork_memory_recall>",
-  "<cowork_compaction_summary>",
-  "<cowork_shared_context>",
+  "<neoworker_memory_recall>",
+  "<neoworker_compaction_summary>",
+  "<neoworker_shared_context>",
 ] as const;
 
 function messageTextForPinnedCheck(message: LLMMessage): string {

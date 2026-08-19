@@ -1,8 +1,8 @@
 # Channel User Guides
 
-This guide explains how to use each CoWork messaging channel after it is connected. It focuses on end-user behavior, best practices, and channel-specific strengths rather than setup details.
+This guide explains how to use each NeoWorker messaging channel after it is connected. It focuses on end-user behavior, best practices, and channel-specific strengths rather than setup details.
 
-For setup steps, see [Channel Integrations](channels.md). For shared command behavior, see [Gateway Message Lifecycle](gateway-message-lifecycle.md). For daily command examples, see [Using CoWork from WhatsApp and Other Channels](gateway-user-guide.md).
+For setup steps, see [Channel Integrations](channels.md). For shared command behavior, see [Gateway Message Lifecycle](gateway-message-lifecycle.md). For daily command examples, see [Using NeoWorker from WhatsApp and Other Channels](gateway-user-guide.md).
 
 Admins can configure [Channel Specialization](channels.md#channel-specialization) for a whole channel, specific chat/group, or topic/thread so new tasks from that scope default to the right workspace, agent role, prompt guidance, tool restrictions, and shared-memory policy.
 
@@ -46,7 +46,7 @@ Best practices for every channel:
 
 - Pick one channel per workflow when possible so context stays coherent.
 - Use channel specialization for dedicated groups, channels, or topics that should always start in the same workspace or role.
-- Select the workspace before asking CoWork to edit project files.
+- Select the workspace before asking NeoWorker to edit project files.
 - Use `/new` before changing topics.
 - Use `/new temp` for scratch work that should not attach to a normal project workspace.
 - Use `/stop` when the current task should not continue.
@@ -68,13 +68,13 @@ Features:
 - Natural shortcuts such as `help`, `status`, `new task`, `new temp`, `stop`, `queue ...`, and `background ...`.
 - Typing indicators.
 - Editable progress messages where provider support allows it.
-- Optional response prefix to distinguish CoWork replies.
+- Optional response prefix to distinguish NeoWorker replies.
 - Link-research group support.
 
 Best practices:
 
 - Use self-chat mode when connecting your personal WhatsApp number.
-- Use a short response prefix if CoWork replies are hard to distinguish from your own messages.
+- Use a short response prefix if NeoWorker replies are hard to distinguish from your own messages.
 - Use `/new temp` for quick experiments, drafts, and one-off analysis.
 - Use `/workspaces` only for real workspaces; temporary workspaces are intentionally hidden.
 - In groups, choose a routing mode that matches the room: mention/command routing for busy groups, all-message routing for dedicated task rooms.
@@ -83,7 +83,7 @@ Best practices:
 Watch-outs:
 
 - WhatsApp is excellent for compact task control, but not ideal for long code review output.
-- Group routing can become noisy if every message is routed to CoWork.
+- Group routing can become noisy if every message is routed to NeoWorker.
 - Media behavior should stay simple: attach files when needed, but use a desktop workspace for large file-heavy workflows.
 
 ## Telegram
@@ -107,7 +107,7 @@ Features:
 Best practices:
 
 - Use the Telegram `/` menu for common commands such as `/new`, `/stop`, `/queue`, `/steer`, and `/background`.
-- In groups, use commands-only or mentions-or-commands mode unless the group is dedicated to CoWork tasks.
+- In groups, use commands-only or mentions-or-commands mode unless the group is dedicated to NeoWorker tasks.
 - Use `/queue <message>` when adding context from a busy group.
 - Use `/steer <guidance>` for task-critical corrections.
 - Use dedicated research groups for link capture instead of mixing research links into general task rooms.
@@ -160,7 +160,7 @@ Best for:
 - Workplace teams that already coordinate in Slack.
 - Channel mentions and direct-message workflows.
 - Curated task progress in shared operational channels.
-- Multi-workspace Slack installations in one CoWork profile.
+- Multi-workspace Slack installations in one NeoWorker profile.
 
 Features:
 
@@ -183,7 +183,7 @@ Best practices:
 
 Watch-outs:
 
-- Slack does not deliver unregistered slash commands to CoWork.
+- Slack does not deliver unregistered slash commands to NeoWorker.
 - Socket Mode still requires correct app-level and bot tokens.
 - Avoid broad channel access if only a few channels should route tasks.
 
@@ -207,7 +207,7 @@ Best practices:
 
 - Use DMs for personal tasks, approvals, and sensitive context.
 - Use channel mentions for shared work.
-- Keep Teams app installation scoped to the teams/channels that should use CoWork.
+- Keep Teams app installation scoped to the teams/channels that should use NeoWorker.
 - Use `/new` before switching from one operational topic to another.
 - Use scheduled delivery for routine summaries into team channels.
 
@@ -215,7 +215,7 @@ Watch-outs:
 
 - Setup depends on Azure Bot credentials and Teams channel configuration.
 - Tenant and app policies can affect whether users can install or message the bot.
-- Long outputs are usually better summarized in-channel with details available in CoWork.
+- Long outputs are usually better summarized in-channel with details available in NeoWorker.
 
 ## Google Chat
 
@@ -263,7 +263,7 @@ Features:
 Best practices:
 
 - Use a dedicated app per tenant or organization.
-- Keep bot access scoped to the spaces where CoWork should operate.
+- Keep bot access scoped to the spaces where NeoWorker should operate.
 - Use commands for lifecycle control in busy groups.
 - Prefer direct chats for approvals and sensitive task context.
 
@@ -291,7 +291,7 @@ Best practices:
 
 - Use WeCom for structured internal workflows, not broad ad hoc task intake.
 - Keep command usage explicit in groups.
-- Restrict access to the departments or conversations where CoWork should operate.
+- Restrict access to the departments or conversations where NeoWorker should operate.
 - Use scheduled summaries for operational reporting.
 
 Watch-outs:
@@ -354,7 +354,7 @@ Watch-outs:
 
 - Registering signal-cli can deregister an existing Signal app for that number.
 - Signal identity changes require attention.
-- Large or highly formatted outputs are better reviewed in CoWork.
+- Large or highly formatted outputs are better reviewed in NeoWorker.
 
 ## Mattermost
 
@@ -373,7 +373,7 @@ Features:
 
 Best practices:
 
-- Use dedicated task channels for shared CoWork work.
+- Use dedicated task channels for shared NeoWorker work.
 - Scope the bot to the relevant team.
 - Use commands in busy channels.
 - Use scheduled summaries for recurring team updates.
@@ -401,8 +401,8 @@ Features:
 
 Best practices:
 
-- Use dedicated rooms for CoWork tasks.
-- Restrict room IDs when only specific rooms should route to CoWork.
+- Use dedicated rooms for NeoWorker tasks.
+- Restrict room IDs when only specific rooms should route to NeoWorker.
 - Use command-first workflows in busy rooms.
 - Avoid relying on encrypted room behavior unless your deployment has confirmed support.
 
@@ -418,7 +418,7 @@ Best for:
 
 - Live-stream chat interaction.
 - Lightweight audience prompts or moderator-controlled bot usage.
-- Streaming workflows where CoWork responds in chat.
+- Streaming workflows where NeoWorker responds in chat.
 
 Features:
 
@@ -488,13 +488,13 @@ Best practices:
 - Run the BlueBubbles server on a Mac that stays online.
 - Use contact allowlists for controlled access.
 - Use direct chats for approvals and sensitive context.
-- Use group chats only where everyone understands CoWork may respond.
+- Use group chats only where everyone understands NeoWorker may respond.
 
 Watch-outs:
 
 - Requires a 24/7 Mac server with Messages signed in.
 - SMS behavior may differ from iMessage.
-- Bridge availability controls whether CoWork can receive and send messages.
+- Bridge availability controls whether NeoWorker can receive and send messages.
 
 ## Email
 
@@ -517,7 +517,7 @@ Features:
 
 Best practices:
 
-- Use a dedicated subject prefix such as `[CoWork]` for task email.
+- Use a dedicated subject prefix such as `[NeoWorker]` for task email.
 - Configure allowed senders or domains.
 - Keep one request per email thread.
 - Include desired output and workspace context in the email.

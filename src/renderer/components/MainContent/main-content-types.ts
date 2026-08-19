@@ -18,7 +18,6 @@ export type SettingsTab =
   | "morechannels"
   | "integrations"
   | "updates"
-  | "system"
   | "queue"
   | "skills"
   | "voice"
@@ -31,7 +30,8 @@ export interface FocusedCard {
   iconName: string;
   title: string;
   desc: string;
-  action: { type: "prompt"; prompt: string } | { type: "settings"; tab: SettingsTab };
+  action:
+    { type: "prompt"; prompt: string } | { type: "settings"; tab: SettingsTab };
   category: "task" | "setup" | "discover";
 }
 

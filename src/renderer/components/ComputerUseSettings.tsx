@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { MousePointer2, RefreshCw } from "lucide-react";
+import { translate, useLanguage } from "../i18n";
 
 type ScreenStatus = "granted" | "denied" | "not-determined" | "unknown";
 
@@ -15,23 +16,30 @@ interface ComputerUseStatus {
 }
 
 function statusLabel(ok: boolean): string {
-  return ok ? "Granted" : "Not granted";
+  return ok
+    ? translate("computerUse.status.granted", "Granted")
+    : translate("computerUse.status.notGranted", "Not granted");
 }
 
 function screenStatusLabel(s: ScreenStatus): string {
   switch (s) {
     case "granted":
-      return "Granted";
+      return translate("computerUse.status.granted", "Granted");
     case "denied":
-      return "Denied";
+      return translate("computerUse.status.denied", "Denied");
     case "not-determined":
-      return "Not determined — open System Settings to allow";
+      return translate(
+        "computerUse.status.notDetermined",
+        "Not determined - open System Settings to allow",
+      );
     default:
-      return "Unknown";
+      return translate("common.unknown", "Unknown");
   }
 }
 
 export function ComputerUseSettings() {
+  useLanguage();
+  const t = translate;
   const [platform, setPlatform] = useState<string>("");
   const [status, setStatus] = useState<ComputerUseStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,7 +60,11 @@ export function ComputerUseSettings() {
         screenCaptureStatus: s.screenCaptureStatus as ScreenStatus,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load computer use status");
+      setError(
+        e instanceof Error
+          ? e.message
+          : t("computerUse.error.load", "Failed to load computer use status"),
+      );
     } finally {
       setLoading(false);
     }
@@ -73,7 +85,11 @@ export function ComputerUseSettings() {
     try {
       await window.electronAPI.openComputerUseAccessibilitySettings();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not open settings");
+      setError(
+        e instanceof Error
+          ? e.message
+          : t("computerUse.error.openSettings", "Could not open settings"),
+      );
     }
   };
 
@@ -81,7 +97,11 @@ export function ComputerUseSettings() {
     try {
       await window.electronAPI.openComputerUseScreenRecordingSettings();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not open settings");
+      setError(
+        e instanceof Error
+          ? e.message
+          : t("computerUse.error.openSettings", "Could not open settings"),
+      );
     }
   };
 
@@ -91,29 +111,41 @@ export function ComputerUseSettings() {
       await window.electronAPI.endComputerUseSession();
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not end session");
+      setError(
+        e instanceof Error
+          ? e.message
+          : t("computerUse.error.endSession", "Could not end session"),
+      );
     } finally {
       setEnding(false);
     }
   };
 
   if (loading) {
-    return <div className="settings-loading">Loading computer use…</div>;
+    return (
+      <div className="settings-loading">
+        {t("computerUse.loading", "Loading computer use...")}
+      </div>
+    );
   }
 
   return (
     <div className="computer-use-settings">
       <div className="settings-section computer-use-settings-heading">
         <h3>
-          <span className="computer-use-settings-heading-icon" aria-hidden="true">
+          <span
+            className="computer-use-settings-heading-icon"
+            aria-hidden="true"
+          >
             <MousePointer2 size={18} strokeWidth={1.5} />
           </span>
-          Computer use
+          {t("computerUse.title", "Computer use")}
         </h3>
         <p className="settings-description">
-          Pi-style native desktop control for macOS and Windows. The agent targets one
-          controlled window at a time through `screenshot()`, then uses screenshot-relative
-          mouse, keyboard, scroll, and typing actions.
+          {t(
+            "computerUse.description",
+            "Pi-style native desktop control for macOS and Windows. The agent targets one controlled window at a time through `screenshot()`, then uses screenshot-relative mouse, keyboard, scroll, and typing actions.",
+          )}
         </p>
       </div>
 
@@ -121,24 +153,39 @@ export function ComputerUseSettings() {
 
       {!isMac && !isWindows ? (
         <div className="computer-use-platform-note">
-          Computer use is available on <strong>macOS</strong> and <strong>Windows</strong> desktop
-          builds only. On this platform the controls below reflect limited or unavailable
-          permission APIs.
+          {t(
+            "computerUse.platform.unavailablePrefix",
+            "Computer use is available on",
+          )}{" "}
+          <strong>macOS</strong> {t("common.and", "and")}{" "}
+          <strong>Windows</strong>{" "}
+          {t(
+            "computerUse.platform.unavailableSuffix",
+            "desktop builds only. On this platform the controls below reflect limited or unavailable permission APIs.",
+          )}
         </div>
       ) : null}
 
       {isWindows ? (
         <div className="computer-use-platform-note">
-          Windows computer use supports visible, non-minimized native windows in v1. It may fall
-          back to foreground input for apps that block background capture or control.
+          {t(
+            "computerUse.platform.windowsNote",
+            "Windows computer use supports visible, non-minimized native windows in v1. It may fall back to foreground input for apps that block background capture or control.",
+          )}
         </div>
       ) : null}
 
       <div className="computer-use-status-grid">
         <div className="computer-use-status-card">
-          <div className="computer-use-status-title">Helper</div>
-          <div className={`computer-use-status-value ${status?.installed ? "ok" : "bad"}`}>
-            {status?.installed ? "Installed" : "Not installed yet"}
+          <div className="computer-use-status-title">
+            {t("computerUse.helper", "Helper")}
+          </div>
+          <div
+            className={`computer-use-status-value ${status?.installed ? "ok" : "bad"}`}
+          >
+            {status?.installed
+              ? t("computerUse.status.installed", "Installed")
+              : t("computerUse.status.notInstalled", "Not installed yet")}
           </div>
           <div className="computer-use-session-id">
             <code>{status?.helperPath}</code>
@@ -146,21 +193,36 @@ export function ComputerUseSettings() {
         </div>
 
         <div className="computer-use-status-card">
-          <div className="computer-use-status-title">{isWindows ? "Input control" : "Accessibility"}</div>
+          <div className="computer-use-status-title">
+            {isWindows
+              ? t("computerUse.inputControl", "Input control")
+              : t("computerUse.accessibility", "Accessibility")}
+          </div>
           <div
             className={`computer-use-status-value ${status?.accessibilityTrusted ? "ok" : "bad"}`}
           >
             {statusLabel(Boolean(status?.accessibilityTrusted))}
           </div>
           {isMac ? (
-            <button type="button" className="button-secondary" onClick={() => void openAccessibility()}>
-              Open Accessibility settings
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => void openAccessibility()}
+            >
+              {t(
+                "computerUse.openAccessibility",
+                "Open Accessibility settings",
+              )}
             </button>
           ) : null}
         </div>
 
         <div className="computer-use-status-card">
-          <div className="computer-use-status-title">{isWindows ? "Window capture" : "Screen Recording"}</div>
+          <div className="computer-use-status-title">
+            {isWindows
+              ? t("computerUse.windowCapture", "Window capture")
+              : t("computerUse.screenRecording", "Screen Recording")}
+          </div>
           <div
             className={`computer-use-status-value ${
               status?.screenCaptureStatus === "granted" ? "ok" : "bad"
@@ -169,8 +231,15 @@ export function ComputerUseSettings() {
             {screenStatusLabel(status?.screenCaptureStatus ?? "unknown")}
           </div>
           {isMac ? (
-            <button type="button" className="button-secondary" onClick={() => void openScreen()}>
-              Open Screen Recording settings
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => void openScreen()}
+            >
+              {t(
+                "computerUse.openScreenRecording",
+                "Open Screen Recording settings",
+              )}
             </button>
           ) : null}
         </div>
@@ -178,30 +247,40 @@ export function ComputerUseSettings() {
 
       {isMac ? (
         <p className="computer-use-restart-hint">
-          Inline bootstrap will prompt for missing helper permissions at first use. After changing
-          Screen Recording, macOS may still require <strong>restarting CoWork</strong> before capture
-          works reliably.
+          {t(
+            "computerUse.restartHintPrefix",
+            "Inline bootstrap will prompt for missing helper permissions at first use. After changing Screen Recording, macOS may still require",
+          )}{" "}
+          <strong>
+            {t("computerUse.restartHintStrong", "restarting NeoWorker")}
+          </strong>{" "}
+          {t("computerUse.restartHintSuffix", "before capture works reliably.")}
         </p>
       ) : null}
 
       {status?.sourcePath ? (
         <div className="computer-use-platform-note">
-          Helper source bundle: <code>{status.sourcePath}</code>
+          {t("computerUse.helperSource", "Helper source bundle:")}{" "}
+          <code>{status.sourcePath}</code>
         </div>
       ) : null}
 
-      {status?.error ? <div className="settings-error">{status.error}</div> : null}
+      {status?.error ? (
+        <div className="settings-error">{status.error}</div>
+      ) : null}
 
       <div className="computer-use-active-row">
         <div>
-          <div className="computer-use-status-title">Active session</div>
+          <div className="computer-use-status-title">
+            {t("computerUse.activeSession", "Active session")}
+          </div>
           <div className="computer-use-session-id">
             {status?.activeTaskId ? (
               <>
-                Task <code>{status.activeTaskId}</code>
+                {t("common.task", "Task")} <code>{status.activeTaskId}</code>
               </>
             ) : (
-              "None"
+              t("common.none", "None")
             )}
           </div>
         </div>
@@ -210,7 +289,7 @@ export function ComputerUseSettings() {
             type="button"
             className="button-secondary"
             onClick={() => void refresh()}
-            title="Refresh status"
+            title={t("computerUse.refreshStatus", "Refresh status")}
           >
             <RefreshCw size={16} strokeWidth={2} />
           </button>
@@ -220,11 +299,12 @@ export function ComputerUseSettings() {
             disabled={!status?.activeTaskId || ending}
             onClick={() => void endSession()}
           >
-            {ending ? "Ending…" : "End session"}
+            {ending
+              ? t("computerUse.ending", "Ending...")
+              : t("computerUse.endSession", "End session")}
           </button>
         </div>
       </div>
-
     </div>
   );
 }

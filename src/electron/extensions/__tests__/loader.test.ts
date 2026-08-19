@@ -249,7 +249,7 @@ describe("isPluginCompatible", () => {
       description: "A test plugin",
       type: "channel",
       main: "dist/index.js",
-      coworkVersion: "1.0.0",
+      neoworkerVersion: "1.0.0",
     };
 
     expect(isPluginCompatible(manifest, "1.0.0")).toBe(true);
@@ -266,7 +266,7 @@ describe("isPluginCompatible", () => {
       description: "A test plugin",
       type: "channel",
       main: "dist/index.js",
-      coworkVersion: "0.3.0",
+      neoworkerVersion: "0.3.0",
     };
 
     expect(isPluginCompatible(manifest, "0.3.0")).toBe(true);
@@ -282,7 +282,7 @@ describe("isPluginCompatible", () => {
       description: "A test plugin",
       type: "channel",
       main: "dist/index.js",
-      coworkVersion: "0.4.0",
+      neoworkerVersion: "0.4.0",
     };
 
     expect(isPluginCompatible(manifest, "0.3.28")).toBe(false);

@@ -23,7 +23,7 @@ describe("extractPdfText", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-pdf-text-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-pdf-text-"));
   });
 
   afterEach(async () => {
@@ -125,5 +125,30 @@ describe("extractPdfText", () => {
       extractionNote: "complete via fallback PDF text reader",
     });
     expect(extractPdfReviewDataMock).toHaveBeenCalledOnce();
+  });
+
+  it("never reports WinAnsi CJK mojibake as complete or recovered", async () => {
+    const pdfPath = path.join(tmpDir, "broken-cjk.pdf");
+    await fs.writeFile(pdfPath, Buffer.from("%PDF-1.7"));
+    const broken =
+      "SN¬ !’ ^•]Þ‚*síf~Æb¥TJ gå‹âeågÿ2026 ^t 8 g 15 eåÿThQmÿÿ N0b¥TJi‚‰È NŒ0‚*síf~Æˆh";
+    parsePdfBufferMock.mockResolvedValue({ text: broken, numpages: 1 });
+    extractPdfReviewDataMock.mockResolvedValue({
+      pageCount: 1,
+      nativeTextPages: 1,
+      ocrPages: 0,
+      scannedPages: 0,
+      truncatedPages: false,
+      extractionMode: "native",
+      imageHeavy: false,
+      pages: [{ pageIndex: 0, text: broken, usedOcr: false, truncated: false }],
+      fullText: broken,
+      content: broken,
+    });
+
+    const result = await extractPdfText(pdfPath);
+
+    expect(result.extractionStatus).toBe("empty");
+    expect(result.extractionNote).toContain("corrupted or mojibake");
   });
 });

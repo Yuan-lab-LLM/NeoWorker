@@ -1,0 +1,3 @@
+import { n as e, t } from "./mail-check-DnSuq87E-CMNCAYVr.js";
+e();
+export { t as default };

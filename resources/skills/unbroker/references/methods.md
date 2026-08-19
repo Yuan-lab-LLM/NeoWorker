@@ -1,6 +1,6 @@
 # Opt-out method playbooks
 
-How the agent executes each broker `optout.method` using CoWork web, browser, email, shell, scheduling,
+How the agent executes each broker `optout.method` using NeoWorker web, browser, email, shell, scheduling,
 and optional multi-agent tools. Obey **least-disclosure**:
 submit only the subject's OWN identifiers, and only the fields a broker's official channel requires
 (`pdd.py plan` lists them per broker). Never disclose more than that, and confirm a listing is really
@@ -60,7 +60,7 @@ blind-opt-out even if the scan is inconclusive - see the posture section above).
 `search.by` supports) - different vectors surface different listings for the same person; dedupe found
 URLs.
 
-1. CoWork web extraction/fetch on the broker `search.url` (fast HTML -> markdown). Look for `search.match_signal`.
+1. NeoWorker web extraction/fetch on the broker `search.url` (fast HTML -> markdown). Look for `search.match_signal`.
    Build per-vector URLs from `search.url_patterns` and heed `search.url_format_quirks` (see below).
 1b. **`site:` search-engine probe (cheap, do it early and in parallel).** `web_search` with
    `site:<broker-domain> "First Last"` (add a city/ZIP or a unique phone/address to cut namesake
@@ -71,7 +71,7 @@ URLs.
    (b) a broad `"First Last" <ZIP OR unique-address>` search (no `site:`) surfaces **brokers not yet in
    your DB** (e.g. information.com, peoplefinders.com) - record those as bonus exposures. Note: empty
    `site:` results are INCONCLUSIVE (many broker pages aren't indexed / are `noindex`), not `not_found`.
-2. If the page is JS-rendered or returns nothing useful, use CoWork browser automation
+2. If the page is JS-rendered or returns nothing useful, use NeoWorker browser automation
    (navigate/snapshot/type/click) to run the site's search box.
 3. If blocked by stealth/Cloudflare, use a stealth-capable browser/scraping capability when available. **If the broker record
    has `search.antibot` set (e.g. `datadome`), results are behind a device-check CAPTCHA**: a
@@ -199,8 +199,8 @@ actually sends depends on `email_mode`:
 
 1. **browser mode (no password, autonomous):** the command returns a recipient-locked `compose`
    payload (`to`/`subject`/`body`). Compose a NEW message in the operator's **logged-in webmail** via
-   CoWork browser tools (paste `compose.body` exactly, disclosing nothing beyond it) and send. No credentials
-   stored. Requires the inbox signed in in the browser CoWork uses.
+   NeoWorker browser tools (paste `compose.body` exactly, disclosing nothing beyond it) and send. No credentials
+   stored. Requires the inbox signed in in the browser NeoWorker uses.
 2. **programmatic mode (SMTP creds):** the command SMTP-sends it directly, no human.
 3. **draft_only fallback:** `pdd.py render-email <subject> <broker> --listing <url>`; a digest entry
    tells the operator to send it, and the agent records `submitted --channel email` afterward.
@@ -210,7 +210,7 @@ Then follow the **Verification loop** if the broker emails a confirmation link.
 ## Verification loop (email_verification brokers)
 
 - **browser mode (autonomous, no password):** open the broker's confirmation email in the operator's
-  webmail via CoWork browser tools, then `pdd.py verify-link <subject> <broker> --text '<email body>'` returns
+  webmail via NeoWorker browser tools, then `pdd.py verify-link <subject> <broker> --text '<email body>'` returns
   the anti-phishing-scored link. `browser_navigate` it **in the same browser** (several brokers, e.g.
   PeopleConnect, bind the session to the browser that opens the link), finish the flow, record
   `awaiting_processing`.
@@ -273,7 +273,7 @@ run stalling in Phase 2.
   Turnstile, hCaptcha checkbox) and reads anti-bot people-search pages that web extraction and the
   proxyless agent browser cannot. This is what the skill's `browser_backend` setting governs
   (`auto` picks Browserbase when `BROWSERBASE_API_KEY` is present - now also read from
-  the CoWork runtime `.env` (legacy `$HERMES_HOME/.env` fallback), not just the shell env, so
+  the NeoWorker runtime `.env` (legacy `$HERMES_HOME/.env` fallback), not just the shell env, so
   `doctor`/`setup --auto` detect keys already loaded for local tools).
 - **Phase 2 (execute: opt-out forms, webmail sends, session-bound multi-step gates):** the work must
   run in the **operator's own everyday browser** - real fingerprint, residential IP, AND the
@@ -283,13 +283,13 @@ run stalling in Phase 2.
   multi-step flows that matter (e.g. PeopleConnect guided-mode, whose verify link is session- and
   device-bound to the browser that opens it - a cloud browser both fails the challenge and breaks the
   binding).
-- **How to drive the operator's browser (CDP).** Point CoWork browser tools at the operator's real
+- **How to drive the operator's browser (CDP).** Point NeoWorker browser tools at the operator's real
   Chrome over the DevTools protocol: launch
-  `chrome --remote-debugging-port=9222 --user-data-dir="$HOME/.cowork/chrome-debug"` and connect the
+  `chrome --remote-debugging-port=9222 --user-data-dir="$HOME/.neoworker/chrome-debug"` and connect the
   browser backend to `127.0.0.1:9222`. Use a **dedicated debug profile** (`chrome-debug`), NOT the
   operator's Default Chrome profile, and have the operator sign into their webmail (and any needed
   broker accounts) in that profile once. That single browser then carries residential IP + real
-  fingerprint + logged-in sessions, which is precisely what Phase-2 flows need. (This is a CoWork-side
+  fingerprint + logged-in sessions, which is precisely what Phase-2 flows need. (This is a NeoWorker-side
   browser setup, not a `pdd` config value; `browser_backend` above only selects the Phase-1 scan
   browser.) **The skill launches this for you: `pdd.py cdp`** finds a Chrome/Chromium/Brave/Edge
   binary, starts it detached on the dedicated profile, waits for the debug port, and prints the CDP

@@ -1,35 +1,35 @@
 # Best-Fit Operational Workflows
 
-> This page explains where CoWork OS delivers the strongest return for teams running governed, intelligence-heavy operational lanes. It is a secondary narrative layer for the same category: CoWork OS remains a **security-hardened, GUI-first, CLI-capable local AI super app, everything app, and personal agentic operating system**.
+> This page explains where NeoWorker delivers the strongest return for teams running governed, intelligence-heavy operational lanes. It is a secondary narrative layer for the same category: NeoWorker remains a **security-hardened, GUI-first, CLI-capable local AI super app, everything app, and personal agentic operating system**.
 
 ---
 
 ## Why Operational Workflows Are a Strong Fit
 
-CoWork OS is built for production use: approval gates, guardrail budgets, local-first data ownership, and a runtime that governance teams can audit. Those same properties make it well-suited for outsourced or contractor-delivered operational lanes where the buyer cares about:
+NeoWorker is built for production use: approval gates, guardrail budgets, local-first data ownership, and a runtime that governance teams can audit. Those same properties make it well-suited for outsourced or contractor-delivered operational lanes where the buyer cares about:
 
 - **Outcome consistency** — the same quality of triage, escalation, or outreach regardless of who runs the shift.
-- **Vendor-swap flexibility** — workflows defined in CoWork OS are not locked to a specific BPO or staffing provider.
+- **Vendor-swap flexibility** — workflows defined in NeoWorker are not locked to a specific BPO or staffing provider.
 - **Managed oversight** — approval workflows, policy enforcement, and usage insights are on by default, not bolted on later.
 - **Local data control** — BYOK and no-telemetry defaults satisfy typical enterprise data-handling requirements without custom contracts.
 
-These are the same reasons teams pick CoWork OS for daily governed operations. The outsourced-workflow fit is additive, not a repositioning.
+These are the same reasons teams pick NeoWorker for daily governed operations. The outsourced-workflow fit is additive, not a repositioning.
 
-CoWork is also GUI-first and CLI-capable: operators can create agents, spawn parallel work, assign tasks, inspect live timelines, and review outcomes through Agents Hub, Mission Control, boards, and approval dialogs, while terminal-native users can start local tasks with `cowork`. This matters for operational lanes because supervision, approvals, and review still live in visible operator surfaces.
+NeoWorker is also GUI-first and CLI-capable: operators can create agents, spawn parallel work, assign tasks, inspect live timelines, and review outcomes through Agents Hub, Mission Control, boards, and approval dialogs, while terminal-native users can start local tasks with `neoworker`. This matters for operational lanes because supervision, approvals, and review still live in visible operator surfaces.
 
-CoWork's Everything Workbench strengthens these lanes for knowledge workers and operators: reports, issue summaries, tables, decks, generated web pages, live website testing, inbox work, and PDFs stay attached to the task that produced or used them. Teams can review or edit generated artifacts in-place, test websites in a visible Browser V2 Workbench with snapshot refs and diagnostics, annotate screenshots, request follow-up changes, and use CoWork as the everyday alternative to separate office, browser, mail, and coding apps. Native apps and explicitly consented external browsers remain available when specialized functionality is needed.
+NeoWorker's Everything Workbench strengthens these lanes for knowledge workers and operators: reports, issue summaries, tables, decks, generated web pages, live website testing, inbox work, and PDFs stay attached to the task that produced or used them. Teams can review or edit generated artifacts in-place, test websites in a visible Browser V2 Workbench with snapshot refs and diagnostics, annotate screenshots, request follow-up changes, and use NeoWorker as the everyday alternative to separate office, browser, mail, and coding apps. Native apps and explicitly consented external browsers remain available when specialized functionality is needed.
 
 ---
 
 ## Three Best-Fit Workflow Lanes
 
-CoWork OS ships purpose-built packs for three operational lanes. Each lane maps to an existing bundled pack and a set of Tier-1 connectors.
+NeoWorker ships purpose-built packs for three operational lanes. Each lane maps to an existing bundled pack and a set of Tier-1 connectors.
 
 ### Support Ops — Customer Support Pack
 
 **Who already buys this outcome:** BPOs, CX outsourcers, managed-services providers, in-house support teams that operate like a managed lane.
 
-**What CoWork OS contributes:**
+**What NeoWorker contributes:**
 
 - Ticket triage with priority, category, and sentiment analysis
 - Empathetic, tone-matched response drafting
@@ -47,7 +47,7 @@ CoWork OS ships purpose-built packs for three operational lanes. Each lane maps 
 
 **Who already buys this outcome:** Managed infrastructure providers, IT outsourcers, SRE-as-a-service teams, and internal platform teams operating under SLAs.
 
-**What CoWork OS contributes:**
+**What NeoWorker contributes:**
 
 - Incident response plans with triage steps, comms templates, and post-mortem outlines
 - Deployment checklists with pre/post-deploy verification and rollback procedures
@@ -65,7 +65,7 @@ CoWork OS ships purpose-built packs for three operational lanes. Each lane maps 
 
 **Who already buys this outcome:** Outsourced SDR/BDR providers, sales development agencies, in-house sales teams running a managed outbound lane.
 
-**What CoWork OS contributes:**
+**What NeoWorker contributes:**
 
 - Prospect research briefings with company context, pain points, and talking points
 - Personalized follow-up email drafts referencing specific call details

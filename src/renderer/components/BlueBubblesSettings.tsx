@@ -8,12 +8,17 @@ import {
 } from "../../shared/types";
 import { PairingCodeDisplay } from "./PairingCodeDisplay";
 import { ContextPolicySettings } from "./ContextPolicySettings";
+import { translate, useLanguage } from "../i18n";
 
 interface BlueBubblesSettingsProps {
   onStatusChange?: (connected: boolean) => void;
 }
 
-export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps) {
+export function BlueBubblesSettings({
+  onStatusChange,
+}: BlueBubblesSettingsProps) {
+  useLanguage();
+  const t = translate;
   const [channel, setChannel] = useState<ChannelData | null>(null);
   const [users, setUsers] = useState<ChannelUserData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,16 +48,18 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
   const [generatingCode, setGeneratingCode] = useState(false);
 
   // Context policy state
-  const [contextPolicies, setContextPolicies] = useState<Record<ContextType, ContextPolicy>>(
-    {} as Record<ContextType, ContextPolicy>,
-  );
+  const [contextPolicies, setContextPolicies] = useState<
+    Record<ContextType, ContextPolicy>
+  >({} as Record<ContextType, ContextPolicy>);
   const [savingPolicy, setSavingPolicy] = useState(false);
 
   const loadChannel = useCallback(async () => {
     try {
       setLoading(true);
       const channels = await window.electronAPI.getGatewayChannels();
-      const bbChannel = channels.find((c: ChannelData) => c.type === "bluebubbles");
+      const bbChannel = channels.find(
+        (c: ChannelData) => c.type === "bluebubbles",
+      );
 
       if (bbChannel) {
         setChannel(bbChannel);
@@ -74,11 +81,15 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
         }
 
         // Load users for this channel
-        const channelUsers = await window.electronAPI.getGatewayUsers(bbChannel.id);
+        const channelUsers = await window.electronAPI.getGatewayUsers(
+          bbChannel.id,
+        );
         setUsers(channelUsers);
 
         // Load context policies
-        const policies = await window.electronAPI.listContextPolicies(bbChannel.id);
+        const policies = await window.electronAPI.listContextPolicies(
+          bbChannel.id,
+        );
         const policyMap: Record<ContextType, ContextPolicy> = {} as Record<
           ContextType,
           ContextPolicy
@@ -112,7 +123,13 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
 
   const handleAddChannel = async () => {
     if (!serverUrl.trim() || !password.trim()) {
-      setTestResult({ success: false, error: "Server URL and password are required" });
+      setTestResult({
+        success: false,
+        error: t(
+          "blueBubbles.error.required",
+          "Server URL and password are required",
+        ),
+      });
       return;
     }
 
@@ -136,7 +153,8 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
         blueBubblesPassword: password.trim(),
         blueBubblesWebhookPort: webhookPort,
         blueBubblesWebhookSecret: webhookSecret.trim() || undefined,
-        blueBubblesAllowedContacts: contactList.length > 0 ? contactList : undefined,
+        blueBubblesAllowedContacts:
+          contactList.length > 0 ? contactList : undefined,
       });
 
       await loadChannel();
@@ -184,7 +202,14 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
   const handleRemoveChannel = async () => {
     if (!channel) return;
 
-    if (!confirm("Are you sure you want to remove the BlueBubbles channel?")) {
+    if (
+      !confirm(
+        t(
+          "blueBubbles.confirm.remove",
+          "Are you sure you want to remove the BlueBubbles channel?",
+        ),
+      )
+    ) {
       return;
     }
 
@@ -241,7 +266,10 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
 
     try {
       setGeneratingCode(true);
-      const code = await window.electronAPI.generateGatewayPairing(channel.id, "");
+      const code = await window.electronAPI.generateGatewayPairing(
+        channel.id,
+        "",
+      );
       setPairingCode(code);
       // Default TTL is 5 minutes (300 seconds)
       setPairingExpiresAt(Date.now() + 5 * 60 * 1000);
@@ -252,15 +280,22 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
     }
   };
 
-  const handlePolicyChange = async (contextType: ContextType, updates: Partial<ContextPolicy>) => {
+  const handlePolicyChange = async (
+    contextType: ContextType,
+    updates: Partial<ContextPolicy>,
+  ) => {
     if (!channel) return;
 
     try {
       setSavingPolicy(true);
-      const updated = await window.electronAPI.updateContextPolicy(channel.id, contextType, {
-        securityMode: updates.securityMode,
-        toolRestrictions: updates.toolRestrictions,
-      });
+      const updated = await window.electronAPI.updateContextPolicy(
+        channel.id,
+        contextType,
+        {
+          securityMode: updates.securityMode,
+          toolRestrictions: updates.toolRestrictions,
+        },
+      );
       setContextPolicies((prev) => ({
         ...prev,
         [contextType]: updated,
@@ -284,7 +319,11 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
   };
 
   if (loading) {
-    return <div className="settings-loading">Loading BlueBubbles settings...</div>;
+    return (
+      <div className="settings-loading">
+        {t("blueBubbles.loading", "Loading BlueBubbles settings...")}
+      </div>
+    );
   }
 
   // No channel configured yet
@@ -292,25 +331,30 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
     return (
       <div className="bluebubbles-settings">
         <div className="settings-section">
-          <h3>Connect BlueBubbles</h3>
+          <h3>{t("blueBubbles.connect.title", "Connect BlueBubbles")}</h3>
           <p className="settings-description">
-            Connect to iMessage via BlueBubbles server. Enables iMessage integration on any
-            platform.
+            {t(
+              "blueBubbles.connect.description",
+              "Connect to iMessage via BlueBubbles server. Enables iMessage integration on any platform.",
+            )}
           </p>
 
           <div className="settings-field">
-            <label>Channel Name</label>
+            <label>{t("blueBubbles.field.channelName", "Channel Name")}</label>
             <input
               type="text"
               className="settings-input"
-              placeholder="iMessage via BlueBubbles"
+              placeholder={t(
+                "blueBubbles.placeholder.channelName",
+                "iMessage via BlueBubbles",
+              )}
               value={channelName}
               onChange={(e) => setChannelName(e.target.value)}
             />
           </div>
 
           <div className="settings-field">
-            <label>Server URL</label>
+            <label>{t("blueBubbles.field.serverUrl", "Server URL")}</label>
             <input
               type="text"
               className="settings-input"
@@ -319,24 +363,37 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
               onChange={(e) => setServerUrl(e.target.value)}
             />
             <p className="settings-hint">
-              URL of your BlueBubbles server (found in server settings)
+              {t(
+                "blueBubbles.hint.serverUrl",
+                "URL of your BlueBubbles server (found in server settings)",
+              )}
             </p>
           </div>
 
           <div className="settings-field">
-            <label>Server Password</label>
+            <label>
+              {t("blueBubbles.field.serverPassword", "Server Password")}
+            </label>
             <input
               type="password"
               className="settings-input"
-              placeholder="Your BlueBubbles server password"
+              placeholder={t(
+                "blueBubbles.placeholder.serverPassword",
+                "Your BlueBubbles server password",
+              )}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <p className="settings-hint">The password configured in BlueBubbles server</p>
+            <p className="settings-hint">
+              {t(
+                "blueBubbles.hint.serverPassword",
+                "The password configured in BlueBubbles server",
+              )}
+            </p>
           </div>
 
           <div className="settings-field">
-            <label>Webhook Port</label>
+            <label>{t("blueBubbles.field.webhookPort", "Webhook Port")}</label>
             <input
               type="number"
               className="settings-input"
@@ -344,25 +401,46 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
               value={webhookPort}
               onChange={(e) => setWebhookPort(parseInt(e.target.value) || 3101)}
             />
-            <p className="settings-hint">Port for receiving notifications (default: 3101)</p>
-          </div>
-
-          <div className="settings-field">
-            <label>Webhook Secret (Optional)</label>
-            <input
-              type="password"
-              className="settings-input"
-              placeholder="Defaults to server password"
-              value={webhookSecret}
-              onChange={(e) => setWebhookSecret(e.target.value)}
-            />
             <p className="settings-hint">
-              Incoming webhook requests must include this secret or the server password
+              {t(
+                "blueBubbles.hint.webhookPort",
+                "Port for receiving notifications (default: 3101)",
+              )}
             </p>
           </div>
 
           <div className="settings-field">
-            <label>Allowed Contacts (Optional)</label>
+            <label>
+              {t(
+                "blueBubbles.field.webhookSecret",
+                "Webhook Secret (Optional)",
+              )}
+            </label>
+            <input
+              type="password"
+              className="settings-input"
+              placeholder={t(
+                "blueBubbles.placeholder.webhookSecret",
+                "Defaults to server password",
+              )}
+              value={webhookSecret}
+              onChange={(e) => setWebhookSecret(e.target.value)}
+            />
+            <p className="settings-hint">
+              {t(
+                "blueBubbles.hint.webhookSecret",
+                "Incoming webhook requests must include this secret or the server password",
+              )}
+            </p>
+          </div>
+
+          <div className="settings-field">
+            <label>
+              {t(
+                "blueBubbles.field.allowedContacts",
+                "Allowed Contacts (Optional)",
+              )}
+            </label>
             <input
               type="text"
               className="settings-input"
@@ -371,13 +449,18 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
               onChange={(e) => setAllowedContacts(e.target.value)}
             />
             <p className="settings-hint">
-              Comma-separated phone numbers or emails (leave empty for all)
+              {t(
+                "blueBubbles.hint.allowedContacts",
+                "Comma-separated phone numbers or emails (leave empty for all)",
+              )}
             </p>
           </div>
 
           <div className="settings-field">
             <div className="settings-checkbox-label">
-              <span>Ambient Mode (Log-Only)</span>
+              <span>
+                {t("blueBubbles.field.ambientMode", "Ambient Mode (Log-Only)")}
+              </span>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -388,14 +471,21 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
               </label>
             </div>
             <p className="settings-hint">
-              When enabled, messages are ingested into the local log but only commands (messages
-              starting with "/") are processed.
+              {t(
+                "blueBubbles.hint.ambientMode",
+                'When enabled, messages are ingested into the local log but only commands (messages starting with "/") are processed.',
+              )}
             </p>
           </div>
 
           <div className="settings-field">
             <div className="settings-checkbox-label">
-              <span>Capture Self Messages</span>
+              <span>
+                {t(
+                  "blueBubbles.field.captureSelfMessages",
+                  "Capture Self Messages",
+                )}
+              </span>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -406,14 +496,21 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
               </label>
             </div>
             <p className="settings-hint">
-              Ingest messages sent by your iMessage account into the log (as outgoing_user) for
-              better follow-up extraction.
+              {t(
+                "blueBubbles.hint.captureSelfMessages",
+                "Ingest messages sent by your iMessage account into the log (as outgoing_user) for better follow-up extraction.",
+              )}
             </p>
           </div>
 
           <div className="settings-field">
             <div className="settings-checkbox-label">
-              <span>Silent Unauthorized</span>
+              <span>
+                {t(
+                  "blueBubbles.field.silentUnauthorized",
+                  "Silent Unauthorized",
+                )}
+              </span>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -424,33 +521,58 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
               </label>
             </div>
             <p className="settings-hint">
-              Do not send "pairing required" or "unauthorized" replies (useful for ambient
-              ingestion).
+              {t(
+                "blueBubbles.hint.silentUnauthorized",
+                'Do not send "pairing required" or "unauthorized" replies (useful for ambient ingestion).',
+              )}
             </p>
           </div>
 
           <div className="settings-field">
-            <label>Security Mode</label>
+            <label>
+              {t("blueBubbles.field.securityMode", "Security Mode")}
+            </label>
             <select
               className="settings-select"
               value={securityMode}
               onChange={(e) => setSecurityMode(e.target.value as SecurityMode)}
             >
-              <option value="pairing">Pairing Code (Recommended)</option>
-              <option value="allowlist">Allowlist Only</option>
-              <option value="open">Open (Anyone can use)</option>
+              <option value="pairing">
+                {t(
+                  "blueBubbles.security.pairingRecommended",
+                  "Pairing Code (Recommended)",
+                )}
+              </option>
+              <option value="allowlist">
+                {t("blueBubbles.security.allowlistOnly", "Allowlist Only")}
+              </option>
+              <option value="open">
+                {t("blueBubbles.security.openAnyone", "Open (Anyone can use)")}
+              </option>
             </select>
             <p className="settings-hint">
               {securityMode === "pairing" &&
-                "Users must enter a code generated in this app to use the bot"}
-              {securityMode === "allowlist" && "Only pre-approved contacts can use the bot"}
+                t(
+                  "blueBubbles.security.pairingHint",
+                  "Users must enter a code generated in this app to use the bot",
+                )}
+              {securityMode === "allowlist" &&
+                t(
+                  "blueBubbles.security.allowlistHint",
+                  "Only pre-approved contacts can use the bot",
+                )}
               {securityMode === "open" &&
-                "Anyone who messages the bot can use it (not recommended)"}
+                t(
+                  "blueBubbles.security.openHint",
+                  "Anyone who messages the bot can use it (not recommended)",
+                )}
             </p>
           </div>
 
           {testResult && (
-            <div className={`test-result ${testResult.success ? "success" : "error"}`}>
+            <div
+              className={`test-result ${testResult.success ? "success" : "error"}`}
+            >
               {testResult.success ? (
                 <>✓ Connected to {testResult.botUsername}</>
               ) : (
@@ -464,33 +586,69 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
             onClick={handleAddChannel}
             disabled={saving || !serverUrl.trim() || !password.trim()}
           >
-            {saving ? "Adding..." : "Add BlueBubbles"}
+            {saving
+              ? t("blueBubbles.adding", "Adding...")
+              : t("blueBubbles.add", "Add BlueBubbles")}
           </button>
         </div>
 
         <div className="settings-section">
-          <h4>Prerequisites</h4>
+          <h4>{t("blueBubbles.prereq.title", "Prerequisites")}</h4>
           <ol className="setup-instructions">
             <li>
-              Download and install{" "}
-              <a href="https://bluebubbles.app/" target="_blank" rel="noopener noreferrer">
+              {t("blueBubbles.prereq.step1Prefix", "Download and install")}{" "}
+              <a
+                href="https://bluebubbles.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 BlueBubbles Server
               </a>{" "}
-              on a Mac with iMessage
+              {t("blueBubbles.prereq.step1Suffix", "on a Mac with iMessage")}
             </li>
-            <li>Configure the server and note the URL and password</li>
-            <li>Ensure the BlueBubbles server is accessible from this machine</li>
+            <li>
+              {t(
+                "blueBubbles.prereq.step2",
+                "Configure the server and note the URL and password",
+              )}
+            </li>
+            <li>
+              {t(
+                "blueBubbles.prereq.step3",
+                "Ensure the BlueBubbles server is accessible from this machine",
+              )}
+            </li>
           </ol>
         </div>
 
         <div className="settings-section">
-          <h4>BlueBubbles Features</h4>
+          <h4>{t("blueBubbles.features.title", "BlueBubbles Features")}</h4>
           <ul className="setup-instructions">
-            <li>Full iMessage integration via REST API</li>
-            <li>Send and receive iMessage/SMS</li>
-            <li>Supports webhooks for real-time notifications</li>
-            <li>Works from any platform (not just Mac)</li>
-            <li>Group chat support</li>
+            <li>
+              {t(
+                "blueBubbles.features.rest",
+                "Full iMessage integration via REST API",
+              )}
+            </li>
+            <li>
+              {t(
+                "blueBubbles.features.sendReceive",
+                "Send and receive iMessage/SMS",
+              )}
+            </li>
+            <li>
+              {t(
+                "blueBubbles.features.webhooks",
+                "Supports webhooks for real-time notifications",
+              )}
+            </li>
+            <li>
+              {t(
+                "blueBubbles.features.crossPlatform",
+                "Works from any platform (not just Mac)",
+              )}
+            </li>
+            <li>{t("blueBubbles.features.groupChat", "Group chat support")}</li>
           </ul>
         </div>
       </div>
@@ -505,61 +663,91 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
           <div className="channel-info">
             <h3>
               {channel.name}
-              {channel.botUsername && <span className="bot-username">{channel.botUsername}</span>}
+              {channel.botUsername && (
+                <span className="bot-username">{channel.botUsername}</span>
+              )}
             </h3>
             <div className={`channel-status ${channel.status}`}>
-              {channel.status === "connected" && "● Connected"}
-              {channel.status === "connecting" && "○ Connecting..."}
-              {channel.status === "disconnected" && "○ Disconnected"}
-              {channel.status === "error" && "● Error"}
+              {channel.status === "connected" &&
+                t("blueBubbles.status.connected", "● Connected")}
+              {channel.status === "connecting" &&
+                t("blueBubbles.status.connecting", "○ Connecting...")}
+              {channel.status === "disconnected" &&
+                t("blueBubbles.status.disconnected", "○ Disconnected")}
+              {channel.status === "error" &&
+                t("blueBubbles.status.error", "● Error")}
             </div>
           </div>
           <div className="channel-actions">
             <button
-              className={channel.enabled ? "button-secondary" : "button-primary"}
+              className={
+                channel.enabled ? "button-secondary" : "button-primary"
+              }
               onClick={handleToggleEnabled}
               disabled={saving}
             >
-              {channel.enabled ? "Disable" : "Enable"}
+              {channel.enabled
+                ? t("common.disable", "Disable")
+                : t("common.enable", "Enable")}
             </button>
             <button
               className="button-secondary"
               onClick={handleTestConnection}
               disabled={testing || !channel.enabled}
             >
-              {testing ? "Testing..." : "Test"}
+              {testing
+                ? t("common.testing", "Testing...")
+                : t("common.test", "Test")}
             </button>
-            <button className="button-danger" onClick={handleRemoveChannel} disabled={saving}>
-              Remove
+            <button
+              className="button-danger"
+              onClick={handleRemoveChannel}
+              disabled={saving}
+            >
+              {t("common.remove", "Remove")}
             </button>
           </div>
         </div>
 
         {testResult && (
-          <div className={`test-result ${testResult.success ? "success" : "error"}`}>
-            {testResult.success ? <>✓ Connection successful</> : <>✗ {testResult.error}</>}
+          <div
+            className={`test-result ${testResult.success ? "success" : "error"}`}
+          >
+            {testResult.success ? (
+              <>✓ {t("blueBubbles.test.success", "Connection successful")}</>
+            ) : (
+              <>✗ {testResult.error}</>
+            )}
           </div>
         )}
       </div>
 
       <div className="settings-section">
-        <h4>Security Mode</h4>
+        <h4>{t("blueBubbles.field.securityMode", "Security Mode")}</h4>
         <select
           className="settings-select"
           value={securityMode}
-          onChange={(e) => handleUpdateSecurityMode(e.target.value as SecurityMode)}
+          onChange={(e) =>
+            handleUpdateSecurityMode(e.target.value as SecurityMode)
+          }
         >
-          <option value="pairing">Pairing Code</option>
-          <option value="allowlist">Allowlist Only</option>
-          <option value="open">Open</option>
+          <option value="pairing">
+            {t("blueBubbles.security.pairing", "Pairing Code")}
+          </option>
+          <option value="allowlist">
+            {t("blueBubbles.security.allowlistOnly", "Allowlist Only")}
+          </option>
+          <option value="open">{t("blueBubbles.security.open", "Open")}</option>
         </select>
       </div>
 
       <div className="settings-section">
-        <h4>Ambient Inbox</h4>
+        <h4>{t("blueBubbles.ambientInbox.title", "Ambient Inbox")}</h4>
         <div className="settings-field">
           <div className="settings-checkbox-label">
-            <span>Ambient Mode (Log-Only)</span>
+            <span>
+              {t("blueBubbles.field.ambientMode", "Ambient Mode (Log-Only)")}
+            </span>
             <label className="settings-toggle">
               <input
                 type="checkbox"
@@ -575,14 +763,21 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
             </label>
           </div>
           <p className="settings-hint">
-            When enabled, messages are ingested into the local log but only commands (messages
-            starting with "/") are processed.
+            {t(
+              "blueBubbles.hint.ambientMode",
+              'When enabled, messages are ingested into the local log but only commands (messages starting with "/") are processed.',
+            )}
           </p>
         </div>
 
         <div className="settings-field">
           <div className="settings-checkbox-label">
-            <span>Capture Self Messages</span>
+            <span>
+              {t(
+                "blueBubbles.field.captureSelfMessages",
+                "Capture Self Messages",
+              )}
+            </span>
             <label className="settings-toggle">
               <input
                 type="checkbox"
@@ -598,14 +793,18 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
             </label>
           </div>
           <p className="settings-hint">
-            Ingest messages sent by your iMessage account into the log (as outgoing_user) for better
-            follow-up extraction.
+            {t(
+              "blueBubbles.hint.captureSelfMessages",
+              "Ingest messages sent by your iMessage account into the log (as outgoing_user) for better follow-up extraction.",
+            )}
           </p>
         </div>
 
         <div className="settings-field">
           <div className="settings-checkbox-label">
-            <span>Silent Unauthorized</span>
+            <span>
+              {t("blueBubbles.field.silentUnauthorized", "Silent Unauthorized")}
+            </span>
             <label className="settings-toggle">
               <input
                 type="checkbox"
@@ -621,16 +820,22 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
             </label>
           </div>
           <p className="settings-hint">
-            Do not send "pairing required" or "unauthorized" replies (useful for ambient ingestion).
+            {t(
+              "blueBubbles.hint.silentUnauthorized",
+              'Do not send "pairing required" or "unauthorized" replies (useful for ambient ingestion).',
+            )}
           </p>
         </div>
       </div>
 
       {securityMode === "pairing" && (
         <div className="settings-section">
-          <h4>Generate Pairing Code</h4>
+          <h4>{t("blueBubbles.pairing.title", "Generate Pairing Code")}</h4>
           <p className="settings-description">
-            Generate a one-time code for a user to enter in iMessage to gain access.
+            {t(
+              "blueBubbles.pairing.description",
+              "Generate a one-time code for a user to enter in iMessage to gain access.",
+            )}
           </p>
           {pairingCode && pairingExpiresAt > 0 ? (
             <PairingCodeDisplay
@@ -645,7 +850,9 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
               onClick={handleGeneratePairingCode}
               disabled={generatingCode}
             >
-              {generatingCode ? "Generating..." : "Generate Code"}
+              {generatingCode
+                ? t("blueBubbles.pairing.generating", "Generating...")
+                : t("blueBubbles.pairing.generate", "Generate Code")}
             </button>
           )}
         </div>
@@ -653,9 +860,12 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
 
       {/* Per-Context Security Policies (DM vs Group) */}
       <div className="settings-section">
-        <h4>Context Policies</h4>
+        <h4>{t("blueBubbles.contextPolicies.title", "Context Policies")}</h4>
         <p className="settings-description">
-          Configure different security settings for direct messages vs group chats.
+          {t(
+            "blueBubbles.contextPolicies.description",
+            "Configure different security settings for direct messages vs group chats.",
+          )}
         </p>
         <ContextPolicySettings
           channelId={channel.id}
@@ -667,18 +877,26 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
       </div>
 
       <div className="settings-section">
-        <h4>Authorized Users</h4>
+        <h4>{t("blueBubbles.users.title", "Authorized Users")}</h4>
         {users.length === 0 ? (
-          <p className="settings-description">No users have connected yet.</p>
+          <p className="settings-description">
+            {t("blueBubbles.users.empty", "No users have connected yet.")}
+          </p>
         ) : (
           <div className="users-list">
             {users.map((user) => (
               <div key={user.id} className="user-item">
                 <div className="user-info">
                   <span className="user-name">{user.displayName}</span>
-                  {user.username && <span className="user-username">{user.username}</span>}
-                  <span className={`user-status ${user.allowed ? "allowed" : "pending"}`}>
-                    {user.allowed ? "✓ Allowed" : "○ Pending"}
+                  {user.username && (
+                    <span className="user-username">{user.username}</span>
+                  )}
+                  <span
+                    className={`user-status ${user.allowed ? "allowed" : "pending"}`}
+                  >
+                    {user.allowed
+                      ? t("blueBubbles.users.allowed", "✓ Allowed")
+                      : t("blueBubbles.users.pending", "○ Pending")}
                   </span>
                 </div>
                 {user.allowed && (
@@ -686,7 +904,7 @@ export function BlueBubblesSettings({ onStatusChange }: BlueBubblesSettingsProps
                     className="button-small button-danger"
                     onClick={() => handleRevokeAccess(user.channelUserId)}
                   >
-                    Revoke
+                    {t("common.revoke", "Revoke")}
                   </button>
                 )}
               </div>

@@ -360,15 +360,15 @@ function isRecord(value: unknown): value is Record<string, Any> {
 }
 
 if (require.main === module) {
-  const port = Number(process.env.COWORK_TUNNEL_RELAY_PORT || 8787);
+  const port = Number(process.env.NEOWORKER_TUNNEL_RELAY_PORT || 8787);
   startTunnelRelayServer({
     port,
-    host: process.env.COWORK_TUNNEL_RELAY_HOST || "127.0.0.1",
-    adminToken: process.env.COWORK_TUNNEL_RELAY_ADMIN_TOKEN,
-    allowUnauthenticatedAdmin: process.env.COWORK_TUNNEL_RELAY_ALLOW_DEV_ADMIN === "1",
+    host: process.env.NEOWORKER_TUNNEL_RELAY_HOST || "127.0.0.1",
+    adminToken: process.env.NEOWORKER_TUNNEL_RELAY_ADMIN_TOKEN,
+    allowUnauthenticatedAdmin: process.env.NEOWORKER_TUNNEL_RELAY_ALLOW_DEV_ADMIN === "1",
   })
     .then((server) => {
-      console.log(`CoWork secure MCP tunnel relay listening on http://127.0.0.1:${server.port}`);
+      console.log(`NeoWorker secure MCP tunnel relay listening on http://127.0.0.1:${server.port}`);
     })
     .catch((error) => {
       console.error(error);

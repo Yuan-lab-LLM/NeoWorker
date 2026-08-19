@@ -2,7 +2,7 @@
  * DailyLogService — Operational journaling for summary-first memory growth.
  *
  * Writes structured log entries to per-day markdown files under:
- *   .cowork/memory/daily/<YYYY-MM-DD>.md
+ *   .neoworker/memory/daily/<YYYY-MM-DD>.md
  *
  * These files are NOT injected raw into prompts. They serve as input
  * for DailyLogSummarizer, which produces ranked summary fragments.
@@ -25,11 +25,11 @@ export interface DailyLogEntry {
 
 export class DailyLogService {
   static resolveDailyLogPath(workspacePath: string, dayIso: string): string {
-    return path.join(workspacePath, ".cowork", "memory", "daily", `${dayIso}.md`);
+    return path.join(workspacePath, ".neoworker", "memory", "daily", `${dayIso}.md`);
   }
 
   static resolveLogDir(workspacePath: string): string {
-    return path.join(workspacePath, ".cowork", "memory", "daily");
+    return path.join(workspacePath, ".neoworker", "memory", "daily");
   }
 
   static async appendEntry(workspacePath: string, entry: DailyLogEntry): Promise<void> {

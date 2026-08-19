@@ -1,0 +1,3 @@
+import { n as e, t } from "./settings-8KXOPtTT-BVAG0gpY.js";
+e();
+export { t as default };

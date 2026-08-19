@@ -1,9 +1,67 @@
 import { describe, expect, it } from "vitest";
 import {
+  fromOpenAICompatibleResponse,
+  parseOpenAICompatibleToolArguments,
   sanitizeToolCallHistory,
   toOpenAICompatibleMessages,
   toOpenAICompatibleTools,
 } from "../openai-compatible";
+
+describe("OpenAI-compatible tool arguments", () => {
+  it("repairs a missing comma instead of failing the whole agent step", () => {
+    const response = fromOpenAICompatibleResponse({
+      choices: [
+        {
+          finish_reason: "tool_calls",
+          message: {
+            content: "总结已经完成。",
+            tool_calls: [
+              {
+                id: "call-1",
+                type: "function",
+                function: {
+                  name: "task_complete",
+                  arguments: '{"summary":"完成" "details":"已生成结果"}',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(response.content).toEqual([
+      { type: "text", text: "总结已经完成。" },
+      {
+        type: "tool_use",
+        id: "call-1",
+        name: "task_complete",
+        input: { summary: "完成", details: "已生成结果" },
+      },
+    ]);
+  });
+
+  it("repairs literal control characters inside large text arguments", () => {
+    expect(
+      parseOpenAICompatibleToolArguments(
+        '{"path":"report.html","content":"<h1>标题</h1>\n<p>\t正文</p>"}',
+      ),
+    ).toEqual({
+      path: "report.html",
+      content: "<h1>标题</h1>\n<p>\t正文</p>",
+    });
+  });
+
+  it("marks unrecoverable tool arguments as retryable", () => {
+    expect(() => parseOpenAICompatibleToolArguments("not json at all")).toThrowError(
+      expect.objectContaining({
+        name: "MalformedToolArgumentsError",
+        code: "MALFORMED_TOOL_ARGUMENTS",
+        retryable: true,
+      }),
+    );
+  });
+});
 
 describe("toOpenAICompatibleMessages", () => {
   it("splits stable and turn-scoped system blocks into separate leading system messages", () => {

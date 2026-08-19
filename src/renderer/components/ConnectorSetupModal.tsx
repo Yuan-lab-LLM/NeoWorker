@@ -1,11 +1,8 @@
 import { useMemo, useState } from "react";
+import { translate, useLanguage } from "../i18n";
 
 export type ConnectorProvider =
-  | "salesforce"
-  | "jira"
-  | "hubspot"
-  | "zendesk"
-  | "google-workspace";
+  "salesforce" | "jira" | "hubspot" | "zendesk" | "google-workspace";
 
 interface ConnectorSetupModalProps {
   provider: ConnectorProvider;
@@ -31,30 +28,47 @@ export function ConnectorSetupModal({
   onClose,
   onSaved,
 }: ConnectorSetupModalProps) {
+  useLanguage();
   const [mode, setMode] = useState<"oauth" | "manual">("oauth");
   const [saving, setSaving] = useState(false);
   const [oauthBusy, setOauthBusy] = useState(false);
   const [oauthError, setOauthError] = useState<string | null>(null);
 
   // Salesforce fields
-  const [sfClientId, setSfClientId] = useState(initialEnv.SALESFORCE_CLIENT_ID || "");
-  const [sfClientSecret, setSfClientSecret] = useState(initialEnv.SALESFORCE_CLIENT_SECRET || "");
+  const [sfClientId, setSfClientId] = useState(
+    initialEnv.SALESFORCE_CLIENT_ID || "",
+  );
+  const [sfClientSecret, setSfClientSecret] = useState(
+    initialEnv.SALESFORCE_CLIENT_SECRET || "",
+  );
   const [sfLoginUrl, setSfLoginUrl] = useState(
     initialEnv.SALESFORCE_LOGIN_URL || "https://login.salesforce.com",
   );
   const [sfScopes, setSfScopes] = useState("api refresh_token");
-  const [sfInstanceUrl, setSfInstanceUrl] = useState(initialEnv.SALESFORCE_INSTANCE_URL || "");
-  const [sfAccessToken, setSfAccessToken] = useState(initialEnv.SALESFORCE_ACCESS_TOKEN || "");
+  const [sfInstanceUrl, setSfInstanceUrl] = useState(
+    initialEnv.SALESFORCE_INSTANCE_URL || "",
+  );
+  const [sfAccessToken, setSfAccessToken] = useState(
+    initialEnv.SALESFORCE_ACCESS_TOKEN || "",
+  );
 
   // Jira fields
-  const [jiraClientId, setJiraClientId] = useState(initialEnv.JIRA_CLIENT_ID || "");
-  const [jiraClientSecret, setJiraClientSecret] = useState(initialEnv.JIRA_CLIENT_SECRET || "");
+  const [jiraClientId, setJiraClientId] = useState(
+    initialEnv.JIRA_CLIENT_ID || "",
+  );
+  const [jiraClientSecret, setJiraClientSecret] = useState(
+    initialEnv.JIRA_CLIENT_SECRET || "",
+  );
   const [jiraScopes, setJiraScopes] = useState(
     "read:jira-user read:jira-work write:jira-work offline_access",
   );
-  const [jiraBaseUrl, setJiraBaseUrl] = useState(initialEnv.JIRA_BASE_URL || "");
+  const [jiraBaseUrl, setJiraBaseUrl] = useState(
+    initialEnv.JIRA_BASE_URL || "",
+  );
   const [jiraEmail, setJiraEmail] = useState(initialEnv.JIRA_EMAIL || "");
-  const [jiraApiToken, setJiraApiToken] = useState(initialEnv.JIRA_API_TOKEN || "");
+  const [jiraApiToken, setJiraApiToken] = useState(
+    initialEnv.JIRA_API_TOKEN || "",
+  );
   const [jiraResources, setJiraResources] = useState<JiraResource[]>([]);
   const [selectedJiraResourceId, setSelectedJiraResourceId] = useState("");
   const [jiraOauthTokens, setJiraOauthTokens] = useState<{
@@ -63,7 +77,9 @@ export function ConnectorSetupModal({
   } | null>(null);
 
   // HubSpot fields
-  const [hubspotClientId, setHubspotClientId] = useState(initialEnv.HUBSPOT_CLIENT_ID || "");
+  const [hubspotClientId, setHubspotClientId] = useState(
+    initialEnv.HUBSPOT_CLIENT_ID || "",
+  );
   const [hubspotClientSecret, setHubspotClientSecret] = useState(
     initialEnv.HUBSPOT_CLIENT_SECRET || "",
   );
@@ -75,24 +91,36 @@ export function ConnectorSetupModal({
   );
 
   // Zendesk fields
-  const [zendeskSubdomain, setZendeskSubdomain] = useState(initialEnv.ZENDESK_SUBDOMAIN || "");
-  const [zendeskClientId, setZendeskClientId] = useState(initialEnv.ZENDESK_CLIENT_ID || "");
+  const [zendeskSubdomain, setZendeskSubdomain] = useState(
+    initialEnv.ZENDESK_SUBDOMAIN || "",
+  );
+  const [zendeskClientId, setZendeskClientId] = useState(
+    initialEnv.ZENDESK_CLIENT_ID || "",
+  );
   const [zendeskClientSecret, setZendeskClientSecret] = useState(
     initialEnv.ZENDESK_CLIENT_SECRET || "",
   );
   const [zendeskScopes, setZendeskScopes] = useState("read write");
-  const [zendeskEmail, setZendeskEmail] = useState(initialEnv.ZENDESK_EMAIL || "");
-  const [zendeskApiToken, setZendeskApiToken] = useState(initialEnv.ZENDESK_API_TOKEN || "");
+  const [zendeskEmail, setZendeskEmail] = useState(
+    initialEnv.ZENDESK_EMAIL || "",
+  );
+  const [zendeskApiToken, setZendeskApiToken] = useState(
+    initialEnv.ZENDESK_API_TOKEN || "",
+  );
   const [zendeskAccessToken, setZendeskAccessToken] = useState(
     initialEnv.ZENDESK_ACCESS_TOKEN || "",
   );
 
   // Google fields (single Google Workspace MCP connector)
-  const [googleClientId, setGoogleClientId] = useState(initialEnv.GOOGLE_CLIENT_ID || "");
+  const [googleClientId, setGoogleClientId] = useState(
+    initialEnv.GOOGLE_CLIENT_ID || "",
+  );
   const [googleClientSecret, setGoogleClientSecret] = useState(
     initialEnv.GOOGLE_CLIENT_SECRET || "",
   );
-  const [googleAccessToken, setGoogleAccessToken] = useState(initialEnv.GOOGLE_ACCESS_TOKEN || "");
+  const [googleAccessToken, setGoogleAccessToken] = useState(
+    initialEnv.GOOGLE_ACCESS_TOKEN || "",
+  );
   const [googleRefreshToken, setGoogleRefreshToken] = useState(
     initialEnv.GOOGLE_REFRESH_TOKEN || "",
   );
@@ -105,7 +133,11 @@ export function ConnectorSetupModal({
 
   const selectedJiraResource = useMemo(() => {
     if (!selectedJiraResourceId) return null;
-    return jiraResources.find((resource) => resource.id === selectedJiraResourceId) || null;
+    return (
+      jiraResources.find(
+        (resource) => resource.id === selectedJiraResourceId,
+      ) || null
+    );
   }, [jiraResources, selectedJiraResourceId]);
 
   const parseScopes = (value: string) =>
@@ -114,7 +146,9 @@ export function ConnectorSetupModal({
       .map((s) => s.trim())
       .filter(Boolean);
 
-  const sanitizeEnv = (env: Record<string, string | undefined>): Record<string, string> => {
+  const sanitizeEnv = (
+    env: Record<string, string | undefined>,
+  ): Record<string, string> => {
     const merged: Record<string, string> = { ...initialEnv };
     Object.entries(env).forEach(([key, value]) => {
       if (value === undefined || value === "") {
@@ -144,7 +178,13 @@ export function ConnectorSetupModal({
       onSaved();
       onClose();
     } catch (error: Any) {
-      setOauthError(error.message || "Failed to save credentials");
+      setOauthError(
+        error.message ||
+          translate(
+            "connectorSetup.error.saveCredentials",
+            "Failed to save credentials",
+          ),
+      );
     } finally {
       setSaving(false);
     }
@@ -191,13 +231,21 @@ export function ConnectorSetupModal({
       const resources = result.resources || [];
       setJiraResources(resources);
       if (resources.length === 0) {
-        setOauthError("No Jira sites were returned for this account.");
+        setOauthError(
+          translate(
+            "connectorSetup.error.noJiraSites",
+            "No Jira sites were returned for this account.",
+          ),
+        );
         return;
       }
       if (resources.length === 1) {
         setSelectedJiraResourceId(resources[0].id);
       }
-      setJiraOauthTokens({ accessToken: result.accessToken, refreshToken: result.refreshToken });
+      setJiraOauthTokens({
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      });
     } catch (error: Any) {
       setOauthError(error.message || "Jira OAuth failed");
     } finally {
@@ -321,7 +369,12 @@ export function ConnectorSetupModal({
 
   const handleJiraOauthSave = async () => {
     if (!jiraOauthTokens || !selectedJiraResource) {
-      setOauthError("Select a Jira site before saving.");
+      setOauthError(
+        translate(
+          "connectorSetup.error.selectJiraSite",
+          "Select a Jira site before saving.",
+        ),
+      );
       return;
     }
     const cloudBase = `https://api.atlassian.com/ex/jira/${selectedJiraResource.id}`;
@@ -338,10 +391,17 @@ export function ConnectorSetupModal({
 
   return (
     <div className="mcp-modal-overlay" onClick={onClose}>
-      <div className="mcp-modal connector-setup-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="mcp-modal connector-setup-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mcp-modal-header">
           <div className="registry-details-title">
-            <h3>{serverName} Setup</h3>
+            <h3>
+              {translate("connectorSetup.title", "{server} Setup", {
+                server: serverName,
+              })}
+            </h3>
           </div>
           <button className="mcp-modal-close" onClick={onClose}>
             <svg
@@ -358,7 +418,9 @@ export function ConnectorSetupModal({
         </div>
         <div className="mcp-modal-content">
           <div className="settings-field">
-            <label>Setup Method</label>
+            <label>
+              {translate("connectorSetup.setupMethod", "Setup Method")}
+            </label>
             <div className="connector-mode-toggle">
               <button
                 className={`button-small ${mode === "oauth" ? "button-primary" : "button-secondary"}`}
@@ -370,7 +432,7 @@ export function ConnectorSetupModal({
                 className={`button-small ${mode === "manual" ? "button-primary" : "button-secondary"}`}
                 onClick={() => setMode("manual")}
               >
-                Manual Token
+                {translate("connectorSetup.manualToken", "Manual Token")}
               </button>
             </div>
           </div>
@@ -378,7 +440,9 @@ export function ConnectorSetupModal({
           {mode === "oauth" && isSalesforce && (
             <>
               <div className="settings-field">
-                <label>Client ID</label>
+                <label>
+                  {translate("connectorSetup.clientId", "Client ID")}
+                </label>
                 <input
                   className="settings-input"
                   value={sfClientId}
@@ -386,7 +450,9 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Client Secret</label>
+                <label>
+                  {translate("connectorSetup.clientSecret", "Client Secret")}
+                </label>
                 <input
                   className="settings-input"
                   type="password"
@@ -395,30 +461,46 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Login URL</label>
+                <label>
+                  {translate("connectorSetup.loginUrl", "Login URL")}
+                </label>
                 <input
                   className="settings-input"
                   value={sfLoginUrl}
                   onChange={(e) => setSfLoginUrl(e.target.value)}
                 />
-                <p className="settings-hint">Use https://test.salesforce.com for sandbox orgs.</p>
+                <p className="settings-hint">
+                  {translate(
+                    "connectorSetup.salesforce.sandboxHint",
+                    "Use https://test.salesforce.com for sandbox orgs.",
+                  )}
+                </p>
               </div>
               <div className="settings-field">
-                <label>Scopes</label>
+                <label>{translate("connectorSetup.scopes", "Scopes")}</label>
                 <input
                   className="settings-input"
                   value={sfScopes}
                   onChange={(e) => setSfScopes(e.target.value)}
                 />
               </div>
-              <p className="settings-hint">Redirect URI: http://127.0.0.1:18765/oauth/callback</p>
+              <p className="settings-hint">
+                {translate("connectorSetup.redirectUri", "Redirect URI:")}{" "}
+                http://127.0.0.1:18765/oauth/callback
+              </p>
               <div className="connector-setup-actions">
                 <button
                   className="button-primary"
                   onClick={handleSalesforceOAuth}
                   disabled={oauthBusy || !sfClientId || !sfClientSecret}
                 >
-                  {oauthBusy ? "Authorizing..." : "Authorize Salesforce"}
+                  {oauthBusy
+                    ? translate("connectorSetup.authorizing", "Authorizing...")
+                    : translate(
+                        "connectorSetup.authorizeProvider",
+                        "Authorize {provider}",
+                        { provider: "Salesforce" },
+                      )}
                 </button>
               </div>
             </>
@@ -427,7 +509,9 @@ export function ConnectorSetupModal({
           {mode === "oauth" && isJira && (
             <>
               <div className="settings-field">
-                <label>Client ID</label>
+                <label>
+                  {translate("connectorSetup.clientId", "Client ID")}
+                </label>
                 <input
                   className="settings-input"
                   value={jiraClientId}
@@ -435,7 +519,9 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Client Secret</label>
+                <label>
+                  {translate("connectorSetup.clientSecret", "Client Secret")}
+                </label>
                 <input
                   className="settings-input"
                   type="password"
@@ -444,33 +530,52 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Scopes</label>
+                <label>{translate("connectorSetup.scopes", "Scopes")}</label>
                 <input
                   className="settings-input"
                   value={jiraScopes}
                   onChange={(e) => setJiraScopes(e.target.value)}
                 />
               </div>
-              <p className="settings-hint">Redirect URI: http://127.0.0.1:18765/oauth/callback</p>
+              <p className="settings-hint">
+                {translate("connectorSetup.redirectUri", "Redirect URI:")}{" "}
+                http://127.0.0.1:18765/oauth/callback
+              </p>
               <div className="connector-setup-actions">
                 <button
                   className="button-primary"
                   onClick={handleJiraOAuth}
                   disabled={oauthBusy || !jiraClientId || !jiraClientSecret}
                 >
-                  {oauthBusy ? "Authorizing..." : "Authorize Jira"}
+                  {oauthBusy
+                    ? translate("connectorSetup.authorizing", "Authorizing...")
+                    : translate(
+                        "connectorSetup.authorizeProvider",
+                        "Authorize {provider}",
+                        { provider: "Jira" },
+                      )}
                 </button>
               </div>
 
               {jiraResources.length > 0 && (
                 <div className="settings-field">
-                  <label>Select Jira Site</label>
+                  <label>
+                    {translate(
+                      "connectorSetup.jira.selectSite",
+                      "Select Jira Site",
+                    )}
+                  </label>
                   <select
                     className="settings-input"
                     value={selectedJiraResourceId}
                     onChange={(e) => setSelectedJiraResourceId(e.target.value)}
                   >
-                    <option value="">Choose a site</option>
+                    <option value="">
+                      {translate(
+                        "connectorSetup.jira.chooseSite",
+                        "Choose a site",
+                      )}
+                    </option>
                     {jiraResources.map((resource) => (
                       <option key={resource.id} value={resource.id}>
                         {resource.name} ({resource.url})
@@ -487,7 +592,12 @@ export function ConnectorSetupModal({
                     onClick={handleJiraOauthSave}
                     disabled={!selectedJiraResourceId || saving}
                   >
-                    {saving ? "Saving..." : "Save Jira Connection"}
+                    {saving
+                      ? translate("common.saving", "Saving...")
+                      : translate(
+                          "connectorSetup.jira.saveConnection",
+                          "Save Jira Connection",
+                        )}
                   </button>
                 </div>
               )}
@@ -497,7 +607,9 @@ export function ConnectorSetupModal({
           {mode === "oauth" && isHubSpot && (
             <>
               <div className="settings-field">
-                <label>Client ID</label>
+                <label>
+                  {translate("connectorSetup.clientId", "Client ID")}
+                </label>
                 <input
                   className="settings-input"
                   value={hubspotClientId}
@@ -505,7 +617,9 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Client Secret</label>
+                <label>
+                  {translate("connectorSetup.clientSecret", "Client Secret")}
+                </label>
                 <input
                   className="settings-input"
                   type="password"
@@ -514,21 +628,32 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Scopes</label>
+                <label>{translate("connectorSetup.scopes", "Scopes")}</label>
                 <input
                   className="settings-input"
                   value={hubspotScopes}
                   onChange={(e) => setHubspotScopes(e.target.value)}
                 />
               </div>
-              <p className="settings-hint">Redirect URI: http://127.0.0.1:18765/oauth/callback</p>
+              <p className="settings-hint">
+                {translate("connectorSetup.redirectUri", "Redirect URI:")}{" "}
+                http://127.0.0.1:18765/oauth/callback
+              </p>
               <div className="connector-setup-actions">
                 <button
                   className="button-primary"
                   onClick={handleHubSpotOAuth}
-                  disabled={oauthBusy || !hubspotClientId || !hubspotClientSecret}
+                  disabled={
+                    oauthBusy || !hubspotClientId || !hubspotClientSecret
+                  }
                 >
-                  {oauthBusy ? "Authorizing..." : "Authorize HubSpot"}
+                  {oauthBusy
+                    ? translate("connectorSetup.authorizing", "Authorizing...")
+                    : translate(
+                        "connectorSetup.authorizeProvider",
+                        "Authorize {provider}",
+                        { provider: "HubSpot" },
+                      )}
                 </button>
               </div>
             </>
@@ -537,7 +662,9 @@ export function ConnectorSetupModal({
           {mode === "oauth" && isZendesk && (
             <>
               <div className="settings-field">
-                <label>Subdomain</label>
+                <label>
+                  {translate("connectorSetup.subdomain", "Subdomain")}
+                </label>
                 <input
                   className="settings-input"
                   value={zendeskSubdomain}
@@ -546,7 +673,9 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Client ID</label>
+                <label>
+                  {translate("connectorSetup.clientId", "Client ID")}
+                </label>
                 <input
                   className="settings-input"
                   value={zendeskClientId}
@@ -554,7 +683,9 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Client Secret</label>
+                <label>
+                  {translate("connectorSetup.clientSecret", "Client Secret")}
+                </label>
                 <input
                   className="settings-input"
                   type="password"
@@ -563,23 +694,35 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Scopes</label>
+                <label>{translate("connectorSetup.scopes", "Scopes")}</label>
                 <input
                   className="settings-input"
                   value={zendeskScopes}
                   onChange={(e) => setZendeskScopes(e.target.value)}
                 />
               </div>
-              <p className="settings-hint">Redirect URI: http://127.0.0.1:18765/oauth/callback</p>
+              <p className="settings-hint">
+                {translate("connectorSetup.redirectUri", "Redirect URI:")}{" "}
+                http://127.0.0.1:18765/oauth/callback
+              </p>
               <div className="connector-setup-actions">
                 <button
                   className="button-primary"
                   onClick={handleZendeskOAuth}
                   disabled={
-                    oauthBusy || !zendeskClientId || !zendeskClientSecret || !zendeskSubdomain
+                    oauthBusy ||
+                    !zendeskClientId ||
+                    !zendeskClientSecret ||
+                    !zendeskSubdomain
                   }
                 >
-                  {oauthBusy ? "Authorizing..." : "Authorize Zendesk"}
+                  {oauthBusy
+                    ? translate("connectorSetup.authorizing", "Authorizing...")
+                    : translate(
+                        "connectorSetup.authorizeProvider",
+                        "Authorize {provider}",
+                        { provider: "Zendesk" },
+                      )}
                 </button>
               </div>
             </>
@@ -588,7 +731,9 @@ export function ConnectorSetupModal({
           {mode === "oauth" && isGoogle && (
             <>
               <div className="settings-field">
-                <label>Client ID</label>
+                <label>
+                  {translate("connectorSetup.clientId", "Client ID")}
+                </label>
                 <input
                   className="settings-input"
                   value={googleClientId}
@@ -596,7 +741,9 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Client Secret</label>
+                <label>
+                  {translate("connectorSetup.clientSecret", "Client Secret")}
+                </label>
                 <input
                   className="settings-input"
                   type="password"
@@ -605,7 +752,10 @@ export function ConnectorSetupModal({
                 />
               </div>
               <p className="settings-hint">
-                Create credentials at console.cloud.google.com. Redirect URI:
+                {translate(
+                  "connectorSetup.google.credentialsHint",
+                  "Create credentials at console.cloud.google.com. Redirect URI:",
+                )}{" "}
                 http://127.0.0.1:18765/oauth/callback
               </p>
               <div className="connector-setup-actions">
@@ -614,7 +764,13 @@ export function ConnectorSetupModal({
                   onClick={handleGoogleOAuth}
                   disabled={oauthBusy || !googleClientId || !googleClientSecret}
                 >
-                  {oauthBusy ? "Authorizing..." : `Authorize ${serverName}`}
+                  {oauthBusy
+                    ? translate("connectorSetup.authorizing", "Authorizing...")
+                    : translate(
+                        "connectorSetup.authorizeProvider",
+                        "Authorize {provider}",
+                        { provider: serverName },
+                      )}
                 </button>
               </div>
             </>
@@ -623,7 +779,9 @@ export function ConnectorSetupModal({
           {mode === "manual" && isSalesforce && (
             <>
               <div className="settings-field">
-                <label>Instance URL</label>
+                <label>
+                  {translate("connectorSetup.instanceUrl", "Instance URL")}
+                </label>
                 <input
                   className="settings-input"
                   value={sfInstanceUrl}
@@ -631,7 +789,9 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Access Token</label>
+                <label>
+                  {translate("connectorSetup.accessToken", "Access Token")}
+                </label>
                 <textarea
                   className="settings-textarea"
                   rows={3}
@@ -645,7 +805,13 @@ export function ConnectorSetupModal({
                   onClick={handleManualSave}
                   disabled={!sfInstanceUrl || !sfAccessToken || saving}
                 >
-                  {saving ? "Saving..." : "Save Salesforce Credentials"}
+                  {saving
+                    ? translate("common.saving", "Saving...")
+                    : translate(
+                        "connectorSetup.saveProviderCredentials",
+                        "Save {provider} Credentials",
+                        { provider: "Salesforce" },
+                      )}
                 </button>
               </div>
             </>
@@ -654,7 +820,7 @@ export function ConnectorSetupModal({
           {mode === "manual" && isJira && (
             <>
               <div className="settings-field">
-                <label>Base URL</label>
+                <label>{translate("connectorSetup.baseUrl", "Base URL")}</label>
                 <input
                   className="settings-input"
                   value={jiraBaseUrl}
@@ -662,7 +828,7 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Email</label>
+                <label>{translate("connectorSetup.email", "Email")}</label>
                 <input
                   className="settings-input"
                   value={jiraEmail}
@@ -670,7 +836,9 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>API Token</label>
+                <label>
+                  {translate("connectorSetup.apiToken", "API Token")}
+                </label>
                 <textarea
                   className="settings-textarea"
                   rows={3}
@@ -682,9 +850,17 @@ export function ConnectorSetupModal({
                 <button
                   className="button-primary"
                   onClick={handleManualSave}
-                  disabled={!jiraBaseUrl || !jiraEmail || !jiraApiToken || saving}
+                  disabled={
+                    !jiraBaseUrl || !jiraEmail || !jiraApiToken || saving
+                  }
                 >
-                  {saving ? "Saving..." : "Save Jira Credentials"}
+                  {saving
+                    ? translate("common.saving", "Saving...")
+                    : translate(
+                        "connectorSetup.saveProviderCredentials",
+                        "Save {provider} Credentials",
+                        { provider: "Jira" },
+                      )}
                 </button>
               </div>
             </>
@@ -693,7 +869,9 @@ export function ConnectorSetupModal({
           {mode === "manual" && isHubSpot && (
             <>
               <div className="settings-field">
-                <label>Access Token</label>
+                <label>
+                  {translate("connectorSetup.accessToken", "Access Token")}
+                </label>
                 <textarea
                   className="settings-textarea"
                   rows={3}
@@ -707,7 +885,13 @@ export function ConnectorSetupModal({
                   onClick={handleManualSave}
                   disabled={!hubspotAccessToken || saving}
                 >
-                  {saving ? "Saving..." : "Save HubSpot Credentials"}
+                  {saving
+                    ? translate("common.saving", "Saving...")
+                    : translate(
+                        "connectorSetup.saveProviderCredentials",
+                        "Save {provider} Credentials",
+                        { provider: "HubSpot" },
+                      )}
                 </button>
               </div>
             </>
@@ -716,7 +900,9 @@ export function ConnectorSetupModal({
           {mode === "manual" && isZendesk && (
             <>
               <div className="settings-field">
-                <label>Subdomain</label>
+                <label>
+                  {translate("connectorSetup.subdomain", "Subdomain")}
+                </label>
                 <input
                   className="settings-input"
                   value={zendeskSubdomain}
@@ -725,7 +911,7 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Email</label>
+                <label>{translate("connectorSetup.email", "Email")}</label>
                 <input
                   className="settings-input"
                   value={zendeskEmail}
@@ -733,7 +919,9 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>API Token</label>
+                <label>
+                  {translate("connectorSetup.apiToken", "API Token")}
+                </label>
                 <textarea
                   className="settings-textarea"
                   rows={3}
@@ -742,7 +930,12 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Access Token (optional)</label>
+                <label>
+                  {translate(
+                    "connectorSetup.accessTokenOptional",
+                    "Access Token (optional)",
+                  )}
+                </label>
                 <textarea
                   className="settings-textarea"
                   rows={3}
@@ -754,9 +947,20 @@ export function ConnectorSetupModal({
                 <button
                   className="button-primary"
                   onClick={handleManualSave}
-                  disabled={!zendeskSubdomain || !zendeskEmail || !zendeskApiToken || saving}
+                  disabled={
+                    !zendeskSubdomain ||
+                    !zendeskEmail ||
+                    !zendeskApiToken ||
+                    saving
+                  }
                 >
-                  {saving ? "Saving..." : "Save Zendesk Credentials"}
+                  {saving
+                    ? translate("common.saving", "Saving...")
+                    : translate(
+                        "connectorSetup.saveProviderCredentials",
+                        "Save {provider} Credentials",
+                        { provider: "Zendesk" },
+                      )}
                 </button>
               </div>
             </>
@@ -765,7 +969,9 @@ export function ConnectorSetupModal({
           {mode === "manual" && isGoogle && (
             <>
               <div className="settings-field">
-                <label>Access Token</label>
+                <label>
+                  {translate("connectorSetup.accessToken", "Access Token")}
+                </label>
                 <textarea
                   className="settings-textarea"
                   rows={3}
@@ -774,7 +980,12 @@ export function ConnectorSetupModal({
                 />
               </div>
               <div className="settings-field">
-                <label>Refresh Token (optional)</label>
+                <label>
+                  {translate(
+                    "connectorSetup.refreshTokenOptional",
+                    "Refresh Token (optional)",
+                  )}
+                </label>
                 <textarea
                   className="settings-textarea"
                   rows={3}
@@ -788,7 +999,13 @@ export function ConnectorSetupModal({
                   onClick={handleManualSave}
                   disabled={!googleAccessToken || saving}
                 >
-                  {saving ? "Saving..." : `Save ${serverName} Credentials`}
+                  {saving
+                    ? translate("common.saving", "Saving...")
+                    : translate(
+                        "connectorSetup.saveProviderCredentials",
+                        "Save {provider} Credentials",
+                        { provider: serverName },
+                      )}
                 </button>
               </div>
             </>

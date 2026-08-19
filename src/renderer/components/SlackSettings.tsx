@@ -1,14 +1,19 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { ChannelData, ChannelUserData, SecurityMode } from "../../shared/types";
 import { ChannelSpecializationSettings } from "./ChannelSpecializationSettings";
+import { translate, useLanguage } from "../i18n";
 
 interface SlackSettingsProps {
   onStatusChange?: (connected: boolean) => void;
 }
 
 export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
+  useLanguage();
+  const t = translate;
   const [channels, setChannels] = useState<ChannelData[]>([]);
-  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(
+    null,
+  );
   const [users, setUsers] = useState<ChannelUserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -24,7 +29,9 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
   const [signingSecret, setSigningSecret] = useState("");
   const [channelName, setChannelName] = useState("Slack Workspace");
   const [securityMode, setSecurityMode] = useState<SecurityMode>("pairing");
-  const [progressRelayMode, setProgressRelayMode] = useState<"minimal" | "curated">("minimal");
+  const [progressRelayMode, setProgressRelayMode] = useState<
+    "minimal" | "curated"
+  >("minimal");
   const [pairingCode, setPairingCode] = useState<string | null>(null);
 
   const selectedChannel = useMemo(
@@ -37,14 +44,26 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
       try {
         setLoading(true);
         const gatewayChannels = await window.electronAPI.getGatewayChannels();
-        const slackChannels = gatewayChannels.filter((c: ChannelData) => c.type === "slack");
+        const slackChannels = gatewayChannels.filter(
+          (c: ChannelData) => c.type === "slack",
+        );
         setChannels(slackChannels);
-        onStatusChange?.(slackChannels.some((entry: ChannelData) => entry.status === "connected"));
+        onStatusChange?.(
+          slackChannels.some(
+            (entry: ChannelData) => entry.status === "connected",
+          ),
+        );
 
         const nextSelectedId =
-          preferredChannelId && slackChannels.some((entry: ChannelData) => entry.id === preferredChannelId)
+          preferredChannelId &&
+          slackChannels.some(
+            (entry: ChannelData) => entry.id === preferredChannelId,
+          )
             ? preferredChannelId
-            : selectedChannelId && slackChannels.some((entry: ChannelData) => entry.id === selectedChannelId)
+            : selectedChannelId &&
+                slackChannels.some(
+                  (entry: ChannelData) => entry.id === selectedChannelId,
+                )
               ? selectedChannelId
               : slackChannels[0]?.id || null;
         setSelectedChannelId(nextSelectedId);
@@ -64,7 +83,12 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
   useEffect(() => {
     const unsubscribe = window.electronAPI?.onGatewayUsersUpdated?.((data) => {
       if (data?.channelType !== "slack") return;
-      if (selectedChannelId && data?.channelId && data.channelId !== selectedChannelId) return;
+      if (
+        selectedChannelId &&
+        data?.channelId &&
+        data.channelId !== selectedChannelId
+      )
+        return;
       void loadChannels(selectedChannelId || undefined);
     });
     return () => {
@@ -79,7 +103,9 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
         return;
       }
       try {
-        const channelUsers = await window.electronAPI.getGatewayUsers(selectedChannel.id);
+        const channelUsers = await window.electronAPI.getGatewayUsers(
+          selectedChannel.id,
+        );
         setUsers(channelUsers);
       } catch (error) {
         console.error("Failed to load Slack users:", error);
@@ -122,7 +148,9 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
     try {
       setTesting(true);
       setTestResult(null);
-      const result = await window.electronAPI.testGatewayChannel(selectedChannel.id);
+      const result = await window.electronAPI.testGatewayChannel(
+        selectedChannel.id,
+      );
       setTestResult(result);
     } catch (error: Any) {
       setTestResult({ success: false, error: error.message });
@@ -150,7 +178,14 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
 
   const handleRemoveChannel = async () => {
     if (!selectedChannel) return;
-    if (!confirm(`Remove Slack workspace "${selectedChannel.name}"?`)) return;
+    if (
+      !confirm(
+        t("slack.confirm.removeWorkspace", 'Remove Slack workspace "{name}"?', {
+          name: selectedChannel.name,
+        }),
+      )
+    )
+      return;
 
     try {
       setSaving(true);
@@ -172,7 +207,11 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
         securityMode: mode,
       });
       setChannels((prev) =>
-        prev.map((entry) => (entry.id === selectedChannel.id ? { ...entry, securityMode: mode } : entry)),
+        prev.map((entry) =>
+          entry.id === selectedChannel.id
+            ? { ...entry, securityMode: mode }
+            : entry,
+        ),
       );
     } catch (error) {
       console.error("Failed to update Slack security mode:", error);
@@ -210,7 +249,10 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
   const handleGeneratePairingCode = async () => {
     if (!selectedChannel) return;
     try {
-      const code = await window.electronAPI.generateGatewayPairing(selectedChannel.id, "");
+      const code = await window.electronAPI.generateGatewayPairing(
+        selectedChannel.id,
+        "",
+      );
       setPairingCode(code);
     } catch (error) {
       console.error("Failed to generate Slack pairing code:", error);
@@ -221,7 +263,9 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
     if (!selectedChannel) return;
     try {
       await window.electronAPI.revokeGatewayAccess(selectedChannel.id, userId);
-      const channelUsers = await window.electronAPI.getGatewayUsers(selectedChannel.id);
+      const channelUsers = await window.electronAPI.getGatewayUsers(
+        selectedChannel.id,
+      );
       setUsers(channelUsers);
     } catch (error) {
       console.error("Failed to revoke Slack access:", error);
@@ -229,19 +273,26 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
   };
 
   if (loading) {
-    return <div className="settings-loading">Loading Slack settings...</div>;
+    return (
+      <div className="settings-loading">
+        {t("slack.loading", "Loading Slack settings...")}
+      </div>
+    );
   }
 
   return (
     <div className="slack-settings">
       <div className="settings-section">
-        <h3>Add Slack Workspace</h3>
+        <h3>{t("slack.addWorkspace.title", "Add Slack Workspace")}</h3>
         <p className="settings-description">
-          Connect one or more Slack workspaces with separate bot and app token sets.
+          {t(
+            "slack.addWorkspace.description",
+            "Connect one or more Slack workspaces with separate bot and app token sets.",
+          )}
         </p>
 
         <div className="settings-field">
-          <label>Workspace Label</label>
+          <label>{t("slack.workspaceLabel", "Workspace Label")}</label>
           <input
             type="text"
             className="settings-input"
@@ -252,7 +303,7 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
         </div>
 
         <div className="settings-field">
-          <label>Bot Token</label>
+          <label>{t("slack.botToken", "Bot Token")}</label>
           <input
             type="password"
             className="settings-input"
@@ -263,7 +314,7 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
         </div>
 
         <div className="settings-field">
-          <label>App-Level Token</label>
+          <label>{t("slack.appLevelToken", "App-Level Token")}</label>
           <input
             type="password"
             className="settings-input"
@@ -274,7 +325,9 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
         </div>
 
         <div className="settings-field">
-          <label>Signing Secret (Optional)</label>
+          <label>
+            {t("slack.signingSecretOptional", "Signing Secret (Optional)")}
+          </label>
           <input
             type="password"
             className="settings-input"
@@ -285,27 +338,40 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
         </div>
 
         <div className="settings-field">
-          <label>Security Mode</label>
+          <label>{t("channels.securityMode", "Security Mode")}</label>
           <select
             className="settings-select"
             value={securityMode}
             onChange={(e) => setSecurityMode(e.target.value as SecurityMode)}
           >
-            <option value="pairing">Pairing Code (Recommended)</option>
-            <option value="allowlist">Allowlist Only</option>
-            <option value="open">Open</option>
+            <option value="pairing">
+              {t(
+                "channels.security.pairingRecommended",
+                "Pairing Code (Recommended)",
+              )}
+            </option>
+            <option value="allowlist">
+              {t("channels.security.allowlistOnly", "Allowlist Only")}
+            </option>
+            <option value="open">{t("channels.security.open", "Open")}</option>
           </select>
         </div>
 
         <div className="settings-field">
-          <label>Progress Updates</label>
+          <label>{t("slack.progressUpdates", "Progress Updates")}</label>
           <select
             className="settings-select"
             value={progressRelayMode}
-            onChange={(e) => setProgressRelayMode(e.target.value as "minimal" | "curated")}
+            onChange={(e) =>
+              setProgressRelayMode(e.target.value as "minimal" | "curated")
+            }
           >
-            <option value="minimal">Minimal</option>
-            <option value="curated">Curated middle steps</option>
+            <option value="minimal">
+              {t("slack.progress.minimal", "Minimal")}
+            </option>
+            <option value="curated">
+              {t("slack.progress.curated", "Curated middle steps")}
+            </option>
           </select>
         </div>
 
@@ -314,13 +380,21 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
           onClick={handleAddChannel}
           disabled={saving || !botToken.trim() || !appToken.trim()}
         >
-          {saving ? "Adding..." : "Add Slack Workspace"}
+          {saving
+            ? t("channels.adding", "Adding...")
+            : t("slack.addWorkspace.action", "Add Slack Workspace")}
         </button>
 
         {testResult && (
-          <div className={`test-result ${testResult.success ? "success" : "error"}`}>
+          <div
+            className={`test-result ${testResult.success ? "success" : "error"}`}
+          >
             {testResult.success ? (
-              <>Connected as {testResult.botUsername}</>
+              <>
+                {t("channels.connectedAs", "Connected as {name}", {
+                  name: testResult.botUsername || "",
+                })}
+              </>
             ) : (
               <>{testResult.error}</>
             )}
@@ -330,7 +404,7 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
 
       {channels.length > 0 && (
         <div className="settings-section">
-          <h4>Connected Workspaces</h4>
+          <h4>{t("slack.connectedWorkspaces", "Connected Workspaces")}</h4>
           <div className="users-list">
             {channels.map((entry) => (
               <button
@@ -343,8 +417,12 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
               >
                 <div className="user-info">
                   <span className="user-name">{entry.name}</span>
-                  {entry.botUsername && <span className="user-username">@{entry.botUsername}</span>}
-                  <span className={`user-status ${entry.status === "connected" ? "allowed" : "pending"}`}>
+                  {entry.botUsername && (
+                    <span className="user-username">@{entry.botUsername}</span>
+                  )}
+                  <span
+                    className={`user-status ${entry.status === "connected" ? "allowed" : "pending"}`}
+                  >
                     {entry.status}
                   </span>
                 </div>
@@ -362,65 +440,103 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
                 <h3>
                   {selectedChannel.name}
                   {selectedChannel.botUsername && (
-                    <span className="bot-username">@{selectedChannel.botUsername}</span>
+                    <span className="bot-username">
+                      @{selectedChannel.botUsername}
+                    </span>
                   )}
                 </h3>
                 <div className={`channel-status ${selectedChannel.status}`}>
-                  {selectedChannel.status === "connected" && "Connected"}
-                  {selectedChannel.status === "connecting" && "Connecting..."}
-                  {selectedChannel.status === "disconnected" && "Disconnected"}
-                  {selectedChannel.status === "error" && "Error"}
+                  {selectedChannel.status === "connected" &&
+                    t("channels.status.connected", "Connected")}
+                  {selectedChannel.status === "connecting" &&
+                    t("channels.status.connecting", "Connecting...")}
+                  {selectedChannel.status === "disconnected" &&
+                    t("channels.status.disconnected", "Disconnected")}
+                  {selectedChannel.status === "error" &&
+                    t("channels.status.error", "Error")}
                 </div>
               </div>
               <div className="channel-actions">
                 <button
-                  className={selectedChannel.enabled ? "button-secondary" : "button-primary"}
+                  className={
+                    selectedChannel.enabled
+                      ? "button-secondary"
+                      : "button-primary"
+                  }
                   onClick={handleToggleEnabled}
                   disabled={saving}
                 >
-                  {selectedChannel.enabled ? "Disable" : "Enable"}
+                  {selectedChannel.enabled
+                    ? t("channels.disable", "Disable")
+                    : t("channels.enable", "Enable")}
                 </button>
                 <button
                   className="button-secondary"
                   onClick={handleTestConnection}
                   disabled={testing || !selectedChannel.enabled}
                 >
-                  {testing ? "Testing..." : "Test"}
+                  {testing
+                    ? t("channels.testing", "Testing...")
+                    : t("channels.test", "Test")}
                 </button>
-                <button className="button-danger" onClick={handleRemoveChannel} disabled={saving}>
-                  Remove
+                <button
+                  className="button-danger"
+                  onClick={handleRemoveChannel}
+                  disabled={saving}
+                >
+                  {t("channels.remove", "Remove")}
                 </button>
               </div>
             </div>
           </div>
 
           <div className="settings-section">
-            <h4>Security Mode</h4>
+            <h4>{t("channels.securityMode", "Security Mode")}</h4>
             <select
               className="settings-select"
               value={selectedChannel.securityMode}
-              onChange={(e) => handleUpdateSecurityMode(e.target.value as SecurityMode)}
+              onChange={(e) =>
+                handleUpdateSecurityMode(e.target.value as SecurityMode)
+              }
             >
-              <option value="pairing">Pairing Code</option>
-              <option value="allowlist">Allowlist Only</option>
-              <option value="open">Open</option>
+              <option value="pairing">
+                {t("channels.security.pairingCode", "Pairing Code")}
+              </option>
+              <option value="allowlist">
+                {t("channels.security.allowlistOnly", "Allowlist Only")}
+              </option>
+              <option value="open">
+                {t("channels.security.open", "Open")}
+              </option>
             </select>
           </div>
 
           <div className="settings-section">
-            <h4>Progress Updates</h4>
+            <h4>{t("slack.progressUpdates", "Progress Updates")}</h4>
             <select
               className="settings-select"
-              value={(selectedChannel.config?.progressRelayMode as "minimal" | "curated") || "minimal"}
+              value={
+                (selectedChannel.config?.progressRelayMode as
+                  "minimal" | "curated") || "minimal"
+              }
               onChange={(e) =>
-                handleUpdateProgressRelayMode(e.target.value as "minimal" | "curated")
+                handleUpdateProgressRelayMode(
+                  e.target.value as "minimal" | "curated",
+                )
               }
             >
-              <option value="minimal">Minimal</option>
-              <option value="curated">Curated middle steps</option>
+              <option value="minimal">
+                {t("slack.progress.minimal", "Minimal")}
+              </option>
+              <option value="curated">
+                {t("slack.progress.curated", "Curated middle steps")}
+              </option>
             </select>
             <p className="settings-description">
-              Curated mode relays short planning and step updates back into Slack while the task is running.
+              {t(
+                "slack.progress.description",
+                "Curated mode relays short planning and step updates back into Slack while the task is running.",
+              )}
             </p>
           </div>
 
@@ -428,32 +544,53 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
 
           {selectedChannel.securityMode === "pairing" && (
             <div className="settings-section">
-              <h4>Generate Pairing Code</h4>
-              <button className="button-secondary" onClick={handleGeneratePairingCode}>
-                Generate Code
+              <h4>
+                {t("channels.pairing.generateTitle", "Generate Pairing Code")}
+              </h4>
+              <button
+                className="button-secondary"
+                onClick={handleGeneratePairingCode}
+              >
+                {t("channels.pairing.generateCode", "Generate Code")}
               </button>
               {pairingCode && (
                 <div className="pairing-code-display">
                   <span className="pairing-code">{pairingCode}</span>
-                  <p className="settings-hint">Ask the user to send `/pair &lt;code&gt;` in Slack.</p>
+                  <p className="settings-hint">
+                    {t(
+                      "slack.pairing.hint",
+                      "Ask the user to send `/pair <code>` in Slack.",
+                    )}
+                  </p>
                 </div>
               )}
             </div>
           )}
 
           <div className="settings-section">
-            <h4>Authorized Users</h4>
+            <h4>{t("channels.authorizedUsers", "Authorized Users")}</h4>
             {users.length === 0 ? (
-              <p className="settings-description">No users have connected to this workspace yet.</p>
+              <p className="settings-description">
+                {t(
+                  "slack.noUsers",
+                  "No users have connected to this workspace yet.",
+                )}
+              </p>
             ) : (
               <div className="users-list">
                 {users.map((user) => (
                   <div key={user.id} className="user-item">
                     <div className="user-info">
                       <span className="user-name">{user.displayName}</span>
-                      {user.username && <span className="user-username">@{user.username}</span>}
-                      <span className={`user-status ${user.allowed ? "allowed" : "pending"}`}>
-                        {user.allowed ? "Allowed" : "Pending"}
+                      {user.username && (
+                        <span className="user-username">@{user.username}</span>
+                      )}
+                      <span
+                        className={`user-status ${user.allowed ? "allowed" : "pending"}`}
+                      >
+                        {user.allowed
+                          ? t("channels.user.allowedPlain", "Allowed")
+                          : t("channels.user.pendingPlain", "Pending")}
                       </span>
                     </div>
                     {user.allowed && (
@@ -461,7 +598,7 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
                         className="button-small button-danger"
                         onClick={() => handleRevokeAccess(user.channelUserId)}
                       >
-                        Revoke
+                        {t("channels.revoke", "Revoke")}
                       </button>
                     )}
                   </div>
@@ -473,18 +610,42 @@ export function SlackSettings({ onStatusChange }: SlackSettingsProps) {
       )}
 
       <div className="settings-section">
-        <h4>Setup Instructions</h4>
+        <h4>{t("slack.setup.title", "Setup Instructions")}</h4>
         <ol className="setup-instructions">
           <li>
-            Go to{" "}
-            <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer">
+            {t("slack.setup.goTo", "Go to")}{" "}
+            <a
+              href="https://api.slack.com/apps"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               Slack API Apps
             </a>
           </li>
-          <li>Create a new app for each workspace you want CoWork to join.</li>
-          <li>Enable Socket Mode and create an app token with `connections:write`.</li>
-          <li>Add `app_mentions:read`, `chat:write`, `im:history`, `im:read`, `im:write`, `users:read`, and `files:write` bot scopes.</li>
-          <li>Subscribe to `app_mention` and `message.im`, then install the app to the workspace.</li>
+          <li>
+            {t(
+              "slack.setup.createApp",
+              "Create a new app for each workspace you want NeoWorker to join.",
+            )}
+          </li>
+          <li>
+            {t(
+              "slack.setup.socketMode",
+              "Enable Socket Mode and create an app token with `connections:write`.",
+            )}
+          </li>
+          <li>
+            {t(
+              "slack.setup.scopes",
+              "Add `app_mentions:read`, `chat:write`, `im:history`, `im:read`, `im:write`, `users:read`, and `files:write` bot scopes.",
+            )}
+          </li>
+          <li>
+            {t(
+              "slack.setup.events",
+              "Subscribe to `app_mention` and `message.im`, then install the app to the workspace.",
+            )}
+          </li>
         </ol>
       </div>
     </div>

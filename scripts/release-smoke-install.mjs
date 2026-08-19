@@ -74,7 +74,7 @@ function main() {
       throw new Error(`Expected tarball at ${tarballPath}`);
     }
 
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-release-smoke-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-release-smoke-"));
     const testDir = path.join(tmpDir, "smoke");
     fs.mkdirSync(testDir, { recursive: true });
 
@@ -84,13 +84,13 @@ function main() {
       { cwd: testDir }
     );
 
-    const setupRes = runNpm(["run", "--prefix", "node_modules/cowork-os", "setup"], {
+    const setupRes = runNpm(["run", "--prefix", "node_modules/neoworker", "setup"], {
       cwd: testDir,
     });
     const combinedSetupOutput = `${setupRes.stdout || ""}${setupRes.stderr || ""}`;
     fs.writeFileSync(path.join(testDir, "setup.log"), combinedSetupOutput);
 
-    if (/^\[cowork\] setup:bootstrap/m.test(combinedSetupOutput)) {
+    if (/^\[neoworker\] setup:bootstrap/m.test(combinedSetupOutput)) {
       throw new Error(
         "Setup unexpectedly triggered dependency bootstrap fallback; electron should resolve from parent node_modules."
       );

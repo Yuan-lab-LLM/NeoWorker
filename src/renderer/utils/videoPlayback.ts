@@ -1,4 +1,6 @@
-function dataUrlToUint8Array(dataUrl: string): { mimeType: string; bytes: Uint8Array } | null {
+function dataUrlToUint8Array(
+  dataUrl: string,
+): { mimeType: string; bytes: Uint8Array } | null {
   const match = /^data:([^;,]+);base64,(.+)$/s.exec(dataUrl);
   if (!match) return null;
 
@@ -19,6 +21,8 @@ export function createVideoObjectUrl(playbackUrl: string): string | null {
   const parsed = dataUrlToUint8Array(playbackUrl);
   if (!parsed) return null;
 
-  const blob = new Blob([parsed.bytes.buffer as ArrayBuffer], { type: parsed.mimeType });
+  const blob = new Blob([parsed.bytes.buffer as ArrayBuffer], {
+    type: parsed.mimeType,
+  });
   return URL.createObjectURL(blob);
 }

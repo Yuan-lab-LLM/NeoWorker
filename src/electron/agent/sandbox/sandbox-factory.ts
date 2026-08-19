@@ -14,6 +14,7 @@ import { Workspace } from "../../../shared/types";
 import { MacOSSandbox } from "./macos-sandbox";
 import { DockerSandbox } from "./docker-sandbox";
 import { spawn, type ChildProcess } from "child_process";
+import * as os from "os";
 import { createSecureTempFile } from "./security-utils";
 
 /**
@@ -52,6 +53,7 @@ export interface SandboxResult {
   stderr: string;
   killed: boolean;
   timedOut: boolean;
+  signal?: string | null;
   error?: string;
 }
 
@@ -164,14 +166,17 @@ export class NoSandbox implements ISandbox {
         }
       });
 
-      proc.on("close", (code) => {
+      proc.on("close", (code, signal) => {
         clearTimeout(timeoutHandle);
+        const terminationError = signal ? `Process terminated by signal ${signal}` : undefined;
         resolve({
           exitCode: code ?? 1,
           stdout,
-          stderr,
+          stderr: stderr || terminationError || "",
           killed,
           timedOut,
+          signal,
+          error: terminationError,
         });
       });
 
@@ -285,47 +290,62 @@ export async function isMacOSSandboxAvailable(): Promise<boolean> {
   }
 
   macOSSandboxCheckPromise = new Promise((resolve) => {
-    const proc = spawn(
-      "sandbox-exec",
-      ["-p", "(version 1)\n(allow default)", "/bin/echo", "ok"],
-      {
-        shell: false,
-        stdio: ["ignore", "pipe", "pipe"],
+    const probeSandbox = new MacOSSandbox({
+      id: "__macos_sandbox_probe__",
+      name: "macOS sandbox probe",
+      path: os.tmpdir(),
+      createdAt: Date.now(),
+      permissions: {
+        read: true,
+        write: true,
+        delete: false,
+        network: false,
+        shell: true,
+        unrestrictedFileAccess: false,
+        allowedPaths: [],
       },
-    );
-
-    let stderr = "";
-    let stdout = "";
+    });
+    let proc: ChildProcess | null = null;
     let resolved = false;
     const finish = (available: boolean) => {
       if (resolved) return;
       resolved = true;
+      probeSandbox.cleanup();
       macOSSandboxAvailable = available;
       resolve(available);
     };
 
     const timeout = setTimeout(() => {
-      proc.kill();
+      proc?.kill();
       finish(false);
     }, 3_000);
 
-    proc.stdout?.on("data", (data: Buffer) => {
-      stdout += data.toString("utf8");
-    });
-    proc.stderr?.on("data", (data: Buffer) => {
-      stderr += data.toString("utf8");
-    });
-    proc.on("close", (code) => {
-      clearTimeout(timeout);
-      const combined = `${stdout}\n${stderr}`;
-      const failedRuntime =
-        /Operation not permitted|Abort trap|sandbox_apply/i.test(combined);
-      finish(code === 0 && !failedRuntime);
-    });
-    proc.on("error", () => {
-      clearTimeout(timeout);
-      finish(false);
-    });
+    void probeSandbox
+      .execute("/bin/echo", ["ok"], {
+        cwd: os.tmpdir(),
+        timeout: 3_000,
+        maxOutputSize: 16 * 1024,
+        allowNetwork: false,
+        onProcess: (child) => {
+          proc = child;
+        },
+      })
+      .then((result) => {
+        clearTimeout(timeout);
+        const combined = `${result.stdout}\n${result.stderr}\n${result.error ?? ""}`;
+        const failedRuntime =
+          /Operation not permitted|Abort trap|sandbox_apply/i.test(combined);
+        finish(
+          result.exitCode === 0 &&
+            !result.signal &&
+            !failedRuntime &&
+            result.stdout.trim() === "ok",
+        );
+      })
+      .catch(() => {
+        clearTimeout(timeout);
+        finish(false);
+      });
   });
 
   return macOSSandboxCheckPromise;

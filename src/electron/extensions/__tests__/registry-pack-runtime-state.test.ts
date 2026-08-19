@@ -19,14 +19,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("electron", () => ({
   app: {
-    getPath: vi.fn().mockReturnValue("/tmp/cowork-registry-test"),
+    getPath: vi.fn().mockReturnValue("/tmp/neoworker-registry-test"),
   },
 }));
 
 vi.mock("../loader", () => ({
   discoverPlugins: mocks.discoverPlugins,
   loadPlugin: mocks.loadPlugin,
-  getPluginDataPath: (pluginName: string) => `/tmp/cowork-registry-test/${pluginName}`,
+  getPluginDataPath: (pluginName: string) => `/tmp/neoworker-registry-test/${pluginName}`,
   isPluginCompatible: () => true,
 }));
 
@@ -56,7 +56,7 @@ vi.mock("../../database/SecureSettingsRepository", () => ({
 }));
 
 vi.mock("../../utils/user-data-dir", () => ({
-  getUserDataDir: () => "/tmp/cowork-registry-test",
+  getUserDataDir: () => "/tmp/neoworker-registry-test",
 }));
 
 function makeSkill(overrides: Partial<CustomSkill> = {}): CustomSkill {

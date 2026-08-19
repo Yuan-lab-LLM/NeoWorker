@@ -209,7 +209,7 @@ export class YouTubeTools {
       },
       {
         name: "youtube_list_ingested_videos",
-        description: "List recently ingested YouTube videos in the local CoWork OS cache.",
+        description: "List recently ingested YouTube videos in the local NeoWorker cache.",
         input_schema: {
           type: "object",
           properties: {

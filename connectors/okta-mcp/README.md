@@ -1,6 +1,6 @@
 # Okta MCP Connector (MVP)
 
-This connector exposes Okta Users API endpoints to CoWork OS through MCP tools.
+This connector exposes Okta Users API endpoints to NeoWorker through MCP tools.
 
 ## Requirements
 

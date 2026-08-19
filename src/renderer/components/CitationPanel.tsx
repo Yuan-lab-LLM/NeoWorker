@@ -74,7 +74,8 @@ export const CitationPanel: React.FC<CitationPanelProps> = ({ citations }) => {
                   "var(--surface-hover, rgba(255,255,255,0.05))";
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLDivElement).style.background = "transparent";
+                (e.currentTarget as HTMLDivElement).style.background =
+                  "transparent";
               }}
             >
               <span
@@ -126,7 +127,10 @@ export const CitationPanel: React.FC<CitationPanelProps> = ({ citations }) => {
                   >
                     {c.title || c.domain}
                   </span>
-                  <ExternalLink size={11} style={{ flexShrink: 0, opacity: 0.4 }} />
+                  <ExternalLink
+                    size={11}
+                    style={{ flexShrink: 0, opacity: 0.4 }}
+                  />
                 </div>
 
                 <div
@@ -184,7 +188,11 @@ export const CitationBadge: React.FC<{
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      title={citation ? `${citation.title} — ${citation.domain}` : `Source [${index}]`}
+      title={
+        citation
+          ? `${citation.title} — ${citation.domain}`
+          : `Source [${index}]`
+      }
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -193,12 +201,11 @@ export const CitationBadge: React.FC<{
         height: 18,
         padding: "0 4px",
         borderRadius: 4,
-        background: hovered && isClickable
-          ? "var(--accent-color, #60a5fa)"
-          : "var(--accent-bg, #2563eb22)",
-        color: hovered && isClickable
-          ? "#fff"
-          : "var(--accent-color, #60a5fa)",
+        background:
+          hovered && isClickable
+            ? "var(--accent-color, #60a5fa)"
+            : "var(--accent-bg, #2563eb22)",
+        color: hovered && isClickable ? "#fff" : "var(--accent-color, #60a5fa)",
         fontSize: 10,
         fontWeight: 600,
         cursor: isClickable ? "pointer" : "default",

@@ -17,8 +17,8 @@ This workflow is inspired by the OpenClaw Research agent pattern.
 
 ### 1. Create a Group
 
-- **Telegram**: Create a group or channel, add your CoWork bot.
-- **WhatsApp**: Create a group, add your CoWork bot (or your linked number in self-chat mode).
+- **Telegram**: Create a group or channel, add your NeoWorker bot.
+- **WhatsApp**: Create a group, add your NeoWorker bot (or your linked number in self-chat mode).
 
 ### 2. Get the Chat ID
 

@@ -8,7 +8,7 @@
  *
  * Security guarantees:
  * - Raw export is read once; the full file is never persisted to disk
- *   by CoWork OS.
+ *   by NeoWorker.
  * - All content (including conversation titles) is sanitized through
  *   InputSanitizer before storage.
  * - Sensitive-data detection marks memories as private automatically.
@@ -265,7 +265,7 @@ export class ChatGPTImporter {
              WHERE workspace_id = ?
                AND (
                  content LIKE '[Imported from ChatGPT %'
-                 OR content LIKE '[cowork:prompt_recall=ignore]%[Imported from ChatGPT %'
+                 OR content LIKE '[neoworker:prompt_recall=ignore]%[Imported from ChatGPT %'
                )
              LIMIT 100000`,
           )

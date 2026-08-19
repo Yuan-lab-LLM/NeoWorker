@@ -26,7 +26,7 @@ Email is best for asynchronous task intake, long-form requests, filtered automat
 Send one task per thread when possible:
 
 ```text
-Subject: [CoWork] Review vendor proposal
+Subject: [NeoWorker] Review vendor proposal
 
 Please summarize the attached proposal, list risks, and draft three negotiation points.
 ```
@@ -35,7 +35,7 @@ Use clear subject prefixes and include the desired final output.
 
 ## Best Practices
 
-- Use a dedicated subject prefix such as `[CoWork]`.
+- Use a dedicated subject prefix such as `[NeoWorker]`.
 - Configure allowed senders or domains.
 - Keep one request per email thread.
 - Attach relevant files directly.

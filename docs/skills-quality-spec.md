@@ -1,6 +1,6 @@
 # Skills Quality Spec
 
-This document defines mandatory quality standards for bundled CoWork OS skills.
+This document defines mandatory quality standards for bundled NeoWorker skills.
 
 ## Scope
 

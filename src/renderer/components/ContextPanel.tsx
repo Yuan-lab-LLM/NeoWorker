@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { translate, useLanguage } from "../i18n";
 
 interface ContextData {
   connectors: { id: string; name: string; icon: string; status: string }[];
@@ -10,8 +11,16 @@ interface ContextPanelProps {
   onToggle?: () => void;
 }
 
-export function ContextPanel({ collapsed = false, onToggle }: ContextPanelProps) {
-  const [context, setContext] = useState<ContextData>({ connectors: [], skills: [] });
+export function ContextPanel({
+  collapsed = false,
+  onToggle,
+}: ContextPanelProps) {
+  useLanguage();
+  const t = translate;
+  const [context, setContext] = useState<ContextData>({
+    connectors: [],
+    skills: [],
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,13 +49,19 @@ export function ContextPanel({ collapsed = false, onToggle }: ContextPanelProps)
     };
   }, []);
 
-  const connectedServers = context.connectors.filter((c) => c.status === "connected");
+  const connectedServers = context.connectors.filter(
+    (c) => c.status === "connected",
+  );
   const hasContent = connectedServers.length > 0 || context.skills.length > 0;
 
   if (collapsed) {
     return (
-      <button className="ctx-collapsed-btn" onClick={onToggle} title="Show context">
-        <span>Context</span>
+      <button
+        className="ctx-collapsed-btn"
+        onClick={onToggle}
+        title={t("contextPanel.show", "Show context")}
+      >
+        <span>{t("contextPanel.title", "Context")}</span>
         <span className="ctx-collapsed-count">
           {connectedServers.length + context.skills.length}
         </span>
@@ -57,17 +72,27 @@ export function ContextPanel({ collapsed = false, onToggle }: ContextPanelProps)
   return (
     <div className="ctx-panel">
       <div className="ctx-header" onClick={onToggle}>
-        <span className="ctx-header-label">Context</span>
+        <span className="ctx-header-label">
+          {t("contextPanel.title", "Context")}
+        </span>
         {onToggle && <span className="ctx-header-chevron">&#8964;</span>}
       </div>
 
-      {loading && <div className="ctx-loading">Loading...</div>}
+      {loading && (
+        <div className="ctx-loading">{t("common.loading", "Loading...")}</div>
+      )}
 
-      {!loading && !hasContent && <div className="ctx-empty">No active connectors or skills</div>}
+      {!loading && !hasContent && (
+        <div className="ctx-empty">
+          {t("contextPanel.empty", "No active connectors or skills")}
+        </div>
+      )}
 
       {connectedServers.length > 0 && (
         <div className="ctx-section">
-          <div className="ctx-section-label">Connectors</div>
+          <div className="ctx-section-label">
+            {t("settings.page.integrations.connectors", "Connectors")}
+          </div>
           {connectedServers.map((c) => (
             <div key={c.id} className="ctx-item">
               <span className="ctx-item-icon">{c.icon}</span>
@@ -79,7 +104,9 @@ export function ContextPanel({ collapsed = false, onToggle }: ContextPanelProps)
 
       {context.skills.length > 0 && (
         <div className="ctx-section">
-          <div className="ctx-section-label">Skills</div>
+          <div className="ctx-section-label">
+            {t("settings.sidebar.skills", "Skills")}
+          </div>
           {context.skills.slice(0, 20).map((s) => (
             <div key={s.id} className="ctx-item">
               <span className="ctx-item-icon">{s.icon}</span>
@@ -87,7 +114,9 @@ export function ContextPanel({ collapsed = false, onToggle }: ContextPanelProps)
             </div>
           ))}
           {context.skills.length > 20 && (
-            <div className="ctx-item ctx-item--more">+{context.skills.length - 20} more</div>
+            <div className="ctx-item ctx-item--more">
+              +{context.skills.length - 20} {t("common.more", "more")}
+            </div>
           )}
         </div>
       )}

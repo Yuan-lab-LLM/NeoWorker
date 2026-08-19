@@ -1,26 +1,40 @@
 import { useState, useEffect, useRef } from "react";
-import type { PersonalityConfigV2, PersonaDefinition } from "../../shared/types";
+import { Settings2, SlidersHorizontal } from "lucide-react";
+import type { PersonalityConfigV2 } from "../../shared/types";
 import { PersonalityIdentityTab } from "./personality/PersonalityIdentityTab";
 import { PersonalityTraitsTab } from "./personality/PersonalityTraitsTab";
-import { PersonalityInstructionsTab } from "./personality/PersonalityInstructionsTab";
-import { PersonalityStyleTab } from "./personality/PersonalityStyleTab";
 import { PersonalityAdvancedTab } from "./personality/PersonalityAdvancedTab";
 import { PersonalityMemoryTab } from "./personality/PersonalityMemoryTab";
+import { translate, useLanguage } from "../i18n";
+import "./personality-settings.css";
 
-type TabId = "identity" | "memory" | "personality" | "instructions" | "style" | "advanced";
+type TabId = "personality" | "advanced";
 
 interface PersonalitySettingsProps {
   onSettingsChanged?: () => void;
 }
 
-export function PersonalitySettings({ onSettingsChanged }: PersonalitySettingsProps) {
+export function PersonalitySettings({
+  onSettingsChanged,
+}: PersonalitySettingsProps) {
+  useLanguage();
+  const t = translate;
   const [config, setConfig] = useState<PersonalityConfigV2 | null>(null);
   const configRef = useRef<PersonalityConfigV2 | null>(null);
   const saveInFlightRef = useRef(false);
   const saveQueuedRef = useRef(false);
   const reloadAfterSaveRef = useRef(false);
-  const [personas, setPersonas] = useState<PersonaDefinition[]>([]);
-  const [presets, setPresets] = useState<Record<string, { name: string; description: string; icon: string; traits: Record<string, number> }>>({});
+  const [presets, setPresets] = useState<
+    Record<
+      string,
+      {
+        name: string;
+        description: string;
+        icon: string;
+        traits: Record<string, number>;
+      }
+    >
+  >({});
   const [relationshipStats, setRelationshipStats] = useState<{
     tasksCompleted: number;
     projectsCount: number;
@@ -29,11 +43,11 @@ export function PersonalitySettings({ onSettingsChanged }: PersonalitySettingsPr
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabId>("identity");
+  const [activeTab, setActiveTab] = useState<TabId>("personality");
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    loadData();
+    void loadData({ showLoading: true });
   }, []);
 
   useEffect(() => {
@@ -43,31 +57,40 @@ export function PersonalitySettings({ onSettingsChanged }: PersonalitySettingsPr
         reloadAfterSaveRef.current = true;
         return;
       }
-      loadData();
+      void loadData({ showLoading: false });
       onSettingsChanged?.();
     });
     return unsub;
   }, [onSettingsChanged]);
 
-  const loadData = async () => {
+  const loadData = async (options?: { showLoading?: boolean }) => {
+    const showLoading = options?.showLoading ?? configRef.current === null;
     try {
-      setLoading(true);
-      const [loadedConfig, loadedPersonas, loadedPresets, stats] = await Promise.all([
+      if (showLoading) setLoading(true);
+      const [loadedConfig, loadedPresets, stats] = await Promise.all([
         window.electronAPI.getPersonalityConfigV2(),
-        window.electronAPI.getPersonaDefinitions?.(),
         window.electronAPI.getPersonalityTraitPresets?.(),
         window.electronAPI.getRelationshipStats?.(),
       ]);
       const nextConfig = loadedConfig as PersonalityConfigV2;
       configRef.current = nextConfig;
       setConfig(nextConfig);
-      setPersonas((loadedPersonas as PersonaDefinition[]) ?? []);
-      setPresets((loadedPresets as Record<string, { name: string; description: string; icon: string; traits: Record<string, number> }>) ?? {});
+      setPresets(
+        (loadedPresets as Record<
+          string,
+          {
+            name: string;
+            description: string;
+            icon: string;
+            traits: Record<string, number>;
+          }
+        >) ?? {},
+      );
       setRelationshipStats(stats as typeof relationshipStats);
     } catch (err) {
       console.error("Failed to load personality settings:", err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -108,7 +131,7 @@ export function PersonalitySettings({ onSettingsChanged }: PersonalitySettingsPr
       setSaving(false);
       if (reloadAfterSaveRef.current) {
         reloadAfterSaveRef.current = false;
-        void loadData();
+        void loadData({ showLoading: false });
       }
     }
   };
@@ -119,69 +142,70 @@ export function PersonalitySettings({ onSettingsChanged }: PersonalitySettingsPr
   };
 
   if (loading || !config) {
-    return <div className="settings-loading">Loading personality settings...</div>;
+    return (
+      <div className="settings-loading">
+        {t("personality.loading", "Loading personality settings...")}
+      </div>
+    );
   }
 
-  const tabs: { id: TabId; label: string }[] = [
-    { id: "identity", label: "Identity" },
-    { id: "memory", label: "Memory" },
-    { id: "personality", label: "Personality" },
-    { id: "instructions", label: "Instructions" },
-    { id: "style", label: "Style" },
-    { id: "advanced", label: "Advanced" },
+  const tabs = [
+    {
+      id: "personality" as const,
+      label: t("personality.tab.personality", "Personality"),
+      icon: SlidersHorizontal,
+    },
+    {
+      id: "advanced" as const,
+      label: t("personality.tab.advanced", "Advanced"),
+      icon: Settings2,
+    },
   ];
 
   return (
     <div className="personality-settings">
-      <div className="personality-nav">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={`personality-nav-btn ${activeTab === t.id ? "active" : ""}`}
-            onClick={() => setActiveTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div
+        className="personality-nav"
+        role="tablist"
+        aria-label={t("personality.tabsLabel", "Personality sections")}
+      >
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={`personality-nav-btn ${activeTab === tab.id ? "active" : ""}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <Icon size={15} strokeWidth={1.7} aria-hidden="true" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {activeTab === "identity" && (
-        <PersonalityIdentityTab
-          config={config}
-          relationshipStats={relationshipStats}
-          onUpdate={handleUpdate}
-          onSave={handleSave}
-          saving={saving}
-        />
-      )}
-      {activeTab === "memory" && <PersonalityMemoryTab onChanged={onSettingsChanged} />}
       {activeTab === "personality" && (
-        <PersonalityTraitsTab
-          config={config}
-          presets={presets}
-          onUpdate={handleUpdate}
-          onSave={handleSave}
-          saving={saving}
-          onToast={showToast}
-        />
-      )}
-      {activeTab === "instructions" && (
-        <PersonalityInstructionsTab
-          config={config}
-          onUpdate={handleUpdate}
-          onSave={handleSave}
-          saving={saving}
-        />
-      )}
-      {activeTab === "style" && (
-        <PersonalityStyleTab
-          config={config}
-          personas={personas}
-          onUpdate={handleUpdate}
-          onSave={handleSave}
-          saving={saving}
-        />
+        <>
+          <PersonalityIdentityTab
+            config={config}
+            relationshipStats={relationshipStats}
+            onUpdate={handleUpdate}
+            onSave={handleSave}
+            saving={saving}
+          />
+          <PersonalityMemoryTab onChanged={onSettingsChanged} />
+          <PersonalityTraitsTab
+            config={config}
+            presets={presets}
+            onUpdate={handleUpdate}
+            onSave={handleSave}
+            saving={saving}
+            onToast={showToast}
+          />
+        </>
       )}
       {activeTab === "advanced" && (
         <PersonalityAdvancedTab
@@ -193,24 +217,6 @@ export function PersonalitySettings({ onSettingsChanged }: PersonalitySettingsPr
       )}
 
       {toast && <div className="personality-toast">{toast}</div>}
-
-      <div className="settings-tip">
-        <h4>Chat Commands</h4>
-        <ul className="command-examples">
-          <li>
-            <code>be more friendly</code> — Switch personality
-          </li>
-          <li>
-            <code>call yourself Jarvis</code> — Change name
-          </li>
-          <li>
-            <code>my name is Alex</code> — Set your name
-          </li>
-          <li>
-            <code>be like a pirate</code> — Apply persona
-          </li>
-        </ul>
-      </div>
     </div>
   );
 }

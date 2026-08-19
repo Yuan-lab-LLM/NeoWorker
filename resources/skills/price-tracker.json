@@ -16,7 +16,7 @@
   "enabled": true,
   "metadata": {
     "version": "1.0.0",
-    "author": "cowork-os",
+    "author": "neoworker",
     "routing": {
       "useWhen": "Use when the user wants to check prices, compare products, track deals, or monitor e-commerce listings.",
       "dontUseWhen": "Don't use for general web browsing or non-commerce content.",

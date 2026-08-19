@@ -83,7 +83,7 @@ function createDb(): import("better-sqlite3").Database {
 }
 
 async function createWorkspaceDir(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-quote-recall-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-quote-recall-"));
   tempDirs.push(dir);
   return dir;
 }
@@ -176,7 +176,7 @@ describeWithNativeDb("QuoteRecallService", () => {
   it("returns workspace markdown provenance with exact excerpt text", async () => {
     const db = createDb();
     const workspacePath = await createWorkspaceDir();
-    const kitDir = path.join(workspacePath, ".cowork");
+    const kitDir = path.join(workspacePath, ".neoworker");
     await fs.mkdir(kitDir, { recursive: true });
     await fs.writeFile(
       path.join(kitDir, "USER.md"),
@@ -198,7 +198,7 @@ describeWithNativeDb("QuoteRecallService", () => {
         relevanceScore: 7,
         createdAt: 4_000,
         source: "markdown",
-        path: ".cowork/USER.md",
+        path: ".neoworker/USER.md",
         startLine: 3,
         endLine: 5,
       },
@@ -216,16 +216,16 @@ describeWithNativeDb("QuoteRecallService", () => {
 
     expect(results).toHaveLength(1);
     expect(results[0]?.sourceType).toBe("workspace_markdown");
-    expect(results[0]?.path).toBe(".cowork/USER.md");
+    expect(results[0]?.path).toBe(".neoworker/USER.md");
     expect(results[0]?.excerpt).toContain("Never mutate the production DB directly.");
     expect(results[0]?.startLine).toBe(3);
     expect(results[0]?.endLine).toBe(5);
   });
 
-  it("resolves workspace markdown excerpts when the index stores paths relative to the .cowork root", async () => {
+  it("resolves workspace markdown excerpts when the index stores paths relative to the .neoworker root", async () => {
     const db = createDb();
     const workspacePath = await createWorkspaceDir();
-    const kitDir = path.join(workspacePath, ".cowork");
+    const kitDir = path.join(workspacePath, ".neoworker");
     await fs.mkdir(kitDir, { recursive: true });
     await fs.writeFile(
       path.join(kitDir, "USER.md"),

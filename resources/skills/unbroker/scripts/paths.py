@@ -1,7 +1,7 @@
 """Filesystem paths for the unbroker skill (stdlib only).
 
-All per-subject data lives under PDD_DATA_DIR when set. Otherwise the CoWork OS
-port prefers $COWORK_HOME/unbroker or $COWORK_USER_DATA_DIR/unbroker, then falls
+All per-subject data lives under PDD_DATA_DIR when set. Otherwise the NeoWorker
+port prefers $NEOWORKER_HOME/unbroker or $NEOWORKER_USER_DATA_DIR/unbroker, then falls
 back to the upstream $HERMES_HOME/unbroker / ~/.hermes/unbroker location.
 """
 from __future__ import annotations
@@ -10,10 +10,10 @@ import os
 from pathlib import Path
 
 
-def cowork_home() -> Path:
+def neoworker_home() -> Path:
     return Path(
-        os.environ.get("COWORK_HOME")
-        or os.environ.get("COWORK_USER_DATA_DIR")
+        os.environ.get("NEOWORKER_HOME")
+        or os.environ.get("NEOWORKER_USER_DATA_DIR")
         or os.environ.get("HERMES_HOME")
         or (Path.home() / ".hermes")
     )
@@ -21,7 +21,7 @@ def cowork_home() -> Path:
 
 def hermes_home() -> Path:
     """Backward-compatible alias for upstream helper names."""
-    return cowork_home()
+    return neoworker_home()
 
 
 def data_dir() -> Path:

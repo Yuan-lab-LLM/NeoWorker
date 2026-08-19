@@ -8,7 +8,7 @@ import { SessionRecallService } from "../SessionRecallService";
 const createdDirs: string[] = [];
 
 async function createWorkspace(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-session-recall-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-session-recall-"));
   createdDirs.push(dir);
   return dir;
 }

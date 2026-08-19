@@ -1,6 +1,6 @@
 # Supermemory Integration
 
-CoWork OS can use [Supermemory](https://supermemory.ai/) as an external memory layer alongside its built-in local memory runtime.
+NeoWorker can use [Supermemory](https://supermemory.ai/) as an external memory layer alongside its built-in local memory runtime.
 
 This integration is intentionally modeled after the Hermes-style provider shape:
 
@@ -12,13 +12,13 @@ This integration is intentionally modeled after the Hermes-style provider shape:
 - optional Memory Write Approval gating before external writes commit
 - guarded failure behavior so provider outages do not break the main agent loop
 
-Supermemory does **not** replace CoWork's local memory system. CoWork keeps its own archive memory, curated hot memory, workspace kit files, transcript recall, and knowledge graph. Supermemory is an additional external memory lane.
+Supermemory does **not** replace NeoWorker's local memory system. NeoWorker keeps its own archive memory, curated hot memory, workspace kit files, transcript recall, and knowledge graph. Supermemory is an additional external memory lane.
 
 ---
 
 ## What It Adds
 
-When enabled, CoWork adds four explicit tools to the agent runtime:
+When enabled, NeoWorker adds four explicit tools to the agent runtime:
 
 - `supermemory_profile`
 - `supermemory_search`
@@ -28,7 +28,7 @@ When enabled, CoWork adds four explicit tools to the agent runtime:
 It also adds two optional runtime behaviors:
 
 - **Prompt profile injection**: fetches a scoped Supermemory profile and appends it as soft context during chat, execution, and follow-up turns
-- **Memory mirroring**: mirrors non-private CoWork memory captures into Supermemory as indexed external documents
+- **Memory mirroring**: mirrors non-private NeoWorker memory captures into Supermemory as indexed external documents
 
 Supermemory write paths also participate in Memory Write Governance. If Memory Hub is set to `external_only`, `background_only`, or `all`, external `remember` and mirror writes are staged for user review before they leave the local runtime.
 
@@ -55,7 +55,7 @@ https://api.supermemory.ai
 The default container template is:
 
 ```text
-cowork:{workspaceId}
+neoworker:{workspaceId}
 ```
 
 Supported template variables:
@@ -69,7 +69,7 @@ These are sanitized into a valid Supermemory `containerTag`.
 
 ## Runtime Model
 
-CoWork now has three distinct memory surfaces:
+NeoWorker now has three distinct memory surfaces:
 
 1. **Local prompt-visible memory**
    Curated hot memory, `USER.md`, `MEMORY.md`, and the `L0/L1` wake-up layers.
@@ -80,7 +80,7 @@ CoWork now has three distinct memory surfaces:
 3. **External Supermemory**
    Scoped profile/search/remember/forget operations plus optional mirrored memory history.
 
-CoWork treats Supermemory results as **soft context**:
+NeoWorker treats Supermemory results as **soft context**:
 
 - useful prior context
 - lower priority than the current user message
@@ -96,7 +96,7 @@ Write behavior is governed separately from read behavior. `supermemory_profile` 
 
 ## Prompt Injection
 
-If **Inject Supermemory Profile Into Prompts** is enabled, CoWork performs a scoped profile fetch during prompt construction and injects:
+If **Inject Supermemory Profile Into Prompts** is enabled, NeoWorker performs a scoped profile fetch during prompt construction and injects:
 
 - static facts
 - dynamic recent context
@@ -114,7 +114,7 @@ The injected block is wrapped as pinned profile-style context, but it remains ad
 
 ## Mirroring Behavior
 
-If **Mirror Memory Writes** is enabled, CoWork mirrors non-private archive-memory captures into Supermemory.
+If **Mirror Memory Writes** is enabled, NeoWorker mirrors non-private archive-memory captures into Supermemory.
 Structured observation metadata remains local-first and authoritative for privacy decisions.
 If Memory Write Approval covers background or external writes, a mirror attempt is staged in the approval queue and only sent after approval.
 
@@ -135,7 +135,7 @@ Current exclusions:
 - sensitive external-memory payloads are blocked before being stored in the pending approval queue
 - this integration does not currently stream every chat turn into Supermemory conversations
 
-That last point matters: CoWork currently mirrors memory captures, not the full conversation transcript lifecycle.
+That last point matters: NeoWorker currently mirrors memory captures, not the full conversation transcript lifecycle.
 
 For the local structured-memory model, see [Structured Memory Observations](memory-observations.md).
 
@@ -166,7 +166,7 @@ Configurable options include:
 - `rerank`
 - `searchMode`
 
-Supported search modes in CoWork:
+Supported search modes in NeoWorker:
 
 - `hybrid`
 - `memories`
@@ -181,7 +181,7 @@ Use it for:
 - project facts
 - stable context worth keeping outside the local machine
 
-If Memory Write Approval covers external writes, the tool returns a pending approval id instead of creating the external memory immediately. If the payload contains obvious secrets, CoWork blocks the write rather than persisting it to the approval queue.
+If Memory Write Approval covers external writes, the tool returns a pending approval id instead of creating the external memory immediately. If the payload contains obvious secrets, NeoWorker blocks the write rather than persisting it to the approval queue.
 
 ### `supermemory_forget`
 
@@ -196,13 +196,13 @@ Use it when external memory is outdated or incorrect.
 
 ## Container Tags And Scope
 
-By default, CoWork resolves one workspace-scoped container tag from the configured template.
+By default, NeoWorker resolves one workspace-scoped container tag from the configured template.
 
 Examples:
 
 ```text
-cowork:workspace-123
-cowork:Client-A
+neoworker:workspace-123
+neoworker:Client-A
 ```
 
 Custom container entries can also be stored in the UI as named namespaces. Today, those entries are:
@@ -211,7 +211,7 @@ Custom container entries can also be stored in the UI as named namespaces. Today
 - useful for human/operator reference
 - usable with explicit `containerTag` overrides on the Supermemory tools
 
-What CoWork does **not** do yet:
+What NeoWorker does **not** do yet:
 
 - automatic model-driven container switching
 - heuristic auto-routing between work/personal/project containers
@@ -222,7 +222,7 @@ If you want multi-container routing today, use explicit `containerTag` values wi
 
 ## Failure Handling
 
-Supermemory failures should not brick the CoWork runtime.
+Supermemory failures should not brick the NeoWorker runtime.
 
 Current safeguards:
 
@@ -233,7 +233,7 @@ Current safeguards:
 - pre-queue blocking for sensitive external-memory payloads
 - circuit breaker after repeated request failures
 
-When the circuit breaker opens, CoWork pauses Supermemory requests temporarily and keeps running with local memory only.
+When the circuit breaker opens, NeoWorker pauses Supermemory requests temporarily and keeps running with local memory only.
 
 The Memory Hub shows:
 
@@ -248,13 +248,13 @@ The Memory Hub shows:
 
 Important boundaries:
 
-- CoWork's local memory remains the primary durable memory system
+- NeoWorker's local memory remains the primary durable memory system
 - Supermemory is optional and external
 - mirrored local memory writes can leave the device
 - external writes can be approval-gated before leaving the device
 - obvious secrets in external-memory payloads are blocked before they are stored in the pending queue
 - private memory entries are not mirrored
-- workspace kit files remain local and governed by CoWork's existing memory/runtime policies
+- workspace kit files remain local and governed by NeoWorker's existing memory/runtime policies
 
 If you want fully local-only operation, leave Supermemory disabled.
 

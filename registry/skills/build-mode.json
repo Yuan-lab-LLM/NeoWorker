@@ -2,7 +2,7 @@
   "name": "Build Mode",
   "description": "Turn an idea into a working prototype through guided phases: concept → plan → scaffold → iterate. Uses Canvas for live preview with checkpoints at each phase.",
   "version": "1.0.0",
-  "author": "CoWork OS",
+  "author": "NeoWorker",
   "category": "development",
   "tags": ["build", "prototype", "canvas", "scaffold"],
   "parameters": [

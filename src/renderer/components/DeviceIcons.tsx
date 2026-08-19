@@ -45,7 +45,7 @@ export function MacMiniIcon({ className = "", size = 48 }: DeviceIconProps) {
 
   return (
     <img
-      src="/mac-mini-m4.png"
+      src="/mac-mini-m4.webp"
       alt="Mac Mini"
       className={className}
       style={{
@@ -77,7 +77,10 @@ export function Win11Icon({ className = "", size = 48 }: DeviceIconProps) {
   );
 }
 
-export function CloudServerIcon({ className = "", size = 48 }: DeviceIconProps) {
+export function CloudServerIcon({
+  className = "",
+  size = 48,
+}: DeviceIconProps) {
   // A sleek cloud/server icon
   return (
     <svg
@@ -88,13 +91,37 @@ export function CloudServerIcon({ className = "", size = 48 }: DeviceIconProps) 
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >
-      <rect x="16" y="12" width="32" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
+      <rect
+        x="16"
+        y="12"
+        width="32"
+        height="10"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
       <circle cx="42" cy="17" r="2" fill="currentColor" />
-      
-      <rect x="16" y="27" width="32" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
+
+      <rect
+        x="16"
+        y="27"
+        width="32"
+        height="10"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
       <circle cx="42" cy="32" r="2" fill="currentColor" />
-      
-      <rect x="16" y="42" width="32" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
+
+      <rect
+        x="16"
+        y="42"
+        width="32"
+        height="10"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
       <circle cx="42" cy="47" r="2" fill="currentColor" />
     </svg>
   );
@@ -111,24 +138,55 @@ export function MobileIcon({ className = "", size = 48 }: DeviceIconProps) {
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >
-      <rect x="20" y="8" width="24" height="48" rx="4" stroke="currentColor" strokeWidth="2" />
-      <line x1="28" y1="14" x2="36" y2="14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <rect
+        x="20"
+        y="8"
+        width="24"
+        height="48"
+        rx="4"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <line
+        x1="28"
+        y1="14"
+        x2="36"
+        y2="14"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
       <circle cx="32" cy="50" r="2" fill="currentColor" />
     </svg>
   );
 }
 
-export function getPlatformVisualIcon(platform: string, className?: string, size?: number, deviceName?: string) {
+export function getPlatformVisualIcon(
+  platform: string,
+  className?: string,
+  size?: number,
+  deviceName?: string,
+) {
   const p = platform.toLowerCase();
   const n = (deviceName || "").toLowerCase();
-  
+
   if (p.includes("mac") || p.includes("darwin") || n.includes("mac")) {
     return <MacMiniIcon className={className} size={size} />;
   }
-  if (p.includes("win") || n.includes("windows") || n.includes("pc") || n.includes("desktop")) {
+  if (
+    p.includes("win") ||
+    n.includes("windows") ||
+    n.includes("pc") ||
+    n.includes("desktop")
+  ) {
     return <Win11Icon className={className} size={size} />;
   }
-  if (p.includes("ios") || p.includes("android") || n.includes("iphone") || n.includes("phone")) {
+  if (
+    p.includes("ios") ||
+    p.includes("android") ||
+    n.includes("iphone") ||
+    n.includes("phone")
+  ) {
     return <MobileIcon className={className} size={size} />;
   }
   // Default to server/VPC for Linux or unknown

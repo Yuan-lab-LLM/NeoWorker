@@ -93,7 +93,7 @@ function normalizeRuleResult(raw: unknown): RouterRuleResult | null {
 }
 
 async function loadRulesCode(workspacePath: string): Promise<CachedFile | null> {
-  const absPath = path.join(workspacePath, ".cowork", "router", "rules.monty");
+  const absPath = path.join(workspacePath, ".neoworker", "router", "rules.monty");
   let stat: Any;
   try {
     stat = await fs.stat(absPath);

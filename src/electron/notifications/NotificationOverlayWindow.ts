@@ -446,7 +446,7 @@ export class NotificationOverlayManager {
     </div>
     <div class="text">
       <div class="meta">
-        <div class="app-name">CoWork OS</div>
+        <div class="app-name">NeoWorker</div>
         <div class="time">now</div>
       </div>
       <div class="title">${title}</div>

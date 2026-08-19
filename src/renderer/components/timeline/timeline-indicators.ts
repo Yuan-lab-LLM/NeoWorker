@@ -19,7 +19,8 @@ import {
 import { getEffectiveTaskEventType } from "../../utils/task-event-compat";
 import { isSkillToolName } from "../../utils/timeline-tool-labels";
 
-export type TimelineIndicatorTone = "neutral" | "active" | "success" | "warning" | "error";
+export type TimelineIndicatorTone =
+  "neutral" | "active" | "success" | "warning" | "error";
 
 export interface TimelineIndicatorSpec {
   icon: LucideIcon;
@@ -35,7 +36,8 @@ function asObject(value: unknown): Record<string, unknown> {
 
 function resolveStage(payload: unknown): string {
   const obj = asObject(payload);
-  const raw = typeof obj.stage === "string" ? obj.stage.trim().toUpperCase() : "";
+  const raw =
+    typeof obj.stage === "string" ? obj.stage.trim().toUpperCase() : "";
   return raw;
 }
 
@@ -47,7 +49,8 @@ function resolveGroupLabel(payload: unknown): string {
 
 function isSkillReadToolEvent(event: TaskEvent): boolean {
   const effectiveType = getEffectiveTaskEventType(event);
-  if (effectiveType !== "tool_call" && effectiveType !== "tool_result") return false;
+  if (effectiveType !== "tool_call" && effectiveType !== "tool_result")
+    return false;
 
   const payload = asObject(event.payload);
   const tool = typeof payload.tool === "string" ? payload.tool.trim() : "";
@@ -65,7 +68,9 @@ function isSkillReadToolEvent(event: TaskEvent): boolean {
   if (Array.isArray(result.files)) {
     return result.files.some((entry) => {
       const obj = asObject(entry);
-      return typeof obj.path === "string" && /\/?SKILL\.md$/i.test(obj.path.trim());
+      return (
+        typeof obj.path === "string" && /\/?SKILL\.md$/i.test(obj.path.trim())
+      );
     });
   }
 
@@ -77,7 +82,10 @@ export function resolveTimelineGroupId(event: TaskEvent): string | null {
     return event.groupId.trim();
   }
   const payload = asObject(event.payload);
-  if (typeof payload.groupId === "string" && payload.groupId.trim().length > 0) {
+  if (
+    typeof payload.groupId === "string" &&
+    payload.groupId.trim().length > 0
+  ) {
     return payload.groupId.trim();
   }
   return null;
@@ -111,17 +119,41 @@ export function resolveTimelineIndicator(
     const subStageLabel = isSubStage ? groupLabel : null;
     switch (stage) {
       case "DISCOVER":
-        return { icon: Search, tone: "active", label: subStageLabel ?? "Discover stage started" };
+        return {
+          icon: Search,
+          tone: "active",
+          label: subStageLabel ?? "Discover stage started",
+        };
       case "BUILD":
-        return { icon: Terminal, tone: "active", label: subStageLabel ?? "Build stage started" };
+        return {
+          icon: Terminal,
+          tone: "active",
+          label: subStageLabel ?? "Build stage started",
+        };
       case "VERIFY":
-        return { icon: Shield, tone: "active", label: subStageLabel ?? "Verify stage started" };
+        return {
+          icon: Shield,
+          tone: "active",
+          label: subStageLabel ?? "Verify stage started",
+        };
       case "FIX":
-        return { icon: Wrench, tone: "active", label: subStageLabel ?? "Fix stage started" };
+        return {
+          icon: Wrench,
+          tone: "active",
+          label: subStageLabel ?? "Fix stage started",
+        };
       case "DELIVER":
-        return { icon: Package, tone: "active", label: subStageLabel ?? "Deliver stage started" };
+        return {
+          icon: Package,
+          tone: "active",
+          label: subStageLabel ?? "Deliver stage started",
+        };
       default:
-        return { icon: Play, tone: "active", label: subStageLabel ?? "Group started" };
+        return {
+          icon: Play,
+          tone: "active",
+          label: subStageLabel ?? "Group started",
+        };
     }
   }
 
@@ -152,8 +184,15 @@ export function resolveTimelineIndicator(
     return { icon: Shield, tone: "success", label: "Verification passed" };
   }
 
-  if (effectiveType === "verification_failed" || effectiveType === "verification_pending_user_action") {
-    return { icon: Shield, tone: "warning", label: "Verification requires attention" };
+  if (
+    effectiveType === "verification_failed" ||
+    effectiveType === "verification_pending_user_action"
+  ) {
+    return {
+      icon: Shield,
+      tone: "warning",
+      label: "Verification requires attention",
+    };
   }
 
   if (effectiveType === "approval_requested") {
@@ -186,12 +225,17 @@ export function resolveTimelineIndicator(
 
   if (
     event.type === "timeline_step_finished" &&
-    (event.status === "completed" || event.status === "skipped" || event.status === "cancelled")
+    (event.status === "completed" ||
+      event.status === "skipped" ||
+      event.status === "cancelled")
   ) {
     return { icon: Check, tone: "success", label: "Step completed" };
   }
 
-  if (effectiveType === "step_completed" || effectiveType === "task_completed") {
+  if (
+    effectiveType === "step_completed" ||
+    effectiveType === "task_completed"
+  ) {
     return { icon: Check, tone: "success", label: "Completed" };
   }
 
@@ -206,18 +250,27 @@ export function resolveTimelineIndicator(
     return { icon: Loader2, tone: "active", spin: true, label: "In progress" };
   }
 
-  if (event.type === "timeline_step_started" || effectiveType === "step_started") {
+  if (
+    event.type === "timeline_step_started" ||
+    effectiveType === "step_started"
+  ) {
     if (isTaskCompleted) {
       return { icon: Check, tone: "success", label: "Step completed" };
     }
     return { icon: Play, tone: "active", label: "Step started" };
   }
 
-  if (event.type === "timeline_evidence_attached" || effectiveType === "citations_collected") {
+  if (
+    event.type === "timeline_evidence_attached" ||
+    effectiveType === "citations_collected"
+  ) {
     return { icon: Link2, tone: "neutral", label: "Evidence attached" };
   }
 
-  if (event.type === "timeline_artifact_emitted" || effectiveType === "artifact_created") {
+  if (
+    event.type === "timeline_artifact_emitted" ||
+    effectiveType === "artifact_created"
+  ) {
     return { icon: FileOutput, tone: "success", label: "Output ready" };
   }
 

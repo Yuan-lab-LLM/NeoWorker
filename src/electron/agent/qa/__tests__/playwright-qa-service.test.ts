@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PlaywrightQAService } from "../playwright-qa-service";
 
 function makeWorkspace() {
-  const root = path.join(os.tmpdir(), `cowork-qa-${randomUUID()}`);
+  const root = path.join(os.tmpdir(), `neoworker-qa-${randomUUID()}`);
   fs.mkdirSync(root, { recursive: true });
   return {
     id: `ws-${randomUUID()}`,

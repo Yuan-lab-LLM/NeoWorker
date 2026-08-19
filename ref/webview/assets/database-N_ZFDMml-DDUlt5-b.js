@@ -1,0 +1,3 @@
+import { n as e, t } from "./database-N_ZFDMml-xjkCqc9L.js";
+t();
+export { e as default };

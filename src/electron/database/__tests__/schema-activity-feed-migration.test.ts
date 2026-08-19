@@ -24,11 +24,11 @@ describeWithSqlite("DatabaseManager activity_feed migration", () => {
   let previousUserDataDir: string | undefined;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-schema-activity-feed-"));
-    previousUserDataDir = process.env.COWORK_USER_DATA_DIR;
-    process.env.COWORK_USER_DATA_DIR = tmpDir;
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-schema-activity-feed-"));
+    previousUserDataDir = process.env.NEOWORKER_USER_DATA_DIR;
+    process.env.NEOWORKER_USER_DATA_DIR = tmpDir;
 
-    const dbPath = path.join(tmpDir, "cowork-os.db");
+    const dbPath = path.join(tmpDir, "neoworker.db");
     const db = new Database(dbPath);
     db.exec(`
       CREATE TABLE tasks (
@@ -60,9 +60,9 @@ describeWithSqlite("DatabaseManager activity_feed migration", () => {
 
   afterEach(() => {
     if (previousUserDataDir === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = previousUserDataDir;
+      process.env.NEOWORKER_USER_DATA_DIR = previousUserDataDir;
     }
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });

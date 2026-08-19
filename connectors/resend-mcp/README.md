@@ -1,6 +1,6 @@
 # Resend MCP Connector (MVP)
 
-This connector exposes Resend email APIs to CoWork OS through MCP tools.
+This connector exposes Resend email APIs to NeoWorker through MCP tools.
 
 ## Requirements
 

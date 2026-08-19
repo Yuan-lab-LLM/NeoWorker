@@ -37,9 +37,9 @@ afterEach(() => {
 
 describe("llm-wiki workbench scripts", () => {
   it("imports repo directories and images into deterministic raw locations", () => {
-    const workspace = makeTempDir("cowork-llm-wiki-workspace-");
+    const workspace = makeTempDir("neoworker-llm-wiki-workspace-");
     const vault = path.join(workspace, "research/wiki");
-    const repoDir = makeTempDir("cowork-llm-wiki-repo-");
+    const repoDir = makeTempDir("neoworker-llm-wiki-repo-");
     const imagePath = path.join(workspace, "source.png");
 
     writeFile(path.join(repoDir, "README.md"), "# Demo repo\n");
@@ -77,7 +77,7 @@ describe("llm-wiki workbench scripts", () => {
   });
 
   it("searches wiki pages, raw captures, and rendered slide decks", () => {
-    const workspace = makeTempDir("cowork-llm-wiki-search-");
+    const workspace = makeTempDir("neoworker-llm-wiki-search-");
     const vault = path.join(workspace, "research/wiki");
     const slideBodyPath = path.join(workspace, "slides-body.md");
 
@@ -171,7 +171,7 @@ GRPO is a policy optimization method with variance reduction benefits.
   });
 
   it("renders Marp decks and SVG charts back into the vault", () => {
-    const workspace = makeTempDir("cowork-llm-wiki-render-");
+    const workspace = makeTempDir("neoworker-llm-wiki-render-");
     const vault = path.join(workspace, "research/wiki");
     const slideBodyPath = path.join(workspace, "deck.md");
     const chartSpecPath = path.join(workspace, "chart.json");

@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import { PersonaTemplateCard } from "./PersonaTemplateCard";
 import { resolveTwinIcon } from "../utils/twin-icons";
+import { translate, useLanguage } from "../i18n";
+import {
+  getLocalizedAgentRoleText,
+  getLocalizedCompanyOperatorTemplateName,
+} from "../utils/localized-agent-roles";
+import { getLocalizedSkillNameFromIdentifier } from "../utils/localized-skills";
 import type { PersonaTemplateData } from "./PersonaTemplateCard";
 import type { AgentRoleData } from "../../electron/preload";
 
@@ -26,17 +32,16 @@ interface ActivationState {
   customColor: string;
 }
 
-const CATEGORY_ICONS: Record<string, string> = {
-  engineering: "\u2699\ufe0f",
-  management: "\ud83d\udcbc",
-  product: "\ud83c\udfaf",
-  data: "\ud83d\udcca",
-  operations: "\ud83d\udee0\ufe0f",
-};
-
-function buildTwinName(companyName: string | null | undefined, templateName: string): string {
+function buildTwinName(
+  companyName: string | null | undefined,
+  templateName: string,
+): string {
   const normalizedCompany = companyName?.trim();
-  return normalizedCompany ? `${normalizedCompany} ${templateName}` : `${templateName} Twin`;
+  return normalizedCompany
+    ? `${normalizedCompany} ${templateName}`
+    : translate("personaTemplates.defaultTwinName", "{name} Image", {
+        name: templateName,
+      });
 }
 
 export function PersonaTemplateGallery({
@@ -47,13 +52,17 @@ export function PersonaTemplateGallery({
   companyName = null,
   recommendedTemplateNames = [],
 }: PersonaTemplateGalleryProps) {
+  const language = useLanguage();
+  const t = translate;
   const [templates, setTemplates] = useState<PersonaTemplateData[]>([]);
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory);
+  const [selectedCategory, setSelectedCategory] =
+    useState<string>(initialCategory);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activationState, setActivationState] = useState<ActivationState | null>(null);
+  const [activationState, setActivationState] =
+    useState<ActivationState | null>(null);
   const [activating, setActivating] = useState(false);
 
   useEffect(() => {
@@ -76,7 +85,11 @@ export function PersonaTemplateGallery({
         setError(null);
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load templates");
+        setError(
+          err instanceof Error
+            ? err.message
+            : t("personaTemplates.error.load", "Failed to load templates"),
+        );
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -89,16 +102,26 @@ export function PersonaTemplateGallery({
     };
   }, []);
 
-  const recommendedNameSet = new Set(recommendedTemplateNames.map((name) => name.toLowerCase()));
+  const recommendedNameSet = new Set(
+    recommendedTemplateNames.map((name) => name.toLowerCase()),
+  );
 
   const filteredTemplates = templates
     .filter((t) => {
-      if (selectedCategory !== "all" && t.category !== selectedCategory) return false;
+      if (selectedCategory !== "all" && t.category !== selectedCategory)
+        return false;
+      const localizedTemplate = getLocalizedAgentRoleText({
+        name: t.id,
+        displayName: t.name,
+        description: t.description,
+      });
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         return (
           t.name.toLowerCase().includes(q) ||
           t.description.toLowerCase().includes(q) ||
+          localizedTemplate.name.toLowerCase().includes(q) ||
+          localizedTemplate.description.toLowerCase().includes(q) ||
           t.tags.some((tag) => tag.toLowerCase().includes(q))
         );
       }
@@ -112,9 +135,14 @@ export function PersonaTemplateGallery({
     });
 
   const handleActivateClick = (template: PersonaTemplateData) => {
+    const localizedTemplate = getLocalizedAgentRoleText({
+      name: template.id,
+      displayName: template.name,
+      description: template.description,
+    });
     setActivationState({
       template,
-      customName: buildTwinName(companyName, template.name),
+      customName: buildTwinName(companyName, localizedTemplate.name),
       customIcon: template.icon,
       customColor: template.color,
     });
@@ -136,13 +164,20 @@ export function PersonaTemplateGallery({
       });
 
       if (result.warnings.length > 0) {
-        console.warn("[PersonaTemplateGallery] Activation warnings:", result.warnings);
+        console.warn(
+          "[PersonaTemplateGallery] Activation warnings:",
+          result.warnings,
+        );
       }
 
       onActivated(result.agentRole);
       setActivationState(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Activation failed");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("personaTemplates.error.activate", "Activation failed"),
+      );
     } finally {
       setActivating(false);
     }
@@ -154,7 +189,7 @@ export function PersonaTemplateGallery({
         {/* Header */}
         <div className="pt-gallery-header">
           <div className="pt-gallery-title-row">
-            <h2>Agent Persona Templates</h2>
+            <h2>{t("personaTemplates.title", "Agent Persona Templates")}</h2>
             <button className="pt-close-btn" onClick={onClose}>
               <svg
                 width="18"
@@ -171,16 +206,28 @@ export function PersonaTemplateGallery({
           </div>
           <p className="pt-gallery-subtitle">
             {companyName
-              ? `Create operators for ${companyName}. Start with venture/operator templates, then activate the personas you want running against that company context.`
-              : "Choose a persona template to create an AI agent persona with a clear automation policy and operating role."}
+              ? t(
+                  "personaTemplates.subtitle.company",
+                  "Create operators for {company}. Start with venture/operator templates, then activate the personas you want running against that company context.",
+                  { company: companyName },
+                )
+              : t(
+                  "personaTemplates.subtitle.default",
+                  "Choose a persona template to create an AI agent persona with a clear automation policy and operating role.",
+                )}
           </p>
           {companyName && recommendedTemplateNames.length > 0 ? (
             <div className="pt-company-context">
-              <span className="pt-company-context-label">Recommended starter operators</span>
+              <span className="pt-company-context-label">
+                {t(
+                  "personaTemplates.recommendedStarters",
+                  "Recommended starter operators",
+                )}
+              </span>
               <div className="pt-company-context-tags">
                 {recommendedTemplateNames.map((name) => (
                   <span key={name} className="pt-company-context-tag">
-                    {name}
+                    {getLocalizedCompanyOperatorTemplateName(name)}
                   </span>
                 ))}
               </div>
@@ -195,7 +242,7 @@ export function PersonaTemplateGallery({
               className={`pt-category-tab ${selectedCategory === "all" ? "active" : ""}`}
               onClick={() => setSelectedCategory("all")}
             >
-              All ({templates.length})
+              {t("common.all", "All")} ({templates.length})
             </button>
             {categories.map((cat) => (
               <button
@@ -203,14 +250,18 @@ export function PersonaTemplateGallery({
                 className={`pt-category-tab ${selectedCategory === cat.id ? "active" : ""}`}
                 onClick={() => setSelectedCategory(cat.id)}
               >
-                {CATEGORY_ICONS[cat.id] || ""} {cat.label} ({cat.count})
+                {t(`personaTemplates.category.${cat.id}`, cat.label)} (
+                {cat.count})
               </button>
             ))}
           </div>
           <input
             type="text"
             className="pt-search-input"
-            placeholder="Search templates..."
+            placeholder={t(
+              "personaTemplates.searchPlaceholder",
+              "Search templates...",
+            )}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -218,10 +269,16 @@ export function PersonaTemplateGallery({
 
         {/* Content */}
         <div className="pt-gallery-content">
-          {loading && <div className="pt-loading">Loading templates...</div>}
+          {loading && (
+            <div className="pt-loading">
+              {t("personaTemplates.loading", "Loading templates...")}
+            </div>
+          )}
           {error && <div className="pt-error">{error}</div>}
           {!loading && !error && filteredTemplates.length === 0 && (
-            <div className="pt-empty">No templates match your search.</div>
+            <div className="pt-empty">
+              {t("personaTemplates.empty", "No templates match your search.")}
+            </div>
           )}
           {!loading && !error && (
             <div className="pt-grid">
@@ -238,49 +295,84 @@ export function PersonaTemplateGallery({
 
         {/* Activation Dialog */}
         {activationState && (
-          <div className="pt-activation-overlay" onClick={() => setActivationState(null)}>
-            <div className="pt-activation-dialog" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="pt-activation-overlay"
+            onClick={() => setActivationState(null)}
+          >
+            <div
+              className="pt-activation-dialog"
+              onClick={(e) => e.stopPropagation()}
+            >
               <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {(() => {
                   const Icon = resolveTwinIcon(activationState.customIcon);
                   return <Icon size={24} strokeWidth={2} />;
                 })()}
-                Activate {activationState.template.name}
+                {t("personaTemplates.activateTitle", "Activate {name}", {
+                  name: getLocalizedAgentRoleText({
+                    name: activationState.template.id,
+                    displayName: activationState.template.name,
+                    description: activationState.template.description,
+                  }).name,
+                })}
               </h3>
               {companyName ? (
                 <p className="pt-activation-subtitle">
-                  This persona will be created for <strong>{companyName}</strong>.
+                  {t(
+                    "personaTemplates.createdForPrefix",
+                    "This persona will be created for",
+                  )}{" "}
+                  <strong>{companyName}</strong>.
                 </p>
               ) : null}
 
               <div className="pt-activation-form">
                 <label className="pt-form-label">
-                  Persona Name
+                  {t("personaTemplates.personaName", "Persona Name")}
                   <input
                     type="text"
                     className="pt-form-input"
                     value={activationState.customName}
                     onChange={(e) =>
-                      setActivationState({ ...activationState, customName: e.target.value })
+                      setActivationState({
+                        ...activationState,
+                        customName: e.target.value,
+                      })
                     }
                   />
                 </label>
 
                 <div className="pt-form-note">
-                  Digital Twins are persona presets only. Core automation, heartbeat, subconscious,
-                  and memory ownership are configured separately in Mission Control.
+                  {t(
+                    "personaTemplates.formNote",
+                    "Digital Twins are persona presets only. Core automation, heartbeat, subconscious, and memory ownership are configured separately in Mission Control.",
+                  )}
                 </div>
 
                 <div className="pt-form-section">
                   <span className="pt-form-section-label">
-                    Recommended Skills ({activationState.template.skills.length})
+                    {t(
+                      "personaTemplates.recommendedSkills",
+                      "Recommended Skills ({count})",
+                      { count: activationState.template.skills.length },
+                    )}
                   </span>
                   <div className="pt-skills-list">
                     {activationState.template.skills.map((skill) => (
                       <div key={skill.skillId} className="pt-skill-item">
-                        <span className="pt-skill-id">{skill.skillId}</span>
-                        {skill.required && <span className="pt-skill-required">required</span>}
-                        <span className="pt-skill-reason">{skill.reason}</span>
+                        <span className="pt-skill-id">
+                          {getLocalizedSkillNameFromIdentifier(skill.skillId)}
+                        </span>
+                        {skill.required && (
+                          <span className="pt-skill-required">
+                            {t("common.required", "required")}
+                          </span>
+                        )}
+                        {language !== "zh-CN" && (
+                          <span className="pt-skill-reason">
+                            {skill.reason}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -293,14 +385,19 @@ export function PersonaTemplateGallery({
                   onClick={() => setActivationState(null)}
                   disabled={activating}
                 >
-                  Cancel
+                  {t("common.cancel", "Cancel")}
                 </button>
                 <button
                   className="pt-btn-primary"
                   onClick={handleConfirmActivation}
                   disabled={activating || !activationState.customName.trim()}
                 >
-                  {activating ? "Creating..." : "Create Agent Persona"}
+                  {activating
+                    ? t("common.creating", "Creating...")
+                    : t(
+                        "personaTemplates.createPersona",
+                        "Create Agent Persona",
+                      )}
                 </button>
               </div>
             </div>

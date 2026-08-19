@@ -8,9 +8,11 @@ import type { Task, TaskEvent, Workspace } from "../../../shared/types";
 import {
   collectEndOfTaskArtifactCardStacks,
   collectLatestEndOfTaskArtifactCards,
+  resolveArtifactPathsAgainstTaskEvents,
   collectInlineRunCommandSessionIds,
   composeMessageWithAttachments,
   deriveAgentReasoningPanelState,
+  deriveComposerTaskSettings,
   deriveTaskHeaderPresentation,
   estimateTaskFeedRowHeight,
   extractGeneratedArtifactPathsFromText,
@@ -20,9 +22,12 @@ import {
   getInlinePreviewKindForGeneratedFile,
   getInlinePreviewKindForTaskEvent,
   getAutoScrollTargetTop,
+  pinScrollElementToBottom,
   getBootstrapProgressTitle,
   getDefaultTranscriptMode,
   getVisibleEndOfTaskArtifactCards,
+  getEndOfTaskArtifactStackAnchorEventId,
+  getEarliestTaskEventStreamIndex,
   hasInactiveStringSetEntries,
   pruneStringSetToActiveIds,
   selectVisibleTaskFeedRows,
@@ -30,6 +35,10 @@ import {
   shouldRenderOpenArtifactCardAtEvent,
   shouldSuppressInitialPromptUserEvent,
   shouldShowBootstrapProgressRow,
+  shouldMarkActionBlockActiveForCurrentTurn,
+  shouldBypassLiveTaskEventProjection,
+  shouldIncludeExecutionRecordEvents,
+  shouldShowChatTaskExecutionRows,
   shouldScheduleAutoScrollWrite,
   TaskAutomationModal,
   TaskSessionLineageFooter,
@@ -42,8 +51,12 @@ import {
   TASK_AUTOMATION_TEMPLATES,
 } from "../task-automation-utils";
 
-const mainContentPath = fileURLToPath(new URL("../MainContent/MainContent.tsx", import.meta.url));
-const messageUiPath = fileURLToPath(new URL("../MainContent/message-ui.tsx", import.meta.url));
+const mainContentPath = fileURLToPath(
+  new URL("../MainContent/MainContent.tsx", import.meta.url),
+);
+const messageUiPath = fileURLToPath(
+  new URL("../MainContent/message-ui.tsx", import.meta.url),
+);
 const appPath = fileURLToPath(new URL("../../App.tsx", import.meta.url));
 
 afterEach(() => {
@@ -60,6 +73,89 @@ describe("shouldCreateFreshTaskForSend", () => {
         forceFreshTask: true,
       }),
     ).toBe(true);
+  });
+
+  it("starts a new session after a collaborative team task has finished", () => {
+    expect(
+      shouldCreateFreshTaskForSend({
+        executionMode: "execute",
+        selectedTaskId: "team-task-1",
+        selectedTaskExecutionMode: "execute",
+        selectedTaskCollaborativeMode: true,
+        selectedTaskStatus: "completed",
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldCreateFreshTaskForSend({
+        executionMode: "execute",
+        selectedTaskId: "team-task-1",
+        selectedTaskExecutionMode: "execute",
+        selectedTaskCollaborativeMode: true,
+        selectedTaskStatus: "executing",
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps ordinary completed tasks in the current session", () => {
+    expect(
+      shouldCreateFreshTaskForSend({
+        executionMode: "execute",
+        selectedTaskId: "task-1",
+        selectedTaskExecutionMode: "execute",
+        selectedTaskCollaborativeMode: false,
+        selectedTaskStatus: "completed",
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps an explicitly selected skill in the current task follow-up", () => {
+    const mainContentSource = readFileSync(mainContentPath, "utf8");
+
+    expect(mainContentSource).not.toContain("Boolean(composerSkillContext) ||");
+    expect(mainContentSource).toContain(
+      "requestedSkillId: composerSkillContext.skillId",
+    );
+  });
+});
+
+describe("deriveComposerTaskSettings", () => {
+  it("restores the task mode, domain, automation flags, and selected skill", () => {
+    expect(
+      deriveComposerTaskSettings({
+        executionMode: "chat",
+        taskDomain: "research",
+        autonomousMode: true,
+        requestedSkillId: "web-research",
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        executionMode: "chat",
+        taskDomain: "research",
+        autonomousModeEnabled: true,
+        requestedSkillId: "web-research",
+      }),
+    );
+  });
+
+  it("uses stable defaults only when a task has no saved settings", () => {
+    expect(deriveComposerTaskSettings(undefined)).toEqual(
+      expect.objectContaining({
+        executionMode: "execute",
+        taskDomain: "auto",
+        autonomousModeEnabled: false,
+        requestedSkillId: null,
+      }),
+    );
+  });
+
+  it("migrates retired general and operations domains back to auto", () => {
+    expect(
+      deriveComposerTaskSettings({ taskDomain: "general" }).taskDomain,
+    ).toBe("auto");
+    expect(
+      deriveComposerTaskSettings({ taskDomain: "operations" }).taskDomain,
+    ).toBe("auto");
   });
 });
 
@@ -89,7 +185,9 @@ describe("formatStepFailedTitleForDisplay", () => {
   it("keeps useful step context when the reason adds new detail", () => {
     expect(
       formatStepFailedTitleForDisplay({
-        step: { description: "Run the browser QA pass and capture screenshots" },
+        step: {
+          description: "Run the browser QA pass and capture screenshots",
+        },
         reason: "Playwright timed out waiting for localhost.",
       }),
     ).toBe("Step failed: Run the browser QA pass and capture screenshots");
@@ -155,33 +253,36 @@ describe("getWorkspaceStatusFolderLabel", () => {
   it("shows only the final folder name for workspace paths", () => {
     expect(
       getWorkspaceStatusFolderLabel(
-        makeWorkspace({ path: "/Users/mesut/Downloads/app/cowork", name: "Custom name" }),
+        makeWorkspace({
+          path: "/Users/mesut/Downloads/app/neoworker",
+          name: "Custom name",
+        }),
       ),
-    ).toBe("cowork");
-    expect(getWorkspaceStatusFolderLabel(makeWorkspace({ path: "C:\\Users\\mesut\\cowork" }))).toBe(
-      "cowork",
-    );
+    ).toBe("neoworker");
+    expect(
+      getWorkspaceStatusFolderLabel(
+        makeWorkspace({ path: "C:\\Users\\mesut\\neoworker" }),
+      ),
+    ).toBe("neoworker");
   });
 
   it("keeps temp and missing workspace fallbacks", () => {
-    expect(getWorkspaceStatusFolderLabel(makeWorkspace({ isTemp: true }))).toBe("Work in a folder");
+    expect(getWorkspaceStatusFolderLabel(makeWorkspace({ isTemp: true }))).toBe(
+      "Work in a folder",
+    );
     expect(getWorkspaceStatusFolderLabel(null)).toBe("No folder selected");
   });
 });
 
 describe("shouldSuppressInitialPromptUserEvent", () => {
-  const initialPrompt = "Research and compare two GitHub repositories.\nStep 1: collect stats.";
+  const initialPrompt =
+    "Research and compare two GitHub repositories.\nStep 1: collect stats.";
 
   it("suppresses a timeline v2 user_message that repeats the anchored task prompt", () => {
-    const event = makeEvent(
-      "user-event",
-      11_000,
-      "timeline_step_updated",
-      {
-        legacyType: "user_message",
-        message: initialPrompt,
-      },
-    );
+    const event = makeEvent("user-event", 11_000, "timeline_step_updated", {
+      legacyType: "user_message",
+      message: initialPrompt,
+    });
 
     expect(
       shouldSuppressInitialPromptUserEvent({
@@ -194,15 +295,10 @@ describe("shouldSuppressInitialPromptUserEvent", () => {
   });
 
   it("keeps later follow-up messages even when they happen to repeat the original prompt", () => {
-    const event = makeEvent(
-      "follow-up",
-      90_000,
-      "timeline_step_updated",
-      {
-        legacyType: "user_message",
-        message: initialPrompt,
-      },
-    );
+    const event = makeEvent("follow-up", 90_000, "timeline_step_updated", {
+      legacyType: "user_message",
+      message: initialPrompt,
+    });
 
     expect(
       shouldSuppressInitialPromptUserEvent({
@@ -229,15 +325,15 @@ describe("task automation creation", () => {
         workspace: makeWorkspace(),
         defaultName: "Task menu automation",
         defaultPrompt: "Turn this task into a recurring check",
-        deeplink: "cowork://tasks/task-123",
+        deeplink: "neoworker://tasks/task-123",
         onClose: vi.fn(),
       }),
     );
 
-    expect(html).toContain("Create routine");
+    expect(html).toContain("创建例行任务");
     expect(html).toContain("Task menu automation");
     expect(html).toContain("Turn this task into a recurring check");
-    expect(html).toContain("Manual");
+    expect(html).toContain("手动");
   });
 
   it("builds the default Every 30m scheduled job payload from a task", () => {
@@ -254,7 +350,9 @@ describe("task automation creation", () => {
       kind: "every",
       everyMs: 30 * 60 * 1000,
     });
-    expect(schedule?.kind === "every" ? schedule.anchorMs : null).toBeGreaterThanOrEqual(before);
+    expect(
+      schedule?.kind === "every" ? schedule.anchorMs : null,
+    ).toBeGreaterThanOrEqual(before);
     expect(
       buildTaskAutomationCronJobCreate({
         task,
@@ -263,11 +361,11 @@ describe("task automation creation", () => {
         prompt: "Look at the failing tests",
         runMode: "chat",
         schedule: schedule!,
-        deeplink: "cowork://tasks/task-123",
+        deeplink: "neoworker://tasks/task-123",
       }),
     ).toMatchObject({
       name: "Review recent failures",
-      description: "Created from task task-123 (cowork://tasks/task-123)",
+      description: "Created from task task-123 (neoworker://tasks/task-123)",
       enabled: true,
       shellAccess: false,
       allowUserInput: false,
@@ -297,7 +395,7 @@ describe("task automation creation", () => {
         runMode: "chat",
         triggerPreset: "daily",
         schedule,
-        deeplink: "cowork://tasks/task-123",
+        deeplink: "neoworker://tasks/task-123",
       }),
     ).toMatchObject({
       name: "Review recent failures",
@@ -338,7 +436,7 @@ describe("task automation creation", () => {
         targetMode: "thread_follow_up",
         triggerPreset: "hourly",
         schedule,
-        deeplink: "cowork://tasks/task-123",
+        deeplink: "neoworker://tasks/task-123",
       }),
     ).toMatchObject({
       contextBindings: {
@@ -360,7 +458,7 @@ describe("task automation creation", () => {
         runMode: "chat",
         targetMode: "thread_follow_up",
         schedule,
-        deeplink: "cowork://tasks/task-123",
+        deeplink: "neoworker://tasks/task-123",
       }),
     ).toMatchObject({
       runMode: "thread_follow_up",
@@ -368,7 +466,7 @@ describe("task automation creation", () => {
       threadAutomation: {
         sourceTaskId: "task-123",
         sourceTaskTitle: "Review recent failures",
-        sourceLink: "cowork://tasks/task-123",
+        sourceLink: "neoworker://tasks/task-123",
         wakeObjective: "Check again in this thread",
       },
     });
@@ -393,7 +491,7 @@ describe("task automation creation", () => {
         targetMode: "thread_follow_up",
         triggerPreset: "hourly",
         schedule,
-        deeplink: "cowork://tasks/task-123",
+        deeplink: "neoworker://tasks/task-123",
       }),
     ).toMatchObject({
       executionTarget: { kind: "worktree" },
@@ -413,7 +511,7 @@ describe("task automation creation", () => {
         runMode: "worktree",
         targetMode: "thread_follow_up",
         schedule,
-        deeplink: "cowork://tasks/task-123",
+        deeplink: "neoworker://tasks/task-123",
       }),
     ).toMatchObject({
       runMode: "new_task",
@@ -432,14 +530,16 @@ describe("task automation creation", () => {
       prompt: "Run the local health check",
       runMode: "local",
       schedule,
-      deeplink: "cowork://tasks/task-1",
+      deeplink: "neoworker://tasks/task-1",
     });
 
     expect(job.shellAccess).toBe(true);
   });
 
   it("templates provide prompt, name, and schedule defaults", () => {
-    const template = TASK_AUTOMATION_TEMPLATES.find((item) => item.id === "ci-failures");
+    const template = TASK_AUTOMATION_TEMPLATES.find(
+      (item) => item.id === "ci-failures",
+    );
 
     expect(template).toMatchObject({
       name: "CI failure summary",
@@ -458,8 +558,8 @@ describe("TaskSessionLineageFooter", () => {
       }),
     );
 
-    expect(html).toContain("Forked from conversation");
-    expect(html).toContain("Open source conversation");
+    expect(html).toContain("从会话分叉而来");
+    expect(html).toContain("打开来源会话");
   });
 
   it("does not render for non-forked tasks", () => {
@@ -488,13 +588,13 @@ describe("message-level session forking", () => {
 });
 
 describe("sidechat session forking", () => {
-  it("keeps normal forks separate from sidechat sidebar forks", () => {
+  it("does not expose the sidechat action in the task overflow menu", () => {
     const mainContentSource = readFileSync(mainContentPath, "utf8");
     const appSource = readFileSync(appPath, "utf8");
 
-    expect(mainContentSource).toContain("onOpenSideChat({ taskId: task.id })");
-    expect(mainContentSource).toContain("<span>Fork session</span>");
-    expect(mainContentSource).toContain("<span>Open side chat</span>");
+    expect(mainContentSource).toContain('"task.actions.forkSession"');
+    expect(mainContentSource).not.toContain('"task.actions.openSideChat"');
+    expect(mainContentSource).not.toContain("handleTaskHeaderSideChat");
     expect(mainContentSource).toContain('branchLabel: "fork"');
     expect(mainContentSource).toContain("initialMessage: sideQuestion");
     expect(appSource).toContain("sideChat: true");
@@ -511,10 +611,10 @@ describe("task header browser action", () => {
     const mainContentSource = readFileSync(mainContentPath, "utf8");
     const appSource = readFileSync(appPath, "utf8");
 
-    expect(mainContentSource).toContain("<span>Open browser</span>");
+    expect(mainContentSource).toContain('"task.actions.openBrowser"');
     expect(mainContentSource).toContain("onOpenBrowserWorkbenchSidebar()");
     expect(appSource).toContain("openEmptyBrowserWorkbenchSidebar");
-    expect(appSource).toContain("sessionId: \"default\"");
+    expect(appSource).toContain('sessionId: "default"');
     expect(appSource).toContain("onOpenBrowserWorkbenchSidebar=");
   });
 });
@@ -524,7 +624,9 @@ describe("artifact sidebar open behavior", () => {
     const appSource = readFileSync(appPath, "utf8");
 
     expect(appSource).toContain("function ArtifactSidebarFallback()");
-    expect(appSource).toContain("<Suspense fallback={<ArtifactSidebarFallback />}>");
+    expect(appSource).toContain(
+      "<Suspense fallback={<ArtifactSidebarFallback />}>",
+    );
     expect(appSource).toContain("onRevealRightSidebar?.();");
   });
 });
@@ -534,7 +636,7 @@ describe("isTaskActivelyWorking", () => {
     const readFileForViewer = vi.fn().mockResolvedValue({
       success: true,
       data: {
-        path: "/workspace/.cowork/uploads/123/report.pdf",
+        path: "/workspace/.neoworker/uploads/123/report.pdf",
         fileName: "report.pdf",
         fileType: "pdf",
         content: null,
@@ -563,24 +665,30 @@ describe("isTaskActivelyWorking", () => {
       },
     });
 
-    const result = await composeMessageWithAttachments("/workspace", "Summarize this PDF", [
-      {
-        relativePath: ".cowork/uploads/123/report.pdf",
-        fileName: "report.pdf",
-        size: 1024,
-        mimeType: "application/pdf",
-      },
-    ]);
+    const result = await composeMessageWithAttachments(
+      "/workspace",
+      "Summarize this PDF",
+      [
+        {
+          relativePath: ".neoworker/uploads/123/report.pdf",
+          fileName: "report.pdf",
+          size: 1024,
+          mimeType: "application/pdf",
+        },
+      ],
+    );
 
     expect(readFileForViewer).toHaveBeenCalledWith(
-      ".cowork/uploads/123/report.pdf",
+      ".neoworker/uploads/123/report.pdf",
       "/workspace",
       expect.objectContaining({ imageOcrMaxChars: 6000 }),
     );
     expect(result.extractionWarnings).toEqual([]);
-    expect(result.message).toContain("- report.pdf (.cowork/uploads/123/report.pdf)");
+    expect(result.message).toContain(
+      "- report.pdf (.neoworker/uploads/123/report.pdf)",
+    );
     expect(result.message).toContain("PDF attachment: report.pdf");
-    expect(result.message).toContain("Path: .cowork/uploads/123/report.pdf");
+    expect(result.message).toContain("Path: .neoworker/uploads/123/report.pdf");
     expect(result.message).toContain("call parse_document with the Path above");
     expect(result.message).toContain("Untrusted PDF content follows");
   });
@@ -598,9 +706,19 @@ describe("isTaskActivelyWorking", () => {
     expect(
       getInlinePreviewKindForGeneratedFile({
         path: "artifacts/output.pptx",
-        mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       }),
     ).toBe("presentation");
+  });
+
+  it("classifies generated PDF outputs as document previews", () => {
+    expect(
+      getInlinePreviewKindForGeneratedFile({
+        path: "artifacts/report.pdf",
+        mimeType: "application/pdf",
+      }),
+    ).toBe("document");
   });
 
   it("extracts generated office artifact paths from assistant text", () => {
@@ -619,9 +737,147 @@ describe("isTaskActivelyWorking", () => {
   it("does not promote remote office links as local artifact cards", () => {
     expect(
       extractGeneratedArtifactPathsFromText(
-        "Reference: https://example.com/artifacts/sample_presentation.pptx and local/output.pptx",
+        "Output ready: https://example.com/artifacts/sample_presentation.pptx and local/output.pptx",
       ),
     ).toEqual(["local/output.pptx"]);
+  });
+
+  it("does not promote compared source documents as generated artifact cards", () => {
+    expect(
+      extractGeneratedArtifactPathsFromText(
+        [
+          "## PPTX 对比报告",
+          "Comparison basis: File 1 = `...(2).pptx`; File 2 = `...(1).pptx`.",
+          "| | File 1 `(2).pptx` | File 2 `(1).pptx` |",
+          "The two source presentations were compared successfully.",
+        ].join("\n"),
+      ),
+    ).toEqual([]);
+  });
+
+  it("still promotes a file after an explicit generated-output statement", () => {
+    expect(
+      extractGeneratedArtifactPathsFromText(
+        "对比完成。已生成文件：`artifacts/pptx-comparison-report.docx`",
+      ),
+    ).toEqual(["artifacts/pptx-comparison-report.docx"]);
+  });
+
+  it("does not turn an uncorroborated assistant filename into a clickable artifact", () => {
+    const created = makeEvent("created", 100, "file_created", {
+      path: ".neoworker/tmp/capability-test-report.html",
+      mimeType: "text/html",
+    });
+    const assistant = makeEvent("assistant", 200, "assistant_message", {
+      message: "文件已生成：`.neoworker/tmp/capability-test-card.html`",
+    });
+
+    expect(
+      resolveArtifactPathsAgainstTaskEvents(
+        [".neoworker/tmp/capability-test-card.html"],
+        [created, assistant],
+      ),
+    ).toEqual([]);
+    expect(collectLatestEndOfTaskArtifactCards([created, assistant])).toEqual(
+      [],
+    );
+  });
+
+  it("trusts an authoritative empty completion summary over assistant file mentions", () => {
+    const assistant = makeEvent("assistant", 100, "assistant_message", {
+      message: "File: `(2).pptx` and `(1).pptx`",
+    });
+    const completed = makeEvent("completed", 200, "task_completed", {
+      outputSummary: {
+        created: [],
+        outputCount: 0,
+        folders: [],
+      },
+    });
+
+    expect(collectLatestEndOfTaskArtifactCards([assistant, completed])).toEqual(
+      [],
+    );
+  });
+
+  it("shows moved PDF outputs after the current assistant reply even when an older turn had an empty completion summary", () => {
+    const previousCompleted = makeEvent(
+      "previous-completed",
+      100,
+      "task_completed",
+      {
+        outputSummary: {
+          created: [],
+          outputCount: 0,
+          folders: [],
+        },
+      },
+    );
+    const user = makeEvent("user", 200, "user_message", {
+      message: "生成PDF文件",
+    });
+    const firstCreated = makeEvent("first-created", 300, "artifact_created", {
+      path: "/tmp/epai-marketing-plan.pdf",
+      mimeType: "application/pdf",
+    });
+    const firstMoved = makeEvent("first-moved", 400, "file_modified", {
+      from: "epai-marketing-plan.pdf",
+      to: ".neoworker/automated-outputs/task-123/output/marketing/epai-marketing-plan.pdf",
+    });
+    const secondCreated = makeEvent("second-created", 500, "artifact_created", {
+      path: "/tmp/motusai-marketing-plan.pdf",
+      mimeType: "application/pdf",
+    });
+    const secondMoved = makeEvent("second-moved", 600, "file_modified", {
+      from: "motusai-marketing-plan.pdf",
+      to: ".neoworker/automated-outputs/task-123/output/marketing/motusai-marketing-plan.pdf",
+    });
+    const assistant = makeEvent("assistant", 700, "assistant_message", {
+      message: [
+        "PDF 生成完成，输出文件：",
+        "- output/marketing/epai-marketing-plan.pdf",
+        "- output/marketing/motusai-marketing-plan.pdf",
+      ].join("\n"),
+    });
+    const currentCompleted = makeEvent(
+      "current-completed",
+      800,
+      "task_completed",
+      {
+        resultSummary: "PDF 生成完成",
+      },
+    );
+    const stream = [
+      previousCompleted,
+      user,
+      firstCreated,
+      firstMoved,
+      secondCreated,
+      secondMoved,
+      assistant,
+      currentCompleted,
+    ];
+
+    expect(collectLatestEndOfTaskArtifactCards(stream)).toEqual([
+      {
+        path: ".neoworker/automated-outputs/task-123/output/marketing/epai-marketing-plan.pdf",
+        kind: "document",
+        eventId: "current-completed",
+        lastReferenceIndex: 7,
+        lastReferenceTimestamp: 800,
+      },
+      {
+        path: ".neoworker/automated-outputs/task-123/output/marketing/motusai-marketing-plan.pdf",
+        kind: "document",
+        eventId: "current-completed",
+        lastReferenceIndex: 7,
+        lastReferenceTimestamp: 800,
+      },
+    ]);
+    expect(collectEndOfTaskArtifactCardStacks(stream)).toHaveLength(1);
+    expect(
+      collectEndOfTaskArtifactCardStacks(stream)[0]?.anchorEventIndex,
+    ).toBe(7);
   });
 
   it("does not promote planned or failed artifact paths as generated cards", () => {
@@ -642,6 +898,20 @@ describe("isTaskActivelyWorking", () => {
     ).toEqual([]);
   });
 
+  it("does not promote Chinese save-it-yourself output as a generated card", () => {
+    expect(
+      extractGeneratedArtifactPathsFromText(
+        [
+          "以下是完整文件内容，保存为 `ai-industry-report-2026-08-03.html` 即可：",
+          "```html",
+          "<!doctype html><html><body>report</body></html>",
+          "```",
+          "本环境无法直接落盘到工作区。",
+        ].join("\n"),
+      ),
+    ).toEqual([]);
+  });
+
   it("still promotes recovered artifact paths when text says they are now saved", () => {
     expect(
       extractGeneratedArtifactPathsFromText(
@@ -652,7 +922,10 @@ describe("isTaskActivelyWorking", () => {
           "Previously failed to write, now saved `artifacts/recovered-viewer.html`.",
         ].join("\n"),
       ),
-    ).toEqual(["artifacts/neo-harbor.viewer.html", "artifacts/recovered-viewer.html"]);
+    ).toEqual([
+      "artifacts/neo-harbor.viewer.html",
+      "artifacts/recovered-viewer.html",
+    ]);
   });
 
   it("treats file lifecycle html events as previewable", () => {
@@ -677,11 +950,13 @@ describe("isTaskActivelyWorking", () => {
   it("only renders repeated office artifact cards at the last reference", () => {
     const created = makeEvent("created", 100, "file_created", {
       path: "artifacts/sample_presentation.pptx",
-      mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     });
     const emitted = makeEvent("artifact", 200, "artifact_created", {
       path: "artifacts/sample_presentation.pptx",
-      mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     });
     const completed = makeEvent("completed", 300, "task_completed", {
       outputSummary: {
@@ -715,25 +990,258 @@ describe("isTaskActivelyWorking", () => {
     ).toBe(true);
   });
 
+  it("does not render a formal document card before the current turn completes", () => {
+    const created = makeEvent("created", 100, "artifact_created", {
+      path: "reports/final-report.pptx",
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    });
+
+    expect(
+      shouldRenderOpenArtifactCardAtEvent({
+        path: "reports/final-report.pptx",
+        event: created,
+        eventStream: [created],
+      }),
+    ).toBe(false);
+    expect(collectLatestEndOfTaskArtifactCards([created])).toEqual([]);
+  });
+
+  it("shows only formal completion outputs and hides preview checks and superseded files", () => {
+    const completed = makeEvent("completed", 300, "task_completed", {
+      outputSummary: {
+        created: [
+          "交通银行近一周走势分析报告.pptx",
+          ".neoworker/tmp/pptx-v3-preview-check.html",
+        ],
+        modifiedFallback: ["交通银行近一周走势分析报告-v2.pptx"],
+        primaryOutputPath: "交通银行近一周走势分析报告.pptx",
+        outputCount: 2,
+      },
+    });
+
+    expect(collectLatestEndOfTaskArtifactCards([completed])).toEqual([
+      {
+        path: "交通银行近一周走势分析报告.pptx",
+        kind: "presentation",
+        eventId: "completed",
+        lastReferenceIndex: 0,
+        lastReferenceTimestamp: 300,
+      },
+    ]);
+  });
+
+  it("uses the persisted final delivery contract instead of intermediate repair versions", () => {
+    const firstCompleted = makeEvent("first-completed", 100, "task_completed", {
+      outputSummary: {
+        created: ["交通银行近一周走势分析报告-v2.pptx"],
+        primaryOutputPath: "交通银行近一周走势分析报告-v2.pptx",
+        outputCount: 1,
+      },
+    });
+    const secondCompleted = makeEvent(
+      "second-completed",
+      200,
+      "task_completed",
+      {
+        outputSummary: {
+          created: [
+            "交通银行近一周走势分析报告-v3.pptx",
+            ".neoworker/tmp/pptx-v3-preview-check.html",
+          ],
+          primaryOutputPath: "交通银行近一周走势分析报告-v3.pptx",
+          outputCount: 2,
+        },
+      },
+    );
+    const finalCompleted = makeEvent("final-completed", 300, "task_completed", {
+      outputSummary: {
+        created: [
+          "交通银行近一周走势分析报告.pptx",
+          ".neoworker/tmp/pptx-v3-preview-check.html",
+        ],
+        modifiedFallback: ["交通银行近一周走势分析报告-v2.pptx"],
+        primaryOutputPath: "交通银行近一周走势分析报告.pptx",
+        outputCount: 2,
+      },
+    });
+    const persistedFinalSummary = {
+      created: ["交通银行近一周走势分析报告.pptx"],
+      modifiedFallback: ["交通银行近一周走势分析报告-v2.pptx"],
+      primaryOutputPath: "交通银行近一周走势分析报告.pptx",
+      outputCount: 1,
+      folders: ["."],
+    };
+
+    expect(
+      collectLatestEndOfTaskArtifactCards(
+        [firstCompleted, secondCompleted, finalCompleted],
+        8,
+        persistedFinalSummary,
+      ),
+    ).toEqual([
+      {
+        path: "交通银行近一周走势分析报告.pptx",
+        kind: "presentation",
+        eventId: "final-completed",
+        lastReferenceIndex: 2,
+        lastReferenceTimestamp: 300,
+      },
+    ]);
+  });
+
+  it("does not move a previous-turn artifact beneath a later user message", () => {
+    const firstCompleted = makeEvent("first-completed", 100, "task_completed", {
+      outputSummary: {
+        created: ["广州-北京航班速览_2026-08-19.pptx"],
+        primaryOutputPath: "广州-北京航班速览_2026-08-19.pptx",
+        outputCount: 1,
+        folders: ["."],
+      },
+    });
+    const laterUser = makeEvent("later-user", 200, "user_message", {
+      message: "/ppt-master 生成PPT",
+    });
+    const laterCompleted = makeEvent("later-completed", 300, "task_completed", {
+      outputSummary: {
+        created: [],
+        outputCount: 0,
+        folders: [],
+      },
+    });
+    const persistedSummary = {
+      created: ["广州-北京航班速览_2026-08-19.pptx"],
+      primaryOutputPath: "广州-北京航班速览_2026-08-19.pptx",
+      outputCount: 1,
+      folders: ["."],
+    };
+
+    expect(
+      collectEndOfTaskArtifactCardStacks(
+        [firstCompleted, laterUser, laterCompleted],
+        8,
+        persistedSummary,
+      ),
+    ).toEqual([
+      {
+        anchorEventIndex: 0,
+        artifacts: [
+          {
+            path: "广州-北京航班速览_2026-08-19.pptx",
+            kind: "presentation",
+            eventId: "first-completed",
+            lastReferenceIndex: 0,
+            lastReferenceTimestamp: 100,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("keeps completed-turn delivery cards visible while a later turn is working", () => {
+    const mainContentSource = readFileSync(mainContentPath, "utf8");
+
+    expect(mainContentSource).not.toContain(
+      "const artifactStacks = isTaskWorking\n      ? []",
+    );
+    expect(mainContentSource).toContain(
+      "const artifactStacks = collectEndOfTaskArtifactCardStacks(",
+    );
+    expect(mainContentSource).toContain(
+      "if (!workspace?.path || isTaskWorking) return null;",
+    );
+    expect(mainContentSource).toContain("if (isTaskWorking) return false;");
+    expect(mainContentSource).toContain(
+      "pushPendingArtifactStacksBeforeTimelineItem(item);",
+    );
+  });
+
+  it("does not leave the previous turn action block active after a new queued message starts", () => {
+    expect(
+      shouldMarkActionBlockActiveForCurrentTurn({
+        isLatestActionBlock: true,
+        isTaskWorking: true,
+        isReplayMode: false,
+        actionBlockEventIndices: [4, 5, 6],
+        latestUserMessageEventIndex: 7,
+      }),
+    ).toBe(false);
+    expect(
+      shouldMarkActionBlockActiveForCurrentTurn({
+        isLatestActionBlock: true,
+        isTaskWorking: true,
+        isReplayMode: false,
+        actionBlockEventIndices: [8, 9],
+        latestUserMessageEventIndex: 7,
+      }),
+    ).toBe(true);
+  });
+
+  it("treats relative and absolute references to the same office file as one card", () => {
+    const created = makeEvent("created", 100, "file_created", {
+      path: "artifacts/sample.xlsx",
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const completed = makeEvent("completed", 200, "task_completed", {
+      outputSummary: {
+        created: ["/Users/demo/workspace/artifacts/sample.xlsx"],
+        primaryOutputPath: "/Users/demo/workspace/artifacts/sample.xlsx",
+        outputCount: 1,
+      },
+    });
+    const eventStream = [created, completed];
+
+    expect(
+      shouldRenderOpenArtifactCardAtEvent({
+        path: "artifacts/sample.xlsx",
+        event: created,
+        eventStream,
+      }),
+    ).toBe(false);
+    expect(
+      shouldRenderOpenArtifactCardAtEvent({
+        path: "/Users/demo/workspace/artifacts/sample.xlsx",
+        event: completed,
+        eventStream,
+      }),
+    ).toBe(true);
+  });
+
   it("collects the latest office artifact cards for bottom rendering", () => {
     const created = makeEvent("created", 100, "file_created", {
       path: "artifacts/sample.xlsx",
-      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
     const assistant = makeEvent("assistant", 200, "assistant_message", {
       message: "Done: artifacts/sample.xlsx",
     });
-    const laterUser = makeEvent("user", 300, "user_message", {
+    const completed = makeEvent("completed", 300, "task_completed", {
+      outputSummary: {
+        created: ["artifacts/sample.xlsx"],
+        primaryOutputPath: "artifacts/sample.xlsx",
+        outputCount: 1,
+      },
+    });
+    const laterUser = makeEvent("user", 400, "user_message", {
       message: "change Lisbon to Porto",
     });
 
-    expect(collectLatestEndOfTaskArtifactCards([created, assistant, laterUser])).toEqual([
+    expect(
+      collectLatestEndOfTaskArtifactCards([
+        created,
+        assistant,
+        completed,
+        laterUser,
+      ]),
+    ).toEqual([
       {
         path: "artifacts/sample.xlsx",
         kind: "spreadsheet",
-        eventId: "assistant",
-        lastReferenceIndex: 1,
-        lastReferenceTimestamp: 200,
+        eventId: "completed",
+        lastReferenceIndex: 2,
+        lastReferenceTimestamp: 300,
       },
     ]);
   });
@@ -773,6 +1281,95 @@ describe("isTaskActivelyWorking", () => {
     ]);
   });
 
+  it("compares artifact anchors with full-stream indices after timeline filtering", () => {
+    const hiddenBeforeCompletion = makeEvent(
+      "hidden-before-completion",
+      50,
+      "timeline_step_updated",
+      { message: "internal progress" },
+    );
+    const completed = makeEvent("completed", 100, "task_completed", {
+      outputSummary: {
+        created: ["artifacts/sample.pptx"],
+        primaryOutputPath: "artifacts/sample.pptx",
+        outputCount: 1,
+      },
+    });
+    const hiddenAfterCompletion = makeEvent(
+      "hidden-after-completion",
+      150,
+      "timeline_step_updated",
+      { message: "internal cleanup" },
+    );
+    const laterUser = makeEvent("later-user", 200, "user_message", {
+      message: "start another task",
+    });
+    const fullStream = [
+      hiddenBeforeCompletion,
+      completed,
+      hiddenAfterCompletion,
+      laterUser,
+    ];
+
+    // In a filtered timeline the user message may have local index 1, which
+    // equals the artifact's full-stream anchor. It still belongs after it.
+    expect(getEarliestTaskEventStreamIndex(fullStream, [laterUser])).toBe(3);
+    expect(
+      collectEndOfTaskArtifactCardStacks(fullStream)[0]?.anchorEventIndex,
+    ).toBe(1);
+  });
+
+  it("recovers an Office artifact card from the persisted task output summary", () => {
+    const completed = makeEvent("legacy-completed", 100, "task_completed", {
+      message: "Follow-up completed",
+    });
+    const summary = {
+      created: [".neoworker/minimax_ppt.pptx"],
+      primaryOutputPath: ".neoworker/minimax_ppt.pptx",
+      outputCount: 1,
+      folders: [".neoworker"],
+    };
+
+    expect(collectEndOfTaskArtifactCardStacks([completed], 8, summary)).toEqual(
+      [
+        {
+          anchorEventIndex: 0,
+          artifacts: [
+            {
+              path: ".neoworker/minimax_ppt.pptx",
+              kind: "presentation",
+              eventId: "legacy-completed",
+              lastReferenceIndex: 0,
+              lastReferenceTimestamp: 100,
+            },
+          ],
+        },
+      ],
+    );
+  });
+
+  it("anchors a recovered delivery card by event id when filtered indices diverge", () => {
+    const noisy = makeEvent("noise", 50, "timeline_step_updated", {
+      legacyType: "log",
+      message: "internal noise",
+    });
+    const completed = makeEvent("completed", 100, "task_completed", {
+      outputSummary: {
+        created: ["report.pdf"],
+        primaryOutputPath: "report.pdf",
+        outputCount: 1,
+      },
+    });
+    const [stack] = collectEndOfTaskArtifactCardStacks([noisy, completed]);
+
+    expect(stack?.anchorEventIndex).toBe(1);
+    expect(
+      stack
+        ? getEndOfTaskArtifactStackAnchorEventId(stack, [noisy, completed])
+        : null,
+    ).toBe("completed");
+  });
+
   it("collects markdown artifacts as document cards for bottom rendering", () => {
     const created = makeEvent("created", 100, "file_created", {
       path: "docs/channels.md",
@@ -781,14 +1378,23 @@ describe("isTaskActivelyWorking", () => {
     const assistant = makeEvent("assistant", 200, "assistant_message", {
       message: "Done: docs/channels.md",
     });
+    const completed = makeEvent("completed", 300, "task_completed", {
+      outputSummary: {
+        created: ["docs/channels.md"],
+        primaryOutputPath: "docs/channels.md",
+        outputCount: 1,
+      },
+    });
 
-    expect(collectLatestEndOfTaskArtifactCards([created, assistant])).toEqual([
+    expect(
+      collectLatestEndOfTaskArtifactCards([created, assistant, completed]),
+    ).toEqual([
       {
         path: "docs/channels.md",
         kind: "document",
-        eventId: "assistant",
-        lastReferenceIndex: 1,
-        lastReferenceTimestamp: 200,
+        eventId: "completed",
+        lastReferenceIndex: 2,
+        lastReferenceTimestamp: 300,
       },
     ]);
   });
@@ -814,21 +1420,100 @@ describe("isTaskActivelyWorking", () => {
 
   it("collapses matching artifact filenames to one bottom card", () => {
     const relative = makeEvent("relative", 100, "artifact_created", {
-      path: "cowork-os-presentation.pptx",
-      mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      path: "neoworker-presentation.pptx",
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     });
     const absolute = makeEvent("absolute", 200, "assistant_message", {
       message:
-        "Updated /Users/mesut/Downloads/app/cowork/cowork-os-presentation.pptx and verified the deck.",
+        "Updated /Users/mesut/Downloads/app/neoworker/neoworker-presentation.pptx and verified the deck.",
+    });
+    const completed = makeEvent("completed", 300, "task_completed", {
+      outputSummary: {
+        created: [
+          "/Users/mesut/Downloads/app/neoworker/neoworker-presentation.pptx",
+        ],
+        primaryOutputPath:
+          "/Users/mesut/Downloads/app/neoworker/neoworker-presentation.pptx",
+        outputCount: 1,
+      },
     });
 
-    expect(collectLatestEndOfTaskArtifactCards([relative, absolute])).toEqual([
+    expect(
+      collectLatestEndOfTaskArtifactCards([relative, absolute, completed]),
+    ).toEqual([
       {
-        path: "/Users/mesut/Downloads/app/cowork/cowork-os-presentation.pptx",
+        path: "/Users/mesut/Downloads/app/neoworker/neoworker-presentation.pptx",
         kind: "presentation",
-        eventId: "absolute",
-        lastReferenceIndex: 1,
-        lastReferenceTimestamp: 200,
+        eventId: "completed",
+        lastReferenceIndex: 2,
+        lastReferenceTimestamp: 300,
+      },
+    ]);
+  });
+
+  it("uses the workspace path instead of exposing a durable mirror path", () => {
+    const relative = makeEvent("relative", 100, "file_created", {
+      path: "artifacts/skills/task-1/ppt-master/output/presentation.pptx",
+    });
+    const durablePath =
+      "/Users/test/Library/Application Support/neoworker/artifacts/temporary-workspaces/ui-session-abc-deadbeef/artifacts/skills/task-1/ppt-master/output/presentation.pptx";
+    const durable = makeEvent("durable", 200, "artifact_created", {
+      path: durablePath,
+    });
+    const completed = makeEvent("completed", 300, "task_completed", {
+      outputSummary: {
+        created: [durablePath],
+        primaryOutputPath: durablePath,
+        outputCount: 1,
+      },
+    });
+
+    expect(
+      collectLatestEndOfTaskArtifactCards([relative, durable, completed]),
+    ).toEqual([
+      {
+        path: "artifacts/skills/task-1/ppt-master/output/presentation.pptx",
+        kind: "presentation",
+        eventId: "completed",
+        lastReferenceIndex: 2,
+        lastReferenceTimestamp: 300,
+      },
+    ]);
+  });
+
+  it("uses the moved destination path for filename-only artifact cards", () => {
+    const moved = makeEvent("moved", 100, "file_modified", {
+      action: "rename",
+      from: "/outside/report.docx",
+      to: "/outside/01-documents/report.docx",
+    });
+    const assistant = makeEvent("assistant", 200, "assistant_message", {
+      message: "文件已生成：report.docx",
+    });
+    const completed = makeEvent("completed", 300, "task_completed", {
+      outputSummary: {
+        created: ["/outside/01-documents/report.docx"],
+        primaryOutputPath: "/outside/01-documents/report.docx",
+        outputCount: 1,
+      },
+    });
+
+    expect(
+      resolveArtifactPathsAgainstTaskEvents(
+        ["report.docx"],
+        [moved, assistant],
+      ),
+    ).toEqual(["/outside/01-documents/report.docx"]);
+    expect(
+      collectLatestEndOfTaskArtifactCards([moved, assistant, completed]),
+    ).toEqual([
+      {
+        path: "/outside/01-documents/report.docx",
+        kind: "document",
+        eventId: "completed",
+        lastReferenceIndex: 2,
+        lastReferenceTimestamp: 300,
       },
     ]);
   });
@@ -911,9 +1596,20 @@ describe("isTaskActivelyWorking", () => {
     expect(isTaskActivelyWorking(task, events, false, 2_500)).toBe(false);
   });
 
+  it("marks executing tasks idle when the latest relevant event is a failed follow-up", () => {
+    const task = makeTask();
+    const events = [makeEvent("follow-up-failed", 2_000, "follow_up_failed")];
+
+    expect(isTaskActivelyWorking(task, events, false, 2_500)).toBe(false);
+  });
+
   it("does not treat generic error events as terminal while the task is still executing", () => {
     const task = makeTask();
-    const events = [makeEvent("tool-side-error", 2_000, "error", { error: "Image generation failed" })];
+    const events = [
+      makeEvent("tool-side-error", 2_000, "error", {
+        error: "Image generation failed",
+      }),
+    ];
 
     expect(isTaskActivelyWorking(task, events, false, 2_500)).toBe(true);
   });
@@ -921,6 +1617,17 @@ describe("isTaskActivelyWorking", () => {
   it("computes the correct bottom-scroll target", () => {
     expect(getAutoScrollTargetTop(1200, 400)).toBe(800);
     expect(getAutoScrollTargetTop(300, 400)).toBe(0);
+  });
+
+  it("pins the scroll container to its exact current bottom", () => {
+    const container = {
+      scrollTop: 125,
+      scrollHeight: 1800,
+      clientHeight: 500,
+    };
+
+    expect(pinScrollElementToBottom(container as HTMLElement)).toBe(1300);
+    expect(container.scrollTop).toBe(1300);
   });
 
   it("skips auto-scroll writes when already pinned to the same bottom target", () => {
@@ -1000,6 +1707,83 @@ describe("isTaskActivelyWorking", () => {
     ).toBe("inspect");
   });
 
+  it("bypasses the filtered live projection when execution records are enabled", () => {
+    expect(
+      shouldBypassLiveTaskEventProjection({
+        projectionMode: "live",
+        transcriptModeOverride: null,
+        verboseSteps: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldBypassLiveTaskEventProjection({
+        projectionMode: "live",
+        transcriptModeOverride: null,
+        verboseSteps: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldBypassLiveTaskEventProjection({
+        projectionMode: "inspect",
+        transcriptModeOverride: null,
+        verboseSteps: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps execution records visible until the user explicitly chooses summary mode", () => {
+    const mainContentSource = readFileSync(mainContentPath, "utf8");
+
+    expect(mainContentSource).toContain(
+      "const [verboseSteps, setVerboseSteps] = useState(true)",
+    );
+    expect(mainContentSource).not.toContain(
+      "settings.timelineVerbosityConfigured !== true",
+    );
+    expect(mainContentSource).toContain("const hasExplicitVerbosityChoice =");
+    expect(mainContentSource).toContain("timelineVerbosityConfigured: false");
+    expect(mainContentSource).toContain("timelineVerbosityConfigured: true");
+  });
+
+  it("reveals chat execution rows when records or replay are active", () => {
+    expect(
+      shouldShowChatTaskExecutionRows({
+        isChatTask: true,
+        verboseSteps: false,
+        isReplayMode: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowChatTaskExecutionRows({
+        isChatTask: true,
+        verboseSteps: true,
+        isReplayMode: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowChatTaskExecutionRows({
+        isChatTask: true,
+        verboseSteps: false,
+        isReplayMode: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("uses execution-record events throughout replay even when the toggle is off", () => {
+    expect(
+      shouldIncludeExecutionRecordEvents({
+        verboseSteps: false,
+        isReplayMode: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldIncludeExecutionRecordEvents({
+        verboseSteps: false,
+        isReplayMode: false,
+      }),
+    ).toBe(false);
+  });
+
   it("shows a bootstrap progress row while an active non-chat task has no visible feed rows", () => {
     expect(
       shouldShowBootstrapProgressRow({
@@ -1025,9 +1809,15 @@ describe("isTaskActivelyWorking", () => {
   });
 
   it("uses task status to label bootstrap progress", () => {
-    expect(getBootstrapProgressTitle(makeTask({ status: "planning" }))).toBe("Planning the approach");
-    expect(getBootstrapProgressTitle(makeTask({ status: "executing" }))).toBe("Thinking");
-    expect(getBootstrapProgressTitle(makeTask({ status: "interrupted" }))).toBe("Resuming work");
+    expect(getBootstrapProgressTitle(makeTask({ status: "planning" }))).toBe(
+      "Planning the approach",
+    );
+    expect(getBootstrapProgressTitle(makeTask({ status: "executing" }))).toBe(
+      "Thinking",
+    );
+    expect(getBootstrapProgressTitle(makeTask({ status: "interrupted" }))).toBe(
+      "Resuming work",
+    );
   });
 
   it("surfaces the latest active reasoning stream text for the live panel", () => {
@@ -1047,7 +1837,9 @@ describe("isTaskActivelyWorking", () => {
       isTaskWorking: true,
     });
 
-    expect(state.activeStreamText).toBe("I'm checking the repo and runtime state first.");
+    expect(state.activeStreamText).toBe(
+      "I'm checking the repo and runtime state first.",
+    );
     expect(state.isStreaming).toBe(true);
     expect(state.recentUpdates).toEqual(["Inspecting repository"]);
   });
@@ -1114,17 +1906,26 @@ describe("isTaskActivelyWorking", () => {
 
   it("detects when action block state contains stale ids", () => {
     expect(
-      hasInactiveStringSetEntries(new Set(["block-1", "block-2"]), new Set(["block-2", "block-3"])),
+      hasInactiveStringSetEntries(
+        new Set(["block-1", "block-2"]),
+        new Set(["block-2", "block-3"]),
+      ),
     ).toBe(true);
-    expect(hasInactiveStringSetEntries(new Set(["block-2"]), new Set(["block-2", "block-3"]))).toBe(
-      false,
-    );
+    expect(
+      hasInactiveStringSetEntries(
+        new Set(["block-2"]),
+        new Set(["block-2", "block-3"]),
+      ),
+    ).toBe(false);
   });
 
   it("prunes action block state down to active ids", () => {
-    expect(
-      [...pruneStringSetToActiveIds(new Set(["block-1", "block-2"]), new Set(["block-2", "block-3"]))],
-    ).toEqual(["block-2"]);
+    expect([
+      ...pruneStringSetToActiveIds(
+        new Set(["block-1", "block-2"]),
+        new Set(["block-2", "block-3"]),
+      ),
+    ]).toEqual(["block-2"]);
   });
 
   it("projects a bounded live transcript row set while preserving hidden count", () => {
@@ -1136,7 +1937,10 @@ describe("isTaskActivelyWorking", () => {
         timelineIndex: 0,
         visiblePerfEventId: "user-1",
         revision: "user-1",
-        item: { kind: "event", event: makeEvent("user-1", 100, "user_message", { message: "User" }) },
+        item: {
+          kind: "event",
+          event: makeEvent("user-1", 100, "user_message", { message: "User" }),
+        },
       },
       {
         kind: "timeline",
@@ -1147,7 +1951,9 @@ describe("isTaskActivelyWorking", () => {
         revision: "assistant-1",
         item: {
           kind: "event",
-          event: makeEvent("assistant-1", 200, "assistant_message", { message: "First answer" }),
+          event: makeEvent("assistant-1", 200, "assistant_message", {
+            message: "First answer",
+          }),
         },
       },
       ...Array.from({ length: 8 }, (_, index) => ({
@@ -1159,10 +1965,15 @@ describe("isTaskActivelyWorking", () => {
         revision: `progress-${index}`,
         item: {
           kind: "event",
-          event: makeEvent(`progress-${index}`, 300 + index, "timeline_step_updated", {
-            legacyType: "progress_update",
-            message: `Progress ${index}`,
-          }),
+          event: makeEvent(
+            `progress-${index}`,
+            300 + index,
+            "timeline_step_updated",
+            {
+              legacyType: "progress_update",
+              message: `Progress ${index}`,
+            },
+          ),
         },
       })),
       {
@@ -1191,9 +2002,15 @@ describe("isTaskActivelyWorking", () => {
     const result = selectVisibleTaskFeedRows(rows, "live");
 
     expect(result.visibleFeedRows.length).toBeLessThan(rows.length);
-    expect(result.hiddenLiveFeedRowCount).toBe(rows.length - result.visibleFeedRows.length);
-    expect(result.visibleFeedRows.some((row) => row.key === "action-block-1")).toBe(true);
-    expect(result.visibleFeedRows.some((row) => row.key === "assistant-1")).toBe(true);
+    expect(result.hiddenLiveFeedRowCount).toBe(
+      rows.length - result.visibleFeedRows.length,
+    );
+    expect(
+      result.visibleFeedRows.some((row) => row.key === "action-block-1"),
+    ).toBe(true);
+    expect(
+      result.visibleFeedRows.some((row) => row.key === "assistant-1"),
+    ).toBe(true);
   });
 
   it("keeps the full transcript visible in inspect mode", () => {
@@ -1232,7 +2049,9 @@ describe("isTaskActivelyWorking", () => {
         revision: "assistant-1",
         item: {
           kind: "event",
-          event: makeEvent("assistant-1", 200, "assistant_message", { message: "Answer" }),
+          event: makeEvent("assistant-1", 200, "assistant_message", {
+            message: "Answer",
+          }),
         },
       },
     ] as Any[];
@@ -1265,19 +2084,29 @@ describe("isTaskActivelyWorking", () => {
         revision: `progress-${index}`,
         item: {
           kind: "event",
-          event: makeEvent(`progress-${index}`, 100 + index, "timeline_step_updated", {
-            legacyType: "progress_update",
-            message: `Progress ${index}`,
-          }),
+          event: makeEvent(
+            `progress-${index}`,
+            100 + index,
+            "timeline_step_updated",
+            {
+              legacyType: "progress_update",
+              message: `Progress ${index}`,
+            },
+          ),
         },
       })),
     ] as Any[];
 
     const result = selectVisibleTaskFeedRows(rows, "live");
 
-    expect(result.visibleFeedRows.some((row) => row.key === "timeline-history-control")).toBe(false);
+    expect(
+      result.visibleFeedRows.some(
+        (row) => row.key === "timeline-history-control",
+      ),
+    ).toBe(false);
     expect(result.hiddenLiveFeedRowCount).toBe(
-      rows.filter((row) => row.kind !== "history-control").length - result.visibleFeedRows.length,
+      rows.filter((row) => row.kind !== "history-control").length -
+        result.visibleFeedRows.length,
     );
   });
 
@@ -1302,14 +2131,18 @@ describe("isTaskActivelyWorking", () => {
         revision: "assistant-1",
         item: {
           kind: "event",
-          event: makeEvent("assistant-1", 200, "assistant_message", { message: "Answer" }),
+          event: makeEvent("assistant-1", 200, "assistant_message", {
+            message: "Answer",
+          }),
         },
       },
     ] as Any[];
 
     const result = selectVisibleTaskFeedRows(rows, "live");
 
-    expect(result.visibleFeedRows.map((row) => row.key)).toEqual(["assistant-1"]);
+    expect(result.visibleFeedRows.map((row) => row.key)).toEqual([
+      "assistant-1",
+    ]);
     expect(result.hiddenLiveFeedRowCount).toBe(0);
   });
 
@@ -1322,7 +2155,10 @@ describe("isTaskActivelyWorking", () => {
         timelineIndex: 0,
         visiblePerfEventId: "user-1",
         revision: "user-1",
-        item: { kind: "event", event: makeEvent("user-1", 100, "user_message", { message: "User" }) },
+        item: {
+          kind: "event",
+          event: makeEvent("user-1", 100, "user_message", { message: "User" }),
+        },
       },
       {
         kind: "timeline",
@@ -1360,7 +2196,9 @@ describe("isTaskActivelyWorking", () => {
         revision: "assistant-1",
         item: {
           kind: "event",
-          event: makeEvent("assistant-1", 400, "assistant_message", { message: "Created sample.xlsx" }),
+          event: makeEvent("assistant-1", 400, "assistant_message", {
+            message: "Created sample.xlsx",
+          }),
         },
       },
       {
@@ -1384,18 +2222,128 @@ describe("isTaskActivelyWorking", () => {
     const result = selectVisibleTaskFeedRows(rows, "delivery");
 
     expect(result.visibleFeedRows.map((row) => row.key)).toEqual([
+      "user-1",
       "delivery-event:complete-1:2",
       "assistant-1",
       "end-artifact-stack",
     ]);
-    const completionRow = result.visibleFeedRows[0];
+    const completionRow = result.visibleFeedRows[1];
     expect(completionRow?.kind).toBe("timeline");
     if (completionRow?.kind !== "timeline") {
       throw new Error("Expected completion row to be a timeline event");
     }
     expect(completionRow.item.kind).toBe("event");
     expect(completionRow.item.event.id).toBe("complete-1");
-    expect(result.hiddenLiveFeedRowCount).toBe(1);
+    expect(result.hiddenLiveFeedRowCount).toBe(0);
+  });
+
+  it("keeps every follow-up question in delivery mode while hiding internal steps", () => {
+    const rows = [
+      {
+        kind: "timeline",
+        key: "user-2",
+        estimatedHeight: 100,
+        timelineIndex: 0,
+        visiblePerfEventId: "user-2",
+        revision: "user-2",
+        item: {
+          kind: "event",
+          event: makeEvent("user-2", 100, "user_message", {
+            message: "第二个问题",
+          }),
+        },
+      },
+      {
+        kind: "timeline",
+        key: "internal-step",
+        estimatedHeight: 100,
+        timelineIndex: 1,
+        visiblePerfEventId: "internal-step",
+        revision: "internal-step",
+        item: {
+          kind: "event",
+          event: makeEvent("internal-step", 200, "timeline_step_updated", {
+            legacyType: "progress_update",
+            message: "Working",
+          }),
+        },
+      },
+      {
+        kind: "timeline",
+        key: "assistant-2",
+        estimatedHeight: 100,
+        timelineIndex: 2,
+        visiblePerfEventId: "assistant-2",
+        revision: "assistant-2",
+        item: {
+          kind: "event",
+          event: makeEvent("assistant-2", 300, "assistant_message", {
+            message: "第二个回答",
+          }),
+        },
+      },
+      {
+        kind: "timeline",
+        key: "complete-2",
+        estimatedHeight: 100,
+        timelineIndex: 3,
+        visiblePerfEventId: "complete-2",
+        revision: "complete-2",
+        item: {
+          kind: "event",
+          event: makeEvent("complete-2", 400, "task_completed", {
+            resultSummary: "第二个回答",
+          }),
+        },
+      },
+    ] as Any[];
+
+    const result = selectVisibleTaskFeedRows(rows, "delivery");
+
+    expect(result.visibleFeedRows.map((row) => row.key)).toEqual([
+      "user-2",
+      "complete-2",
+    ]);
+  });
+
+  it("keeps three queued questions paired with their own three answers", () => {
+    const rows = [1, 2, 3].flatMap((turn) => {
+      const question = makeEvent(`user-${turn}`, turn * 1_000, "user_message", {
+        message: `问题 ${turn}`,
+      });
+      const answer = makeEvent(
+        `assistant-${turn}`,
+        turn * 1_000 + 100,
+        "assistant_message",
+        { message: `回答 ${turn}` },
+      );
+      const completion = makeEvent(
+        `complete-${turn}`,
+        turn * 1_000 + 200,
+        "task_completed",
+        { resultSummary: `回答 ${turn}` },
+      );
+      return [question, answer, completion].map((event, eventIndex) => ({
+        kind: "timeline",
+        key: event.id,
+        estimatedHeight: 100,
+        timelineIndex: turn * 10 + eventIndex,
+        visiblePerfEventId: event.id,
+        revision: event.id,
+        item: { kind: "event", event },
+      }));
+    }) as Any[];
+
+    const result = selectVisibleTaskFeedRows(rows, "delivery");
+
+    expect(result.visibleFeedRows.map((row) => row.key)).toEqual([
+      "user-1",
+      "complete-1",
+      "user-2",
+      "complete-2",
+      "user-3",
+      "complete-3",
+    ]);
   });
 
   it("keeps action-required and critical terminal rows in delivery mode", () => {
@@ -1439,14 +2387,19 @@ describe("isTaskActivelyWorking", () => {
         revision: "error-1",
         item: {
           kind: "event",
-          event: makeEvent("error-1", 300, "error", { message: "Verification failed" }),
+          event: makeEvent("error-1", 300, "error", {
+            message: "Verification failed",
+          }),
         },
       },
     ] as Any[];
 
     const result = selectVisibleTaskFeedRows(rows, "delivery");
 
-    expect(result.visibleFeedRows.map((row) => row.key)).toEqual(["needs-action", "error-1"]);
+    expect(result.visibleFeedRows.map((row) => row.key)).toEqual([
+      "needs-action",
+      "error-1",
+    ]);
   });
 
   it("keeps collapsed action block estimates compact for virtualized history views", () => {
@@ -1509,18 +2462,52 @@ describe("isTaskActivelyWorking", () => {
   });
 
   it("only suppresses run_command terminals for visible expanded rows", () => {
-    const hiddenRunCommand = makeEvent("tool-call-hidden", 100, "timeline_step_updated", {
-      legacyType: "tool_call",
-      tool: "run_command",
-    });
-    const visibleRead = makeEvent("tool-call-visible", 200, "timeline_step_updated", {
-      legacyType: "tool_call",
-      tool: "read_file",
-    });
+    const hiddenRunCommand = makeEvent(
+      "tool-call-hidden",
+      100,
+      "timeline_step_updated",
+      {
+        legacyType: "tool_call",
+        tool: "run_command",
+      },
+    );
+    const visibleRead = makeEvent(
+      "tool-call-visible",
+      200,
+      "timeline_step_updated",
+      {
+        legacyType: "tool_call",
+        tool: "read_file",
+      },
+    );
 
     const sessionsByIndex = new Map([
-      [0, [{ id: "cmd-hidden", command: "npm test", output: "ok", isRunning: false, exitCode: 0, startTimestamp: 100 }]],
-      [1, [{ id: "cmd-visible", command: "cat file", output: "ok", isRunning: false, exitCode: 0, startTimestamp: 200 }]],
+      [
+        0,
+        [
+          {
+            id: "cmd-hidden",
+            command: "npm test",
+            output: "ok",
+            isRunning: false,
+            exitCode: 0,
+            startTimestamp: 100,
+          },
+        ],
+      ],
+      [
+        1,
+        [
+          {
+            id: "cmd-visible",
+            command: "cat file",
+            output: "ok",
+            isRunning: false,
+            exitCode: 0,
+            startTimestamp: 200,
+          },
+        ],
+      ],
     ]);
 
     const hiddenIds = collectInlineRunCommandSessionIds({

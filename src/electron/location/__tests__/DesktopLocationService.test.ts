@@ -106,7 +106,7 @@ describe("MacOSCoreLocationProvider", () => {
         "--timeout-ms",
         "5000",
         "--response-file",
-        expect.stringMatching(/^\/tmp\/cowork-location-/),
+        expect.stringMatching(/^\/tmp\/neoworker-location-/),
       ],
       expect.objectContaining({ timeout: 6000 }),
     );
@@ -129,8 +129,8 @@ describe("MacOSCoreLocationProvider", () => {
     const provider = new MacOSCoreLocationProvider({
       platform: "darwin",
       existsSync: (candidate) =>
-        candidate === "/app/build/location-helper-macos/CoWorkLocationHelper.app" ||
-        candidate.startsWith("/tmp/cowork-location-"),
+        candidate === "/app/build/location-helper-macos/NeoWorkerLocationHelper.app" ||
+        candidate.startsWith("/tmp/neoworker-location-"),
       runner,
       readFileSync: vi.fn(() => response) as Any,
       unlinkSync,
@@ -148,18 +148,18 @@ describe("MacOSCoreLocationProvider", () => {
       [
         "-W",
         "-n",
-        "/app/build/location-helper-macos/CoWorkLocationHelper.app",
+        "/app/build/location-helper-macos/NeoWorkerLocationHelper.app",
         "--args",
         "--accuracy",
         "precise",
         "--timeout-ms",
         "7000",
         "--response-file",
-        expect.stringMatching(/^\/tmp\/cowork-location-/),
+        expect.stringMatching(/^\/tmp\/neoworker-location-/),
       ],
       expect.objectContaining({ timeout: 10000 }),
     );
-    expect(unlinkSync).toHaveBeenCalledWith(expect.stringMatching(/^\/tmp\/cowork-location-/));
+    expect(unlinkSync).toHaveBeenCalledWith(expect.stringMatching(/^\/tmp\/neoworker-location-/));
     cwd.mockRestore();
     vi.restoreAllMocks();
   });
@@ -266,7 +266,7 @@ describe("WindowsLocationProvider", () => {
         "--timeout-ms",
         "5000",
         "--response-file",
-        expect.stringMatching(/^\/tmp\/cowork-location-/),
+        expect.stringMatching(/^\/tmp\/neoworker-location-/),
       ]),
       expect.objectContaining({ timeout: 8000 }),
     );
@@ -324,7 +324,7 @@ describe("WindowsLocationProvider", () => {
     const result = await provider.getCurrentLocation();
 
     expect(result.source).toBe("windows_location");
-    expect(unlinkSync).toHaveBeenCalledWith(expect.stringMatching(/^\/tmp\/cowork-location-/));
+    expect(unlinkSync).toHaveBeenCalledWith(expect.stringMatching(/^\/tmp\/neoworker-location-/));
     vi.restoreAllMocks();
   });
 
@@ -402,7 +402,7 @@ describe("LinuxGeoClueProvider", () => {
         "--timeout-ms",
         "8000",
         "--response-file",
-        expect.stringMatching(/^\/tmp\/cowork-location-/),
+        expect.stringMatching(/^\/tmp\/neoworker-location-/),
       ],
       expect.objectContaining({ timeout: 11000 }),
     );
@@ -460,7 +460,7 @@ describe("LinuxGeoClueProvider", () => {
     const result = await provider.getCurrentLocation();
 
     expect(result.source).toBe("linux_geoclue");
-    expect(unlinkSync).toHaveBeenCalledWith(expect.stringMatching(/^\/tmp\/cowork-location-/));
+    expect(unlinkSync).toHaveBeenCalledWith(expect.stringMatching(/^\/tmp\/neoworker-location-/));
     vi.restoreAllMocks();
   });
 

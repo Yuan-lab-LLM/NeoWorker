@@ -49,8 +49,8 @@ describe("enqueueTaskEventTelemetry", () => {
 
     expect(span.traceId).toMatch(/^[a-f0-9]{32}$/);
     expect(span.spanId).toMatch(/^[a-f0-9]{16}$/);
-    expect(attrs["cowork.payload_json"]).toBeUndefined();
-    expect(attrs["cowork.payload_keys"]).toBe("command,[REDACTED_KEY],output");
+    expect(attrs["neoworker.payload_json"]).toBeUndefined();
+    expect(attrs["neoworker.payload_keys"]).toBe("command,[REDACTED_KEY],output");
     expect(serialized).not.toContain("sk-testsecret");
     expect(serialized).not.toContain("ghp_secret");
     expect(serialized).not.toContain("secretsecretsecretsecret");

@@ -1,4 +1,10 @@
-import type { PersonalityId, PersonaId, EmojiUsage, PersonalityQuirks } from "../../shared/types";
+import type {
+  PersonalityId,
+  PersonaId,
+  EmojiUsage,
+  PersonalityQuirks,
+} from "../../shared/types";
+import { translate } from "../i18n";
 
 /**
  * Message keys used throughout the app
@@ -171,7 +177,8 @@ export type UiCopyKey =
 
 const UI_COPY: Record<UiCopyKey, string> = {
   taskViewEmptyTitle: "No session selected",
-  taskViewEmptyBody: "Pick a session from the sidebar or start a new one to work together",
+  taskViewEmptyBody:
+    "Pick a session from the sidebar or start a new one to work together",
   taskPromptTitle: "What We're Working On",
   taskStatusPausedTitle: "Paused - waiting on your input",
   taskStatusBlockedTitle: "Blocked - needs approval",
@@ -259,7 +266,8 @@ const UI_COPY: Record<UiCopyKey, string> = {
   standupInProgressEmpty: "No tasks in progress",
   standupBlockedEmpty: "No blocked tasks",
   mcpEmptyTitle: "No MCP servers configured.",
-  mcpEmptyHint: 'Click "Add Server" to connect to an MCP server and extend CoWork\'s capabilities.',
+  mcpEmptyHint:
+    'Click "Add Server" to connect to an MCP server and extend NeoWorker\'s capabilities.',
   scheduledNoWorkspaces: "No workspaces available",
   standupLoading: "Loading standup reports...",
   taskBoardLoading: "Loading task board...",
@@ -300,10 +308,13 @@ const UI_COPY: Record<UiCopyKey, string> = {
   canvasLoading: "Loading canvas...",
 };
 
-const PERSONA_UI_OVERRIDES: Partial<Record<PersonaId, Partial<Record<UiCopyKey, string>>>> = {
+const PERSONA_UI_OVERRIDES: Partial<
+  Record<PersonaId, Partial<Record<UiCopyKey, string>>>
+> = {
   companion: {
     taskViewEmptyTitle: "No session selected yet",
-    taskViewEmptyBody: "Pick a session from the sidebar or start a new one, and we'll begin.",
+    taskViewEmptyBody:
+      "Pick a session from the sidebar or start a new one, and we'll begin.",
     taskPromptTitle: "What we're working on",
     taskStatusPausedTitle: "Paused - I'm waiting on your cue.",
     taskStatusBlockedTitle: "Blocked - I need your approval.",
@@ -378,7 +389,7 @@ const PERSONA_UI_OVERRIDES: Partial<Record<PersonaId, Partial<Record<UiCopyKey, 
     standupBlockedEmpty: "No blocked tasks",
     mcpEmptyTitle: "No MCP servers configured.",
     mcpEmptyHint:
-      'Click "Add Server" to connect to an MCP server and extend CoWork\'s capabilities.',
+      'Click "Add Server" to connect to an MCP server and extend NeoWorker\'s capabilities.',
     scheduledNoWorkspaces: "No workspaces available",
     standupLoading: "Loading standup reports...",
     taskBoardLoading: "Getting the board ready...",
@@ -426,13 +437,17 @@ export function getUiCopy(
   replacements: Record<string, string | number> = {},
 ): string {
   const base = UI_COPY[key] || key;
-  const override = ctx.persona ? PERSONA_UI_OVERRIDES[ctx.persona]?.[key] : undefined;
-  const template = override || base;
+  const override = ctx.persona
+    ? PERSONA_UI_OVERRIDES[ctx.persona]?.[key]
+    : undefined;
+  const template = translate(`agent.ui.${key}`, override || base);
 
   if (!template) return key;
 
   const userName = ctx.userName || "";
-  let result = template.replace("{agentName}", ctx.agentName).replace("{userName}", userName);
+  let result = template
+    .replace("{agentName}", ctx.agentName)
+    .replace("{userName}", userName);
 
   Object.entries(replacements).forEach(([token, value]) => {
     result = result.replace(new RegExp(`\\{${token}\\}`, "g"), String(value));
@@ -441,7 +456,9 @@ export function getUiCopy(
   return result;
 }
 
-const PERSONA_MESSAGE_OVERRIDES: Partial<Record<PersonaId, Partial<Record<MessageKey, string>>>> = {
+const PERSONA_MESSAGE_OVERRIDES: Partial<
+  Record<PersonaId, Partial<Record<MessageKey, string>>>
+> = {
   companion: {
     welcome: "{agentName} here{userGreeting}. I'm with you.",
     welcomeSubtitle: "Tell me what you want to make or solve.",
@@ -461,7 +478,8 @@ const PERSONA_MESSAGE_OVERRIDES: Partial<Record<PersonaId, Partial<Record<Messag
     verifyPassed: "Looks good.",
     verifyFailed: "Not quite right yet.",
     retrying: "Trying again (attempt {n}).",
-    disclaimer: "{agentName} can make mistakes. Please check anything important.",
+    disclaimer:
+      "{agentName} can make mistakes. Please check anything important.",
   },
 };
 
@@ -496,7 +514,8 @@ const MESSAGES: Record<PersonalityId, Record<MessageKey, string>> = {
     verifyPassed: "Verification passed.",
     verifyFailed: "Verification failed.",
     retrying: "Retrying (attempt {n}).",
-    disclaimer: "Cowork OS can make mistakes. Please verify important information.",
+    disclaimer:
+      "NeoWorker OS can make mistakes. Please verify important information.",
   },
   friendly: {
     welcome: "Hey{userGreeting}! {agentName} here.",
@@ -517,7 +536,8 @@ const MESSAGES: Record<PersonalityId, Record<MessageKey, string>> = {
     verifyPassed: "Looks good!",
     verifyFailed: "Not quite right.",
     retrying: "Trying again (#{n}).",
-    disclaimer: "{agentName} can make mistakes. Double-check anything important!",
+    disclaimer:
+      "{agentName} can make mistakes. Double-check anything important!",
   },
   concise: {
     welcome: "{agentName} ready{userGreeting}.",
@@ -559,7 +579,8 @@ const MESSAGES: Record<PersonalityId, Record<MessageKey, string>> = {
     verifyPassed: "It shines!",
     verifyFailed: "Needs refinement.",
     retrying: "A fresh canvas (take {n}).",
-    disclaimer: "{agentName} is creative, not infallible. Verify the important bits.",
+    disclaimer:
+      "{agentName} is creative, not infallible. Verify the important bits.",
   },
   technical: {
     welcome: "{agentName} online{userGreeting}.",
@@ -580,7 +601,8 @@ const MESSAGES: Record<PersonalityId, Record<MessageKey, string>> = {
     verifyPassed: "Verification: PASS.",
     verifyFailed: "Verification: FAIL.",
     retrying: "Retry attempt {n}.",
-    disclaimer: "{agentName} output may contain errors. Validate critical data.",
+    disclaimer:
+      "{agentName} output may contain errors. Validate critical data.",
   },
   casual: {
     welcome: "Yo{userGreeting}! {agentName} here.",
@@ -622,14 +644,19 @@ const MESSAGES: Record<PersonalityId, Record<MessageKey, string>> = {
     verifyPassed: "Passed.",
     verifyFailed: "Failed.",
     retrying: "Retrying ({n}).",
-    disclaimer: "Cowork OS can make mistakes. Please verify important information.",
+    disclaimer:
+      "NeoWorker OS can make mistakes. Please verify important information.",
   },
 };
 
 /**
  * Add emoji based on emojiUsage setting
  */
-function addEmoji(message: string, key: MessageKey, emojiUsage: EmojiUsage): string {
+function addEmoji(
+  message: string,
+  key: MessageKey,
+  emojiUsage: EmojiUsage,
+): string {
   if (emojiUsage === "none") return message;
 
   const emojiMap: Partial<Record<MessageKey, string>> = {
@@ -657,7 +684,11 @@ function addEmoji(message: string, key: MessageKey, emojiUsage: EmojiUsage): str
 /**
  * Get a personalized message
  */
-export function getMessage(key: MessageKey, ctx: AgentMessageContext, detail?: string): string {
+export function getMessage(
+  key: MessageKey,
+  ctx: AgentMessageContext,
+  detail?: string,
+): string {
   const { agentName, userName, personality, emojiUsage, quirks, persona } = ctx;
 
   // Get base message for personality
@@ -671,6 +702,8 @@ export function getMessage(key: MessageKey, ctx: AgentMessageContext, detail?: s
       message = personaOverrides[key] as string;
     }
   }
+
+  message = translate(`agent.message.${key}`, message);
 
   // Replace placeholders
   const userGreeting = userName ? `, ${userName}` : "";
@@ -698,7 +731,11 @@ export function getRandomPlaceholder(ctx: AgentMessageContext): string {
   const { personality, userName, agentName, persona } = ctx;
 
   const placeholders: Record<PersonalityId, string[]> = {
-    professional: ["What can I help with?", "How may I assist?", `${agentName} standing by.`],
+    professional: [
+      "What can I help with?",
+      "How may I assist?",
+      `${agentName} standing by.`,
+    ],
     friendly: [
       "What's on your mind?",
       "What's up?",
@@ -706,7 +743,11 @@ export function getRandomPlaceholder(ctx: AgentMessageContext): string {
       userName ? `What's next, ${userName}?` : "What's next?",
     ],
     concise: ["Task?", "Input?", "Next?"],
-    creative: ["What shall we create?", "What adventure awaits?", "Let's make something."],
+    creative: [
+      "What shall we create?",
+      "What adventure awaits?",
+      "Let's make something.",
+    ],
     technical: ["Enter command.", "Awaiting input.", `${agentName} ready.`],
     casual: [
       "So what's the plan?",
@@ -725,7 +766,8 @@ export function getRandomPlaceholder(ctx: AgentMessageContext): string {
   if (persona === "companion" && userName) {
     options.push(`What's next, ${userName}?`);
   }
-  return options[Math.floor(Math.random() * options.length)];
+  const message = options[Math.floor(Math.random() * options.length)];
+  return translate("agent.message.placeholder", message, { message });
 }
 
 export default getMessage;

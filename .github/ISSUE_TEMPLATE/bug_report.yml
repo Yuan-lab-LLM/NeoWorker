@@ -87,5 +87,5 @@ body:
       options:
         - label: I have searched existing issues to ensure this bug hasn't been reported
           required: true
-        - label: I am using the latest version of CoWork-OSS
+        - label: I am using the latest version of NeoWorker
           required: false

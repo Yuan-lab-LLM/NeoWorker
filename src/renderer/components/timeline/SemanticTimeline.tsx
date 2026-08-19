@@ -11,14 +11,25 @@
  * frame. A "Show all" toggle expands to the full list.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { UiTimelineEvent } from "../../../shared/timeline-events";
 import type { TaskEvent, TimelineVerbosity } from "../../../shared/types";
 import { VirtualList } from "../VirtualList";
-import { getGlobalMeasurer, isPretextEnabled } from "../../utils/pretext-adapter";
+import {
+  getGlobalMeasurer,
+  isPretextEnabled,
+} from "../../utils/pretext-adapter";
 import { AgentEventCard } from "./AgentEventCard";
 import { ApprovalEventCard } from "./ApprovalEventCard";
 import { SummaryEventCard } from "./SummaryEventCard";
+import { translate, useLanguage } from "../../i18n";
 
 const WINDOW_SIZE = 6;
 const VIRTUALIZE_THRESHOLD = 50;
@@ -31,19 +42,32 @@ const TIMELINE_HORIZONTAL_CHROME = 96;
 // Phase chip strip
 // ---------------------------------------------------------------------------
 
-const PHASE_ORDER = ["intake", "plan", "explore", "execute", "verify", "complete"] as const;
+const PHASE_ORDER = [
+  "intake",
+  "plan",
+  "explore",
+  "execute",
+  "verify",
+  "complete",
+] as const;
 
 type TimelinePhase = (typeof PHASE_ORDER)[number];
 
 function PhaseChips({ activePhases }: { activePhases: Set<TimelinePhase> }) {
+  useLanguage();
+  const t = translate;
   return (
-    <div className="semantic-timeline-phases" role="navigation" aria-label="Timeline phases">
+    <div
+      className="semantic-timeline-phases"
+      role="navigation"
+      aria-label={t("timeline.phases", "Timeline phases")}
+    >
       {PHASE_ORDER.map((phase) => (
         <span
           key={phase}
           className={`phase-chip phase-chip-${phase} ${activePhases.has(phase) ? "active" : "inactive"}`}
         >
-          {phase}
+          {t(`timeline.phase.${phase}`, phase)}
         </span>
       ))}
     </div>
@@ -60,6 +84,8 @@ interface VerbosityToggleProps {
 }
 
 function VerbosityToggle({ verbosity, onChange }: VerbosityToggleProps) {
+  useLanguage();
+  const t = translate;
   return (
     <div className="semantic-timeline-verbosity-toggle">
       <button
@@ -68,7 +94,7 @@ function VerbosityToggle({ verbosity, onChange }: VerbosityToggleProps) {
         onClick={() => onChange("summary")}
         aria-pressed={verbosity === "summary"}
       >
-        Concise
+        {t("timeline.concise", "Concise")}
       </button>
       <button
         type="button"
@@ -76,7 +102,7 @@ function VerbosityToggle({ verbosity, onChange }: VerbosityToggleProps) {
         onClick={() => onChange("verbose")}
         aria-pressed={verbosity === "verbose"}
       >
-        Verbose
+        {t("timeline.verbose", "Verbose")}
       </button>
     </div>
   );
@@ -93,6 +119,8 @@ interface ShowAllToggleProps {
 }
 
 function ShowAllToggle({ showAll, totalCount, onChange }: ShowAllToggleProps) {
+  useLanguage();
+  const t = translate;
   return (
     <button
       type="button"
@@ -100,12 +128,17 @@ function ShowAllToggle({ showAll, totalCount, onChange }: ShowAllToggleProps) {
       onClick={() => onChange(!showAll)}
       aria-pressed={showAll}
     >
-      {showAll ? "Show less" : `Show all (${totalCount})`}
+      {showAll
+        ? t("common.showLess", "Show less")
+        : t("timeline.showAll", "Show all ({count})", { count: totalCount })}
     </button>
   );
 }
 
-function estimateTimelineCardChrome(event: UiTimelineEvent, isVerbose: boolean): number {
+function estimateTimelineCardChrome(
+  event: UiTimelineEvent,
+  isVerbose: boolean,
+): number {
   let chrome = 34;
 
   if (event.kind === "approval") {
@@ -116,7 +149,8 @@ function estimateTimelineCardChrome(event: UiTimelineEvent, isVerbose: boolean):
   }
 
   const defaultExpanded =
-    event.kind === "approval" || (event.kind === "summary" && isVerbose) ||
+    event.kind === "approval" ||
+    (event.kind === "summary" && isVerbose) ||
     (event.kind === "agent" && (isVerbose || event.status === "running"));
 
   if (defaultExpanded) {
@@ -198,12 +232,17 @@ export function SemanticTimeline({
   hideVerbosityToggle = false,
   hidePhaseChips = false,
 }: SemanticTimelineProps) {
-  const [verbosity, setVerbosity] = useState<TimelineVerbosity>(initialVerbosity);
+  const [verbosity, setVerbosity] =
+    useState<TimelineVerbosity>(initialVerbosity);
   const [showAll, setShowAll] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
-  const [measuredHeights, setMeasuredHeights] = useState<Record<string, number>>({});
+  const [measuredHeights, setMeasuredHeights] = useState<
+    Record<string, number>
+  >({});
   const [containerWidth, setContainerWidth] = useState(0);
-  const useVirtual = events.length > VIRTUALIZE_THRESHOLD || (!showAll && isPretextEnabled() && events.length > WINDOW_SIZE);
+  const useVirtual =
+    events.length > VIRTUALIZE_THRESHOLD ||
+    (!showAll && isPretextEnabled() && events.length > WINDOW_SIZE);
 
   const activePhases = useMemo(() => {
     const phases = new Set<TimelinePhase>();
@@ -217,7 +256,9 @@ export function SemanticTimeline({
 
   const isVerbose = verbosity === "verbose";
   const isWindowed = !showAll;
-  const visibleEvents = isWindowed ? events.slice(-WINDOW_SIZE) : events.slice(-MAX_SHOW_ALL_EVENTS);
+  const visibleEvents = isWindowed
+    ? events.slice(-WINDOW_SIZE)
+    : events.slice(-MAX_SHOW_ALL_EVENTS);
 
   // Auto-scroll to bottom in windowed mode when events change
   useEffect(() => {
@@ -269,9 +310,14 @@ export function SemanticTimeline({
     return () => observer.disconnect();
   }, [useVirtual]);
 
-  const handleMeasuredHeight = useCallback((eventId: string, height: number) => {
-    setMeasuredHeights((prev) => (prev[eventId] === height ? prev : { ...prev, [eventId]: height }));
-  }, []);
+  const handleMeasuredHeight = useCallback(
+    (eventId: string, height: number) => {
+      setMeasuredHeights((prev) =>
+        prev[eventId] === height ? prev : { ...prev, [eventId]: height },
+      );
+    },
+    [],
+  );
 
   const getItemHeight = useCallback(
     (event: UiTimelineEvent) => {
@@ -280,7 +326,10 @@ export function SemanticTimeline({
         return measuredHeight;
       }
 
-      const textWidth = Math.max((containerWidth || 400) - TIMELINE_HORIZONTAL_CHROME, 140);
+      const textWidth = Math.max(
+        (containerWidth || 400) - TIMELINE_HORIZONTAL_CHROME,
+        140,
+      );
       const textHeight = getGlobalMeasurer().getHeight(
         extractMeasurableText(event),
         textWidth,
@@ -354,7 +403,11 @@ export function SemanticTimeline({
               <VerbosityToggle verbosity={verbosity} onChange={setVerbosity} />
             )}
             {events.length > WINDOW_SIZE && (
-              <ShowAllToggle showAll={showAll} totalCount={events.length} onChange={setShowAll} />
+              <ShowAllToggle
+                showAll={showAll}
+                totalCount={events.length}
+                onChange={setShowAll}
+              />
             )}
           </div>
         </div>
@@ -371,7 +424,10 @@ export function SemanticTimeline({
             getItemKey={(event) => event.id}
             getItemHeight={getItemHeight}
             renderItem={(event, index) => (
-              <MeasuredTimelineItem eventId={event.id} onHeightChange={handleMeasuredHeight}>
+              <MeasuredTimelineItem
+                eventId={event.id}
+                onHeightChange={handleMeasuredHeight}
+              >
                 {renderCard(event, index)}
               </MeasuredTimelineItem>
             )}
@@ -391,7 +447,10 @@ export function SemanticTimeline({
           <div className="semantic-timeline-feed" role="list">
             {visibleEvents.map((event, index) => (
               <div key={event.id} role="listitem">
-                {renderCard(event, isWindowed ? events.length - WINDOW_SIZE + index : index)}
+                {renderCard(
+                  event,
+                  isWindowed ? events.length - WINDOW_SIZE + index : index,
+                )}
               </div>
             ))}
           </div>

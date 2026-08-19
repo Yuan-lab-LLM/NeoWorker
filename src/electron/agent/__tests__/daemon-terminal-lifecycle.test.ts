@@ -115,6 +115,7 @@ describe("AgentDaemon terminal lifecycle helpers", () => {
       cleanupPendingApprovalsForTask: vi.fn(),
       clearRetryState: vi.fn(),
       clearTimelineTaskState: vi.fn(),
+      finishTimelineDeliveryStage: vi.fn(),
       finishQueueSlot: vi.fn(),
       logEvent: vi.fn(),
       teamOrchestrator: null,
@@ -144,6 +145,7 @@ describe("AgentDaemon terminal lifecycle helpers", () => {
       }),
     );
     expect(daemonLike.clearRetryState).toHaveBeenCalledWith("task-paused");
+    expect(daemonLike.finishTimelineDeliveryStage).toHaveBeenCalledWith("task-paused");
     expect(daemonLike.finishQueueSlot).toHaveBeenCalledWith("task-paused");
   });
 

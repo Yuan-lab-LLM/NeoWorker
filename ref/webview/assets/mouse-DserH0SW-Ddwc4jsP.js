@@ -1,0 +1,3 @@
+import { n as e, t } from "./mouse-DserH0SW-pSVHKOcm.js";
+t();
+export { e as default };

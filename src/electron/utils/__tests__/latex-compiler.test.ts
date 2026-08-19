@@ -7,7 +7,7 @@ import { compileLatex, findLatexEngine } from "../document-generators/latex-comp
 
 describe("latex compiler", () => {
   async function makeWorkspace(): Promise<string> {
-    const workspace = path.join(os.tmpdir(), `cowork-latex-${randomUUID()}`);
+    const workspace = path.join(os.tmpdir(), `neoworker-latex-${randomUUID()}`);
     await fs.mkdir(workspace, { recursive: true });
     return workspace;
   }

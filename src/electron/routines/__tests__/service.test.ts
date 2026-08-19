@@ -136,7 +136,7 @@ describeWithSqlite("RoutineService", () => {
           runMode: "thread_follow_up",
           targetTaskId: "task-existing",
           sourceTaskTitle: "Original Task",
-          sourceLink: "cowork://tasks/task-existing",
+          sourceLink: "neoworker://tasks/task-existing",
           threadAutomation: "true",
         },
       },
@@ -169,7 +169,7 @@ describeWithSqlite("RoutineService", () => {
         threadAutomation: expect.objectContaining({
           sourceTaskId: "task-existing",
           sourceTaskTitle: "Original Task",
-          sourceLink: "cowork://tasks/task-existing",
+          sourceLink: "neoworker://tasks/task-existing",
         }),
       }),
     );

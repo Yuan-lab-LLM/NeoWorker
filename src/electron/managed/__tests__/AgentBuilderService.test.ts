@@ -154,6 +154,57 @@ describe("AgentBuilderService helpers", () => {
     expect(plan.sharing).toEqual({ visibility: "private", ownerLabel: "You" });
   });
 
+  it("uses the Chinese task to give fallback plans meaningful, distinct names", () => {
+    const questionAgent = buildFallbackAgentPlan(
+      { prompt: "创建一个团队问答智能体，使用工作区里的文档回答问题。" },
+      baseInventory,
+      { now: () => 123, randomId: () => "question-agent" },
+    );
+    const triageAgent = buildFallbackAgentPlan(
+      { prompt: "创建一个缺陷分诊智能体，审查新进缺陷并判断优先级。" },
+      baseInventory,
+      { now: () => 123, randomId: () => "triage-agent" },
+    );
+
+    expect(questionAgent.name).toBe("团队问答智能体");
+    expect(triageAgent.name).toBe("缺陷分诊智能体");
+    expect(questionAgent.name).not.toBe(triageAgent.name);
+    expect(questionAgent.name).not.toBe("Personal Agent");
+  });
+
+  it("replaces a generic model-generated name with the task-derived Chinese name", async () => {
+    const service = new AgentBuilderService({
+      now: () => 123,
+      randomId: () => "generic-name-plan",
+      getSelectedModel: () => "test-model",
+      createProvider: () =>
+        ({
+          createMessage: async () => ({
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  name: "Personal Agent",
+                  description: "处理团队问答。",
+                  selectedMcpServers: [],
+                  selectedSkills: [],
+                  selectedToolFamilies: ["files", "search"],
+                  missingConnections: [],
+                }),
+              },
+            ],
+          }),
+        }) as Any,
+    });
+
+    const plan = await service.generatePlan(
+      { prompt: "创建一个团队问答智能体，使用工作区里的文档回答问题。" },
+      baseInventory,
+    );
+
+    expect(plan.name).toBe("团队问答智能体");
+  });
+
   it("selects explicitly named Gmail only when it is enabled and otherwise marks it missing", () => {
     const enabledInventory: AgentBuilderInventory = {
       ...baseInventory,

@@ -25,8 +25,8 @@ describe("isSpawnSubagentsPrompt", () => {
     expect(isSpawnSubagentsPrompt("spawn sub-agents to explore the repo")).toBe(true);
   });
 
-  it("returns true for 'Spawn 3 subagents to explore the cowork os repo'", () => {
-    expect(isSpawnSubagentsPrompt("Spawn 3 subagents to explore the cowork os repo")).toBe(true);
+  it("returns true for 'Spawn 3 subagents to explore the neoworker os repo'", () => {
+    expect(isSpawnSubagentsPrompt("Spawn 3 subagents to explore the neoworker os repo")).toBe(true);
   });
 
   it("returns true for 'SPAWN SUBAGENTS' (case insensitive)", () => {

@@ -1,10 +1,10 @@
-# Migrating to CoWork OS
+# Migrating to NeoWorker
 
-This guide helps users transition from other AI assistant platforms or set up CoWork OS alongside existing tools.
+This guide helps users transition from other AI assistant platforms or set up NeoWorker alongside existing tools.
 
 ## Overview
 
-CoWork OS is a security-first, GUI-first local AI super app and everything app that runs on macOS and Windows. If you're coming from another multi-channel AI platform, CLI-first agent runner, or self-hosted assistant, this guide will help you move into one app for coding, email, documents, spreadsheets, presentations, browser work, agents, and automations.
+NeoWorker is a security-first, GUI-first local AI super app and everything app that runs on macOS and Windows. If you're coming from another multi-channel AI platform, CLI-first agent runner, or self-hosted assistant, this guide will help you move into one app for coding, email, documents, spreadsheets, presentations, browser work, agents, and automations.
 
 ---
 
@@ -15,8 +15,8 @@ CoWork OS is a security-first, GUI-first local AI super app and everything app t
 If you're already using messaging channels with another AI platform, you can reuse most of your existing setup:
 
 #### WhatsApp
-- **Same phone**: CoWork OS uses Web WhatsApp (Baileys library), just like other platforms
-- **New QR scan**: You'll need to scan a new QR code in CoWork OS Settings
+- **Same phone**: NeoWorker uses Web WhatsApp (Baileys library), just like other platforms
+- **New QR scan**: You'll need to scan a new QR code in NeoWorker Settings
 - **Note**: WhatsApp allows multiple linked devices, so you can run both platforms during transition
 
 #### Telegram
@@ -26,24 +26,24 @@ If you're already using messaging channels with another AI platform, you can reu
 
 #### Discord
 - **Same application**: You can reuse your Discord application and bot token
-- **Guild commands**: If using guild-specific commands, update the Guild IDs in CoWork OS
+- **Guild commands**: If using guild-specific commands, update the Guild IDs in NeoWorker
 - **Note**: Only one client can connect with the same token at a time
 
 #### Slack
 - **Same app tokens**: You can reuse your Slack app's Bot Token and App-Level Token
-- **Socket Mode**: CoWork OS uses Socket Mode, same as most other platforms
+- **Socket Mode**: NeoWorker uses Socket Mode, same as most other platforms
 - **Note**: Only one connection per token is allowed
 
 #### iMessage
 - **macOS only**: iMessage integration requires macOS and the `imsg` CLI tool
 - **Setup**: Install via `brew install steipete/tap/imsg`
-- **Unique to CoWork OS**: Most platforms don't support iMessage
+- **Unique to NeoWorker**: Most platforms don't support iMessage
 
 ---
 
 ## What You'll Gain
 
-Moving to CoWork OS provides several advantages:
+Moving to NeoWorker provides several advantages:
 
 ### Security Features
 
@@ -74,7 +74,7 @@ Moving to CoWork OS provides several advantages:
 
 ### Architecture
 
-| Aspect | CoWork OS | Typical CLI Platform |
+| Aspect | NeoWorker | Typical CLI Platform |
 |--------|-----------|---------------------|
 | **Form factor** | Desktop app (Electron) | CLI + daemon |
 | **Primary platform** | macOS + Windows | Cross-platform |
@@ -83,7 +83,7 @@ Moving to CoWork OS provides several advantages:
 
 ### Security Model
 
-| Aspect | CoWork OS |
+| Aspect | NeoWorker |
 |--------|-----------|
 | **Default mode** | Pairing (most restrictive) |
 | **Sandbox** | Workspace boundaries (VM planned) |
@@ -94,11 +94,11 @@ Moving to CoWork OS provides several advantages:
 
 ## Setup Steps
 
-### 1. Install CoWork OS
+### 1. Install NeoWorker
 
 ```bash
-git clone https://github.com/CoWork-OS/CoWork-OS.git
-cd CoWork-OS
+git clone https://github.com/NeoWorker/NeoWorker.git
+cd NeoWorker
 npm install
 npm run dev
 ```
@@ -164,23 +164,23 @@ During transition, you may want to run both platforms:
 
 ### Can I import my skills/prompts from another platform?
 
-CoWork OS uses a JSON-based skill format. If your existing platform exports skills, you may need to convert them. Skills are stored in:
+NeoWorker uses a JSON-based skill format. If your existing platform exports skills, you may need to convert them. Skills are stored in:
 ```
-macOS: ~/Library/Application Support/cowork-os/skills/
-Windows: %APPDATA%\cowork-os\skills\
+macOS: ~/Library/Application Support/neoworker/skills/
+Windows: %APPDATA%\neoworker\skills\
 ```
 
 ### Do I need to re-pair users?
 
-Yes. CoWork OS maintains its own pairing database. Users will need to pair again using the pairing code flow.
+Yes. NeoWorker maintains its own pairing database. Users will need to pair again using the pairing code flow.
 
 ### Can I use the same API keys?
 
-Yes. Your LLM provider API keys (Anthropic, OpenAI, etc.) work with any client. Just enter them in CoWork OS Settings.
+Yes. Your LLM provider API keys (Anthropic, OpenAI, etc.) work with any client. Just enter them in NeoWorker Settings.
 
 ### Is my data migrated?
 
-No. Task history, conversations, and artifacts are stored locally per platform. You'll start fresh with CoWork OS.
+No. Task history, conversations, and artifacts are stored locally per platform. You'll start fresh with NeoWorker.
 
 ---
 
@@ -188,5 +188,5 @@ No. Task history, conversations, and artifacts are stored locally per platform. 
 
 - **Documentation**: See [README.md](README.md) for full feature documentation
 - **Security**: See [SECURITY_GUIDE.md](SECURITY_GUIDE.md) for security best practices
-- **Issues**: Report bugs at [GitHub Issues](https://github.com/CoWork-OS/CoWork-OS/issues)
+- **Issues**: Report bugs at [GitHub Issues](https://github.com/NeoWorker/NeoWorker/issues)
 - **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines

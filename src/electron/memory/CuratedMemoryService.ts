@@ -13,10 +13,10 @@ import type {
 } from "../../shared/types";
 import { MemoryWriteGate, type MemoryWriteOrigin } from "./MemoryWriteGate";
 
-const USER_BLOCK_START = "<!-- cowork:auto:curated-user:start -->";
-const USER_BLOCK_END = "<!-- cowork:auto:curated-user:end -->";
-const WORKSPACE_BLOCK_START = "<!-- cowork:auto:curated-workspace:start -->";
-const WORKSPACE_BLOCK_END = "<!-- cowork:auto:curated-workspace:end -->";
+const USER_BLOCK_START = "<!-- neoworker:auto:curated-user:start -->";
+const USER_BLOCK_END = "<!-- neoworker:auto:curated-user:end -->";
+const WORKSPACE_BLOCK_START = "<!-- neoworker:auto:curated-workspace:start -->";
+const WORKSPACE_BLOCK_END = "<!-- neoworker:auto:curated-workspace:end -->";
 const MAX_CURATED_CONTENT_CHARS = 320;
 const MAX_MATCH_CHARS = 120;
 const MAX_SYNC_RETRIES = 3;
@@ -167,14 +167,14 @@ export class CuratedMemoryService {
   }): Promise<{
     success: boolean;
     entry?: CuratedMemoryEntry;
-    updatedFile?: ".cowork/USER.md" | ".cowork/MEMORY.md";
+    updatedFile?: ".neoworker/USER.md" | ".neoworker/MEMORY.md";
     staged?: boolean;
     pendingId?: string;
     error?: string;
   }> {
     this.ensureInitialized();
 
-    const targetFile = params.target === "user" ? ".cowork/USER.md" : ".cowork/MEMORY.md";
+    const targetFile = params.target === "user" ? ".neoworker/USER.md" : ".neoworker/MEMORY.md";
     const trimmedContent = normalizeCuratedContent(params.content || "");
     const trimmedMatch = normalizeMatch(params.match || "");
     const defaultKind = params.target === "user" ? "preference" : "project_fact";
@@ -383,7 +383,7 @@ export class CuratedMemoryService {
         const workspace = this.workspaceRepo.findById(workspaceId);
         if (!workspace?.path) return;
 
-        const root = path.join(workspace.path, ".cowork");
+        const root = path.join(workspace.path, ".neoworker");
         const userPath = path.join(root, "USER.md");
         const memoryPath = path.join(root, "MEMORY.md");
         const userEntries = this.curatedRepo.list({

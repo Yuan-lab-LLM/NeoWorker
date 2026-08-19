@@ -17,7 +17,7 @@ const ROOT_WATCH_DEPTH = 2;
 const TARGET_WATCH_DEPTH = 6;
 const MAX_MONITORED_WORKSPACES = 6;
 const CANDIDATE_WATCH_DIRS = [
-  ".cowork",
+  ".neoworker",
   "src",
   "app",
   "apps",
@@ -31,7 +31,7 @@ const CANDIDATE_WATCH_DIRS = [
   "docs",
   "config",
 ];
-const ROOT_PROJECT_MARKERS = [".git", ".cowork", "package.json", "pyproject.toml", "Cargo.toml", "go.mod"];
+const ROOT_PROJECT_MARKERS = [".git", ".neoworker", "package.json", "pyproject.toml", "Cargo.toml", "go.mod"];
 const BLOCKED_ROOT_PATHS = new Set(
   [
     "/Applications",
@@ -140,7 +140,7 @@ export class AmbientMonitoringService {
           /\.turbo/,
           /\.cache/,
           /\.git/,
-          /\.cowork[/\\]memory/,
+          /\.neoworker[/\\]memory/,
         ],
       });
       watcher.on("add", (filePath) => this.handleFileChange(workspace, "file_created", filePath));

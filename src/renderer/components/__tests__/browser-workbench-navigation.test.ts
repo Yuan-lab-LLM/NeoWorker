@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const componentPath = fileURLToPath(new URL("../BrowserWorkbenchView.tsx", import.meta.url));
+const componentPath = fileURLToPath(
+  new URL("../BrowserWorkbenchView.tsx", import.meta.url),
+);
 
 describe("Browser workbench navigation controls", () => {
   it("attaches webview listeners after the measured webview is rendered", () => {
@@ -23,7 +25,9 @@ describe("Browser workbench navigation controls", () => {
   it("hides the browser profile pill when there is no active URL", () => {
     const source = readFileSync(componentPath, "utf8");
 
-    expect(source).toMatch(/\{activeUrl && \(\s*<span className="browser-workbench-profile"/);
+    expect(source).toMatch(
+      /\{activeUrl && \(\s*<span className="browser-workbench-profile"/,
+    );
     expect(source).not.toContain('"workspace"');
     expect(source).not.toContain("Workspace browser");
   });
@@ -42,8 +46,25 @@ describe("Browser workbench navigation controls", () => {
 
     expect(source).toContain("openCurrentPageExternal");
     expect(source).toContain("window.electronAPI.openExternal(externalUrl)");
-    expect(source).toContain('aria-label="Open current page in external browser"');
+    expect(source).toContain(
+      'aria-label={t("browserWorkbench.openExternal", "Open current page in external browser")}',
+    );
     expect(source).toContain("getExternalBrowserUrl");
+  });
+
+  it("keeps navigation state isolated to the active tab", () => {
+    const source = readFileSync(componentPath, "utf8");
+    const initialUrlSync = source.match(
+      /useEffect\(\(\) => \{\s*if \(!initialUrl\) return;[\s\S]*?\n  \}, \[initialUrl\]\);/,
+    );
+
+    expect(initialUrlSync?.[0]).toContain(
+      "initialUrl === activeUrlRef.current",
+    );
+    expect(initialUrlSync?.[0]).toContain("tab.id === activeTabIdRef.current");
+    expect(initialUrlSync?.[0]).not.toContain("index === 0");
+    expect(source).toContain("activeTabIdRef.current = id");
+    expect(source).toContain("activeTabIdRef.current = tab.id");
   });
 
   it("wires live page annotations through inspect, persistence, and follow-up send", () => {

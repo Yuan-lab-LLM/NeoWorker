@@ -12,7 +12,10 @@ function normalizeDocumentCandidate(candidate: string): string | null {
   if (!trimmed) return null;
 
   const withoutLeadingWrapper = trimmed.replace(/^[([{]+/, "");
-  const withoutTrailingPunctuation = withoutLeadingWrapper.replace(/[)\]}.;,!?]+$/g, "");
+  const withoutTrailingPunctuation = withoutLeadingWrapper.replace(
+    /[)\]}.;,!?]+$/g,
+    "",
+  );
   if (!/\.(docx|pdf|tex)$/i.test(withoutTrailingPunctuation)) {
     return null;
   }
@@ -41,8 +44,11 @@ export function getStepCompletionPreviewPath(event: TaskEvent): string | null {
   if (getEffectiveTaskEventType(event) !== "step_completed") return null;
 
   const stepDescription =
-    typeof event.payload?.step?.description === "string" ? event.payload.step.description : "";
-  const message = typeof event.payload?.message === "string" ? event.payload.message : "";
+    typeof event.payload?.step?.description === "string"
+      ? event.payload.step.description
+      : "";
+  const message =
+    typeof event.payload?.message === "string" ? event.payload.message : "";
   const combinedText = `${stepDescription}\n${message}`.trim();
 
   if (!combinedText || !isCreationStepText(combinedText)) {

@@ -1,0 +1,3 @@
+import { n as e, t } from "./server-crash-mju01Yx1-Dqq-i9hA.js";
+e();
+export { t as default };

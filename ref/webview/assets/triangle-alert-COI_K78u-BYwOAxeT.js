@@ -1,0 +1,3 @@
+import { n as e, t } from "./triangle-alert-COI_K78u-BGbr7LQx.js";
+t();
+export { e as default };

@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import { TaskExecutor } from "../executor";
 import { AcpxRuntimeUnavailableError } from "../AcpxRuntimeRunner";
 import { PlaybookService } from "../../memory/PlaybookService";
@@ -22,6 +25,53 @@ describe("TaskExecutor entrypoint guards", () => {
     expect(runExclusive).toHaveBeenCalledTimes(2);
     expect(executor.executeUnlocked).toHaveBeenCalledTimes(1);
     expect(executor.sendMessageUnlocked).toHaveBeenCalledWith("hi", undefined, undefined, undefined);
+  });
+
+  it("assigns every follow-up a distinct conversation turn id", async () => {
+    const executor = Object.create(TaskExecutor.prototype) as Any;
+    const capturedTurnIds: string[] = [];
+    executor.lifecycleMutex = {
+      runExclusive: vi.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    executor.task = { id: "task-turns", agentConfig: {} };
+    executor.activeConversationTurnId = null;
+    executor.daemon = { getTask: vi.fn(() => executor.task) };
+    executor.sendMessageUnlocked = vi.fn(async () => {
+      capturedTurnIds.push(executor.activeConversationTurnId);
+    });
+
+    await executor.sendMessage("生成PPT");
+    await executor.sendMessage("再生成一次PPT");
+
+    expect(capturedTurnIds).toHaveLength(2);
+    expect(capturedTurnIds[0]).toMatch(/^turn:task-turns:follow-up:/);
+    expect(capturedTurnIds[1]).toMatch(/^turn:task-turns:follow-up:/);
+    expect(capturedTurnIds[0]).not.toBe(capturedTurnIds[1]);
+    expect(executor.activeConversationTurnId).toBeNull();
+  });
+
+  it("starts an explicit user follow-up with fresh tool retry state", async () => {
+    const executor = Object.create(TaskExecutor.prototype) as Any;
+    executor.lifecycleMutex = {
+      runExclusive: vi.fn(async (fn: () => Promise<void>) => fn()),
+    };
+    executor.task = { id: "task-retry", agentConfig: {} };
+    executor.activeConversationTurnId = null;
+    executor.daemon = { getTask: vi.fn(() => executor.task) };
+    executor.crossStepToolFailures = new Map([["create_presentation", 6]]);
+    executor.toolFailureTracker = {
+      isDisabled: vi.fn(() => true),
+    };
+    executor.toolCallDeduplicator = {};
+    executor.sendMessageUnlocked = vi.fn(async () => {
+      expect(executor.crossStepToolFailures.size).toBe(0);
+      expect(executor.toolFailureTracker.isDisabled("create_presentation")).toBe(false);
+      expect(executor.toolCallDeduplicator).toBeDefined();
+    });
+
+    await executor.sendMessage("再生成一次PPT");
+
+    expect(executor.sendMessageUnlocked).toHaveBeenCalledTimes(1);
   });
 
   it("routes executeStep through the unified branch", async () => {
@@ -173,9 +223,9 @@ describe("TaskExecutor entrypoint guards", () => {
       id: "task-1",
       title: "Use Claude Code for this task. Create a child task...",
       prompt:
-        "Use Claude Code for this task. Create a child task via acpx, have it inspect the repo and tell me what CoWork OS is at a high level. Read-only only, no edits.",
+        "Use Claude Code for this task. Create a child task via acpx, have it inspect the repo and tell me what NeoWorker is at a high level. Read-only only, no edits.",
       rawPrompt:
-        "Use Claude Code for this task. Create a child task via acpx, have it inspect the repo and tell me what CoWork OS is at a high level. Read-only only, no edits.",
+        "Use Claude Code for this task. Create a child task via acpx, have it inspect the repo and tell me what NeoWorker is at a high level. Read-only only, no edits.",
       agentConfig: {},
     };
     executor.isAcpxExternalRuntimeTask = vi.fn(() => false);
@@ -184,7 +234,7 @@ describe("TaskExecutor entrypoint guards", () => {
         success: true,
         task_id: "child-1",
         message: "Agent completed successfully",
-        result: "CoWork OS is an Electron desktop app with agent orchestration.",
+        result: "NeoWorker is an Electron desktop app with agent orchestration.",
       })),
     };
     executor.emitEvent = vi.fn();
@@ -204,10 +254,10 @@ describe("TaskExecutor entrypoint guards", () => {
       }),
     );
     expect(executor.emitEvent).toHaveBeenCalledWith("assistant_message", {
-      message: "CoWork OS is an Electron desktop app with agent orchestration.",
+      message: "NeoWorker is an Electron desktop app with agent orchestration.",
     });
     expect(executor.finalizeTaskBestEffort).toHaveBeenCalledWith(
-      "CoWork OS is an Electron desktop app with agent orchestration.",
+      "NeoWorker is an Electron desktop app with agent orchestration.",
       "Explicit Claude child-task delegation completed.",
     );
   });
@@ -332,6 +382,13 @@ describe("TaskExecutor entrypoint guards", () => {
     } satisfies TaskBestKnownOutcome;
     executor.buildResultSummary = vi.fn(() => freshSummary);
     executor.getContentFallback = vi.fn(() => "");
+    const followUpOutputSummary = {
+      created: [".neoworker/fresh-report.pptx"],
+      primaryOutputPath: ".neoworker/fresh-report.pptx",
+      outputCount: 1,
+      folders: [".neoworker"],
+    };
+    executor.buildTaskOutputSummary = vi.fn(() => followUpOutputSummary);
     executor.daemon = {
       updateTask: vi.fn(),
     };
@@ -340,7 +397,7 @@ describe("TaskExecutor entrypoint guards", () => {
     (TaskExecutor as Any).prototype.finalizeFollowUpCompletion.call(
       executor,
       "Follow-up completed (24 tool calls)",
-      { clearTerminalFailure: true },
+      { clearTerminalFailure: true, outputEvidenceStartedAt: 1234 },
     );
 
     expect(executor.task.status).toBe("completed");
@@ -358,7 +415,10 @@ describe("TaskExecutor entrypoint guards", () => {
         failureClass: undefined,
         resultSummary: freshSummary,
         semanticSummary: "Opened canvas",
-        bestKnownOutcome: executor.bestKnownOutcome,
+        bestKnownOutcome: expect.objectContaining({
+          resultSummary: freshSummary,
+          outputSummary: followUpOutputSummary,
+        }),
       }),
     );
     expect(executor.emitEvent).toHaveBeenCalledWith(
@@ -367,8 +427,69 @@ describe("TaskExecutor entrypoint guards", () => {
         message: "Follow-up completed (24 tool calls)",
         resultSummary: freshSummary,
         semanticSummary: "Opened canvas",
+        outputSummary: followUpOutputSummary,
+        bestKnownOutcome: expect.objectContaining({
+          resultSummary: freshSummary,
+          outputSummary: followUpOutputSummary,
+        }),
       }),
     );
+    expect(executor.buildTaskOutputSummary).toHaveBeenCalledWith(1234);
+  });
+
+  it("scopes follow-up outputs and tracks a generated file through its final rename", () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-output-summary-"));
+    try {
+      fs.mkdirSync(path.join(workspacePath, ".neoworker"), { recursive: true });
+      fs.writeFileSync(path.join(workspacePath, ".neoworker", "report.pptx"), "new deck");
+      fs.writeFileSync(path.join(workspacePath, ".neoworker", "report-old.pptx"), "old deck");
+
+      const executor = Object.create(TaskExecutor.prototype) as Any;
+      executor.task = { id: "task-output-summary" };
+      executor.workspace = { path: workspacePath };
+      executor.fileOperationTracker = { getCreatedFiles: vi.fn(() => ["old-root.pptx"]) };
+      executor.resolveWorkspaceMutationPathCandidate = (candidate: string) =>
+        path.resolve(workspacePath, candidate);
+      executor.getReplayEventType = (event: Any) => event.type;
+      executor.daemon = {
+        getTaskEvents: vi.fn(() => [
+          {
+            type: "file_created",
+            timestamp: 10,
+            payload: { path: ".neoworker/report-v2.pptx" },
+          },
+          {
+            type: "file_modified",
+            timestamp: 20,
+            payload: {
+              from: ".neoworker/previous.pptx",
+              to: ".neoworker/report-old.pptx",
+            },
+          },
+          {
+            type: "file_modified",
+            timestamp: 30,
+            payload: {
+              from: ".neoworker/report-v2.pptx",
+              to: ".neoworker/report.pptx",
+            },
+          },
+        ]),
+      };
+
+      const summary = (TaskExecutor as Any).prototype.buildTaskOutputSummary.call(executor, 5);
+
+      expect(summary).toEqual({
+        created: [".neoworker/report.pptx"],
+        modifiedFallback: [".neoworker/report-old.pptx"],
+        primaryOutputPath: ".neoworker/report.pptx",
+        outputCount: 1,
+        folders: [".neoworker"],
+      });
+      expect(executor.fileOperationTracker.getCreatedFiles).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(workspacePath, { recursive: true, force: true });
+    }
   });
 
   it("finalizeFollowUpFailure syncs task row and emits a terminal failed status", () => {
@@ -400,6 +521,9 @@ describe("TaskExecutor entrypoint guards", () => {
       failTask: vi.fn(),
     };
     executor.emitEvent = vi.fn();
+    executor.buildFollowUpFailureMessage = vi.fn(
+      () => "任务未能完成，请重试。",
+    );
 
     (TaskExecutor as Any).prototype.finalizeFollowUpFailure.call(
       executor,
@@ -425,9 +549,231 @@ describe("TaskExecutor entrypoint guards", () => {
       "task_status",
       expect.objectContaining({
         status: "failed",
-        message: "Task failed: verification mismatch",
+        message: "任务未能完成，请重试。",
         terminalStatus: "failed",
         semanticSummary: "Verified markdown targets",
+      }),
+    );
+  });
+
+  it("releases the renderer when terminal failure persistence throws", () => {
+    const executor = Object.create(TaskExecutor.prototype) as Any;
+    executor.task = {
+      id: "task-retry-exhausted",
+      status: "executing",
+      error: undefined,
+    };
+    executor.activeConversationTurnId = "turn:task-retry-exhausted:follow-up:2";
+    executor.applyRuntimeTaskProjectionToTask = vi.fn(() => ({}));
+    executor.getCompletionProjectionFields = vi.fn(() => ({}));
+    executor.buildFollowUpFailureMessage = vi.fn(
+      () =>
+        "模型连接中断，本轮已结束，当前上下文已保留。请重试，我会从这里继续。",
+    );
+    executor.daemon = {
+      failTask: vi.fn(() => {
+        throw new Error("database unavailable");
+      }),
+    };
+    executor.emitEvent = vi.fn();
+
+    expect(() =>
+      (TaskExecutor as Any).prototype.finalizeFollowUpFailure.call(
+        executor,
+        new Error("DeepSeek API request failed: fetch failed"),
+      ),
+    ).not.toThrow();
+
+    expect(executor.task.status).toBe("failed");
+    expect(executor.emitEvent).toHaveBeenCalledWith(
+      "follow_up_failed",
+      expect.objectContaining({
+        taskId: "task-retry-exhausted",
+        turnId: "turn:task-retry-exhausted:follow-up:2",
+        parentTaskStatus: "failed",
+        userMessage:
+          "模型连接中断，本轮已结束，当前上下文已保留。请重试，我会从这里继续。",
+      }),
+    );
+    expect(executor.emitEvent).toHaveBeenCalledWith(
+      "task_status",
+      expect.objectContaining({
+        status: "failed",
+        message:
+          "模型连接中断，本轮已结束，当前上下文已保留。请重试，我会从这里继续。",
+      }),
+    );
+  });
+
+  it("keeps the completed parent task when only a PPT follow-up fails", () => {
+    const executor = Object.create(TaskExecutor.prototype) as Any;
+    executor.task = {
+      id: "task-ppt-follow-up-failed",
+      status: "executing",
+      completedAt: undefined,
+      error: undefined,
+    };
+    executor.activeConversationTurnId = "turn:task-ppt-follow-up-failed:follow-up:1";
+    executor.daemon = {
+      updateTask: vi.fn(),
+      failTask: vi.fn(),
+    };
+    executor.emitEvent = vi.fn();
+    executor.appendConversationHistory = vi.fn();
+    executor.saveConversationSnapshot = vi.fn();
+
+    (TaskExecutor as Any).prototype.finalizeArtifactFollowUpFailure.call(
+      executor,
+      "expected a newly created or updated .pptx artifact",
+      "completed",
+      [".pptx"],
+      12345,
+    );
+
+    expect(executor.task.status).toBe("completed");
+    expect(executor.task.completedAt).toBe(12345);
+    expect(executor.daemon.failTask).not.toHaveBeenCalled();
+    expect(executor.daemon.updateTask).toHaveBeenCalledWith(
+      "task-ppt-follow-up-failed",
+      expect.objectContaining({ status: "completed", completedAt: 12345, error: null }),
+    );
+    expect(executor.emitEvent).toHaveBeenCalledWith(
+      "follow_up_failed",
+      expect.objectContaining({
+        parentTaskStatus: "completed",
+        turnId: "turn:task-ppt-follow-up-failed:follow-up:1",
+        userMessage: expect.stringContaining("没有生成PPT文件"),
+      }),
+    );
+  });
+
+  it("restores the completed parent task after a provider connection failure", () => {
+    const executor = Object.create(TaskExecutor.prototype) as Any;
+    executor.task = {
+      id: "task-network-follow-up-failed",
+      status: "executing",
+      completedAt: undefined,
+      error: undefined,
+    };
+    executor.activeConversationTurnId =
+      "turn:task-network-follow-up-failed:follow-up:2";
+    executor.daemon = { updateTask: vi.fn() };
+    executor.emitEvent = vi.fn();
+    executor.appendConversationHistory = vi.fn();
+    executor.saveConversationSnapshot = vi.fn();
+
+    (TaskExecutor as Any).prototype.finalizeRecoverableFollowUpFailure.call(
+      executor,
+      new Error("DeepSeek API request failed: fetch failed"),
+      "completed",
+      24680,
+    );
+
+    expect(executor.task.status).toBe("completed");
+    expect(executor.task.completedAt).toBe(24680);
+    expect(executor.daemon.updateTask).toHaveBeenCalledWith(
+      "task-network-follow-up-failed",
+      expect.objectContaining({
+        status: "completed",
+        completedAt: 24680,
+        error: null,
+      }),
+    );
+    expect(executor.emitEvent).toHaveBeenCalledWith(
+      "assistant_message",
+      expect.objectContaining({
+        followUpFailed: true,
+        message: "模型连接中断，本轮已结束，当前上下文已保留。请重试，我会从这里继续。",
+      }),
+    );
+    expect(executor.emitEvent).toHaveBeenCalledWith(
+      "follow_up_failed",
+      expect.objectContaining({
+        parentTaskStatus: "completed",
+        technicalError: "DeepSeek API request failed: fetch failed",
+      }),
+    );
+    expect(executor.emitEvent).toHaveBeenCalledWith(
+      "task_status",
+      expect.objectContaining({ status: "completed", followUpFailed: true }),
+    );
+  });
+
+  it("ends the follow-up in the renderer even when failure persistence throws", () => {
+    const executor = Object.create(TaskExecutor.prototype) as Any;
+    executor.task = {
+      id: "task-network-persistence-failed",
+      status: "executing",
+      completedAt: undefined,
+      error: undefined,
+    };
+    executor.activeConversationTurnId =
+      "turn:task-network-persistence-failed:follow-up:1";
+    executor.daemon = {
+      updateTask: vi.fn(() => {
+        throw new Error("database unavailable");
+      }),
+    };
+    executor.emitEvent = vi.fn();
+    executor.appendConversationHistory = vi.fn(() => {
+      throw new Error("history unavailable");
+    });
+    executor.saveConversationSnapshot = vi.fn(() => {
+      throw new Error("snapshot unavailable");
+    });
+
+    expect(() =>
+      (TaskExecutor as Any).prototype.finalizeRecoverableFollowUpFailure.call(
+        executor,
+        new Error("DeepSeek API request failed: fetch failed"),
+        "completed",
+        13579,
+      ),
+    ).not.toThrow();
+
+    expect(executor.task.status).toBe("completed");
+    expect(executor.emitEvent).toHaveBeenCalledWith(
+      "follow_up_failed",
+      expect.objectContaining({
+        parentTaskStatus: "completed",
+        turnId: "turn:task-network-persistence-failed:follow-up:1",
+      }),
+    );
+    expect(executor.emitEvent).toHaveBeenCalledWith(
+      "task_status",
+      expect.objectContaining({ status: "completed", followUpFailed: true }),
+    );
+  });
+
+  it("does not restore a queued parent status after a follow-up connection failure", () => {
+    const executor = Object.create(TaskExecutor.prototype) as Any;
+    executor.task = {
+      id: "task-queued-follow-up-failed",
+      status: "executing",
+      completedAt: undefined,
+      error: undefined,
+    };
+    executor.activeConversationTurnId =
+      "turn:task-queued-follow-up-failed:follow-up:1";
+    executor.daemon = { updateTask: vi.fn() };
+    executor.emitEvent = vi.fn();
+    executor.appendConversationHistory = vi.fn();
+    executor.saveConversationSnapshot = vi.fn();
+
+    (TaskExecutor as Any).prototype.finalizeRecoverableFollowUpFailure.call(
+      executor,
+      new Error("DeepSeek API request failed: fetch failed"),
+      "queued",
+    );
+
+    expect(executor.task.status).toBe("completed");
+    expect(executor.task.completedAt).toEqual(expect.any(Number));
+    expect(executor.daemon.updateTask).toHaveBeenCalledWith(
+      "task-queued-follow-up-failed",
+      expect.objectContaining({
+        status: "completed",
+        completedAt: expect.any(Number),
+        error: null,
       }),
     );
   });

@@ -135,10 +135,10 @@ async function renderPptx(deck, theme) {
   const pptx = new PptxGenJS();
   pptx.defineLayout({ name: "KAMI_WIDE", width: 13.33, height: 7.5 });
   pptx.layout = "KAMI_WIDE";
-  pptx.author = deck.metadata?.author || "CoWork OS";
+  pptx.author = deck.metadata?.author || "NeoWorker";
   pptx.title = deck.metadata?.title || slideTitle(deck.slides[0] || {});
   pptx.subject = deck.metadata?.subject || "Kami slide deck";
-  pptx.company = "CoWork OS";
+  pptx.company = "NeoWorker";
 
   for (const slideDef of deck.slides) {
     const slide = pptx.addSlide();

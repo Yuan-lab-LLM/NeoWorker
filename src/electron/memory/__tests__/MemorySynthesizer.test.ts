@@ -155,9 +155,9 @@ describe("MemorySynthesizer", () => {
   it("produces hot and structured memory without injecting recall hints into the prompt", () => {
     const result = MemorySynthesizer.synthesize("ws1", "/workspace", "Deploy the API");
 
-    expect(result.text).toContain("<cowork_hot_memory>");
-    expect(result.text).toContain("<cowork_structured_memory>");
-    expect(result.text).not.toContain("<cowork_recall_hints>");
+    expect(result.text).toContain("<neoworker_hot_memory>");
+    expect(result.text).toContain("<neoworker_structured_memory>");
+    expect(result.text).not.toContain("<neoworker_recall_hints>");
     expect(result.fragmentCount).toBeGreaterThan(0);
   });
 
@@ -221,7 +221,7 @@ describe("MemorySynthesizer", () => {
 
     const result = MemorySynthesizer.synthesize("ws1", "/workspace", "Deploy the API");
 
-    expect(result.text).not.toContain("<cowork_hot_memory>");
+    expect(result.text).not.toContain("<neoworker_hot_memory>");
     expect(result.text).not.toContain("Curated Hot Memory");
     expect(result.sourceAttribution.curated_memory).toBe(0);
     expect(result.sourceAttribution.user_profile).toBe(0);
@@ -347,7 +347,7 @@ describe("MemorySynthesizer", () => {
     expect(preview.injectedLayerIds).toEqual(["L0", "L1"]);
     expect(preview.excludedLayerIds).toEqual(["L2", "L3"]);
     expect(preview.layers.find((layer) => layer.layer === "L0")?.includedText).toContain(
-      "<cowork_hot_memory>",
+      "<neoworker_hot_memory>",
     );
     expect(preview.layers.find((layer) => layer.layer === "L3")?.includedText).toContain(
       "search_quotes",

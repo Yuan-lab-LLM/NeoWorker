@@ -105,13 +105,13 @@ export function enqueueTaskEventTelemetry(event: TaskEvent): void {
       {
         resource: {
           attributes: toAttributes({
-            "service.name": "cowork-os",
-            "cowork.telemetry.kind": "task_event",
+            "service.name": "neoworker",
+            "neoworker.telemetry.kind": "task_event",
           }),
         },
         scopeSpans: [
           {
-            scope: { name: "cowork-os.task-events" },
+            scope: { name: "neoworker.task-events" },
             spans: [
               {
                 traceId: stableHexId(event.taskId, 16),
@@ -121,10 +121,10 @@ export function enqueueTaskEventTelemetry(event: TaskEvent): void {
                 startTimeUnixNano: toHrTime(event.timestamp),
                 endTimeUnixNano: toHrTime(event.timestamp),
                 attributes: toAttributes({
-                  "cowork.task_id": event.taskId,
-                  "cowork.event_id": event.id,
-                  "cowork.event_type": String(event.type),
-                  "cowork.payload_keys": payloadKeys(payload),
+                  "neoworker.task_id": event.taskId,
+                  "neoworker.event_id": event.id,
+                  "neoworker.event_type": String(event.type),
+                  "neoworker.payload_keys": payloadKeys(payload),
                 }),
               },
             ],

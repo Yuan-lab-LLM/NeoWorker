@@ -33,12 +33,12 @@ Use `/new temp` for scratch work and `/stop` to cancel active tasks.
 - Run BlueBubbles server on a Mac that stays online.
 - Use contact allowlists for controlled access.
 - Use DMs for approvals and private context.
-- Use group chats only when everyone understands CoWork may respond.
-- Keep long outputs in CoWork desktop when possible.
+- Use group chats only when everyone understands NeoWorker may respond.
+- Keep long outputs in NeoWorker desktop when possible.
 
 ## Watch-Outs
 
-- Bridge availability controls whether CoWork can receive and send messages.
+- Bridge availability controls whether NeoWorker can receive and send messages.
 - SMS behavior can differ from iMessage behavior.
 - Requires a Mac with Messages signed in.
 

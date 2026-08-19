@@ -1,11 +1,11 @@
 # Release Notes 0.5.48
 
-Release `0.5.48` expands CoWork OS remote/private-tool access, adds a side conversation workflow for active tasks, and hardens long-running runtime surfaces that matter for release stability.
+Release `0.5.48` expands NeoWorker remote/private-tool access, adds a side conversation workflow for active tasks, and hardens long-running runtime surfaces that matter for release stability.
 
 ## Highlights
 
 - **Side Chat**: `/side [question]` opens a right-side read-only chat about the selected running task. It uses hidden parent context, live parent-status snapshots for progress questions, and denies mutating tools so it cannot steer, approve, cancel, or modify the parent task.
-- **Secure MCP Tunnels**: CoWork can now expose selected local/private MCP tools through an outbound-only relay you operate. The tunnel stack includes a self-hostable relay, local tunnel clients, separate client/caller tokens, policy enforcement, request limits, local audit logs, Settings UI, and a relay smoke test.
+- **Secure MCP Tunnels**: NeoWorker can now expose selected local/private MCP tools through an outbound-only relay you operate. The tunnel stack includes a self-hostable relay, local tunnel clients, separate client/caller tokens, policy enforcement, request limits, local audit logs, Settings UI, and a relay smoke test.
 - **YouTube video intelligence**: Browser Workbench and native tools can ingest YouTube transcripts, store/search segments, answer questions over videos, and cite timestamped source segments.
 - **Timeline and sidebar scalability**: task sidebars now use summary rows and cursor paging; selected-task timelines can load bounded pages and event details instead of forcing large payloads into the renderer.
 - **Scheduler and routine reliability**: cron runs persist leases before task creation, tag scheduled tasks with `scheduledJobId`, detect active scheduled work after restart, and avoid duplicate work. Routine runs reconcile stale timeout rows against backing task completion.

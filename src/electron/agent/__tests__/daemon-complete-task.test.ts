@@ -53,6 +53,7 @@ function createDaemonLike() {
     }),
     hasEvidenceForKeyClaims: vi.fn().mockReturnValue({ passed: true, keyClaims: [] }),
     clearTimelineTaskState: vi.fn(),
+    finishTimelineDeliveryStage: vi.fn(),
     timelineMetrics: {
       totalEvents: 0,
       droppedEvents: 0,
@@ -79,6 +80,9 @@ function createDaemonLike() {
     comparisonService: null,
     workspaceRepo: {
       findById: vi.fn(),
+    },
+    artifactRepo: {
+      findByTaskId: vi.fn().mockReturnValue([]),
     },
     teamOrchestrator: null,
     queueManager: {
@@ -172,6 +176,67 @@ describe("AgentDaemon.completeTask", () => {
       expect.objectContaining({
         outputSummary,
       }),
+    );
+    expect(daemonLike.finishTimelineDeliveryStage).toHaveBeenCalledWith("task-1");
+    const deliveryOrder = daemonLike.finishTimelineDeliveryStage.mock.invocationCallOrder[0];
+    const completionCall = daemonLike.logEvent.mock.calls.findIndex(
+      (call: unknown[]) => call[1] === "task_completed",
+    );
+    expect(completionCall).toBeGreaterThanOrEqual(0);
+    expect(deliveryOrder).toBeLessThan(
+      daemonLike.logEvent.mock.invocationCallOrder[completionCall],
+    );
+  });
+
+  it("does not treat a supporting markdown file as a completed requested PPTX", () => {
+    const daemonLike = createDaemonLike();
+    daemonLike.taskRepo.findById.mockReturnValue({
+      id: "task-1",
+      title: "分析工商银行股票，生成一个分析报告，ppt格式",
+      prompt: "分析工商银行股票，生成一个分析报告，ppt格式",
+      rawPrompt: "分析工商银行股票，生成一个分析报告，ppt格式",
+      status: "executing",
+      workspaceId: "workspace-1",
+      parentTaskId: "parent-task",
+      agentType: "sub",
+    });
+
+    AgentDaemon.prototype.completeTask.call(
+      daemonLike,
+      "task-1",
+      "研究已经完成，接下来制作 PPT。",
+      {
+        terminalStatus: "partial_success",
+        failureClass: "unknown",
+        outputSummary: {
+          created: ["design-system.md"],
+          primaryOutputPath: "design-system.md",
+          outputCount: 1,
+          folders: ["."],
+        },
+      },
+    );
+
+    expect(daemonLike.taskRepo.update).toHaveBeenCalledWith(
+      "task-1",
+      expect.objectContaining({
+        status: "failed",
+        terminalStatus: "failed",
+        failureClass: "contract_unmet_write_required",
+      }),
+    );
+    expect(daemonLike.logEvent).toHaveBeenCalledWith(
+      "task-1",
+      "timeline_error",
+      expect.objectContaining({
+        gate: "completion_required_artifact_gate",
+        missingRequiredArtifactExtensions: [".pptx"],
+      }),
+    );
+    expect(daemonLike.logEvent).not.toHaveBeenCalledWith(
+      "task-1",
+      "task_completed",
+      expect.anything(),
     );
   });
 
@@ -410,7 +475,7 @@ describe("AgentDaemon.completeTask", () => {
       "task-1",
       [
         "The exported file is 585 bytes.",
-        "Sources: [dev log](/Users/mesut/Downloads/app/cowork/logs/dev-latest.log:12)",
+        "Sources: [dev log](/Users/mesut/Downloads/app/neoworker/logs/dev-latest.log:12)",
       ].join("\n"),
     );
 

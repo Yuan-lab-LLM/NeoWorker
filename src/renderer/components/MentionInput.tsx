@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { AgentRoleData, MentionType } from "../../electron/preload";
+import { translate, useLanguage } from "../i18n";
 import { getEmojiIcon } from "../utils/emoji-icon-map";
 
 interface MentionInputProps {
@@ -10,11 +11,36 @@ interface MentionInputProps {
   placeholder?: string;
 }
 
-const MENTION_TYPE_OPTIONS: { value: MentionType; label: string; description: string }[] = [
-  { value: "request", label: "Request", description: "Ask for help with a task" },
-  { value: "handoff", label: "Handoff", description: "Hand over the task completely" },
-  { value: "review", label: "Review", description: "Request a review of work done" },
-  { value: "fyi", label: "FYI", description: "Informational, no action needed" },
+const MENTION_TYPE_OPTIONS: {
+  value: MentionType;
+  label: string;
+  key: string;
+  description: string;
+}[] = [
+  {
+    value: "request",
+    key: "mention.type.request",
+    label: "Request",
+    description: "Ask for help with a task",
+  },
+  {
+    value: "handoff",
+    key: "mention.type.handoff",
+    label: "Handoff",
+    description: "Hand over the task completely",
+  },
+  {
+    value: "review",
+    key: "mention.type.review",
+    label: "Review",
+    description: "Request a review of work done",
+  },
+  {
+    value: "fyi",
+    key: "mention.type.fyi",
+    label: "FYI",
+    description: "Informational, no action needed",
+  },
 ];
 
 export function MentionInput({
@@ -24,11 +50,15 @@ export function MentionInput({
   onMentionCreated,
   placeholder = "Type @ to mention an agent...",
 }: MentionInputProps) {
+  useLanguage();
+  const t = translate;
   const [input, setInput] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [agents, setAgents] = useState<AgentRoleData[]>([]);
   const [filteredAgents, setFilteredAgents] = useState<AgentRoleData[]>([]);
-  const [selectedAgent, setSelectedAgent] = useState<AgentRoleData | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<AgentRoleData | null>(
+    null,
+  );
   const [mentionType, setMentionType] = useState<MentionType>("request");
   const [context, setContext] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -54,7 +84,8 @@ export function MentionInput({
       const search = input.slice(1).toLowerCase();
       const filtered = agents.filter(
         (a) =>
-          a.name.toLowerCase().includes(search) || a.displayName.toLowerCase().includes(search),
+          a.name.toLowerCase().includes(search) ||
+          a.displayName.toLowerCase().includes(search),
       );
       setFilteredAgents(filtered);
       setShowDropdown(true);
@@ -129,7 +160,11 @@ export function MentionInput({
           className="mention-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={placeholder}
+          placeholder={
+            placeholder === "Type @ to mention an agent..."
+              ? t("mention.input.placeholder", "Type @ to mention an agent...")
+              : placeholder
+          }
           disabled={selectedAgent !== null}
         />
 
@@ -141,7 +176,10 @@ export function MentionInput({
                 className="mention-dropdown-item"
                 onClick={() => handleSelectAgent(agent)}
               >
-                <span className="agent-icon" style={{ backgroundColor: agent.color }}>
+                <span
+                  className="agent-icon"
+                  style={{ backgroundColor: agent.color }}
+                >
                   {(() => {
                     const Icon = getEmojiIcon(agent.icon || "🤖");
                     return <Icon size={16} strokeWidth={2} />;
@@ -160,7 +198,10 @@ export function MentionInput({
       {selectedAgent && (
         <div className="mention-details">
           <div className="selected-agent">
-            <span className="agent-icon" style={{ backgroundColor: selectedAgent.color }}>
+            <span
+              className="agent-icon"
+              style={{ backgroundColor: selectedAgent.color }}
+            >
               {(() => {
                 const Icon = getEmojiIcon(selectedAgent.icon || "🤖");
                 return <Icon size={16} strokeWidth={2} />;
@@ -173,14 +214,14 @@ export function MentionInput({
           </div>
 
           <div className="mention-type-selector">
-            <label>Type:</label>
+            <label>{t("mention.input.type", "Type:")}</label>
             <select
               value={mentionType}
               onChange={(e) => setMentionType(e.target.value as MentionType)}
             >
               {MENTION_TYPE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
-                  {opt.label}
+                  {t(opt.key, opt.label)}
                 </option>
               ))}
             </select>
@@ -190,16 +231,25 @@ export function MentionInput({
             className="mention-context"
             value={context}
             onChange={(e) => setContext(e.target.value)}
-            placeholder="Add context for this mention (optional)..."
+            placeholder={t(
+              "mention.input.contextPlaceholder",
+              "Add context for this mention (optional)...",
+            )}
             rows={3}
           />
 
           <div className="mention-actions">
             <button className="btn-cancel" onClick={handleCancel}>
-              Cancel
+              {t("common.cancel", "Cancel")}
             </button>
-            <button className="btn-submit" onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "Sending..." : "Send Mention"}
+            <button
+              className="btn-submit"
+              onClick={handleSubmit}
+              disabled={submitting}
+            >
+              {submitting
+                ? t("common.sending", "Sending...")
+                : t("mention.input.send", "Send Mention")}
             </button>
           </div>
         </div>

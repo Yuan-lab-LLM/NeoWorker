@@ -28,7 +28,7 @@ afterEach(() => {
 
 describe("VideoGenerator", () => {
   it("uses Azure Sora 2 videos API, ignores stray overrides, and writes the completed MP4 to the requested output path", async () => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-video-"));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-video-"));
 
     vi.spyOn(LLMProviderFactory, "loadSettings").mockReturnValue({
       providerType: "azure",
@@ -100,7 +100,7 @@ describe("VideoGenerator", () => {
   });
 
   it("fails fast when polling without a job id", async () => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-video-"));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-video-"));
 
     vi.spyOn(LLMProviderFactory, "loadSettings").mockReturnValue({
       providerType: "azure",

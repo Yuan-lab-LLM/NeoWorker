@@ -184,9 +184,9 @@ function main() {
     process.exit(0);
   }
 
-  const dbPathRaw = args.db || process.env.COWORK_DB_PATH || "";
+  const dbPathRaw = args.db || process.env.NEOWORKER_DB_PATH || "";
   if (!dbPathRaw) {
-    fail("missing DB path; pass --db or set COWORK_DB_PATH");
+    fail("missing DB path; pass --db or set NEOWORKER_DB_PATH");
   }
   const dbPath = path.resolve(dbPathRaw);
   if (!fs.existsSync(dbPath)) {

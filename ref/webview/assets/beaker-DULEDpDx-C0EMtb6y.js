@@ -1,0 +1,3 @@
+import { n as e, t } from "./beaker-DULEDpDx-CE9-N35a.js";
+t();
+export { e as default };

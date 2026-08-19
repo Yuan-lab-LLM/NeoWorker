@@ -1,6 +1,6 @@
 # Chronicle (Desktop Research Preview)
 
-Chronicle is CoWork OS's opt-in desktop screen-context feature for vague, on-screen references such as:
+Chronicle is NeoWorker's opt-in desktop screen-context feature for vague, on-screen references such as:
 
 - `what is this?`
 - `what's on the right side?`
@@ -8,7 +8,7 @@ Chronicle is CoWork OS's opt-in desktop screen-context feature for vague, on-scr
 - `sync the latest draft`
 - `use the same doc as before`
 
-It extends CoWork's existing runtime instead of creating a separate memory system. Chronicle keeps a short local recent-screen buffer in the desktop app, resolves ambiguous references through `screen_context_resolve`, and promotes only task-used observations into the existing recall, evidence, and memory surfaces.
+It extends NeoWorker's existing runtime instead of creating a separate memory system. Chronicle keeps a short local recent-screen buffer in the desktop app, resolves ambiguous references through `screen_context_resolve`, and promotes only task-used observations into the existing recall, evidence, and memory surfaces.
 
 ## What shipped
 
@@ -24,7 +24,7 @@ It extends CoWork's existing runtime instead of creating a separate memory syste
 - **Not a second memory lane**: raw passive frames are not indexed as a permanent memory database
 - **Not channel/headless support**: Chronicle is desktop-only and is unavailable in headless or channel runtimes
 - **Not automatic provider export**: passive frames stay local; Chronicle does not send screenshots to external providers by itself
-- **Not a replacement for direct sources**: if CoWork can read the actual file, URL, PR, or document, that remains the stronger source of truth
+- **Not a replacement for direct sources**: if NeoWorker can read the actual file, URL, PR, or document, that remains the stronger source of truth
 
 ## How it works
 
@@ -40,8 +40,8 @@ Chronicle uses a hybrid capture model:
 
 Only observations that were actually used by a task are promoted into workspace state:
 
-- promoted observations are stored under `.cowork/chronicle/observations/`
-- copied image assets for those promoted observations are stored under `.cowork/chronicle/assets/`
+- promoted observations are stored under `.neoworker/chronicle/observations/`
+- copied image assets for those promoted observations are stored under `.neoworker/chronicle/assets/`
 - raw passive buffer frames stay in the app's user-data area and are aggressively pruned
 - promoted observations remain `screen_context` evidence records; when background generation is on, they can also create linked `screen_context` memory rows
 
@@ -51,7 +51,7 @@ Every `screen_context_resolve` result is marked as screen-derived, untrusted con
 
 1. Open **Settings > Memory Hub > Chronicle**.
 2. Turn on **Chronicle (Research Preview)** and accept the consent prompt.
-3. Confirm **Screen Recording** is granted for CoWork OS.
+3. Confirm **Screen Recording** is granted for NeoWorker.
 4. Optionally grant **Accessibility** for stronger frontmost app/window/source metadata.
 5. If you changed Screen Recording, quit and restart the app.
 6. Optionally choose:

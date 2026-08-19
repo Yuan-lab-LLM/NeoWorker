@@ -1,4 +1,10 @@
-import type { PersonalityConfigV2, RelationshipData } from "../../../shared/types";
+import {
+  DEFAULT_ASSISTANT_NAME,
+  type PersonalityConfigV2,
+  type RelationshipData,
+} from "../../../shared/types";
+import { translate, useLanguage } from "../../i18n";
+import { PersonalityTabHeader } from "./PersonalityTabHeader";
 
 interface PersonalityIdentityTabProps {
   config: PersonalityConfigV2;
@@ -20,96 +26,140 @@ export function PersonalityIdentityTab({
   onSave,
   saving,
 }: PersonalityIdentityTabProps) {
+  useLanguage();
+  const t = translate;
   const relationship = config.relationship ?? ({} as RelationshipData);
 
   return (
     <div className="personality-identity-tab settings-section">
-      <h3>Identity</h3>
-      <p className="settings-description">
-        Agent name, your name, and relationship stats.
-      </p>
+      <PersonalityTabHeader
+        title={t("personality.identity.title", "Identity")}
+        description={t(
+          "personality.identity.description",
+          "Agent name, your name, and relationship stats.",
+        )}
+      />
 
-      <div className="form-group">
-        <label htmlFor="agent-name">Assistant Name</label>
-        <div className="agent-name-input-row">
-          <input
-            id="agent-name"
-            type="text"
-            className="settings-input"
-            placeholder="CoWork"
-            value={config.agentName || "CoWork"}
-            onChange={(e) => onUpdate({ agentName: e.target.value })}
-            maxLength={50}
-          />
-          <button
-            className="button-primary"
-            onClick={onSave}
-            disabled={saving || !config.agentName?.trim()}
-          >
-            {saving ? "Saving..." : "Save"}
-          </button>
+      <div className="personality-settings-list">
+        <div className="personality-setting-row">
+          <div className="personality-setting-copy">
+            <label htmlFor="agent-name">
+              {t("personality.identity.assistantName", "Assistant Name")}
+            </label>
+            <p>
+              {t(
+                "personality.identity.assistantNameHint",
+                "Used as the assistant's name in conversations and system instructions.",
+              )}
+            </p>
+          </div>
+          <div className="agent-name-input-row">
+            <input
+              id="agent-name"
+              type="text"
+              className="settings-input"
+              placeholder={DEFAULT_ASSISTANT_NAME}
+              value={config.agentName ?? ""}
+              onChange={(e) => onUpdate({ agentName: e.target.value })}
+              maxLength={50}
+            />
+            <button
+              className="button-secondary personality-save-button"
+              onClick={onSave}
+              disabled={saving || !config.agentName?.trim()}
+            >
+              {saving
+                ? t("personality.common.saving", "Saving...")
+                : t("personality.common.save", "Save")}
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className="form-group">
-        <label htmlFor="user-name">Your Name</label>
-        <p className="style-hint">The assistant will use this to personalize interactions</p>
-        <div className="agent-name-input-row">
-          <input
-            id="user-name"
-            type="text"
-            className="settings-input"
-            placeholder="What should I call you?"
-            value={relationship.userName ?? ""}
-            onChange={(e) =>
-              onUpdate({
-                relationship: {
-                  ...relationship,
-                  userName: e.target.value || undefined,
-                },
-              })
-            }
-            maxLength={50}
-          />
-          <button className="button-primary" onClick={onSave} disabled={saving}>
-            {saving ? "Saving..." : "Save"}
-          </button>
+        <div className="personality-setting-row">
+          <div className="personality-setting-copy">
+            <label htmlFor="user-name">
+              {t("personality.identity.yourName", "Your Name")}
+            </label>
+            <p>
+              {t(
+                "personality.identity.yourNameHint",
+                "The assistant will use this to personalize interactions",
+              )}
+            </p>
+          </div>
+          <div className="agent-name-input-row">
+            <input
+              id="user-name"
+              type="text"
+              className="settings-input"
+              placeholder={t(
+                "personality.identity.yourNamePlaceholder",
+                "What should I call you?",
+              )}
+              value={relationship.userName ?? ""}
+              onChange={(e) =>
+                onUpdate({
+                  relationship: {
+                    ...relationship,
+                    userName: e.target.value || undefined,
+                  },
+                })
+              }
+              maxLength={50}
+            />
+            <button
+              className="button-secondary personality-save-button"
+              onClick={onSave}
+              disabled={saving}
+            >
+              {saving
+                ? t("personality.common.saving", "Saving...")
+                : t("personality.common.save", "Save")}
+            </button>
+          </div>
         </div>
       </div>
 
       {relationshipStats && (
         <div className="relationship-stats">
-          <h4>Our Journey Together</h4>
+          <h4>
+            {t("personality.identity.journeyTitle", "Our Journey Together")}
+          </h4>
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-value">{relationshipStats.tasksCompleted}</div>
-              <div className="stat-label">Tasks Completed</div>
+              <div className="stat-value">
+                {relationshipStats.tasksCompleted}
+              </div>
+              <div className="stat-label">
+                {t("personality.identity.tasksCompleted", "Tasks Completed")}
+              </div>
             </div>
             <div className="stat-card">
-              <div className="stat-value">{relationshipStats.projectsCount}</div>
-              <div className="stat-label">Projects</div>
+              <div className="stat-value">
+                {relationshipStats.projectsCount}
+              </div>
+              <div className="stat-label">
+                {t("personality.identity.projects", "Projects")}
+              </div>
             </div>
             <div className="stat-card">
               <div className="stat-value">{relationshipStats.daysTogether}</div>
-              <div className="stat-label">Days Together</div>
+              <div className="stat-label">
+                {t("personality.identity.daysTogether", "Days Together")}
+              </div>
             </div>
           </div>
           {relationshipStats.nextMilestone && (
             <div className="milestone-progress">
-              <div className="progress-bar">
-                <div
-                  className="progress-fill"
-                  style={{
-                    width: `${Math.min(
-                      (relationshipStats.tasksCompleted / relationshipStats.nextMilestone) * 100,
-                      100,
-                    )}%`,
-                  }}
-                />
-              </div>
               <span className="progress-text">
-                {relationshipStats.tasksCompleted} / {relationshipStats.nextMilestone} to next
-                milestone
+                {t(
+                  "personality.identity.nextMilestoneProgress",
+                  "{completed} / {target} to next milestone",
+                  {
+                    completed: relationshipStats.tasksCompleted,
+                    target: relationshipStats.nextMilestone,
+                  },
+                )}
               </span>
             </div>
           )}

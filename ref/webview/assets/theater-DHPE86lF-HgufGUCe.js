@@ -1,0 +1,3 @@
+import { n as e, t } from "./theater-DHPE86lF-JnmUKQ3f.js";
+e();
+export { t as default };

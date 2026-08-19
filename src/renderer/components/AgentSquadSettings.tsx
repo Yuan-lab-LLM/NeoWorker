@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import { AgentRoleData, AgentCapability } from "../../electron/preload";
 import { AgentRoleCard } from "./AgentRoleCard";
 import { AgentRoleEditor } from "./AgentRoleEditor";
+import { translate, useLanguage } from "../i18n";
 
 // Alias for UI usage
 type AgentRole = AgentRoleData;
@@ -11,7 +12,11 @@ interface AgentSquadSettingsProps {
   onSettingsChanged?: () => void;
 }
 
-export function AgentSquadSettings({ onSettingsChanged }: AgentSquadSettingsProps) {
+export function AgentSquadSettings({
+  onSettingsChanged,
+}: AgentSquadSettingsProps) {
+  useLanguage();
+  const t = translate;
   const [roles, setRoles] = useState<AgentRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +35,7 @@ export function AgentSquadSettings({ onSettingsChanged }: AgentSquadSettingsProp
       setRoles(loadedRoles);
       setError(null);
     } catch (err) {
-      setError("Failed to load agent roles");
+      setError(t("agentSquad.error.load", "Failed to load agent roles"));
       console.error("Failed to load agent roles:", err);
     } finally {
       setLoading(false);
@@ -94,7 +99,9 @@ export function AgentSquadSettings({ onSettingsChanged }: AgentSquadSettingsProp
           sortOrder: role.sortOrder,
         });
         if (updated) {
-          setRoles((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+          setRoles((prev) =>
+            prev.map((r) => (r.id === updated.id ? updated : r)),
+          );
         }
       }
       setEditingRole(null);
@@ -102,12 +109,22 @@ export function AgentSquadSettings({ onSettingsChanged }: AgentSquadSettingsProp
       setError(null);
       onSettingsChanged?.();
     } catch (err: Any) {
-      setError(err.message || "Failed to save agent role");
+      setError(
+        err.message || t("agentSquad.error.save", "Failed to save agent role"),
+      );
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this agent role?")) return;
+    if (
+      !confirm(
+        t(
+          "agentSquad.confirm.delete",
+          "Are you sure you want to delete this agent role?",
+        ),
+      )
+    )
+      return;
 
     try {
       const success = await window.electronAPI.deleteAgentRole(id);
@@ -115,10 +132,15 @@ export function AgentSquadSettings({ onSettingsChanged }: AgentSquadSettingsProp
         setRoles((prev) => prev.filter((r) => r.id !== id));
         onSettingsChanged?.();
       } else {
-        setError("Cannot delete system agent roles");
+        setError(
+          t(
+            "agentSquad.error.deleteSystem",
+            "Cannot delete system agent roles",
+          ),
+        );
       }
-    } catch  {
-      setError("Failed to delete agent role");
+    } catch {
+      setError(t("agentSquad.error.delete", "Failed to delete agent role"));
     }
   };
 
@@ -129,11 +151,13 @@ export function AgentSquadSettings({ onSettingsChanged }: AgentSquadSettingsProp
         isActive: !role.isActive,
       });
       if (updated) {
-        setRoles((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+        setRoles((prev) =>
+          prev.map((r) => (r.id === updated.id ? updated : r)),
+        );
         onSettingsChanged?.();
       }
-    } catch  {
-      setError("Failed to update agent role");
+    } catch {
+      setError(t("agentSquad.error.update", "Failed to update agent role"));
     }
   };
 
@@ -149,13 +173,19 @@ export function AgentSquadSettings({ onSettingsChanged }: AgentSquadSettingsProp
         setRoles(seeded);
         onSettingsChanged?.();
       }
-    } catch  {
-      setError("Failed to seed default agent roles");
+    } catch {
+      setError(
+        t("agentSquad.error.seed", "Failed to seed default agent roles"),
+      );
     }
   };
 
   if (loading) {
-    return <div className="settings-loading">Loading agent roles...</div>;
+    return (
+      <div className="settings-loading">
+        {t("agentSquad.loading", "Loading agent roles...")}
+      </div>
+    );
   }
 
   // Show editor if editing or creating
@@ -179,25 +209,30 @@ export function AgentSquadSettings({ onSettingsChanged }: AgentSquadSettingsProp
     <div className="agent-squad-settings">
       <div className="settings-section">
         <div className="settings-section-header">
-          <h3>Agent Squad</h3>
+          <h3>{t("agentSquad.title", "Agent Squad")}</h3>
           <div className="settings-section-actions">
-            <label className="checkbox-label" style={{ marginRight: "12px", fontSize: "13px" }}>
+            <label
+              className="checkbox-label"
+              style={{ marginRight: "12px", fontSize: "13px" }}
+            >
               <input
                 type="checkbox"
                 checked={showInactive}
                 onChange={(e) => setShowInactive(e.target.checked)}
               />
-              Show inactive
+              {t("agentSquad.showInactive", "Show inactive")}
             </label>
             <button className="btn-primary btn-sm" onClick={handleCreate}>
               <Plus size={14} strokeWidth={2} />
-              New Agent Role
+              {t("agentSquad.newRole", "New Agent Role")}
             </button>
           </div>
         </div>
         <p className="settings-description">
-          Define specialized agent roles for your team. Each role can have unique capabilities,
-          personality, and tool restrictions. Assign roles to tasks for focused work.
+          {t(
+            "agentSquad.description",
+            "Define specialized agent roles for your team. Each role can have unique capabilities, personality, and tool restrictions. Assign roles to tasks for focused work.",
+          )}
         </p>
       </div>
 
@@ -205,16 +240,19 @@ export function AgentSquadSettings({ onSettingsChanged }: AgentSquadSettingsProp
 
       {roles.length === 0 ? (
         <div className="agent-squad-empty">
-          <p>No agent roles configured.</p>
+          <p>{t("agentSquad.empty.title", "No agent roles configured.")}</p>
           <p>
-            Click "New Agent Role" to create your first specialized agent, or seed the defaults.
+            {t(
+              "agentSquad.empty.description",
+              'Click "New Agent Role" to create your first specialized agent, or seed the defaults.',
+            )}
           </p>
           <button
             className="btn-secondary"
             onClick={handleSeedDefaults}
             style={{ marginTop: "12px" }}
           >
-            Seed Default Roles
+            {t("agentSquad.seedDefaults", "Seed Default Roles")}
           </button>
         </div>
       ) : (
@@ -222,7 +260,9 @@ export function AgentSquadSettings({ onSettingsChanged }: AgentSquadSettingsProp
           {/* System Roles */}
           {systemRoles.length > 0 && (
             <div className="agent-role-group">
-              <h4 className="agent-role-group-title">Built-in Roles</h4>
+              <h4 className="agent-role-group-title">
+                {t("agentSquad.builtInRoles", "Built-in Roles")}
+              </h4>
               <div className="agent-role-grid">
                 {systemRoles.map((role) => (
                   <AgentRoleCard
@@ -240,7 +280,9 @@ export function AgentSquadSettings({ onSettingsChanged }: AgentSquadSettingsProp
           {/* Custom Roles */}
           {customRoles.length > 0 && (
             <div className="agent-role-group">
-              <h4 className="agent-role-group-title">Custom Roles</h4>
+              <h4 className="agent-role-group-title">
+                {t("agentSquad.customRoles", "Custom Roles")}
+              </h4>
               <div className="agent-role-grid">
                 {customRoles.map((role) => (
                   <AgentRoleCard

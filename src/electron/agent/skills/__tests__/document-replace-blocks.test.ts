@@ -15,7 +15,7 @@ afterEach(() => {
 
 describe("DocumentBuilder.replaceBlocksById", () => {
   it("replaces only the selected contiguous blocks", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-docx-replace-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-docx-replace-"));
     tempDirs.push(dir);
     const workspace = {
       id: "ws-1",

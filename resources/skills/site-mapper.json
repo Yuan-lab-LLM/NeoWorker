@@ -16,7 +16,7 @@
   "enabled": true,
   "metadata": {
     "version": "1.0.0",
-    "author": "cowork-os",
+    "author": "neoworker",
     "routing": {
       "useWhen": "Use when the user wants to understand a website's structure, discover all pages, or create a site inventory.",
       "dontUseWhen": "Don't use for single-page scraping or when the user only needs content from one specific URL.",

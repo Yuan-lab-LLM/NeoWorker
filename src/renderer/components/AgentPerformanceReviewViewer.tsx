@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentRoleData } from "../../electron/preload";
-import type { AgentPerformanceReview, AgentReviewGenerateRequest } from "../../shared/types";
+import type {
+  AgentPerformanceReview,
+  AgentReviewGenerateRequest,
+} from "../../shared/types";
+import { translate, useLanguage } from "../i18n";
 
 type AgentRole = AgentRoleData;
 
@@ -13,8 +17,15 @@ export function AgentPerformanceReviewViewer({
   agents: AgentRole[];
   onClose: () => void;
 }) {
-  const activeAgents = useMemo(() => agents.filter((a) => a.isActive), [agents]);
-  const [selectedAgentRoleId, setSelectedAgentRoleId] = useState<string>(activeAgents[0]?.id || "");
+  useLanguage();
+  const t = translate;
+  const activeAgents = useMemo(
+    () => agents.filter((a) => a.isActive),
+    [agents],
+  );
+  const [selectedAgentRoleId, setSelectedAgentRoleId] = useState<string>(
+    activeAgents[0]?.id || "",
+  );
   const [periodDays, setPeriodDays] = useState<number>(7);
   const [reviews, setReviews] = useState<AgentPerformanceReview[]>([]);
   const [latest, setLatest] = useState<AgentPerformanceReview | null>(null);
@@ -38,12 +49,18 @@ export function AgentPerformanceReviewViewer({
           agentRoleId: selectedAgentRoleId,
           limit: 50,
         }),
-        window.electronAPI.getLatestAgentReview(workspaceId, selectedAgentRoleId),
+        window.electronAPI.getLatestAgentReview(
+          workspaceId,
+          selectedAgentRoleId,
+        ),
       ]);
       setReviews(list);
       setLatest(lat || null);
     } catch (e: Any) {
-      setError(e?.message || "Failed to load reviews");
+      setError(
+        e?.message ||
+          t("performanceReview.error.load", "Failed to load reviews"),
+      );
     } finally {
       setLoading(false);
     }
@@ -67,7 +84,10 @@ export function AgentPerformanceReviewViewer({
       setLatest(created);
       setReviews((prev) => [created, ...prev]);
     } catch (e: Any) {
-      setError(e?.message || "Failed to generate review");
+      setError(
+        e?.message ||
+          t("performanceReview.error.generate", "Failed to generate review"),
+      );
     } finally {
       setGenerating(false);
     }
@@ -82,7 +102,10 @@ export function AgentPerformanceReviewViewer({
         autonomyLevel: latest.recommendedAutonomyLevel,
       });
     } catch (e: Any) {
-      setError(e?.message || "Failed to apply update");
+      setError(
+        e?.message ||
+          t("performanceReview.error.apply", "Failed to apply update"),
+      );
     }
   }, [selectedAgent, latest?.recommendedAutonomyLevel]);
 
@@ -90,13 +113,16 @@ export function AgentPerformanceReviewViewer({
     <div className="review-viewer">
       <div className="review-header">
         <div className="review-title">
-          <h3>Performance Reviews</h3>
+          <h3>{t("performanceReview.title", "Performance Reviews")}</h3>
           <div className="review-subtitle">
-            Generate and track role-level reviews per workspace.
+            {t(
+              "performanceReview.subtitle",
+              "Generate and track role-level reviews per workspace.",
+            )}
           </div>
         </div>
         <button className="btn" onClick={onClose}>
-          Close
+          {t("common.close", "Close")}
         </button>
       </div>
 
@@ -104,7 +130,7 @@ export function AgentPerformanceReviewViewer({
 
       <div className="review-controls">
         <label>
-          Agent
+          {t("performanceReview.agent", "Agent")}
           <select
             value={selectedAgentRoleId}
             onChange={(e) => setSelectedAgentRoleId(e.target.value)}
@@ -117,7 +143,7 @@ export function AgentPerformanceReviewViewer({
           </select>
         </label>
         <label>
-          Window (days)
+          {t("performanceReview.windowDays", "Window (days)")}
           <input
             type="number"
             min={1}
@@ -131,47 +157,76 @@ export function AgentPerformanceReviewViewer({
           onClick={handleGenerate}
           disabled={generating || !selectedAgentRoleId}
         >
-          {generating ? "Generating..." : "Generate Review"}
+          {generating
+            ? t("performanceReview.generating", "Generating...")
+            : t("performanceReview.generate", "Generate Review")}
         </button>
       </div>
 
       {loading ? (
-        <div className="review-loading">Loading...</div>
+        <div className="review-loading">
+          {t("common.loading", "Loading...")}
+        </div>
       ) : (
         <>
           <div className="review-latest">
             <div className="review-card">
               <div className="review-card-head">
                 <div>
-                  <div className="review-card-title">Latest</div>
+                  <div className="review-card-title">
+                    {t("performanceReview.latest", "Latest")}
+                  </div>
                   <div className="review-card-meta">
-                    {latest ? new Date(latest.createdAt).toLocaleString() : "No reviews yet"}
+                    {latest
+                      ? new Date(latest.createdAt).toLocaleString()
+                      : t("performanceReview.noReviewsYet", "No reviews yet")}
                   </div>
                 </div>
                 {latest?.recommendedAutonomyLevel && selectedAgent && (
                   <button className="btn" onClick={handleApplyRecommendation}>
-                    Apply Recommended Level ({latest.recommendedAutonomyLevel})
+                    {t(
+                      "performanceReview.applyLevel",
+                      "Apply Recommended Level ({level})",
+                      {
+                        level: latest.recommendedAutonomyLevel,
+                      },
+                    )}
                   </button>
                 )}
               </div>
               {latest ? (
                 <>
-                  <div className="review-rating">Rating: {latest.rating}/5</div>
+                  <div className="review-rating">
+                    {t("performanceReview.rating", "Rating: {rating}/5", {
+                      rating: latest.rating,
+                    })}
+                  </div>
                   <pre className="review-summary">{latest.summary}</pre>
                   {latest.recommendationRationale && (
-                    <div className="review-rationale">{latest.recommendationRationale}</div>
+                    <div className="review-rationale">
+                      {latest.recommendationRationale}
+                    </div>
                   )}
                 </>
               ) : (
-                <div className="review-empty">Generate a review to see details.</div>
+                <div className="review-empty">
+                  {t(
+                    "performanceReview.empty",
+                    "Generate a review to see details.",
+                  )}
+                </div>
               )}
             </div>
           </div>
 
           <div className="review-history">
-            <div className="review-history-title">History</div>
+            <div className="review-history-title">
+              {t("performanceReview.history", "History")}
+            </div>
             {reviews.length === 0 ? (
-              <div className="review-empty">No saved reviews.</div>
+              <div className="review-empty">
+                {t("performanceReview.noSaved", "No saved reviews.")}
+              </div>
             ) : (
               <div className="review-list">
                 {reviews.map((r) => (

@@ -7,7 +7,7 @@ FIXED=0
 TIMEOUT=15
 INTERVAL=0.5
 LINES=1000
-SOCKET="${CoWork-OSS_TMUX_SOCKET:-${TMPDIR:-/tmp}/CoWork-OSS-tmux-sockets/CoWork-OSS.sock}"
+SOCKET="${NeoWorker_TMUX_SOCKET:-${TMPDIR:-/tmp}/NeoWorker-tmux-sockets/NeoWorker.sock}"
 
 usage() {
   cat <<'USAGE'

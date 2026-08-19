@@ -101,21 +101,21 @@ function sha1(parts) {
 
 function parseArgs(argv) {
   const args = {
-    base: process.env.COWORK_SECURITY_HARNESS_BASE || 'HEAD~1',
-    head: process.env.COWORK_SECURITY_HARNESS_HEAD || 'HEAD',
+    base: process.env.NEOWORKER_SECURITY_HARNESS_BASE || 'HEAD~1',
+    head: process.env.NEOWORKER_SECURITY_HARNESS_HEAD || 'HEAD',
     files: [],
     all: false,
     output: DEFAULT_REPORT_PATH,
     missionControlOut: DEFAULT_MISSION_CONTROL_PATH,
-    dbPath: process.env.COWORK_DB_PATH || '',
-    profileId: process.env.COWORK_SECURITY_HARNESS_PROFILE_ID || '',
-    workspaceId: process.env.COWORK_SECURITY_HARNESS_WORKSPACE_ID || '',
-    targetKey: process.env.COWORK_SECURITY_HARNESS_TARGET_KEY || 'code_workspace:security',
-    confirmedFix: process.env.COWORK_SECURITY_CONFIRMED_FIX === '1',
-    fixId: process.env.COWORK_SECURITY_FIX_ID || '',
-    fixSummary: process.env.COWORK_SECURITY_FIX_SUMMARY || '',
+    dbPath: process.env.NEOWORKER_DB_PATH || '',
+    profileId: process.env.NEOWORKER_SECURITY_HARNESS_PROFILE_ID || '',
+    workspaceId: process.env.NEOWORKER_SECURITY_HARNESS_WORKSPACE_ID || '',
+    targetKey: process.env.NEOWORKER_SECURITY_HARNESS_TARGET_KEY || 'code_workspace:security',
+    confirmedFix: process.env.NEOWORKER_SECURITY_CONFIRMED_FIX === '1',
+    fixId: process.env.NEOWORKER_SECURITY_FIX_ID || '',
+    fixSummary: process.env.NEOWORKER_SECURITY_FIX_SUMMARY || '',
     evalCasePath: DEFAULT_EVAL_CASE_PATH,
-    failOnFindings: process.env.COWORK_SECURITY_HARNESS_FAIL_ON_FINDINGS === '1',
+    failOnFindings: process.env.NEOWORKER_SECURITY_HARNESS_FAIL_ON_FINDINGS === '1',
   };
 
   for (let index = 2; index < argv.length; index += 1) {
@@ -273,7 +273,7 @@ function buildReport({ args, changedFiles, highRiskFiles, candidates, findings, 
       highRiskFiles,
     },
     pipeline: [
-      { stage: 'prepare', status: 'completed', summary: 'Changed files classified against CoWork high-risk boundaries.' },
+      { stage: 'prepare', status: 'completed', summary: 'Changed files classified against NeoWorker high-risk boundaries.' },
       { stage: 'scan', status: 'completed', summary: `${candidates.length} auditor candidates produced.` },
       { stage: 'validate', status: 'completed', summary: 'Verifier/debater pass applied to every candidate.' },
       { stage: 'dedup', status: 'completed', summary: `${findings.length} confirmed deduped findings emitted.` },

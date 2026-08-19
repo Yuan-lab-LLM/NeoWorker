@@ -183,7 +183,7 @@ Full working example in `assets/templates/slides-en.mjs`. Key idea:
 export default {
   metadata: {
     title: "Example deck",
-    author: "CoWork OS",
+    author: "NeoWorker",
   },
   theme: {
     parchment: "#f5f4ed",

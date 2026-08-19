@@ -163,15 +163,15 @@ jobs:
         if: steps.changes.outputs.agent == 'true'
         run: npm run qa:eval:run -- --suite reliability-regressions --mode deterministic
         env:
-          COWORK_DB_PATH: ${{ runner.temp }}/cowork-eval.db
-          COWORK_EVAL_ALLOW_EMPTY: '1'
+          NEOWORKER_DB_PATH: ${{ runner.temp }}/neoworker-eval.db
+          NEOWORKER_EVAL_ALLOW_EMPTY: '1'
 
       - name: Enforce timeline reliability thresholds
         if: steps.changes.outputs.agent == 'true'
         run: npm run qa:timeline:enforce
         env:
-          COWORK_DB_PATH: ${{ runner.temp }}/cowork-eval.db
-          COWORK_EVAL_ALLOW_EMPTY: '1'
+          NEOWORKER_DB_PATH: ${{ runner.temp }}/neoworker-eval.db
+          NEOWORKER_EVAL_ALLOW_EMPTY: '1'
 
       - name: Skip notice
         if: steps.changes.outputs.agent != 'true'
@@ -227,7 +227,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: CoWork-OSS-${{ matrix.os }}
+          name: NeoWorker-${{ matrix.os }}
           path: |
             release/*.dmg
             release/*.zip

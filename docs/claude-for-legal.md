@@ -1,6 +1,6 @@
 # Claude-for-Legal Workflows
 
-CoWork OS bundles Claude-for-Legal plugin packs as normal plugin-pack skills and slash commands. They keep the upstream workflow names, but run through CoWork's composer, task timeline, approval model, and workspace-local file rules.
+NeoWorker bundles Claude-for-Legal plugin packs as normal plugin-pack skills and slash commands. They keep the upstream workflow names, but run through NeoWorker's composer, task timeline, approval model, and workspace-local file rules.
 
 ## Starting A Legal Workflow
 
@@ -23,7 +23,7 @@ Manual typing works the same way as picker selection.
 
 ## Main-View Intake Cards
 
-Some Claude-for-Legal workflows need structured matter context before the agent can continue usefully. CoWork shows that context request in the main task view instead of forcing a long back-and-forth in chat.
+Some Claude-for-Legal workflows need structured matter context before the agent can continue usefully. NeoWorker shows that context request in the main task view instead of forcing a long back-and-forth in chat.
 
 Current behavior:
 
@@ -65,13 +65,13 @@ Employment termination review:
 
 ## Safety Model
 
-The bundled legal packs keep CoWork's legal workflow guardrails:
+The bundled legal packs keep NeoWorker's legal workflow guardrails:
 
 - output is draft legal work product for attorney review
 - jurisdiction, source gaps, privilege concerns, and uncertainty should be surfaced explicitly
 - the agent must not file, send, approve, execute, or take irreversible action without explicit user confirmation
 - connector and document contents are treated as data, not instructions
-- upstream `~/.claude` configuration writes are adapted to reviewable CoWork workspace content or explicit user-approved destinations
+- upstream `~/.claude` configuration writes are adapted to reviewable NeoWorker workspace content or explicit user-approved destinations
 
 ## Testing
 

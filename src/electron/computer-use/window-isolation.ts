@@ -19,7 +19,7 @@ const TIMEOUT_MS = 10_000;
 
 export interface WindowIsolationOptions {
   /**
-   * When false (default for CUA sessions), do not force CoWork/Electron to stay visible —
+   * When false (default for CUA sessions), do not force NeoWorker/Electron to stay visible —
    * the main app window may be hidden separately by the session manager.
    */
   keepHostProcessesVisible?: boolean;
@@ -50,7 +50,7 @@ export class WindowIsolation {
 
     const keepHost = options?.keepHostProcessesVisible !== false;
     if (keepHost) {
-      approved.add("cowork");
+      approved.add("neoworker");
       approved.add("electron");
     }
 

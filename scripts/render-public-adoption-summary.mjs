@@ -5,8 +5,8 @@ const repoRoot = process.cwd();
 const latestPath = path.join(repoRoot, "data", "adoption", "public-stats-latest.json");
 const outputPath = path.join(repoRoot, "docs", "public-adoption-stats.md");
 const readmePath = path.join(repoRoot, "README.md");
-const readmeStatsStart = "<!-- COWORK_PUBLIC_ADOPTION_STATS_START -->";
-const readmeStatsEnd = "<!-- COWORK_PUBLIC_ADOPTION_STATS_END -->";
+const readmeStatsStart = "<!-- NEOWORKER_PUBLIC_ADOPTION_STATS_START -->";
+const readmeStatsEnd = "<!-- NEOWORKER_PUBLIC_ADOPTION_STATS_END -->";
 
 function formatNumber(value) {
   if (value == null || Number.isNaN(Number(value))) return "n/a";
@@ -133,7 +133,7 @@ async function updateReadmeStats(block) {
     const after = readme.slice(endIndex + readmeStatsEnd.length).trimStart();
     readme = `${before}\n\n${block}\n\n${after}`;
   } else {
-    const heroImageMarker = '<p align="center">\n  <img src="resources/branding/images/cowork-os-1.webp"';
+    const heroImageMarker = '<p align="center">\n  <img src="resources/branding/images/neoworker-1.webp"';
     const insertIndex = readme.indexOf(heroImageMarker);
     if (insertIndex < 0) {
       throw new Error("Could not locate README insertion point for public adoption stats block.");
@@ -159,7 +159,7 @@ async function main() {
 
 Generated at: ${stats.generatedAt}
 
-These numbers are acquisition and download-intent signals for CoWork OS. They do **not** measure active users, first launch, successful task completion, model configuration, retention, prompts, files, emails, or any in-app content.
+These numbers are acquisition and download-intent signals for NeoWorker. They do **not** measure active users, first launch, successful task completion, model configuration, retention, prompts, files, emails, or any in-app content.
 
 ## Snapshot
 

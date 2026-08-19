@@ -1,6 +1,6 @@
 # Plugin Packs & Customize
 
-Plugin packs are composable bundles that group skills, agent roles, connectors, and slash commands into a single installable unit. Most packs target a job function — engineering, sales, product management, legal practice areas — while workflow packs such as **CoWork Shortcuts** add reusable message-box shortcuts. Packs can optionally link to a [Digital Twin Persona](digital-twins.md) as an optional role preset.
+Plugin packs are composable bundles that group skills, agent roles, connectors, and slash commands into a single installable unit. Most packs target a job function — engineering, sales, product management, legal practice areas — while workflow packs such as **NeoWorker Shortcuts** add reusable message-box shortcuts. Packs can optionally link to a [Digital Twin Persona](digital-twins.md) as an optional role preset.
 
 Access from **Settings** > **Customize**.
 
@@ -10,7 +10,7 @@ Access from **Settings** > **Customize**.
 
 ### Plugin Pack
 
-A JSON manifest (`cowork.plugin.json`) that bundles related capabilities:
+A JSON manifest (`neoworker.plugin.json`) that bundles related capabilities:
 
 | Field | Purpose |
 |-------|---------|
@@ -28,8 +28,8 @@ A JSON manifest (`cowork.plugin.json`) that bundles related capabilities:
 
 | Scope | Source | Managed By |
 |-------|--------|------------|
-| **Bundled** | Ships with CoWork OS in `resources/plugin-packs/` | CoWork OS team |
-| **Personal** | User-created in `~/.cowork/extensions/` | Individual user |
+| **Bundled** | Ships with NeoWorker in `resources/plugin-packs/` | NeoWorker team |
+| **Personal** | User-created in `~/.neoworker/extensions/` | Individual user |
 | **Organization** | Distributed by org admins | Organization admin |
 
 ### How Packs Differ from Individual Skills
@@ -157,9 +157,9 @@ It auto-refreshes every 30 seconds and provides at-a-glance awareness of your ac
 
 ## Bundled Plugin Packs
 
-CoWork OS ships with 37 plugin packs covering common job functions, finance workflows, legal workflows, security review, and reusable message-box shortcuts.
+NeoWorker ships with 37 plugin packs covering common job functions, finance workflows, legal workflows, security review, and reusable message-box shortcuts.
 
-### CoWork Shortcuts
+### NeoWorker Shortcuts
 
 | | |
 |---|---|
@@ -210,7 +210,7 @@ CoWork OS ships with 37 plugin packs covering common job functions, finance work
 - `/monthly-financial-organizer`
 - `/competitive-scan`
 
-See [Message Box Shortcuts](message-box-shortcuts.md#cowork-shortcuts-pack) for the complete current list and runtime behavior.
+See [Message Box Shortcuts](message-box-shortcuts.md#neoworker-shortcuts-pack) for the complete current list and runtime behavior.
 
 ### Codex Security
 
@@ -220,7 +220,7 @@ See [Message Box Shortcuts](message-box-shortcuts.md#cowork-shortcuts-pack) for 
 | **Category** | Engineering |
 | **Agent Role** | Security Reviewer |
 
-**Purpose:** run repository, diff, and deep multi-pass security review workflows through the CoWork task runtime.
+**Purpose:** run repository, diff, and deep multi-pass security review workflows through the NeoWorker task runtime.
 
 **Core skills and commands:**
 - `/security-scan` - repository-wide or scoped-path security scan
@@ -233,7 +233,7 @@ See [Codex Security Scans](codex-security-scans.md) for scan modes, artifact lay
 
 ### Claude-for-Legal Packs
 
-CoWork OS bundles the Claude-for-Legal practice packs from `resources/plugin-packs/*legal*/`. They expose upstream-style legal slash commands through the same plugin-pack alias system used by other packs.
+NeoWorker bundles the Claude-for-Legal practice packs from `resources/plugin-packs/*legal*/`. They expose upstream-style legal slash commands through the same plugin-pack alias system used by other packs.
 
 Bundled legal packs include:
 
@@ -705,11 +705,11 @@ App Startup
 PluginRegistry.initialize()
     │
     ├── Scan: resources/plugin-packs/     (bundled packs)
-    ├── Scan: ~/.cowork/extensions/        (personal packs)
+    ├── Scan: ~/.neoworker/extensions/        (personal packs)
     └── Scan: {org-dir}/                   (organization packs)
     │
     ▼
-For each cowork.plugin.json found:
+For each neoworker.plugin.json found:
     │
     ├── Validate manifest (required fields, semver, platform)
     ├── Register inline skills → Custom Skill Loader
@@ -741,7 +741,7 @@ For each cowork.plugin.json found:
 
 ### State Persistence
 
-Pack and skill toggle states are persisted in `pack-states.json` in the user data directory (`~/Library/Application Support/cowork-os/`). The file uses the following format:
+Pack and skill toggle states are persisted in `pack-states.json` in the user data directory (`~/Library/Application Support/neoworker/`). The file uses the following format:
 
 ```json
 {
@@ -830,7 +830,7 @@ window.electronAPI.checkPackUpdates()
 
 // Pack distribution
 window.electronAPI.scaffoldPluginPack(options)
-// Creates a new pack skeleton in ~/.cowork/extensions/
+// Creates a new pack skeleton in ~/.neoworker/extensions/
 
 window.electronAPI.installPluginPackFromGit(gitUrl)
 // Clones and installs a pack from a Git repository
@@ -839,7 +839,7 @@ window.electronAPI.installPluginPackFromUrl(url)
 // Downloads and installs a pack manifest from a URL
 
 window.electronAPI.uninstallPluginPack(packName)
-// Removes a user-installed pack from ~/.cowork/extensions/
+// Removes a user-installed pack from ~/.neoworker/extensions/
 
 // Remote registry
 window.electronAPI.searchPackRegistry(query, options?)
@@ -883,13 +883,13 @@ Click the **"+"** button in the Customize panel sidebar header to open the Plugi
 
 **Install from URL/Git**
 - Enter any Git URL (`github:owner/repo`, `https://github.com/...`, `git@github.com:...`)
-- Or enter a direct URL to a `cowork.plugin.json` manifest
+- Or enter a direct URL to a `neoworker.plugin.json` manifest
 - Progress feedback during installation
 - Imported packs are scanned before activation and can be quarantined with a stored report instead of being loaded immediately
 
 **Create New Pack**
 - Fill in pack name, display name, category, and icon
-- Scaffolds a new pack directory in `~/.cowork/extensions/`
+- Scaffolds a new pack directory in `~/.neoworker/extensions/`
 - Includes example skill and agent role to get started
 - Opens in the Customize panel immediately after creation
 
@@ -897,34 +897,34 @@ Click the **"+"** button in the Customize panel sidebar header to open the Plugi
 
 **From Git:**
 1. Shallow clone the repository to a temp directory
-2. Validate the `cowork.plugin.json` manifest
+2. Validate the `neoworker.plugin.json` manifest
 3. Run install-time bundle security scanning against the manifest, declarative connectors, bundled scripts, and any detected package references
 4. Remove the `.git` directory
-5. Move to `~/.cowork/extensions/{pack-name}/` only if the scan verdict allows activation
+5. Move to `~/.neoworker/extensions/{pack-name}/` only if the scan verdict allows activation
 6. Trigger plugin discovery to register the new pack
 
 **From URL:**
 1. Fetch the manifest JSON from the URL
 2. Validate required fields and structure
 3. Stage the manifest and run install-time security scanning
-4. Write to `~/.cowork/extensions/{pack-name}/cowork.plugin.json` only if the scan verdict allows activation
+4. Write to `~/.neoworker/extensions/{pack-name}/neoworker.plugin.json` only if the scan verdict allows activation
 5. Trigger plugin discovery to register the new pack
 
-If a pack is blocked, CoWork stores it in quarantine outside the normal discovery path and exposes:
+If a pack is blocked, NeoWorker stores it in quarantine outside the normal discovery path and exposes:
 - a short install result summary
 - a detailed report view in the Customize panel
 - retry scan and removal actions
 
 **From Scaffold:**
 1. Validate pack name (kebab-case, max 64 chars, no path traversal)
-2. Create directory in `~/.cowork/extensions/`
-3. Generate `cowork.plugin.json` with all fields populated
+2. Create directory in `~/.neoworker/extensions/`
+3. Generate `neoworker.plugin.json` with all fields populated
 4. Optionally include example skill and agent role
 5. Trigger plugin discovery to register the new pack
 
 ### Uninstallation
 
-Only user-installed packs (in `~/.cowork/extensions/`) can be uninstalled. Bundled packs and organization packs cannot be removed.
+Only user-installed packs (in `~/.neoworker/extensions/`) can be uninstalled. Bundled packs and organization packs cannot be removed.
 
 To uninstall: right-click a personal pack in the sidebar or use the API:
 ```typescript
@@ -935,12 +935,12 @@ window.electronAPI.uninstallPluginPack("my-custom-pack")
 
 Imported packs are treated as a trust boundary.
 
-CoWork now applies the following behavior to packs installed from Git or URL sources:
+NeoWorker now applies the following behavior to packs installed from Git or URL sources:
 - installs are staged before activation
 - declarative connectors, manifest fields, bundled text/script content, and inferred package references are scanned before the pack is registered
 - high-confidence malicious findings move the pack into quarantine instead of loading it
 - warning-only findings still allow install, but the Customize panel shows a visible **Security Warning** badge and summary
-- managed packs keep a persisted security report and bundle digest so CoWork can detect post-install changes and quarantine tampered imports on the next discovery pass
+- managed packs keep a persisted security report and bundle digest so NeoWorker can detect post-install changes and quarantine tampered imports on the next discovery pass
 - unmanaged local pack folders are not auto-quarantined, but warning findings can still be surfaced in the Customize panel
 
 ---
@@ -960,7 +960,7 @@ The registry follows the same architecture as the Skill Registry:
 ### Default Registry URL
 
 ```
-https://raw.githubusercontent.com/CoWork-OS/CoWork-OS/main/registry
+https://raw.githubusercontent.com/NeoWorker/NeoWorker/main/registry
 ```
 
 Override with the `PLUGIN_PACK_REGISTRY` environment variable.
@@ -1001,7 +1001,7 @@ Enterprise administrators can control plugin pack availability across the organi
 
 Packs placed in the organization directory are loaded with `scope: "organization"` and shown in a separate "Organization" section in the Customize sidebar.
 
-**Default org directory:** `~/.cowork/org-plugins/`
+**Default org directory:** `~/.neoworker/org-plugins/`
 **Custom org directory:** Set via Admin Policies > Organization > Organization Plugin Directory
 
 ### Policy Enforcement
@@ -1032,11 +1032,11 @@ There are three ways to create a custom pack:
 
 ### 2. Manual Creation
 
-Create a directory in `~/.cowork/extensions/` with a `cowork.plugin.json` manifest:
+Create a directory in `~/.neoworker/extensions/` with a `neoworker.plugin.json` manifest:
 
 ```
-~/.cowork/extensions/my-custom-pack/
-└── cowork.plugin.json
+~/.neoworker/extensions/my-custom-pack/
+└── neoworker.plugin.json
 ```
 
 ### 3. Via CLI API
@@ -1291,9 +1291,9 @@ Each person gets role-specific skills and proactive digital twins that work in t
 
 ## Competitive Advantages
 
-CoWork OS plugin packs offer capabilities beyond typical AI assistant plugins:
+NeoWorker plugin packs offer capabilities beyond typical AI assistant plugins:
 
-| Feature | CoWork OS | Typical AI Plugins |
+| Feature | NeoWorker | Typical AI Plugins |
 |---------|-----------|-------------------|
 | **Digital Twin integration** | Packs link to proactive personas that work in the background | Reactive only — waits for user prompts |
 | **Multi-model** | Skills work with 36 LLM provider options (OpenAI, Anthropic, Google, Grok, local, and Mixture of Agents presets) | Locked to single provider |
@@ -1308,7 +1308,7 @@ CoWork OS plugin packs offer capabilities beyond typical AI assistant plugins:
 ## Troubleshooting
 
 ### Pack not appearing in Customize panel
-- Verify `cowork.plugin.json` exists in the pack directory
+- Verify `neoworker.plugin.json` exists in the pack directory
 - Check that `"type": "pack"` is set in the manifest
 - Ensure the `name` field is unique across all packs
 - Restart the app to trigger pack discovery
@@ -1342,7 +1342,7 @@ CoWork OS plugin packs offer capabilities beyond typical AI assistant plugins:
 
 ### Git install fails
 - Verify the Git URL is accessible (try cloning manually)
-- Check that the repo contains a valid `cowork.plugin.json` at the root
+- Check that the repo contains a valid `neoworker.plugin.json` at the root
 - Git-based installation may be disabled by admin policy
 
 ### Skill ID conflict between packs

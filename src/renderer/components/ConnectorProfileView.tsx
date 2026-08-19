@@ -1,11 +1,28 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, ArrowLeft, Copy, ExternalLink } from "lucide-react";
-import { getConnectorProfile, type ConnectorProfile } from "../../shared/connector-profiles";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Check,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  FileOutput,
+  ShieldCheck,
+  Sparkles,
+  Wrench,
+  X,
+} from "lucide-react";
+import {
+  getConnectorProfile,
+  type ConnectorProfile,
+} from "../../shared/connector-profiles";
+import { translate, useLanguage } from "../i18n";
 import { ConnectorBrandIcon } from "./ConnectorBrandIcon";
 import type { ConnectorProvider } from "./ConnectorSetupModal";
 import type { ConnectorEnvField } from "./ConnectorEnvModal";
 
-type MCPConnectionStatus = "disconnected" | "connecting" | "connected" | "reconnecting" | "error";
+type MCPConnectionStatus =
+  "disconnected" | "connecting" | "connected" | "reconnecting" | "error";
 
 type MCPServerConfig = {
   id: string;
@@ -57,15 +74,15 @@ function getStatusColor(status: MCPConnectionStatus): string {
 function getStatusText(status: MCPConnectionStatus): string {
   switch (status) {
     case "connected":
-      return "Connected";
+      return translate("connectorProfile.status.connected", "Connected");
     case "connecting":
-      return "Connecting";
+      return translate("connectorProfile.status.connecting", "Connecting");
     case "reconnecting":
-      return "Reconnecting";
+      return translate("connectorProfile.status.reconnecting", "Reconnecting");
     case "error":
-      return "Error";
+      return translate("common.error", "Error");
     default:
-      return "Disconnected";
+      return translate("connectorProfile.status.disconnected", "Disconnected");
   }
 }
 
@@ -92,6 +109,70 @@ type MCPUpdateInfo = {
   registryEntry: MCPRegistryEntry;
 };
 
+type ProfileExample = NonNullable<ConnectorProfile["examples"]>[number];
+
+function fallbackExamples(connector: ConnectorDefinition): ProfileExample[] {
+  return [
+    {
+      prompt: translate(
+        "connectors.example.reviewRecent",
+        "Review recent items in {name} that need attention",
+        { name: connector.name },
+      ),
+      resultLabel: translate(
+        "connectors.example.organizedResult",
+        "Organized key information and next steps from {name}",
+        { name: connector.name },
+      ),
+    },
+    {
+      prompt: `根据 ${connector.name} 的数据生成一份工作摘要`,
+      resultLabel: translate(
+        "generated.components.connectorprofileview.117.0",
+        "An editable work summary has been generated",
+      ),
+    },
+  ];
+}
+
+function fallbackFeatures(
+  connector: ConnectorDefinition,
+): ConnectorProfile["keyFeatures"] {
+  return [
+    {
+      title: translate(
+        "generated.components.connectorprofileview.125.1",
+        "Retrieve key information",
+      ),
+      description: translate(
+        "connectors.feature.naturalLanguageSearch",
+        "Use natural language to find content in {name} that is relevant to the current work.",
+        { name: connector.name },
+      ),
+    },
+    {
+      title: translate(
+        "generated.components.connectorprofileview.129.2",
+        "Organize into executable results",
+      ),
+      description: translate(
+        "generated.components.connectorprofileview.130.3",
+        "Consolidate scattered information into summaries, checklists, or next steps.",
+      ),
+    },
+    {
+      title: translate(
+        "generated.components.connectorprofileview.133.4",
+        "Keep working context",
+      ),
+      description: translate(
+        "generated.components.connectorprofileview.134.5",
+        "Bring the results back to the current workspace within the scope of authorization for continued use in subsequent tasks.",
+      ),
+    },
+  ];
+}
+
 export interface ConnectorProfileViewProps {
   connector: ConnectorDefinition;
   config: MCPServerConfig | undefined;
@@ -107,13 +188,13 @@ export interface ConnectorProfileViewProps {
     p: ConnectorProvider,
     id: string,
     name: string,
-    env?: Record<string, string>
+    env?: Record<string, string>,
   ) => void;
   onOpenEnvModal: (
     id: string,
     name: string,
     env: Record<string, string> | undefined,
-    fields: ConnectorEnvField[]
+    fields: ConnectorEnvField[],
   ) => void;
   onUpdate?: (serverId: string) => void | Promise<void>;
 }
@@ -133,14 +214,21 @@ export function ConnectorProfileView({
   onOpenEnvModal,
   onUpdate,
 }: ConnectorProfileViewProps) {
-  const profile = getConnectorProfile(connector.registryId) as ConnectorProfile | undefined;
+  useLanguage();
+  const t = translate;
+  const profile = getConnectorProfile(connector.registryId) as
+    ConnectorProfile | undefined;
   const isInstalled = Boolean(config);
   const serverStatus = status?.status || "disconnected";
   const isConnected = serverStatus === "connected";
   const isConnecting = connectingServer === config?.id;
-  const errorMsg = config ? connectionErrors[config.id] || status?.error : undefined;
+  const errorMsg = config
+    ? connectionErrors[config.id] || status?.error
+    : undefined;
 
-  const [registryEntry, setRegistryEntry] = useState<MCPRegistryEntry | null>(null);
+  const [registryEntry, setRegistryEntry] = useState<MCPRegistryEntry | null>(
+    null,
+  );
   const [updateInfo, setUpdateInfo] = useState<MCPUpdateInfo | null>(null);
   const [updating, setUpdating] = useState(false);
 
@@ -149,13 +237,17 @@ export function ConnectorProfileView({
     (async () => {
       try {
         const registry = await window.electronAPI.fetchMCPRegistry();
-        const entry = registry?.servers?.find((s: { id: string }) => s.id === connector.registryId);
+        const entry = registry?.servers?.find(
+          (s: { id: string }) => s.id === connector.registryId,
+        );
         if (!cancelled && entry) setRegistryEntry(entry);
       } catch {
         // ignore
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [connector.registryId]);
 
   useEffect(() => {
@@ -164,13 +256,17 @@ export function ConnectorProfileView({
     (async () => {
       try {
         const updates = await window.electronAPI.checkMCPUpdates();
-        const info = updates?.find((u: MCPUpdateInfo) => u.serverId === config.id);
+        const info = updates?.find(
+          (u: MCPUpdateInfo) => u.serverId === config.id,
+        );
         if (!cancelled && info) setUpdateInfo(info);
       } catch {
         // ignore
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [config?.id]);
 
   const tools = status?.tools ?? registryEntry?.tools ?? [];
@@ -182,8 +278,12 @@ export function ConnectorProfileView({
 
   const tagline = profile?.tagline ?? connector.description;
   const longDescription = profile?.longDescription ?? connector.description;
-  const keyFeatures = profile?.keyFeatures ?? [];
-  const examples = profile?.examples ?? [];
+  const keyFeatures = profile?.keyFeatures?.length
+    ? profile.keyFeatures
+    : fallbackFeatures(connector);
+  const examples = profile?.examples?.length
+    ? profile.examples
+    : fallbackExamples(connector);
   const handleConnectClick = async () => {
     if (!isInstalled) {
       onInstall(connector);
@@ -198,12 +298,18 @@ export function ConnectorProfileView({
 
   const getConnectButtonLabel = () => {
     if (!isInstalled) {
-      return installingId === connector.registryId ? "Installing..." : "Install & Connect";
+      return installingId === connector.registryId
+        ? t("connectorProfile.installing", "Installing...")
+        : t("connectorProfile.installConnect", "Install & Connect");
     }
     if (isConnected) {
-      return isConnecting ? "Disconnecting..." : "Disconnect";
+      return isConnecting
+        ? t("connectorProfile.disconnecting", "Disconnecting...")
+        : t("connectorProfile.disconnect", "Disconnect");
     }
-    return isConnecting ? "Connecting..." : "Connect";
+    return isConnecting
+      ? t("connectorProfile.connecting", "Connecting...")
+      : t("common.connect", "Connect");
   };
 
   const handleUpdate = async () => {
@@ -231,18 +337,18 @@ export function ConnectorProfileView({
             type="button"
             className="cm-profile-back"
             onClick={onClose}
-            aria-label="Back"
+            aria-label={t("common.back", "Back")}
           >
             <ArrowLeft size={18} strokeWidth={2} />
-            <span>Back</span>
+            <span>{t("common.back", "Back")}</span>
           </button>
           <button
             type="button"
             className="mcp-modal-close"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("common.close", "Close")}
           >
-            ×
+            <X size={17} aria-hidden="true" />
           </button>
         </div>
 
@@ -265,7 +371,9 @@ export function ConnectorProfileView({
                 onClick={handleUpdate}
                 disabled={updating}
               >
-                {updating ? "Updating..." : "Update"}
+                {updating
+                  ? t("connectorProfile.updating", "Updating...")
+                  : t("common.update", "Update")}
               </button>
             )}
             <button
@@ -279,28 +387,44 @@ export function ConnectorProfileView({
             >
               {getConnectButtonLabel()}
             </button>
-            {isInstalled && !isConnected && connector.supportsOAuth && connector.provider && (
-              <button
-                type="button"
-                className="button-secondary button-small"
-                onClick={() =>
-                  onOpenSetup(connector.provider!, config!.id, config!.name, config!.env)
-                }
-              >
-                OAuth Setup
-              </button>
-            )}
-            {isInstalled && !isConnected && connector.envFields && connector.envFields.length > 0 && (
-              <button
-                type="button"
-                className="button-secondary button-small"
-                onClick={() =>
-                  onOpenEnvModal(config!.id, config!.name, config!.env, connector.envFields!)
-                }
-              >
-                Configure
-              </button>
-            )}
+            {isInstalled &&
+              !isConnected &&
+              connector.supportsOAuth &&
+              connector.provider && (
+                <button
+                  type="button"
+                  className="button-secondary button-small"
+                  onClick={() =>
+                    onOpenSetup(
+                      connector.provider!,
+                      config!.id,
+                      config!.name,
+                      config!.env,
+                    )
+                  }
+                >
+                  {t("connectorProfile.oauthSetup", "OAuth Setup")}
+                </button>
+              )}
+            {isInstalled &&
+              !isConnected &&
+              connector.envFields &&
+              connector.envFields.length > 0 && (
+                <button
+                  type="button"
+                  className="button-secondary button-small"
+                  onClick={() =>
+                    onOpenEnvModal(
+                      config!.id,
+                      config!.name,
+                      config!.env,
+                      connector.envFields!,
+                    )
+                  }
+                >
+                  {t("common.configure", "Configure")}
+                </button>
+              )}
           </div>
         </div>
 
@@ -314,204 +438,313 @@ export function ConnectorProfileView({
         )}
 
         <div className="cm-profile-body">
-        {/* Example cards */}
-        {examples.length > 0 && (
-          <div className="cm-profile-examples">
-            <h3 className="cm-profile-section-label">Examples</h3>
-            <div className="cm-profile-examples-grid">
-              {examples.map((ex, i) => (
-                <div key={i} className="cm-example-card">
-                  <div className="cm-example-prompt">{ex.prompt}</div>
-                  <div className="cm-example-result">
-                    {ex.resultImageUrl ? (
-                      <img src={ex.resultImageUrl} alt={ex.resultLabel ?? "Example output"} />
-                    ) : (
-                      <div className="cm-example-placeholder">
-                        {ex.resultLabel ?? "Example output"}
-                      </div>
+          <div className="cm-profile-layout">
+            <main className="cm-profile-main">
+              <section
+                className="cm-profile-overview-card"
+                aria-label={t(
+                  "connectorProfile.overview",
+                  "Connector overview",
+                )}
+              >
+                <Sparkles size={17} aria-hidden="true" />
+                <p>{longDescription}</p>
+              </section>
+
+              <section
+                className="cm-profile-examples"
+                aria-labelledby="connector-workflows-title"
+              >
+                <div className="cm-profile-section-heading">
+                  <div>
+                    <span className="cm-profile-section-kicker">
+                      {t("connectorProfile.examples", "Example")}
+                    </span>
+                    <h3 id="connector-workflows-title">
+                      {t(
+                        "connectorProfile.workflowExamples",
+                        "can be used like this",
+                      )}
+                    </h3>
+                  </div>
+                  <span>
+                    {t(
+                      "connectorProfile.workflowHint",
+                      "Click to copy the question",
                     )}
+                  </span>
+                </div>
+                <div className="cm-profile-examples-grid">
+                  {examples.map((ex, i) => (
+                    <button
+                      key={`${ex.prompt}-${i}`}
+                      className="cm-example-card"
+                      type="button"
+                      onClick={() =>
+                        void navigator.clipboard?.writeText(ex.prompt)
+                      }
+                      title={t(
+                        "connectorProfile.copyExample",
+                        "Copy this example",
+                      )}
+                    >
+                      <span className="cm-example-number">
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <span className="cm-example-prompt">{ex.prompt}</span>
+                      <span className="cm-example-result">
+                        {ex.resultImageUrl ? (
+                          <img
+                            src={ex.resultImageUrl}
+                            alt={
+                              ex.resultLabel ??
+                              t(
+                                "connectorProfile.exampleOutput",
+                                "Example results",
+                              )
+                            }
+                          />
+                        ) : (
+                          <>
+                            <span className="cm-example-output-icon">
+                              <FileOutput size={18} aria-hidden="true" />
+                            </span>
+                            <span>
+                              <small>
+                                {t(
+                                  "connectorProfile.exampleOutput",
+                                  "expected results",
+                                )}
+                              </small>
+                              <strong>
+                                {ex.resultLabel ??
+                                  t(
+                                    "connectorProfile.exampleOutput",
+                                    "Example results",
+                                  )}
+                              </strong>
+                            </span>
+                            <ChevronRight size={17} aria-hidden="true" />
+                          </>
+                        )}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section
+                className="cm-profile-features"
+                aria-labelledby="connector-capabilities-title"
+              >
+                <div className="cm-profile-section-heading">
+                  <div>
+                    <span className="cm-profile-section-kicker">
+                      {t("connectorProfile.keyFeatures", "key capabilities")}
+                    </span>
+                    <h3 id="connector-capabilities-title">
+                      {t(
+                        "connectorProfile.capabilities",
+                        "What can be accomplished after connecting",
+                      )}
+                    </h3>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+                <div className="cm-profile-feature-grid">
+                  {keyFeatures.map((feature, i) => (
+                    <article
+                      key={`${feature.title}-${i}`}
+                      className="cm-profile-feature-card"
+                    >
+                      <span>
+                        <Check size={15} aria-hidden="true" />
+                      </span>
+                      <div>
+                        <h4>{feature.title}</h4>
+                        <p>{feature.description}</p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </main>
 
-        {/* Description */}
-        <div className="cm-profile-description">
-          <p>{longDescription}</p>
-        </div>
+            <aside
+              className="cm-profile-aside"
+              aria-label={t("connectorProfile.details", "Connection details")}
+            >
+              <section className="cm-profile-connection-card">
+                <div className="cm-profile-aside-heading">
+                  <ShieldCheck size={17} aria-hidden="true" />
+                  <h3>
+                    {t("connectorProfile.connection", "connection status")}
+                  </h3>
+                </div>
+                <strong style={{ color: getStatusColor(serverStatus) }}>
+                  {getStatusText(serverStatus)}
+                </strong>
+                <p>
+                  {isConnected
+                    ? t(
+                        "connectorProfile.connectedHint",
+                        "The connector is already available for use in tasks.",
+                      )
+                    : t(
+                        "connectorProfile.connectHint",
+                        "After connecting, the agent can call it within your authorization scope.",
+                      )}
+                </p>
+              </section>
 
-        {/* Key features */}
-        {keyFeatures.length > 0 && (
-          <div className="cm-profile-features">
-            <h3 className="cm-profile-section-label">Key features</h3>
-            <ul className="cm-profile-features-list">
-              {keyFeatures.map((f, i) => (
-                <li key={i}>
-                  <strong>{f.title}</strong> — {f.description}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Developed by & Trust warning (for MCP connectors) */}
-        {(author || registryEntry || toolNames.length > 0) && (
-          <div className="cm-profile-developed-by">
-            {author && (
-              <p className="cm-profile-developed-by-text">
-                <span className="cm-profile-developed-by-label">Developed by</span>{" "}
-                {homepage ? (
-                  <a
-                    href={homepage}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="cm-profile-author-link"
-                  >
-                    {author}
-                    <ExternalLink size={12} strokeWidth={2} />
-                  </a>
+              <section className="cm-profile-aside-section">
+                <div className="cm-profile-aside-heading">
+                  <Wrench size={17} aria-hidden="true" />
+                  <h3>{t("connectorProfile.tools", "Tools")}</h3>
+                  <span>{toolNames.length}</span>
+                </div>
+                {toolNames.length > 0 ? (
+                  <div className="cm-profile-tools-pills">
+                    {toolNames.map((name) => (
+                      <span key={name} className="cm-profile-tool-pill">
+                        {name}
+                      </span>
+                    ))}
+                  </div>
                 ) : (
-                  author
+                  <p className="cm-profile-aside-empty">
+                    {t(
+                      "connectorProfile.toolsOnConnect",
+                      "Once connected, available tools are displayed.",
+                    )}
+                  </p>
+                )}
+              </section>
+
+              <section className="cm-profile-aside-section cm-profile-details">
+                <div className="cm-profile-aside-heading">
+                  <h3>{t("connectorProfile.details", "Details")}</h3>
+                </div>
+                <div className="cm-profile-details-grid">
+                  <div className="cm-profile-detail-row">
+                    <span className="cm-profile-detail-label">
+                      {t(
+                        "connectorProfile.connectionMethod",
+                        "Connection method",
+                      )}
+                    </span>
+                    <span className="cm-profile-detail-value">
+                      {connector.supportsOAuth
+                        ? "OAuth"
+                        : t(
+                            "connectorProfile.apiOrLocal",
+                            "API / local configuration",
+                          )}
+                    </span>
+                  </div>
+                  {version ? (
+                    <div className="cm-profile-detail-row">
+                      <span className="cm-profile-detail-label">
+                        {t("connectorProfile.version", "version")}
+                      </span>
+                      <span className="cm-profile-detail-value">
+                        {version}
+                        {updateInfo ? (
+                          <span className="cm-profile-update-badge">
+                            {t("connectorProfile.updateAvailable", "Updatable")}
+                          </span>
+                        ) : null}
+                      </span>
+                    </div>
+                  ) : null}
+                  {author ? (
+                    <div className="cm-profile-detail-row">
+                      <span className="cm-profile-detail-label">
+                        {t("connectorProfile.developedBy", "Developer")}
+                      </span>
+                      <span className="cm-profile-detail-value">
+                        {homepage ? (
+                          <a
+                            href={homepage}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="cm-profile-detail-link"
+                          >
+                            {author}
+                            <ExternalLink size={12} />
+                          </a>
+                        ) : (
+                          author
+                        )}
+                      </span>
+                    </div>
+                  ) : null}
+                  {connectorUrl ? (
+                    <div className="cm-profile-detail-row">
+                      <span className="cm-profile-detail-label">
+                        {t(
+                          "connectorProfile.connectorUrl",
+                          "connection address",
+                        )}
+                      </span>
+                      <span className="cm-profile-detail-value cm-profile-detail-url">
+                        <code>{connectorUrl}</code>
+                        <button
+                          type="button"
+                          className="cm-profile-copy-btn"
+                          onClick={handleCopyUrl}
+                          aria-label={t("common.copyUrl", "Copy address")}
+                        >
+                          <Copy size={14} />
+                        </button>
+                      </span>
+                    </div>
+                  ) : null}
+                  {homepage || registryEntry?.repository ? (
+                    <div className="cm-profile-detail-row">
+                      <span className="cm-profile-detail-label">
+                        {t("connectorProfile.moreInfo", "More information")}
+                      </span>
+                      <span className="cm-profile-detail-links">
+                        {homepage ? (
+                          <a
+                            href={homepage}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="cm-profile-detail-link"
+                          >
+                            {t(
+                              "connectorProfile.documentation",
+                              "Documentation",
+                            )}
+                            <ExternalLink size={12} />
+                          </a>
+                        ) : null}
+                        {registryEntry?.repository ? (
+                          <a
+                            href={registryEntry.repository}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="cm-profile-detail-link"
+                          >
+                            {t("connectorProfile.repository", "warehouse")}
+                            <ExternalLink size={12} />
+                          </a>
+                        ) : null}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+
+              <p className="cm-profile-trust-warning">
+                {t(
+                  "connectorProfile.trustWarning",
+                  "Only connect to services you trust; connectors can only read or manipulate data to the extent you allow them.",
                 )}
               </p>
-            )}
-            <p className="cm-profile-trust-warning">
-              Only use connectors from developers you trust. Anthropic does not control these tools.
-            </p>
+            </aside>
           </div>
-        )}
-
-        {/* Tools */}
-        {toolNames.length > 0 && (
-          <div className="cm-profile-tools">
-            <h3 className="cm-profile-section-label">
-              Tools <span className="cm-profile-tools-badge">{toolNames.length}</span>
-            </h3>
-            <div className="cm-profile-tools-pills">
-              {toolNames.map((name) => (
-                <span key={name} className="cm-profile-tool-pill">
-                  {name}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Details */}
-        {(version || author || homepage || connectorUrl) && (
-          <div className="cm-profile-details">
-            <h3 className="cm-profile-section-label">Details</h3>
-            <div className="cm-profile-details-grid">
-              <div className="cm-profile-details-col">
-                {version && (
-                  <div className="cm-profile-detail-row">
-                    <span className="cm-profile-detail-label">Version</span>
-                    <span className="cm-profile-detail-value">
-                      {version}
-                      {updateInfo && (
-                        <span className="cm-profile-update-badge">Update available</span>
-                      )}
-                    </span>
-                  </div>
-                )}
-                <div className="cm-profile-detail-row">
-                  <span className="cm-profile-detail-label">Capabilities</span>
-                  <span className="cm-profile-detail-value">Interactive</span>
-                </div>
-                {(homepage || registryEntry?.repository) && (
-                  <div className="cm-profile-detail-row">
-                    <span className="cm-profile-detail-label">More info</span>
-                    <span className="cm-profile-detail-links">
-                      {homepage && (
-                        <a
-                          href={homepage}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="cm-profile-detail-link"
-                        >
-                          Documentation
-                          <ExternalLink size={12} strokeWidth={2} />
-                        </a>
-                      )}
-                      {registryEntry?.repository && (
-                        <a
-                          href={registryEntry.repository}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="cm-profile-detail-link"
-                        >
-                          Support
-                          <ExternalLink size={12} strokeWidth={2} />
-                        </a>
-                      )}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="cm-profile-details-col">
-                {author && (
-                  <div className="cm-profile-detail-row">
-                    <span className="cm-profile-detail-label">Author</span>
-                    <span className="cm-profile-detail-value">
-                      {homepage ? (
-                        <a
-                          href={homepage}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="cm-profile-detail-link"
-                        >
-                          {author}
-                          <ExternalLink size={12} strokeWidth={2} />
-                        </a>
-                      ) : (
-                        author
-                      )}
-                    </span>
-                  </div>
-                )}
-                {connectorUrl && (
-                  <div className="cm-profile-detail-row">
-                    <span className="cm-profile-detail-label">Connector URL</span>
-                    <span className="cm-profile-detail-value cm-profile-detail-url">
-                      <code>{connectorUrl}</code>
-                      <button
-                        type="button"
-                        className="cm-profile-copy-btn"
-                        onClick={handleCopyUrl}
-                        aria-label="Copy URL"
-                      >
-                        <Copy size={14} strokeWidth={2} />
-                      </button>
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         </div>
-
-        {/* Connection status & tools (compact) */}
-        {isInstalled && (
-          <div className="cm-profile-footer">
-            <span
-              className="cm-profile-status"
-              style={{ color: getStatusColor(serverStatus) }}
-            >
-              <span
-                className="mcp-status-dot"
-                style={{ backgroundColor: getStatusColor(serverStatus) }}
-              />
-              {getStatusText(serverStatus)}
-            </span>
-            {isConnected && status?.tools && status.tools.length > 0 && (
-              <span className="cm-profile-tools-count">{status.tools.length} tools available</span>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

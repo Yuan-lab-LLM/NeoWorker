@@ -21,7 +21,10 @@ import {
 
 function percentile(sorted: number[], ratio: number): number {
   if (sorted.length === 0) return 0;
-  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1));
+  const index = Math.min(
+    sorted.length - 1,
+    Math.max(0, Math.ceil(sorted.length * ratio) - 1),
+  );
   return sorted[index] ?? 0;
 }
 
@@ -31,8 +34,10 @@ describe("renderer perf replay fixture", () => {
     if (!testWindow.window) {
       testWindow.window = testWindow;
     }
-    testWindow.window.__coworkRendererPerfState__ = undefined;
-    testWindow.window.requestAnimationFrame = (callback: FrameRequestCallback) => {
+    testWindow.window.__neoworkerRendererPerfState__ = undefined;
+    testWindow.window.requestAnimationFrame = (
+      callback: FrameRequestCallback,
+    ) => {
       callback(0);
       return 1;
     };
@@ -40,12 +45,18 @@ describe("renderer perf replay fixture", () => {
   });
 
   it("replays a mixed task surface fixture within the renderer perf budget", () => {
-    const byId = new Map(taskSurfacePerfFixtureEvents.map((event) => [event.id, event]));
+    const byId = new Map(
+      taskSurfacePerfFixtureEvents.map((event) => [event.id, event]),
+    );
     const replayedEvents: typeof taskSurfacePerfFixtureEvents = [];
 
     for (const batchIds of taskSurfacePerfFixtureBatches) {
-      const batchEvents = batchIds.map((id) => byId.get(id)).filter(Boolean) as typeof taskSurfacePerfFixtureEvents;
-      batchEvents.forEach((event) => noteRendererTaskEventReceived(event, true));
+      const batchEvents = batchIds
+        .map((id) => byId.get(id))
+        .filter(Boolean) as typeof taskSurfacePerfFixtureEvents;
+      batchEvents.forEach((event) =>
+        noteRendererTaskEventReceived(event, true),
+      );
       noteRendererTaskEventsAppendDispatched(batchEvents, true);
       replayedEvents.push(...batchEvents);
       noteRendererTaskEventsAppended(
@@ -76,36 +87,47 @@ describe("renderer perf replay fixture", () => {
         visiblePerfEventId:
           item.kind === "event"
             ? item.event.id
-            : item.events[item.events.length - 1]?.id ?? null,
+            : (item.events[item.events.length - 1]?.id ?? null),
       }));
       const visible = selectVisibleTaskFeedRows(feedRows as Any, "live");
       for (const row of visible.visibleFeedRows) {
         if (!row.visiblePerfEventId) continue;
         markTaskEventRenderable({ id: row.visiblePerfEventId }, true);
-        markTaskEventVisible({ id: row.visiblePerfEventId }, "fixture-replay", true);
+        markTaskEventVisible(
+          { id: row.visiblePerfEventId },
+          "fixture-replay",
+          true,
+        );
       }
     }
 
-    const state = (globalThis.window as Window & {
-      __coworkRendererPerfState__?: {
-        metrics: Map<string, { samples: number[] }>;
-        counters: Map<string, { value: number }>;
-      };
-    }).__coworkRendererPerfState__;
+    const state = (
+      globalThis.window as Window & {
+        __neoworkerRendererPerfState__?: {
+          metrics: Map<string, { samples: number[] }>;
+          counters: Map<string, { value: number }>;
+        };
+      }
+    ).__neoworkerRendererPerfState__;
 
     expect(state).toBeDefined();
 
     const appendSamples = [
-      ...(state?.metrics.get("task-event.append_dispatch_to_append_ms")?.samples ?? []),
+      ...(state?.metrics.get("task-event.append_dispatch_to_append_ms")
+        ?.samples ?? []),
     ].sort((a, b) => a - b);
     const visibleSamples = [
-      ...(state?.metrics.get("task-event.received_to_visible_ms")?.samples ?? []),
+      ...(state?.metrics.get("task-event.received_to_visible_ms")?.samples ??
+        []),
     ];
     const appendedVisibleSamples = [
-      ...(state?.metrics.get("task-event.appended_to_visible_ms")?.samples ?? []),
+      ...(state?.metrics.get("task-event.appended_to_visible_ms")?.samples ??
+        []),
     ];
-    const visibleSignalCount = state?.counters.get("task-event.visible_signal_count")?.value ?? 0;
-    const visibleRecordedCount = state?.counters.get("task-event.visible_recorded_count")?.value ?? 0;
+    const visibleSignalCount =
+      state?.counters.get("task-event.visible_signal_count")?.value ?? 0;
+    const visibleRecordedCount =
+      state?.counters.get("task-event.visible_recorded_count")?.value ?? 0;
 
     expect(visibleSamples.length).toBeGreaterThan(0);
     expect(appendedVisibleSamples.length).toBeGreaterThan(0);
@@ -146,7 +168,7 @@ describe("renderer perf replay fixture", () => {
       visiblePerfEventId:
         item.kind === "event"
           ? item.event.id
-          : item.events[item.events.length - 1]?.id ?? null,
+          : (item.events[item.events.length - 1]?.id ?? null),
     }));
     const visible = selectVisibleTaskFeedRows(feedRows as Any, "live");
 
@@ -159,7 +181,8 @@ describe("renderer perf replay fixture", () => {
         const payload = event.payload as Record<string, unknown> | undefined;
         return (
           event.type === "error" &&
-          payload?.message === "fetch failed: network timeout while querying provider"
+          payload?.message ===
+            "fetch failed: network timeout while querying provider"
         );
       }).length,
     ).toBeLessThanOrEqual(2);

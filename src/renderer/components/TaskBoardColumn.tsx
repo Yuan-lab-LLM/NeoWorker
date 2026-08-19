@@ -92,7 +92,10 @@ export function TaskBoardColumn({
     >
       <div className="column-header">
         <div className="column-title">
-          <span className="column-indicator" style={{ backgroundColor: color }} />
+          <span
+            className="column-indicator"
+            style={{ backgroundColor: color }}
+          />
           <span className="column-name">{title}</span>
           <span className={`column-count ${isOverLimit ? "over-limit" : ""}`}>
             {tasks.length}
@@ -115,7 +118,9 @@ export function TaskBoardColumn({
         {tasks.length === 0 && (
           <div className="column-empty">
             <p>{agentContext.getUiCopy("taskBoardEmptyTitle")}</p>
-            <p className="hint">{agentContext.getUiCopy("taskBoardEmptyHint")}</p>
+            <p className="hint">
+              {agentContext.getUiCopy("taskBoardEmptyHint")}
+            </p>
           </div>
         )}
       </div>

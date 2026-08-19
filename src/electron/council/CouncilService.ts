@@ -23,9 +23,9 @@ import { TaskEventRepository, TaskRepository } from "../database/repositories";
 import type { CronService } from "../cron/service";
 import type { CronJobCreate } from "../cron/types";
 
-const COUNCIL_TRIGGER_PREFIX = "<cowork_council:";
+const COUNCIL_TRIGGER_PREFIX = "<neoworker_council:";
 const COUNCIL_TRIGGER_SUFFIX = ">";
-const COUNCIL_CRON_MARKER_PREFIX = "[cowork:council:";
+const COUNCIL_CRON_MARKER_PREFIX = "[neoworker:council:";
 const COUNCIL_CRON_MARKER_SUFFIX = "]";
 const MAX_SOURCE_BYTES_PER_FILE = 32_000;
 const MAX_TOTAL_SOURCE_BYTES = 96_000;

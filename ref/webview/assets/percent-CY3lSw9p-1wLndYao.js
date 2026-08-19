@@ -1,0 +1,3 @@
+import { n as e, t } from "./percent-CY3lSw9p-CQTb97JV.js";
+t();
+export { e as default };

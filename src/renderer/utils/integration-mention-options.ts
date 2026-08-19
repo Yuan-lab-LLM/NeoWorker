@@ -29,5 +29,7 @@ export function areIntegrationMentionOptionsEqual(
 ): boolean {
   if (prev === next) return true;
   if (prev.length !== next.length) return false;
-  return prev.every((option, index) => areIntegrationMentionOptionEqual(option, next[index]));
+  return prev.every((option, index) =>
+    areIntegrationMentionOptionEqual(option, next[index]),
+  );
 }

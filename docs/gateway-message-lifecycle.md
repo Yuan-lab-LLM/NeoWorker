@@ -1,8 +1,8 @@
 # Gateway Message Lifecycle
 
-CoWork's messaging gateway handles remote chat messages as task lifecycle events, not just as raw chat text. This applies to WhatsApp and the other channel adapters that route messages into the desktop or daemon task runtime.
+NeoWorker's messaging gateway handles remote chat messages as task lifecycle events, not just as raw chat text. This applies to WhatsApp and the other channel adapters that route messages into the desktop or daemon task runtime.
 
-This page covers message handling after a channel is connected. Channel setup, pairing, allowlists, and QR/auth flows remain documented in [Channel Integrations](channels.md). For practical command examples, see [Using CoWork from WhatsApp and Other Channels](gateway-user-guide.md). For per-channel feature and best-practice guidance, see [Channel User Guides](channel-user-guides.md).
+This page covers message handling after a channel is connected. Channel setup, pairing, allowlists, and QR/auth flows remain documented in [Channel Integrations](channels.md). For practical command examples, see [Using NeoWorker from WhatsApp and Other Channels](gateway-user-guide.md). For per-channel feature and best-practice guidance, see [Channel User Guides](channel-user-guides.md).
 
 ## Incoming Messages
 
@@ -53,7 +53,7 @@ The gateway tracks task ownership and generation state for each chat. If a task 
 
 The remote command registry defines command names, aliases, descriptions, categories, and active-task behavior. Send `/commands` from a channel for the compact command menu, or `/commands <category>` for a focused list when supported.
 
-Telegram and Discord use this registry to populate their native command menus for the core lifecycle commands. Slack routes the same commands after they are registered in the Slack app. Dynamic skill slugs are not registered as native platform slash commands; use `/skills` to discover them and type `/<skill-slug> args` in channels that deliver that text to CoWork.
+Telegram and Discord use this registry to populate their native command menus for the core lifecycle commands. Slack routes the same commands after they are registered in the Slack app. Dynamic skill slugs are not registered as native platform slash commands; use `/skills` to discover them and type `/<skill-slug> args` in channels that deliver that text to NeoWorker.
 
 Core commands:
 
@@ -121,7 +121,7 @@ All remote output goes through the channel delivery service:
 
 The delivery service centralizes idempotency keys, message logging, response prefixing, simple-channel formatting, markdown conversion, chunking, and delivery-error handling. This keeps normal replies, command replies, and automated outputs consistent.
 
-WhatsApp supports typing indicators and editable progress messages. When a task has a progress message, later progress replaces that message where possible. If editing fails, CoWork falls back to sending a new message. Long messages remain chunked around the provider-safe 4000-character range, and existing media attachment behavior is unchanged.
+WhatsApp supports typing indicators and editable progress messages. When a task has a progress message, later progress replaces that message where possible. If editing fails, NeoWorker falls back to sending a new message. Long messages remain chunked around the provider-safe 4000-character range, and existing media attachment behavior is unchanged.
 
 ## Scheduled Task Delivery
 

@@ -1,0 +1,6 @@
+import {
+  n as e,
+  t,
+} from "./git-pull-request-create-arrow-CHQ09303-B0fhXNNB.js";
+e();
+export { t as default };

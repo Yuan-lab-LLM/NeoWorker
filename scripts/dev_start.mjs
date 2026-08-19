@@ -22,16 +22,22 @@ function parsePort(value, fallback = DEFAULT_PORT) {
 }
 
 function normalizeDevLogLevel(env) {
-  if (String(env.COWORK_LOG_LEVEL || "").trim().toLowerCase() !== "debug") {
+  if (
+    String(env.NEOWORKER_LOG_LEVEL || "")
+      .trim()
+      .toLowerCase() !== "debug"
+  ) {
     return;
   }
-  env.COWORK_LOG_LEVEL = "info";
-  process.stdout.write("[dev-start] COWORK_LOG_LEVEL=debug ignored for local dev; using info.\n");
+  env.NEOWORKER_LOG_LEVEL = "info";
+  process.stdout.write(
+    "[dev-start] NEOWORKER_LOG_LEVEL=debug ignored for local dev; using info.\n",
+  );
 }
 
 function enableSystemCaForMacDev(env) {
   if (process.platform !== "darwin") return;
-  if (String(env.COWORK_DEV_USE_SYSTEM_CA || "").trim() === "0") return;
+  if (String(env.NEOWORKER_DEV_USE_SYSTEM_CA || "").trim() === "0") return;
 
   const nodeOptions = String(env.NODE_OPTIONS || "").trim();
   if (/(?:^|\s)--use-(?:system|bundled|openssl)-ca(?:\s|$)/.test(nodeOptions)) {
@@ -41,6 +47,23 @@ function enableSystemCaForMacDev(env) {
   env.NODE_OPTIONS = [nodeOptions, "--use-system-ca"].filter(Boolean).join(" ");
   process.stdout.write(
     "[dev-start] Enabled NODE_OPTIONS=--use-system-ca for macOS dev TLS trust.\n",
+  );
+}
+
+function enableStableSecureSettingsForDev(env) {
+  const setting = String(env.NEOWORKER_DEV_STABLE_SECURE_SETTINGS || "")
+    .trim()
+    .toLowerCase();
+  if (["0", "false", "no", "off"].includes(setting)) {
+    process.stdout.write(
+      "[dev-start] Rebuild-stable secure settings disabled by NEOWORKER_DEV_STABLE_SECURE_SETTINGS.\n",
+    );
+    return;
+  }
+
+  env.NEOWORKER_DEV_STABLE_SECURE_SETTINGS = "1";
+  process.stdout.write(
+    "[dev-start] Enabled rebuild-stable encrypted settings for local development.\n",
   );
 }
 
@@ -106,7 +129,8 @@ function getElectronBinaryStatus() {
 
   try {
     const electronBinary = cwdRequire("electron");
-    const hasBinaryPath = typeof electronBinary === "string" && electronBinary.length > 0;
+    const hasBinaryPath =
+      typeof electronBinary === "string" && electronBinary.length > 0;
     return {
       installed: true,
       ready: hasBinaryPath && fs.existsSync(electronBinary),
@@ -154,21 +178,28 @@ function getNativeSqliteStatus(env) {
   return {
     ready: false,
     reason:
-      firstLine || `better-sqlite3 failed to load in Electron (exit ${result.status ?? 1}).`,
+      firstLine ||
+      `better-sqlite3 failed to load in Electron (exit ${result.status ?? 1}).`,
   };
 }
 
 function repairNativeInstall(env, reason) {
   process.stdout.write(`[dev-start] ${reason} Running native setup repair.\n`);
 
-  const result = spawnSync(process.execPath, ["scripts/setup_native_driver.mjs"], {
-    cwd: process.cwd(),
-    env,
-    stdio: "inherit",
-  });
+  const result = spawnSync(
+    process.execPath,
+    ["scripts/setup_native_driver.mjs"],
+    {
+      cwd: process.cwd(),
+      env,
+      stdio: "inherit",
+    },
+  );
 
   if ((result.status ?? 1) !== 0) {
-    throw new Error(`Native setup repair failed with exit code ${result.status ?? 1}.`);
+    throw new Error(
+      `Native setup repair failed with exit code ${result.status ?? 1}.`,
+    );
   }
 
   const repairedStatus = getElectronBinaryStatus();
@@ -191,32 +222,40 @@ function runOptionalDevBranding(env) {
     return;
   }
 
-  const shouldSkipDevBranding = String(env.COWORK_DEV_BRAND_APP || "")
+  const shouldSkipDevBranding = String(env.NEOWORKER_DEV_BRAND_APP || "")
     .trim()
     .toLowerCase();
   if (["0", "false", "no", "off"].includes(shouldSkipDevBranding)) {
     process.stdout.write(
-      "[dev-start] Skipping Electron.app dev branding/signing because COWORK_DEV_BRAND_APP disables it.\n",
+      "[dev-start] Skipping Electron.app dev branding/signing because NEOWORKER_DEV_BRAND_APP disables it.\n",
     );
     return;
   }
 
-  const brandResult = spawnSync(process.execPath, ["scripts/brand_electron_dev_app.mjs"], {
-    cwd: process.cwd(),
-    env,
-    stdio: "inherit",
-  });
+  const brandResult = spawnSync(
+    process.execPath,
+    ["scripts/brand_electron_dev_app.mjs"],
+    {
+      cwd: process.cwd(),
+      env,
+      stdio: "inherit",
+    },
+  );
   if ((brandResult.status ?? 1) !== 0) {
     throw new Error(
       `Development Electron branding failed with exit code ${brandResult.status ?? 1}.`,
     );
   }
 
-  const signResult = spawnSync(process.execPath, ["scripts/codesign_electron_dev.mjs"], {
-    cwd: process.cwd(),
-    env,
-    stdio: "inherit",
-  });
+  const signResult = spawnSync(
+    process.execPath,
+    ["scripts/codesign_electron_dev.mjs"],
+    {
+      cwd: process.cwd(),
+      env,
+      stdio: "inherit",
+    },
+  );
   if ((signResult.status ?? 1) !== 0) {
     throw new Error(
       `Development Electron codesigning failed with exit code ${signResult.status ?? 1}.`,
@@ -245,17 +284,18 @@ async function waitForPort(port, timeoutMs) {
   throw new Error(`Timed out waiting for dev server on port ${port}.`);
 }
 
-const requestedPort = parsePort(process.env.COWORK_DEV_SERVER_PORT);
+const requestedPort = parsePort(process.env.NEOWORKER_DEV_SERVER_PORT);
 const selectedPort = await findAvailablePort(requestedPort);
 const devServerUrl = `http://127.0.0.1:${selectedPort}`;
 const childEnv = {
   ...process.env,
-  COWORK_DEV_SERVER_PORT: String(selectedPort),
-  COWORK_DEV_SERVER_URL: devServerUrl,
+  NEOWORKER_DEV_SERVER_PORT: String(selectedPort),
+  NEOWORKER_DEV_SERVER_URL: devServerUrl,
 };
 delete childEnv.ELECTRON_RUN_AS_NODE;
 normalizeDevLogLevel(childEnv);
 enableSystemCaForMacDev(childEnv);
+enableStableSecureSettingsForDev(childEnv);
 
 const electronStatus = getElectronBinaryStatus();
 if (electronStatus.installed && !electronStatus.ready) {
@@ -265,7 +305,9 @@ if (electronStatus.installed && !electronStatus.ready) {
       "Electron package is present but its binary is missing.",
     );
   } catch (error) {
-    process.stderr.write(`[dev-start] ${error instanceof Error ? error.message : String(error)}\n`);
+    process.stderr.write(
+      `[dev-start] ${error instanceof Error ? error.message : String(error)}\n`,
+    );
     process.exit(1);
   }
 }
@@ -274,7 +316,9 @@ if (electronStatus.installed && electronStatus.ready) {
   try {
     runOptionalDevBranding(childEnv);
   } catch (error) {
-    process.stderr.write(`[dev-start] ${error instanceof Error ? error.message : String(error)}\n`);
+    process.stderr.write(
+      `[dev-start] ${error instanceof Error ? error.message : String(error)}\n`,
+    );
     process.exit(1);
   }
 
@@ -286,7 +330,9 @@ if (electronStatus.installed && electronStatus.ready) {
         `better-sqlite3 is not usable in Electron: ${sqliteStatus.reason}`,
       );
     } catch (error) {
-      process.stderr.write(`[dev-start] ${error instanceof Error ? error.message : String(error)}\n`);
+      process.stderr.write(
+        `[dev-start] ${error instanceof Error ? error.message : String(error)}\n`,
+      );
       process.exit(1);
     }
   }
@@ -300,7 +346,16 @@ if (selectedPort !== requestedPort) {
 
 const react = spawn(
   npmCommand,
-  ["run", "dev:react", "--", "--host", "127.0.0.1", "--port", String(selectedPort), "--strictPort"],
+  [
+    "run",
+    "dev:react",
+    "--",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    String(selectedPort),
+    "--strictPort",
+  ],
   {
     cwd: process.cwd(),
     env: childEnv,
@@ -343,7 +398,9 @@ react.once("error", (error) => {
 react.once("exit", (code) => {
   if (shuttingDown) return;
   if (code !== 0) {
-    process.stderr.write(`[dev-start] React dev server exited with code ${code ?? 1}.\n`);
+    process.stderr.write(
+      `[dev-start] React dev server exited with code ${code ?? 1}.\n`,
+    );
     shutdown(code ?? 1);
     return;
   }
@@ -354,7 +411,9 @@ react.once("exit", (code) => {
 try {
   await waitForPort(selectedPort, REACT_READY_TIMEOUT_MS);
 } catch (error) {
-  process.stderr.write(`[dev-start] ${error instanceof Error ? error.message : String(error)}\n`);
+  process.stderr.write(
+    `[dev-start] ${error instanceof Error ? error.message : String(error)}\n`,
+  );
   shutdown(1);
 }
 

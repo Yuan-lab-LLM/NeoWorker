@@ -1,7 +1,7 @@
 {
-  "name": "@cowork-os/comfyui-mcp",
+  "name": "@neoworker/comfyui-mcp",
   "version": "0.1.0",
-  "description": "ComfyUI workflow MCP connector for CoWork OS.",
+  "description": "ComfyUI workflow MCP connector for NeoWorker.",
   "private": true,
   "type": "commonjs",
   "main": "dist/index.js",

@@ -212,9 +212,9 @@ function bridgeTimeoutMs(endpoint: string): number {
 }
 
 function projectRoot(): string {
-  const raw = process.env.COWORK_ARCH_PROJECT_ROOT || process.env.COWORK_WORKSPACE_ROOT || "";
+  const raw = process.env.NEOWORKER_ARCH_PROJECT_ROOT || process.env.NEOWORKER_WORKSPACE_ROOT || "";
   if (!raw.trim()) {
-    throw new Error("COWORK_ARCH_PROJECT_ROOT or COWORK_WORKSPACE_ROOT is required for Rhino file path tools.");
+    throw new Error("NEOWORKER_ARCH_PROJECT_ROOT or NEOWORKER_WORKSPACE_ROOT is required for Rhino file path tools.");
   }
   return path.resolve(raw);
 }

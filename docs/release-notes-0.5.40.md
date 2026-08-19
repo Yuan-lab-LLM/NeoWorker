@@ -11,14 +11,14 @@ Release `0.5.40` is a broad workflow release. It adds Chronicle desktop screen c
 - **Chronicle Desktop Research Preview**: opt-in desktop screen context resolves vague on-screen references such as `this`, `the right side`, or `the latest draft`, with Memory Hub controls, pause/resume, per-task toggles, observation management, and promoted `screen_context` evidence. [Learn more](chronicle.md)
 - **Workflow Intelligence**: the former Subconscious product framing is now Memory + Heartbeat + internal Reflection + reviewable Suggestions, with user response feedback from act, edit, snooze, dismiss, and ignore behavior. [Learn more](workflow-intelligence.md)
 - **Routines**: saved automations now have a first-class product surface with schedule, API, connector, channel, mailbox, GitHub, and manual triggers; run history; outputs; approval policy; connector allowlists; and token regeneration. [Learn more](core-automation.md)
-- **AgentMail integration**: CoWork can configure AgentMail settings, pods, workspace bindings, inboxes, domains, allow/block lists, API keys, and realtime mailbox streaming.
+- **AgentMail integration**: NeoWorker can configure AgentMail settings, pods, workspace bindings, inboxes, domains, allow/block lists, API keys, and realtime mailbox streaming.
 - **Expanded Inbox Agent**: Inbox Agent now includes Classic and Today modes, Mailbox Ask, attachment-aware search, manual reply/reply-all/forward, editable AI drafts, sender cleanup, commitments, provider-backed read/unread, and Gmail forwarding automations. [Learn more](inbox-agent.md)
 - **Managed Agents Hub improvements**: reusable managed agents now include templates, conversions from agent roles or automation profiles, governance settings, runtime tool catalogs, routines, insights, audit history, Slack health, workpapers, and image-generation profiles.
 - **Multi-provider image generation**: image settings now support OpenAI, OpenAI Codex/OAuth, Azure, OpenRouter, and Gemini paths with default/backup providers, model selection, per-provider timeouts, and provider-attempt progress.
 - **Rich PPTX previews**: generated PowerPoint artifacts open in an in-app viewer with slide thumbnails, navigation, zoom, extracted text, and speaker notes. Slide images are best-effort via local `soffice` and `pdftoppm`.
 - **LaTeX/PDF artifact workflow**: explicit LaTeX/TikZ tasks can write `.tex`, compile with an installed TeX engine, and show paired source/PDF artifacts in the task UI. [Learn more](use-cases.md#16-latex-paper-with-compiled-pdf)
 - **Bundled `kami` skill**: a new editorial-document workflow for resumes, one-pagers, white papers, letters, portfolios, diagrams, and slide decks. [Learn more](skills/kami.md)
-- **Bundled `taste-skill` workflow**: CoWork now ships a high-agency frontend design skill with stricter layout, typography, motion, dependency, and responsive-implementation rules.
+- **Bundled `taste-skill` workflow**: NeoWorker now ships a high-agency frontend design skill with stricter layout, typography, motion, dependency, and responsive-implementation rules.
 - **Additional bundled workflow resources**: new architecture-diagram, GSAP, Hyperframes, Hyperframes CLI, and Hyperframes registry skill resources are included.
 
 ## Enhancements
@@ -51,9 +51,9 @@ Release `0.5.40` is a broad workflow release. It adds Chronicle desktop screen c
 ## Upgrade Notes
 
 - Chronicle is opt-in, desktop-only, and should be paused or disabled when viewing sensitive or untrusted screen content.
-- Screen-derived Chronicle text is untrusted context. Prefer direct source tools when CoWork can read the actual file, URL, PR, or thread.
+- Screen-derived Chronicle text is untrusted context. Prefer direct source tools when NeoWorker can read the actual file, URL, PR, or thread.
 - Computer-use permissions now target the bundled helper path shown in Settings, not Terminal or the main app alone.
-- PPTX slide thumbnails require local `soffice` and `pdftoppm`; without them, CoWork still shows extracted text and speaker notes.
+- PPTX slide thumbnails require local `soffice` and `pdftoppm`; without them, NeoWorker still shows extracted text and speaker notes.
 - LaTeX/PDF compilation requires an installed TeX engine such as `tectonic`, `latexmk`, `xelatex`, `lualatex`, or `pdflatex`; failed compiles keep the editable `.tex` source.
 - Routines are now the preferred saved-automation surface. Use Scheduled Tasks, Webhooks, and Event Triggers directly only when you need the lower-level engine.
 - Inbox Agent has a replacement-client foundation, but native new-mail compose, provider draft save/update, attachment upload, full outgoing queue draining, Microsoft Graph mail execution, folder/label navigation, and notification preferences remain future work.

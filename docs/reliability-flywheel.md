@@ -1,6 +1,6 @@
 # Reliability Flywheel (Eval + Risk Gates)
 
-This document describes the reliability system added to CoWork OS to turn production failures into repeatable regressions, gate risky task completions, and harden releases.
+This document describes the reliability system added to NeoWorker to turn production failures into repeatable regressions, gate risky task completions, and harden releases.
 
 ## Goals
 
@@ -89,7 +89,7 @@ Post-completion entropy sweep:
 - `off`: disabled
 - `balanced`: run for high-risk or clearly mutating tasks
 - `strict`: run for mutating tasks and non-low-risk tasks
-- Default resolution: explicit config, then `COWORK_ENTROPY_SWEEP_DEFAULT`, then `reviewPolicy`
+- Default resolution: explicit config, then `NEOWORKER_ENTROPY_SWEEP_DEFAULT`, then `reviewPolicy`
 
 ### Daemon Enforcement Path
 
@@ -101,8 +101,8 @@ Completion flow also passes verified-mode evidence bundles into the quality gate
 After completion, the daemon may launch a read-only entropy sweep for the task's blast radius to look for stale docs, contradictions, and dead-code hints. The sweep is non-blocking and only reports findings.
 
 Optional auto-policy defaults (for code/operations domains) can be enabled via env vars:
-- `COWORK_REVIEW_POLICY_ENABLE_AUTO`
-- `COWORK_REVIEW_POLICY_AUTO_DEFAULT` (`balanced` or `strict`)
+- `NEOWORKER_REVIEW_POLICY_ENABLE_AUTO`
+- `NEOWORKER_REVIEW_POLICY_AUTO_DEFAULT` (`balanced` or `strict`)
 
 ## Eval Corpus and Replay Workflows
 
@@ -296,12 +296,12 @@ npm run qa:reliability
 
 Optional DB override:
 ```bash
-COWORK_DB_PATH=/tmp/cowork-eval.db npm run qa:eval:run -- --suite reliability-regressions --mode deterministic
+NEOWORKER_DB_PATH=/tmp/neoworker-eval.db npm run qa:eval:run -- --suite reliability-regressions --mode deterministic
 ```
 
 ## Local-Only Data Policy
 
-- Reliability data is stored in local SQLite (`userData/cowork-os.db`).
+- Reliability data is stored in local SQLite (`userData/neoworker.db`).
 - Eval corpus entries are sanitized before persistence.
 - No required telemetry upload path is introduced by this reliability system.
 

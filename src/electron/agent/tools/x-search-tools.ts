@@ -181,18 +181,18 @@ export class XSearchTools {
   }
 
   private getModel(): string {
-    return normalizeApiKey(process.env.COWORK_X_SEARCH_MODEL) || DEFAULT_X_SEARCH_MODEL;
+    return normalizeApiKey(process.env.NEOWORKER_X_SEARCH_MODEL) || DEFAULT_X_SEARCH_MODEL;
   }
 
   private getTimeoutSeconds(): number {
-    const parsed = Number(process.env.COWORK_X_SEARCH_TIMEOUT_SECONDS);
+    const parsed = Number(process.env.NEOWORKER_X_SEARCH_TIMEOUT_SECONDS);
     return Number.isFinite(parsed)
       ? Math.max(30, Math.round(parsed))
       : DEFAULT_X_SEARCH_TIMEOUT_SECONDS;
   }
 
   private getRetries(): number {
-    const parsed = Number(process.env.COWORK_X_SEARCH_RETRIES);
+    const parsed = Number(process.env.NEOWORKER_X_SEARCH_RETRIES);
     return Number.isFinite(parsed)
       ? Math.max(0, Math.round(parsed))
       : DEFAULT_X_SEARCH_RETRIES;
@@ -264,7 +264,7 @@ export class XSearchTools {
             headers: {
               Authorization: `Bearer ${credential.apiKey}`,
               "Content-Type": "application/json",
-              "User-Agent": "CoWork-OS x_search",
+              "User-Agent": "NeoWorker x_search",
             },
             body: JSON.stringify(payload),
             signal: AbortSignal.timeout(timeoutMs),

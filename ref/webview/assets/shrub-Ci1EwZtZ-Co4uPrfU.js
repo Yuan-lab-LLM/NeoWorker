@@ -1,0 +1,3 @@
+import { n as e, t } from "./shrub-Ci1EwZtZ-Dq5-uAMs.js";
+t();
+export { e as default };

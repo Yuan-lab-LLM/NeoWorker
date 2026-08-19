@@ -1,6 +1,6 @@
 # Matrix User Guide
 
-Matrix is best for federated teams and open-protocol rooms where CoWork should participate in room-based conversations.
+Matrix is best for federated teams and open-protocol rooms where NeoWorker should participate in room-based conversations.
 
 ## Best For
 
@@ -19,7 +19,7 @@ Matrix is best for federated teams and open-protocol rooms where CoWork should p
 
 ## Daily Workflow
 
-Use dedicated rooms for CoWork workflows:
+Use dedicated rooms for NeoWorker workflows:
 
 ```text
 /new
@@ -30,7 +30,7 @@ Use `/new` before changing topics and `/stop` when the task should not continue.
 
 ## Best Practices
 
-- Restrict room IDs when only specific rooms should route to CoWork.
+- Restrict room IDs when only specific rooms should route to NeoWorker.
 - Use command-first routing in busy rooms.
 - Keep sensitive work in private rooms or DMs.
 - Treat cross-homeserver room content as shared context.

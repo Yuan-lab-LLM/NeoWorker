@@ -103,10 +103,10 @@ export function buildModeDomainContract(executionMode: ExecutionMode, taskDomain
       : executionMode === "verified"
         ? "- Mode policy: full tool execution with step verification when configured."
       : executionMode === "chat"
-        ? "- Mode policy: direct chat only. Do not use tools. PDF attachment turns that require deeper reading are auto-promoted to read-only analysis before this chat policy is applied."
+        ? "- Mode policy: answer directly. Read-only lookup tools may be used for current, external, or attached facts; never mutate files or external state."
       : executionMode === "plan"
-        ? "- Mode policy: planning-only. Do not use mutating tools."
-        : "- Mode policy: strict analysis/read-only. Do not use mutating tools.",
+        ? "- Mode policy: planning-only. Read-only inspection is allowed; do not use mutating tools."
+        : "- Mode policy: strict analysis/read-only. Use search, read, and query tools as needed; do not use mutating tools.",
     taskDomain === "code" || taskDomain === "operations"
       ? "- Domain policy: technical depth and verification are expected."
       : "- Domain policy: prioritize direct user-facing outcomes over code-heavy workflows.",

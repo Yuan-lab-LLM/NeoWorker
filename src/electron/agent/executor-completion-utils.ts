@@ -4,6 +4,8 @@ import { extractArtifactExtensionsFromText } from "./step-contract";
 
 const ARTIFACT_CREATION_VERB_REGEX =
   /\b(create|build|write|generate|produce|draft|prepare|save|export|compile|synthesize|combine|merge|join|stitch|concatenate|concat|transcode|remux)\b/;
+const CJK_ARTIFACT_CREATION_VERB_REGEX =
+  /(?:创建|生成|制作|产出|编制|撰写|起草|保存|导出|输出|写入|整理成|转换成|转成)/;
 const STRATEGY_CONTEXT_BLOCK_REGEX =
   /\[AGENT_STRATEGY_CONTEXT_V1\][\s\S]*?\[\/AGENT_STRATEGY_CONTEXT_V1\]/g;
 const ADDITIONAL_CONTEXT_HEADER = "ADDITIONAL CONTEXT:";
@@ -24,6 +26,116 @@ const VERIFICATION_TOOL_EVIDENCE = new Set([
   "read_file",
   "list_directory",
 ]);
+
+export interface HtmlArtifactValidationResult {
+  valid: boolean;
+  reasons: string[];
+  metrics: {
+    bytes: number;
+    sectionCount: number;
+    scriptCount: number;
+    substantiveScriptCount: number;
+  };
+}
+
+const HTML_PLACEHOLDER_PATTERNS = [
+  /<!--\s*(?:##|@@)[^>\n]{1,120}(?:##|@@)\s*-->/i,
+  /\/\*\s*(?:##|@@)[A-Z0-9_.:-]{1,120}(?:##|@@)\s*\*\//i,
+  /\/\/\s*(?:##|@@)[A-Z0-9_.:-]{1,120}(?:##|@@)/i,
+];
+
+function promptRequiresExecutableHtmlBehavior(prompt: string): boolean {
+  return /\b(?:javascript|three\.?js|canvas|interactive|interaction|animation|animate|simulation|3d|button|click|quiz)\b|(?:交互|动画|模拟|按钮|点击|测验|运行|星空|轨迹)/i.test(
+    prompt,
+  );
+}
+
+function promptRequiresHtmlCanvas(prompt: string): boolean {
+  return /\b(?:three\.?js|canvas|3d|simulation)\b|(?:三维|3d|模拟|画布|轨迹动画)/i.test(
+    prompt,
+  );
+}
+
+function extractRequestedHtmlSectionMinimum(prompt: string): number | null {
+  const match = String(prompt || "").match(
+    /(?:至少|不少于|minimum(?:\s+of)?|at\s+least)\s*(?:(?:包含|包括|含有|contain(?:ing|s)?)\s*)?(\d{1,3})\s*(?:个|篇|章|项)?\s*(?:内容)?\s*(?:章节|章|sections?|chapters?)/i,
+  );
+  if (!match) return null;
+  const count = Number.parseInt(match[1] || "", 10);
+  return Number.isFinite(count) && count > 0 ? count : null;
+}
+
+function stripHtmlScriptComments(script: string): string {
+  return script
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "")
+    .replace(/\s+/g, "")
+    .trim();
+}
+
+/**
+ * Deterministic completion check for standalone HTML artifacts. Browser
+ * verification remains responsible for visual and behavioral quality.
+ */
+export function validateStandaloneHtmlArtifact(
+  content: string,
+  prompt = "",
+): HtmlArtifactValidationResult {
+  const html = String(content || "");
+  const reasons: string[] = [];
+  const sectionCount = (html.match(/<section\b/gi) || []).length;
+  const scripts = Array.from(
+    html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi),
+  );
+  const substantiveScriptCount = scripts.filter((match) => {
+    const attributes = String(match[1] || "");
+    const body = stripHtmlScriptComments(String(match[2] || ""));
+    return /\bsrc\s*=\s*["'][^"']+["']/i.test(attributes) || body.length >= 24;
+  }).length;
+
+  if (!/<html\b[^>]*>/i.test(html) || !/<\/html\s*>/i.test(html)) {
+    reasons.push("missing a complete <html>...</html> document");
+  }
+  if (!/<body\b[^>]*>/i.test(html) || !/<\/body\s*>/i.test(html)) {
+    reasons.push("missing a complete <body>...</body> document");
+  }
+  if (HTML_PLACEHOLDER_PATTERNS.some((pattern) => pattern.test(html))) {
+    reasons.push("contains unresolved staging placeholders");
+  }
+
+  const requestedSectionMinimum = extractRequestedHtmlSectionMinimum(prompt);
+  if (
+    requestedSectionMinimum !== null &&
+    sectionCount < requestedSectionMinimum
+  ) {
+    reasons.push(
+      `contains ${sectionCount} sections but the request requires at least ${requestedSectionMinimum}`,
+    );
+  }
+
+  if (
+    promptRequiresExecutableHtmlBehavior(prompt) &&
+    substantiveScriptCount === 0
+  ) {
+    reasons.push(
+      "requests interactive or animated behavior but has no executable script",
+    );
+  }
+  if (promptRequiresHtmlCanvas(prompt) && !/<canvas\b/i.test(html)) {
+    reasons.push("requests canvas/3D simulation but contains no <canvas> element");
+  }
+
+  return {
+    valid: reasons.length === 0,
+    reasons,
+    metrics: {
+      bytes: Buffer.byteLength(html, "utf8"),
+      sectionCount,
+      scriptCount: scripts.length,
+      substantiveScriptCount,
+    },
+  };
+}
 
 export function normalizePromptForContracts(taskPrompt: string): string {
   const raw = String(taskPrompt || "");
@@ -51,10 +163,16 @@ export function normalizePromptForContracts(taskPrompt: string): string {
     .trim();
 }
 
+function hasArtifactCreationIntent(prompt: string): boolean {
+  return ARTIFACT_CREATION_VERB_REGEX.test(prompt) || CJK_ARTIFACT_CREATION_VERB_REGEX.test(prompt);
+}
+
 export function shouldRequireExecutionEvidence(taskTitle: string, taskPrompt: string): boolean {
   const prompt = `${taskTitle}\n${normalizePromptForContracts(taskPrompt)}`.toLowerCase();
-  return /\b(create|build|write|generate|transcribe|summarize|analyze|review|fix|implement|run|execute)\b/.test(
-    prompt,
+  return (
+    /\b(create|build|write|generate|transcribe|summarize|analyze|review|fix|implement|run|execute)\b/.test(
+      prompt,
+    ) || /(?:创建|生成|制作|导出|保存|输出|写入|整理|汇总|分析|审阅|修复|执行)/.test(prompt)
   );
 }
 
@@ -62,8 +180,23 @@ export function promptRequestsArtifactOutput(taskTitle: string, taskPrompt: stri
   const prompt = `${taskTitle}\n${normalizePromptForContracts(taskPrompt)}`.toLowerCase();
   if (promptRequestsPresentationArtifactOutput(taskTitle, taskPrompt)) return true;
 
-  const artifactNoun =
-    String.raw`(?:files?(?!\s*(?:paths?|names?|areas?|refs?|references?|changes?|diffs?|statuses?|state|tree|lists?|involved)\b)|document|report|pdf|docx|markdown|md|spreadsheet|csv|xlsx|json|txt|pptx|slide|slides|video|videos|clip|clips|movie|footage)`;
+  // CJK intent must bind the creation verb to the artifact noun in the same
+  // clause.  A global verb+noun check misclassified language instructions such
+  // as "输出要求：使用中文；代码、文件名、产品名除外" as a file deliverable.
+  // "文件名/文件路径" describe text that may appear in an answer, not an output
+  // file, so they are explicitly excluded from the artifact noun.
+  const cjkArtifactNoun = String.raw`(?:文件(?!名|名称|路径|目录|列表|清单)|文档(?!名|名称)|报告|表格|电子表格|工作簿|演示文稿|幻灯片|网页|页面|视频|图片|html|word|docx|pdf|xlsx|csv|pptx)`;
+  const cjkArtifactCreation =
+    new RegExp(
+      String.raw`(?:创建|生成|制作|产出|编制|撰写|起草|保存|导出|写入|整理成|转换成|转成|输出(?!要求))[^。！？!?\n]{0,60}${cjkArtifactNoun}`,
+      "i",
+    ).test(prompt) ||
+    new RegExp(
+      String.raw`${cjkArtifactNoun}[^。！？!?\n]{0,40}(?:保存|导出|写入|输出(?!要求))`,
+      "i",
+    ).test(prompt);
+
+  const artifactNoun = String.raw`(?:files?(?!\s*(?:paths?|names?|areas?|refs?|references?|changes?|diffs?|statuses?|state|tree|lists?|involved)\b)|document|report|pdf|docx|markdown|md|spreadsheet|csv|xlsx|json|txt|pptx|slide|slides|html|web\s*page|webpage|video|videos|clip|clips|movie|footage)`;
   const createVerb = String.raw`(?:create|build|write|generate|produce|draft|prepare|save|export|compile|synthesize|combine|merge|join|stitch|concatenate|concat|transcode|remux)`;
   const directObjectModifier = String.raw`(?:(?!(?:in|with|from|for|to|as|about|including|include|that|which)\b)[a-z0-9][a-z0-9-]*\s+)`;
   const directArtifactCreation = new RegExp(
@@ -74,15 +207,17 @@ export function promptRequestsArtifactOutput(taskTitle: string, taskPrompt: stri
     String.raw`\b(?:compile|synthesize|combine|merge|turn|convert|transform)\b[^.!?\n]{0,120}\binto\s+(?:a\s+|an\s+|the\s+)?(?:final\s+|comprehensive\s+|concise\s+)?${artifactNoun}\b`,
     "i",
   ).test(prompt);
-  const explicitOutputPath = /\b(?:save|export|write|output)\b[\s\S]{0,80}\b(?:to|as)\b[\s\S]{0,80}\.(?:pdf|docx|txt|md|csv|xlsx|pptx|json)\b/i.test(
-    prompt,
-  );
+  const explicitOutputPath =
+    /\b(?:save|export|write|output)\b[\s\S]{0,80}\b(?:to|as)\b[\s\S]{0,80}\.(?:pdf|docx|txt|md|csv|xlsx|pptx|json|html)\b/i.test(
+      prompt,
+    );
   const explicitArtifactFormat = new RegExp(
     String.raw`\b(?:save|export|write|output)\b[^.!?\n]{0,80}\b(?:to|as)\b[^.!?\n]{0,80}\b(?:a\s+|an\s+|the\s+)?(?:new\s+|final\s+)?${artifactNoun}\s+(?:file|document|report|spreadsheet|deck|slides?|video|clip)\b`,
     "i",
   ).test(prompt);
 
   return (
+    cjkArtifactCreation ||
     directArtifactCreation ||
     transformIntoArtifact ||
     explicitOutputPath ||
@@ -95,7 +230,7 @@ function promptRequestsVideoArtifactOutput(taskTitle: string, taskPrompt: string
   if (!prompt.trim()) return false;
   const hasVideoNoun = /\b(video|videos|clip|clips|movie|footage)\b/.test(prompt);
   if (!hasVideoNoun) return false;
-  return ARTIFACT_CREATION_VERB_REGEX.test(prompt);
+  return hasArtifactCreationIntent(prompt);
 }
 
 export function promptRequestsPresentationArtifactOutput(
@@ -122,8 +257,17 @@ export function promptRequestsPresentationArtifactOutput(
     /\b(?:create|build|make|generate|produce|draft|prepare|design|author|compose|export|save)\b/.test(
       prompt,
     ) && /\bpptx\b|\.pptx\b/.test(prompt);
+  const cjkPresentationOutput =
+    CJK_ARTIFACT_CREATION_VERB_REGEX.test(prompt) &&
+    /(?:pptx|powerpoint|ppt|演示文稿|幻灯片)/i.test(prompt);
 
-  return directCreation || createNounImmediately || transformIntoPresentation || explicitPptxOutput;
+  return (
+    directCreation ||
+    createNounImmediately ||
+    transformIntoPresentation ||
+    explicitPptxOutput ||
+    cjkPresentationOutput
+  );
 }
 
 export function promptRequestsCanvasArtifactOutput(taskTitle: string, taskPrompt: string): boolean {
@@ -176,7 +320,7 @@ export function promptIsMultiFileWebAppCreation(prompt: string): boolean {
 
 export function inferRequiredArtifactExtensions(taskTitle: string, taskPrompt: string): string[] {
   const prompt = `${taskTitle}\n${normalizePromptForContracts(taskPrompt)}`.toLowerCase();
-  const hasCreateIntent = ARTIFACT_CREATION_VERB_REGEX.test(prompt);
+  const hasCreateIntent = hasArtifactCreationIntent(prompt);
   if (!hasCreateIntent) return [];
 
   const extensions = new Set<string>(extractArtifactExtensionsFromText(prompt));
@@ -191,8 +335,19 @@ export function inferRequiredArtifactExtensions(taskTitle: string, taskPrompt: s
 }
 
 const EXPLICIT_OUTPUT_EXTENSION_SET = new Set([
-  "pdf", "docx", "md", "csv", "xlsx", "json", "jsonl",
-  "txt", "pptx", "mp4", "mov", "webm", "html",
+  "pdf",
+  "docx",
+  "md",
+  "csv",
+  "xlsx",
+  "json",
+  "jsonl",
+  "txt",
+  "pptx",
+  "mp4",
+  "mov",
+  "webm",
+  "html",
 ]);
 
 /**
@@ -202,10 +357,7 @@ const EXPLICIT_OUTPUT_EXTENSION_SET = new Set([
  * this function does NOT pick up extensions from input-context references
  * like "read PRIORITIES.md".
  */
-export function extractExplicitOutputExtensions(
-  taskTitle: string,
-  taskPrompt: string,
-): string[] {
+export function extractExplicitOutputExtensions(taskTitle: string, taskPrompt: string): string[] {
   const prompt = `${taskTitle}\n${normalizePromptForContracts(taskPrompt)}`.toLowerCase();
   const extensions = new Set<string>();
 
@@ -221,7 +373,7 @@ export function extractExplicitOutputExtensions(
 
   // Pattern 2: "create/generate a PDF/DOCX/CSV file/document/report"
   const createFormatPattern =
-    /\b(?:create|generate|produce|draft|build|write)\s+(?:a\s+|an\s+|the\s+)?(?:\w+\s+){0,3}(pdf|docx|xlsx|csv|pptx|txt|markdown|md)\s+(?:file|document|report|spreadsheet|deck)\b/gi;
+    /\b(?:create|generate|produce|draft|build|write)\s+(?:a\s+|an\s+|the\s+)?(?:\w+\s+){0,3}(pdf|docx|xlsx|csv|pptx|txt|markdown|md|html)\s+(?:file|document|report|spreadsheet|deck|page|webpage)\b/gi;
   match = createFormatPattern.exec(prompt);
   while (match) {
     let ext = match[1]!;
@@ -244,13 +396,74 @@ export function extractExplicitOutputExtensions(
   // Pattern 4: Semantic format nouns in output-intent context
   // "create a spreadsheet" → .xlsx, "generate a PDF" → .pdf, etc.
   const semanticFormats: Array<[RegExp, string]> = [
-    [/\b(?:create|generate|build|produce)\s+(?:a\s+|an\s+|the\s+)?(?:\w+\s+){0,3}spreadsheet\b/i, ".xlsx"],
-    [/\b(?:create|generate|build|produce)\s+(?:a\s+|an\s+|the\s+)?(?:\w+\s+){0,3}excel\s+(?:file|workbook|spreadsheet|document)\b/i, ".xlsx"],
-    [/\b(?:create|generate|build|produce|export)\s+(?:a\s+|an\s+|the\s+)?(?:\w+\s+){0,3}pdf\b/i, ".pdf"],
-    [/\b(?:create|generate|build|produce|export)\s+(?:a\s+|an\s+|the\s+)?(?:\w+\s+){0,3}docx?\b/i, ".docx"],
+    [
+      /\b(?:create|generate|build|produce)\s+(?:a\s+|an\s+|the\s+)?(?:\w+\s+){0,3}spreadsheet\b/i,
+      ".xlsx",
+    ],
+    [
+      /\b(?:create|generate|build|produce)\s+(?:a\s+|an\s+|the\s+)?(?:\w+\s+){0,3}excel\s+(?:file|workbook|spreadsheet|document)\b/i,
+      ".xlsx",
+    ],
+    [
+      /\b(?:create|generate|build|produce|export)\s+(?:a\s+|an\s+|the\s+)?(?:\w+\s+){0,3}pdf\b/i,
+      ".pdf",
+    ],
+    [
+      /\b(?:create|generate|build|produce|export)\s+(?:a\s+|an\s+|the\s+)?(?:\w+\s+){0,3}docx?\b/i,
+      ".docx",
+    ],
+    [
+      /\b(?:create|generate|build|produce|export|write)\s+(?:a\s+|an\s+|the\s+)?(?:\w+\s+){0,3}(?:html(?:\s+(?:file|page))?|web\s*page|webpage)\b/i,
+      ".html",
+    ],
   ];
   for (const [pattern, ext] of semanticFormats) {
     if (pattern.test(prompt)) extensions.add(ext);
+  }
+
+  // Pattern 5: Chinese output-intent followed by an explicit format.
+  // Handles direct requests such as “生成 Word 文件” and follow-ups such as
+  // “生成对比报告，word” without treating an earlier input filename as output.
+  const cjkOutputFormats: Array<[RegExp, string]> = [
+    [
+      /(?:创建|生成|制作|产出|编制|撰写|起草|保存|导出|输出|写入|整理成|转换成|转成)[^。！？\n]{0,80}(?:word|docx|\.docx)/i,
+      ".docx",
+    ],
+    [
+      /(?:创建|生成|制作|产出|编制|保存|导出|输出|写入|整理成|转换成|转成)[^。！？\n]{0,80}(?:excel|xlsx|\.xlsx|电子表格|工作簿)/i,
+      ".xlsx",
+    ],
+    [
+      /(?:创建|生成|制作|产出|编制|保存|导出|输出|写入|整理成|转换成|转成)[^。！？\n]{0,80}(?:powerpoint|pptx|\.pptx|ppt|演示文稿|幻灯片)/i,
+      ".pptx",
+    ],
+    [
+      /(?:创建|生成|制作|产出|编制|保存|导出|输出|写入|整理成|转换成|转成)[^。！？\n]{0,80}(?:pdf|\.pdf)/i,
+      ".pdf",
+    ],
+    [
+      /(?:创建|生成|制作|产出|编制|保存|导出|输出|写入|整理成|转换成|转成)[^。！？\n]{0,80}(?:csv|\.csv)/i,
+      ".csv",
+    ],
+    [
+      /(?:创建|生成|制作|产出|编制|保存|导出|输出|写入|整理成|转换成|转成)[^。！？\n]{0,80}(?:html|\.html|网页|页面)/i,
+      ".html",
+    ],
+  ];
+  for (const [pattern, ext] of cjkOutputFormats) {
+    if (pattern.test(prompt)) extensions.add(ext);
+  }
+
+  // Chinese prompts commonly describe the deliverable as a presentation form
+  // rather than placing a creation verb immediately before the format, e.g.
+  // “内容以 HTML 形式展现运行”.  This is still an explicit HTML output request,
+  // not a reference to an input file.
+  if (
+    /(?:内容|结果|页面|动画)?\s*(?:以|用|采用)\s*(?:html|\.html)\s*(?:格式|形式)?\s*(?:展现|展示|呈现|运行|输出|交付)/i.test(
+      prompt,
+    )
+  ) {
+    extensions.add(".html");
   }
 
   // Presentation detection still uses the dedicated function
@@ -262,6 +475,38 @@ export function extractExplicitOutputExtensions(
   }
 
   return Array.from(extensions);
+}
+
+/**
+ * Maps an explicit artifact request to the built-in tools capable of producing
+ * it. Keep this mapping next to the output-format parser so initial tasks and
+ * terse follow-ups (for example, "生成PPT") use the same capability contract.
+ */
+export function getExplicitArtifactToolNames(
+  taskTitle: string,
+  taskPrompt: string,
+): string[] {
+  const extensions = new Set(
+    extractExplicitOutputExtensions(taskTitle, taskPrompt).map((extension) =>
+      String(extension || "").toLowerCase(),
+    ),
+  );
+  const tools = new Set<string>();
+
+  if (extensions.has(".docx") || extensions.has(".pdf")) {
+    tools.add("create_document");
+    tools.add("generate_document");
+  }
+  if (extensions.has(".pptx")) {
+    tools.add("create_presentation");
+    tools.add("generate_presentation");
+  }
+  if (extensions.has(".xlsx")) {
+    tools.add("create_spreadsheet");
+    tools.add("generate_spreadsheet");
+  }
+
+  return Array.from(tools);
 }
 
 /**
@@ -292,6 +537,34 @@ export function buildCompletionGuidancePrompt(opts: {
     lines.push(
       `- This task requests output in ${exts} format. Use the appropriate write tool and confirm the file was created successfully.`,
     );
+    const officeExtensions = opts.explicitOutputExtensions.filter((extension) =>
+      [".docx", ".pdf", ".pptx", ".xlsx"].includes(extension.toLowerCase()),
+    );
+    if (officeExtensions.length > 0) {
+      lines.push(
+        "- Office tools are built into NeoWorker; call the named create/generate tools directly. They are not localhost HTTP services, so never probe guessed ports or an /officecli endpoint and never report them unavailable based on a prior analysis step.",
+      );
+    }
+    if (opts.explicitOutputExtensions.includes(".docx")) {
+      lines.push(
+        "- For Word output, use create_document with format=\"docx\" to create a real .docx file. generate_document, HTML, PDF, and Markdown do not satisfy this request.",
+      );
+    }
+    if (opts.explicitOutputExtensions.includes(".pdf")) {
+      lines.push(
+        "- For PDF output, use create_document with format=\"pdf\". Only claim delivery when qualityCheck.status is passed, validation.passed is true, and visual.passed is true; file existence alone is not acceptance.",
+      );
+    }
+    if (opts.explicitOutputExtensions.includes(".pptx")) {
+      lines.push(
+        "- For PowerPoint output, use create_presentation (or generate_presentation when that is the exposed alias) and deliver exactly one final .pptx file.",
+      );
+    }
+    if (opts.explicitOutputExtensions.includes(".xlsx")) {
+      lines.push(
+        "- For Excel output, use create_spreadsheet (or generate_spreadsheet when that is the exposed alias) and verify the resulting .xlsx file.",
+      );
+    }
   }
 
   if (opts.likelyRequiresExecution && !opts.hasReadOnlyConstraint) {
@@ -350,7 +623,10 @@ export function buildCompletionContract(opts: {
   const hasReadOnlyConstraint = detectReadOnlyConstraint(fullPrompt);
 
   const requiresExecutionEvidence = shouldRequireExecutionEvidence(opts.taskTitle, opts.taskPrompt);
-  const requiresCanvasArtifact = promptRequestsCanvasArtifactOutput(opts.taskTitle, opts.taskPrompt);
+  const requiresCanvasArtifact = promptRequestsCanvasArtifactOutput(
+    opts.taskTitle,
+    opts.taskPrompt,
+  );
   // Use explicit-only extraction: only picks up extensions from output-intent
   // patterns (e.g. "save as .pdf"), not from input references (e.g. "read PRIORITIES.md").
   const requiredArtifactExtensions = hasReadOnlyConstraint
@@ -368,14 +644,13 @@ export function buildCompletionContract(opts: {
     requiresCanvasArtifact &&
     !opts.isWatchSkipRecommendationTask &&
     (hasExplicitCanvasCue || requiredArtifactExtensions.length === 0);
-  const artifactKind: CompletionContract["artifactKind"] =
-    hasReadOnlyConstraint
-      ? "none"
-      : shouldTreatAsCanvasArtifact
-        ? "canvas"
-        : requiresArtifactEvidence
-          ? "file"
-          : "none";
+  const artifactKind: CompletionContract["artifactKind"] = hasReadOnlyConstraint
+    ? "none"
+    : shouldTreatAsCanvasArtifact
+      ? "canvas"
+      : requiresArtifactEvidence
+        ? "file"
+        : "none";
 
   // Only require canvas_push evidence when the prompt explicitly mentions "canvas".
   // Tasks detected as canvas via promptIsMultiFileWebAppCreation (e.g. "Create a website")
@@ -515,8 +790,9 @@ export function responseHasReviewReportEvidenceSignal(text: string): boolean {
     /\b(?:suggested\s+(?:documentation|doc)\s+(?:change|update)|documentation\s+change|doc\s+update|update\s+(?:the\s+)?docs?|add\s+(?:to\s+)?docs?)\b/.test(
       normalized,
     );
-  const hasPriority =
-    /\b(?:priority|must\s+fix\s+before\s+release|should\s+fix|optional)\b/.test(normalized);
+  const hasPriority = /\b(?:priority|must\s+fix\s+before\s+release|should\s+fix|optional)\b/.test(
+    normalized,
+  );
   const hasReviewFraming =
     /\b(?:documentation\s+drift|drift\s+(?:check|assessment|report)|review-backed|review\s+report|inspected|reviewed|checked)\b/.test(
       normalized,
@@ -531,12 +807,7 @@ export function responseHasReviewReportEvidenceSignal(text: string): boolean {
     hasReviewFraming,
   ].filter(Boolean).length;
 
-  return (
-    matchedFieldCount >= 4 &&
-    hasMismatchOrFinding &&
-    hasSuggestedDocChange &&
-    hasPriority
-  );
+  return matchedFieldCount >= 4 && hasMismatchOrFinding && hasSuggestedDocChange && hasPriority;
 }
 
 export function hasVerificationToolEvidence(
@@ -544,7 +815,11 @@ export function hasVerificationToolEvidence(
 ): boolean {
   if (!Array.isArray(toolResultMemory) || toolResultMemory.length === 0) return false;
   return toolResultMemory.some((entry) =>
-    VERIFICATION_TOOL_EVIDENCE.has(String(entry.tool || "").trim().toLowerCase()),
+    VERIFICATION_TOOL_EVIDENCE.has(
+      String(entry.tool || "")
+        .trim()
+        .toLowerCase(),
+    ),
   );
 }
 
@@ -707,12 +982,14 @@ export function hasArtifactEvidence(opts: {
 }): boolean {
   if (!opts.contract.requiresArtifactEvidence) return true;
   const evidenceFiles =
-    opts.createdFiles.length > 0 ? opts.createdFiles : (opts.modifiedFiles || []).map((file) => String(file));
+    opts.createdFiles.length > 0
+      ? opts.createdFiles
+      : (opts.modifiedFiles || []).map((file) => String(file));
   if (evidenceFiles.length === 0) return false;
   if (!opts.contract.requiredArtifactExtensions.length) return true;
 
   const lowered = evidenceFiles.map((file) => String(file).toLowerCase());
-  return opts.contract.requiredArtifactExtensions.some((ext: string) =>
+  return opts.contract.requiredArtifactExtensions.every((ext: string) =>
     lowered.some((file: string) => file.endsWith(ext)),
   );
 }
@@ -759,22 +1036,23 @@ export function getFinalOutcomeGuardError(opts: {
   const bestEffortMode =
     opts.preferBestEffortCompletion &&
     (opts.softDeadlineTriggered || opts.cancelReason === "timeout");
+
+  // Never turn a requested deliverable into a textual claim. A timeout may
+  // relax how much analysis can be completed, but it cannot substitute prose
+  // for an explicitly requested file.
+  if (opts.contract.requiresArtifactEvidence && !opts.hasArtifactEvidence) {
+    const requested = opts.contract.requiredArtifactExtensions.join(", ");
+    return requested
+      ? `Task missing artifact evidence: expected an output artifact (${requested}) but no matching created file was detected.`
+      : "Task missing artifact evidence: expected an output file/document but no created file was detected.";
+  }
+
   if (bestEffortMode && opts.bestCandidate.trim()) {
     return null;
   }
 
   if (opts.contract.requiresExecutionEvidence && !opts.hasExecutionEvidence) {
     return "Task missing execution evidence: no plan step completed successfully.";
-  }
-
-  if (!opts.hasArtifactEvidence) {
-    const hasSubstantiveText = opts.bestCandidate.trim().length >= 50;
-    if (!(hasSubstantiveText && opts.createdFiles.length === 0)) {
-      const requested = opts.contract.requiredArtifactExtensions.join(", ");
-      return requested
-        ? `Task missing artifact evidence: expected an output artifact (${requested}) but no matching created file was detected.`
-        : "Task missing artifact evidence: expected an output file/document but no created file was detected.";
-    }
   }
 
   if (

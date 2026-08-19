@@ -64,7 +64,7 @@ export class MattermostAdapter implements ChannelAdapter {
     };
 
     // Set up attachments directory
-    this.attachmentsDir = path.join(os.tmpdir(), "cowork-mattermost-attachments");
+    this.attachmentsDir = path.join(os.tmpdir(), "neoworker-mattermost-attachments");
     if (!fs.existsSync(this.attachmentsDir)) {
       fs.mkdirSync(this.attachmentsDir, { recursive: true });
     }

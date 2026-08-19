@@ -1,0 +1,3 @@
+import { n as e, t } from "./tex-sMvm-iQd.js";
+t();
+export { e as default };

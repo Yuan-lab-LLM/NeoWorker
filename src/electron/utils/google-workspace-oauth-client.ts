@@ -2,7 +2,7 @@ import type { GoogleWorkspaceSettingsData } from "../../shared/types";
 import type { GoogleWorkspaceOAuthRequest } from "./google-workspace-oauth";
 
 // Public OAuth client IDs are not secrets. Official builds should set this via
-// COWORK_GOOGLE_OAUTH_CLIENT_ID or replace the fallback during release packaging.
+// NEOWORKER_GOOGLE_OAUTH_CLIENT_ID or replace the fallback during release packaging.
 const BUNDLED_GOOGLE_OAUTH_CLIENT_ID =
   "869694679579-q5pvm2817sl8abhjcrlbqg4jj4bl7n7f.apps.googleusercontent.com";
 
@@ -13,7 +13,7 @@ function normalize(value?: string): string | undefined {
 
 export function getBundledGoogleWorkspaceOAuthClientId(): string | undefined {
   return (
-    normalize(process.env.COWORK_GOOGLE_OAUTH_CLIENT_ID) ||
+    normalize(process.env.NEOWORKER_GOOGLE_OAUTH_CLIENT_ID) ||
     normalize(BUNDLED_GOOGLE_OAUTH_CLIENT_ID)
   );
 }

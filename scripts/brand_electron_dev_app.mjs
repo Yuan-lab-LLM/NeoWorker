@@ -4,8 +4,8 @@ import { copyFileSync, existsSync, mkdirSync, utimesSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 
-const APP_DISPLAY_NAME = "CoWork OS";
-const ICON_FILE = "cowork-os.icns";
+const APP_DISPLAY_NAME = "NeoWorker";
+const ICON_FILE = "neoworker.icns";
 
 function log(message) {
   process.stdout.write(`[brand-dev] ${message}\n`);
@@ -88,6 +88,7 @@ function setPlistValue(key, type, value) {
 mkdirSync(resourcesDir, { recursive: true });
 copyFileSync(sourceIcon, targetIcon);
 
+setPlistValue("CFBundleName", "string", APP_DISPLAY_NAME);
 setPlistValue("CFBundleDisplayName", "string", APP_DISPLAY_NAME);
 setPlistValue("CFBundleIconFile", "string", ICON_FILE);
 setPlistValue(
@@ -101,5 +102,5 @@ utimesSync(electronApp, now, now);
 utimesSync(plistPath, now, now);
 
 log(
-  `Branded ${electronApp} display name/icon as ${APP_DISPLAY_NAME}; preserved bundle name and identifier for safeStorage.`,
+  `Branded ${electronApp} bundle name, display name, and icon as ${APP_DISPLAY_NAME}; preserved the development keychain identity.`,
 );

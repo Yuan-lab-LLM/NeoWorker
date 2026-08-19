@@ -1,3 +1,5 @@
+import "../electron/migrations/legacy-brand-compat";
+import { migrateLegacyWorkspaceKits } from "../electron/migrations/legacy-workspace-kit";
 import path from "node:path";
 import * as fs from "node:fs/promises";
 import os from "node:os";
@@ -48,7 +50,7 @@ import { resolveTaskResultText } from "../electron/cron/result-text";
 import {
   TaskEventRepository,
   TaskRepository,
-  WorkspaceRepository as _WorkspaceRepository,
+  WorkspaceRepository,
   ChannelRepository,
   ChannelUserRepository,
   ChannelMessageRepository,
@@ -81,7 +83,7 @@ async function maybeBootstrapWorkspace(
 ): Promise<void> {
   try {
     const bootstrapPathRaw =
-      process.env.COWORK_BOOTSTRAP_WORKSPACE_PATH ||
+      process.env.NEOWORKER_BOOTSTRAP_WORKSPACE_PATH ||
       getArgValue("--bootstrap-workspace");
     if (
       !bootstrapPathRaw ||
@@ -110,7 +112,7 @@ async function maybeBootstrapWorkspace(
     }
 
     const nameFromEnv =
-      process.env.COWORK_BOOTSTRAP_WORKSPACE_NAME ||
+      process.env.NEOWORKER_BOOTSTRAP_WORKSPACE_NAME ||
       getArgValue("--bootstrap-workspace-name");
     const workspaceName =
       typeof nameFromEnv === "string" && nameFromEnv.trim().length > 0
@@ -248,8 +250,8 @@ async function startControlPlane(options: {
 async function main(): Promise<void> {
   // Daemon is always headless; set an env flag to keep core logic consistent even if the caller
   // forgot to pass `--headless`.
-  if (!process.env.COWORK_HEADLESS) {
-    process.env.COWORK_HEADLESS = "1";
+  if (!process.env.NEOWORKER_HEADLESS) {
+    process.env.NEOWORKER_HEADLESS = "1";
   }
   const HEADLESS = isHeadlessMode();
   const FORCE_ENABLE_CONTROL_PLANE = shouldEnableControlPlaneFromArgsOrEnv();
@@ -260,7 +262,7 @@ async function main(): Promise<void> {
   const userDataDir = getUserDataDir();
   await fs.mkdir(userDataDir, { recursive: true });
 
-  console.log("[Daemon] Starting CoWork OS (Node-only)");
+  console.log("[Daemon] Starting NeoWorker (Node-only)");
   console.log(`[Daemon] userData: ${userDataDir}`);
   console.log(`[Daemon] headless: ${HEADLESS}`);
 
@@ -268,6 +270,12 @@ async function main(): Promise<void> {
   const dbManager = new DatabaseManager();
   new SecureSettingsRepository(dbManager.getDatabase());
   console.log("[Daemon] SecureSettingsRepository initialized");
+  const kitMigrations = migrateLegacyWorkspaceKits(
+    new WorkspaceRepository(dbManager.getDatabase()).findAll(),
+  );
+  if (kitMigrations.length) {
+    console.log(`[Daemon] Migrated ${kitMigrations.length} legacy workspace kit(s)`);
+  }
 
   // Initialize provider factories (loads settings from disk, migrates legacy files).
   LLMProviderFactory.initialize();
@@ -318,7 +326,7 @@ async function main(): Promise<void> {
       );
       if (!hasAnyLlmCreds) {
         console.warn(
-          "[Daemon] No LLM credentials configured. In headless mode, set COWORK_IMPORT_ENV_SETTINGS=1 and an LLM key (e.g. OPENAI_API_KEY or ANTHROPIC_API_KEY), then restart.",
+          "[Daemon] No LLM credentials configured. In headless mode, set NEOWORKER_IMPORT_ENV_SETTINGS=1 and an LLM key (e.g. OPENAI_API_KEY or ANTHROPIC_API_KEY), then restart.",
         );
       }
     } catch (error) {
@@ -628,10 +636,10 @@ async function main(): Promise<void> {
 
   // Apply Control Plane host/port overrides.
   const cpHost =
-    process.env.COWORK_CONTROL_PLANE_HOST ||
+    process.env.NEOWORKER_CONTROL_PLANE_HOST ||
     getArgValue("--control-plane-host");
   const cpPortRaw =
-    process.env.COWORK_CONTROL_PLANE_PORT ||
+    process.env.NEOWORKER_CONTROL_PLANE_PORT ||
     getArgValue("--control-plane-port");
   const cpPort = cpPortRaw ? Number.parseInt(cpPortRaw, 10) : undefined;
   const cpAllowedOrigins = getControlPlaneAllowedOriginsFromEnv();
@@ -639,7 +647,7 @@ async function main(): Promise<void> {
     (typeof cpHost === "string" && cpHost.trim()) ||
     (typeof cpPort === "number" && Number.isFinite(cpPort)) ||
     typeof cpAllowedOrigins !== "undefined" ||
-    process.env.COWORK_CONTROL_PLANE_TRUST_PROXY !== undefined
+    process.env.NEOWORKER_CONTROL_PLANE_TRUST_PROXY !== undefined
   ) {
     try {
       ControlPlaneSettingsManager.updateSettings({
@@ -652,7 +660,7 @@ async function main(): Promise<void> {
         ...(typeof cpAllowedOrigins !== "undefined"
           ? { allowedOrigins: cpAllowedOrigins }
           : {}),
-        ...(process.env.COWORK_CONTROL_PLANE_TRUST_PROXY !== undefined
+        ...(process.env.NEOWORKER_CONTROL_PLANE_TRUST_PROXY !== undefined
           ? { trustProxy: shouldTrustControlPlaneProxyFromEnv() }
           : {}),
       });

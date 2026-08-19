@@ -1,6 +1,6 @@
 # Mattermost User Guide
 
-Mattermost is best for self-hosted teams that want CoWork available inside their existing team chat.
+Mattermost is best for self-hosted teams that want NeoWorker available inside their existing team chat.
 
 ## Best For
 
@@ -19,7 +19,7 @@ Mattermost is best for self-hosted teams that want CoWork available inside their
 
 ## Daily Workflow
 
-Use dedicated Mattermost channels for CoWork tasks:
+Use dedicated Mattermost channels for NeoWorker tasks:
 
 ```text
 /new
@@ -31,7 +31,7 @@ Use `/queue` and `/steer` to manage active work in a shared channel.
 ## Best Practices
 
 - Use dedicated channels for recurring workflows.
-- Scope CoWork to the relevant team.
+- Scope NeoWorker to the relevant team.
 - Use commands in busy channels.
 - Use scheduled summaries for operational updates.
 - Use DMs for approvals and sensitive context when available.

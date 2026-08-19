@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import * as fs from "fs/promises";
 import * as path from "path";
 import {
@@ -11,6 +12,78 @@ type ExcelCellValue = ExcelJS.CellValue;
 
 const MAX_PREVIEW_ROWS = 2000;
 const MAX_PREVIEW_COLUMNS = 200;
+const SPREADSHEETML_MAIN_NAMESPACE =
+  "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const OFFICE_EXTENDED_PROPERTIES_NAMESPACE =
+  "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties";
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function removeElementNamespacePrefix(
+  xml: string,
+  namespaceUri: string,
+): { xml: string; changed: boolean } {
+  const namespaceMatch = xml.match(
+    new RegExp(
+      `xmlns:([A-Za-z_][\\w.-]*)=["']${escapeRegExp(namespaceUri)}["']`,
+    ),
+  );
+  const prefix = namespaceMatch?.[1];
+  if (!prefix) return { xml, changed: false };
+
+  const normalized = xml.replace(
+    new RegExp(`<(/?)${escapeRegExp(prefix)}:`, "g"),
+    "<$1",
+  );
+  return { xml: normalized, changed: normalized !== xml };
+}
+
+/**
+ * ExcelJS 4.4 fails to parse otherwise-valid OOXML produced by OfficeCLI and
+ * some .NET writers when the SpreadsheetML and extended-properties elements
+ * use explicit namespace prefixes (for example <x:workbook> or
+ * <ap:Properties>). Normalize a copy in memory so previewing does not mutate
+ * the user's file.
+ */
+async function loadExcelWorkbookWithNamespaceCompatibility(
+  filePath: string,
+): Promise<ExcelJS.Workbook> {
+  const workbook = new ExcelJS.Workbook();
+  try {
+    await workbook.xlsx.readFile(filePath);
+    return workbook;
+  } catch (originalError) {
+    const zip = await JSZip.loadAsync(await fs.readFile(filePath));
+    let changed = false;
+
+    for (const entryName of Object.keys(zip.files)) {
+      if (!/\.xml$/i.test(entryName)) continue;
+      const entry = zip.file(entryName);
+      if (!entry) continue;
+
+      let xml = await entry.async("string");
+      for (const namespaceUri of [
+        SPREADSHEETML_MAIN_NAMESPACE,
+        OFFICE_EXTENDED_PROPERTIES_NAMESPACE,
+      ]) {
+        const normalized = removeElementNamespacePrefix(xml, namespaceUri);
+        xml = normalized.xml;
+        changed = changed || normalized.changed;
+      }
+      zip.file(entryName, xml);
+    }
+
+    if (!changed) throw originalError;
+
+    const normalizedBuffer = await zip.generateAsync({ type: "nodebuffer" });
+    const normalizedArrayBuffer = Uint8Array.from(normalizedBuffer).buffer;
+    const compatibleWorkbook = new ExcelJS.Workbook();
+    await compatibleWorkbook.xlsx.load(normalizedArrayBuffer);
+    return compatibleWorkbook;
+  }
+}
 
 function argbToCssColor(argb?: string): string | undefined {
   if (!argb) return undefined;
@@ -69,8 +142,7 @@ function isStyled(cell: ExcelJS.Cell): boolean {
 export async function buildSpreadsheetPreviewFromFile(
   filePath: string,
 ): Promise<SpreadsheetPreview> {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(filePath);
+  const workbook = await loadExcelWorkbookWithNamespaceCompatibility(filePath);
 
   const sheets = workbook.worksheets.map((worksheet) => {
     const sourceRowCount = Math.max(worksheet.actualRowCount || 0, worksheet.rowCount || 0);
@@ -335,11 +407,12 @@ export async function writeSpreadsheetPreviewToFile(
   filePath: string,
   preview: SpreadsheetPreview,
 ): Promise<SpreadsheetPreview> {
-  const workbook = new ExcelJS.Workbook();
+  let workbook: ExcelJS.Workbook;
   try {
-    await workbook.xlsx.readFile(filePath);
+    workbook = await loadExcelWorkbookWithNamespaceCompatibility(filePath);
   } catch {
     // If the file was removed between preview and save, recreate a workbook.
+    workbook = new ExcelJS.Workbook();
   }
 
   for (const sheetPreview of preview.sheets) {

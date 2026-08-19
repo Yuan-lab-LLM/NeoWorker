@@ -445,7 +445,7 @@ describe("EverydayAgentService", () => {
     expect(result.compiledPolicy.allowedCapabilities).toContain("inbox");
     expect(result.compiledPolicy.allowedCapabilities).toContain("browser");
     expect(
-      db.prepare("SELECT name FROM managed_agents WHERE id = ?").get("cowork-everyday-agent"),
+      db.prepare("SELECT name FROM managed_agents WHERE id = ?").get("neoworker-everyday-agent"),
     ).toEqual({ name: "Everyday Agent" });
   });
 

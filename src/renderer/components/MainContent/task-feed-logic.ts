@@ -63,25 +63,56 @@ export type SelectedSkillModalState = {
 
 export type TranscriptMode = "live" | "inspect" | "delivery";
 
+export function shouldBypassLiveTaskEventProjection(args: {
+  projectionMode?: "live" | "inspect" | null;
+  transcriptModeOverride: TranscriptMode | null;
+  verboseSteps: boolean;
+}): boolean {
+  return (
+    args.projectionMode === "live" &&
+    (args.verboseSteps || args.transcriptModeOverride === "inspect")
+  );
+}
+
+export function shouldShowChatTaskExecutionRows(args: {
+  isChatTask: boolean;
+  verboseSteps: boolean;
+  isReplayMode: boolean;
+}): boolean {
+  return !args.isChatTask || args.verboseSteps || args.isReplayMode;
+}
+
+export function shouldIncludeExecutionRecordEvents(args: {
+  verboseSteps: boolean;
+  isReplayMode: boolean;
+}): boolean {
+  return args.verboseSteps || args.isReplayMode;
+}
+
 export function getTaskFeedRowEventType(row: TaskFeedRow): string | null {
-  if (row.kind === "artifact-stack" || row.kind === "history-control") return null;
+  if (row.kind === "artifact-stack" || row.kind === "history-control")
+    return null;
   if (row.kind !== "timeline" || row.item.kind !== "event") return null;
   return getEffectiveTaskEventType(row.item.event as TaskEvent);
 }
 
 export function getTaskFeedRowEvent(row: TaskFeedRow): TaskEvent | null {
-  if (row.kind === "artifact-stack" || row.kind === "history-control") return null;
+  if (row.kind === "artifact-stack" || row.kind === "history-control")
+    return null;
   if (row.kind !== "timeline" || row.item.kind !== "event") return null;
   return row.item.event as TaskEvent;
 }
 
-export function getTaskFeedRowVisiblePerfEventId(row: TaskFeedRow): string | null {
+export function getTaskFeedRowVisiblePerfEventId(
+  row: TaskFeedRow,
+): string | null {
   return row.visiblePerfEventId ?? null;
 }
 
 export const LIVE_TRANSCRIPT_TRANSIENT_RAW_EVENT_TYPES = new Set([
   "llm_output_budget",
   "llm_output_budget_escalation",
+  "llm_output_budget_continuation",
   "llm_streaming",
 ]);
 export const MAX_AGENT_REASONING_UPDATE_COUNT = 6;
@@ -122,10 +153,32 @@ export function shouldShowBootstrapProgressRow(args: {
   visibleRenderableFeedRowsLength: number;
   isChatTask: boolean;
 }): boolean {
-  return args.isTaskWorking && args.visibleRenderableFeedRowsLength === 0 && !args.isChatTask;
+  return (
+    args.isTaskWorking &&
+    args.visibleRenderableFeedRowsLength === 0 &&
+    !args.isChatTask
+  );
 }
 
-export function getBootstrapProgressTitle(task: Task | null | undefined): string {
+export function shouldMarkActionBlockActiveForCurrentTurn(args: {
+  isLatestActionBlock: boolean;
+  isTaskWorking: boolean;
+  isReplayMode: boolean;
+  actionBlockEventIndices: number[];
+  latestUserMessageEventIndex: number;
+}): boolean {
+  if (!args.isLatestActionBlock) return false;
+  if (args.isReplayMode) return true;
+  if (!args.isTaskWorking) return false;
+  if (args.latestUserMessageEventIndex < 0) return true;
+  return args.actionBlockEventIndices.some(
+    (eventIndex) => eventIndex > args.latestUserMessageEventIndex,
+  );
+}
+
+export function getBootstrapProgressTitle(
+  task: Task | null | undefined,
+): string {
   switch (task?.status) {
     case "planning":
       return "Planning the approach";
@@ -166,10 +219,15 @@ export function cleanAgentReasoningText(text: string): string {
 export function isAgentReasoningStreamingEvent(event: TaskEvent): boolean {
   if (event.type === "llm_streaming") return true;
   const payload =
-    event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
+    event.payload &&
+    typeof event.payload === "object" &&
+    !Array.isArray(event.payload)
       ? (event.payload as Record<string, unknown>)
       : null;
-  return event.type === "timeline_step_updated" && payload?.legacyType === "llm_streaming";
+  return (
+    event.type === "timeline_step_updated" &&
+    payload?.legacyType === "llm_streaming"
+  );
 }
 
 export function deriveAgentReasoningPanelState(args: {
@@ -185,14 +243,26 @@ export function deriveAgentReasoningPanelState(args: {
   let lastVisibleUpdate = "";
 
   for (const event of args.events) {
-    if (event.taskId !== args.taskId || isAgentReasoningStreamingEvent(event)) continue;
+    if (event.taskId !== args.taskId || isAgentReasoningStreamingEvent(event))
+      continue;
     const effectiveType = getEffectiveTaskEventType(event);
-    if (effectiveType !== "progress_update" && effectiveType !== "assistant_message") continue;
-    if (effectiveType === "assistant_message" && event.payload?.internal === true) continue;
-    const rawMessage = typeof event.payload?.message === "string" ? event.payload.message : "";
+    if (
+      effectiveType !== "progress_update" &&
+      effectiveType !== "assistant_message"
+    )
+      continue;
+    if (
+      effectiveType === "assistant_message" &&
+      event.payload?.internal === true
+    )
+      continue;
+    const rawMessage =
+      typeof event.payload?.message === "string" ? event.payload.message : "";
     if (!isUserFacingProgressMessage(rawMessage)) continue;
     const message = cleanAgentReasoningText(
-      effectiveType === "progress_update" ? humanizeTimelineMessage(rawMessage) : rawMessage,
+      effectiveType === "progress_update"
+        ? humanizeTimelineMessage(rawMessage)
+        : rawMessage,
     );
     if (!message || message === lastVisibleUpdate) continue;
     lastVisibleUpdate = message;
@@ -208,7 +278,11 @@ export function deriveAgentReasoningPanelState(args: {
     const event = args.events[index];
     if (event.taskId !== args.taskId) continue;
     const effectiveType = getEffectiveTaskEventType(event);
-    if (effectiveType === "log" || effectiveType === "llm_usage" || effectiveType === "command_output") {
+    if (
+      effectiveType === "log" ||
+      effectiveType === "llm_usage" ||
+      effectiveType === "command_output"
+    ) {
       continue;
     }
     if (isAgentReasoningStreamingEvent(event)) {
@@ -230,8 +304,12 @@ export function deriveAgentReasoningPanelState(args: {
   return { activeStreamText, isStreaming, recentUpdates };
 }
 
-export function hasAgentReasoningPanelContent(state: AgentReasoningPanelState): boolean {
-  return state.activeStreamText.trim().length > 0 || state.recentUpdates.length > 0;
+export function hasAgentReasoningPanelContent(
+  state: AgentReasoningPanelState,
+): boolean {
+  return (
+    state.activeStreamText.trim().length > 0 || state.recentUpdates.length > 0
+  );
 }
 
 export function isTransientLiveTranscriptRow(row: TaskFeedRow): boolean {
@@ -252,7 +330,9 @@ export function isTransientLiveTranscriptRow(row: TaskFeedRow): boolean {
 
 export function isUrgentLiveTranscriptRow(row: TaskFeedRow): boolean {
   const effectiveType = getTaskFeedRowEventType(row);
-  return effectiveType ? LIVE_TRANSCRIPT_URGENT_EFFECTIVE_EVENT_TYPES.has(effectiveType) : false;
+  return effectiveType
+    ? LIVE_TRANSCRIPT_URGENT_EFFECTIVE_EVENT_TYPES.has(effectiveType)
+    : false;
 }
 
 export function getTaskFeedRowEvents(row: TaskFeedRow): Array<{
@@ -260,12 +340,20 @@ export function getTaskFeedRowEvents(row: TaskFeedRow): Array<{
   eventIndex?: number;
   eventOrder: number;
 }> {
-  if (row.kind === "artifact-stack" || row.kind === "history-control") return [];
+  if (row.kind === "artifact-stack" || row.kind === "history-control")
+    return [];
   if (row.kind !== "timeline") return [];
   if (row.item.kind === "event") {
-    return [{ event: row.item.event as TaskEvent, eventIndex: row.item.eventIndex, eventOrder: 0 }];
+    return [
+      {
+        event: row.item.event as TaskEvent,
+        eventIndex: row.item.eventIndex,
+        eventOrder: 0,
+      },
+    ];
   }
-  if (row.item.kind !== "action_block" || !Array.isArray(row.item.events)) return [];
+  if (row.item.kind !== "action_block" || !Array.isArray(row.item.events))
+    return [];
   return row.item.events.map((event: TaskEvent, eventOrder: number) => ({
     event,
     eventIndex: Array.isArray(row.item.eventIndices)
@@ -275,13 +363,23 @@ export function getTaskFeedRowEvents(row: TaskFeedRow): Array<{
   }));
 }
 
-export function collectTaskFeedRowEventStream(feedRows: TaskFeedRow[]): TaskEvent[] {
-  return feedRows.flatMap((row) => getTaskFeedRowEvents(row).map((entry) => entry.event));
+export function collectTaskFeedRowEventStream(
+  feedRows: TaskFeedRow[],
+): TaskEvent[] {
+  return feedRows.flatMap((row) =>
+    getTaskFeedRowEvents(row).map((entry) => entry.event),
+  );
 }
 
-export function isDeliveryCompletionEvent(event: TaskEvent, eventStream: TaskEvent[]): boolean {
+export function isDeliveryCompletionEvent(
+  event: TaskEvent,
+  eventStream: TaskEvent[],
+): boolean {
   if (getEffectiveTaskEventType(event) !== "task_completed") return false;
-  const outputSummary = resolveTaskOutputSummaryFromCompletionEvent(event, eventStream);
+  const outputSummary = resolveTaskOutputSummaryFromCompletionEvent(
+    event,
+    eventStream,
+  );
   if (hasTaskOutputs(outputSummary)) return true;
   if (getCompletionSummaryText(event).length > 0) return true;
   return (
@@ -301,8 +399,38 @@ export function isDeliveryCriticalEvent(event: TaskEvent): boolean {
   );
 }
 
-export function isDeliveryEvent(event: TaskEvent, eventStream: TaskEvent[]): boolean {
-  return isDeliveryCompletionEvent(event, eventStream) || isDeliveryCriticalEvent(event);
+export function isDeliveryEvent(
+  event: TaskEvent,
+  eventStream: TaskEvent[],
+): boolean {
+  return (
+    isDeliveryCompletionEvent(event, eventStream) ||
+    isDeliveryCriticalEvent(event)
+  );
+}
+
+function isAssistantReplyDuplicatedByCompletion(
+  event: TaskEvent,
+  eventStream: TaskEvent[],
+): boolean {
+  if (getEffectiveTaskEventType(event) !== "assistant_message") return false;
+  const message =
+    typeof event.payload?.message === "string"
+      ? event.payload.message.trim()
+      : "";
+  if (!message) return false;
+
+  const eventIndex = eventStream.indexOf(event);
+  if (eventIndex < 0) return false;
+  for (let index = eventIndex + 1; index < eventStream.length; index += 1) {
+    const candidate = eventStream[index];
+    const type = getEffectiveTaskEventType(candidate);
+    if (type === "user_message" || type === "assistant_message") return false;
+    if (type === "task_completed") {
+      return getCompletionSummaryText(candidate).trim() === message;
+    }
+  }
+  return false;
 }
 
 export function createDeliveryEventRow(
@@ -353,15 +481,18 @@ export function selectVisibleTaskFeedRows(
   transcriptMode: TranscriptMode,
 ): { visibleFeedRows: TaskFeedRow[]; hiddenLiveFeedRowCount: number } {
   const getHiddenContentRowCount = (visibleRows: TaskFeedRow[]) => {
-    const totalContentRows = feedRows.filter((row) => row.kind !== "history-control").length;
-    const visibleContentRows = visibleRows.filter((row) => row.kind !== "history-control").length;
+    const totalContentRows = feedRows.filter(
+      (row) => row.kind !== "history-control",
+    ).length;
+    const visibleContentRows = visibleRows.filter(
+      (row) => row.kind !== "history-control",
+    ).length;
     return Math.max(0, totalContentRows - visibleContentRows);
   };
 
   if (transcriptMode === "delivery") {
     const eventStream = collectTaskFeedRowEventStream(feedRows);
     const candidates: Array<{ order: number; row: TaskFeedRow }> = [];
-    let finalAssistant: { order: number; row: TaskFeedRow } | null = null;
     const pushCandidate = (order: number, row: TaskFeedRow) => {
       candidates.push({ order, row });
     };
@@ -374,21 +505,34 @@ export function selectVisibleTaskFeedRows(
       const rowEvents = getTaskFeedRowEvents(row);
       for (const { event, eventIndex, eventOrder } of rowEvents) {
         const order = rowIndex + eventOrder / 1000;
-        if (getEffectiveTaskEventType(event) === "assistant_message" && event.payload?.internal !== true) {
-          finalAssistant = {
+        const effectiveType = getEffectiveTaskEventType(event);
+        // Delivery mode hides internal work, not the conversation itself. Keep
+        // every follow-up question and one visible reply for each turn.
+        if (effectiveType === "user_message") {
+          pushCandidate(
             order,
-            row: createDeliveryEventRow(row, event, eventIndex, eventOrder),
-          };
+            createDeliveryEventRow(row, event, eventIndex, eventOrder),
+          );
+          continue;
+        }
+        if (
+          effectiveType === "assistant_message" &&
+          event.payload?.internal !== true &&
+          !isAssistantReplyDuplicatedByCompletion(event, eventStream)
+        ) {
+          pushCandidate(
+            order,
+            createDeliveryEventRow(row, event, eventIndex, eventOrder),
+          );
           continue;
         }
         if (isDeliveryEvent(event, eventStream)) {
-          pushCandidate(order, createDeliveryEventRow(row, event, eventIndex, eventOrder));
+          pushCandidate(
+            order,
+            createDeliveryEventRow(row, event, eventIndex, eventOrder),
+          );
         }
       }
-    }
-
-    if (finalAssistant) {
-      pushCandidate(finalAssistant.order, finalAssistant.row);
     }
 
     const seenKeys = new Set<string>();
@@ -411,7 +555,9 @@ export function selectVisibleTaskFeedRows(
     return { visibleFeedRows: feedRows, hiddenLiveFeedRowCount: 0 };
   }
   if (feedRows.length <= 8) {
-    const visibleFeedRows = feedRows.filter((row) => row.kind !== "history-control");
+    const visibleFeedRows = feedRows.filter(
+      (row) => row.kind !== "history-control",
+    );
     return {
       visibleFeedRows,
       hiddenLiveFeedRowCount: getHiddenContentRowCount(visibleFeedRows),
@@ -429,18 +575,28 @@ export function selectVisibleTaskFeedRows(
   };
 
   let meaningfulRowsKept = 0;
-  for (let index = feedRows.length - 1; index >= 0 && meaningfulRowsKept < 4; index -= 1) {
+  for (
+    let index = feedRows.length - 1;
+    index >= 0 && meaningfulRowsKept < 4;
+    index -= 1
+  ) {
     const row = feedRows[index];
     if (!isMeaningfulLiveTranscriptRow(row)) continue;
     keepIndexes.add(index);
     meaningfulRowsKept += 1;
   }
 
-  keepLastMatch((row) => row.kind === "timeline" && row.item.kind === "action_block");
+  keepLastMatch(
+    (row) => row.kind === "timeline" && row.item.kind === "action_block",
+  );
   keepLastMatch((row) => getTaskFeedRowEventType(row) === "assistant_message");
   keepLastMatch((row) => getTaskFeedRowEventType(row) === "user_message");
-  keepLastMatch((row) => row.kind === "timeline" && row.item.kind === "dispatched-agents");
-  keepLastMatch((row) => row.kind === "timeline" && row.item.kind === "cli-agent-frame");
+  keepLastMatch(
+    (row) => row.kind === "timeline" && row.item.kind === "dispatched-agents",
+  );
+  keepLastMatch(
+    (row) => row.kind === "timeline" && row.item.kind === "cli-agent-frame",
+  );
   keepLastMatch((row) => row.kind === "timeline" && row.item.kind === "canvas");
   keepLastMatch((row) => isUserFacingLiveStatusRow(row));
   keepLastMatch((row) => isUrgentLiveTranscriptRow(row));
@@ -451,7 +607,9 @@ export function selectVisibleTaskFeedRows(
       ? visibleIndexes.slice(-LIVE_TRANSCRIPT_MAX_VISIBLE_ROWS)
       : visibleIndexes;
   const cappedKeepIndexes = new Set(cappedIndexes);
-  const visibleFeedRows = feedRows.filter((_, index) => cappedKeepIndexes.has(index));
+  const visibleFeedRows = feedRows.filter((_, index) =>
+    cappedKeepIndexes.has(index),
+  );
   return {
     visibleFeedRows,
     hiddenLiveFeedRowCount: getHiddenContentRowCount(visibleFeedRows),
@@ -479,7 +637,9 @@ export function pruneStringSetToActiveIds(
   return next;
 }
 
-export function getCommandOutputSessionsRevision(sessions: CommandOutputSession[] | undefined): string {
+export function getCommandOutputSessionsRevision(
+  sessions: CommandOutputSession[] | undefined,
+): string {
   if (!sessions || sessions.length === 0) return "none";
   return sessions
     .map(
@@ -504,7 +664,9 @@ export function collectInlineRunCommandSessionIds(args: {
       event.payload?.tool === "run_command" &&
       args.isEventExpanded(event)
     ) {
-      for (const session of args.commandOutputSessionsByInsertIndex.get(eventIndex) ?? []) {
+      for (const session of args.commandOutputSessionsByInsertIndex.get(
+        eventIndex,
+      ) ?? []) {
         inlineRunCommandSessionIds.add(session.id);
       }
     }
@@ -513,7 +675,9 @@ export function collectInlineRunCommandSessionIds(args: {
 }
 
 function getEvidenceSourceSet(event: TaskEvent): Set<string> {
-  const refs = Array.isArray(event.payload?.evidenceRefs) ? event.payload.evidenceRefs : [];
+  const refs = Array.isArray(event.payload?.evidenceRefs)
+    ? event.payload.evidenceRefs
+    : [];
   const sources = new Set<string>();
   for (const ref of refs) {
     if (!ref || typeof ref !== "object") continue;
@@ -525,7 +689,10 @@ function getEvidenceSourceSet(event: TaskEvent): Set<string> {
   return sources;
 }
 
-export function isRedundantTimelineEvidenceEvent(event: TaskEvent, events: TaskEvent[]): boolean {
+export function isRedundantTimelineEvidenceEvent(
+  event: TaskEvent,
+  events: TaskEvent[],
+): boolean {
   if (event.type !== "timeline_evidence_attached") return false;
   const sources = getEvidenceSourceSet(event);
   if (sources.size === 0) return false;
@@ -535,9 +702,9 @@ export function isRedundantTimelineEvidenceEvent(event: TaskEvent, events: TaskE
       candidate === event ||
       (event.id.trim().length > 0 && candidate.id === event.id),
   );
-  const previousEvents = (eventIndex >= 0 ? events.slice(0, eventIndex) : events).filter(
-    (candidate) => candidate.type === "timeline_evidence_attached",
-  );
+  const previousEvents = (
+    eventIndex >= 0 ? events.slice(0, eventIndex) : events
+  ).filter((candidate) => candidate.type === "timeline_evidence_attached");
 
   for (const previousEvent of previousEvents) {
     const previousSources = getEvidenceSourceSet(previousEvent);
@@ -563,6 +730,44 @@ export function estimateTaskFeedRowHeight(
     hasVisibilityToggle?: boolean;
   },
 ): number {
+  const estimateEventHeight = (event: TaskEvent): number => {
+    const effectiveType = getEffectiveTaskEventType(event);
+    if (
+      effectiveType === "assistant_message" ||
+      effectiveType === "user_message"
+    ) {
+      const message =
+        typeof event.payload?.message === "string" ? event.payload.message : "";
+      const lineCount = message ? message.split("\n").length : 0;
+      // Assistant output can contain long tables and code blocks. Keep the
+      // completed-history estimate conservative so an unmeasured virtual row
+      // never starts on top of the next message.
+      return Math.min(
+        1800,
+        120 +
+          Math.ceil(message.length / 110) * 28 +
+          Math.min(lineCount, 80) * 12,
+      );
+    }
+
+    if (
+      effectiveType === "artifact_created" ||
+      event.type === "timeline_artifact_emitted"
+    ) {
+      return 42;
+    }
+
+    if (effectiveType === "file_modified") {
+      return event.payload?.oldPreview || event.payload?.newPreview ? 58 : 42;
+    }
+
+    if (effectiveType === "file_created") {
+      return event.payload?.contentPreview ? 64 : 42;
+    }
+
+    return 84;
+  };
+
   if (item.kind === "canvas") return 320;
   if (item.kind === "cli-agent-frame") return 240;
   if (item.kind === "dispatched-agents") return 220;
@@ -579,33 +784,14 @@ export function estimateTaskFeedRowHeight(
     const controlsHeight = hasVisibilityToggle ? 28 : 0;
     const eventsHeight = visibleEventCount * 42;
     const paddingHeight = visibleEventCount > 0 ? 10 : 4;
-    return Math.min(520, headerHeight + controlsHeight + eventsHeight + paddingHeight);
+    return Math.min(
+      520,
+      headerHeight + controlsHeight + eventsHeight + paddingHeight,
+    );
   }
 
   const event = item.event as TaskEvent;
-  const effectiveType = getEffectiveTaskEventType(event);
-  if (effectiveType === "assistant_message" || effectiveType === "user_message") {
-    const messageLength =
-      typeof event.payload?.message === "string" ? event.payload.message.length : 0;
-    return Math.min(420, 120 + Math.ceil(messageLength / 180) * 44);
-  }
-
-  if (
-    effectiveType === "artifact_created" ||
-    event.type === "timeline_artifact_emitted"
-  ) {
-    return 42;
-  }
-
-  if (effectiveType === "file_modified") {
-    return event.payload?.oldPreview || event.payload?.newPreview ? 58 : 42;
-  }
-
-  if (effectiveType === "file_created") {
-    return event.payload?.contentPreview ? 64 : 42;
-  }
-
-  return 84;
+  return estimateEventHeight(event);
 }
 
 export function assignTimelineRef(
@@ -616,8 +802,22 @@ export function assignTimelineRef(
   (ref as MutableRefObject<HTMLDivElement | null>).current = node;
 }
 
-export function getAutoScrollTargetTop(scrollHeight: number, clientHeight: number): number {
+export function getAutoScrollTargetTop(
+  scrollHeight: number,
+  clientHeight: number,
+): number {
   return Math.max(0, scrollHeight - clientHeight);
+}
+
+export function pinScrollElementToBottom(
+  element: Pick<HTMLElement, "scrollTop" | "scrollHeight" | "clientHeight">,
+): number {
+  const targetTop = getAutoScrollTargetTop(
+    element.scrollHeight,
+    element.clientHeight,
+  );
+  element.scrollTop = targetTop;
+  return targetTop;
 }
 
 export function shouldScheduleAutoScrollWrite(args: {
@@ -626,7 +826,14 @@ export function shouldScheduleAutoScrollWrite(args: {
   clientHeight: number;
   lastTargetTop: number | null;
 }): boolean {
-  const targetTop = getAutoScrollTargetTop(args.scrollHeight, args.clientHeight);
+  const targetTop = getAutoScrollTargetTop(
+    args.scrollHeight,
+    args.clientHeight,
+  );
   const alreadyAtTarget = Math.abs(args.scrollTop - targetTop) < 2;
-  return !(alreadyAtTarget && args.lastTargetTop !== null && Math.abs(args.lastTargetTop - targetTop) < 2);
+  return !(
+    alreadyAtTarget &&
+    args.lastTargetTop !== null &&
+    Math.abs(args.lastTargetTop - targetTop) < 2
+  );
 }

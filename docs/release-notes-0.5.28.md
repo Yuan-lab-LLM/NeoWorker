@@ -4,7 +4,7 @@ This page summarizes the product and engineering changes included in `0.5.28`, f
 
 ## Summary
 
-Release `0.5.28` is the biggest runtime and product consolidation since the last tagged release. It adds a new core automation and continual-learning layer, expands memory and recall workflows, introduces two bundled skills, and hardens the desktop/runtime release path. The broad theme is the same across the codebase: more of CoWork's always-on intelligence is now explicit, persisted, and visible in the UI instead of being scattered across legacy heartbeat, persona, and ad hoc task paths.
+Release `0.5.28` is the biggest runtime and product consolidation since the last tagged release. It adds a new core automation and continual-learning layer, expands memory and recall workflows, introduces two bundled skills, and hardens the desktop/runtime release path. The broad theme is the same across the codebase: more of NeoWorker's always-on intelligence is now explicit, persisted, and visible in the UI instead of being scattered across legacy heartbeat, persona, and ad hoc task paths.
 
 ## New Features
 

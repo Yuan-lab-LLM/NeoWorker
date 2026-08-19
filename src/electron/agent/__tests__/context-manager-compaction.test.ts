@@ -21,7 +21,7 @@ describe("ContextManager.compactMessagesWithMeta", () => {
     const cm = new ContextManager("gpt-3.5-turbo");
     const pinned: LLMMessage = {
       role: "user",
-      content: "<cowork_memory_recall>\n- pinned\n</cowork_memory_recall>",
+      content: "<neoworker_memory_recall>\n- pinned\n</neoworker_memory_recall>",
     };
 
     const messages: LLMMessage[] = [{ role: "user", content: "task context" }, pinned];
@@ -43,14 +43,14 @@ describe("ContextManager.compactMessagesWithMeta", () => {
     // Pinned recall must be retained.
     expect(
       res.messages.some(
-        (m) => typeof m.content === "string" && m.content.includes("<cowork_memory_recall>"),
+        (m) => typeof m.content === "string" && m.content.includes("<neoworker_memory_recall>"),
       ),
     ).toBe(true);
 
     // Removed messages should never include pinned blocks.
     expect(
       res.meta.removedMessages.messages.some(
-        (m) => typeof m.content === "string" && m.content.includes("<cowork_memory_recall>"),
+        (m) => typeof m.content === "string" && m.content.includes("<neoworker_memory_recall>"),
       ),
     ).toBe(false);
 

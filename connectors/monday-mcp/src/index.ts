@@ -94,7 +94,7 @@ class MondayClient {
         Authorization: this.getAuthHeader(),
         'Content-Type': 'application/json',
         'API-Version': '2024-01',
-        'User-Agent': 'CoWork-Monday-Connector/0.1.0',
+        'User-Agent': 'NeoWorker-Monday-Connector/0.1.0',
       },
       body: JSON.stringify({ query, variables }),
     });

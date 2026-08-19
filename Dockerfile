@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 
-# CoWork OS headless/server image.
-# Note: CoWork OS currently runs in the Electron main process (even in headless mode),
-# so we install Electron runtime deps. A future "coworkd" (Node-only) daemon would simplify this.
+# NeoWorker headless/server image.
+# Note: NeoWorker currently runs in the Electron main process (even in headless mode),
+# so we install Electron runtime deps. A future "neoworkerd" (Node-only) daemon would simplify this.
 
 FROM node:24-bookworm-slim
 
@@ -59,17 +59,17 @@ COPY . .
 RUN npm run build:electron && npm run build:connectors
 
 # Default persistent data directory inside the container. Mount a volume here.
-ENV COWORK_USER_DATA_DIR=/data
+ENV NEOWORKER_USER_DATA_DIR=/data
 
 # Inside containers we generally want to bind on all interfaces, but you should map the port
 # on the host to 127.0.0.1 (or use a private network) to avoid exposing it publicly.
-ENV COWORK_CONTROL_PLANE_HOST=0.0.0.0
-ENV COWORK_CONTROL_PLANE_PORT=18789
-ENV COWORK_CONTROL_PLANE_BIND_CONTEXT=container
+ENV NEOWORKER_CONTROL_PLANE_HOST=0.0.0.0
+ENV NEOWORKER_CONTROL_PLANE_PORT=18789
+ENV NEOWORKER_CONTROL_PLANE_BIND_CONTEXT=container
 
 RUN mkdir -p /data /workspace && chown -R node:node /data /workspace
 
-# Optional: COWORK_TZ sets TZ for the process (IANA timezone, e.g. America/New_York).
+# Optional: NEOWORKER_TZ sets TZ for the process (IANA timezone, e.g. America/New_York).
 COPY deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
@@ -81,4 +81,4 @@ EXPOSE 18789
 HEALTHCHECK --interval=30s --timeout=3s --start-period=25s --retries=3 \
   CMD curl -fsS http://127.0.0.1:18789/health || exit 1
 
-CMD ["sh", "-lc", "xvfb-run -a node bin/coworkd.js"]
+CMD ["sh", "-lc", "xvfb-run -a node bin/neoworkerd.js"]

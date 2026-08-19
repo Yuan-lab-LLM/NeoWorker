@@ -8,16 +8,12 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { Task, Workspace } from "../../shared/types";
+import { translate } from "../i18n";
 
 export type TaskAutomationRunMode = "chat" | "local" | "worktree";
 export type TaskAutomationTargetMode = "new_task" | "thread_follow_up";
 export type TaskAutomationSchedulePreset =
-  | "every30m"
-  | "hourly"
-  | "daily"
-  | "weekdays"
-  | "weekly"
-  | "custom";
+  "every30m" | "hourly" | "daily" | "weekdays" | "weekly" | "custom";
 
 export type TaskAutomationSchedule =
   | { kind: "at"; atMs: number }
@@ -72,7 +68,8 @@ export const TASK_AUTOMATION_TEMPLATES: TaskAutomationTemplate[] = [
   {
     id: "daily-summary",
     name: "Daily summary",
-    prompt: "Summarize yesterday's workspace activity and list the follow-up actions that need attention.",
+    prompt:
+      "Summarize yesterday's workspace activity and list the follow-up actions that need attention.",
     schedulePreset: "daily",
     icon: ListTodo,
   },
@@ -87,28 +84,32 @@ export const TASK_AUTOMATION_TEMPLATES: TaskAutomationTemplate[] = [
   {
     id: "ci-failures",
     name: "CI failure summary",
-    prompt: "Summarize CI failures and flaky tests from the last CI window; suggest the highest-impact fixes.",
+    prompt:
+      "Summarize CI failures and flaky tests from the last CI window; suggest the highest-impact fixes.",
     schedulePreset: "hourly",
     icon: ShieldAlert,
   },
   {
     id: "weekly-update",
     name: "Weekly update",
-    prompt: "Synthesize this week's PRs, rollouts, incidents, and reviews into a concise weekly update.",
+    prompt:
+      "Synthesize this week's PRs, rollouts, incidents, and reviews into a concise weekly update.",
     schedulePreset: "weekly",
     icon: BookOpen,
   },
   {
     id: "inbox-checkin",
     name: "Inbox check-in",
-    prompt: "Check for urgent inbox or integration updates and summarize anything that needs my attention.",
+    prompt:
+      "Check for urgent inbox or integration updates and summarize anything that needs my attention.",
     schedulePreset: "every30m",
     icon: MessageCircle,
   },
   {
     id: "regression-watch",
     name: "Regression watch",
-    prompt: "Compare recent changes to available benchmarks, traces, or logs and flag regressions early.",
+    prompt:
+      "Compare recent changes to available benchmarks, traces, or logs and flag regressions early.",
     schedulePreset: "daily",
     icon: Sparkles,
   },
@@ -137,13 +138,25 @@ export function buildTaskAutomationSchedule(
   }
 }
 
-export function buildTaskAutomationPrompt(prompt: string, task: Task, deeplink: string): string {
+export function buildTaskAutomationPrompt(
+  prompt: string,
+  task: Task,
+  deeplink: string,
+): string {
   const sourceLines = [
     "",
     "---",
-    `Source task: ${task.title}`,
-    `Source task ID: ${task.id}`,
-    deeplink ? `Source link: ${deeplink}` : null,
+    translate("taskAutomation.source.task", "Source task: {title}", {
+      title: task.title,
+    }),
+    translate("taskAutomation.source.taskId", "Source task ID: {id}", {
+      id: task.id,
+    }),
+    deeplink
+      ? translate("taskAutomation.source.link", "Source link: {link}", {
+          link: deeplink,
+        })
+      : null,
   ].filter((line): line is string => line !== null);
   return `${prompt.trim()}${sourceLines.join("\n")}`;
 }
@@ -255,7 +268,8 @@ export function buildTaskAutomationCronJobCreate({
     taskTitle: task.title,
     taskPrompt: buildTaskAutomationPrompt(prompt, task, deeplink),
     runMode: effectiveTargetMode,
-    targetTaskId: effectiveTargetMode === "thread_follow_up" ? task.id : undefined,
+    targetTaskId:
+      effectiveTargetMode === "thread_follow_up" ? task.id : undefined,
     threadAutomation:
       effectiveTargetMode === "thread_follow_up"
         ? {

@@ -17,7 +17,7 @@ Microsoft Teams is best for organizations already using Microsoft 365. It works 
 - Adaptive Card formatting.
 - File attachment support.
 - Auto-reconnect behavior.
-- Shared CoWork gateway lifecycle once messages reach the router.
+- Shared NeoWorker gateway lifecycle once messages reach the router.
 
 ## Daily Workflow
 
@@ -32,7 +32,7 @@ For recurring work, schedule concise summaries into the channel rather than send
 
 ## Best Practices
 
-- Keep the Teams app installed only where CoWork should operate.
+- Keep the Teams app installed only where NeoWorker should operate.
 - Use DMs for credentials, private documents, and approvals.
 - Use channel mentions for team-visible tasks.
 - Use `/new` before switching topics.

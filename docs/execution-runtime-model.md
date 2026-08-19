@@ -1,6 +1,6 @@
 # Execution Runtime Model
 
-This document describes the current execution concept for planning, step execution, follow-up turns, delegation, and verification guidance in CoWork OS.
+This document describes the current execution concept for planning, step execution, follow-up turns, delegation, and verification guidance in NeoWorker.
 
 The model is built around four rules:
 
@@ -133,7 +133,7 @@ Examples of stable session-scoped sections:
 Examples of turn-scoped sections:
 
 - current time
-- layered memory sections (`<cowork_hot_memory>`, `<cowork_structured_memory>`)
+- layered memory sections (`<neoworker_hot_memory>`, `<neoworker_structured_memory>`)
 - turn guidance
 - other step-specific or follow-up-specific context
 
@@ -189,7 +189,7 @@ This keeps failures interpretable when token pressure rises.
 
 ## Turn Budget Model
 
-CoWork now follows a Claude-style turn-budget model for main tasks.
+NeoWorker now follows a Claude-style turn-budget model for main tasks.
 
 - ordinary interactive desktop tasks do not receive an implicit strategy-derived `maxTurns`
 - `maxTurns` and `windowTurnCap` are explicit-only controls
@@ -235,7 +235,7 @@ Side Chat is a special fork-backed session source for questions about an active 
 
 ## Output Budget Policy
 
-When `COWORK_LLM_OUTPUT_POLICY=adaptive` is enabled, execution turns use a centralized output-budget resolver instead of depending on scattered per-provider defaults.
+When `NEOWORKER_LLM_OUTPUT_POLICY=adaptive` is enabled, execution turns use a centralized output-budget resolver instead of depending on scattered per-provider defaults.
 
 ### Shared policy path
 
@@ -254,7 +254,7 @@ This logic is shared across step execution and follow-up loops so they do not dr
 Selection precedence is:
 
 1. task-level `agentConfig.maxTokens`
-2. `COWORK_LLM_MAX_OUTPUT_TOKENS`
+2. `NEOWORKER_LLM_MAX_OUTPUT_TOKENS`
 3. adaptive family defaults
 4. final clamping by known hard caps and context headroom
 

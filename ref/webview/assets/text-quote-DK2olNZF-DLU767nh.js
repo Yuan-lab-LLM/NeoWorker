@@ -1,0 +1,3 @@
+import { n as e, t } from "./text-quote-DK2olNZF-N82ftSHA.js";
+t();
+export { e as default };

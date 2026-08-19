@@ -70,7 +70,10 @@ export function resolveOpenAIReasoningEffort(
   openai?: LLMSettingsData["openai"] | null,
 ): OpenAIReasoningEffort {
   const value = openai?.reasoningEffort;
-  return value === "low" || value === "medium" || value === "high" || value === "xhigh"
+  return value === "low" ||
+    value === "medium" ||
+    value === "high" ||
+    value === "xhigh"
     ? value
     : "medium";
 }
@@ -79,5 +82,7 @@ export function resolveOpenAITextVerbosity(
   openai?: LLMSettingsData["openai"] | null,
 ): LLMTextVerbosity {
   const value = openai?.textVerbosity;
-  return value === "low" || value === "medium" || value === "high" ? value : "medium";
+  return value === "low" || value === "medium" || value === "high"
+    ? value
+    : "medium";
 }

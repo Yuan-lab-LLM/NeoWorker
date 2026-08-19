@@ -193,7 +193,7 @@ class JiraClient {
       headers: {
         Authorization: await this.getAuthHeader(),
         'Content-Type': 'application/json',
-        'User-Agent': 'CoWork-Jira-Connector/0.1.0',
+        'User-Agent': 'NeoWorker-Jira-Connector/0.1.0',
       },
       body: body ? JSON.stringify(body) : undefined,
     });

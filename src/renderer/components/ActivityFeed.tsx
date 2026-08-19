@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   ActivityData,
   ActivityType,
@@ -14,6 +14,12 @@ interface ActivityFeedProps {
   compact?: boolean;
   maxItems?: number;
   showFilters?: boolean;
+  includeTypes?: ActivityType[];
+  excludeTypes?: ActivityType[];
+  showDescriptionsInCompact?: boolean;
+  showItemActions?: boolean;
+  showUnreadState?: boolean;
+  hideWhenEmpty?: boolean;
 }
 
 const ACTIVITY_TYPE_LABELS: Partial<Record<ActivityType, string>> = {
@@ -41,6 +47,12 @@ export function ActivityFeed({
   compact = false,
   maxItems = 50,
   showFilters = true,
+  includeTypes,
+  excludeTypes,
+  showDescriptionsInCompact = false,
+  showItemActions = true,
+  showUnreadState = true,
+  hideWhenEmpty = false,
 }: ActivityFeedProps) {
   const [activities, setActivities] = useState<ActivityData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,38 +103,50 @@ export function ActivityFeed({
 
   // Subscribe to real-time activity events
   useEffect(() => {
-    const unsubscribe = window.electronAPI.onActivityEvent((event: ActivityEvent) => {
-      switch (event.type) {
-        case "created":
-          if (event.activity && event.activity.workspaceId === workspaceId) {
-            setActivities((prev) => [event.activity!, ...prev].slice(0, maxItems));
-          }
-          break;
-        case "read":
-          setActivities((prev) =>
-            prev.map((a) => (a.id === event.id ? { ...a, isRead: true } : a)),
-          );
-          break;
-        case "all_read":
-          if (event.workspaceId === workspaceId) {
-            setActivities((prev) => prev.map((a) => ({ ...a, isRead: true })));
-          }
-          break;
-        case "pinned":
-          if (event.activity) {
+    const unsubscribe = window.electronAPI.onActivityEvent(
+      (event: ActivityEvent) => {
+        switch (event.type) {
+          case "created":
+            if (
+              event.activity &&
+              event.activity.workspaceId === workspaceId &&
+              (!taskId || event.activity.taskId === taskId)
+            ) {
+              setActivities((prev) =>
+                [event.activity!, ...prev].slice(0, maxItems),
+              );
+            }
+            break;
+          case "read":
             setActivities((prev) =>
-              prev.map((a) => (a.id === event.activity!.id ? event.activity! : a)),
+              prev.map((a) => (a.id === event.id ? { ...a, isRead: true } : a)),
             );
-          }
-          break;
-        case "deleted":
-          setActivities((prev) => prev.filter((a) => a.id !== event.id));
-          break;
-      }
-    });
+            break;
+          case "all_read":
+            if (event.workspaceId === workspaceId) {
+              setActivities((prev) =>
+                prev.map((a) => ({ ...a, isRead: true })),
+              );
+            }
+            break;
+          case "pinned":
+            if (event.activity) {
+              setActivities((prev) =>
+                prev.map((a) =>
+                  a.id === event.activity!.id ? event.activity! : a,
+                ),
+              );
+            }
+            break;
+          case "deleted":
+            setActivities((prev) => prev.filter((a) => a.id !== event.id));
+            break;
+        }
+      },
+    );
 
     return () => unsubscribe();
-  }, [workspaceId, maxItems]);
+  }, [workspaceId, taskId, maxItems]);
 
   const handleMarkRead = async (id: string) => {
     try {
@@ -156,14 +180,35 @@ export function ActivityFeed({
     }
   };
 
-  const unreadCount = activities.filter((a) => !a.isRead).length;
+  const visibleActivities = useMemo(
+    () =>
+      activities.filter((activity) => {
+        if (includeTypes && !includeTypes.includes(activity.activityType)) {
+          return false;
+        }
+        if (excludeTypes?.includes(activity.activityType)) {
+          return false;
+        }
+        return true;
+      }),
+    [activities, excludeTypes, includeTypes],
+  );
+  const unreadCount = visibleActivities.filter((a) => !a.isRead).length;
 
   // Separate pinned and regular activities
-  const pinnedActivities = activities.filter((a) => a.isPinned);
-  const regularActivities = activities.filter((a) => !a.isPinned);
+  const pinnedActivities = visibleActivities.filter((a) => a.isPinned);
+  const regularActivities = visibleActivities.filter((a) => !a.isPinned);
 
   if (loading && activities.length === 0) {
-    return <div className="activity-loading">{agentContext.getUiCopy("activityLoading")}</div>;
+    return (
+      <div className="activity-loading">
+        {agentContext.getUiCopy("activityLoading")}
+      </div>
+    );
+  }
+
+  if (hideWhenEmpty && visibleActivities.length === 0 && !error) {
+    return null;
   }
 
   return (
@@ -172,7 +217,9 @@ export function ActivityFeed({
         <div className="activity-feed-header">
           <div className="activity-feed-title">
             <h4>{agentContext.getUiCopy("activityTitle")}</h4>
-            {unreadCount > 0 && <span className="unread-badge">{unreadCount}</span>}
+            {unreadCount > 0 && (
+              <span className="unread-badge">{unreadCount}</span>
+            )}
           </div>
           <div className="activity-feed-actions">
             {unreadCount > 0 && (
@@ -190,7 +237,9 @@ export function ActivityFeed({
             value={filterType}
             onChange={(e) => setFilterType(e.target.value as ActivityType | "")}
           >
-            <option value="">{agentContext.getUiCopy("activityAllTypes")}</option>
+            <option value="">
+              {agentContext.getUiCopy("activityAllTypes")}
+            </option>
             {Object.entries(ACTIVITY_TYPE_LABELS).map(([type, label]) => (
               <option key={type} value={type}>
                 {label}
@@ -200,12 +249,22 @@ export function ActivityFeed({
 
           <select
             value={filterActor}
-            onChange={(e) => setFilterActor(e.target.value as ActivityActorType | "")}
+            onChange={(e) =>
+              setFilterActor(e.target.value as ActivityActorType | "")
+            }
           >
-            <option value="">{agentContext.getUiCopy("activityAllActors")}</option>
-            <option value="agent">{agentContext.getUiCopy("activityActorAgent")}</option>
-            <option value="user">{agentContext.getUiCopy("activityActorUser")}</option>
-            <option value="system">{agentContext.getUiCopy("activityActorSystem")}</option>
+            <option value="">
+              {agentContext.getUiCopy("activityAllActors")}
+            </option>
+            <option value="agent">
+              {agentContext.getUiCopy("activityActorAgent")}
+            </option>
+            <option value="user">
+              {agentContext.getUiCopy("activityActorUser")}
+            </option>
+            <option value="system">
+              {agentContext.getUiCopy("activityActorSystem")}
+            </option>
           </select>
 
           <label className="filter-checkbox">
@@ -224,7 +283,9 @@ export function ActivityFeed({
       <div className="activity-list">
         {pinnedActivities.length > 0 && (
           <div className="activity-group">
-            <div className="activity-group-title">{agentContext.getUiCopy("activityPinned")}</div>
+            <div className="activity-group-title">
+              {agentContext.getUiCopy("activityPinned")}
+            </div>
             {pinnedActivities.map((activity) => (
               <ActivityFeedItem
                 key={activity.id}
@@ -233,6 +294,9 @@ export function ActivityFeed({
                 onPin={handlePin}
                 onDelete={handleDelete}
                 compact={compact}
+                showDescription={showDescriptionsInCompact}
+                showActions={showItemActions}
+                showUnreadState={showUnreadState}
               />
             ))}
           </div>
@@ -241,7 +305,9 @@ export function ActivityFeed({
         {regularActivities.length > 0 ? (
           <div className="activity-group">
             {pinnedActivities.length > 0 && (
-              <div className="activity-group-title">{agentContext.getUiCopy("activityRecent")}</div>
+              <div className="activity-group-title">
+                {agentContext.getUiCopy("activityRecent")}
+              </div>
             )}
             {regularActivities.map((activity) => (
               <ActivityFeedItem
@@ -251,6 +317,9 @@ export function ActivityFeed({
                 onPin={handlePin}
                 onDelete={handleDelete}
                 compact={compact}
+                showDescription={showDescriptionsInCompact}
+                showActions={showItemActions}
+                showUnreadState={showUnreadState}
               />
             ))}
           </div>
@@ -258,7 +327,9 @@ export function ActivityFeed({
           pinnedActivities.length === 0 && (
             <div className="activity-empty">
               <p>{agentContext.getUiCopy("activityEmptyTitle")}</p>
-              <p className="activity-empty-hint">{agentContext.getUiCopy("activityEmptyHint")}</p>
+              <p className="activity-empty-hint">
+                {agentContext.getUiCopy("activityEmptyHint")}
+              </p>
             </div>
           )
         )}
@@ -345,11 +416,11 @@ export function ActivityFeed({
         .activity-list {
           flex: 1;
           overflow-y: auto;
-          padding: 12px 16px;
+          padding: 2px 0;
         }
 
         .activity-group {
-          margin-bottom: 16px;
+          margin: 0;
         }
 
         .activity-group-title {
@@ -362,7 +433,7 @@ export function ActivityFeed({
         }
 
         .activity-group > .activity-feed-item {
-          margin-bottom: 8px;
+          margin: 0;
         }
 
         .activity-empty {

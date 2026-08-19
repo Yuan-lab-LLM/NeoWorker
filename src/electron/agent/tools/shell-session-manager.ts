@@ -624,7 +624,7 @@ export class ShellSessionManager {
   private tryCompletePending(runtime: ShellSessionRuntime): void {
     const currentPending = runtime.pending[0];
     if (!currentPending) return;
-    const doneMarker = `__COWORK_DONE__:${currentPending.commandId}:`;
+    const doneMarker = `__NEOWORKER_DONE__:${currentPending.commandId}:`;
     if (!runtime.buffer.includes(doneMarker)) return;
 
     const raw = runtime.buffer;
@@ -712,15 +712,15 @@ export class ShellSessionManager {
     aliases: Record<string, string>;
     exitCode: number | null;
   } {
-    const doneMatch = raw.match(/__COWORK_DONE__:(.+?):(\d+|null)\s*$/m);
+    const doneMatch = raw.match(/__NEOWORKER_DONE__:(.+?):(\d+|null)\s*$/m);
     const exitCode = doneMatch
       ? doneMatch[2] === "null"
         ? null
         : Number(doneMatch[2])
       : null;
 
-    const stateStart = raw.indexOf("__COWORK_STATE_START__");
-    const stateEnd = raw.indexOf("__COWORK_ENV_END__");
+    const stateStart = raw.indexOf("__NEOWORKER_STATE_START__");
+    const stateEnd = raw.indexOf("__NEOWORKER_ENV_END__");
     const visible = stateStart >= 0 ? raw.slice(0, stateStart) : raw;
     const stateBlock = stateStart >= 0 && stateEnd >= 0 ? raw.slice(stateStart, stateEnd) : "";
 
@@ -731,11 +731,11 @@ export class ShellSessionManager {
     if (stateBlock) {
       const lines = stateBlock.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
       const cwdLine =
-        lines.find((line) => line.includes("__COWORK_CWD__:")) ||
-        lines.find((line) => !line.startsWith("__COWORK_") && line.length > 0);
+        lines.find((line) => line.includes("__NEOWORKER_CWD__:")) ||
+        lines.find((line) => !line.startsWith("__NEOWORKER_") && line.length > 0);
       if (cwdLine) {
         const cleaned = stripShellControlCodes(cwdLine);
-        const cwdMarker = cleaned.match(/__COWORK_CWD__:(.+)$/);
+        const cwdMarker = cleaned.match(/__NEOWORKER_CWD__:(.+)$/);
         if (cwdMarker?.[1]) {
           cwd = cwdMarker[1].trim();
         } else {
@@ -744,11 +744,11 @@ export class ShellSessionManager {
         }
       }
 
-      const aliasStart = raw.indexOf("__COWORK_ALIASES_START__");
-      const aliasEnd = raw.indexOf("__COWORK_ALIASES_END__");
+      const aliasStart = raw.indexOf("__NEOWORKER_ALIASES_START__");
+      const aliasEnd = raw.indexOf("__NEOWORKER_ALIASES_END__");
       if (aliasStart >= 0 && aliasEnd >= 0 && aliasEnd > aliasStart) {
         const aliasLines = raw
-          .slice(aliasStart + "__COWORK_ALIASES_START__".length, aliasEnd)
+          .slice(aliasStart + "__NEOWORKER_ALIASES_START__".length, aliasEnd)
           .split(/\r?\n/)
           .map((line) => line.trim())
           .filter(Boolean);
@@ -765,10 +765,10 @@ export class ShellSessionManager {
         Object.assign(aliases, nextAliases);
       }
 
-      const envStart = raw.indexOf("__COWORK_ENV_START__");
+      const envStart = raw.indexOf("__NEOWORKER_ENV_START__");
       if (envStart >= 0 && stateEnd > envStart) {
         const envLines = raw
-          .slice(envStart + "__COWORK_ENV_START__".length, stateEnd)
+          .slice(envStart + "__NEOWORKER_ENV_START__".length, stateEnd)
           .split(/\r?\n/)
           .map((line) => line.trim())
           .filter(Boolean);
@@ -787,7 +787,7 @@ export class ShellSessionManager {
     }
 
     const cleanedVisible = visible
-      .replace(/__COWORK_[A-Z_]+__.*/g, "")
+      .replace(/__NEOWORKER_[A-Z_]+__.*/g, "")
       .replace(/^\s+|\s+$/g, "");
 
     return {
@@ -851,25 +851,25 @@ export class ShellSessionManager {
         ? request.cwd
         : path.resolve(session.snapshot.cwd || request.workspacePath, request.cwd)
       : session.snapshot.cwd || request.workspacePath;
-    const heredocMarker = `__COWORK_CMD_${commandId.replace(/[^a-zA-Z0-9]/g, "_")}__`;
+    const heredocMarker = `__NEOWORKER_CMD_${commandId.replace(/[^a-zA-Z0-9]/g, "_")}__`;
     const wrapper = [
       "set +e",
       `cd ${quoteForPosixShell(normalizePathForShell(targetCwd))}`,
-      `__COWORK_COMMAND=$(cat <<'${heredocMarker}'`,
+      `__NEOWORKER_COMMAND=$(cat <<'${heredocMarker}'`,
       request.command,
       heredocMarker,
       ")",
-      "eval \"$__COWORK_COMMAND\"",
-      "__cowork_exit_code=$?",
-      "printf '\\n__COWORK_STATE_START__\\n'",
-      "printf '__COWORK_CWD__:%s\\n' \"$(pwd -P)\"",
-      "printf '__COWORK_ALIASES_START__\\n'",
+      "eval \"$__NEOWORKER_COMMAND\"",
+      "__neoworker_exit_code=$?",
+      "printf '\\n__NEOWORKER_STATE_START__\\n'",
+      "printf '__NEOWORKER_CWD__:%s\\n' \"$(pwd -P)\"",
+      "printf '__NEOWORKER_ALIASES_START__\\n'",
       "alias",
-      "printf '__COWORK_ALIASES_END__\\n'",
-      "printf '__COWORK_ENV_START__\\n'",
+      "printf '__NEOWORKER_ALIASES_END__\\n'",
+      "printf '__NEOWORKER_ENV_START__\\n'",
       "env",
-      "printf '__COWORK_ENV_END__\\n'",
-      `printf '__COWORK_DONE__:%s:%s\\n' ${quoteForPosixShell(commandId)} "$__cowork_exit_code"`,
+      "printf '__NEOWORKER_ENV_END__\\n'",
+      `printf '__NEOWORKER_DONE__:%s:%s\\n' ${quoteForPosixShell(commandId)} "$__neoworker_exit_code"`,
     ].join("\n");
 
     const commandPromise = new Promise<ShellCommandResult>((resolve, reject) => {

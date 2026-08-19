@@ -163,7 +163,7 @@ describe("MCPRegistryManager install defaults", () => {
 
   it("rejects malicious npm package names before spawning npm", async () => {
     const result = await MCPRegistryManager.verifyNpmPackage(
-      "--version; printf COWORK_INJECTED",
+      "--version; printf NEOWORKER_INJECTED",
     );
 
     expect(result.exists).toBe(false);

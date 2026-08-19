@@ -6,7 +6,11 @@ import {
   TaskDomain,
 } from "../../../shared/types";
 import { IntentRoute } from "./IntentRouter";
-import type { DirectResponseMode, PreflightGate, TaskStrategySnapshot } from "./TaskStrategySnapshot";
+import type {
+  DirectResponseMode,
+  PreflightGate,
+  TaskStrategySnapshot,
+} from "./TaskStrategySnapshot";
 
 export interface DerivedTaskStrategy {
   conversationMode: ConversationMode;
@@ -53,13 +57,15 @@ export class TaskStrategyService {
     const asksForExplainerVisual =
       /\b(infographic|visual guide|explainer|diagram|poster|one[-\s]?pager)\b/.test(lower);
     if (!asksForExplainerVisual) return false;
-    return /\b(cowork os|co-?work os|our app|this app|the app|our product|this product|company|brand|platform|service)\b/.test(
+    return /\b(neoworker os|co-?work os|our app|this app|the app|our product|this product|company|brand|platform|service)\b/.test(
       lower,
     );
   }
 
   private static isTerminalImageGenerationTask(text: string): boolean {
-    const lower = String(text || "").replace(STRATEGY_CONTEXT_BLOCK_REGEX, "").toLowerCase();
+    const lower = String(text || "")
+      .replace(STRATEGY_CONTEXT_BLOCK_REGEX, "")
+      .toLowerCase();
     if (!lower.trim()) return false;
     if (!this.hasTextToImageGenerationIntent(lower)) return false;
     return !/\b(edit|modify|change|update|retouch|inpaint|remove|replace|analy[sz]e|describe|review|compare|inspect|website|webapp|code|component|page|ui|screenshot)\b/.test(
@@ -68,7 +74,9 @@ export class TaskStrategyService {
   }
 
   private static isSimpleImageGenerationTask(text: string): boolean {
-    const lower = String(text || "").replace(STRATEGY_CONTEXT_BLOCK_REGEX, "").toLowerCase();
+    const lower = String(text || "")
+      .replace(STRATEGY_CONTEXT_BLOCK_REGEX, "")
+      .toLowerCase();
     if (!lower.trim()) return false;
     if (!this.hasTextToImageGenerationIntent(lower)) return false;
     if (this.imageGenerationNeedsPromptGrounding(lower)) return false;
@@ -85,12 +93,21 @@ export class TaskStrategyService {
     return !hasAppWorkIntent && !hasNonImageWorkIntent;
   }
 
-  private static inferArtifactKindFromTaskText(text: string): "none" | "canvas" | "document" | "file" {
+  private static inferArtifactKindFromTaskText(
+    text: string,
+  ): "none" | "canvas" | "document" | "file" {
     if (!text) return "none";
     if (/\b(canvas|artifact)\b/.test(text)) return "canvas";
-    if (/\b(docx|pdf|document|report|slide deck|presentation)\b/.test(text)) return "document";
     if (
-      /\b(file|files|project|widget|source|code)\b/.test(text) ||
+      /\b(docx|word(?:\s+(?:document|file))?|pdf|document|report|slide deck|presentation)\b|(?:文档|报告|演示文稿|幻灯片)/.test(
+        text,
+      )
+    ) {
+      return "document";
+    }
+    if (
+      /\b(file|files|project|widget|source|code|html|webpage|web\s+page)\b/.test(text) ||
+      /(?:网页|页面|文件)/.test(text) ||
       /\.(xcodeproj|xcworkspace|xcscheme|pbxproj|entitlements|plist|html|swift|ts|tsx|js|jsx|css)\b/.test(
         text,
       )
@@ -102,8 +119,10 @@ export class TaskStrategyService {
 
   private static inferRequiresMutationFromTaskText(text: string): boolean {
     if (!text) return false;
-    return /\b(scaffold|bootstrap|initialize|set up|create|build|write|edit|fix|implement|modify|generate|render)\b/.test(
-      text,
+    return (
+      /\b(scaffold|bootstrap|initialize|set up|create|build|write|edit|fix|implement|modify|generate|render)\b/.test(
+        text,
+      ) || /(?:创建|生成|制作|导出|保存|输出|写入|编辑|修改|修复|实现)/.test(text)
     );
   }
 
@@ -173,7 +192,11 @@ export class TaskStrategyService {
   static derive(
     route: IntentRoute,
     existing?: AgentConfig,
-    taskContext?: { title?: string; prompt?: string; lastProgressScore?: number },
+    taskContext?: {
+      title?: string;
+      prompt?: string;
+      lastProgressScore?: number;
+    },
   ): DerivedTaskStrategy {
     const defaults: Record<
       IntentRoute["intent"],
@@ -273,10 +296,16 @@ export class TaskStrategyService {
 
     const base = defaults[route.intent];
     const taskText = `${taskContext?.title || ""}\n${taskContext?.prompt || ""}`.toLowerCase();
+    const inferredArtifactKind = this.inferArtifactKindFromTaskText(taskText);
+    const explicitArtifactMutationSignal =
+      this.inferRequiresMutationFromTaskText(taskText) &&
+      inferredArtifactKind !== "none";
     const simpleImageGenerationTask = this.isSimpleImageGenerationTask(taskText);
     const terminalImageGenerationTask = this.isTerminalImageGenerationTask(taskText);
     const artifactCreationSignal =
-      /\b(create|build|make|implement|scaffold|generate|start building|start build)\b/.test(taskText) &&
+      /\b(create|build|make|implement|scaffold|generate|start building|start build)\b/.test(
+        taskText,
+      ) &&
       /\b(website|web page|webapp|frontend|landing page|app|application|project|repo|repository|codebase|distro|distribution|iso|image|artifact|file|files|workspace|requirements\.md|config)\b/.test(
         taskText,
       );
@@ -308,10 +337,11 @@ export class TaskStrategyService {
       route.intent === "workflow" ||
       route.intent === "deep_work" ||
       (route.intent === "mixed" && (hasHardExecutionSignal || artifactCreationSignal)) ||
+      explicitArtifactMutationSignal ||
       buildVerifyRenderArtifactRequested ||
       buildRenderArtifactRequested
         ? "execute"
-      : route.intent === "chat" || route.intent === "thinking"
+        : route.intent === "chat" || route.intent === "thinking"
           ? "execute"
           : "plan";
     const existingExecutionMode = existing?.executionMode;
@@ -322,7 +352,8 @@ export class TaskStrategyService {
     // Keep explicit non-execute overrides (plan/analyze/verified), but do not let a
     // stale default `execute` force non-execution intents into full task mode.
     const executionMode =
-      existingExecutionMode && (existingExecutionMode !== "execute" || inferredExecutionMode === "execute")
+      existingExecutionMode &&
+      (existingExecutionMode !== "execute" || inferredExecutionMode === "execute")
         ? existingExecutionMode
         : inferredExecutionMode;
     const taskDomain =
@@ -330,9 +361,14 @@ export class TaskStrategyService {
     const strictConstraintArtifactTask = this.isStrictConstraintArtifactTask(
       `${taskContext?.title || ""}\n${taskContext?.prompt || ""}`,
     );
-    const inferredArtifactKind = this.inferArtifactKindFromTaskText(taskText);
     const inferredRequiresMutation =
-      this.inferRequiresMutationFromTaskText(taskText) && inferredArtifactKind !== "none";
+      explicitArtifactMutationSignal;
+    const explicitArtifactCreationTask = inferredRequiresMutation;
+    const effectiveTaskIntent =
+      explicitArtifactCreationTask &&
+      (route.intent === "chat" || route.intent === "thinking")
+        ? "execution"
+        : route.intent;
     const previousWindowLowProgress =
       typeof taskContext?.lastProgressScore === "number" && taskContext.lastProgressScore < 0.15;
 
@@ -342,7 +378,7 @@ export class TaskStrategyService {
         preflightRequired,
       },
       {
-        intent: route.intent,
+        intent: effectiveTaskIntent,
         strictConstraintArtifactTask,
       },
     );
@@ -355,17 +391,22 @@ export class TaskStrategyService {
         previousWindowLowProgress)
         ? "strong"
         : baseLlmProfileHint;
-    const conversationMode =
-      existing?.conversationMode && existing.conversationMode !== "hybrid"
+    // A request that explicitly asks us to create a file is task work even when
+    // the language router calls the surrounding sentence "chat" (this used to
+    // happen frequently for Chinese prompts such as "以 HTML 形式制作").  Do
+    // not carry chat semantics into an artifact-producing executor run.
+    const conversationMode = explicitArtifactCreationTask
+      ? "task"
+      : existing?.conversationMode && existing.conversationMode !== "hybrid"
         ? existing.conversationMode
         : base.conversationMode;
     const snapshot: TaskStrategySnapshot = {
-      taskIntent: route.intent,
+      taskIntent: effectiveTaskIntent,
       conversationMode,
       executionMode,
       taskDomain,
       directResponseMode: this.deriveDirectResponseMode({
-        intent: route.intent,
+        intent: effectiveTaskIntent,
         answerFirst: base.answerFirst,
         executionMode,
       }),
@@ -600,9 +641,20 @@ export class TaskStrategyService {
       );
     }
 
+    if (this.hasDeferredRequiredInput(text)) {
+      lines.push(
+        "required_input_contract:",
+        "- The request explicitly defers one or more required inputs to a later user message.",
+        "- If the current user message does not provide those inputs, ask exactly one focused question and stop before research or execution.",
+        "- Missing required inputs are not safe defaults. Never infer them from user profile, relationship memory, historical projects, or unrelated prior tasks.",
+        "- Once a later user message explicitly provides the missing inputs, use those values and proceed without retaining an earlier inferred assumption.",
+      );
+    }
+
     if (["execution", "mixed", "workflow", "deep_work"].includes(route.intent)) {
       lines.push(
         "checklist_contract:",
+        "- These checklist rules are internal runtime policy, not execution-plan steps or user-visible work items.",
         "- Create a session checklist only for non-trivial execution that changes artifacts/state or spans a long workflow.",
         "- Do not create a checklist for basic questions, read-only research, advice, or plan-only responses.",
         "- When a checklist is warranted, create it with task_list_create.",
@@ -648,25 +700,25 @@ export class TaskStrategyService {
       lines.push(
         "mode_contract:",
         strategy.executionMode === "chat"
-          ? "- You are in chat mode: answer directly and do not use tools."
+          ? "- You are in chat mode: answer directly. Use read-only lookup tools when current or external facts are required; never mutate state."
           : strategy.executionMode === "plan"
-            ? "- You are in plan mode: provide plans/options and avoid mutating tool calls."
-            : "- You are in analyze mode: stay read-only and provide analysis from available evidence.",
+            ? "- You are in plan mode: inspect evidence with read-only tools when useful, then provide plans/options without mutating state."
+            : "- You are in analyze mode: use read-only search, read, and query tools as needed, then provide evidence-backed analysis without mutating state.",
       );
     } else if (strategy.executionMode === "debug") {
       lines.push(
         "debug_contract:",
         "- You are in debug mode: form hypotheses, add minimal instrumentation, collect runtime evidence before large speculative fixes.",
-        "- Put temporary repro scripts, logs, diagnostics, screenshots, and intermediate files under `.cowork/tmp/`; keep real source/test changes at their intended project paths.",
+        "- Put temporary repro scripts, logs, diagnostics, screenshots, and intermediate files under `.neoworker/tmp/`; keep real source/test changes at their intended project paths.",
         "- Prefer targeted edits; use request_user_input for structured reproduce/confirm checkpoints when needed.",
-        "- Remove temporary debug instrumentation (markers containing cowork-debug) before finishing.",
+        "- Remove temporary debug instrumentation (markers containing neoworker-debug) before finishing.",
       );
     }
 
     if (strategy.taskDomain === "code" && strategy.executionMode !== "debug") {
       lines.push(
         "coding_workspace_hygiene:",
-        "- Put temporary scratch files, repro scripts, generated diagnostics, and intermediate outputs under `.cowork/tmp/` so they stay local to this checkout.",
+        "- Put temporary scratch files, repro scripts, generated diagnostics, and intermediate outputs under `.neoworker/tmp/` so they stay local to this checkout.",
         "- Keep actual implementation, tests, and requested project artifacts at their intended repository paths.",
       );
     }
@@ -679,6 +731,15 @@ export class TaskStrategyService {
     lines.push(STRATEGY_CONTEXT_CLOSE);
 
     return `${text}\n\n${lines.join("\n")}`;
+  }
+
+  private static hasDeferredRequiredInput(prompt: string): boolean {
+    const text = String(prompt || "");
+    return (
+      /\b(?:i(?:'ll|’ll| will)|let me)\s+(?:describe|provide|share|specify|paste|give|tell|define|name)\b/i.test(
+        text,
+      ) || /我(?:会|将)(?:描述|提供|分享|指定|粘贴|给出|告诉|定义|提出|说明)/.test(text)
+    );
   }
 
   /**
@@ -751,9 +812,37 @@ export class TaskStrategyService {
       return new Set(["*"]);
     }
 
-    // Chat / thinking: keep the lightweight discovery path so sessions can still
-    // surface deferred MCP/integration capabilities when the user asks about them.
-    if (intent === "chat" || intent === "thinking") {
+    // Chat: direct answers stay lightweight, while current/external facts can use
+    // a deliberately read-only lookup surface. Mutations remain blocked by policy.
+    if (intent === "chat") {
+      return new Set([
+        "read_file",
+        "read_files",
+        "list_directory",
+        "list_directory_with_sizes",
+        "get_file_info",
+        "search_files",
+        "glob",
+        "grep",
+        "count_text",
+        "text_metrics",
+        "scratchpad_read",
+        "task_history",
+        "tool_search",
+        "search_memories",
+        "search_sessions",
+        "memory_topics_load",
+        "memory_curated_read",
+        "supermemory_profile",
+        "supermemory_search",
+        "system_info",
+        "web_search",
+        "web_fetch",
+        "http_request",
+      ]);
+    }
+
+    if (intent === "thinking") {
       return new Set(["tool_search"]);
     }
 

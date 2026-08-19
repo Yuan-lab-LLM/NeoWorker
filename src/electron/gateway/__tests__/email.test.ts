@@ -509,25 +509,25 @@ describe("EmailConfig", () => {
       smtpHost: "smtp.example.com",
       smtpPort: 465,
       smtpSecure: true,
-      displayName: "CoWork Bot",
+      displayName: "NeoWorker Bot",
       mailbox: "INBOX",
       pollInterval: 60000,
       markAsRead: true,
       responsePrefix: "[Bot]",
       deduplicationEnabled: false,
       allowedSenders: ["admin@company.com", "user@company.com"],
-      subjectFilter: "[CoWork]",
+      subjectFilter: "[NeoWorker]",
     };
 
     expect(config.imapPort).toBe(993);
     expect(config.smtpPort).toBe(465);
-    expect(config.displayName).toBe("CoWork Bot");
+    expect(config.displayName).toBe("NeoWorker Bot");
     expect(config.pollInterval).toBe(60000);
     expect(config.markAsRead).toBe(true);
     expect(config.responsePrefix).toBe("[Bot]");
     expect(config.deduplicationEnabled).toBe(false);
     expect(config.allowedSenders).toHaveLength(2);
-    expect(config.subjectFilter).toBe("[CoWork]");
+    expect(config.subjectFilter).toBe("[NeoWorker]");
   });
 });
 
@@ -659,10 +659,10 @@ describe("EmailAdapter edge cases", () => {
     it("should accept config with subjectFilter", () => {
       const adapterWithSubject = new EmailAdapter({
         ...defaultConfig,
-        subjectFilter: "[CoWork]",
+        subjectFilter: "[NeoWorker]",
       });
       const config = (adapterWithSubject as Any).config;
-      expect(config.subjectFilter).toBe("[CoWork]");
+      expect(config.subjectFilter).toBe("[NeoWorker]");
     });
 
     it("should handle empty subject filter", () => {

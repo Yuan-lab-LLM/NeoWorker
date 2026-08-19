@@ -37,7 +37,7 @@ const DEFAULT_CONFIG: Omit<SymphonyConfig, "createdAt" | "updatedAt"> = {
 
 const SETTINGS_ID = "default";
 const DEFAULT_PROMPT =
-  "You are working on a CoWork OS issue. Move it forward, verify your work, and leave a concise handoff summary for human review.";
+  "You are working on a NeoWorker issue. Move it forward, verify your work, and leave a concise handoff summary for human review.";
 
 function parseJson<T>(value: string | null | undefined, fallback: T): T {
   if (!value) return fallback;
@@ -600,7 +600,7 @@ export class SymphonyService {
     return [
       rendered,
       "",
-      "CoWork Symphony issue context:",
+      "NeoWorker Symphony issue context:",
       `- Issue: ${issue.title}`,
       issue.description ? `- Description: ${issue.description}` : "",
       `- Status: ${issue.status}`,

@@ -1,5 +1,12 @@
 import React from "react";
-import { CheckCircle2, Circle, Loader2, XCircle, ArrowRight } from "lucide-react";
+import {
+  CheckCircle2,
+  Circle,
+  Loader2,
+  XCircle,
+  ArrowRight,
+} from "lucide-react";
+import { translate, useLanguage } from "../i18n";
 
 interface WorkflowPhase {
   id: string;
@@ -28,7 +35,12 @@ const PHASE_TYPE_COLORS: Record<string, string> = {
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   pending: <Circle size={16} style={{ color: "var(--text-tertiary, #555)" }} />,
-  running: <Loader2 size={16} style={{ color: "#3b82f6", animation: "spin 1s linear infinite" }} />,
+  running: (
+    <Loader2
+      size={16}
+      style={{ color: "#3b82f6", animation: "spin 1s linear infinite" }}
+    />
+  ),
   completed: <CheckCircle2 size={16} style={{ color: "#22c55e" }} />,
   failed: <XCircle size={16} style={{ color: "#ef4444" }} />,
 };
@@ -39,6 +51,7 @@ export const WorkflowPipelineView: React.FC<WorkflowPipelineViewProps> = ({
   onRetryPhase,
   onSelectTask,
 }) => {
+  useLanguage();
   if (!phases || phases.length === 0) return null;
 
   return (
@@ -56,8 +69,12 @@ export const WorkflowPipelineView: React.FC<WorkflowPipelineViewProps> = ({
           letterSpacing: "0.05em",
         }}
       >
-        <span>Workflow Pipeline</span>
-        <span style={{ fontSize: 11, fontWeight: 400 }}>({phases.length} phases)</span>
+        <span>{translate("workflowPipeline.title", "Workflow Pipeline")}</span>
+        <span style={{ fontSize: 11, fontWeight: 400 }}>
+          {translate("workflowPipeline.phaseCount", "({count} phases)", {
+            count: phases.length,
+          })}
+        </span>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -89,7 +106,9 @@ export const WorkflowPipelineView: React.FC<WorkflowPipelineViewProps> = ({
                   width: 6,
                   height: 6,
                   borderRadius: "50%",
-                  background: PHASE_TYPE_COLORS[phase.phaseType] || PHASE_TYPE_COLORS.general,
+                  background:
+                    PHASE_TYPE_COLORS[phase.phaseType] ||
+                    PHASE_TYPE_COLORS.general,
                   flexShrink: 0,
                 }}
               />
@@ -107,7 +126,13 @@ export const WorkflowPipelineView: React.FC<WorkflowPipelineViewProps> = ({
                 >
                   {phase.title}
                 </div>
-                <div style={{ fontSize: 11, color: "var(--text-tertiary, #666)", marginTop: 2 }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "var(--text-tertiary, #666)",
+                    marginTop: 2,
+                  }}
+                >
                   {phase.phaseType}
                   {phase.output && (
                     <span style={{ marginLeft: 8 }}>
@@ -134,16 +159,25 @@ export const WorkflowPipelineView: React.FC<WorkflowPipelineViewProps> = ({
                     cursor: "pointer",
                   }}
                 >
-                  Retry
+                  {translate("common.retry", "Retry")}
                 </button>
               )}
             </div>
 
             {i < phases.length - 1 && (
-              <div style={{ display: "flex", justifyContent: "center", padding: "2px 0" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  padding: "2px 0",
+                }}
+              >
                 <ArrowRight
                   size={14}
-                  style={{ color: "var(--text-tertiary, #555)", transform: "rotate(90deg)" }}
+                  style={{
+                    color: "var(--text-tertiary, #555)",
+                    transform: "rotate(90deg)",
+                  }}
                 />
               </div>
             )}

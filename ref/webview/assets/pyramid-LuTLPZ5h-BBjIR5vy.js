@@ -1,0 +1,3 @@
+import { n as e, t } from "./pyramid-LuTLPZ5h-CTWj0Oqk.js";
+t();
+export { e as default };

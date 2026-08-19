@@ -2,8 +2,8 @@
  * DailyLogSummarizer — Produces ranked MemoryFragments from daily log summaries.
  *
  * Directory layout:
- *   .cowork/memory/daily/<YYYY-MM-DD>.md    — raw operational log (written by DailyLogService)
- *   .cowork/memory/summaries/<YYYY-MM-DD>.md — synthesized summary (written here)
+ *   .neoworker/memory/daily/<YYYY-MM-DD>.md    — raw operational log (written by DailyLogService)
+ *   .neoworker/memory/summaries/<YYYY-MM-DD>.md — synthesized summary (written here)
  *
  * Retrieval rule:
  *   - Prefers existing summaries over raw daily logs.
@@ -36,15 +36,15 @@ function fingerprint(text: string): string {
 
 export class DailyLogSummarizer {
   static resolveSummaryPath(workspacePath: string, dayIso: string): string {
-    return path.join(workspacePath, ".cowork", "memory", "summaries", `${dayIso}.md`);
+    return path.join(workspacePath, ".neoworker", "memory", "summaries", `${dayIso}.md`);
   }
 
   static resolveSummaryDir(workspacePath: string): string {
-    return path.join(workspacePath, ".cowork", "memory", "summaries");
+    return path.join(workspacePath, ".neoworker", "memory", "summaries");
   }
 
   /**
-   * Writes a synthesized daily summary to .cowork/memory/summaries/<day>.md.
+   * Writes a synthesized daily summary to .neoworker/memory/summaries/<day>.md.
    * Called externally (e.g. by a cron job or after task completion).
    */
   static async writeSummary(

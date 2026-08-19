@@ -7,7 +7,7 @@ import { inlineLocalHtmlPreviewAssets } from "../html-preview-assets";
 let tempRoot = "";
 
 beforeEach(async () => {
-  tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-html-preview-test-"));
+  tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-html-preview-test-"));
 });
 
 afterEach(async () => {
@@ -19,7 +19,7 @@ afterEach(async () => {
 describe("inlineLocalHtmlPreviewAssets", () => {
   it("inlines same-workspace stylesheet and script references", async () => {
     const workspace = path.join(tempRoot, "workspace");
-    const pageDir = path.join(workspace, ".cowork");
+    const pageDir = path.join(workspace, ".neoworker");
     await fs.mkdir(pageDir, { recursive: true });
     await fs.writeFile(path.join(pageDir, "styles.css"), "body { color: rebeccapurple; }");
     await fs.writeFile(path.join(pageDir, "script.js"), "document.body.dataset.ready = 'true';");
@@ -42,9 +42,9 @@ describe("inlineLocalHtmlPreviewAssets", () => {
       workspaceRoot: workspace,
     });
 
-    expect(result).toContain('<style data-cowork-inline-asset="styles.css">');
+    expect(result).toContain('<style data-neoworker-inline-asset="styles.css">');
     expect(result).toContain("body { color: rebeccapurple; }");
-    expect(result).toContain('<script data-cowork-inline-asset="script.js">');
+    expect(result).toContain('<script data-neoworker-inline-asset="script.js">');
     expect(result).toContain("document.body.dataset.ready = 'true';");
     expect(result).not.toContain('href="styles.css"');
     expect(result).not.toContain('src="script.js"');
@@ -52,7 +52,7 @@ describe("inlineLocalHtmlPreviewAssets", () => {
 
   it("leaves external and parent-traversal assets alone", async () => {
     const workspace = path.join(tempRoot, "workspace");
-    const pageDir = path.join(workspace, ".cowork");
+    const pageDir = path.join(workspace, ".neoworker");
     await fs.mkdir(pageDir, { recursive: true });
     const htmlPath = path.join(pageDir, "index.html");
     const html = [
@@ -98,7 +98,7 @@ describe("inlineLocalHtmlPreviewAssets", () => {
   it("does not inline symlinked assets that resolve outside the workspace", async () => {
     const workspace = path.join(tempRoot, "workspace");
     const outside = path.join(tempRoot, "outside");
-    const pageDir = path.join(workspace, ".cowork");
+    const pageDir = path.join(workspace, ".neoworker");
     await fs.mkdir(pageDir, { recursive: true });
     await fs.mkdir(outside, { recursive: true });
     await fs.writeFile(path.join(outside, "secret.css"), "body { background: secret; }");

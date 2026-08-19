@@ -416,14 +416,14 @@ export async function migrateEnvToSettings(): Promise<MigrationResult> {
 /**
  * Import provider credentials from process.env into secure Settings.
  *
- * This is intentionally opt-in (use COWORK_IMPORT_ENV_SETTINGS / --import-env-settings),
+ * This is intentionally opt-in (use NEOWORKER_IMPORT_ENV_SETTINGS / --import-env-settings),
  * since environment variables are a weaker secret boundary than Secure Settings.
  *
  * Merge mode (default): only fills missing settings fields.
  * Overwrite mode: replaces settings fields when corresponding env vars are set.
  *
  * Also supports selecting the active LLM provider with:
- * - COWORK_LLM_PROVIDER=openai|anthropic|...
+ * - NEOWORKER_LLM_PROVIDER=openai|anthropic|...
  */
 export async function importProcessEnvToSettings(
   options: ImportProcessEnvOptions = {},
@@ -686,7 +686,7 @@ export async function importProcessEnvToSettings(
 
     // Provider selection (optional)
     const providerOverride = validateProviderType(
-      process.env.COWORK_LLM_PROVIDER,
+      process.env.NEOWORKER_LLM_PROVIDER,
     );
     if (providerOverride) {
       if (llmSettings.providerType !== providerOverride) {

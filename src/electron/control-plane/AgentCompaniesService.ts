@@ -307,7 +307,7 @@ export class AgentCompaniesService {
       label: graph.packageName,
       details: targetCompany
         ? `Will sync package metadata into ${targetCompany.name}`
-        : "Will create a Cowork company shell from the package",
+        : "Will create a NeoWorker company shell from the package",
       runtimeEntityKind: "company",
       runtimeEntityId: targetCompany?.id,
       manifestId: graph.companyManifest?.id,
@@ -330,7 +330,7 @@ export class AgentCompaniesService {
           label: node.name,
           details: existing
             ? `Will refresh the role template for ${existing.displayName || existing.name}`
-            : "Will create a dormant Cowork operator template",
+            : "Will create a dormant NeoWorker operator template",
           orgNodeId: node.id,
           runtimeEntityKind: "agent_role",
           runtimeEntityId: existing?.id,
@@ -351,7 +351,7 @@ export class AgentCompaniesService {
           label: node.name,
           details: existing
             ? `Will refresh project metadata for ${existing.name}`
-            : "Will seed a Cowork project",
+            : "Will seed a NeoWorker project",
           orgNodeId: node.id,
           runtimeEntityKind: "project",
           runtimeEntityId: existing?.id,

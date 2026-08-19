@@ -1,6 +1,6 @@
 # Relationship-Agent UAT Checklist
 
-Use this checklist to validate that CoWork OS behaves as a personal relationship agent, not only a task executor.
+Use this checklist to validate that NeoWorker behaves as a personal relationship agent, not only a task executor.
 
 ## Preconditions
 

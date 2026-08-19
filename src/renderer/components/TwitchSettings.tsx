@@ -8,12 +8,15 @@ import {
 } from "../../shared/types";
 import { PairingCodeDisplay } from "./PairingCodeDisplay";
 import { ContextPolicySettings } from "./ContextPolicySettings";
+import { translate, useLanguage } from "../i18n";
 
 interface TwitchSettingsProps {
   onStatusChange?: (connected: boolean) => void;
 }
 
 export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
+  useLanguage();
+  const t = translate;
   const [channel, setChannel] = useState<ChannelData | null>(null);
   const [users, setUsers] = useState<ChannelUserData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,16 +42,18 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
   const [generatingCode, setGeneratingCode] = useState(false);
 
   // Context policy state
-  const [contextPolicies, setContextPolicies] = useState<Record<ContextType, ContextPolicy>>(
-    {} as Record<ContextType, ContextPolicy>,
-  );
+  const [contextPolicies, setContextPolicies] = useState<
+    Record<ContextType, ContextPolicy>
+  >({} as Record<ContextType, ContextPolicy>);
   const [savingPolicy, setSavingPolicy] = useState(false);
 
   const loadChannel = useCallback(async () => {
     try {
       setLoading(true);
       const channels = await window.electronAPI.getGatewayChannels();
-      const twitchChannel = channels.find((c: ChannelData) => c.type === "twitch");
+      const twitchChannel = channels.find(
+        (c: ChannelData) => c.type === "twitch",
+      );
 
       if (twitchChannel) {
         setChannel(twitchChannel);
@@ -62,15 +67,21 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
           setOauthToken((twitchChannel.config.oauthToken as string) || "");
           const chans = (twitchChannel.config.channels as string[]) || [];
           setTwitchChannels(chans.join(", "));
-          setAllowWhispers((twitchChannel.config.allowWhispers as boolean) || false);
+          setAllowWhispers(
+            (twitchChannel.config.allowWhispers as boolean) || false,
+          );
         }
 
         // Load users for this channel
-        const channelUsers = await window.electronAPI.getGatewayUsers(twitchChannel.id);
+        const channelUsers = await window.electronAPI.getGatewayUsers(
+          twitchChannel.id,
+        );
         setUsers(channelUsers);
 
         // Load context policies
-        const policies = await window.electronAPI.listContextPolicies(twitchChannel.id);
+        const policies = await window.electronAPI.listContextPolicies(
+          twitchChannel.id,
+        );
         const policyMap: Record<ContextType, ContextPolicy> = {} as Record<
           ContextType,
           ContextPolicy
@@ -106,7 +117,10 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
     if (!username.trim() || !oauthToken.trim() || !twitchChannels.trim()) {
       setTestResult({
         success: false,
-        error: "Username, OAuth token, and at least one channel are required",
+        error: t(
+          "twitch.error.required",
+          "Username, OAuth token, and at least one channel are required",
+        ),
       });
       return;
     }
@@ -121,7 +135,13 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
         .filter(Boolean);
 
       if (channelList.length === 0) {
-        setTestResult({ success: false, error: "At least one Twitch channel is required" });
+        setTestResult({
+          success: false,
+          error: t(
+            "twitch.error.channelRequired",
+            "At least one Twitch channel is required",
+          ),
+        });
         setSaving(false);
         return;
       }
@@ -181,7 +201,14 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
   const handleRemoveChannel = async () => {
     if (!channel) return;
 
-    if (!confirm("Are you sure you want to remove the Twitch channel?")) {
+    if (
+      !confirm(
+        t(
+          "twitch.confirm.remove",
+          "Are you sure you want to remove the Twitch channel?",
+        ),
+      )
+    ) {
       return;
     }
 
@@ -218,7 +245,10 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
 
     try {
       setGeneratingCode(true);
-      const code = await window.electronAPI.generateGatewayPairing(channel.id, "");
+      const code = await window.electronAPI.generateGatewayPairing(
+        channel.id,
+        "",
+      );
       setPairingCode(code);
       // Default TTL is 5 minutes (300 seconds)
       setPairingExpiresAt(Date.now() + 5 * 60 * 1000);
@@ -229,15 +259,22 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
     }
   };
 
-  const handlePolicyChange = async (contextType: ContextType, updates: Partial<ContextPolicy>) => {
+  const handlePolicyChange = async (
+    contextType: ContextType,
+    updates: Partial<ContextPolicy>,
+  ) => {
     if (!channel) return;
 
     try {
       setSavingPolicy(true);
-      const updated = await window.electronAPI.updateContextPolicy(channel.id, contextType, {
-        securityMode: updates.securityMode,
-        toolRestrictions: updates.toolRestrictions,
-      });
+      const updated = await window.electronAPI.updateContextPolicy(
+        channel.id,
+        contextType,
+        {
+          securityMode: updates.securityMode,
+          toolRestrictions: updates.toolRestrictions,
+        },
+      );
       setContextPolicies((prev) => ({
         ...prev,
         [contextType]: updated,
@@ -261,7 +298,11 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
   };
 
   if (loading) {
-    return <div className="settings-loading">Loading Twitch settings...</div>;
+    return (
+      <div className="settings-loading">
+        {t("twitch.loading", "Loading Twitch settings...")}
+      </div>
+    );
   }
 
   // No channel configured yet
@@ -269,14 +310,16 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
     return (
       <div className="twitch-settings">
         <div className="settings-section">
-          <h3>Connect Twitch</h3>
+          <h3>{t("twitch.connect.title", "Connect Twitch")}</h3>
           <p className="settings-description">
-            Connect to Twitch chat to receive and send messages in channels. Great for stream
-            interactions and chat commands.
+            {t(
+              "twitch.connect.description",
+              "Connect to Twitch chat to receive and send messages in channels. Great for stream interactions and chat commands.",
+            )}
           </p>
 
           <div className="settings-field">
-            <label>Channel Name</label>
+            <label>{t("channels.channelName", "Channel Name")}</label>
             <input
               type="text"
               className="settings-input"
@@ -287,7 +330,7 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
           </div>
 
           <div className="settings-field">
-            <label>Twitch Username</label>
+            <label>{t("twitch.field.username", "Twitch Username")}</label>
             <input
               type="text"
               className="settings-input"
@@ -296,12 +339,15 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
               onChange={(e) => setUsername(e.target.value)}
             />
             <p className="settings-hint">
-              Your Twitch login name (the account that will send messages)
+              {t(
+                "twitch.hint.username",
+                "Your Twitch login name (the account that will send messages)",
+              )}
             </p>
           </div>
 
           <div className="settings-field">
-            <label>OAuth Token</label>
+            <label>{t("twitch.field.oauthToken", "OAuth Token")}</label>
             <input
               type="password"
               className="settings-input"
@@ -310,15 +356,19 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
               onChange={(e) => setOauthToken(e.target.value)}
             />
             <p className="settings-hint">
-              Get a token from{" "}
-              <a href="https://twitchtokengenerator.com/" target="_blank" rel="noopener noreferrer">
+              {t("twitch.hint.getTokenFrom", "Get a token from")}{" "}
+              <a
+                href="https://twitchtokengenerator.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 twitchtokengenerator.com
               </a>
             </p>
           </div>
 
           <div className="settings-field">
-            <label>Twitch Channels</label>
+            <label>{t("twitch.field.channels", "Twitch Channels")}</label>
             <input
               type="text"
               className="settings-input"
@@ -326,12 +376,19 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
               value={twitchChannels}
               onChange={(e) => setTwitchChannels(e.target.value)}
             />
-            <p className="settings-hint">Comma-separated channel names to join (without #)</p>
+            <p className="settings-hint">
+              {t(
+                "twitch.hint.channels",
+                "Comma-separated channel names to join (without #)",
+              )}
+            </p>
           </div>
 
           <div className="settings-field">
             <div className="settings-checkbox-label">
-              <span>Allow Whispers (DMs)</span>
+              <span>
+                {t("twitch.field.allowWhispers", "Allow Whispers (DMs)")}
+              </span>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -341,33 +398,64 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
                 <span className="toggle-slider" />
               </label>
             </div>
-            <p className="settings-hint">Enable receiving and responding to Twitch whispers</p>
+            <p className="settings-hint">
+              {t(
+                "twitch.hint.allowWhispers",
+                "Enable receiving and responding to Twitch whispers",
+              )}
+            </p>
           </div>
 
           <div className="settings-field">
-            <label>Security Mode</label>
+            <label>{t("channels.securityMode", "Security Mode")}</label>
             <select
               className="settings-select"
               value={securityMode}
               onChange={(e) => setSecurityMode(e.target.value as SecurityMode)}
             >
-              <option value="pairing">Pairing Code (Recommended)</option>
-              <option value="allowlist">Allowlist Only</option>
-              <option value="open">Open (Anyone can use)</option>
+              <option value="pairing">
+                {t(
+                  "channels.security.pairingRecommended",
+                  "Pairing Code (Recommended)",
+                )}
+              </option>
+              <option value="allowlist">
+                {t("channels.security.allowlistOnly", "Allowlist Only")}
+              </option>
+              <option value="open">
+                {t("channels.security.openAnyone", "Open (Anyone can use)")}
+              </option>
             </select>
             <p className="settings-hint">
               {securityMode === "pairing" &&
-                "Users must enter a code generated in this app to use the bot"}
-              {securityMode === "allowlist" && "Only pre-approved Twitch user IDs can use the bot"}
+                t(
+                  "channels.security.pairingHint",
+                  "Users must enter a code generated in this app to use the bot",
+                )}
+              {securityMode === "allowlist" &&
+                t(
+                  "twitch.security.allowlistHint",
+                  "Only pre-approved Twitch user IDs can use the bot",
+                )}
               {securityMode === "open" &&
-                "Anyone who messages the bot can use it (not recommended)"}
+                t(
+                  "channels.security.openHint",
+                  "Anyone who messages the bot can use it (not recommended)",
+                )}
             </p>
           </div>
 
           {testResult && (
-            <div className={`test-result ${testResult.success ? "success" : "error"}`}>
+            <div
+              className={`test-result ${testResult.success ? "success" : "error"}`}
+            >
               {testResult.success ? (
-                <>✓ Connected as {testResult.botUsername}</>
+                <>
+                  {t("channels.connectedAs", "✓ Connected as {name}").replace(
+                    "{name}",
+                    testResult.botUsername || "",
+                  )}
+                </>
               ) : (
                 <>✗ {testResult.error}</>
               )}
@@ -377,34 +465,77 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
           <button
             className="button-primary"
             onClick={handleAddChannel}
-            disabled={saving || !username.trim() || !oauthToken.trim() || !twitchChannels.trim()}
+            disabled={
+              saving ||
+              !username.trim() ||
+              !oauthToken.trim() ||
+              !twitchChannels.trim()
+            }
           >
-            {saving ? "Adding..." : "Add Twitch"}
+            {saving
+              ? t("channels.adding", "Adding...")
+              : t("twitch.add", "Add Twitch")}
           </button>
         </div>
 
         <div className="settings-section">
-          <h4>Setup Instructions</h4>
+          <h4>{t("channels.setupInstructions", "Setup Instructions")}</h4>
           <ol className="setup-instructions">
             <li>
-              Visit{" "}
-              <a href="https://twitchtokengenerator.com/" target="_blank" rel="noopener noreferrer">
+              {t("twitch.setup.visit", "Visit")}{" "}
+              <a
+                href="https://twitchtokengenerator.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 twitchtokengenerator.com
               </a>
             </li>
-            <li>Generate a Chat Bot token</li>
-            <li>Enter your Twitch username and the OAuth token above</li>
-            <li>Add the channel names you want to monitor</li>
+            <li>
+              {t("twitch.setup.generateToken", "Generate a Chat Bot token")}
+            </li>
+            <li>
+              {t(
+                "twitch.setup.enterCredentials",
+                "Enter your Twitch username and the OAuth token above",
+              )}
+            </li>
+            <li>
+              {t(
+                "twitch.setup.addChannels",
+                "Add the channel names you want to monitor",
+              )}
+            </li>
           </ol>
         </div>
 
         <div className="settings-section">
-          <h4>Twitch Limitations</h4>
+          <h4>{t("twitch.limitations.title", "Twitch Limitations")}</h4>
           <ul className="setup-instructions">
-            <li>Rate limited to 20 messages per 30 seconds</li>
-            <li>No file/image attachments (text only)</li>
-            <li>Messages limited to 500 characters</li>
-            <li>Whispers may require verified accounts</li>
+            <li>
+              {t(
+                "twitch.limitations.rate",
+                "Rate limited to 20 messages per 30 seconds",
+              )}
+            </li>
+            <li>
+              {t(
+                "twitch.limitations.attachments",
+                "No file/image attachments (text only)",
+              )}
+            </li>
+            <li>
+              {t(
+                "twitch.limitations.length",
+                "Messages limited to 500 characters",
+              )}
+            </li>
+            <li>
+              {t(
+                "twitch.limitations.whispers",
+                "Whispers may require verified accounts",
+              )}
+            </li>
           </ul>
         </div>
       </div>
@@ -419,61 +550,96 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
           <div className="channel-info">
             <h3>
               {channel.name}
-              {channel.botUsername && <span className="bot-username">@{channel.botUsername}</span>}
+              {channel.botUsername && (
+                <span className="bot-username">@{channel.botUsername}</span>
+              )}
             </h3>
             <div className={`channel-status ${channel.status}`}>
-              {channel.status === "connected" && "● Connected"}
-              {channel.status === "connecting" && "○ Connecting..."}
-              {channel.status === "disconnected" && "○ Disconnected"}
-              {channel.status === "error" && "● Error"}
+              {channel.status === "connected" &&
+                t("channels.status.connectedDot", "● Connected")}
+              {channel.status === "connecting" &&
+                t("channels.status.connectingDot", "○ Connecting...")}
+              {channel.status === "disconnected" &&
+                t("channels.status.disconnectedDot", "○ Disconnected")}
+              {channel.status === "error" &&
+                t("channels.status.errorDot", "● Error")}
             </div>
           </div>
           <div className="channel-actions">
             <button
-              className={channel.enabled ? "button-secondary" : "button-primary"}
+              className={
+                channel.enabled ? "button-secondary" : "button-primary"
+              }
               onClick={handleToggleEnabled}
               disabled={saving}
             >
-              {channel.enabled ? "Disable" : "Enable"}
+              {channel.enabled
+                ? t("channels.disable", "Disable")
+                : t("channels.enable", "Enable")}
             </button>
             <button
               className="button-secondary"
               onClick={handleTestConnection}
               disabled={testing || !channel.enabled}
             >
-              {testing ? "Testing..." : "Test"}
+              {testing
+                ? t("channels.testing", "Testing...")
+                : t("channels.test", "Test")}
             </button>
-            <button className="button-danger" onClick={handleRemoveChannel} disabled={saving}>
-              Remove
+            <button
+              className="button-danger"
+              onClick={handleRemoveChannel}
+              disabled={saving}
+            >
+              {t("channels.remove", "Remove")}
             </button>
           </div>
         </div>
 
         {testResult && (
-          <div className={`test-result ${testResult.success ? "success" : "error"}`}>
-            {testResult.success ? <>✓ Connection successful</> : <>✗ {testResult.error}</>}
+          <div
+            className={`test-result ${testResult.success ? "success" : "error"}`}
+          >
+            {testResult.success ? (
+              <>
+                {t("channels.connectionSuccessful", "✓ Connection successful")}
+              </>
+            ) : (
+              <>✗ {testResult.error}</>
+            )}
           </div>
         )}
       </div>
 
       <div className="settings-section">
-        <h4>Security Mode</h4>
+        <h4>{t("channels.securityMode", "Security Mode")}</h4>
         <select
           className="settings-select"
           value={securityMode}
-          onChange={(e) => handleUpdateSecurityMode(e.target.value as SecurityMode)}
+          onChange={(e) =>
+            handleUpdateSecurityMode(e.target.value as SecurityMode)
+          }
         >
-          <option value="pairing">Pairing Code</option>
-          <option value="allowlist">Allowlist Only</option>
-          <option value="open">Open</option>
+          <option value="pairing">
+            {t("channels.security.pairingCode", "Pairing Code")}
+          </option>
+          <option value="allowlist">
+            {t("channels.security.allowlistOnly", "Allowlist Only")}
+          </option>
+          <option value="open">{t("channels.security.open", "Open")}</option>
         </select>
       </div>
 
       {securityMode === "pairing" && (
         <div className="settings-section">
-          <h4>Generate Pairing Code</h4>
+          <h4>
+            {t("channels.pairing.generateTitle", "Generate Pairing Code")}
+          </h4>
           <p className="settings-description">
-            Generate a one-time code for a user to enter in Twitch to gain access.
+            {t(
+              "twitch.pairing.description",
+              "Generate a one-time code for a user to enter in Twitch to gain access.",
+            )}
           </p>
           {pairingCode && pairingExpiresAt > 0 ? (
             <PairingCodeDisplay
@@ -488,7 +654,9 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
               onClick={handleGeneratePairingCode}
               disabled={generatingCode}
             >
-              {generatingCode ? "Generating..." : "Generate Code"}
+              {generatingCode
+                ? t("channels.pairing.generating", "Generating...")
+                : t("channels.pairing.generateCode", "Generate Code")}
             </button>
           )}
         </div>
@@ -496,9 +664,12 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
 
       {/* Per-Context Security Policies (DM vs Group) */}
       <div className="settings-section">
-        <h4>Context Policies</h4>
+        <h4>{t("channels.contextPolicies", "Context Policies")}</h4>
         <p className="settings-description">
-          Configure different security settings for direct messages vs group chats.
+          {t(
+            "channels.contextPolicies.description",
+            "Configure different security settings for direct messages vs group chats.",
+          )}
         </p>
         <ContextPolicySettings
           channelId={channel.id}
@@ -510,18 +681,26 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
       </div>
 
       <div className="settings-section">
-        <h4>Authorized Users</h4>
+        <h4>{t("channels.authorizedUsers", "Authorized Users")}</h4>
         {users.length === 0 ? (
-          <p className="settings-description">No users have connected yet.</p>
+          <p className="settings-description">
+            {t("channels.users.empty", "No users have connected yet.")}
+          </p>
         ) : (
           <div className="users-list">
             {users.map((user) => (
               <div key={user.id} className="user-item">
                 <div className="user-info">
                   <span className="user-name">{user.displayName}</span>
-                  {user.username && <span className="user-username">@{user.username}</span>}
-                  <span className={`user-status ${user.allowed ? "allowed" : "pending"}`}>
-                    {user.allowed ? "✓ Allowed" : "○ Pending"}
+                  {user.username && (
+                    <span className="user-username">@{user.username}</span>
+                  )}
+                  <span
+                    className={`user-status ${user.allowed ? "allowed" : "pending"}`}
+                  >
+                    {user.allowed
+                      ? t("channels.user.allowed", "✓ Allowed")
+                      : t("channels.user.pending", "○ Pending")}
                   </span>
                 </div>
                 {user.allowed && (
@@ -529,7 +708,7 @@ export function TwitchSettings({ onStatusChange }: TwitchSettingsProps) {
                     className="button-small button-danger"
                     onClick={() => handleRevokeAccess(user.channelUserId)}
                   >
-                    Revoke
+                    {t("channels.revoke", "Revoke")}
                   </button>
                 )}
               </div>

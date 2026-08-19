@@ -1,12 +1,12 @@
 export function getControlPlaneWebUIHtml(): string {
-  // Single-file HTML UI to manage a headless CoWork OS instance over the Control Plane.
+  // Single-file HTML UI to manage a headless NeoWorker instance over the Control Plane.
   // This intentionally avoids a separate build step so it works in VPS/docker deployments.
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CoWork OS Control Plane</title>
+    <title>NeoWorker Control Plane</title>
     <style>
       :root {
         --bg: #0b0f14;
@@ -107,7 +107,7 @@ export function getControlPlaneWebUIHtml(): string {
     <div class="wrap">
       <header>
         <div>
-          <h1>CoWork OS Control Plane</h1>
+          <h1>NeoWorker Control Plane</h1>
           <div class="sub">Headless dashboard (LLM setup, workspaces, tasks, approvals). Use over SSH tunnel or Tailscale.</div>
         </div>
         <div class="pill" id="connPill"><span class="dot" id="connDot"></span><span id="connText">Disconnected</span></div>
@@ -134,7 +134,7 @@ export function getControlPlaneWebUIHtml(): string {
             </div>
             <div>
               <label>Device Name</label>
-              <input id="deviceName" placeholder="cowork-web" value="cowork-web" />
+              <input id="deviceName" placeholder="neoworker-web" value="neoworker-web" />
             </div>
           </div>
 
@@ -1123,7 +1123,7 @@ export function getControlPlaneWebUIHtml(): string {
             const payload = await new Promise((resolve, reject) => {
               const id = '1';
               pending.set(id, { resolve, reject, method: 'connect', at: Date.now() });
-              ws.send(JSON.stringify({ type: 'req', id, method: 'connect', params: { token, deviceName: deviceNameEl.value || 'cowork-web' } }));
+              ws.send(JSON.stringify({ type: 'req', id, method: 'connect', params: { token, deviceName: deviceNameEl.value || 'neoworker-web' } }));
               setTimeout(() => {
                 if (!pending.has(id)) return;
                 pending.delete(id);

@@ -92,45 +92,45 @@ describe("runtime-mode", () => {
       expect(isHeadlessMode()).toBe(true);
     });
 
-    it("returns true for COWORK_HEADLESS=1 env", () => {
+    it("returns true for NEOWORKER_HEADLESS=1 env", () => {
       process.argv = ["node", "app"];
-      process.env.COWORK_HEADLESS = "1";
+      process.env.NEOWORKER_HEADLESS = "1";
       expect(isHeadlessMode()).toBe(true);
     });
 
-    it("returns true for COWORK_HEADLESS=true env", () => {
+    it("returns true for NEOWORKER_HEADLESS=true env", () => {
       process.argv = ["node", "app"];
-      process.env.COWORK_HEADLESS = "true";
+      process.env.NEOWORKER_HEADLESS = "true";
       expect(isHeadlessMode()).toBe(true);
     });
 
-    it("returns true for COWORK_HEADLESS=yes env", () => {
+    it("returns true for NEOWORKER_HEADLESS=yes env", () => {
       process.argv = ["node", "app"];
-      process.env.COWORK_HEADLESS = "yes";
+      process.env.NEOWORKER_HEADLESS = "yes";
       expect(isHeadlessMode()).toBe(true);
     });
 
-    it("returns true for COWORK_HEADLESS=on env", () => {
+    it("returns true for NEOWORKER_HEADLESS=on env", () => {
       process.argv = ["node", "app"];
-      process.env.COWORK_HEADLESS = "on";
+      process.env.NEOWORKER_HEADLESS = "on";
       expect(isHeadlessMode()).toBe(true);
     });
 
-    it("returns false for COWORK_HEADLESS=0", () => {
+    it("returns false for NEOWORKER_HEADLESS=0", () => {
       process.argv = ["node", "app"];
-      process.env.COWORK_HEADLESS = "0";
+      process.env.NEOWORKER_HEADLESS = "0";
       expect(isHeadlessMode()).toBe(false);
     });
 
-    it("returns false for COWORK_HEADLESS=false", () => {
+    it("returns false for NEOWORKER_HEADLESS=false", () => {
       process.argv = ["node", "app"];
-      process.env.COWORK_HEADLESS = "false";
+      process.env.NEOWORKER_HEADLESS = "false";
       expect(isHeadlessMode()).toBe(false);
     });
 
     it("returns false when neither flag nor env is set", () => {
       process.argv = ["node", "app"];
-      delete process.env.COWORK_HEADLESS;
+      delete process.env.NEOWORKER_HEADLESS;
       expect(isHeadlessMode()).toBe(false);
     });
   });
@@ -141,15 +141,15 @@ describe("runtime-mode", () => {
       expect(shouldEnableControlPlaneFromArgsOrEnv()).toBe(true);
     });
 
-    it("returns true for COWORK_CONTROL_PLANE_ENABLE=1", () => {
+    it("returns true for NEOWORKER_CONTROL_PLANE_ENABLE=1", () => {
       process.argv = ["node", "app"];
-      process.env.COWORK_CONTROL_PLANE_ENABLE = "1";
+      process.env.NEOWORKER_CONTROL_PLANE_ENABLE = "1";
       expect(shouldEnableControlPlaneFromArgsOrEnv()).toBe(true);
     });
 
     it("returns false when neither is set", () => {
       process.argv = ["node", "app"];
-      delete process.env.COWORK_CONTROL_PLANE_ENABLE;
+      delete process.env.NEOWORKER_CONTROL_PLANE_ENABLE;
       expect(shouldEnableControlPlaneFromArgsOrEnv()).toBe(false);
     });
   });
@@ -160,9 +160,9 @@ describe("runtime-mode", () => {
       expect(shouldPrintControlPlaneTokenFromArgsOrEnv()).toBe(true);
     });
 
-    it("returns true for COWORK_PRINT_CONTROL_PLANE_TOKEN=true", () => {
+    it("returns true for NEOWORKER_PRINT_CONTROL_PLANE_TOKEN=true", () => {
       process.argv = ["node", "app"];
-      process.env.COWORK_PRINT_CONTROL_PLANE_TOKEN = "true";
+      process.env.NEOWORKER_PRINT_CONTROL_PLANE_TOKEN = "true";
       expect(shouldPrintControlPlaneTokenFromArgsOrEnv()).toBe(true);
     });
   });
@@ -173,9 +173,9 @@ describe("runtime-mode", () => {
       expect(shouldImportEnvSettingsFromArgsOrEnv()).toBe(true);
     });
 
-    it("returns true for COWORK_IMPORT_ENV_SETTINGS=yes", () => {
+    it("returns true for NEOWORKER_IMPORT_ENV_SETTINGS=yes", () => {
       process.argv = ["node", "app"];
-      process.env.COWORK_IMPORT_ENV_SETTINGS = "yes";
+      process.env.NEOWORKER_IMPORT_ENV_SETTINGS = "yes";
       expect(shouldImportEnvSettingsFromArgsOrEnv()).toBe(true);
     });
   });
@@ -183,7 +183,7 @@ describe("runtime-mode", () => {
   describe("getEnvSettingsImportModeFromArgsOrEnv", () => {
     it("defaults to merge when nothing is set", () => {
       process.argv = ["node", "app"];
-      delete process.env.COWORK_IMPORT_ENV_SETTINGS_MODE;
+      delete process.env.NEOWORKER_IMPORT_ENV_SETTINGS_MODE;
       expect(getEnvSettingsImportModeFromArgsOrEnv()).toBe("merge");
     });
 
@@ -192,56 +192,56 @@ describe("runtime-mode", () => {
       expect(getEnvSettingsImportModeFromArgsOrEnv()).toBe("overwrite");
     });
 
-    it("returns overwrite for COWORK_IMPORT_ENV_SETTINGS_MODE=force", () => {
+    it("returns overwrite for NEOWORKER_IMPORT_ENV_SETTINGS_MODE=force", () => {
       process.argv = ["node", "app"];
-      process.env.COWORK_IMPORT_ENV_SETTINGS_MODE = "force";
+      process.env.NEOWORKER_IMPORT_ENV_SETTINGS_MODE = "force";
       expect(getEnvSettingsImportModeFromArgsOrEnv()).toBe("overwrite");
     });
 
-    it("returns overwrite for COWORK_IMPORT_ENV_SETTINGS_MODE=replace", () => {
+    it("returns overwrite for NEOWORKER_IMPORT_ENV_SETTINGS_MODE=replace", () => {
       process.argv = ["node", "app"];
-      process.env.COWORK_IMPORT_ENV_SETTINGS_MODE = "replace";
+      process.env.NEOWORKER_IMPORT_ENV_SETTINGS_MODE = "replace";
       expect(getEnvSettingsImportModeFromArgsOrEnv()).toBe("overwrite");
     });
 
     it("returns merge for unknown mode values", () => {
       process.argv = ["node", "app"];
-      process.env.COWORK_IMPORT_ENV_SETTINGS_MODE = "something_else";
+      process.env.NEOWORKER_IMPORT_ENV_SETTINGS_MODE = "something_else";
       expect(getEnvSettingsImportModeFromArgsOrEnv()).toBe("merge");
     });
   });
 
   describe("managed Control Plane env helpers", () => {
     it("detects managed deployment mode", () => {
-      process.env.COWORK_MANAGED_DEPLOYMENT = "1";
+      process.env.NEOWORKER_MANAGED_DEPLOYMENT = "1";
       expect(shouldUseManagedDeploymentModeFromEnv()).toBe(true);
     });
 
     it("defaults bind context to host", () => {
-      delete process.env.COWORK_CONTROL_PLANE_BIND_CONTEXT;
+      delete process.env.NEOWORKER_CONTROL_PLANE_BIND_CONTEXT;
       expect(getControlPlaneBindContextFromEnv()).toBe("host");
     });
 
     it("reads container bind context", () => {
-      process.env.COWORK_CONTROL_PLANE_BIND_CONTEXT = "container";
+      process.env.NEOWORKER_CONTROL_PLANE_BIND_CONTEXT = "container";
       expect(getControlPlaneBindContextFromEnv()).toBe("container");
     });
 
     it("detects insecure public bind break-glass", () => {
-      process.env.COWORK_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND = "true";
+      process.env.NEOWORKER_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND = "true";
       expect(shouldAllowInsecureControlPlanePublicBindFromEnv()).toBe(true);
     });
 
     it("detects trusted proxy mode", () => {
-      process.env.COWORK_CONTROL_PLANE_TRUST_PROXY = "yes";
+      process.env.NEOWORKER_CONTROL_PLANE_TRUST_PROXY = "yes";
       expect(shouldTrustControlPlaneProxyFromEnv()).toBe(true);
     });
 
     it("parses allowed origins", () => {
-      process.env.COWORK_CONTROL_PLANE_ALLOWED_ORIGINS =
-        "https://cowork.example.com, http://localhost:18789";
+      process.env.NEOWORKER_CONTROL_PLANE_ALLOWED_ORIGINS =
+        "https://neoworker.example.com, http://localhost:18789";
       expect(getControlPlaneAllowedOriginsFromEnv()).toEqual([
-        "https://cowork.example.com",
+        "https://neoworker.example.com",
         "http://localhost:18789",
       ]);
     });

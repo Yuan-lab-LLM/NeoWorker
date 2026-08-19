@@ -6,12 +6,16 @@ import {
   getTransientEventReplacementKey,
   isRendererNoiseEvent,
 } from "../task-event-append";
+import { deriveSharedTaskEventUiState } from "../task-event-derived";
 
 function makeEvent(
-  overrides: Partial<TaskEvent> & Pick<TaskEvent, "taskId" | "type" | "timestamp">,
+  overrides: Partial<TaskEvent> &
+    Pick<TaskEvent, "taskId" | "type" | "timestamp">,
 ): TaskEvent {
   return {
-    id: overrides.id ?? `${overrides.taskId}:${overrides.type}:${overrides.timestamp}`,
+    id:
+      overrides.id ??
+      `${overrides.taskId}:${overrides.type}:${overrides.timestamp}`,
     taskId: overrides.taskId,
     type: overrides.type,
     timestamp: overrides.timestamp,
@@ -24,21 +28,43 @@ function makeEvent(
 
 describe("isRendererNoiseEvent", () => {
   it("identifies noise event types", () => {
-    expect(isRendererNoiseEvent(makeEvent({ taskId: "t1", type: "log", timestamp: 1 }))).toBe(true);
-    expect(isRendererNoiseEvent(makeEvent({ taskId: "t1", type: "llm_streaming", timestamp: 1 }))).toBe(true);
-    expect(isRendererNoiseEvent(makeEvent({ taskId: "t1", type: "progress_update", timestamp: 1 }))).toBe(true);
+    expect(
+      isRendererNoiseEvent(
+        makeEvent({ taskId: "t1", type: "log", timestamp: 1 }),
+      ),
+    ).toBe(true);
+    expect(
+      isRendererNoiseEvent(
+        makeEvent({ taskId: "t1", type: "llm_streaming", timestamp: 1 }),
+      ),
+    ).toBe(true);
+    expect(
+      isRendererNoiseEvent(
+        makeEvent({ taskId: "t1", type: "progress_update", timestamp: 1 }),
+      ),
+    ).toBe(true);
   });
 
   it("identifies structural event types", () => {
-    expect(isRendererNoiseEvent(makeEvent({ taskId: "t1", type: "assistant_message", timestamp: 1 }))).toBe(false);
-    expect(isRendererNoiseEvent(makeEvent({ taskId: "t1", type: "task_completed", timestamp: 1 }))).toBe(false);
+    expect(
+      isRendererNoiseEvent(
+        makeEvent({ taskId: "t1", type: "assistant_message", timestamp: 1 }),
+      ),
+    ).toBe(false);
+    expect(
+      isRendererNoiseEvent(
+        makeEvent({ taskId: "t1", type: "task_completed", timestamp: 1 }),
+      ),
+    ).toBe(false);
   });
 });
 
 describe("getTransientEventReplacementKey", () => {
   it("returns null for non-replaceable types", () => {
     expect(
-      getTransientEventReplacementKey(makeEvent({ taskId: "t1", type: "assistant_message", timestamp: 1 })),
+      getTransientEventReplacementKey(
+        makeEvent({ taskId: "t1", type: "assistant_message", timestamp: 1 }),
+      ),
     ).toBeNull();
   });
 
@@ -51,7 +77,9 @@ describe("getTransientEventReplacementKey", () => {
       groupId: "group-1",
       payload: { stage: "analyzing" },
     });
-    expect(getTransientEventReplacementKey(event)).toBe("t1:progress_update:step-1:group-1:analyzing");
+    expect(getTransientEventReplacementKey(event)).toBe(
+      "t1:progress_update:step-1:group-1:analyzing",
+    );
   });
 
   it("extracts stepId from payload.step.id", () => {
@@ -61,7 +89,9 @@ describe("getTransientEventReplacementKey", () => {
       timestamp: 1,
       payload: { step: { id: "nested-step" } },
     });
-    expect(getTransientEventReplacementKey(event)).toBe("t1:executing:nested-step::");
+    expect(getTransientEventReplacementKey(event)).toBe(
+      "t1:executing:nested-step::",
+    );
   });
 
   it("uses label as fallback for stage", () => {
@@ -71,19 +101,27 @@ describe("getTransientEventReplacementKey", () => {
       timestamp: 1,
       payload: { label: "generating" },
     });
-    expect(getTransientEventReplacementKey(event)).toBe("t1:llm_streaming:::generating");
+    expect(getTransientEventReplacementKey(event)).toBe(
+      "t1:llm_streaming:::generating",
+    );
   });
 });
 
 describe("appendRendererTaskEvents", () => {
   it("returns previous events unchanged when incoming is empty", () => {
-    const prev = [makeEvent({ taskId: "t1", type: "assistant_message", timestamp: 1 })];
+    const prev = [
+      makeEvent({ taskId: "t1", type: "assistant_message", timestamp: 1 }),
+    ];
     expect(appendRendererTaskEvents(prev, [])).toBe(prev);
   });
 
   it("appends non-replaceable events", () => {
-    const prev = [makeEvent({ taskId: "t1", type: "assistant_message", timestamp: 1 })];
-    const incoming = [makeEvent({ taskId: "t1", type: "task_completed", timestamp: 2 })];
+    const prev = [
+      makeEvent({ taskId: "t1", type: "assistant_message", timestamp: 1 }),
+    ];
+    const incoming = [
+      makeEvent({ taskId: "t1", type: "task_completed", timestamp: 2 }),
+    ];
     const result = appendRendererTaskEvents(prev, incoming);
     expect(result).toHaveLength(2);
     expect(result[1].type).toBe("task_completed");
@@ -110,7 +148,9 @@ describe("appendRendererTaskEvents", () => {
   });
 
   it("appends replaceable events when no match exists in previous", () => {
-    const prev = [makeEvent({ taskId: "t1", type: "assistant_message", timestamp: 1 })];
+    const prev = [
+      makeEvent({ taskId: "t1", type: "assistant_message", timestamp: 1 }),
+    ];
     const incoming = [
       makeEvent({
         taskId: "t1",
@@ -145,15 +185,27 @@ describe("appendRendererTaskEvents", () => {
     });
     const result = appendRendererTaskEvents([original], [updated]);
     expect(result).toHaveLength(1);
-    expect((result[0].payload as Record<string, unknown>).inlineFrames).toBeDefined();
+    expect(
+      (result[0].payload as Record<string, unknown>).inlineFrames,
+    ).toBeDefined();
   });
 
   it("appends event with new ID that does not match any existing event", () => {
     const prev = [
-      makeEvent({ id: "evt-1", taskId: "t1", type: "user_message", timestamp: 1 }),
+      makeEvent({
+        id: "evt-1",
+        taskId: "t1",
+        type: "user_message",
+        timestamp: 1,
+      }),
     ];
     const incoming = [
-      makeEvent({ id: "evt-2", taskId: "t1", type: "assistant_message", timestamp: 2 }),
+      makeEvent({
+        id: "evt-2",
+        taskId: "t1",
+        type: "assistant_message",
+        timestamp: 2,
+      }),
     ];
     const result = appendRendererTaskEvents(prev, incoming);
     expect(result).toHaveLength(2);
@@ -179,7 +231,11 @@ describe("appendRendererTaskEvents", () => {
       stepId: "s1",
       payload: { stage: "old" },
     });
-    const append = makeEvent({ taskId: "t1", type: "task_completed", timestamp: 3 });
+    const append = makeEvent({
+      taskId: "t1",
+      type: "task_completed",
+      timestamp: 3,
+    });
 
     const result = appendRendererTaskEvents(prev, [replacement, append]);
     expect(result).toHaveLength(3);
@@ -192,12 +248,18 @@ describe("appendRendererTaskEvents", () => {
 
 describe("capTaskEvents", () => {
   it("returns events unchanged when under the cap", () => {
-    const events = [makeEvent({ taskId: "t1", type: "assistant_message", timestamp: 1 })];
+    const events = [
+      makeEvent({ taskId: "t1", type: "assistant_message", timestamp: 1 }),
+    ];
     expect(capTaskEvents(events, 10)).toBe(events);
   });
 
   it("prioritizes structural events over noise events", () => {
-    const structural = makeEvent({ taskId: "t1", type: "assistant_message", timestamp: 100 });
+    const structural = makeEvent({
+      taskId: "t1",
+      type: "assistant_message",
+      timestamp: 100,
+    });
     const noise = Array.from({ length: 5 }, (_, i) =>
       makeEvent({ taskId: "t1", type: "log", timestamp: i }),
     );
@@ -208,9 +270,18 @@ describe("capTaskEvents", () => {
   });
 
   it("keeps most recent noise when budget allows", () => {
-    const structural = makeEvent({ taskId: "t1", type: "assistant_message", timestamp: 50 });
+    const structural = makeEvent({
+      taskId: "t1",
+      type: "assistant_message",
+      timestamp: 50,
+    });
     const noise = Array.from({ length: 5 }, (_, i) =>
-      makeEvent({ taskId: "t1", type: "progress_update", timestamp: i, id: `n-${i}` }),
+      makeEvent({
+        taskId: "t1",
+        type: "progress_update",
+        timestamp: i,
+        id: `n-${i}`,
+      }),
     );
     const events = [...noise, structural];
     const result = capTaskEvents(events, 4);
@@ -231,7 +302,9 @@ describe("capTaskEvents", () => {
 
     expect(result).not.toBe(event);
     expect(String(result.payload?.output || "").length).toBeLessThan(20 * 1024);
-    expect(String(result.payload?.output || "")).toContain("renderer payload truncated");
+    expect(String(result.payload?.output || "")).toContain(
+      "renderer payload truncated",
+    );
   });
 
   it("preserves approval request payloads so approval dialogs keep full command details", () => {
@@ -263,7 +336,9 @@ describe("capTaskEvents", () => {
 
     expect(retainedApproval).toBeDefined();
     expect(
-      String((retainedApproval?.payload?.approval as Any)?.details?.command || ""),
+      String(
+        (retainedApproval?.payload?.approval as Any)?.details?.command || "",
+      ),
     ).toHaveLength(command.length);
   });
 
@@ -297,5 +372,89 @@ describe("capTaskEvents", () => {
     expect(result.map((event) => event.id)).toContain("structural");
     expect(result.map((event) => event.id)).toContain("new-large");
     expect(result.map((event) => event.id)).not.toContain("old-large");
+  });
+
+  it("preserves the latest plan and step lifecycle state under payload pressure", () => {
+    const plan = makeEvent({
+      id: "plan",
+      taskId: "t1",
+      type: "timeline_step_updated",
+      timestamp: 1,
+      stepId: "task:t1",
+      payload: {
+        legacyType: "plan_created",
+        plan: {
+          steps: [
+            { id: "1", description: "Collect sources", status: "pending" },
+            { id: "2", description: "Write report", status: "pending" },
+          ],
+        },
+      },
+    });
+    const stepOneCompleted = makeEvent({
+      id: "step-1-completed",
+      taskId: "t1",
+      type: "timeline_step_finished",
+      timestamp: 3,
+      stepId: "1",
+      payload: {
+        legacyType: "step_completed",
+        step: { id: "1", description: "Collect sources" },
+      },
+    });
+    const stepTwoStarted = makeEvent({
+      id: "step-2-started",
+      taskId: "t1",
+      type: "timeline_step_started",
+      timestamp: 6,
+      stepId: "2",
+      payload: {
+        legacyType: "step_started",
+        step: { id: "2", description: "Write report" },
+      },
+    });
+    const events = [
+      plan,
+      makeEvent({
+        id: "old-large",
+        taskId: "t1",
+        type: "tool_result",
+        timestamp: 2,
+        payload: { content: "a".repeat(40 * 1024) },
+      }),
+      stepOneCompleted,
+      makeEvent({
+        id: "middle-large",
+        taskId: "t1",
+        type: "tool_result",
+        timestamp: 4,
+        payload: { content: "b".repeat(40 * 1024) },
+      }),
+      makeEvent({
+        id: "new-large",
+        taskId: "t1",
+        type: "tool_result",
+        timestamp: 5,
+        payload: { content: "c".repeat(40 * 1024) },
+      }),
+      stepTwoStarted,
+    ];
+
+    const result = capTaskEvents(events, 5, 45 * 1024);
+    const shared = deriveSharedTaskEventUiState({
+      rawEvents: result,
+      task: { id: "t1", status: "executing" } as Any,
+      workspace: null,
+      projectionMode: "live",
+      liveWindowSize: 2,
+    });
+
+    expect(result.map((event) => event.id)).toContain("plan");
+    expect(result.map((event) => event.id)).toContain("step-1-completed");
+    expect(result.map((event) => event.id)).toContain("step-2-started");
+    expect(shared.planSteps).toEqual([
+      expect.objectContaining({ id: "1", status: "completed" }),
+      expect.objectContaining({ id: "2", status: "in_progress" }),
+    ]);
   });
 });

@@ -90,7 +90,7 @@ It tracks:
 - prompt-cache mode and provider family
 - the latest invalidation reason when the stable prefix changes
 
-This lets CoWork reuse the same cacheable prefix after follow-ups, resume from `session_runtime_v2` snapshots without rebuilding it blindly, and explain why a cache epoch changed when model, provider family, tool schema, or stable prompt contracts changed.
+This lets NeoWorker reuse the same cacheable prefix after follow-ups, resume from `session_runtime_v2` snapshots without rebuilding it blindly, and explain why a cache epoch changed when model, provider family, tool schema, or stable prompt contracts changed.
 
 ## Public Surface
 
@@ -198,7 +198,7 @@ The turn kernel is still responsible for a single turn of execution. SessionRunt
 
 ## Adaptive Output Budgeting
 
-When `COWORK_LLM_OUTPUT_POLICY=adaptive` is enabled, execution and follow-up turns resolve output limits through one shared provider-aware policy path instead of relying on provider defaults or a single tool-call floor.
+When `NEOWORKER_LLM_OUTPUT_POLICY=adaptive` is enabled, execution and follow-up turns resolve output limits through one shared provider-aware policy path instead of relying on provider defaults or a single tool-call floor.
 
 ### Request kinds
 
@@ -236,7 +236,7 @@ The runtime always sends an explicit output limit for agentic turns in adaptive 
 The runtime resolves the outbound limit in this order:
 
 1. task-level `agentConfig.maxTokens`, when present
-2. `COWORK_LLM_MAX_OUTPUT_TOKENS`
+2. `NEOWORKER_LLM_MAX_OUTPUT_TOKENS`
 3. provider-family defaults for the current request kind
 4. final clamping by known hard caps and context headroom
 
@@ -272,12 +272,12 @@ The runtime logs output-budget decisions on each agentic call, including:
 
 Internal rollout is controlled by environment flags:
 
-- `COWORK_LLM_OUTPUT_POLICY=legacy|adaptive`
-- `COWORK_LLM_MAX_OUTPUT_TOKENS`
-- `COWORK_LLM_AGENTIC_INITIAL_MAX_TOKENS`
-- `COWORK_LLM_AGENTIC_ESCALATED_MAX_TOKENS`
+- `NEOWORKER_LLM_OUTPUT_POLICY=legacy|adaptive`
+- `NEOWORKER_LLM_MAX_OUTPUT_TOKENS`
+- `NEOWORKER_LLM_AGENTIC_INITIAL_MAX_TOKENS`
+- `NEOWORKER_LLM_AGENTIC_ESCALATED_MAX_TOKENS`
 
-`COWORK_LLM_OUTPUT_POLICY` defaults to `legacy` unless explicitly enabled. `COWORK_LLM_TOOL_RESPONSE_MAX_TOKENS` remains a legacy compatibility input and is no longer the primary path in adaptive mode.
+`NEOWORKER_LLM_OUTPUT_POLICY` defaults to `legacy` unless explicitly enabled. `NEOWORKER_LLM_TOOL_RESPONSE_MAX_TOKENS` remains a legacy compatibility input and is no longer the primary path in adaptive mode.
 
 ## Snapshot And Restore Algorithm
 

@@ -1,5 +1,5 @@
-const DEFAULT_OPENROUTER_ATTRIBUTION_URL = "https://github.com/CoWork-OS/CoWork-OS";
-const DEFAULT_OPENROUTER_ATTRIBUTION_TITLE = "CoWork OS";
+const DEFAULT_OPENROUTER_ATTRIBUTION_URL = "https://github.com/NeoWorker/NeoWorker";
+const DEFAULT_OPENROUTER_ATTRIBUTION_TITLE = "NeoWorker";
 const DEFAULT_OPENROUTER_ATTRIBUTION_CATEGORIES = [
   "personal-agent",
   "programming-app",

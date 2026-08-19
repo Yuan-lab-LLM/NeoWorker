@@ -1,0 +1,3 @@
+import { n as e, t } from "./navigation-2-BxvZeZ9g-BynmuJ86.js";
+t();
+export { e as default };

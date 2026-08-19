@@ -56,12 +56,12 @@ function main(): void {
         name: skill.name || skill.id || path.basename(file, '.json'),
         description: skill.description || '',
         version: skill.metadata?.version || '1.0.0',
-        author: skill.metadata?.author || 'CoWork OS',
+        author: skill.metadata?.author || 'NeoWorker',
         tags: skill.metadata?.tags || (skill.category ? [skill.category] : []),
         icon: skill.icon || undefined,
         category: skill.category || 'general',
         updatedAt: new Date().toISOString().split('T')[0],
-        homepage: `https://github.com/CoWork-OS/CoWork-OS/blob/main/resources/skills/${file}`,
+        homepage: `https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/${file}`,
       };
 
       entries.push(entry);

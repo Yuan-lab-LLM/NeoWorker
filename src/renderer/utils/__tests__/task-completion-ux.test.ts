@@ -62,7 +62,10 @@ describe("task completion UX helpers", () => {
     await toast.actions?.[0].callback();
 
     expect(resolveWorkspacePath).toHaveBeenCalledTimes(1);
-    expect(openFile).toHaveBeenCalledWith("artifacts/legal/negotiation-analysis.md", "/workspace");
+    expect(openFile).toHaveBeenCalledWith(
+      "artifacts/legal/negotiation-analysis.md",
+      "/workspace",
+    );
   });
 
   it("show-in-finder action calls showInFinder with primary output path and workspace path", async () => {
@@ -145,7 +148,13 @@ describe("task completion UX helpers", () => {
 
   it("builds output message for multiple files", () => {
     const multiOutput: TaskOutputSummary = {
-      created: ["out/canvas_display.html", "out/a.png", "out/b.png", "out/c.png", "out/d.png"],
+      created: [
+        "out/canvas_display.html",
+        "out/a.png",
+        "out/b.png",
+        "out/c.png",
+        "out/d.png",
+      ],
       primaryOutputPath: "out/canvas_display.html",
       outputCount: 5,
       folders: ["out"],
@@ -207,7 +216,10 @@ describe("task completion UX helpers", () => {
       outputCount: 2,
       folders: ["a"],
     };
-    expect(getAllOutputPathsFromSummary(summary)).toEqual(["a/b.html", "a/c.png"]);
+    expect(getAllOutputPathsFromSummary(summary)).toEqual([
+      "a/b.html",
+      "a/c.png",
+    ]);
   });
 
   it("tracks/clears unseen output ids and completion attention predicates", () => {
@@ -215,8 +227,12 @@ describe("task completion UX helpers", () => {
     expect(addUniqueTaskId(["task-1"], "task-2")).toEqual(["task-1", "task-2"]);
     expect(removeTaskId(["task-1", "task-2"], "task-1")).toEqual(["task-2"]);
 
-    expect(shouldTrackUnseenCompletion({ isMainView: true, isSelectedTask: true })).toBe(false);
-    expect(shouldTrackUnseenCompletion({ isMainView: true, isSelectedTask: false })).toBe(true);
+    expect(
+      shouldTrackUnseenCompletion({ isMainView: true, isSelectedTask: true }),
+    ).toBe(false);
+    expect(
+      shouldTrackUnseenCompletion({ isMainView: true, isSelectedTask: false }),
+    ).toBe(true);
 
     expect(shouldClearUnseenOutputBadges(true, false)).toBe(true);
     expect(shouldClearUnseenOutputBadges(true, true)).toBe(false);
@@ -225,8 +241,12 @@ describe("task completion UX helpers", () => {
   it("does not notify for successful completions", () => {
     expect(shouldNotifyForTaskCompletionTerminalStatus("ok")).toBe(false);
     expect(shouldNotifyForTaskCompletionTerminalStatus(undefined)).toBe(false);
-    expect(shouldNotifyForTaskCompletionTerminalStatus("partial_success")).toBe(true);
-    expect(shouldNotifyForTaskCompletionTerminalStatus("needs_user_action")).toBe(true);
+    expect(shouldNotifyForTaskCompletionTerminalStatus("partial_success")).toBe(
+      true,
+    );
+    expect(
+      shouldNotifyForTaskCompletionTerminalStatus("needs_user_action"),
+    ).toBe(true);
   });
 
   it("keeps the persistent warning for verification-backed needs-user-action completions", () => {
@@ -240,7 +260,8 @@ describe("task completion UX helpers", () => {
     expect(
       shouldShowPersistentNeedsUserActionBanner({
         terminalStatus: "needs_user_action",
-        verificationMessage: "Pending user action: final verification is still missing.",
+        verificationMessage:
+          "Pending user action: final verification is still missing.",
       }),
     ).toBe(true);
   });

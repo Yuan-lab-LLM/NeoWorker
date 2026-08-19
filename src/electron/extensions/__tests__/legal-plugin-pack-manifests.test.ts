@@ -13,7 +13,7 @@ import { validateManifest } from "../loader";
 const ROOT = path.resolve(process.cwd(), "resources", "plugin-packs");
 
 function readPack(name: string) {
-  return JSON.parse(fs.readFileSync(path.join(ROOT, name, "cowork.plugin.json"), "utf8"));
+  return JSON.parse(fs.readFileSync(path.join(ROOT, name, "neoworker.plugin.json"), "utf8"));
 }
 
 describe("Claude for Legal plugin packs", () => {

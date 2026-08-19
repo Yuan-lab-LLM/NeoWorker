@@ -82,7 +82,7 @@ function stripProtocolEnvelope(text: string): string {
 
 function buildWorkerPrompt(peerUserId: string, incomingText: string, exchangeId: string): string {
   return [
-    "You are the worker side of the CoWork Discord supervisor protocol.",
+    "You are the worker side of the NeoWorker Discord supervisor protocol.",
     "",
     "Rules:",
     `- Reply with exactly one Discord message mentioning <@${peerUserId}>.`,
@@ -109,7 +109,7 @@ function buildSupervisorPrompt(
     .join("\n");
 
   return [
-    "You are the supervisor side of the CoWork Discord supervisor protocol.",
+    "You are the supervisor side of the NeoWorker Discord supervisor protocol.",
     "",
     "Rules:",
     `- If the worker output looks clean, reply with exactly one Discord message mentioning <@${peerUserId}> and marker ${getSupervisorMarker("ack")}.`,

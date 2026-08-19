@@ -22,7 +22,7 @@
   "enabled": true,
   "metadata": {
     "version": "1.0.0",
-    "author": "cowork-os",
+    "author": "neoworker",
     "routing": {
       "useWhen": "Use when the user wants to monitor a webpage for changes, track content updates, or set up recurring content checks.",
       "dontUseWhen": "Don't use for one-time scraping where web-scraper skill is more appropriate.",

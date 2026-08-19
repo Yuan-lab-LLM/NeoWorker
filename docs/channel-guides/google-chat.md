@@ -1,6 +1,6 @@
 # Google Chat User Guide
 
-Google Chat is best for Google Workspace organizations that want CoWork available in spaces and direct messages.
+Google Chat is best for Google Workspace organizations that want NeoWorker available in spaces and direct messages.
 
 ## Best For
 
@@ -15,7 +15,7 @@ Google Chat is best for Google Workspace organizations that want CoWork availabl
 - Spaces and direct messages.
 - Threaded conversations.
 - Service-account based setup.
-- Shared CoWork gateway lifecycle after messages are delivered.
+- Shared NeoWorker gateway lifecycle after messages are delivered.
 
 ## Daily Workflow
 

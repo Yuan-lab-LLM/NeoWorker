@@ -17,10 +17,10 @@ describe("workspace-path-healer", () => {
     }
   });
 
-  it("treats .cowork-only directories as synthetic skeletons", () => {
+  it("treats .neoworker-only directories as synthetic skeletons", () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "workspace-healer-"));
     tmpDirs.push(tmpDir);
-    fs.mkdirSync(path.join(tmpDir, ".cowork"), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, ".neoworker"), { recursive: true });
 
     expect(isWorkspaceArtifactSkeleton(tmpDir)).toBe(true);
   });
@@ -37,7 +37,7 @@ describe("workspace-path-healer", () => {
     tmpDirs.push(homeDir);
     const oldPath = path.join(homeDir, "Desktop", "daily");
     const newPath = path.join(homeDir, "Desktop", "new", "daily");
-    fs.mkdirSync(path.join(oldPath, ".cowork"), { recursive: true });
+    fs.mkdirSync(path.join(oldPath, ".neoworker"), { recursive: true });
     fs.mkdirSync(newPath, { recursive: true });
 
     expect(findMovedDesktopWorkspacePath(oldPath, homeDir)).toBe(newPath);
@@ -50,7 +50,7 @@ describe("workspace-path-healer", () => {
     const newPath = path.join(homeDir, "Desktop", "new", "email+");
     const stablePath = path.join(homeDir, "Projects", "stable");
 
-    fs.mkdirSync(path.join(oldPath, ".cowork"), { recursive: true });
+    fs.mkdirSync(path.join(oldPath, ".neoworker"), { recursive: true });
     fs.mkdirSync(newPath, { recursive: true });
     fs.mkdirSync(stablePath, { recursive: true });
 

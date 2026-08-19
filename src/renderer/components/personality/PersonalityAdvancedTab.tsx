@@ -1,5 +1,8 @@
 import { useState } from "react";
 import type { PersonalityConfigV2, ContextMode } from "../../../shared/types";
+import { translate, useLanguage } from "../../i18n";
+import { PersonalityTabHeader } from "./PersonalityTabHeader";
+import { localizePersonalityPreview } from "./personality-preview-localizer";
 
 const CONTEXT_MODES: ContextMode[] = [
   "all",
@@ -23,8 +26,11 @@ export function PersonalityAdvancedTab({
   onSave,
   saving,
 }: PersonalityAdvancedTabProps) {
+  const language = useLanguage();
+  const t = translate;
   const [previewResult, setPreviewResult] = useState("");
-  const [previewContextMode, setPreviewContextMode] = useState<ContextMode>("all");
+  const [previewContextMode, setPreviewContextMode] =
+    useState<ContextMode>("all");
   const [previewLoading, setPreviewLoading] = useState(false);
   const [soulEditMode, setSoulEditMode] = useState(false);
   const [soulDraft, setSoulDraft] = useState(config.soulDocument ?? "");
@@ -32,10 +38,24 @@ export function PersonalityAdvancedTab({
   const runPreview = async () => {
     setPreviewLoading(true);
     try {
-      const result = await window.electronAPI.getPersonalityPreview(config, previewContextMode);
-      setPreviewResult(result);
+      const result = await window.electronAPI.getPersonalityPreview(
+        config,
+        previewContextMode,
+      );
+      setPreviewResult(
+        localizePersonalityPreview(
+          String(result ?? ""),
+          config,
+          previewContextMode,
+          language,
+        ),
+      );
     } catch (err) {
-      setPreviewResult(`Error: ${(err as Error).message}`);
+      setPreviewResult(
+        language === "zh-CN"
+          ? `预览失败：${(err as Error).message}`
+          : `Error: ${(err as Error).message}`,
+      );
     } finally {
       setPreviewLoading(false);
     }
@@ -76,15 +96,21 @@ export function PersonalityAdvancedTab({
 
   return (
     <div className="personality-advanced-tab settings-section">
-      <h3>Advanced</h3>
-      <p className="settings-description">
-        SOUL.md editor, preview, and import/export.
-      </p>
+      <PersonalityTabHeader
+        title={t("personality.advanced.title", "Advanced")}
+        description={t(
+          "personality.advanced.description",
+          "SOUL.md editor, preview, and import/export.",
+        )}
+      />
 
       <div className="soul-editor">
-        <h4>SOUL Document</h4>
+        <h4>{t("personality.advanced.soulDocument", "SOUL Document")}</h4>
         <p className="style-hint">
-          Raw markdown override for power users. When set, used instead of structured fields.
+          {t(
+            "personality.advanced.soulHint",
+            "Raw markdown override for power users. When set, used instead of structured fields.",
+          )}
         </p>
         {soulEditMode ? (
           <>
@@ -96,8 +122,12 @@ export function PersonalityAdvancedTab({
               placeholder="# SOUL\n## Personality\n..."
             />
             <div className="soul-actions">
-              <button className="button-primary" onClick={saveSoulDocument} disabled={saving}>
-                Save
+              <button
+                className="button-primary"
+                onClick={saveSoulDocument}
+                disabled={saving}
+              >
+                {t("personality.common.save", "Save")}
               </button>
               <button
                 type="button"
@@ -107,14 +137,18 @@ export function PersonalityAdvancedTab({
                   setSoulDraft(config.soulDocument ?? "");
                 }}
               >
-                Cancel
+                {t("personality.common.cancel", "Cancel")}
               </button>
             </div>
           </>
         ) : (
           <div className="soul-preview-block">
             <pre className="soul-preview">
-              {config.soulDocument?.trim() || "(Empty — using structured settings)"}
+              {config.soulDocument?.trim() ||
+                t(
+                  "personality.advanced.emptyStructured",
+                  "(Empty - using structured settings)",
+                )}
             </pre>
             <button
               type="button"
@@ -124,25 +158,30 @@ export function PersonalityAdvancedTab({
                 setSoulEditMode(true);
               }}
             >
-              Edit
+              {t("personality.common.edit", "Edit")}
             </button>
           </div>
         )}
       </div>
 
       <div className="personality-preview-test">
-        <h4>Personality Preview</h4>
+        <h4>{t("personality.advanced.previewTitle", "Personality Preview")}</h4>
         <p className="style-hint">
-          Enter a sample message and see the system prompt that would be sent.
+          {t(
+            "personality.advanced.previewHint",
+            "Enter a sample message and see the system prompt that would be sent.",
+          )}
         </p>
         <div className="preview-controls">
           <select
             value={previewContextMode}
-            onChange={(e) => setPreviewContextMode(e.target.value as ContextMode)}
+            onChange={(e) =>
+              setPreviewContextMode(e.target.value as ContextMode)
+            }
           >
             {CONTEXT_MODES.map((m) => (
               <option key={m} value={m}>
-                {m}
+                {t(`personality.context.${m}`, m)}
               </option>
             ))}
           </select>
@@ -152,33 +191,37 @@ export function PersonalityAdvancedTab({
             onClick={runPreview}
             disabled={previewLoading}
           >
-            {previewLoading ? "Loading..." : "Preview"}
+            {previewLoading
+              ? t("personality.common.loading", "Loading...")
+              : t("personality.advanced.preview", "Preview")}
           </button>
         </div>
-        {previewResult && (
-          <pre className="preview-output">{previewResult}</pre>
-        )}
+        {previewResult && <pre className="preview-output">{previewResult}</pre>}
       </div>
 
       <div className="import-export">
-        <h4>Import / Export</h4>
+        <h4>{t("personality.advanced.importExport", "Import / Export")}</h4>
         <div className="import-export-buttons">
           <button
             type="button"
             className="button-primary"
             onClick={() => exportProfile("json")}
           >
-            Export JSON
+            {t("personality.advanced.exportJson", "Export JSON")}
           </button>
           <button
             type="button"
             className="button-primary"
             onClick={() => exportProfile("md")}
           >
-            Export SOUL.md
+            {t("personality.advanced.exportSoul", "Export SOUL.md")}
           </button>
-          <button type="button" className="button-secondary" onClick={importProfile}>
-            Import
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={importProfile}
+          >
+            {t("personality.common.import", "Import")}
           </button>
         </div>
       </div>

@@ -209,8 +209,8 @@ function sha256(buffer: Buffer): string {
 }
 
 function resolvePowerShellCommand(): string {
-  if (process.env.COWORK_POWERSHELL_PATH) {
-    return process.env.COWORK_POWERSHELL_PATH;
+  if (process.env.NEOWORKER_POWERSHELL_PATH) {
+    return process.env.NEOWORKER_POWERSHELL_PATH;
   }
   return process.env.ComSpec ? "powershell.exe" : "powershell";
 }
@@ -806,7 +806,7 @@ export class ComputerUseHelperRuntime implements ComputerUseProvider {
     const dialog = getElectronDialog();
     if (!dialog) {
       throw new Error(
-        `Computer use needs Accessibility and Screen Recording for the helper at ${HELPER_PATH}. Start CoWork in the desktop runtime and retry.`,
+        `Computer use needs Accessibility and Screen Recording for the helper at ${HELPER_PATH}. Start NeoWorker in the desktop runtime and retry.`,
       );
     }
 

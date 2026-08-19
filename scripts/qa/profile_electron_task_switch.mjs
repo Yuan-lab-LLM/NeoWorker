@@ -73,7 +73,7 @@ const BUDGET_PROFILES = {
 function usage() {
   return `Usage: node scripts/qa/profile_electron_task_switch.mjs [options]
 
-Profiles real CoWork OS Electron task switching over Chrome DevTools Protocol.
+Profiles real NeoWorker Electron task switching over Chrome DevTools Protocol.
 
 Options:
   --mode=prod|dev|attach        Launch production app, launch dev app, or attach to an existing CDP port. Default: prod
@@ -103,16 +103,16 @@ Options:
   --help                        Show this help.
 
 Budget overrides:
-  COWORK_PROFILE_TASK_HEADER_P95_MS
-  COWORK_PROFILE_TIMELINE_DATA_P95_MS
-  COWORK_PROFILE_TIMELINE_ROWS_P95_MS
-  COWORK_PROFILE_LONG_TASK_MAX_MS
-  COWORK_PROFILE_FRAME_GAP_MAX_MS
-  COWORK_PROFILE_APP_SHELL_READY_MS
-  COWORK_PROFILE_SIDEBAR_READY_MS
-  COWORK_PROFILE_TIMELINE_SERIALIZED_P95_BYTES
-  COWORK_PROFILE_TIMELINE_SERIALIZED_MAX_BYTES
-  COWORK_PROFILE_BACKGROUND_BEFORE_SIDEBAR_MAX
+  NEOWORKER_PROFILE_TASK_HEADER_P95_MS
+  NEOWORKER_PROFILE_TIMELINE_DATA_P95_MS
+  NEOWORKER_PROFILE_TIMELINE_ROWS_P95_MS
+  NEOWORKER_PROFILE_LONG_TASK_MAX_MS
+  NEOWORKER_PROFILE_FRAME_GAP_MAX_MS
+  NEOWORKER_PROFILE_APP_SHELL_READY_MS
+  NEOWORKER_PROFILE_SIDEBAR_READY_MS
+  NEOWORKER_PROFILE_TIMELINE_SERIALIZED_P95_BYTES
+  NEOWORKER_PROFILE_TIMELINE_SERIALIZED_MAX_BYTES
+  NEOWORKER_PROFILE_BACKGROUND_BEFORE_SIDEBAR_MAX
 `;
 }
 
@@ -140,14 +140,14 @@ function getArgValue(arg, name) {
 export function parseCliArgs(argv, env = process.env) {
   const options = {
     mode: "prod",
-    cdpPort: env.COWORK_PROFILE_CDP_PORT
-      ? parsePositiveInt(env.COWORK_PROFILE_CDP_PORT, "COWORK_PROFILE_CDP_PORT")
+    cdpPort: env.NEOWORKER_PROFILE_CDP_PORT
+      ? parsePositiveInt(env.NEOWORKER_PROFILE_CDP_PORT, "NEOWORKER_PROFILE_CDP_PORT")
       : null,
-    devServerPort: env.COWORK_PROFILE_DEV_SERVER_PORT
-      ? parsePositiveInt(env.COWORK_PROFILE_DEV_SERVER_PORT, "COWORK_PROFILE_DEV_SERVER_PORT")
+    devServerPort: env.NEOWORKER_PROFILE_DEV_SERVER_PORT
+      ? parsePositiveInt(env.NEOWORKER_PROFILE_DEV_SERVER_PORT, "NEOWORKER_PROFILE_DEV_SERVER_PORT")
       : null,
-    switches: env.COWORK_PROFILE_SWITCHES
-      ? parsePositiveInt(env.COWORK_PROFILE_SWITCHES, "COWORK_PROFILE_SWITCHES")
+    switches: env.NEOWORKER_PROFILE_SWITCHES
+      ? parsePositiveInt(env.NEOWORKER_PROFILE_SWITCHES, "NEOWORKER_PROFILE_SWITCHES")
       : DEFAULT_SWITCHES,
     startIndex: 0,
     minTaskRows: 2,
@@ -324,52 +324,52 @@ function getBudget(profile, env = process.env) {
     profile,
     taskHeaderReadyP95Ms: readBudgetOverride(
       env,
-      "COWORK_PROFILE_TASK_HEADER_P95_MS",
+      "NEOWORKER_PROFILE_TASK_HEADER_P95_MS",
       base.taskHeaderReadyP95Ms,
     ),
     timelineDataReceivedP95Ms: readBudgetOverride(
       env,
-      "COWORK_PROFILE_TIMELINE_DATA_P95_MS",
+      "NEOWORKER_PROFILE_TIMELINE_DATA_P95_MS",
       base.timelineDataReceivedP95Ms,
     ),
     timelineFirstRowsReadyP95Ms: readBudgetOverride(
       env,
-      "COWORK_PROFILE_TIMELINE_ROWS_P95_MS",
+      "NEOWORKER_PROFILE_TIMELINE_ROWS_P95_MS",
       base.timelineFirstRowsReadyP95Ms,
     ),
     longTaskMaxMs: readBudgetOverride(
       env,
-      "COWORK_PROFILE_LONG_TASK_MAX_MS",
+      "NEOWORKER_PROFILE_LONG_TASK_MAX_MS",
       base.longTaskMaxMs,
     ),
     frameGapMaxMs: readBudgetOverride(
       env,
-      "COWORK_PROFILE_FRAME_GAP_MAX_MS",
+      "NEOWORKER_PROFILE_FRAME_GAP_MAX_MS",
       base.frameGapMaxMs,
     ),
     appShellReadyMs: readBudgetOverride(
       env,
-      "COWORK_PROFILE_APP_SHELL_READY_MS",
+      "NEOWORKER_PROFILE_APP_SHELL_READY_MS",
       base.appShellReadyMs,
     ),
     sidebarReadyMs: readBudgetOverride(
       env,
-      "COWORK_PROFILE_SIDEBAR_READY_MS",
+      "NEOWORKER_PROFILE_SIDEBAR_READY_MS",
       base.sidebarReadyMs,
     ),
     timelinePageSerializedP95Bytes: readBudgetOverride(
       env,
-      "COWORK_PROFILE_TIMELINE_SERIALIZED_P95_BYTES",
+      "NEOWORKER_PROFILE_TIMELINE_SERIALIZED_P95_BYTES",
       base.timelinePageSerializedP95Bytes,
     ),
     timelinePageSerializedMaxBytes: readBudgetOverride(
       env,
-      "COWORK_PROFILE_TIMELINE_SERIALIZED_MAX_BYTES",
+      "NEOWORKER_PROFILE_TIMELINE_SERIALIZED_MAX_BYTES",
       base.timelinePageSerializedMaxBytes,
     ),
     backgroundBeforeSidebarMax: readBudgetOverride(
       env,
-      "COWORK_PROFILE_BACKGROUND_BEFORE_SIDEBAR_MAX",
+      "NEOWORKER_PROFILE_BACKGROUND_BEFORE_SIDEBAR_MAX",
       base.backgroundBeforeSidebarMax,
     ),
   };
@@ -526,7 +526,7 @@ function createFixtureUserDataDir(options) {
     fs.mkdirSync(resolved, { recursive: true });
     return { userDataDir: resolved, temporary: false };
   }
-  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-perf-profile-"));
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-perf-profile-"));
   return { userDataDir, temporary: true };
 }
 
@@ -536,12 +536,12 @@ function seedFixtureProfile(userDataDir, fixtureTaskCount, env) {
   fs.mkdirSync(workspacePath, { recursive: true });
   const seedScript = path.join(
     os.tmpdir(),
-    `cowork-perf-seed-${process.pid}-${Date.now()}.cjs`,
+    `neoworker-perf-seed-${process.pid}-${Date.now()}.cjs`,
   );
   const script = `
-process.env.COWORK_USER_DATA_DIR = ${JSON.stringify(userDataDir)};
-delete process.env.COWORK_PROFILE;
-delete process.env.COWORK_PROFILE_ID;
+process.env.NEOWORKER_USER_DATA_DIR = ${JSON.stringify(userDataDir)};
+delete process.env.NEOWORKER_PROFILE;
+delete process.env.NEOWORKER_PROFILE_ID;
 const { DatabaseManager } = require(${JSON.stringify(path.join(repoRoot, "dist/electron/electron/database/schema.js"))});
 const { SecureSettingsRepository } = require(${JSON.stringify(path.join(repoRoot, "dist/electron/electron/database/SecureSettingsRepository.js"))});
 const { WorkspaceRepository, TaskRepository, TaskEventRepository } = require(${JSON.stringify(path.join(repoRoot, "dist/electron/electron/database/repositories.js"))});
@@ -618,7 +618,7 @@ try {
       env: {
         ...env,
         ELECTRON_RUN_AS_NODE: "1",
-        COWORK_USER_DATA_DIR: userDataDir,
+        NEOWORKER_USER_DATA_DIR: userDataDir,
         NODE_ENV: "test",
       },
       encoding: "utf8",
@@ -654,31 +654,31 @@ async function launchApp(options, logs) {
   if (
     options.requireDesktop &&
     !hasDesktopSession() &&
-    process.env.COWORK_PROFILE_ALLOW_HEADLESS !== "1"
+    process.env.NEOWORKER_PROFILE_ALLOW_HEADLESS !== "1"
   ) {
-    throw new Error("Desktop profiling requires a GUI session. Set COWORK_PROFILE_ALLOW_HEADLESS=1 or omit --require-desktop only when an xvfb-style display is configured.");
+    throw new Error("Desktop profiling requires a GUI session. Set NEOWORKER_PROFILE_ALLOW_HEADLESS=1 or omit --require-desktop only when an xvfb-style display is configured.");
   }
 
   const cdpPort = options.cdpPort ?? (await findAvailablePort(DEFAULT_CDP_PORT));
   const env = {
     ...process.env,
-    COWORK_DEV_LOG_CAPTURE: "1",
-    COWORK_PROFILE_RUN: "1",
+    NEOWORKER_DEV_LOG_CAPTURE: "1",
+    NEOWORKER_PROFILE_RUN: "1",
   };
   delete env.ELECTRON_RUN_AS_NODE;
   let fixtureProfile = null;
   if (options.profileMode === "fixture") {
     fixtureProfile = createFixtureUserDataDir(options);
-    env.COWORK_USER_DATA_DIR = fixtureProfile.userDataDir;
-    delete env.COWORK_PROFILE;
-    delete env.COWORK_PROFILE_ID;
+    env.NEOWORKER_USER_DATA_DIR = fixtureProfile.userDataDir;
+    delete env.NEOWORKER_PROFILE;
+    delete env.NEOWORKER_PROFILE_ID;
   }
   if (options.quiet) {
-    env.COWORK_PROFILE_QUIET = "1";
-    env.COWORK_STARTUP_QUIET = "1";
-    env.COWORK_BACKGROUND_AUTOSTART = "0";
-    env.COWORK_DEV_BRAND_APP = env.COWORK_DEV_BRAND_APP || "0";
-    env.COWORK_DISABLE_UPDATE_CHECK = env.COWORK_DISABLE_UPDATE_CHECK || "1";
+    env.NEOWORKER_PROFILE_QUIET = "1";
+    env.NEOWORKER_STARTUP_QUIET = "1";
+    env.NEOWORKER_BACKGROUND_AUTOSTART = "0";
+    env.NEOWORKER_DEV_BRAND_APP = env.NEOWORKER_DEV_BRAND_APP || "0";
+    env.NEOWORKER_DISABLE_UPDATE_CHECK = env.NEOWORKER_DISABLE_UPDATE_CHECK || "1";
   }
 
   if (!options.noBuild) {
@@ -699,8 +699,8 @@ async function launchApp(options, logs) {
       options.devServerPort ?? (await findAvailablePort(DEFAULT_DEV_SERVER_PORT));
     devServerUrl = `http://127.0.0.1:${devServerPort}`;
     env.NODE_ENV = "development";
-    env.COWORK_DEV_SERVER_PORT = String(devServerPort);
-    env.COWORK_DEV_SERVER_URL = devServerUrl;
+    env.NEOWORKER_DEV_SERVER_PORT = String(devServerPort);
+    env.NEOWORKER_DEV_SERVER_URL = devServerUrl;
     const react = spawn(
       npmCommand,
       ["run", "dev:react", "--", "--host", "127.0.0.1", "--port", String(devServerPort), "--strictPort"],
@@ -715,8 +715,8 @@ async function launchApp(options, logs) {
     await waitForPort(devServerPort, options.startupTimeoutMs);
   } else {
     env.NODE_ENV = "production";
-    delete env.COWORK_DEV_SERVER_PORT;
-    delete env.COWORK_DEV_SERVER_URL;
+    delete env.NEOWORKER_DEV_SERVER_PORT;
+    delete env.NEOWORKER_DEV_SERVER_URL;
   }
 
   const electron = spawn(getElectronBinary(), [`--remote-debugging-port=${cdpPort}`, "."], {
@@ -932,7 +932,7 @@ function snapshotInPage(metricNames) {
       })
       .filter((row) => row.visible && !row.synthetic);
 
-  const state = window.__coworkRendererPerfState__;
+  const state = window.__neoworkerRendererPerfState__;
   const metric = (name) => {
     const samples = state?.metrics?.get?.(name)?.samples;
     return Array.isArray(samples) ? samples.slice() : [];

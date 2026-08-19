@@ -20,6 +20,7 @@ function cleanString(value: string | undefined): string | undefined {
 }
 
 const PROVIDER_STRING_KEYS = [
+  "displayName",
   "apiKey",
   "subscriptionToken",
   "accessToken",
@@ -63,6 +64,39 @@ function cleanCustomProviders(
     cleaned[providerId] = cleanProviderSettings(providerConfig) ?? {};
   }
   return cleaned;
+}
+
+function cleanProviderModelRegistry(
+  registry?: LLMSettingsData["providerModelRegistry"],
+): LLMSettingsData["providerModelRegistry"] | undefined {
+  if (!registry) return undefined;
+  const cleaned: NonNullable<LLMSettingsData["providerModelRegistry"]> = {};
+
+  for (const [providerId, entry] of Object.entries(registry)) {
+    const models = Array.from(
+      new Set(
+        (entry.models || [])
+          .map((model) => model.trim())
+          .filter(Boolean),
+      ),
+    );
+    const enabled: Record<string, boolean> = {};
+    for (const [model, value] of Object.entries(entry.enabled || {})) {
+      const normalizedModel = model.trim();
+      if (!normalizedModel || typeof value !== "boolean") continue;
+      enabled[normalizedModel] = value;
+    }
+
+    if (models.length > 0 || Object.keys(enabled).length > 0) {
+      cleaned[providerId] = {
+        ...(models.length > 0 ? { models } : {}),
+        ...(Object.keys(enabled).length > 0 ? { enabled } : {}),
+        ...(typeof entry.updatedAt === "number" ? { updatedAt: entry.updatedAt } : {}),
+      };
+    }
+  }
+
+  return Object.keys(cleaned).length > 0 ? cleaned : undefined;
 }
 
 function normalizeAzureSettings(
@@ -119,13 +153,26 @@ export function buildSavedLLMSettings(
   validated: LLMSettingsData,
   existingSettings: LLMSettingsData,
 ): LLMSettingsData {
+  const hasIncoming = (key: keyof LLMSettingsData) =>
+    Object.prototype.hasOwnProperty.call(validated, key);
+  const mergeIncomingProviderSettings = <T extends object>(
+    key: keyof LLMSettingsData,
+    incoming: T | undefined,
+    existing: T | undefined,
+  ): T | undefined => {
+    if (hasIncoming(key) && incoming === undefined) {
+      return undefined;
+    }
+    return cleanProviderSettings(mergeProviderSettings(incoming, existing));
+  };
   const existingOpenAISettings = existingSettings.openai;
   const incomingOpenAISettings = validated.openai;
-  let openaiSettings = mergeProviderSettings(
-    incomingOpenAISettings,
-    existingOpenAISettings,
-  );
+  let openaiSettings =
+    hasIncoming("openai") && incomingOpenAISettings === undefined
+      ? undefined
+      : mergeProviderSettings(incomingOpenAISettings, existingOpenAISettings);
   const shouldPreserveOpenAIOAuthTokens =
+    openaiSettings !== undefined &&
     existingOpenAISettings?.authMethod === "oauth" &&
     validated.openai?.authMethod !== "api_key";
   if (validated.openai?.authMethod === "api_key" && openaiSettings) {
@@ -150,8 +197,12 @@ export function buildSavedLLMSettings(
 
   const existingXAISettings = existingSettings.xai;
   const incomingXAISettings = validated.xai;
-  let xaiSettings = mergeProviderSettings(incomingXAISettings, existingXAISettings);
+  let xaiSettings =
+    hasIncoming("xai") && incomingXAISettings === undefined
+      ? undefined
+      : mergeProviderSettings(incomingXAISettings, existingXAISettings);
   const shouldPreserveXAIOAuthTokens =
+    xaiSettings !== undefined &&
     existingXAISettings?.authMethod === "oauth" &&
     validated.xai?.authMethod !== "api_key";
   if (validated.xai?.authMethod === "api_key" && xaiSettings) {
@@ -190,48 +241,78 @@ export function buildSavedLLMSettings(
       ? validated.failoverPrimaryRetryCooldownSeconds
       : existingSettings.failoverPrimaryRetryCooldownSeconds,
     promptCaching: validated.promptCaching ?? existingSettings.promptCaching,
-    anthropic: cleanProviderSettings(
-      mergeProviderSettings(validated.anthropic, existingSettings.anthropic),
+    anthropic: mergeIncomingProviderSettings(
+      "anthropic",
+      validated.anthropic,
+      existingSettings.anthropic,
     ),
-    bedrock: cleanProviderSettings(
-      mergeProviderSettings(validated.bedrock, existingSettings.bedrock),
+    bedrock: mergeIncomingProviderSettings(
+      "bedrock",
+      validated.bedrock,
+      existingSettings.bedrock,
     ),
-    ollama: cleanProviderSettings(
-      mergeProviderSettings(validated.ollama, existingSettings.ollama),
+    ollama: mergeIncomingProviderSettings(
+      "ollama",
+      validated.ollama,
+      existingSettings.ollama,
     ),
-    gemini: cleanProviderSettings(
-      mergeProviderSettings(validated.gemini, existingSettings.gemini),
+    gemini: mergeIncomingProviderSettings(
+      "gemini",
+      validated.gemini,
+      existingSettings.gemini,
     ),
-    openrouter: cleanProviderSettings(
-      mergeProviderSettings(validated.openrouter, existingSettings.openrouter),
+    openrouter: mergeIncomingProviderSettings(
+      "openrouter",
+      validated.openrouter,
+      existingSettings.openrouter,
     ),
-    deepseek: cleanProviderSettings(
-      mergeProviderSettings(validated.deepseek, existingSettings.deepseek),
+    deepseek: mergeIncomingProviderSettings(
+      "deepseek",
+      validated.deepseek,
+      existingSettings.deepseek,
     ),
     openai: cleanProviderSettings(openaiSettings),
-    azure: normalizeAzureSettings(validated.azure, existingSettings.azure),
-    azureAnthropic: normalizeAzureAnthropicSettings(
-      validated.azureAnthropic,
-      existingSettings.azureAnthropic,
-    ),
-    groq: cleanProviderSettings(
-      mergeProviderSettings(validated.groq, existingSettings.groq),
+    azure:
+      hasIncoming("azure") && validated.azure === undefined
+        ? undefined
+        : normalizeAzureSettings(validated.azure, existingSettings.azure),
+    azureAnthropic:
+      hasIncoming("azureAnthropic") && validated.azureAnthropic === undefined
+        ? undefined
+        : normalizeAzureAnthropicSettings(
+            validated.azureAnthropic,
+            existingSettings.azureAnthropic,
+          ),
+    groq: mergeIncomingProviderSettings(
+      "groq",
+      validated.groq,
+      existingSettings.groq,
     ),
     xai: cleanProviderSettings(xaiSettings),
-    kimi: cleanProviderSettings(
-      mergeProviderSettings(validated.kimi, existingSettings.kimi),
+    kimi: mergeIncomingProviderSettings(
+      "kimi",
+      validated.kimi,
+      existingSettings.kimi,
     ),
-    openaiCompatible: cleanProviderSettings(
-      mergeProviderSettings(
-        validated.openaiCompatible,
-        existingSettings.openaiCompatible,
-      ),
+    openaiCompatible: mergeIncomingProviderSettings(
+      "openaiCompatible",
+      validated.openaiCompatible,
+      existingSettings.openaiCompatible,
     ),
-    moa: cleanProviderSettings(
-      mergeProviderSettings(validated.moa, existingSettings.moa),
+    moa: mergeIncomingProviderSettings(
+      "moa",
+      validated.moa,
+      existingSettings.moa,
     ),
     customProviders: cleanCustomProviders(
-      validated.customProviders ?? existingSettings.customProviders,
+      hasIncoming("customProviders")
+        ? validated.customProviders
+        : existingSettings.customProviders,
+    ),
+    providerModelRegistry: cleanProviderModelRegistry(
+      hasIncoming("providerModelRegistry")
+        ? validated.providerModelRegistry
+        : existingSettings.providerModelRegistry,
     ),
     imageGeneration: validated.imageGeneration ?? existingSettings.imageGeneration,
     videoGeneration: validated.videoGeneration ?? existingSettings.videoGeneration,

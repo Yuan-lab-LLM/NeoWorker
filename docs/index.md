@@ -1,9 +1,9 @@
 ---
 layout: home
 hero:
-  name: CoWork OS
+  name: NeoWorker
   text: The GUI-first, CLI-capable local AI super app and everything app
-  tagline: Code, email, research, design web pages, create documents, work with spreadsheets and decks, spawn and manage agents, run automations, and ask for changes from the desktop app or the cowork CLI without jumping between separate coding, mail, browser, Word, Excel, or PowerPoint apps.
+  tagline: Code, email, research, design web pages, create documents, work with spreadsheets and decks, spawn and manage agents, run automations, and ask for changes from the desktop app or the neoworker CLI without jumping between separate coding, mail, browser, Word, Excel, or PowerPoint apps.
   actions:
     - theme: brand
       text: Get Started
@@ -18,7 +18,7 @@ hero:
       text: Everything Workbench
       link: /everything-workbench
     - theme: alt
-      text: CoWork CLI
+      text: NeoWorker CLI
       link: /cli
     - theme: alt
       text: Terminal Tabs
@@ -37,7 +37,7 @@ hero:
       link: /dreaming
     - theme: alt
       text: 24/7 Learning Guide
-      link: /continual-learning-in-cowork
+      link: /continual-learning-in-neoworker
     - theme: alt
       text: Session Runtime
       link: /session-runtime
@@ -142,15 +142,15 @@ hero:
       link: /zero-human-company
     - theme: alt
       text: GitHub
-      link: https://github.com/CoWork-OS/CoWork-OS
+      link: https://github.com/NeoWorker/NeoWorker
 
 features:
   - title: AI Super App / Everything App
-    details: CoWork OS keeps coding, email, research, documents, spreadsheets, presentations, web pages, PDFs, memory, skills, providers, approvals, channels, devices, and automations in one local-first governed workspace.
+    details: NeoWorker keeps coding, email, research, documents, spreadsheets, presentations, web pages, PDFs, memory, skills, providers, approvals, channels, devices, and automations in one local-first governed workspace.
   - title: GUI-First Agent Management
     details: Create reusable agents, spawn parallel work, inspect delegated runs, assign tasks, review approvals, and monitor many agents through Agents Hub, Mission Control, task timelines, and visual boards, while still having a terminal-native entrypoint for fast local runs.
-  - title: First-Class CoWork CLI
-    details: Type `cowork` for the interactive terminal UI or `cowork run "task"` for a local one-shot run. The default CLI path shares local desktop profile, provider, workspace, skills, and MCP settings without requiring a Control Plane token; remote mode is explicit.
+  - title: First-Class NeoWorker CLI
+    details: Type `neoworker` for the interactive terminal UI or `neoworker run "task"` for a local one-shot run. The default CLI path shares local desktop profile, provider, workspace, skills, and MCP settings without requiring a Control Plane token; remote mode is explicit.
   - title: One App For Daily Work
     details: Use one app instead of separate coding, mail, browser, Word, Excel, and PowerPoint workflows for everyday agentic work.
   - title: Everything Workbench
@@ -160,7 +160,7 @@ features:
   - title: Production Runtime
     details: Local-first runtime with approvals, guardrails, and governance controls for production agent workflows.
   - title: Linux Server Package
-    details: GitHub Releases can ship a Linux x64 server tarball for VPS/systemd installs, with built daemon assets, full resources, connector runtimes, checksum verification, Control Plane smoke tests, and fail-closed managed deployment posture checks. It runs `coworkd-node` without launching the desktop UI.
+    details: GitHub Releases can ship a Linux x64 server tarball for VPS/systemd installs, with built daemon assets, full resources, connector runtimes, checksum verification, Control Plane smoke tests, and fail-closed managed deployment posture checks. It runs `neoworkerd-node` without launching the desktop UI.
   - title: 36 LLM Provider Options
     details: Connect to Claude, GPT, Gemini, Ollama, OpenRouter, Grok through xAI API keys or SuperGrok OAuth, and more. Bring your own keys, use supported subscription logins, switch models per task or workflow phase, combine advisors and aggregators with Mixture of Agents presets, use OpenRouter Pareto Code/Nitro for coding-score-based routing, and get default-on prompt caching on supported routes.
   - title: 17 Messaging Channels
@@ -178,7 +178,7 @@ features:
   - title: Smart PDF Attachments
     details: Uploaded PDFs are copied into the workspace, summarized with page/extraction/OCR metadata and an untrusted-content boundary, then read on demand with parse_document for summaries, Q&A, extraction, comparison, and transformation. Visual PDF layout questions stay on read_pdf_visual.
   - title: Video Attachments
-    details: Uploaded MP4, MOV, and WebM files are copied into the workspace, sampled into representative frames, and sent to image-capable models as visual input. CoWork stores contact sheets and representative full frames under `.cowork/video-frames/...` and shows them inline in the task timeline as image artifacts.
+    details: Uploaded MP4, MOV, and WebM files are copied into the workspace, sampled into representative frames, and sent to image-capable models as visual input. NeoWorker stores contact sheets and representative full frames under `.neoworker/video-frames/...` and shows them inline in the task timeline as image artifacts.
   - title: Spreadsheet Artifacts
     details: Task-created spreadsheet files render as compact artifact cards. Excel workbooks and CSV/TSV open into a persisted resizable right sidebar by default; Numbers, Google Sheets shortcut, ODS, and XLSB outputs keep external-app/folder actions. Editable sheets can expand into a fullscreen spreadsheet workbench with selection, copy, zoom, add row/column, save, model picker, voice input, attachments, and follow-up task context.
   - title: Document Artifacts
@@ -192,7 +192,7 @@ features:
   - title: Chronicle
     details: Opt-in desktop recent-screen context for vague on-screen references, with Memory Hub controls, local passive capture, `screen_context` recall, pause/resume, and Mission Control evidence.
   - title: Optional Supermemory
-    details: Add Supermemory as an external memory lane with prompt-time profile injection, explicit external memory tools, optional mirroring of non-private local memory captures, and Memory Write Approval controls for external writes, while keeping CoWork's local memory system primary.
+    details: Add Supermemory as an external memory lane with prompt-time profile injection, explicit external memory tools, optional mirroring of non-private local memory captures, and Memory Write Approval controls for external writes, while keeping NeoWorker's local memory system primary.
   - title: Runtime Orchestration
     details: SessionRuntime owns task-session state, session checklists, visible-tool render caching, prompt-cache state, resume snapshots, and task projection while the turn kernel handles each active turn; sectioned prompts, stable-prefix prompt caching, graph-backed delegation, typed worker roles, semantic batch summaries, and terminal-state-safe resume logic keep execution, verification, and follow-up work coherent.
   - title: Managed Agents
@@ -200,17 +200,17 @@ features:
   - title: Composer Mentions
     details: Type `@` in the composer to pick Agents, configured Integrations, or Files. Integration chips render with icon and label in prompts and user message history, and selected integration metadata reaches the runtime as soft routing guidance rather than tool restrictions.
   - title: Message Box Shortcuts
-    details: Type `/` in the composer to pick deterministic app commands and skill-backed workflow shortcuts from one menu, including `/side`, `/schedule`, `/schedule here`, `/clear`, `/plan`, `/cost`, `/multitask`, `/compact`, `/doctor`, `/undo`, direct skill IDs, plugin aliases, and the bundled CoWork Shortcuts pack. Skill-backed picker selections insert the command token so users can add context before sending.
+    details: Type `/` in the composer to pick deterministic app commands and skill-backed workflow shortcuts from one menu, including `/side`, `/schedule`, `/schedule here`, `/clear`, `/plan`, `/cost`, `/multitask`, `/compact`, `/doctor`, `/undo`, direct skill IDs, plugin aliases, and the bundled NeoWorker Shortcuts pack. Skill-backed picker selections insert the command token so users can add context before sending.
   - title: Claude-for-Legal Workflows
-    details: Bundled legal practice packs expose upstream-style slash commands through CoWork's plugin-pack system. Legal workflow selections are editable before launch, and matter-heavy tasks can show structured main-view intake cards such as the dedicated demand-letter intake form.
+    details: Bundled legal practice packs expose upstream-style slash commands through NeoWorker's plugin-pack system. Legal workflow selections are editable before launch, and matter-heavy tasks can show structured main-view intake cards such as the dedicated demand-letter intake form.
   - title: Multitask Command
     details: `/multitask [N] <task>` starts a fresh collaborative run, splits the prompt into 2-8 lane-specific child tasks, respects the global task queue, and synthesizes the lane outputs through the existing team orchestration flow.
   - title: Latest Release 0.5.49
-    details: CoWork CLI, Browser Use Cloud routing, bundled Codex Security workflows, automation outcome reporting, Mission Control automation visibility, Usage Insights token heatmaps, prompt composer link chips, public adoption stats, and security/reliability hardening.
+    details: NeoWorker CLI, Browser Use Cloud routing, bundled Codex Security workflows, automation outcome reporting, Mission Control automation visibility, Usage Insights token heatmaps, prompt composer link chips, public adoption stats, and security/reliability hardening.
   - title: Inbox Agent
     details: Local-first email workspace with Classic and Today modes, AI triage, Ask Inbox sidebar chat with live agentic steps and hybrid evidence retrieval, `@Inbox` main-composer routing, manual reply/reply-all/forward, editable AI drafts, commitment queues, sender cleanup, attachment indexing, and resync-safe background sync.
   - title: Managed Devices
-    details: Connect local and remote CoWork nodes, inspect device summaries, browse remote workspaces, and launch tasks against selected machines from one Devices tab.
+    details: Connect local and remote NeoWorker nodes, inspect device summaries, browse remote workspaces, and launch tasks against selected machines from one Devices tab.
   - title: Core Automation
     details: Workflow Intelligence now forms the strict always-on core: Memory is the source of truth, Heartbeat schedules reflection, Dreaming curates reviewable memory candidates, Suggestions are reviewable outputs, and Mission Control remains the cockpit.
   - title: Automations
@@ -218,19 +218,19 @@ features:
   - title: Heartbeat V3
     details: Default two-lane background automation with cheap Pulse checks, selective Dispatch escalation, signal compression, automation-profile ownership, and truthful Mission Control state that separates Heartbeat agents, global runtime queue pressure, and workspace board work.
   - title: 151 Built-in Skills
-    details: Document creation, web research, code generation, image analysis, React/Next.js implementation guidance, and specialized bundled workflows such as `llm-wiki` for persistent research vaults, `manim-video` for technical animation, `architecture-design` for Rhino/Blender/ComfyUI concept architecture workflows, `kami` for editorial PDFs and slide decks, `react-best-practices` for React workspace changes, `unbroker` for consent-gated data-broker cleanup, and `taste-skill` for high-agency frontend design. The bundled CoWork Shortcuts pack adds slash-searchable workflow aliases on top of the same skills runtime. Extensible via custom skills, ClawHub installs, external skill imports, and optional read-only external skill directories, with staged scanning and warning/quarantine handling for managed imports.
+    details: Document creation, web research, code generation, image analysis, React/Next.js implementation guidance, and specialized bundled workflows such as `llm-wiki` for persistent research vaults, `manim-video` for technical animation, `architecture-design` for Rhino/Blender/ComfyUI concept architecture workflows, `kami` for editorial PDFs and slide decks, `react-best-practices` for React workspace changes, `unbroker` for consent-gated data-broker cleanup, and `taste-skill` for high-agency frontend design. The bundled NeoWorker Shortcuts pack adds slash-searchable workflow aliases on top of the same skills runtime. Extensible via custom skills, ClawHub installs, external skill imports, and optional read-only external skill directories, with staged scanning and warning/quarantine handling for managed imports.
   - title: LaTeX PDF Artifacts
     details: Source-first `.tex` workflows compile with installed system TeX engines and render paired source/PDF artifact workbenches in task output surfaces.
   - title: Additive Skill Routing
     details: Skills can still be proactively shortlisted from the task, but they add context and scoped runtime directives instead of replacing the canonical user request.
   - title: Profiles & Portability
-    details: Separate CoWork profiles isolate app data, credentials, channels, and sessions, with export/import flows for moving or cloning a setup safely.
+    details: Separate NeoWorker profiles isolate app data, credentials, channels, and sessions, with export/import flows for moving or cloning a setup safely.
   - title: Agent Teams
     details: Multi-agent collaboration with shared checklists, collaborative mode, multi-LLM synthesis, and performance reviews.
   - title: Enterprise Connectors
     details: 47 MCP connectors including Salesforce, Jira, HubSpot, Zendesk, Stripe, Tavily, Grafana, Metabase, Rhino, Blender, ComfyUI, and more, with connector notifications available to automations and configured connector mentions available from the composer.
   - title: Secure MCP Tunnels
-    details: Self-hosted outbound-only relay support lets remote CoWork callers reach selected local or private MCP tools without relying on OpenAI tunnel hosting, ngrok, localtunnel, or public inbound ports on the user's machine.
+    details: Self-hosted outbound-only relay support lets remote NeoWorker callers reach selected local or private MCP tools without relying on OpenAI tunnel hosting, ngrok, localtunnel, or public inbound ports on the user's machine.
   - title: Federated Agents
     details: Discover ACP agents, delegate to local or remote specialists, persist ACP task state locally, and invoke A2A-compatible endpoints under shared approvals and endpoint-validation rules.
   - title: Security First

@@ -16,7 +16,7 @@ describe("dev-log-utils", () => {
   let tempDir: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-dev-log-utils-"));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-dev-log-utils-"));
   });
 
   afterEach(() => {

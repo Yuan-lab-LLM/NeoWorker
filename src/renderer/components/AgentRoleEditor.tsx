@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { AgentRoleData, AgentCapability } from "../../electron/preload";
 import { TWIN_ICON_KEYS, resolveTwinIcon } from "../utils/twin-icons";
+import { translate, useLanguage } from "../i18n";
 
 // Alias for UI usage
 type AgentRole = AgentRoleData;
@@ -19,7 +21,12 @@ const ALL_CAPABILITIES: {
   icon: string;
   description: string;
 }[] = [
-  { value: "code", label: "Code", icon: "💻", description: "Write, modify, and understand code" },
+  {
+    value: "code",
+    label: "Code",
+    icon: "💻",
+    description: "Write, modify, and understand code",
+  },
   {
     value: "review",
     label: "Review",
@@ -32,16 +39,36 @@ const ALL_CAPABILITIES: {
     icon: "📚",
     description: "Research topics and gather information",
   },
-  { value: "test", label: "Test", icon: "🧪", description: "Write and run tests" },
+  {
+    value: "test",
+    label: "Test",
+    icon: "🧪",
+    description: "Write and run tests",
+  },
   {
     value: "document",
     label: "Document",
     icon: "📝",
     description: "Write documentation and comments",
   },
-  { value: "plan", label: "Plan", icon: "📋", description: "Plan and break down tasks" },
-  { value: "design", label: "Design", icon: "🎨", description: "Design systems and architectures" },
-  { value: "analyze", label: "Analyze", icon: "📊", description: "Analyze data and performance" },
+  {
+    value: "plan",
+    label: "Plan",
+    icon: "📋",
+    description: "Plan and break down tasks",
+  },
+  {
+    value: "design",
+    label: "Design",
+    icon: "🎨",
+    description: "Design systems and architectures",
+  },
+  {
+    value: "analyze",
+    label: "Analyze",
+    icon: "📊",
+    description: "Analyze data and performance",
+  },
 ];
 
 const PRESET_COLORS = [
@@ -56,14 +83,54 @@ const PRESET_COLORS = [
 ];
 
 const AUTONOMY_LEVELS = [
-  { value: "intern", label: "Intern", description: "Requires approval for most actions" },
+  {
+    value: "intern",
+    label: "Intern",
+    description: "Requires approval for most actions",
+  },
   {
     value: "specialist",
     label: "Specialist",
     description: "Works independently on assigned tasks",
   },
-  { value: "lead", label: "Lead", description: "Can delegate tasks to other agents" },
+  {
+    value: "lead",
+    label: "Lead",
+    description: "Can delegate tasks to other agents",
+  },
 ] as const;
+
+function capabilityLabel(
+  capability: (typeof ALL_CAPABILITIES)[number],
+): string {
+  return translate(
+    `agentRoleEditor.capability.${capability.value}.label`,
+    capability.label,
+  );
+}
+
+function capabilityDescription(
+  capability: (typeof ALL_CAPABILITIES)[number],
+): string {
+  return translate(
+    `agentRoleEditor.capability.${capability.value}.description`,
+    capability.description,
+  );
+}
+
+function autonomyLabel(level: (typeof AUTONOMY_LEVELS)[number]): string {
+  return translate(
+    `agentRoleEditor.autonomy.${level.value}.label`,
+    level.label,
+  );
+}
+
+function autonomyDescription(level: (typeof AUTONOMY_LEVELS)[number]): string {
+  return translate(
+    `agentRoleEditor.autonomy.${level.value}.description`,
+    level.description,
+  );
+}
 
 export function AgentRoleEditor({
   role,
@@ -72,14 +139,19 @@ export function AgentRoleEditor({
   onCancel,
   error,
 }: AgentRoleEditorProps) {
+  useLanguage();
+  const t = translate;
   const [editedRole, setEditedRole] = useState<AgentRole>(role);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [activeTab, setActiveTab] = useState<"basic" | "capabilities" | "mission" | "advanced">(
-    "basic",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "basic" | "capabilities" | "mission" | "advanced"
+  >("basic");
 
-  const handleChange = <K extends keyof AgentRole>(key: K, value: AgentRole[K]) => {
+  const handleChange = <K extends keyof AgentRole>(
+    key: K,
+    value: AgentRole[K],
+  ) => {
     setEditedRole((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -96,28 +168,35 @@ export function AgentRoleEditor({
   };
 
   const isValid =
-    editedRole.name.trim() && editedRole.displayName.trim() && editedRole.capabilities.length > 0;
+    editedRole.name.trim() &&
+    editedRole.displayName.trim() &&
+    editedRole.capabilities.length > 0;
 
   return (
     <div className="agent-role-editor">
       <form onSubmit={handleSubmit}>
         <div className="editor-header">
           <button type="button" className="btn-back" onClick={onCancel}>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            Back
+            <ArrowLeft size={18} strokeWidth={1.8} />
+            {t("common.back", "Back")}
           </button>
-          <h3>{isCreating ? "Create Agent Role" : "Edit Agent Role"}</h3>
+          <div className="editor-title-block">
+            <h3>
+              {isCreating
+                ? t("agentRoleEditor.title.create", "Create Agent Role")
+                : t("agentRoleEditor.title.edit", "Edit Agent Role")}
+            </h3>
+            <p>
+              {t(
+                "agentRoleEditor.subtitle",
+                "Define how this role appears and works in your agent team.",
+              )}
+            </p>
+          </div>
           <button type="submit" className="btn-primary" disabled={!isValid}>
-            {isCreating ? "Create" : "Save Changes"}
+            {isCreating
+              ? t("common.create", "Create")
+              : t("common.saveChanges", "Save Changes")}
           </button>
         </div>
 
@@ -129,37 +208,48 @@ export function AgentRoleEditor({
             className={`editor-tab ${activeTab === "basic" ? "active" : ""}`}
             onClick={() => setActiveTab("basic")}
           >
-            Basic Info
+            {t("agentRoleEditor.tab.basic", "Basic Info")}
           </button>
           <button
             type="button"
             className={`editor-tab ${activeTab === "capabilities" ? "active" : ""}`}
             onClick={() => setActiveTab("capabilities")}
           >
-            Capabilities
+            {t("agentRoleEditor.tab.capabilities", "Capabilities")}
           </button>
           <button
             type="button"
             className={`editor-tab ${activeTab === "mission" ? "active" : ""}`}
             onClick={() => setActiveTab("mission")}
           >
-            Automation
+            {t("agentRoleEditor.tab.automation", "Automation")}
           </button>
           <button
             type="button"
             className={`editor-tab ${activeTab === "advanced" ? "active" : ""}`}
             onClick={() => setActiveTab("advanced")}
           >
-            Advanced
+            {t("agentRoleEditor.tab.advanced", "Advanced")}
           </button>
         </div>
 
         <div className="editor-content">
           {activeTab === "basic" && (
             <div className="editor-section">
+              <div className="editor-section-heading">
+                <div>
+                  <h4>{t("agentRoleEditor.basic.heading", "Role identity")}</h4>
+                  <p>
+                    {t(
+                      "agentRoleEditor.basic.description",
+                      "Set the name and visual identity your team will recognize.",
+                    )}
+                  </p>
+                </div>
+              </div>
               <div className="form-row icon-color-row">
                 <div className="icon-picker-container">
-                  <label>Icon</label>
+                  <label>{t("agentRoleEditor.field.icon", "Icon")}</label>
                   <button
                     type="button"
                     className="icon-button"
@@ -196,7 +286,7 @@ export function AgentRoleEditor({
                 </div>
 
                 <div className="color-picker-container">
-                  <label>Color</label>
+                  <label>{t("agentRoleEditor.field.color", "Color")}</label>
                   <button
                     type="button"
                     className="color-button"
@@ -232,24 +322,34 @@ export function AgentRoleEditor({
 
               <div className="form-row">
                 <label>
-                  Internal Name <span className="required">*</span>
+                  {t("agentRoleEditor.field.internalName", "Internal Name")}{" "}
+                  <span className="required">*</span>
                 </label>
                 <input
                   type="text"
                   value={editedRole.name}
                   onChange={(e) =>
-                    handleChange("name", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))
+                    handleChange(
+                      "name",
+                      e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+                    )
                   }
                   placeholder="e.g., code-reviewer"
                   disabled={!isCreating}
                   className={!isCreating ? "disabled" : ""}
                 />
-                <span className="form-hint">Unique identifier (lowercase, hyphens only)</span>
+                <span className="form-hint">
+                  {t(
+                    "agentRoleEditor.hint.internalName",
+                    "Unique identifier (lowercase, hyphens only)",
+                  )}
+                </span>
               </div>
 
               <div className="form-row">
                 <label>
-                  Display Name <span className="required">*</span>
+                  {t("agentRoleEditor.field.displayName", "Display Name")}{" "}
+                  <span className="required">*</span>
                 </label>
                 <input
                   type="text"
@@ -260,11 +360,14 @@ export function AgentRoleEditor({
               </div>
 
               <div className="form-row">
-                <label>Description</label>
+                <label>{t("common.description", "Description")}</label>
                 <textarea
                   value={editedRole.description || ""}
                   onChange={(e) => handleChange("description", e.target.value)}
-                  placeholder="Describe what this agent role specializes in..."
+                  placeholder={t(
+                    "agentRoleEditor.placeholder.description",
+                    "Describe what this agent role specializes in...",
+                  )}
                   rows={3}
                 />
               </div>
@@ -274,8 +377,10 @@ export function AgentRoleEditor({
           {activeTab === "capabilities" && (
             <div className="editor-section">
               <p className="section-description">
-                Select the capabilities this agent role should have. At least one capability is
-                required.
+                {t(
+                  "agentRoleEditor.capabilities.description",
+                  "Select the capabilities this agent role should have. At least one capability is required.",
+                )}
               </p>
               <div className="capabilities-grid">
                 {ALL_CAPABILITIES.map((cap) => (
@@ -290,8 +395,12 @@ export function AgentRoleEditor({
                     />
                     <span className="capability-icon">{cap.icon}</span>
                     <div className="capability-info">
-                      <span className="capability-label">{cap.label}</span>
-                      <span className="capability-description">{cap.description}</span>
+                      <span className="capability-label">
+                        {capabilityLabel(cap)}
+                      </span>
+                      <span className="capability-description">
+                        {capabilityDescription(cap)}
+                      </span>
                     </div>
                   </label>
                 ))}
@@ -302,11 +411,16 @@ export function AgentRoleEditor({
           {activeTab === "mission" && (
             <div className="editor-section">
               <p className="section-description">
-                Configure how this agent behaves when background automation is enabled.
+                {t(
+                  "agentRoleEditor.automation.description",
+                  "Configure how this agent behaves when background automation is enabled.",
+                )}
               </p>
 
               <div className="form-row">
-                <label>Autonomy Level</label>
+                <label>
+                  {t("agentRoleEditor.field.autonomyLevel", "Autonomy Level")}
+                </label>
                 <div className="autonomy-options">
                   {AUTONOMY_LEVELS.map((level) => (
                     <label
@@ -325,18 +439,29 @@ export function AgentRoleEditor({
                           )
                         }
                       />
-                      <span className="autonomy-label">{level.label}</span>
-                      <span className="autonomy-description">{level.description}</span>
+                      <span className="autonomy-label">
+                        {autonomyLabel(level)}
+                      </span>
+                      <span className="autonomy-description">
+                        {autonomyDescription(level)}
+                      </span>
                     </label>
                   ))}
                 </div>
               </div>
 
               <div className="form-row">
-                <label>Soul (Extended Personality)</label>
+                <label>
+                  {t(
+                    "agentRoleEditor.field.soul",
+                    "Soul (Extended Personality)",
+                  )}
+                </label>
                 <textarea
                   value={editedRole.soul || ""}
-                  onChange={(e) => handleChange("soul", e.target.value || undefined)}
+                  onChange={(e) =>
+                    handleChange("soul", e.target.value || undefined)
+                  }
                   placeholder={`{
   "communicationStyle": "concise and technical",
   "focusAreas": ["performance", "architecture"],
@@ -350,19 +475,27 @@ export function AgentRoleEditor({
                   className="code-textarea"
                 />
                 <span className="form-hint">
-                  JSON object defining extended personality traits, communication style, and
-                  preferences
+                  {t(
+                    "agentRoleEditor.hint.soul",
+                    "JSON object defining extended personality traits, communication style, and preferences",
+                  )}
                 </span>
               </div>
 
               <div className="heartbeat-section">
                 <div className="section-header">
-                  <h4>Core Automation</h4>
+                  <h4>
+                    {t(
+                      "agentRoleEditor.coreAutomation.title",
+                      "Core Automation",
+                    )}
+                  </h4>
                 </div>
                 <p className="section-description">
-                  Heartbeat, subconscious, and memory are configured separately in Mission Control.
-                  Agent roles define operator identity and mandate, but they do not own core
-                  automation policy inline anymore.
+                  {t(
+                    "agentRoleEditor.coreAutomation.description",
+                    "Heartbeat, subconscious, and memory are configured separately in Mission Control. Agent roles define operator identity and mandate, but they do not own core automation policy inline anymore.",
+                  )}
                 </p>
               </div>
             </div>
@@ -371,39 +504,65 @@ export function AgentRoleEditor({
           {activeTab === "advanced" && (
             <div className="editor-section">
               <div className="form-row">
-                <label>System Prompt</label>
+                <label>
+                  {t("agentRoleEditor.field.systemPrompt", "System Prompt")}
+                </label>
                 <textarea
                   value={editedRole.systemPrompt || ""}
                   onChange={(e) => handleChange("systemPrompt", e.target.value)}
-                  placeholder="Optional custom system prompt for this agent role..."
+                  placeholder={t(
+                    "agentRoleEditor.placeholder.systemPrompt",
+                    "Optional custom system prompt for this agent role...",
+                  )}
                   rows={6}
                 />
                 <span className="form-hint">
-                  Override the default system prompt with custom instructions
+                  {t(
+                    "agentRoleEditor.hint.systemPrompt",
+                    "Override the default system prompt with custom instructions",
+                  )}
                 </span>
               </div>
 
               <div className="form-row">
-                <label>Model Override</label>
+                <label>
+                  {t("agentRoleEditor.field.modelOverride", "Model Override")}
+                </label>
                 <input
                   type="text"
                   value={editedRole.modelKey || ""}
-                  onChange={(e) => handleChange("modelKey", e.target.value || undefined)}
+                  onChange={(e) =>
+                    handleChange("modelKey", e.target.value || undefined)
+                  }
                   placeholder="e.g., claude-3-opus-20240229"
                 />
-                <span className="form-hint">Leave empty to use the default model</span>
+                <span className="form-hint">
+                  {t(
+                    "agentRoleEditor.hint.modelOverride",
+                    "Leave empty to use the default model",
+                  )}
+                </span>
               </div>
 
               <div className="form-row">
-                <label>Sort Order</label>
+                <label>
+                  {t("agentRoleEditor.field.sortOrder", "Sort Order")}
+                </label>
                 <input
                   type="number"
                   value={editedRole.sortOrder}
-                  onChange={(e) => handleChange("sortOrder", parseInt(e.target.value) || 100)}
+                  onChange={(e) =>
+                    handleChange("sortOrder", parseInt(e.target.value) || 100)
+                  }
                   min={1}
                   max={999}
                 />
-                <span className="form-hint">Lower numbers appear first (1-999)</span>
+                <span className="form-hint">
+                  {t(
+                    "agentRoleEditor.hint.sortOrder",
+                    "Lower numbers appear first (1-999)",
+                  )}
+                </span>
               </div>
             </div>
           )}
@@ -412,79 +571,152 @@ export function AgentRoleEditor({
 
       <style>{`
         .agent-role-editor {
-          padding: 16px;
-          max-width: 800px;
+          width: min(100%, 980px);
+          margin: 0 auto;
+          padding: 28px 32px 36px;
+          color: var(--color-text-primary);
         }
 
         .editor-header {
           display: flex;
           align-items: center;
-          gap: 16px;
-          margin-bottom: 20px;
+          gap: 18px;
+          min-height: 56px;
+          padding-bottom: 22px;
+          margin-bottom: 18px;
+          border-bottom: 1px solid var(--color-border-subtle);
         }
 
         .editor-header h3 {
-          flex: 1;
           margin: 0;
-          font-size: 18px;
+          color: var(--color-text-primary);
+          font-size: 25px;
+          font-weight: 720;
+          letter-spacing: -0.025em;
+          line-height: 1.2;
+        }
+
+        .editor-title-block {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .editor-title-block p {
+          margin: 5px 0 0;
+          color: var(--color-text-secondary);
+          font-size: 13px;
+          line-height: 1.5;
         }
 
         .btn-back {
           display: flex;
           align-items: center;
-          gap: 6px;
-          background: transparent;
-          border: none;
+          gap: 7px;
+          flex: 0 0 auto;
+          min-height: 38px;
+          padding: 0 11px;
+          background: var(--color-bg-primary);
+          border: 1px solid var(--color-border);
           color: var(--color-text-secondary);
           cursor: pointer;
-          padding: 8px;
-          border-radius: 6px;
-          font-size: 14px;
+          border-radius: var(--radius-sm);
+          font-size: 13px;
+          font-weight: 650;
+          transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
         }
 
         .btn-back:hover {
-          background: var(--color-bg-secondary);
+          background: var(--color-bg-hover);
+          border-color: color-mix(in srgb, var(--color-accent) 42%, var(--color-border));
           color: var(--color-text-primary);
         }
 
+        .btn-back:active,
+        .agent-role-editor .btn-primary:active {
+          transform: translateY(1px);
+        }
+
+        .agent-role-editor .btn-primary {
+          flex: 0 0 auto;
+          min-height: 42px;
+          padding: 0 18px;
+          border-radius: var(--radius-sm);
+          box-shadow: none;
+          font-size: 13px;
+          font-weight: 700;
+        }
+
+        .agent-role-editor .btn-primary:disabled {
+          cursor: not-allowed;
+          opacity: 0.48;
+        }
+
         .editor-tabs {
-          display: flex;
-          gap: 4px;
-          border-bottom: 1px solid var(--color-border);
-          margin-bottom: 20px;
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          max-width: 100%;
+          padding: 4px;
+          overflow-x: auto;
+          background: var(--color-bg-secondary);
+          border: 1px solid var(--color-border-subtle);
+          border-radius: 12px;
+          margin: 0 0 20px;
         }
 
         .editor-tab {
           background: transparent;
           border: none;
-          padding: 10px 16px;
+          padding: 8px 14px;
           color: var(--color-text-secondary);
           cursor: pointer;
-          font-size: 14px;
-          border-bottom: 2px solid transparent;
-          margin-bottom: -1px;
-          transition: all 0.15s ease;
+          font-size: 13px;
+          font-weight: 650;
+          line-height: 20px;
+          border-radius: 8px;
+          white-space: nowrap;
+          transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
         }
 
         .editor-tab:hover {
+          background: var(--color-bg-hover);
           color: var(--color-text-primary);
         }
 
         .editor-tab.active {
-          color: var(--color-accent);
-          border-bottom-color: var(--color-accent);
+          background: var(--color-bg-primary);
+          box-shadow: 0 1px 3px color-mix(in srgb, var(--color-text-primary) 9%, transparent);
+          color: var(--color-accent-dark);
         }
 
         .editor-content {
-          background: var(--color-bg-secondary);
-          border-radius: 8px;
-          padding: 20px;
+          background: transparent;
         }
 
         .editor-section {
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 18px;
+          padding: 26px 28px 28px;
+          background: var(--color-bg-primary);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-lg);
+          box-shadow: 0 12px 30px color-mix(in srgb, var(--color-text-primary) 5%, transparent);
+        }
+
+        .editor-section-heading h4 {
+          margin: 0;
+          color: var(--color-text-primary);
+          font-size: 16px;
+          font-weight: 720;
+          letter-spacing: -0.01em;
+        }
+
+        .editor-section-heading p {
+          margin: 5px 0 0;
+          color: var(--color-text-secondary);
+          font-size: 13px;
+          line-height: 1.5;
         }
 
         .section-description {
@@ -496,12 +728,12 @@ export function AgentRoleEditor({
         .form-row {
           display: flex;
           flex-direction: column;
-          gap: 6px;
+          gap: 7px;
         }
 
         .form-row label {
           font-size: 13px;
-          font-weight: 500;
+          font-weight: 680;
           color: var(--color-text-primary);
         }
 
@@ -514,10 +746,12 @@ export function AgentRoleEditor({
         .form-row select {
           padding: 10px 12px;
           border: 1px solid var(--color-border);
-          border-radius: 6px;
-          background: var(--color-bg-primary);
+          border-radius: var(--radius-sm);
+          background: var(--color-bg-input);
           color: var(--color-text-primary);
           font-size: 14px;
+          line-height: 1.45;
+          transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
         }
 
         .form-row input:focus,
@@ -525,6 +759,8 @@ export function AgentRoleEditor({
         .form-row select:focus {
           outline: none;
           border-color: var(--color-accent);
+          background: var(--color-bg-primary);
+          box-shadow: 0 0 0 3px var(--color-accent-subtle);
         }
 
         .form-row input.disabled {
@@ -533,38 +769,57 @@ export function AgentRoleEditor({
         }
 
         .form-hint {
-          font-size: 11px;
+          font-size: 12px;
           color: var(--color-text-muted);
+          line-height: 1.45;
         }
 
         .icon-color-row {
-          flex-direction: row;
-          gap: 20px;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 14px;
+          padding: 16px;
+          background: color-mix(in srgb, var(--color-accent-subtle) 44%, var(--color-bg-secondary));
+          border: 1px solid color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
+          border-radius: 12px;
         }
 
         .icon-picker-container,
         .color-picker-container {
           position: relative;
+          display: flex;
+          flex-direction: column;
+          gap: 9px;
         }
 
         .icon-button {
-          width: 48px;
-          height: 48px;
-          border: none;
-          border-radius: 10px;
-          font-size: 24px;
+          width: 54px;
+          height: 54px;
+          border: 1px solid color-mix(in srgb, var(--color-text-primary) 15%, transparent);
+          border-radius: 12px;
+          color: var(--color-text-primary);
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
+          box-shadow: inset 0 1px 0 color-mix(in srgb, white 30%, transparent);
+          transition: transform 160ms ease, box-shadow 160ms ease;
+        }
+
+        .icon-button:hover,
+        .color-button:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 5px 14px color-mix(in srgb, var(--color-text-primary) 12%, transparent);
         }
 
         .color-button {
-          width: 48px;
-          height: 48px;
-          border: 2px solid var(--color-border);
-          border-radius: 10px;
+          width: 54px;
+          height: 54px;
+          border: 3px solid var(--color-bg-primary);
+          outline: 1px solid color-mix(in srgb, var(--color-text-primary) 18%, transparent);
+          border-radius: 12px;
           cursor: pointer;
+          transition: transform 160ms ease, box-shadow 160ms ease;
         }
 
         .picker-dropdown {
@@ -573,24 +828,24 @@ export function AgentRoleEditor({
           left: 0;
           background: var(--color-bg-primary);
           border: 1px solid var(--color-border);
-          border-radius: 8px;
-          padding: 8px;
+          border-radius: 12px;
+          padding: 10px;
           z-index: 100;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-          margin-top: 4px;
+          box-shadow: 0 16px 34px color-mix(in srgb, var(--color-text-primary) 18%, transparent);
+          margin-top: 6px;
         }
 
         .picker-grid {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
-          gap: 4px;
+          gap: 6px;
         }
 
         .picker-item {
           width: 32px;
           height: 32px;
           border: 2px solid transparent;
-          border-radius: 6px;
+          border-radius: 8px;
           cursor: pointer;
           font-size: 16px;
           background: var(--color-bg-secondary);
@@ -621,28 +876,29 @@ export function AgentRoleEditor({
         .capabilities-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-          gap: 8px;
+          gap: 10px;
         }
 
         .capability-option {
           display: flex;
           align-items: center;
           gap: 10px;
-          padding: 12px;
-          background: var(--color-bg-primary);
-          border: 2px solid var(--color-border);
-          border-radius: 8px;
+          padding: 14px;
+          background: var(--color-bg-input);
+          border: 1px solid var(--color-border);
+          border-radius: 12px;
           cursor: pointer;
-          transition: all 0.15s ease;
+          transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
         }
 
         .capability-option:hover {
-          border-color: var(--color-text-muted);
+          border-color: color-mix(in srgb, var(--color-accent) 48%, var(--color-border));
+          transform: translateY(-1px);
         }
 
         .capability-option.selected {
           border-color: var(--color-accent);
-          background: var(--color-bg-tertiary);
+          background: var(--color-accent-subtle);
         }
 
         .capability-option input {
@@ -657,7 +913,7 @@ export function AgentRoleEditor({
           align-items: center;
           justify-content: center;
           background: var(--color-bg-secondary);
-          border-radius: 6px;
+          border-radius: 8px;
         }
 
         .capability-info {
@@ -680,29 +936,31 @@ export function AgentRoleEditor({
 
         /* Mission Control Styles */
         .autonomy-options {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
         }
 
         .autonomy-option {
           display: flex;
           flex-direction: column;
-          padding: 12px 16px;
-          background: var(--color-bg-primary);
-          border: 2px solid var(--color-border);
-          border-radius: 8px;
+          min-height: 104px;
+          padding: 14px;
+          background: var(--color-bg-input);
+          border: 1px solid var(--color-border);
+          border-radius: 12px;
           cursor: pointer;
-          transition: all 0.15s ease;
+          transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
         }
 
         .autonomy-option:hover {
-          border-color: var(--color-text-muted);
+          border-color: color-mix(in srgb, var(--color-accent) 48%, var(--color-border));
+          transform: translateY(-1px);
         }
 
         .autonomy-option.selected {
           border-color: var(--color-accent);
-          background: var(--color-bg-tertiary);
+          background: var(--color-accent-subtle);
         }
 
         .autonomy-option input {
@@ -710,7 +968,7 @@ export function AgentRoleEditor({
         }
 
         .autonomy-label {
-          font-weight: 600;
+          font-weight: 700;
           font-size: 14px;
           color: var(--color-text-primary);
         }
@@ -728,10 +986,10 @@ export function AgentRoleEditor({
         }
 
         .heartbeat-section {
-          background: var(--color-bg-primary);
+          background: var(--color-bg-input);
           border: 1px solid var(--color-border);
-          border-radius: 8px;
-          padding: 16px;
+          border-radius: 12px;
+          padding: 18px;
           margin-top: 8px;
         }
 
@@ -801,6 +1059,50 @@ export function AgentRoleEditor({
           margin-top: 16px;
           padding-top: 16px;
           border-top: 1px solid var(--color-border);
+        }
+
+        @media (max-width: 680px) {
+          .agent-role-editor {
+            padding: 20px 16px 28px;
+          }
+
+          .editor-header {
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 12px;
+          }
+
+          .editor-title-block {
+            order: 3;
+            flex-basis: 100%;
+          }
+
+          .editor-header h3 {
+            font-size: 22px;
+          }
+
+          .agent-role-editor .btn-primary {
+            margin-left: auto;
+          }
+
+          .editor-section {
+            padding: 20px;
+          }
+
+          .icon-color-row,
+          .autonomy-options {
+            grid-template-columns: 1fr;
+          }
+
+          .editor-tabs {
+            display: flex;
+            width: 100%;
+          }
+
+          .editor-tab {
+            flex: 1 0 auto;
+            text-align: center;
+          }
         }
       `}</style>
     </div>

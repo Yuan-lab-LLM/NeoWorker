@@ -10,11 +10,20 @@ import {
 describe("timeline-tool-labels", () => {
   it("uses plain-language running labels", () => {
     expect(friendlyToolRunningLabel("web_fetch")).toBe("Fetching a web page");
-    expect(friendlyToolRunningLabel("http_request")).toBe("Fetching a web page");
+    expect(friendlyToolRunningLabel("http_request")).toBe(
+      "Fetching a web page",
+    );
     expect(friendlyToolRunningLabel("grep")).toBe("Searching in files");
-    expect(friendlyToolRunningLabel("browser_screenshot")).toBe("Browser take screenshot");
-    expect(friendlyToolRunningLabel("browser_snapshot")).toBe("Browser snapshot");
+    expect(friendlyToolRunningLabel("browser_screenshot")).toBe(
+      "Browser take screenshot",
+    );
+    expect(friendlyToolRunningLabel("browser_snapshot")).toBe(
+      "Browser snapshot",
+    );
     expect(friendlyToolRunningLabel("skill")).toBe("Reading a skill");
+    expect(friendlyToolRunningLabel("create_spreadsheet")).toBe(
+      "正在生成并检查表格",
+    );
   });
 
   it("formats tool_call titles with context", () => {
@@ -29,7 +38,9 @@ describe("timeline-tool-labels", () => {
         provider: "brave",
       }),
     ).toContain("via Brave");
-    expect(friendlyToolCallTitle("read_file", { path: "src/a.md" })).toBe("Read a.md");
+    expect(friendlyToolCallTitle("read_file", { path: "src/a.md" })).toBe(
+      "Read a.md",
+    );
     expect(
       friendlyToolCallTitle("http_request", {
         url: "https://api.github.com/repos/foo/bar/releases",
@@ -55,9 +66,9 @@ describe("timeline-tool-labels", () => {
         url: "http://localhost:5173/dashboard",
       }),
     ).toBe("Browser navigate: localhost/dashboard");
-    expect(friendlyToolCallTitle("browser_screenshot", { full_page: true })).toBe(
-      "Browser take screenshot",
-    );
+    expect(
+      friendlyToolCallTitle("browser_screenshot", { full_page: true }),
+    ).toBe("Browser take screenshot");
     expect(
       friendlyToolCallTitle("read_file", {
         path: "/Users/test/.codex/skills/test/SKILL.md",
@@ -68,6 +79,11 @@ describe("timeline-tool-labels", () => {
         skillName: "Test",
       }),
     ).toBe("Reading Test skill");
+    expect(
+      friendlyToolCallTitle("create_presentation", {
+        filename: "季度经营复盘.pptx",
+      }),
+    ).toBe("生成并检查演示文稿：季度经营复盘.pptx");
   });
 
   it("formats tool_result titles with detail", () => {
@@ -81,10 +97,23 @@ describe("timeline-tool-labels", () => {
     expect(
       friendlyToolResultTitle(
         "web_fetch",
-        { url: "https://github.com/foo/bar", title: "Releases · foo/bar · GitHub" },
+        {
+          url: "https://github.com/foo/bar",
+          title: "Releases · foo/bar · GitHub",
+        },
         true,
       ),
     ).toBe("Fetched Releases · foo/bar · GitHub");
+    expect(
+      friendlyToolResultTitle(
+        "web_fetch",
+        {
+          url: "https://q.stock.sohu.com/cn/000977/lshq.shtml",
+          title: "���Ϣ(000977) - ��ʷ����",
+        },
+        true,
+      ),
+    ).toBe("Fetched q.stock.sohu.com/cn/000977/lshq.shtml");
     expect(
       friendlyToolResultTitle(
         "web_search",
@@ -108,9 +137,13 @@ describe("timeline-tool-labels", () => {
         true,
       ),
     ).toBe("Searched in files: SessionRuntime");
-    expect(friendlyToolResultTitle("grep", { success: true, matches: [{}, {}] }, true)).toContain(
-      "match",
-    );
+    expect(
+      friendlyToolResultTitle(
+        "grep",
+        { success: true, matches: [{}, {}] },
+        true,
+      ),
+    ).toContain("match");
     expect(
       friendlyToolResultTitle(
         "browser_navigate",
@@ -135,21 +168,48 @@ describe("timeline-tool-labels", () => {
     expect(
       friendlyToolResultTitle(
         "read_files",
-        { files: [{ path: "/Users/test/.codex/skills/test/SKILL.md", content: "# Test" }] },
+        {
+          files: [
+            {
+              path: "/Users/test/.codex/skills/test/SKILL.md",
+              content: "# Test",
+            },
+          ],
+        },
         true,
       ),
     ).toBe("Read Test skill");
+    expect(friendlyToolResultTitle("skill", { skill_name: "Test" }, true)).toBe(
+      "Read Test skill",
+    );
     expect(
-      friendlyToolResultTitle("skill", { skill_name: "Test" }, true),
-    ).toBe("Read Test skill");
+      friendlyToolResultTitle(
+        "create_document",
+        {
+          path: "季度经营复盘.docx",
+          qualityCheck: { status: "passed", issueCount: 0 },
+        },
+        true,
+      ),
+    ).toBe("文档已生成：季度经营复盘.docx · 已完成质检");
   });
 
   it("uses short lane completion labels", () => {
-    expect(friendlyToolLaneCompletedLabel("web_fetch", false)).toBe("Fetched page");
-    expect(friendlyToolLaneCompletedLabel("web_search", true)).toBe("Search failed");
-    expect(friendlyToolLaneCompletedLabel("browser_snapshot", false)).toBe("Browser snapshot");
-    expect(friendlyToolLaneCompletedLabel("browser_click", true)).toBe("Browser action failed");
-    expect(friendlyToolLaneCompletedLabel("browser_network", false)).toBe("Browser network");
+    expect(friendlyToolLaneCompletedLabel("web_fetch", false)).toBe(
+      "Fetched page",
+    );
+    expect(friendlyToolLaneCompletedLabel("web_search", true)).toBe(
+      "Search failed",
+    );
+    expect(friendlyToolLaneCompletedLabel("browser_snapshot", false)).toBe(
+      "Browser snapshot",
+    );
+    expect(friendlyToolLaneCompletedLabel("browser_click", true)).toBe(
+      "Browser action failed",
+    );
+    expect(friendlyToolLaneCompletedLabel("browser_network", false)).toBe(
+      "Browser network",
+    );
     expect(friendlyToolLaneCompletedLabel("skill", false)).toBe("Read skill");
   });
 });

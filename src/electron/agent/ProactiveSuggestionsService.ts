@@ -591,7 +591,7 @@ export class ProactiveSuggestionsService {
           title,
           description:
             contextShift.detail ||
-            "CoWork detected a context shift and can turn it into a concrete next step.",
+            "NeoWorker detected a context shift and can turn it into a concrete next step.",
           actionPrompt: `Use my current computer context and recent work to propose the best next action for: ${contextShift.title}`,
           sourceEntity: contextShift.id,
           confidence: Math.max(0.64, contextShift.score || 0.64),

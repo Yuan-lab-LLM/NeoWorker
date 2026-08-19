@@ -1,6 +1,6 @@
 # Everyday Agent
 
-Everyday Agent is an opt-in control, consent, trust, and observability layer over existing CoWork OS execution systems. It does not introduce a separate executor. Work still runs through Managed Agents, task timelines, Browser Workbench, Inbox Agent, Mission Control, Routines, Channels, Devices, memory, and the permission system.
+Everyday Agent is an opt-in control, consent, trust, and observability layer over existing NeoWorker execution systems. It does not introduce a separate executor. Work still runs through Managed Agents, task timelines, Browser Workbench, Inbox Agent, Mission Control, Routines, Channels, Devices, memory, and the permission system.
 
 ## Product Surface
 
@@ -15,21 +15,13 @@ Open **Everyday Agent** from the sidebar. The surface shows:
 - Global and scoped pause controls for capability, connector, workspace, device, and channel.
 - Local clear-data controls for receipts, previews, cached connector summaries, and browser-profile metadata.
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-7.webp" alt="Everyday Agent plan" width="700">
-  <br><em>Everyday Agent keeps active goals, live plan items, and priority queues visible.</em>
-</p>
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-13.webp" alt="Everyday Agent settings" width="700">
-  <br><em>Capability settings make consent, connector scope, and automation lanes explicit.</em>
-</p>
 
 ## Consent Model
 
-The Spark-style onboarding modal is CoWork-specific:
+The Spark-style onboarding modal is NeoWorker-specific:
 
-- Local-first profile and receipt storage in the CoWork SQLite database.
+- Local-first profile and receipt storage in the NeoWorker SQLite database.
 - Visible Browser Workbench preference for web work.
 - Reviewable memory by default.
 - Scoped connector allowlists instead of global connector access.

@@ -14,13 +14,11 @@ import type {
   WorkerRoleKind,
 } from "../../shared/types";
 import { IPC_CHANNELS, MULTI_LLM_PROVIDER_DISPLAY as _MULTI_LLM_PROVIDER_DISPLAY } from "../../shared/types";
-import {
-  resolveModelPreferenceToModelKey,
-  resolvePersonalityPreference,
-} from "../../shared/agent-preferences";
+import { resolveModelPreferenceToModelKey, resolvePersonalityPreference } from "../../shared/agent-preferences";
 import { LLMProviderFactory } from "../agent/llm/provider-factory";
 import type { OrchestrationGraphNodeInput } from "../agent/orchestration/OrchestrationGraphEngine";
 import type { OrchestrationGraphSnapshot } from "../agent/orchestration/OrchestrationGraphRepository";
+import { normalizePromptForContracts } from "../agent/executor-completion-utils";
 import { AgentTeamRepository } from "./AgentTeamRepository";
 import { AgentTeamRunRepository } from "./AgentTeamRunRepository";
 import { AgentTeamItemRepository } from "./AgentTeamItemRepository";
@@ -29,9 +27,22 @@ import { createLogger } from "../utils/logger";
 
 const log = createLogger("AgentTeamOrchestrator");
 
+/**
+ * Team children must receive the user's request, never the execution strategy
+ * appended to the parent task prompt.  Passing the decorated prompt causes the
+ * child planner to turn checklist/memory policy bullets into executable steps.
+ */
+function getRootTaskRequest(rootTask: Task): string {
+  const candidates = [rootTask.rawPrompt, rootTask.userPrompt, rootTask.prompt];
+  for (const candidate of candidates) {
+    const normalized = normalizePromptForContracts(String(candidate || "")).trim();
+    if (normalized) return normalized;
+  }
+  return String(rootTask.title || "").trim();
+}
+
 type AgentTeamRepositoryLike =
-  | Pick<AgentTeamRepository, "findById">
-  | { findById: (id: string) => AgentTeam | undefined };
+  Pick<AgentTeamRepository, "findById"> | { findById: (id: string) => AgentTeam | undefined };
 type AgentTeamRunRepositoryLike =
   | Pick<AgentTeamRunRepository, "findById" | "update">
   | {
@@ -87,7 +98,12 @@ export type AgentTeamOrchestratorDeps = {
   appendOrchestrationGraphNodes?: (params: {
     runId: string;
     nodes: OrchestrationGraphNodeInput[];
-    edges?: Array<{ fromNodeId?: string; fromNodeKey?: string; toNodeId?: string; toNodeKey?: string }>;
+    edges?: Array<{
+      fromNodeId?: string;
+      fromNodeKey?: string;
+      toNodeId?: string;
+      toNodeKey?: string;
+    }>;
   }) => Promise<OrchestrationGraphSnapshot | undefined>;
   findOrchestrationGraphByTeamRunId?: (teamRunId: string) => OrchestrationGraphSnapshot | undefined;
 };
@@ -95,7 +111,7 @@ export type AgentTeamOrchestratorDeps = {
 function getAllElectronWindows(): Any[] {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-// oxlint-disable-next-line typescript-eslint(no-require-imports)
+    // oxlint-disable-next-line typescript-eslint(no-require-imports)
     const electron = require("electron") as Any;
     if (!electron || typeof electron !== "object") return [];
     const BrowserWindow = electron?.BrowserWindow;
@@ -139,7 +155,7 @@ function compactTextForSynthesis(text: string, maxChars: number): string {
 function groupAndCompactThoughts(thoughts: AgentThought[], maxChars: number): string {
   const byAgent = new Map<string, string[]>();
   for (const t of thoughts) {
-    const agent = t.agentRoleId || t.agentDisplayName || "unknown";
+    const agent = t.agentDisplayName || t.agentRoleId || "unknown";
     if (!byAgent.has(agent)) byAgent.set(agent, []);
     byAgent.get(agent)!.push(t.content);
   }
@@ -243,8 +259,7 @@ export class AgentTeamOrchestrator {
     try {
       const settings = LLMProviderFactory.loadSettings();
       const providerType = rootTask.agentConfig?.providerType || settings.providerType;
-      return LLMProviderFactory.getProviderRoutingSettings(settings, providerType)
-        .profileRoutingEnabled;
+      return LLMProviderFactory.getProviderRoutingSettings(settings, providerType).profileRoutingEnabled;
     } catch {
       return false;
     }
@@ -272,7 +287,12 @@ export class AgentTeamOrchestrator {
           error: `Root task not found: ${run.rootTaskId}`,
         });
         if (updated) {
-          emitTeamEvent({ type: "team_run_updated", timestamp: Date.now(), run: updated, reason });
+          emitTeamEvent({
+            type: "team_run_updated",
+            timestamp: Date.now(),
+            run: updated,
+            reason,
+          });
         }
         return;
       }
@@ -291,7 +311,6 @@ export class AgentTeamOrchestrator {
       }
 
       const refreshedItems = this.itemRepo.listByRun(run.id);
-      const inProgress = refreshedItems.filter((i) => i.status === "in_progress");
 
       // If everything is terminal, complete or transition the run.
       const nonTerminal = refreshedItems.filter((i) => !isTerminalItemStatus(i.status));
@@ -301,12 +320,7 @@ export class AgentTeamOrchestrator {
         // before the synthesis task was actually spawned.
         const currentPhase = run.phase || "dispatch";
         const hasSynthesisItem = refreshedItems.some((i) => i.title === SYNTHESIS_ITEM_TITLE);
-        if (
-          run.collaborativeMode &&
-          !childAgentCollaborativeRun &&
-          currentPhase !== "complete" &&
-          !hasSynthesisItem
-        ) {
+        if (run.collaborativeMode && !childAgentCollaborativeRun && currentPhase !== "complete" && !hasSynthesisItem) {
           // Guard: verify all sub-agent tasks are actually terminal before synthesis.
           // Synthesis must only run after every sub-agent has completed (success or failure).
           const preSynthesisItems = refreshedItems.filter((i) => i.title !== SYNTHESIS_ITEM_TITLE);
@@ -328,11 +342,20 @@ export class AgentTeamOrchestrator {
         // When wrap-up was user-initiated, only synthesis failure should mark the run
         // as failed — pre-synthesis items may have been cut short intentionally.
         const wasUserWrapUp = this.wrapUpRequestedRunIds.has(run.id);
-        const hasFailures = wasUserWrapUp
-          ? refreshedItems.find((i) => i.title === SYNTHESIS_ITEM_TITLE)?.status === "failed"
-          : refreshedItems.some((i) => i.status === "failed");
+        const synthesisItem = refreshedItems.find((i) => i.title === SYNTHESIS_ITEM_TITLE);
+        // A successful synthesis is the collaborative deliverable. Individual
+        // experts may fail while the leader still produces a valid answer from
+        // the remaining outputs, so those failures must not discard it.
+        const hasFailures = synthesisItem
+          ? synthesisItem.status !== "done"
+          : wasUserWrapUp
+            ? false
+            : refreshedItems.some((i) => i.status === "failed");
         const status = hasFailures ? "failed" : "completed";
-        const summary = this.buildRunSummary(refreshedItems);
+        const summary =
+          synthesisItem?.status === "done" && synthesisItem.resultSummary?.trim()
+            ? synthesisItem.resultSummary.trim()
+            : this.buildRunSummary(refreshedItems);
         const completedPhase = run.collaborativeMode ? "complete" : undefined;
         const updated = this.runRepo.update(run.id, {
           status,
@@ -350,11 +373,7 @@ export class AgentTeamOrchestrator {
         this.wrapUpRequestedRunIds.delete(run.id);
         // When a collaborative run finishes, mark the root task as completed/failed
         if (run.collaborativeMode && !childAgentCollaborativeRun && this.deps.completeRootTask) {
-          this.deps.completeRootTask(
-            run.rootTaskId,
-            status === "failed" ? "failed" : "completed",
-            summary,
-          );
+          this.deps.completeRootTask(run.rootTaskId, status === "failed" ? "failed" : "completed", summary);
         }
         return;
       }
@@ -382,8 +401,7 @@ export class AgentTeamOrchestrator {
             .filter((candidate) => candidate.title !== SYNTHESIS_ITEM_TITLE)
             .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt - b.createdAt)
             .findIndex((candidate) => candidate.id === item.id);
-          const participant =
-            participantIndex >= 0 ? multiLlmParticipants[participantIndex] : undefined;
+          const participant = participantIndex >= 0 ? multiLlmParticipants[participantIndex] : undefined;
           if (!participant) continue;
           graphNodes.push({
             key: item.id,
@@ -421,13 +439,7 @@ export class AgentTeamOrchestrator {
         graphNodes.push({
           key: item.id,
           title: item.title,
-          prompt: this.buildItemPrompt(
-            team.name,
-            rootTask,
-            item.title,
-            item.description,
-            run.collaborativeMode,
-          ),
+          prompt: this.buildItemPrompt(team.name, rootTask, item.title, item.description, run.collaborativeMode),
           kind: "team_work_item" as const,
           dispatchTarget: "local_role" as const,
           parentTaskId: rootTask.id,
@@ -501,7 +513,11 @@ export class AgentTeamOrchestrator {
             workspaceId: rootTask.workspaceId,
             kind: "team",
             maxParallel: Math.max(1, Number(team.maxParallelAgents || 1)),
-            metadata: { teamRunId: run.id, collaborativeMode: run.collaborativeMode, multiLlmMode: run.multiLlmMode },
+            metadata: {
+              teamRunId: run.id,
+              collaborativeMode: run.collaborativeMode,
+              multiLlmMode: run.multiLlmMode,
+            },
             nodes: graphNodes,
           });
 
@@ -521,7 +537,7 @@ export class AgentTeamOrchestrator {
           sourceTaskId: node?.taskId,
           status: nextStatus,
         });
-      if (updatedItem && node?.taskId) {
+        if (updatedItem && node?.taskId) {
           emitTeamEvent({
             type: "team_item_spawned",
             timestamp: Date.now(),
@@ -577,12 +593,22 @@ export class AgentTeamOrchestrator {
     if (!nextStatus) return;
 
     for (const item of items) {
+      if (item.title === SYNTHESIS_ITEM_TITLE) {
+        const watchdog = this.synthesisWatchdogTimers.get(item.teamRunId);
+        if (watchdog) clearTimeout(watchdog);
+        this.synthesisWatchdogTimers.delete(item.teamRunId);
+      }
       const resultSummary =
         typeof task.resultSummary === "string" && task.resultSummary.trim().length > 0
           ? task.resultSummary.trim()
-          : typeof task.error === "string" && task.error.trim().length > 0
-            ? `Error: ${task.error.trim()}`
-            : null;
+          : typeof task.bestKnownOutcome?.resultSummary === "string" &&
+              task.bestKnownOutcome.resultSummary.trim().length > 0
+            ? task.bestKnownOutcome.resultSummary.trim()
+            : typeof task.semanticSummary === "string" && task.semanticSummary.trim().length > 0
+              ? task.semanticSummary.trim()
+              : typeof task.error === "string" && task.error.trim().length > 0
+                ? `Error: ${task.error.trim()}`
+                : null;
 
       // Compact synthesis retry on provider failover: if the synthesis item
       // failed and we haven't retried yet, re-run synthesis with a compacted prompt.
@@ -723,9 +749,7 @@ export class AgentTeamOrchestrator {
 
       if (childAgentCollaborativeRun) {
         if (stillInProgress.length === 0) {
-          const status = refreshedItems.some((i) => i.status === "failed")
-            ? "failed"
-            : "completed";
+          const status = refreshedItems.some((i) => i.status === "failed") ? "failed" : "completed";
           const updated = this.runRepo.update(run.id, {
             status,
             phase: "complete",
@@ -748,7 +772,9 @@ export class AgentTeamOrchestrator {
         await this.transitionToSynthesizePhase(run, team, rootTask, refreshedItems);
       } else {
         // Some items still running — update phase; onTaskTerminal will finish transition
-        const updated = this.runRepo.update(run.id, { phase: "synthesize" as AgentTeamRunPhase });
+        const updated = this.runRepo.update(run.id, {
+          phase: "synthesize" as AgentTeamRunPhase,
+        });
         if (updated) {
           emitTeamEvent({
             type: "team_run_updated",
@@ -768,13 +794,14 @@ export class AgentTeamOrchestrator {
     itemDescription?: string,
     collaborativeMode?: boolean,
   ): string {
+    const rootRequest = getRootTaskRequest(rootTask);
     if (collaborativeMode && rootTask.agentConfig?.multitaskMode) {
       const parts: string[] = [];
       parts.push(`You are part of the multitask team "${teamName}".`);
       parts.push("");
       parts.push("ROOT TASK CONTEXT:");
       parts.push(`Title: ${rootTask.title}`);
-      parts.push(rootTask.prompt);
+      parts.push(rootRequest);
       parts.push("");
       parts.push("YOUR MULTITASK LANE:");
       parts.push(`Title: ${itemTitle}`);
@@ -794,7 +821,7 @@ export class AgentTeamOrchestrator {
       parts.push("");
       parts.push("TASK FOR INDEPENDENT ANALYSIS:");
       parts.push(`Title: ${rootTask.title}`);
-      parts.push(rootTask.prompt);
+      parts.push(rootRequest);
       parts.push("");
       parts.push("Analyze this task from your area of expertise.");
       parts.push("Provide thorough, independent analysis and recommendations.");
@@ -809,7 +836,7 @@ export class AgentTeamOrchestrator {
     parts.push("ROOT TASK CONTEXT:");
     parts.push(`- Title: ${rootTask.title}`);
     parts.push("Request:");
-    parts.push(rootTask.prompt);
+    parts.push(rootRequest);
     parts.push("");
     parts.push("YOUR CHECKLIST ITEM:");
     parts.push(`- Title: ${itemTitle}`);
@@ -833,11 +860,7 @@ export class AgentTeamOrchestrator {
     return lines.join("\n");
   }
 
-  private completeRootTaskBestEffort(
-    taskId: string,
-    status: "completed" | "failed",
-    summary: string,
-  ): void {
+  private completeRootTaskBestEffort(taskId: string, status: "completed" | "failed", summary: string): void {
     if (!this.deps.completeRootTask) return;
     try {
       this.deps.completeRootTask(taskId, status, summary);
@@ -846,51 +869,241 @@ export class AgentTeamOrchestrator {
     }
   }
 
-  private scheduleSynthesisWatchdog(
+  /**
+   * The thought stream is best-effort and can be empty even when child tasks
+   * produced useful final answers.  Synthesis must therefore recover output
+   * from the team items and their source tasks as well.
+   */
+  private async collectSynthesisThoughts(
     runId: string,
-    rootTaskId: string,
-    synthesisItemId: string,
-  ): void {
+    thoughts: AgentThought[],
+    items: AgentTeamItem[],
+  ): Promise<AgentThought[]> {
+    const collected = [...thoughts];
+    const coveredItemIds = new Set(collected.map((thought) => thought.teamItemId).filter(Boolean));
+    const coveredTaskIds = new Set(collected.map((thought) => thought.sourceTaskId).filter(Boolean));
+    const now = Date.now();
+
+    for (const item of items) {
+      if (item.title.startsWith(SYNTHESIS_ITEM_TITLE)) continue;
+      if (coveredItemIds.has(item.id)) continue;
+      if (item.sourceTaskId && coveredTaskIds.has(item.sourceTaskId)) continue;
+
+      const sourceTask = item.sourceTaskId
+        ? await this.deps.getTaskById(item.sourceTaskId).catch(() => undefined)
+        : undefined;
+      const bestKnownOutcome =
+        typeof sourceTask?.bestKnownOutcome?.resultSummary === "string"
+          ? sourceTask.bestKnownOutcome.resultSummary.trim()
+          : "";
+      const candidates = [item.resultSummary, sourceTask?.resultSummary, sourceTask?.semanticSummary]
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length);
+      // A failed task's resultSummary is commonly just the terminal error,
+      // while bestKnownOutcome preserves the substantial work completed before
+      // verification failed. Prefer that recovery snapshot whenever present.
+      const content = bestKnownOutcome || candidates[0];
+      if (!content) continue;
+
+      collected.push({
+        id: `recovered-${item.id}`,
+        teamRunId: runId,
+        teamItemId: item.id,
+        agentRoleId: item.ownerAgentRoleId || item.id,
+        agentDisplayName: item.title,
+        agentIcon: "🤖",
+        agentColor: "#6366f1",
+        phase: "analysis",
+        content,
+        isStreaming: false,
+        sourceTaskId: item.sourceTaskId,
+        createdAt: item.updatedAt || now,
+        updatedAt: item.updatedAt || now,
+      });
+    }
+
+    return collected;
+  }
+
+  private buildSynthesisTimeoutFallback(
+    rootTask: Task | undefined,
+    items: AgentTeamItem[],
+    thoughts: AgentThought[],
+  ): string {
+    const isChinese = /[\u3400-\u9fff]/u.test(rootTask ? getRootTaskRequest(rootTask) : "");
+    const status = this.buildRunSummary(items);
+    if (thoughts.length === 0) {
+      return isChinese
+        ? `团队结果汇总连续超时，且没有找到可恢复的专家正文。\n\n${status}`
+        : `Team synthesis timed out twice and no recoverable expert output was found.\n\n${status}`;
+    }
+
+    const available = groupAndCompactThoughts(thoughts, 60_000);
+    return isChinese
+      ? [
+          "团队结果汇总连续超时。系统没有丢弃已经完成的工作，以下是从各专家任务中恢复出的可用结果。",
+          "这些内容尚未经过最终综合，请按专家分节阅读。",
+          "",
+          status,
+          "",
+          "## 已恢复的专家结果",
+          available,
+        ].join("\n")
+      : [
+          "Team synthesis timed out twice. Completed work was preserved; the recoverable expert outputs are included below.",
+          "These sections have not received the final synthesis pass.",
+          "",
+          status,
+          "",
+          "## Recovered expert outputs",
+          available,
+        ].join("\n");
+  }
+
+  private scheduleSynthesisWatchdog(runId: string, rootTaskId: string, synthesisItemId: string): void {
     const existing = this.synthesisWatchdogTimers.get(runId);
     if (existing) clearTimeout(existing);
 
     const timer = setTimeout(() => {
-      this.synthesisWatchdogTimers.delete(runId);
-      try {
-        const run = this.runRepo.findById(runId);
-        if (!run || run.status !== "running") return;
-
-        const items = this.itemRepo.listByRun(runId);
-        const synthesisItem = items.find((item) => item.id === synthesisItemId);
-        if (synthesisItem && isTerminalItemStatus(synthesisItem.status)) return;
-
-        this.itemRepo.update({
-          id: synthesisItemId,
-          status: "blocked",
-          resultSummary: "Synthesis timed out before producing a final response.",
-        });
-        const refreshedItems = this.itemRepo.listByRun(runId);
-        const summary = `${this.buildRunSummary(refreshedItems)} Synthesis timed out; completing with available team outputs.`;
-        const updated = this.runRepo.update(runId, {
-          status: "completed",
-          phase: "complete",
-          summary,
-        });
-        if (updated) {
-          emitTeamEvent({
-            type: "team_run_updated",
-            timestamp: Date.now(),
-            run: updated,
-            reason: "synthesis_watchdog_timeout",
-          });
-        }
-        this.completeRootTaskBestEffort(rootTaskId, "completed", summary);
-      } catch (error) {
-        log.error("Synthesis watchdog failed:", error);
-      }
+      void this.handleSynthesisWatchdogTimeout(runId, rootTaskId, synthesisItemId);
     }, SYNTHESIS_WATCHDOG_MS);
 
     this.synthesisWatchdogTimers.set(runId, timer);
+  }
+
+  private async handleSynthesisWatchdogTimeout(
+    runId: string,
+    rootTaskId: string,
+    synthesisItemId: string,
+  ): Promise<void> {
+    this.synthesisWatchdogTimers.delete(runId);
+    try {
+      const run = this.runRepo.findById(runId);
+      if (!run || run.status !== "running") return;
+
+      const items = this.itemRepo.listByRun(runId);
+      const synthesisItem = items.find((item) => item.id === synthesisItemId);
+      if (synthesisItem && isTerminalItemStatus(synthesisItem.status)) return;
+
+      const timedOutItem = this.itemRepo.update({
+        id: synthesisItemId,
+        title: `${SYNTHESIS_ITEM_TITLE} (timed out)`,
+        status: "blocked",
+        resultSummary: "Synthesis timed out before producing a final response.",
+      });
+      if (timedOutItem) {
+        emitTeamEvent({
+          type: "team_item_updated",
+          timestamp: Date.now(),
+          teamRunId: timedOutItem.teamRunId,
+          item: timedOutItem,
+        });
+        if (timedOutItem.sourceTaskId) {
+          await this.deps.cancelTask(timedOutItem.sourceTaskId).catch(() => {});
+        }
+      }
+
+      // A timeout is recoverable once: retry using a smaller, tool-free
+      // synthesis task instead of incorrectly completing the whole run.
+      if (!this.synthesisRetried.has(runId)) {
+        this.synthesisRetried.add(runId);
+        const rootTask = await this.deps.getTaskById(rootTaskId);
+        const team = this.teamRepo.findById(run.teamId);
+        if (rootTask && team) {
+          try {
+            await this.transitionToSynthesizePhaseCompact(run, team, rootTask, this.itemRepo.listByRun(runId));
+            return;
+          } catch (error) {
+            log.error("Compact synthesis retry failed to start:", error);
+            // Fall through to the deterministic recovered-output response.
+          }
+        }
+      }
+
+      const refreshedItems = this.itemRepo.listByRun(runId);
+      const rootTask = await this.deps.getTaskById(rootTaskId);
+      const recoveredThoughts = await this.collectSynthesisThoughts(
+        runId,
+        this.thoughtRepo.listByRun(runId),
+        refreshedItems,
+      );
+      const summary = this.buildSynthesisTimeoutFallback(rootTask, refreshedItems, recoveredThoughts);
+      const updated = this.runRepo.update(runId, {
+        status: "completed",
+        phase: "complete",
+        summary,
+      });
+      if (updated) {
+        emitTeamEvent({
+          type: "team_run_updated",
+          timestamp: Date.now(),
+          run: updated,
+          reason: "synthesis_watchdog_timeout",
+        });
+      }
+      this.completeRootTaskBestEffort(rootTaskId, "completed", summary);
+    } catch (error) {
+      log.error("Synthesis watchdog failed:", error);
+    }
+  }
+
+  private async spawnSynthesisTask(
+    run: AgentTeamRun,
+    rootTask: Task,
+    synthesisItem: AgentTeamItem,
+    prompt: string,
+    agentConfig: AgentConfig,
+    depth: number,
+    assignedAgentRoleId: string,
+  ): Promise<void> {
+    try {
+      const synthesisTask = await this.deps.createChildTask({
+        title: SYNTHESIS_ITEM_TITLE,
+        prompt,
+        workspaceId: rootTask.workspaceId,
+        parentTaskId: rootTask.id,
+        agentType: "sub",
+        agentConfig,
+        depth,
+        assignedAgentRoleId,
+        workerRole: "synthesizer",
+        teamRunId: run.id,
+        teamItemId: synthesisItem.id,
+      });
+      const updatedItem = this.itemRepo.update({
+        id: synthesisItem.id,
+        sourceTaskId: synthesisTask.id,
+        status: "in_progress",
+      });
+      if (updatedItem) {
+        emitTeamEvent({
+          type: "team_item_spawned",
+          timestamp: Date.now(),
+          runId: run.id,
+          item: updatedItem,
+          spawnedTaskId: synthesisTask.id,
+        });
+      }
+      // Start the timeout only after a real synthesis task exists.  Starting
+      // it on a placeholder item can terminate a run that never dispatched.
+      this.scheduleSynthesisWatchdog(run.id, rootTask.id, synthesisItem.id);
+    } catch (error: Any) {
+      const failedItem = this.itemRepo.update({
+        id: synthesisItem.id,
+        status: "failed",
+        resultSummary: `Unable to start synthesis: ${error?.message || String(error)}`,
+      });
+      if (failedItem) {
+        emitTeamEvent({
+          type: "team_item_updated",
+          timestamp: Date.now(),
+          teamRunId: failedItem.teamRunId,
+          item: failedItem,
+        });
+      }
+      throw error;
+    }
   }
 
   /**
@@ -919,7 +1132,7 @@ export class AgentTeamOrchestrator {
     }
 
     // Collect all thoughts from the run
-    const thoughts = this.thoughtRepo.listByRun(run.id);
+    const thoughts = await this.collectSynthesisThoughts(run.id, this.thoughtRepo.listByRun(run.id), items);
     const useProfileRouting = this.shouldUseProfileRouting(rootTask);
 
     // Build synthesis prompt with all member thoughts
@@ -929,11 +1142,11 @@ export class AgentTeamOrchestrator {
 
     // Spawn a synthesis task assigned to the leader (or judge in multi-LLM mode)
     const depth = (typeof rootTask.depth === "number" ? rootTask.depth : 0) + 1;
-      const agentConfig: AgentConfig = {
-        retainMemory: false,
-        bypassQueue: true,
-        conversationMode: "chat", // Skip planning/steps — single-turn text synthesis
-        qualityPasses: 1,
+    const agentConfig: AgentConfig = {
+      retainMemory: false,
+      bypassQueue: true,
+      conversationMode: "chat", // Skip planning/steps — single-turn text synthesis
+      qualityPasses: 1,
       llmProfile: rootTask.agentConfig?.llmProfileHint || "strong",
       maxTurns: 3,
     };
@@ -959,69 +1172,19 @@ export class AgentTeamOrchestrator {
       status: "todo",
       sortOrder: 9999,
     });
-    this.scheduleSynthesisWatchdog(run.id, rootTask.id, synthesisItem.id);
 
-    if (!this.deps.appendOrchestrationGraphNodes || !this.deps.findOrchestrationGraphByTeamRunId) {
-      const synthesisTask = await this.deps.createChildTask({
-        title: SYNTHESIS_ITEM_TITLE,
-        prompt: synthesisPrompt,
-        workspaceId: rootTask.workspaceId,
-        parentTaskId: rootTask.id,
-        agentType: "sub",
-        agentConfig,
-        depth,
-        assignedAgentRoleId: team.leadAgentRoleId,
-        workerRole: "synthesizer",
-      });
-      this.itemRepo.update({
-        id: synthesisItem.id,
-        sourceTaskId: synthesisTask.id,
-        status: "in_progress",
-      });
-      return;
-    }
-
-    const existingGraph = this.deps.findOrchestrationGraphByTeamRunId?.(run.id);
-    if (!existingGraph?.run?.id || !this.deps.appendOrchestrationGraphNodes) {
-      return;
-    }
-    const predecessorNodes = (existingGraph?.nodes || []).filter(
-      (node: Any) => node.teamRunId === run.id && node.teamItemId && node.teamItemId !== synthesisItem.id,
+    // Team work graphs are already terminal by the time synthesis begins.
+    // Appending synthesis to that graph either leaves it pending forever or
+    // blocks it behind failed expert nodes. Dispatch synthesis directly.
+    await this.spawnSynthesisTask(
+      run,
+      rootTask,
+      synthesisItem,
+      synthesisPrompt,
+      agentConfig,
+      depth,
+      team.leadAgentRoleId,
     );
-    const appended = await this.deps.appendOrchestrationGraphNodes({
-      runId: existingGraph.run.id,
-      nodes: [
-        {
-          key: synthesisItem.id,
-          title: SYNTHESIS_ITEM_TITLE,
-          prompt: synthesisPrompt,
-          kind: "synthesis",
-          dispatchTarget: "local_role",
-          parentTaskId: rootTask.id,
-          assignedAgentRoleId: team.leadAgentRoleId,
-          workerRole: "synthesizer",
-          teamRunId: run.id,
-          teamItemId: synthesisItem.id,
-          agentConfig,
-          metadata: { depth },
-        },
-      ],
-      edges: predecessorNodes.map((node: Any) => ({
-        fromNodeId: node.id,
-        toNodeKey: synthesisItem.id,
-      })),
-    });
-    const synthesisNode = appended?.nodes.find((node: Any) => node.teamItemId === synthesisItem.id);
-    this.itemRepo.update({
-      id: synthesisItem.id,
-      sourceTaskId: synthesisNode?.taskId,
-      status:
-        synthesisNode?.status === "completed"
-          ? "done"
-          : synthesisNode?.status === "failed"
-            ? "failed"
-            : "in_progress",
-    });
   }
 
   /**
@@ -1033,15 +1196,16 @@ export class AgentTeamOrchestrator {
     rootTask: Task,
     _items: AgentTeamItem[],
   ): Promise<void> {
-    const thoughts = this.thoughtRepo.listByRun(run.id);
+    const thoughts = await this.collectSynthesisThoughts(run.id, this.thoughtRepo.listByRun(run.id), _items);
     const compactBudget = Math.floor(MAX_SYNTHESIS_PROMPT_CHARS / 2);
     const synthesisPrompt = [
       `You are the LEADER of team "${team.name}".`,
       "Your team members completed their analysis. Synthesize a final answer.",
       "Respond directly in a SINGLE response. Do NOT use any tools or create sub-tasks.",
+      "Respond in the same language as the ORIGINAL REQUEST unless it explicitly requests another language.",
       "",
       `ORIGINAL REQUEST: ${rootTask.title}`,
-      rootTask.prompt,
+      getRootTaskRequest(rootTask),
       "",
       "=== TEAM MEMBER ANALYSES (COMPACTED) ===",
       thoughts.length > 0 ? groupAndCompactThoughts(thoughts, compactBudget) : "No team member analyses were captured.",
@@ -1056,15 +1220,12 @@ export class AgentTeamOrchestrator {
       status: "todo",
       sortOrder: 9999,
     });
-    this.scheduleSynthesisWatchdog(run.id, rootTask.id, synthesisItem.id);
-
-    const synthesisTask = await this.deps.createChildTask({
-      title: SYNTHESIS_ITEM_TITLE,
-      prompt: synthesisPrompt,
-      workspaceId: rootTask.workspaceId,
-      parentTaskId: rootTask.id,
-      agentType: "sub",
-      agentConfig: {
+    await this.spawnSynthesisTask(
+      run,
+      rootTask,
+      synthesisItem,
+      synthesisPrompt,
+      {
         retainMemory: false,
         bypassQueue: true,
         conversationMode: "chat",
@@ -1073,14 +1234,8 @@ export class AgentTeamOrchestrator {
         llmProfile: "strong",
       },
       depth,
-      assignedAgentRoleId: team.leadAgentRoleId,
-      workerRole: "synthesizer",
-    });
-    this.itemRepo.update({
-      id: synthesisItem.id,
-      sourceTaskId: synthesisTask.id,
-      status: "in_progress",
-    });
+      team.leadAgentRoleId,
+    );
   }
 
   /**
@@ -1099,28 +1254,24 @@ export class AgentTeamOrchestrator {
     parts.push("Your job is to synthesize their findings into a comprehensive final answer.");
     parts.push("");
     parts.push("IMPORTANT INSTRUCTIONS:");
-    parts.push(
-      "- ALL team member analyses are provided IN FULL below. Do NOT read external files.",
-    );
-    parts.push(
-      "- Do NOT attempt to use any tools or read any files. Everything you need is in this prompt.",
-    );
+    parts.push("- ALL team member analyses are provided IN FULL below. Do NOT read external files.");
+    parts.push("- Do NOT attempt to use any tools or read any files. Everything you need is in this prompt.");
     parts.push("- Respond directly with your synthesized analysis as text.");
+    parts.push(
+      "- Respond in the same language as the ORIGINAL REQUEST unless it explicitly requests another language.",
+    );
     parts.push("");
     parts.push("ORIGINAL REQUEST:");
     parts.push(`Title: ${rootTask.title}`);
-    parts.push(rootTask.prompt);
+    parts.push(getRootTaskRequest(rootTask));
     parts.push("");
 
     // Include item status (without file path references that might trigger read attempts)
-    const terminalItems = items.filter(
-      (i) => i.status === "done" || i.status === "failed" || i.status === "blocked",
-    );
+    const terminalItems = items.filter((i) => i.status === "done" || i.status === "failed" || i.status === "blocked");
     if (terminalItems.length > 0) {
       parts.push("TEAM WORK ITEM STATUS:");
       for (const item of terminalItems) {
-        const statusIcon =
-          item.status === "done" ? "DONE" : item.status === "failed" ? "FAILED" : "SKIPPED";
+        const statusIcon = item.status === "done" ? "DONE" : item.status === "failed" ? "FAILED" : "SKIPPED";
         parts.push(`- [${statusIcon}] ${item.title}`);
       }
       parts.push("");
@@ -1170,7 +1321,7 @@ export class AgentTeamOrchestrator {
     parts.push("");
     parts.push("TASK:");
     parts.push(`Title: ${rootTask.title}`);
-    parts.push(rootTask.prompt);
+    parts.push(getRootTaskRequest(rootTask));
     parts.push("");
     parts.push("Provide a thorough, well-structured analysis and response.");
     parts.push("Your output will be compared with other AI models and synthesized by a judge.");
@@ -1181,11 +1332,7 @@ export class AgentTeamOrchestrator {
    * Build the synthesis prompt for the judge in multi-LLM mode.
    * Groups outputs by LLM provider/model.
    */
-  private buildMultiLlmSynthesisPrompt(
-    rootTask: Task,
-    thoughts: AgentThought[],
-    _items: AgentTeamItem[],
-  ): string {
+  private buildMultiLlmSynthesisPrompt(rootTask: Task, thoughts: AgentThought[], _items: AgentTeamItem[]): string {
     if (rootTask.agentConfig?.councilMode) {
       return this.buildCouncilSynthesisPrompt(rootTask, thoughts);
     }
@@ -1196,14 +1343,12 @@ export class AgentTeamOrchestrator {
     parts.push("");
     parts.push("IMPORTANT INSTRUCTIONS:");
     parts.push("- ALL model outputs are provided IN FULL below. Do NOT read external files.");
-    parts.push(
-      "- Do NOT attempt to use any tools or read any files. Everything you need is in this prompt.",
-    );
+    parts.push("- Do NOT attempt to use any tools or read any files. Everything you need is in this prompt.");
     parts.push("- Respond directly with your synthesized analysis as text.");
     parts.push("");
     parts.push("ORIGINAL REQUEST:");
     parts.push(`Title: ${rootTask.title}`);
-    parts.push(rootTask.prompt);
+    parts.push(getRootTaskRequest(rootTask));
     parts.push("");
 
     if (thoughts.length > 0) {
@@ -1218,9 +1363,7 @@ export class AgentTeamOrchestrator {
     parts.push("YOUR TASK:");
     parts.push("Produce your synthesis in a SINGLE response. Do NOT create sub-tasks or use planning tools.");
     parts.push("Using ONLY the model outputs provided above:");
-    parts.push(
-      "1. Compare and evaluate each model's response for accuracy, completeness, and quality.",
-    );
+    parts.push("1. Compare and evaluate each model's response for accuracy, completeness, and quality.");
     parts.push("2. Identify the strongest elements from each response.");
     parts.push("3. Synthesize the best comprehensive answer combining the strongest elements.");
     parts.push("4. Note any disagreements between models and explain which view is more accurate.");
@@ -1242,7 +1385,7 @@ export class AgentTeamOrchestrator {
     parts.push("");
     parts.push("ORIGINAL COUNCIL PROMPT:");
     parts.push(`Title: ${rootTask.title}`);
-    parts.push(rootTask.prompt);
+    parts.push(getRootTaskRequest(rootTask));
     parts.push("");
 
     if (thoughts.length > 0) {

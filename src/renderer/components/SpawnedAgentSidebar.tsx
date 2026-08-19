@@ -16,6 +16,10 @@ import type {
 } from "../../shared/types";
 import { MainContent } from "./MainContent";
 import { resolveSpawnedAgentSidebarTask } from "../utils/spawned-agent-sidebar";
+import { translate, useLanguage } from "../i18n";
+import { getLocalizedSubagentDisplay } from "../utils/localized-agent-roles";
+import { getManagedAgentTaskTitleForDisplay } from "../utils/mission-control-copy";
+import { stripLeadingEmoji } from "../utils/emoji-replacer";
 
 type SpawnedAgentSidebarProps = {
   parentTask: Task;
@@ -67,6 +71,8 @@ function formatDuration(startMs?: number, endMs?: number): string | null {
 }
 
 function StatusBadge({ task }: { task: Task }) {
+  useLanguage();
+  const t = translate;
   const working = isWorkingTask(task);
   const failed = task.status === "failed" || task.status === "cancelled";
   return (
@@ -76,19 +82,22 @@ function StatusBadge({ task }: { task: Task }) {
       }`}
     >
       {working ? (
-        <Loader2 size={12} className="spawned-agent-sidebar-status-icon spinning" />
+        <Loader2
+          size={12}
+          className="spawned-agent-sidebar-status-icon spinning"
+        />
       ) : failed ? (
         <X size={12} className="spawned-agent-sidebar-status-icon" />
       ) : (
         <Check size={12} className="spawned-agent-sidebar-status-icon" />
       )}
       {working
-        ? "Running"
+        ? t("spawnedAgents.status.running", "Running")
         : task.status === "completed"
-          ? "Done"
+          ? t("spawnedAgents.status.done", "Done")
           : task.status === "cancelled"
-            ? "Cancelled"
-            : task.status}
+            ? t("spawnedAgents.status.cancelled", "Cancelled")
+            : t(`spawnedAgents.status.${task.status}`, task.status)}
     </span>
   );
 }
@@ -119,8 +128,13 @@ export function SpawnedAgentSidebar({
   onOpenWebArtifact,
   showTranscript = true,
 }: SpawnedAgentSidebarProps) {
+  const language = useLanguage();
+  const t = translate;
   const [sendError, setSendError] = useState<string | null>(null);
-  const selectedTask = resolveSpawnedAgentSidebarTask(childTasks, selectedTaskId);
+  const selectedTask = resolveSpawnedAgentSidebarTask(
+    childTasks,
+    selectedTaskId,
+  );
   const selectedEvents = useMemo(
     () =>
       selectedTask
@@ -133,7 +147,8 @@ export function SpawnedAgentSidebar({
   const durationLabel = selectedTask
     ? formatDuration(
         selectedTask.createdAt,
-        selectedTask.completedAt ?? (isWorkingTask(selectedTask) ? undefined : selectedTask.updatedAt),
+        selectedTask.completedAt ??
+          (isWorkingTask(selectedTask) ? undefined : selectedTask.updatedAt),
       )
     : null;
 
@@ -159,7 +174,10 @@ export function SpawnedAgentSidebar({
           options,
         );
       } catch (error) {
-        const messageText = error instanceof Error ? error.message : "Failed to send message";
+        const messageText =
+          error instanceof Error
+            ? error.message
+            : t("spawnedAgents.error.send", "Failed to send message");
         setSendError(messageText);
         console.error("Failed to send spawned-agent follow-up:", error);
       }
@@ -169,42 +187,84 @@ export function SpawnedAgentSidebar({
 
   if (!selectedTask) {
     return (
-      <aside className="spawned-agent-sidebar" aria-label="Spawned agents">
+      <aside
+        className="spawned-agent-sidebar"
+        aria-label={t("spawnedAgents.aria", "Spawned agents")}
+      >
         <div className="spawned-agent-sidebar-header">
           <div>
-            <div className="spawned-agent-sidebar-kicker">Spawned agents</div>
-            <h2>No agents</h2>
+            <div className="spawned-agent-sidebar-kicker">
+              {t("spawnedAgents.title", "Spawned agents")}
+            </div>
+            <h2>{t("spawnedAgents.noAgents", "No agents")}</h2>
           </div>
-          <button type="button" className="spawned-agent-sidebar-close" onClick={onClose}>
-            Close
+          <button
+            type="button"
+            className="spawned-agent-sidebar-close"
+            onClick={onClose}
+            title={t("common.close", "Close")}
+            aria-label={t("common.close", "Close")}
+          >
+            <X size={16} aria-hidden="true" />
           </button>
         </div>
-        <div className="spawned-agent-sidebar-empty">No spawned agents are available.</div>
+        <div className="spawned-agent-sidebar-empty">
+          {t("spawnedAgents.empty", "No spawned agents are available.")}
+        </div>
       </aside>
     );
   }
 
   return (
-    <aside className="spawned-agent-sidebar" aria-label="Spawned agents">
+    <aside
+      className="spawned-agent-sidebar"
+      aria-label={t("spawnedAgents.aria", "Spawned agents")}
+    >
       <div className="spawned-agent-sidebar-header">
         <div className="spawned-agent-sidebar-heading">
           <div className="spawned-agent-sidebar-kicker">
-            Spawned from {parentTask.title || "parent task"}
+            {t("spawnedAgents.spawnedFrom", "Spawned from {title}", {
+              title: getManagedAgentTaskTitleForDisplay(
+                parentTask.title ||
+                  t("spawnedAgents.parentTask", "parent task"),
+              ),
+            })}
           </div>
-          <h2>{selectedTask.title}</h2>
+          <h2>
+            {
+              getLocalizedSubagentDisplay(
+                stripLeadingEmoji(selectedTask.title),
+                language,
+              ).name
+            }
+          </h2>
           <div className="spawned-agent-sidebar-meta">
             <StatusBadge task={selectedTask} />
             {durationLabel ? <span>{durationLabel}</span> : null}
-            <span>{selectedEvents.length} event{selectedEvents.length === 1 ? "" : "s"}</span>
+            <span>
+              {t("spawnedAgents.eventCount", "{count} events", {
+                count: selectedEvents.length,
+              })}
+            </span>
           </div>
         </div>
-        <button type="button" className="spawned-agent-sidebar-close" onClick={onClose}>
-          Close
+        <button
+          type="button"
+          className="spawned-agent-sidebar-close"
+          onClick={onClose}
+          title={t("common.close", "Close")}
+          aria-label={t("common.close", "Close")}
+        >
+          <X size={16} aria-hidden="true" />
         </button>
       </div>
 
       {childTasks.length > 1 ? (
-        <div className="spawned-agent-sidebar-tabs" role="tablist" aria-label="Spawned agents">
+        <div
+          className="spawned-agent-sidebar-tabs"
+          role="tablist"
+          aria-label={t("spawnedAgents.aria", "Spawned agents")}
+        >
           {childTasks.map((task) => (
             <button
               key={task.id}
@@ -216,9 +276,19 @@ export function SpawnedAgentSidebar({
               }`}
               onClick={() => onSelectTask(task.id)}
             >
-              <span className="spawned-agent-sidebar-tab-label">{task.title}</span>
+              <span className="spawned-agent-sidebar-tab-label">
+                {
+                  getLocalizedSubagentDisplay(
+                    stripLeadingEmoji(task.title),
+                    language,
+                  ).name
+                }
+              </span>
               {isWorkingTask(task) ? (
-                <Loader2 size={12} className="spawned-agent-sidebar-tab-icon spinning" />
+                <Loader2
+                  size={12}
+                  className="spawned-agent-sidebar-tab-icon spinning"
+                />
               ) : task.status === "completed" ? (
                 <Check size={12} className="spawned-agent-sidebar-tab-icon" />
               ) : null}

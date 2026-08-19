@@ -1,0 +1,3 @@
+import { n as e, t } from "./recycle-C9ohLdug-B2lYVpq6.js";
+t();
+export { e as default };

@@ -62,12 +62,20 @@ export interface PresentationOptions {
   themeColor?: string;
   /** Optional accent color (hex without #) */
   accentColor?: string;
+  /** Optional color applied to every slide title (hex without #) */
+  titleColor?: string;
   /** Optional audience or context */
   audience?: string;
   /** Optional tone/style direction */
   tone?: string;
   /** Optional visual mode */
-  visualMode?: "work" | "editorial" | "playful" | "premium" | "technical";
+  visualMode?:
+    | "work"
+    | "editorial"
+    | "playful"
+    | "premium"
+    | "technical"
+    | "research";
   /** Optional design brief */
   styleBrief?: string;
   /** Slide size: standard (4:3), widescreen (16:9), or custom */
@@ -95,12 +103,15 @@ export class PresentationBuilder {
 
     await generatePPTX(outputPath, {
       title: options.title,
-      author: options.author || "CoWork OS",
+      author: options.author || "NeoWorker",
       subject: options.subject,
       audience: options.audience,
       tone: options.tone,
       visualMode: options.visualMode,
       styleBrief: options.styleBrief,
+      titleColor: options.titleColor
+        ? `#${options.titleColor.replace("#", "")}`
+        : undefined,
       theme: {
         primaryColor: options.themeColor ? `#${options.themeColor.replace("#", "")}` : undefined,
         accentColor: options.accentColor ? `#${options.accentColor.replace("#", "")}` : undefined,

@@ -1,5 +1,14 @@
 import { useMemo, useState } from "react";
-import { Check, X, Play, Loader2, ChevronDown, ChevronRight, Terminal, MessageSquare } from "lucide-react";
+import {
+  Check,
+  X,
+  Play,
+  Loader2,
+  ChevronDown,
+  ChevronRight,
+  Terminal,
+  MessageSquare,
+} from "lucide-react";
 import { getEmojiIcon } from "../utils/emoji-icon-map";
 import type { Task, TaskEvent } from "../../shared/types";
 import type { CliAgentType } from "../../shared/cli-agent-detection";
@@ -7,6 +16,7 @@ import { getCliAgentDisplayInfo } from "../../shared/cli-agent-detection";
 import { getEffectiveTaskEventType } from "../utils/task-event-compat";
 import { sanitizeToolCallTextFromAssistant } from "../../shared/tool-call-text-sanitizer";
 import { formatProviderErrorForDisplay } from "../../shared/provider-error-format";
+import { localizeErrorText } from "../utils/localized-error-text";
 
 interface CliAgentFrameProps {
   task: Task;
@@ -47,11 +57,17 @@ function buildTaskCompletionLabel(event: TaskEvent): string {
   const semanticSummary =
     typeof p?.semanticSummary === "string" ? p.semanticSummary.trim() : "";
   const verificationVerdict =
-    typeof p?.verificationVerdict === "string" ? p.verificationVerdict.trim() : "";
+    typeof p?.verificationVerdict === "string"
+      ? p.verificationVerdict.trim()
+      : "";
   const verificationReport =
-    typeof p?.verificationReport === "string" ? p.verificationReport.trim() : "";
+    typeof p?.verificationReport === "string"
+      ? p.verificationReport.trim()
+      : "";
 
-  const summary = [resultSummary, semanticSummary].filter((value) => value.length > 0).join(" · ");
+  const summary = [resultSummary, semanticSummary]
+    .filter((value) => value.length > 0)
+    .join(" · ");
   if (!verificationVerdict && !verificationReport) {
     return summary || "Task completed";
   }
@@ -63,10 +79,17 @@ function buildTaskCompletionLabel(event: TaskEvent): string {
     .filter((value) => value.length > 0)
     .join(" · ");
 
-  return [summary, verification].filter((value) => value.length > 0).join(" · ") || "Task completed";
+  return (
+    [summary, verification].filter((value) => value.length > 0).join(" · ") ||
+    "Task completed"
+  );
 }
 
-function classifyEvent(event: TaskEvent, agentName: string, task?: Task): FrameEvent | null {
+function classifyEvent(
+  event: TaskEvent,
+  agentName: string,
+  task?: Task,
+): FrameEvent | null {
   const effectiveType = getEffectiveTaskEventType(event);
   if (!DISPLAY_EVENT_TYPES.has(effectiveType)) return null;
 
@@ -80,7 +103,11 @@ function classifyEvent(event: TaskEvent, agentName: string, task?: Task): FrameE
       const desc = sanitize(step?.description || p?.description || "");
       const command = String(step?.command || "");
       // Detect specific patterns for better display
-      if (command || desc.toLowerCase().includes("running") || desc.toLowerCase().includes("bash")) {
+      if (
+        command ||
+        desc.toLowerCase().includes("running") ||
+        desc.toLowerCase().includes("bash")
+      ) {
         return {
           id: event.id,
           type: effectiveType,
@@ -90,7 +117,10 @@ function classifyEvent(event: TaskEvent, agentName: string, task?: Task): FrameE
         };
       }
       const tool = String(step?.tool || p?.tool || "");
-      if (tool.toLowerCase().includes("read") || tool.toLowerCase().includes("file")) {
+      if (
+        tool.toLowerCase().includes("read") ||
+        tool.toLowerCase().includes("file")
+      ) {
         return {
           id: event.id,
           type: effectiveType,
@@ -108,7 +138,10 @@ function classifyEvent(event: TaskEvent, agentName: string, task?: Task): FrameE
           timestamp: event.timestamp,
         };
       }
-      if (tool.toLowerCase().includes("fetch") || tool.toLowerCase().includes("web")) {
+      if (
+        tool.toLowerCase().includes("fetch") ||
+        tool.toLowerCase().includes("web")
+      ) {
         return {
           id: event.id,
           type: effectiveType,
@@ -121,7 +154,8 @@ function classifyEvent(event: TaskEvent, agentName: string, task?: Task): FrameE
         id: event.id,
         type: effectiveType,
         icon: "play",
-        label: desc || (tool ? `Running: ${tool}` : `${agentName} is working...`),
+        label:
+          desc || (tool ? `Running: ${tool}` : `${agentName} is working...`),
         timestamp: event.timestamp,
       };
     }
@@ -129,7 +163,9 @@ function classifyEvent(event: TaskEvent, agentName: string, task?: Task): FrameE
       const tool = String(p?.tool || p?.toolName || "");
       const toolLower = tool.toLowerCase();
       if (toolLower === "run_command" || toolLower === "bash") {
-        const cmd = String(p?.command || (p?.input as Record<string, unknown>)?.command || "");
+        const cmd = String(
+          p?.command || (p?.input as Record<string, unknown>)?.command || "",
+        );
         return {
           id: event.id,
           type: effectiveType,
@@ -139,7 +175,11 @@ function classifyEvent(event: TaskEvent, agentName: string, task?: Task): FrameE
         };
       }
       if (toolLower === "spawn_agent") {
-        const title = String(p?.title || (p?.input as Record<string, unknown>)?.title || "sub-task");
+        const title = String(
+          p?.title ||
+            (p?.input as Record<string, unknown>)?.title ||
+            "sub-task",
+        );
         return {
           id: event.id,
           type: effectiveType,
@@ -148,18 +188,31 @@ function classifyEvent(event: TaskEvent, agentName: string, task?: Task): FrameE
           timestamp: event.timestamp,
         };
       }
-      if (toolLower.includes("read") || toolLower.includes("grep") || toolLower.includes("glob")) {
-        const filePath = String(p?.path || (p?.input as Record<string, unknown>)?.path || (p?.input as Record<string, unknown>)?.pattern || "");
+      if (
+        toolLower.includes("read") ||
+        toolLower.includes("grep") ||
+        toolLower.includes("glob")
+      ) {
+        const filePath = String(
+          p?.path ||
+            (p?.input as Record<string, unknown>)?.path ||
+            (p?.input as Record<string, unknown>)?.pattern ||
+            "",
+        );
         return {
           id: event.id,
           type: effectiveType,
           icon: "play",
-          label: filePath ? `Reading: ${sanitize(filePath)}` : `Reading files...`,
+          label: filePath
+            ? `Reading: ${sanitize(filePath)}`
+            : `Reading files...`,
           timestamp: event.timestamp,
         };
       }
       if (toolLower.includes("write") || toolLower.includes("edit")) {
-        const filePath = String(p?.path || (p?.input as Record<string, unknown>)?.file_path || "");
+        const filePath = String(
+          p?.path || (p?.input as Record<string, unknown>)?.file_path || "",
+        );
         return {
           id: event.id,
           type: effectiveType,
@@ -168,13 +221,21 @@ function classifyEvent(event: TaskEvent, agentName: string, task?: Task): FrameE
           timestamp: event.timestamp,
         };
       }
-      if (toolLower.includes("fetch") || toolLower.includes("web") || toolLower.includes("browse")) {
-        const url = String(p?.url || (p?.input as Record<string, unknown>)?.url || "");
+      if (
+        toolLower.includes("fetch") ||
+        toolLower.includes("web") ||
+        toolLower.includes("browse")
+      ) {
+        const url = String(
+          p?.url || (p?.input as Record<string, unknown>)?.url || "",
+        );
         return {
           id: event.id,
           type: effectiveType,
           icon: "play",
-          label: url ? `Fetching: ${truncate(sanitize(url), 80)}` : `Fetching...`,
+          label: url
+            ? `Fetching: ${truncate(sanitize(url), 80)}`
+            : `Fetching...`,
           timestamp: event.timestamp,
         };
       }
@@ -212,34 +273,43 @@ function classifyEvent(event: TaskEvent, agentName: string, task?: Task): FrameE
         timestamp: event.timestamp,
       };
     }
-    case "step_completed":
-      {
-        const completedLabel = sanitize(step?.description || p?.description || "step");
-        return {
-          id: event.id,
-          type: effectiveType,
-          icon: "check",
-          label: !completedLabel || completedLabel.toLowerCase() === "step" ? "Done" : `Done: ${completedLabel}`,
-          timestamp: event.timestamp,
-        };
-      }
-    case "step_failed":
-      {
-        const failedLabel = sanitize(step?.description || p?.description || "step");
-        const failureText = sanitize(
-          formatProviderErrorForDisplay(String(p?.error || p?.reason || ""), { task }),
-        );
-        return {
-          id: event.id,
-          type: effectiveType,
-          icon: "x",
-          label:
-            !failedLabel || failedLabel.toLowerCase() === "step"
-              ? `Something failed${failureText ? ` — ${failureText}` : ""}`
-              : `Failed: ${failedLabel}${failureText ? ` — ${failureText}` : ""}`,
-          timestamp: event.timestamp,
-        };
-      }
+    case "step_completed": {
+      const completedLabel = sanitize(
+        step?.description || p?.description || "step",
+      );
+      return {
+        id: event.id,
+        type: effectiveType,
+        icon: "check",
+        label:
+          !completedLabel || completedLabel.toLowerCase() === "step"
+            ? "Done"
+            : `Done: ${completedLabel}`,
+        timestamp: event.timestamp,
+      };
+    }
+    case "step_failed": {
+      const failedLabel = sanitize(
+        step?.description || p?.description || "step",
+      );
+      const failureText = sanitize(
+        localizeErrorText(
+          formatProviderErrorForDisplay(String(p?.error || p?.reason || ""), {
+            task,
+          }),
+        ),
+      );
+      return {
+        id: event.id,
+        type: effectiveType,
+        icon: "x",
+        label:
+          !failedLabel || failedLabel.toLowerCase() === "step"
+            ? `Something failed${failureText ? ` — ${failureText}` : ""}`
+            : `Failed: ${failedLabel}${failureText ? ` — ${failureText}` : ""}`,
+        timestamp: event.timestamp,
+      };
+    }
     case "assistant_message":
       if (
         task?.resultSummary &&
@@ -252,7 +322,10 @@ function classifyEvent(event: TaskEvent, agentName: string, task?: Task): FrameE
         id: event.id,
         type: effectiveType,
         icon: "message",
-        label: truncate(sanitize(p?.message) || `${agentName} sent an update`, 120),
+        label: truncate(
+          sanitize(p?.message) || `${agentName} sent an update`,
+          120,
+        ),
         timestamp: event.timestamp,
       };
     case "progress_update":
@@ -293,7 +366,12 @@ function classifyEvent(event: TaskEvent, agentName: string, task?: Task): FrameE
         type: effectiveType,
         icon: "x",
         label: sanitize(
-          formatProviderErrorForDisplay(String(p?.message || p?.error || "Error"), { task }),
+          localizeErrorText(
+            formatProviderErrorForDisplay(
+              String(p?.message || p?.error || "Error"),
+              { task },
+            ),
+          ),
         ),
         timestamp: event.timestamp,
       };
@@ -318,23 +396,53 @@ function formatDuration(startMs: number, endMs: number): string {
 function EventIcon({ icon }: { icon: FrameEvent["icon"] }) {
   switch (icon) {
     case "play":
-      return <Play size={13} strokeWidth={2} className="cli-event-icon cli-event-icon-play" />;
+      return (
+        <Play
+          size={13}
+          strokeWidth={2}
+          className="cli-event-icon cli-event-icon-play"
+        />
+      );
     case "check":
       return (
-        <Check size={13} strokeWidth={2.5} className="cli-event-icon cli-event-icon-check" />
+        <Check
+          size={13}
+          strokeWidth={2.5}
+          className="cli-event-icon cli-event-icon-check"
+        />
       );
     case "x":
-      return <X size={13} strokeWidth={2.5} className="cli-event-icon cli-event-icon-x" />;
+      return (
+        <X
+          size={13}
+          strokeWidth={2.5}
+          className="cli-event-icon cli-event-icon-x"
+        />
+      );
     case "loader":
       return (
-        <Loader2 size={13} strokeWidth={2} className="cli-event-icon cli-event-icon-loader" />
+        <Loader2
+          size={13}
+          strokeWidth={2}
+          className="cli-event-icon cli-event-icon-loader"
+        />
       );
     case "terminal":
       return (
-        <Terminal size={13} strokeWidth={2} className="cli-event-icon cli-event-icon-terminal" />
+        <Terminal
+          size={13}
+          strokeWidth={2}
+          className="cli-event-icon cli-event-icon-terminal"
+        />
       );
     case "message":
-      return <MessageSquare size={13} strokeWidth={2} className="cli-event-icon cli-event-icon-message" />;
+      return (
+        <MessageSquare
+          size={13}
+          strokeWidth={2}
+          className="cli-event-icon cli-event-icon-message"
+        />
+      );
   }
 }
 
@@ -347,10 +455,22 @@ function StatusChip({ status }: { status: Task["status"] }) {
     <span
       className={`cli-status-chip ${isTerminal ? (status === "completed" ? "cli-status-completed" : "cli-status-failed") : isExecuting ? "cli-status-executing" : "cli-status-pending"}`}
     >
-      {isExecuting && <Loader2 size={11} strokeWidth={2.5} className="cli-status-spinner" />}
+      {isExecuting && (
+        <Loader2 size={11} strokeWidth={2.5} className="cli-status-spinner" />
+      )}
       {status === "completed" && <Check size={11} strokeWidth={2.5} />}
       {status === "failed" && <X size={11} strokeWidth={2.5} />}
-      <span>{status === "executing" ? "Running" : status === "completed" ? "Done" : status === "failed" ? "Failed" : status === "cancelled" ? "Cancelled" : "Pending"}</span>
+      <span>
+        {status === "executing"
+          ? "Running"
+          : status === "completed"
+            ? "Done"
+            : status === "failed"
+              ? "Failed"
+              : status === "cancelled"
+                ? "Cancelled"
+                : "Pending"}
+      </span>
     </span>
   );
 }
@@ -363,7 +483,9 @@ export function CliAgentFrame({
   onOpenAgent,
 }: CliAgentFrameProps) {
   const isTerminal =
-    task.status === "completed" || task.status === "failed" || task.status === "cancelled";
+    task.status === "completed" ||
+    task.status === "failed" ||
+    task.status === "cancelled";
   const [expanded, setExpanded] = useState(defaultExpanded ?? !isTerminal);
   const displayInfo = getCliAgentDisplayInfo(agentType);
   const agentName = displayInfo.name;
@@ -386,12 +508,13 @@ export function CliAgentFrame({
     return formatDuration(start, end);
   }, [frameEvents, isTerminal]);
 
-  const firstEventTime = frameEvents.length > 0
-    ? new Date(frameEvents[0].timestamp).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : null;
+  const firstEventTime =
+    frameEvents.length > 0
+      ? new Date(frameEvents[0].timestamp).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null;
 
   return (
     <div
@@ -417,13 +540,18 @@ export function CliAgentFrame({
             })()}
           </span>
           <span className="cli-agent-title">{task.title}</span>
-          <span className="cli-badge" style={{ backgroundColor: displayInfo.color }}>
+          <span
+            className="cli-badge"
+            style={{ backgroundColor: displayInfo.color }}
+          >
             {displayInfo.badge}
           </span>
         </div>
         <div className="cli-agent-frame-header-right">
           <StatusChip status={task.status} />
-          {firstEventTime && <span className="cli-agent-time">{firstEventTime}</span>}
+          {firstEventTime && (
+            <span className="cli-agent-time">{firstEventTime}</span>
+          )}
           {duration && <span className="cli-agent-duration">{duration}</span>}
         </div>
       </button>
@@ -433,7 +561,10 @@ export function CliAgentFrame({
         <div className="cli-agent-frame-body">
           {frameEvents.length === 0 ? (
             <div className="cli-event-row cli-event-empty">
-              <Loader2 size={13} className="cli-event-icon cli-event-icon-loader" />
+              <Loader2
+                size={13}
+                className="cli-event-icon cli-event-icon-loader"
+              />
               <span>{agentName} is warming up...</span>
             </div>
           ) : (
@@ -446,7 +577,8 @@ export function CliAgentFrame({
               // Loader should only spin for the very last event while the task is still active;
               // past progress_update events and all loaders in terminal tasks render as static.
               const effectiveIcon: FrameEvent["icon"] =
-                fe.icon === "loader" && (isTerminal || idx !== frameEvents.length - 1)
+                fe.icon === "loader" &&
+                (isTerminal || idx !== frameEvents.length - 1)
                   ? "message"
                   : fe.icon;
               return (

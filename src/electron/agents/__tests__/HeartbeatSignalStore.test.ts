@@ -8,12 +8,12 @@ import { HeartbeatSignalStore, type SubmitHeartbeatSignalInput } from "../Heartb
 let tmpDir: string;
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-signal-store-test-"));
-  process.env.COWORK_USER_DATA_DIR = tmpDir;
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-signal-store-test-"));
+  process.env.NEOWORKER_USER_DATA_DIR = tmpDir;
 });
 
 afterEach(() => {
-  delete process.env.COWORK_USER_DATA_DIR;
+  delete process.env.NEOWORKER_USER_DATA_DIR;
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 

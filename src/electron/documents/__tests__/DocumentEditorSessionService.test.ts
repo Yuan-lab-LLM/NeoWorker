@@ -33,8 +33,28 @@ afterEach(() => {
 });
 
 describe("DocumentEditorSessionService", () => {
+  it("opens a workspace artifact when an older task only recorded its file name", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-doc-editor-"));
+    tempDirs.push(dir);
+    const artifactsDir = path.join(dir, "artifacts");
+    fs.mkdirSync(artifactsDir);
+    const artifact = path.join(artifactsDir, "generated-report.pdf");
+    fs.writeFileSync(artifact, Buffer.from("artifact"));
+
+    const service = new DocumentEditorSessionService(
+      { findAll: () => [makeWorkspace(dir)] } as Any,
+      { findById: vi.fn().mockReturnValue(undefined) } as Any,
+      { findLatestByPath: vi.fn().mockReturnValue(undefined) } as Any,
+      {} as Any,
+    );
+
+    const session = await service.openSession("generated-report.pdf", dir);
+
+    expect(session.currentPath).toBe(fs.realpathSync(artifact));
+  });
+
   it("opens the latest sibling version and lists lineage", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-doc-editor-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-doc-editor-"));
     tempDirs.push(dir);
     const original = path.join(dir, "report.pdf");
     const latest = path.join(dir, "report-v2.pdf");
@@ -68,7 +88,7 @@ describe("DocumentEditorSessionService", () => {
   });
 
   it("creates a child edit task for DOCX selections when the source artifact belongs to a task", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-doc-editor-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-doc-editor-"));
     tempDirs.push(dir);
     const original = path.join(dir, "proposal.docx");
     const builder = new DocumentBuilder(makeWorkspace(dir) as Any);
@@ -112,7 +132,7 @@ describe("DocumentEditorSessionService", () => {
   });
 
   it("runs PDF edits directly without routing through the agent planner", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-doc-editor-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-doc-editor-"));
     tempDirs.push(dir);
     const original = path.join(dir, "sample.pdf");
     fs.writeFileSync(original, Buffer.from("original"));
@@ -195,7 +215,7 @@ describe("DocumentEditorSessionService", () => {
   });
 
   it("fails direct PDF edit tasks through the daemon terminal helper", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-doc-editor-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-doc-editor-"));
     tempDirs.push(dir);
     const original = path.join(dir, "sample.pdf");
     fs.writeFileSync(original, Buffer.from("original"));
@@ -267,7 +287,7 @@ describe("DocumentEditorSessionService", () => {
   });
 
   it("applies a local PDF edit without external tooling", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-doc-editor-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-doc-editor-"));
     tempDirs.push(dir);
     const original = path.join(dir, "sample.pdf");
     const edited = path.join(dir, "sample-edited.pdf");

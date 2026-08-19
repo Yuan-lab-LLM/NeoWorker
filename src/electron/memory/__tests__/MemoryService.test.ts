@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 // Mock electron to avoid getPath errors
 vi.mock("electron", () => ({
   app: {
-    getPath: vi.fn().mockReturnValue("/tmp/test-cowork"),
+    getPath: vi.fn().mockReturnValue("/tmp/test-neoworker"),
   },
 }));
 

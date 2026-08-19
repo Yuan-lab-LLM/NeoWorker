@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { translate, useLanguage } from "../i18n";
+import { getLocalizedMcpServerDescription } from "../utils/localized-mcp";
 
 // Types (matching electron mcp types)
 type MCPInstallMethod = "npm" | "pip" | "binary" | "docker" | "manual";
@@ -37,6 +39,8 @@ export function MCPRegistryBrowser({
   onInstall,
   installedServerIds = [],
 }: MCPRegistryBrowserProps) {
+  useLanguage();
+  const t = translate;
   const [servers, setServers] = useState<MCPRegistryEntry[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +49,9 @@ export function MCPRegistryBrowser({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [installingId, setInstallingId] = useState<string | null>(null);
-  const [viewingDetails, setViewingDetails] = useState<MCPRegistryEntry | null>(null);
+  const [viewingDetails, setViewingDetails] = useState<MCPRegistryEntry | null>(
+    null,
+  );
 
   useEffect(() => {
     loadRegistry();
@@ -59,10 +65,13 @@ export function MCPRegistryBrowser({
     try {
       setLoading(true);
       const registry = await window.electronAPI.fetchMCPRegistry();
-      setServers(registry.servers || []);
+      const registryServers = Array.isArray(registry?.servers)
+        ? registry.servers
+        : [];
+      setServers(registryServers);
       // Extract unique categories from servers
       const uniqueCategories = new Set<string>();
-      (registry.servers || []).forEach((s: MCPRegistryEntry) => {
+      registryServers.forEach((s: MCPRegistryEntry) => {
         if (s.category) uniqueCategories.add(s.category);
       });
       setCategories(Array.from(uniqueCategories).sort());
@@ -75,12 +84,17 @@ export function MCPRegistryBrowser({
 
   const searchServers = async () => {
     try {
-      const results = await window.electronAPI.searchMCPRegistry(searchQuery, selectedTags);
-      let filtered = results;
+      const results = await window.electronAPI.searchMCPRegistry(
+        searchQuery,
+        selectedTags,
+      );
+      let filtered = Array.isArray(results) ? results : [];
 
       // Apply category filter
       if (selectedCategory) {
-        filtered = filtered.filter((s: MCPRegistryEntry) => s.category === selectedCategory);
+        filtered = filtered.filter(
+          (s: MCPRegistryEntry) => s.category === selectedCategory,
+        );
       }
 
       // Apply verified filter
@@ -103,7 +117,12 @@ export function MCPRegistryBrowser({
       await loadRegistry();
     } catch (error: Any) {
       console.error("Failed to install server:", error);
-      alert(`Failed to install ${entry.name}: ${error.message}`);
+      alert(
+        t("mcpRegistry.installFailed", "Failed to install {name}: {message}", {
+          name: entry.name,
+          message: error.message,
+        }),
+      );
     } finally {
       setInstallingId(null);
     }
@@ -120,12 +139,16 @@ export function MCPRegistryBrowser({
 
   const normalizeAuthor = (author?: string): string => {
     const trimmed = typeof author === "string" ? author.trim() : "";
-    if (!trimmed) return "Unknown";
-    return /^cowork-oss$/i.test(trimmed) ? "CoWork OS" : trimmed;
+    if (!trimmed) return t("common.unknown", "Unknown");
+    return /^neoworker$/i.test(trimmed) ? "NeoWorker" : trimmed;
   };
 
   if (loading) {
-    return <div className="registry-loading">Loading MCP servers registry...</div>;
+    return (
+      <div className="registry-loading">
+        {t("mcpRegistry.loading", "Loading MCP servers registry...")}
+      </div>
+    );
   }
 
   return (
@@ -146,7 +169,10 @@ export function MCPRegistryBrowser({
           </svg>
           <input
             type="text"
-            placeholder="Search servers..."
+            placeholder={t(
+              "mcpRegistry.searchPlaceholder",
+              "Search servers...",
+            )}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -158,7 +184,9 @@ export function MCPRegistryBrowser({
             value={selectedCategory || ""}
             onChange={(e) => setSelectedCategory(e.target.value || null)}
           >
-            <option value="">All Categories</option>
+            <option value="">
+              {t("mcpRegistry.allCategories", "All Categories")}
+            </option>
             {categories.map((cat) => (
               <option key={cat} value={cat}>
                 {cat.charAt(0).toUpperCase() + cat.slice(1)}
@@ -172,7 +200,7 @@ export function MCPRegistryBrowser({
               checked={verifiedOnly}
               onChange={(e) => setVerifiedOnly(e.target.checked)}
             />
-            <span>Verified only</span>
+            <span>{t("mcpRegistry.verifiedOnly", "Verified only")}</span>
           </label>
         </div>
       </div>
@@ -180,7 +208,9 @@ export function MCPRegistryBrowser({
       {/* Server list */}
       {servers.length === 0 ? (
         <div className="registry-empty">
-          <p>No servers found matching your criteria.</p>
+          <p>
+            {t("mcpRegistry.empty", "No servers found matching your criteria.")}
+          </p>
           <button
             className="button-secondary"
             onClick={() => {
@@ -191,7 +221,7 @@ export function MCPRegistryBrowser({
               loadRegistry();
             }}
           >
-            Clear filters
+            {t("mcpRegistry.clearFilters", "Clear filters")}
           </button>
         </div>
       ) : (
@@ -202,28 +232,61 @@ export function MCPRegistryBrowser({
                 <div className="registry-server-title">
                   <span className="registry-server-name">{entry.name}</span>
                   {entry.verified && (
-                    <span className="registry-verified-badge" title="Verified by MCP maintainers">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <span
+                      className="registry-verified-badge"
+                      title={t(
+                        "mcpRegistry.verifiedTitle",
+                        "Verified by MCP maintainers",
+                      )}
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
                         <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </span>
                   )}
-                  {entry.featured && <span className="registry-featured-badge">Featured</span>}
+                  {entry.featured && (
+                    <span className="registry-featured-badge">
+                      {t("mcpRegistry.featured", "Featured")}
+                    </span>
+                  )}
                 </div>
-                <span className="registry-server-version">v{entry.version}</span>
+                <span className="registry-server-version">
+                  v{entry.version}
+                </span>
               </div>
 
-              <p className="registry-server-description">{entry.description}</p>
+              <p className="registry-server-description">
+                {getLocalizedMcpServerDescription(entry)}
+              </p>
 
               <div className="registry-server-meta">
-                <span className="registry-author">by {normalizeAuthor(entry.author)}</span>
-                <span className="registry-tools-count">{entry.tools.length} tools</span>
-                {entry.category && <span className="registry-category">{entry.category}</span>}
+                <span className="registry-author">
+                  {t("mcpRegistry.byAuthor", "by {author}", {
+                    author: normalizeAuthor(entry.author),
+                  })}
+                </span>
+                <span className="registry-tools-count">
+                  {t("mcpRegistry.toolsCount", "{count} tools", {
+                    count: entry.tools.length,
+                  })}
+                </span>
+                {entry.category && (
+                  <span className="registry-category">{entry.category}</span>
+                )}
               </div>
 
               <div className="registry-server-tags">
                 {entry.tags.slice(0, 5).map((tag) => (
-                  <span key={tag} className="registry-tag" onClick={() => setSelectedTags([tag])}>
+                  <span
+                    key={tag}
+                    className="registry-tag"
+                    onClick={() => setSelectedTags([tag])}
+                  >
                     {tag}
                   </span>
                 ))}
@@ -231,18 +294,25 @@ export function MCPRegistryBrowser({
 
               <div className="registry-server-actions">
                 {isInstalled(entry) ? (
-                  <span className="registry-installed-badge">Installed</span>
+                  <span className="registry-installed-badge">
+                    {t("mcpRegistry.installed", "Installed")}
+                  </span>
                 ) : (
                   <button
                     className="button-primary"
                     onClick={() => handleInstall(entry)}
                     disabled={installingId === entry.id}
                   >
-                    {installingId === entry.id ? "Installing..." : "Install"}
+                    {installingId === entry.id
+                      ? t("mcpRegistry.installing", "Installing...")
+                      : t("mcpRegistry.install", "Install")}
                   </button>
                 )}
-                <button className="button-secondary" onClick={() => setViewingDetails(entry)}>
-                  Details
+                <button
+                  className="button-secondary"
+                  onClick={() => setViewingDetails(entry)}
+                >
+                  {t("mcpRegistry.details", "Details")}
                 </button>
                 {entry.homepage && (
                   <a
@@ -277,21 +347,35 @@ export function MCPRegistryBrowser({
 
       {/* Details modal */}
       {viewingDetails && (
-        <div className="mcp-modal-overlay" onClick={() => setViewingDetails(null)}>
-          <div className="mcp-modal registry-details-modal" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="mcp-modal-overlay"
+          onClick={() => setViewingDetails(null)}
+        >
+          <div
+            className="mcp-modal registry-details-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="mcp-modal-header">
               <div className="registry-details-title">
                 <h3>{viewingDetails.name}</h3>
                 {viewingDetails.verified && (
                   <span className="registry-verified-badge">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
                       <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    Verified
+                    {t("mcpRegistry.verified", "Verified")}
                   </span>
                 )}
               </div>
-              <button className="mcp-modal-close" onClick={() => setViewingDetails(null)}>
+              <button
+                className="mcp-modal-close"
+                onClick={() => setViewingDetails(null)}
+              >
                 <svg
                   width="20"
                   height="20"
@@ -306,66 +390,115 @@ export function MCPRegistryBrowser({
             </div>
             <div className="mcp-modal-content">
               <div className="registry-details-section">
-                <p className="registry-details-description">{viewingDetails.description}</p>
+                <p className="registry-details-description">
+                  {getLocalizedMcpServerDescription(viewingDetails)}
+                </p>
 
                 <div className="registry-details-info">
                   <div className="registry-detail-row">
-                    <span className="registry-detail-label">Version:</span>
-                    <span className="registry-detail-value">{viewingDetails.version}</span>
+                    <span className="registry-detail-label">
+                      {t("mcpRegistry.version", "Version:")}
+                    </span>
+                    <span className="registry-detail-value">
+                      {viewingDetails.version}
+                    </span>
                   </div>
                   <div className="registry-detail-row">
-                    <span className="registry-detail-label">Author:</span>
+                    <span className="registry-detail-label">
+                      {t("mcpRegistry.author", "Author:")}
+                    </span>
                     <span className="registry-detail-value">
                       {normalizeAuthor(viewingDetails.author)}
                     </span>
                   </div>
                   <div className="registry-detail-row">
-                    <span className="registry-detail-label">License:</span>
+                    <span className="registry-detail-label">
+                      {t("mcpRegistry.license", "License:")}
+                    </span>
                     <span className="registry-detail-value">
-                      {viewingDetails.license || "Not specified"}
+                      {viewingDetails.license ||
+                        t("mcpRegistry.notSpecified", "Not specified")}
                     </span>
                   </div>
                   <div className="registry-detail-row">
-                    <span className="registry-detail-label">Transport:</span>
-                    <span className="registry-detail-value">{viewingDetails.transport}</span>
+                    <span className="registry-detail-label">
+                      {t("mcpRegistry.transport", "Transport:")}
+                    </span>
+                    <span className="registry-detail-value">
+                      {viewingDetails.transport}
+                    </span>
                   </div>
                   <div className="registry-detail-row">
-                    <span className="registry-detail-label">Install Method:</span>
-                    <span className="registry-detail-value">{viewingDetails.installMethod}</span>
+                    <span className="registry-detail-label">
+                      {t("mcpRegistry.installMethod", "Install Method:")}
+                    </span>
+                    <span className="registry-detail-value">
+                      {viewingDetails.installMethod}
+                    </span>
                   </div>
                 </div>
 
                 {viewingDetails.defaultCommand && (
                   <div className="registry-details-command">
-                    <span className="registry-detail-label">Command:</span>
+                    <span className="registry-detail-label">
+                      {t("mcpRegistry.command", "Command:")}
+                    </span>
                     <code>
-                      {viewingDetails.defaultCommand} {viewingDetails.defaultArgs?.join(" ")}
+                      {viewingDetails.defaultCommand}{" "}
+                      {viewingDetails.defaultArgs?.join(" ")}
                     </code>
                   </div>
                 )}
 
-                {viewingDetails.defaultEnv && Object.keys(viewingDetails.defaultEnv).length > 0 && (
-                  <div className="registry-details-env">
-                    <span className="registry-detail-label">Required Environment Variables:</span>
-                    <ul>
-                      {Object.entries(viewingDetails.defaultEnv).map(([key, value]) => (
-                        <li key={key}>
-                          <code>{key}</code>
-                          {value && <span> (default: {value})</span>}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                {viewingDetails.defaultEnv &&
+                  Object.keys(viewingDetails.defaultEnv).length > 0 && (
+                    <div className="registry-details-env">
+                      <span className="registry-detail-label">
+                        {t(
+                          "mcpRegistry.requiredEnv",
+                          "Required Environment Variables:",
+                        )}
+                      </span>
+                      <ul>
+                        {Object.entries(viewingDetails.defaultEnv).map(
+                          ([key, value]) => (
+                            <li key={key}>
+                              <code>{key}</code>
+                              {value && (
+                                <span>
+                                  {" "}
+                                  {t(
+                                    "mcpRegistry.defaultValue",
+                                    "(default: {value})",
+                                    { value },
+                                  )}
+                                </span>
+                              )}
+                            </li>
+                          ),
+                        )}
+                      </ul>
+                    </div>
+                  )}
               </div>
 
               <div className="registry-details-section">
-                <h4>Available Tools ({viewingDetails.tools.length})</h4>
+                <h4>
+                  {t(
+                    "mcpRegistry.availableTools",
+                    "Available Tools ({count})",
+                    {
+                      count: viewingDetails.tools.length,
+                    },
+                  )}
+                </h4>
                 <div className="registry-tools-list">
                   {viewingDetails.tools.map((tool) => (
                     <div key={tool.name} className="registry-tool-item">
                       <span className="registry-tool-name">{tool.name}</span>
-                      <span className="registry-tool-desc">{tool.description}</span>
+                      <span className="registry-tool-desc">
+                        {tool.description}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -383,7 +516,9 @@ export function MCPRegistryBrowser({
 
               <div className="registry-details-actions">
                 {isInstalled(viewingDetails) ? (
-                  <span className="registry-installed-badge">Already Installed</span>
+                  <span className="registry-installed-badge">
+                    {t("mcpRegistry.alreadyInstalled", "Already Installed")}
+                  </span>
                 ) : (
                   <button
                     className="button-primary"
@@ -393,15 +528,21 @@ export function MCPRegistryBrowser({
                     }}
                     disabled={installingId === viewingDetails.id}
                   >
-                    {installingId === viewingDetails.id ? "Installing..." : "Install Server"}
+                    {installingId === viewingDetails.id
+                      ? t("mcpRegistry.installing", "Installing...")
+                      : t("mcpRegistry.installServer", "Install Server")}
                   </button>
                 )}
                 {viewingDetails.repository && (
                   <button
                     className="button-secondary"
-                    onClick={() => window.electronAPI.openExternal(viewingDetails.repository!)}
+                    onClick={() =>
+                      window.electronAPI.openExternal(
+                        viewingDetails.repository!,
+                      )
+                    }
                   >
-                    View Source
+                    {t("mcpRegistry.viewSource", "View Source")}
                   </button>
                 )}
               </div>

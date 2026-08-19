@@ -1,24 +1,24 @@
 # Secure MCP Tunnels
 
-Secure MCP Tunnels let CoWork OS expose selected local or private MCP tools through an outbound-only relay that you operate. They provide the same basic shape as a hosted secure tunnel service without depending on OpenAI, ngrok, localtunnel, or a public inbound port on the user's machine.
+Secure MCP Tunnels let NeoWorker expose selected local or private MCP tools through an outbound-only relay that you operate. They provide the same basic shape as a hosted secure tunnel service without depending on OpenAI, ngrok, localtunnel, or a public inbound port on the user's machine.
 
-This feature is guarded by `COWORK_SECURE_MCP_TUNNELS=1`.
+This feature is guarded by `NEOWORKER_SECURE_MCP_TUNNELS=1`.
 
 ## What It Solves
 
-Use Secure MCP Tunnels when a remote CoWork surface needs to call a private MCP server:
+Use Secure MCP Tunnels when a remote NeoWorker surface needs to call a private MCP server:
 
-- CoWork desktop tools running on a user's laptop
+- NeoWorker desktop tools running on a user's laptop
 - a private HTTP MCP endpoint on `127.0.0.1`
 - an MCP endpoint on a private LAN address such as `10.x.x.x` or `192.168.x.x`
-- a headless/server CoWork node that should not expose arbitrary inbound ports
+- a headless/server NeoWorker node that should not expose arbitrary inbound ports
 
-The local CoWork app opens an outbound WebSocket to a CoWork relay. Remote callers send MCP JSON-RPC requests to the relay, and the relay forwards only those MCP messages over the existing outbound socket.
+The local NeoWorker app opens an outbound WebSocket to a NeoWorker relay. Remote callers send MCP JSON-RPC requests to the relay, and the relay forwards only those MCP messages over the existing outbound socket.
 
 ```text
-Remote CoWork caller
-  -> CoWork secure MCP tunnel relay
-  -> outbound WebSocket held by local CoWork OS
+Remote NeoWorker caller
+  -> NeoWorker secure MCP tunnel relay
+  -> outbound WebSocket held by local NeoWorker
   -> local/private MCP HTTP endpoint
   -> response returns through the same tunnel
 ```
@@ -57,10 +57,10 @@ Responsibilities:
 
 Implemented in `src/electron/tunnels/McpTunnelForwarder.ts`.
 
-The forwarder posts MCP JSON-RPC to the configured HTTP MCP target. For the built-in CoWork target, it points at:
+The forwarder posts MCP JSON-RPC to the configured HTTP MCP target. For the built-in NeoWorker target, it points at:
 
 ```text
-http://127.0.0.1:<coworkHostPort>/mcp
+http://127.0.0.1:<neoworkerHostPort>/mcp
 ```
 
 Custom HTTP targets must be loopback, `.local`, or private-network addresses. Public HTTP targets are rejected because this tunnel is not intended to become a generic proxy.
@@ -85,10 +85,10 @@ The relay is self-hostable. It keeps tunnel records and active sessions in memor
 
 ## Enable The Feature
 
-Set the feature flag before starting CoWork OS:
+Set the feature flag before starting NeoWorker:
 
 ```bash
-export COWORK_SECURE_MCP_TUNNELS=1
+export NEOWORKER_SECURE_MCP_TUNNELS=1
 npm run dev
 ```
 
@@ -99,7 +99,7 @@ For packaged or daemon environments, add the same environment variable to the la
 For development:
 
 ```bash
-export COWORK_TUNNEL_RELAY_ADMIN_TOKEN="replace-with-a-long-random-token"
+export NEOWORKER_TUNNEL_RELAY_ADMIN_TOKEN="replace-with-a-long-random-token"
 npm run tunnel-relay:dev
 ```
 
@@ -109,12 +109,12 @@ Optional relay environment variables:
 
 | Variable | Default | Purpose |
 |---|---:|---|
-| `COWORK_TUNNEL_RELAY_PORT` | `8787` | Relay HTTP/WebSocket port |
-| `COWORK_TUNNEL_RELAY_HOST` | `127.0.0.1` | Bind host |
-| `COWORK_TUNNEL_RELAY_ADMIN_TOKEN` | unset | Required to create tunnel credentials |
-| `COWORK_TUNNEL_RELAY_ALLOW_DEV_ADMIN` | unset | Set to `1` only for local tests that intentionally skip admin auth |
+| `NEOWORKER_TUNNEL_RELAY_PORT` | `8787` | Relay HTTP/WebSocket port |
+| `NEOWORKER_TUNNEL_RELAY_HOST` | `127.0.0.1` | Bind host |
+| `NEOWORKER_TUNNEL_RELAY_ADMIN_TOKEN` | unset | Required to create tunnel credentials |
+| `NEOWORKER_TUNNEL_RELAY_ALLOW_DEV_ADMIN` | unset | Set to `1` only for local tests that intentionally skip admin auth |
 
-The relay fails closed for credential creation when no admin token is configured. Do not set `COWORK_TUNNEL_RELAY_ALLOW_DEV_ADMIN=1` outside local development tests.
+The relay fails closed for credential creation when no admin token is configured. Do not set `NEOWORKER_TUNNEL_RELAY_ALLOW_DEV_ADMIN=1` outside local development tests.
 
 ## Provision A Tunnel On The Relay
 
@@ -123,10 +123,10 @@ Create relay-side credentials:
 ```bash
 curl -sS \
   -X POST http://127.0.0.1:8787/v1/tunnels \
-  -H "authorization: Bearer $COWORK_TUNNEL_RELAY_ADMIN_TOKEN" \
+  -H "authorization: Bearer $NEOWORKER_TUNNEL_RELAY_ADMIN_TOKEN" \
   -H "content-type: application/json" \
   -d '{
-    "name": "my-local-cowork-tools",
+    "name": "my-local-neoworker-tools",
     "policy": {
       "allowedTools": [],
       "readOnly": false,
@@ -156,14 +156,14 @@ Keep `clientToken` on the local machine that owns the private MCP target. Give `
 
 You can also provide your own `clientToken` and `callerToken` in the create request when integrating with an external secret manager.
 
-## Configure The Local CoWork App
+## Configure The Local NeoWorker App
 
-1. Start CoWork with `COWORK_SECURE_MCP_TUNNELS=1`.
+1. Start NeoWorker with `NEOWORKER_SECURE_MCP_TUNNELS=1`.
 2. Open **Settings > MCP > Secure Tunnels**.
 3. Click **Add Tunnel**.
 4. Enter the relay URL, for example `http://127.0.0.1:8787` for local development or `https://relay.example.com` for production.
 5. Choose a target:
-   - **CoWork MCP host**: exposes CoWork's connected MCP tools through the local MCP host.
+   - **NeoWorker MCP host**: exposes NeoWorker's connected MCP tools through the local MCP host.
    - **Private HTTP MCP URL**: forwards to a private MCP endpoint such as `http://127.0.0.1:3333/mcp`.
 6. Paste the relay `clientToken`.
 7. Optionally paste the relay `callerToken` for local reference.
@@ -171,7 +171,7 @@ You can also provide your own `clientToken` and `callerToken` in the create requ
 9. Enable **Read-only mode** when remote callers should not invoke write-like tools.
 10. Save and click **Start**.
 
-When the target is **CoWork MCP host**, CoWork starts its local MCP HTTP host on the configured port and points the tunnel at `/mcp`. If the host was already running on the wrong transport or port, CoWork restarts it on the requested HTTP port.
+When the target is **NeoWorker MCP host**, NeoWorker starts its local MCP HTTP host on the configured port and points the tunnel at `/mcp`. If the host was already running on the wrong transport or port, NeoWorker restarts it on the requested HTTP port.
 
 ## Call A Tunnel
 
@@ -273,10 +273,10 @@ The local tunnel requires a client token. Provision a relay tunnel first, then p
 
 ### "Secure MCP Tunnels Are Disabled"
 
-Start CoWork with:
+Start NeoWorker with:
 
 ```bash
-export COWORK_SECURE_MCP_TUNNELS=1
+export NEOWORKER_SECURE_MCP_TUNNELS=1
 ```
 
 ### "Tunnel Relay URL Must Use HTTPS"
@@ -285,7 +285,7 @@ Plain HTTP is allowed only for loopback development (`localhost`, `127.0.0.1`, o
 
 ### "Tunnel Client Is Not Connected"
 
-The relay has a tunnel record, but no local CoWork client is connected. Check:
+The relay has a tunnel record, but no local NeoWorker client is connected. Check:
 
 - the local tunnel is started in Settings
 - the client token matches the relay tunnel record
@@ -300,9 +300,9 @@ Check the relay policy and the local tunnel policy:
 - read-only mode blocks write-like tool names
 - request or response size limits may reject large payloads
 
-### Local CoWork Host Fails
+### Local NeoWorker Host Fails
 
-For **CoWork MCP host** targets, make sure the requested port is free. CoWork uses `http://127.0.0.1:<port>/mcp`.
+For **NeoWorker MCP host** targets, make sure the requested port is free. NeoWorker uses `http://127.0.0.1:<port>/mcp`.
 
 ## Verification
 

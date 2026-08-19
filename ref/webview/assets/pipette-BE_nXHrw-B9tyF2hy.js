@@ -1,0 +1,3 @@
+import { n as e, t } from "./pipette-BE_nXHrw-t8dRwtaq.js";
+e();
+export { t as default };

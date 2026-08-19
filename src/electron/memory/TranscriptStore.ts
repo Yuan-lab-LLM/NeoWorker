@@ -92,7 +92,7 @@ function compareSearchResults(a: TranscriptSearchResult, b: TranscriptSearchResu
 }
 
 function rootDir(workspacePath: string): string {
-  return path.join(workspacePath, ".cowork", "memory", "transcripts");
+  return path.join(workspacePath, ".neoworker", "memory", "transcripts");
 }
 
 function spansDir(workspacePath: string): string {

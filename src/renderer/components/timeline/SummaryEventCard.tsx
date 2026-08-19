@@ -49,7 +49,10 @@ export function SummaryEventCard({
     >
       <div className="event-indicator">
         {showConnectorAbove && (
-          <span className="event-connector event-connector-above" aria-hidden="true" />
+          <span
+            className="event-connector event-connector-above"
+            aria-hidden="true"
+          />
         )}
         <span
           className={`event-indicator-icon tone-${event.status === "success" ? "success" : event.status === "error" ? "error" : event.status === "waiting" || event.status === "blocked" ? "warning" : "active"}`}
@@ -58,7 +61,10 @@ export function SummaryEventCard({
           {STATUS_ICON[event.status] ?? "·"}
         </span>
         {showConnectorBelow && (
-          <span className="event-connector event-connector-below" aria-hidden="true" />
+          <span
+            className="event-connector event-connector-below"
+            aria-hidden="true"
+          />
         )}
       </div>
       <div className="event-content summary-event-content">
@@ -67,7 +73,14 @@ export function SummaryEventCard({
           onClick={hasDetails ? () => setExpanded((v) => !v) : undefined}
           role={hasDetails ? "button" : undefined}
           tabIndex={hasDetails ? 0 : undefined}
-          onKeyDown={hasDetails ? (e) => { if (e.key === "Enter" || e.key === " ") setExpanded((v) => !v); } : undefined}
+          onKeyDown={
+            hasDetails
+              ? (e) => {
+                  if (e.key === "Enter" || e.key === " ")
+                    setExpanded((v) => !v);
+                }
+              : undefined
+          }
         >
           <div className="event-header-left">
             {hasDetails && (
@@ -93,13 +106,18 @@ export function SummaryEventCard({
           </div>
           <div className="event-meta">
             {duration && <span className="event-duration">{duration}</span>}
-            <span className="event-phase-chip phase-chip-{event.phase}">{event.phase}</span>
+            <span className="event-phase-chip phase-chip-{event.phase}">
+              {event.phase}
+            </span>
           </div>
         </div>
         {expanded && hasDetails && (
           <div className="event-details">
             <EvidenceList evidence={event.evidence} />
-            <RawEventDrawer rawEventIds={event.rawEventIds} allEvents={allEvents} />
+            <RawEventDrawer
+              rawEventIds={event.rawEventIds}
+              allEvents={allEvents}
+            />
           </div>
         )}
       </div>

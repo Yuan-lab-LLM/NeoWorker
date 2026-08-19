@@ -130,7 +130,7 @@ describe("TaskExecutor skill shortlist routing", () => {
       },
     ]);
 
-    const prompt = "We need to review PR #55 on cowork os repo. Spin up Codex to review it.";
+    const prompt = "We need to review PR #55 on neoworker os repo. Spin up Codex to review it.";
     const executor = createExecutor(prompt);
 
     const handled = await (TaskExecutor as Any).prototype.maybeHandleHighConfidenceSkillRouting.call(
@@ -151,6 +151,190 @@ describe("TaskExecutor skill shortlist routing", () => {
         ]),
       }),
     );
+  });
+
+  it("routes ordinary PowerPoint creation through Presentation Studio", async () => {
+    rankModelInvocableSkillsForQuery.mockReturnValue([
+      {
+        skill: {
+          id: "presentation-studio",
+          name: "Presentation Studio",
+          description: "Build and visually verify editable PowerPoint decks.",
+          metadata: {
+            routing: {
+              useWhen: "Use for PowerPoint creation and editing.",
+            },
+          },
+        },
+        score: 0.92,
+      },
+    ]);
+    const executor = createExecutor("分析 MiniMax 股票，并生成一个 PPT。");
+    executor.toolRegistry.executeTool.mockImplementation(async (name: string, input: Any) => {
+      expect(name).toBe("Skill");
+      expect(input).toEqual({
+        skill: "presentation-studio",
+        args: "",
+        trigger: "model",
+      });
+      const invocationId = "skill-invocation-presentation-studio";
+      executor.__resolvedInvocations.set(invocationId, {
+        skillId: "presentation-studio",
+        skillName: "Presentation Studio",
+        trigger: "model",
+        args: "",
+        parameters: {},
+        content: "Expanded Presentation Studio instructions",
+        reason: "Applied as the default PowerPoint workflow.",
+        appliedAt: Date.now(),
+      });
+      return {
+        success: true,
+        skill: "presentation-studio",
+        skill_name: "Presentation Studio",
+        skill_invocation_id: invocationId,
+        message: "Loaded Presentation Studio.",
+      };
+    });
+
+    const handled = await (TaskExecutor as Any).prototype.maybeHandleHighConfidenceSkillRouting.call(
+      executor,
+    );
+
+    expect(handled).toBe(true);
+    expect(executor.appliedSkills).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          skillId: "presentation-studio",
+          trigger: "model",
+        }),
+      ]),
+    );
+  });
+
+  it("chooses Visual Presentation instead of Presentation Studio for explicit visual creation", async () => {
+    rankModelInvocableSkillsForQuery.mockReturnValue([
+      {
+        skill: {
+          id: "visual-presentation",
+          name: "Visual Presentation",
+          description: "Build image-led PowerPoint decks with editable native text.",
+          metadata: {
+            routing: {
+              useWhen: "Use for beautiful visual PowerPoint creation.",
+            },
+          },
+        },
+        score: 0.97,
+      },
+      {
+        skill: {
+          id: "presentation-studio",
+          name: "Presentation Studio",
+          description: "Build editable PowerPoint decks.",
+          metadata: {
+            routing: {
+              useWhen: "Use for PowerPoint creation and editing.",
+            },
+          },
+        },
+        score: 0.91,
+      },
+    ]);
+
+    const executor = createExecutor("帮我做一份好看、有发布会质感的产品介绍 PPT。");
+    executor.appliedSkills = [
+      {
+        skillId: "presentation-studio",
+        skillName: "Presentation Studio",
+        trigger: "model",
+        parameters: {},
+        content: "Old presentation instructions",
+        reason: "Restored from an earlier turn.",
+        appliedAt: Date.now() - 1_000,
+      },
+    ];
+    executor.taskContextNotes = [
+      "ACTIVE PRESENTATION WORKFLOW:\nPresentation Studio is active.",
+    ];
+    executor.toolRegistry.executeTool.mockImplementation(async (name: string, input: Any) => {
+      expect(name).toBe("Skill");
+      expect(input).toEqual({
+        skill: "visual-presentation",
+        args: "",
+        trigger: "model",
+      });
+      const invocationId = "skill-invocation-visual-presentation";
+      executor.__resolvedInvocations.set(invocationId, {
+        skillId: "visual-presentation",
+        skillName: "Visual Presentation",
+        trigger: "model",
+        args: "",
+        parameters: {},
+        content: "Expanded Visual Presentation instructions",
+        reason: "Applied as the visual PowerPoint workflow.",
+        appliedAt: Date.now(),
+      });
+      return {
+        success: true,
+        skill: "visual-presentation",
+        skill_name: "Visual Presentation",
+        skill_invocation_id: invocationId,
+        message: "Loaded Visual Presentation.",
+      };
+    });
+
+    const handled = await (TaskExecutor as Any).prototype.maybeHandleHighConfidenceSkillRouting.call(
+      executor,
+    );
+
+    expect(handled).toBe(true);
+    expect(executor.appliedSkills).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          skillId: "visual-presentation",
+          trigger: "model",
+        }),
+      ]),
+    );
+    expect(executor.appliedSkills).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ skillId: "presentation-studio" })]),
+    );
+    expect(executor.taskContextNotes).toEqual(
+      expect.arrayContaining([expect.stringContaining("exactly one final PPTX")]),
+    );
+  });
+
+  it("keeps existing-deck visual edits on Presentation Studio", async () => {
+    const executor = createExecutor("把这个现有 PPTX 美化一下，修复第三页。");
+    expect(
+      (TaskExecutor as Any).prototype.taskRequestsVisualPresentationWorkflow.call(
+        executor,
+        executor.task.prompt,
+      ),
+    ).toBe(false);
+    expect(
+      (TaskExecutor as Any).prototype.taskRequestsPresentationStudioWorkflow.call(
+        executor,
+        executor.task.prompt,
+      ),
+    ).toBe(true);
+  });
+
+  it("routes data-heavy deck creation through Presentation Studio", async () => {
+    const executor = createExecutor("生成一份包含大量可编辑财务图表的季度分析 PPT。");
+    expect(
+      (TaskExecutor as Any).prototype.taskRequestsVisualPresentationWorkflow.call(
+        executor,
+        executor.task.prompt,
+      ),
+    ).toBe(false);
+    expect(
+      (TaskExecutor as Any).prototype.taskRequestsPresentationStudioWorkflow.call(
+        executor,
+        executor.task.prompt,
+      ),
+    ).toBe(true);
   });
 
   it("does not let quoted pasted text hijack the task into a skill", async () => {
@@ -311,6 +495,118 @@ describe("TaskExecutor skill shortlist routing", () => {
         }),
       ]),
     );
+  });
+
+  it("auto-applies a structured task skill without adding an invocation to the user prompt", async () => {
+    listSkills.mockReturnValue([
+      {
+        id: "dcf-valuation",
+        name: "DCF Valuation",
+        description: "Build a discounted cash-flow valuation.",
+        enabled: true,
+      },
+    ]);
+
+    const prompt = "我会提供公司或财务假设。请建立折现现金流模型。";
+    const executor = createExecutor(prompt, {
+      agentConfig: { requestedSkillId: "dcf-valuation" },
+    });
+    executor.toolRegistry.executeTool.mockImplementation(async (name: string, input: Any) => {
+      expect(name).toBe("Skill");
+      expect(input).toEqual({
+        skill: "dcf-valuation",
+        args: "",
+        trigger: "explicit_hint",
+      });
+      const invocationId = "skill-invocation-configured";
+      executor.__resolvedInvocations.set(invocationId, {
+        skillId: "dcf-valuation",
+        skillName: "DCF Valuation",
+        trigger: "explicit_hint",
+        args: "",
+        parameters: {},
+        content: "Expanded DCF valuation instructions",
+        reason: "Applied as hidden structured task context.",
+        appliedAt: Date.now(),
+      });
+      return {
+        success: true,
+        skill: "dcf-valuation",
+        skill_name: "DCF Valuation",
+        skill_invocation_id: invocationId,
+        message: "Loaded skill 'DCF Valuation' for this task.",
+      };
+    });
+
+    const handled = await (
+      TaskExecutor as Any
+    ).prototype.maybeAutoApplyConfiguredTaskSkill.call(executor);
+
+    expect(handled).toBe(true);
+    expect(executor.task.prompt).toBe(prompt);
+    expect(executor.task.prompt).not.toContain("dcf-valuation");
+    expect(executor.appliedSkills).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          skillId: "dcf-valuation",
+          skillName: "DCF Valuation",
+          trigger: "explicit_hint",
+        }),
+      ]),
+    );
+  });
+
+  it("continues a structured task when its optional skill is unavailable", async () => {
+    listSkills.mockReturnValue([
+      {
+        id: "stock-analysis",
+        name: "Stock Analysis",
+        description: "Analyze a listed company.",
+        enabled: true,
+      },
+    ]);
+
+    const prompt = "股票代码：[000977]。请获取实时行情、基本面、技术指标和分析师情绪。";
+    const executor = createExecutor(prompt, {
+      agentConfig: { requestedSkillId: "stock-analysis" },
+    });
+    executor.toolRegistry.executeTool.mockResolvedValue({
+      success: false,
+      error: "Skill 'stock-analysis' is not currently executable",
+      reason: "Missing or invalid skill prerequisites.",
+      missing_requirements: { bins: ["python"] },
+    });
+
+    const handled = await (
+      TaskExecutor as Any
+    ).prototype.maybeAutoApplyConfiguredTaskSkill.call(executor);
+
+    expect(handled).toBe(true);
+    expect(executor.emitEvent).toHaveBeenCalledWith(
+      "tool_result",
+      expect.objectContaining({
+        tool: "Skill",
+        result: expect.objectContaining({
+          success: false,
+          nonBlocking: true,
+          recoverableFallback: true,
+          fallback: "continue_without_skill",
+        }),
+      }),
+    );
+    expect(executor.emitEvent).toHaveBeenCalledWith(
+      "skill_invocation_fallback",
+      expect.objectContaining({
+        skillId: "stock-analysis",
+        fallback: "continue_without_skill",
+      }),
+    );
+    expect(executor.taskContextNotes).toEqual([
+      expect.stringContaining("Continue the original task with the standard tools"),
+    ]);
+    expect(executor.taskContextNotes).not.toEqual([
+      expect.stringContaining("already active as hidden task context"),
+    ]);
   });
 
   it("auto-applies explicitly requested hyphenated skill ids from the task prompt", async () => {

@@ -178,7 +178,7 @@ const theme = {
 export default {
   metadata: {
     title: "示例 deck",
-    author: "CoWork OS",
+    author: "NeoWorker",
   },
   theme: {
     parchment: "#f5f4ed",

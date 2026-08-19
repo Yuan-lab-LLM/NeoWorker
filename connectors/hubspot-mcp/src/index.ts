@@ -143,7 +143,7 @@ class HubSpotClient {
       headers: {
         Authorization: await this.ensureAuthHeader(),
         'Content-Type': 'application/json',
-        'User-Agent': 'CoWork-HubSpot-Connector/0.1.0',
+        'User-Agent': 'NeoWorker-HubSpot-Connector/0.1.0',
       },
       body: body ? JSON.stringify(body) : undefined,
     });

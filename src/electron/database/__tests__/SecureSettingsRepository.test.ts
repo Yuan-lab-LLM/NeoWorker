@@ -7,7 +7,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type Database from "better-sqlite3";
 
-const ORIGINAL_COWORK_USER_DATA_DIR = process.env.COWORK_USER_DATA_DIR;
+const ORIGINAL_NEOWORKER_USER_DATA_DIR = process.env.NEOWORKER_USER_DATA_DIR;
+const ORIGINAL_DEV_STABLE_SECURE_SETTINGS =
+  process.env.NEOWORKER_DEV_STABLE_SECURE_SETTINGS;
 
 // Mock safeStorage (via our helper) and electron app (for any incidental app path usage)
 const mockEncryptString = vi.fn();
@@ -69,7 +71,8 @@ describe("SecureSettingsRepository", () => {
 
   beforeEach(async () => {
     // Ensure getUserDataDir() resolves to our mock path in non-Electron unit tests.
-    process.env.COWORK_USER_DATA_DIR = "/mock/user/data";
+    process.env.NEOWORKER_USER_DATA_DIR = "/mock/user/data";
+    delete process.env.NEOWORKER_DEV_STABLE_SECURE_SETTINGS;
 
     // Reset all mocks
     vi.clearAllMocks();
@@ -115,10 +118,16 @@ describe("SecureSettingsRepository", () => {
   });
 
   afterEach(() => {
-    if (ORIGINAL_COWORK_USER_DATA_DIR === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+    if (ORIGINAL_NEOWORKER_USER_DATA_DIR === undefined) {
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = ORIGINAL_COWORK_USER_DATA_DIR;
+      process.env.NEOWORKER_USER_DATA_DIR = ORIGINAL_NEOWORKER_USER_DATA_DIR;
+    }
+    if (ORIGINAL_DEV_STABLE_SECURE_SETTINGS === undefined) {
+      delete process.env.NEOWORKER_DEV_STABLE_SECURE_SETTINGS;
+    } else {
+      process.env.NEOWORKER_DEV_STABLE_SECURE_SETTINGS =
+        ORIGINAL_DEV_STABLE_SECURE_SETTINGS;
     }
 
     // Clean up singleton
@@ -167,7 +176,9 @@ describe("SecureSettingsRepository", () => {
       const testSettings = { provider: "azure", apiKey: "test-key" };
       repository.save("voice", testSettings);
 
-      expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining("INSERT INTO"));
+      expect(mockDb.prepare).toHaveBeenCalledWith(
+        expect.stringContaining("INSERT INTO"),
+      );
       expect(mockStmt.run).toHaveBeenCalledWith(
         "test-uuid-1234",
         "voice",
@@ -191,7 +202,9 @@ describe("SecureSettingsRepository", () => {
       const testSettings = { provider: "elevenlabs" };
       repository.save("voice", testSettings);
 
-      expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining("UPDATE"));
+      expect(mockDb.prepare).toHaveBeenCalledWith(
+        expect.stringContaining("UPDATE"),
+      );
       expect(mockStmt.run).toHaveBeenCalledWith(
         expect.stringContaining("os:"), // encrypted data
         expect.any(String), // checksum
@@ -205,7 +218,9 @@ describe("SecureSettingsRepository", () => {
 
       repository.save("llm", { model: "gpt-4" });
 
-      expect(mockEncryptString).toHaveBeenCalledWith(JSON.stringify({ model: "gpt-4" }));
+      expect(mockEncryptString).toHaveBeenCalledWith(
+        JSON.stringify({ model: "gpt-4" }),
+      );
     });
 
     it("should use app-level encryption when OS keychain unavailable", () => {
@@ -230,9 +245,30 @@ describe("SecureSettingsRepository", () => {
       );
     });
 
+    it("should use rebuild-stable app encryption in development even when OS encryption is available", () => {
+      process.env.NEOWORKER_DEV_STABLE_SECURE_SETTINGS = "1";
+      (SecureSettingsRepositoryClass as Any).instance = null;
+      repository = new SecureSettingsRepositoryClass(mockDb);
+      mockStmt.get.mockReturnValue(undefined);
+
+      repository.save("llm", { apiKey: "development-key" });
+
+      expect(mockEncryptString).not.toHaveBeenCalled();
+      expect(mockStmt.run).toHaveBeenCalledWith(
+        expect.any(String),
+        "llm",
+        expect.stringMatching(/^app:/),
+        expect.any(String),
+        expect.any(Number),
+        expect.any(Number),
+      );
+    });
+
     it("should save operation without throwing", () => {
       mockStmt.get.mockReturnValue(undefined);
-      expect(() => repository.save("appearance", { theme: "dark" })).not.toThrow();
+      expect(() =>
+        repository.save("appearance", { theme: "dark" }),
+      ).not.toThrow();
     });
 
     it("should handle plugin-scoped categories", () => {
@@ -267,9 +303,12 @@ describe("SecureSettingsRepository", () => {
     it("should decrypt and return settings with valid checksum", () => {
       const testData = { provider: "azure", endpoint: "https://test.api" };
       const jsonData = JSON.stringify(testData);
-// oxlint-disable-next-line typescript-eslint(no-require-imports)
+      // oxlint-disable-next-line typescript-eslint(no-require-imports)
       const crypto = require("crypto");
-      const checksum = crypto.createHash("sha256").update(jsonData).digest("hex");
+      const checksum = crypto
+        .createHash("sha256")
+        .update(jsonData)
+        .digest("hex");
 
       mockStmt.get.mockReturnValue({
         id: "test-id",
@@ -285,6 +324,40 @@ describe("SecureSettingsRepository", () => {
       const result = repository.load("voice");
 
       expect(result).toEqual(testData);
+    });
+
+    it("should migrate readable OS-encrypted settings to rebuild-stable development encryption", () => {
+      process.env.NEOWORKER_DEV_STABLE_SECURE_SETTINGS = "1";
+      (SecureSettingsRepositoryClass as Any).instance = null;
+      repository = new SecureSettingsRepositoryClass(mockDb);
+
+      const testData = { provider: "openai", apiKey: "existing-key" };
+      const jsonData = JSON.stringify(testData);
+      // oxlint-disable-next-line typescript-eslint(no-require-imports)
+      const crypto = require("crypto");
+      const checksum = crypto
+        .createHash("sha256")
+        .update(jsonData)
+        .digest("hex");
+      const oldEncryptedData = `os:${Buffer.from(`encrypted:${jsonData}`).toString("base64")}`;
+      mockStmt.get.mockReturnValue({
+        id: "test-id",
+        category: "llm",
+        encrypted_data: oldEncryptedData,
+        checksum,
+        created_at: 1000,
+        updated_at: 2000,
+      });
+      mockDecryptString.mockReturnValue(jsonData);
+
+      expect(repository.load("llm")).toEqual(testData);
+      expect(mockDecryptString).toHaveBeenCalled();
+      expect(mockStmt.run).toHaveBeenCalledWith(
+        expect.stringMatching(/^app:/),
+        expect.any(Number),
+        "llm",
+        oldEncryptedData,
+      );
     });
 
     it("should return undefined on checksum mismatch", () => {
@@ -306,7 +379,9 @@ describe("SecureSettingsRepository", () => {
 
       expect(result).toBeUndefined();
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Marked secure settings category voice unreadable"),
+        expect.stringContaining(
+          "Marked secure settings category voice unreadable",
+        ),
       );
       consoleSpy.mockRestore();
     });
@@ -331,7 +406,9 @@ describe("SecureSettingsRepository", () => {
 
       expect(result).toBeUndefined();
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Marked secure settings category voice unreadable"),
+        expect.stringContaining(
+          "Marked secure settings category voice unreadable",
+        ),
       );
       consoleSpy.mockRestore();
     });
@@ -373,7 +450,9 @@ describe("SecureSettingsRepository", () => {
       const result = repository.delete("voice");
 
       expect(result).toBe(true);
-      expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining("DELETE"));
+      expect(mockDb.prepare).toHaveBeenCalledWith(
+        expect.stringContaining("DELETE"),
+      );
       expect(mockStmt.run).toHaveBeenCalledWith("voice");
     });
 
@@ -397,7 +476,9 @@ describe("SecureSettingsRepository", () => {
       const result = repository.exists("voice");
 
       expect(result).toBe(true);
-      expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining("SELECT 1"));
+      expect(mockDb.prepare).toHaveBeenCalledWith(
+        expect.stringContaining("SELECT 1"),
+      );
     });
 
     it("should return false when no settings exist", () => {
@@ -631,7 +712,7 @@ describe("SecureSettingsRepository", () => {
       repository = new SecureSettingsRepositoryClass(mockDb);
 
       expect(mockFsWriteFileSync).toHaveBeenCalledWith(
-        "/mock/user/data/.cowork-machine-id",
+        "/mock/user/data/.neoworker-machine-id",
         "test-uuid-1234",
         { mode: 0o600 },
       );
@@ -645,7 +726,7 @@ describe("SecureSettingsRepository", () => {
 
       expect(mockFsWriteFileSync).not.toHaveBeenCalled();
       expect(mockFsReadFileSync).toHaveBeenCalledWith(
-        "/mock/user/data/.cowork-machine-id",
+        "/mock/user/data/.neoworker-machine-id",
         "utf-8",
       );
     });
@@ -684,9 +765,12 @@ describe("SecureSettingsRepository", () => {
     it("should return success status with data on successful load", () => {
       const testData = { provider: "azure" };
       const jsonData = JSON.stringify(testData);
-// oxlint-disable-next-line typescript-eslint(no-require-imports)
+      // oxlint-disable-next-line typescript-eslint(no-require-imports)
       const crypto = require("crypto");
-      const checksum = crypto.createHash("sha256").update(jsonData).digest("hex");
+      const checksum = crypto
+        .createHash("sha256")
+        .update(jsonData)
+        .digest("hex");
 
       mockStmt.get.mockReturnValue({
         id: "test-id",
@@ -718,7 +802,9 @@ describe("SecureSettingsRepository", () => {
       });
       mockDecryptString.mockReturnValue(jsonData);
 
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
       const result = repository.loadWithStatus("voice");
 
       expect(result.status).toBe("checksum_mismatch");
@@ -740,7 +826,9 @@ describe("SecureSettingsRepository", () => {
         updated_at: 2000,
       });
 
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
       const result = repository.loadWithStatus("voice");
 
       expect(result.status).toBe("os_encryption_unavailable");
@@ -761,7 +849,9 @@ describe("SecureSettingsRepository", () => {
         throw new Error("Some decryption error");
       });
 
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
       const result = repository.loadWithStatus("voice");
 
       expect(result.status).toBe("decryption_failed");
@@ -803,7 +893,9 @@ describe("SecureSettingsRepository", () => {
         throw new Error("Decryption failed");
       });
 
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
       const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       const result = repository.deleteCorrupted("voice");

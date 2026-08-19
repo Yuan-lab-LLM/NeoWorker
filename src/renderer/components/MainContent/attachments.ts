@@ -46,7 +46,10 @@ export const composeMessageWithAttachments = async (
   if (workspacePath && attachments.length > 0) {
     for (const attachment of attachments) {
       try {
-        const options = buildImageAttachmentViewerOptions(text, attachment.fileName);
+        const options = buildImageAttachmentViewerOptions(
+          text,
+          attachment.fileName,
+        );
         const result = await window.electronAPI.readFileForViewer(
           attachment.relativePath,
           workspacePath,
@@ -82,7 +85,8 @@ export const composeMessageWithAttachments = async (
         }
         if (!content?.trim()) continue;
 
-        extractedByPath[attachment.relativePath] = truncateTextForTaskPrompt(content);
+        extractedByPath[attachment.relativePath] =
+          truncateTextForTaskPrompt(content);
       } catch {
         extractionWarnings.push(attachment.fileName);
       }
@@ -91,7 +95,14 @@ export const composeMessageWithAttachments = async (
 
   const base = text.trim() || "Please review the attached files.";
   const attachmentSummaryLines = attachments.map((attachment) => {
-    const lines = [`- ${attachment.fileName} (${attachment.relativePath})`];
+    const metadata = [
+      `size=${attachment.size}`,
+      attachment.mimeType ? `mime=${attachment.mimeType}` : null,
+    ].filter(Boolean);
+    const lines = [
+      `- ${attachment.fileName} (${attachment.relativePath})`,
+      `  Attachment metadata: ${metadata.join("; ")}`,
+    ];
     const extracted = extractedByPath[attachment.relativePath];
     if (extracted) {
       lines.push("  Extracted content:");

@@ -16,7 +16,7 @@ Inbox Agent has moved past the original saved-view slice into the email-client r
 - attachment metadata capture during Gmail sync and on-demand text extraction for supported file types
 - autosync with cached mail shown immediately on startup
 - provider-backed read/unread actions where supported
-- `Mark done` for threads already handled outside CoWork OS
+- `Mark done` for threads already handled outside NeoWorker
 - editable AI-generated draft replies
 - manual reply, reply-all, and forward from the thread detail view without requiring AI draft generation
 - direct provider send through Gmail API, AgentMail reply-all, or SMTP depending on account type
@@ -58,7 +58,7 @@ The remaining replacement-client gaps are native new-mail compose, provider-back
 
 - Short questionnaire: priorities, domains to deprioritize, VIP senders — used to **seed** saved views and automations. Not required for the first code slice.
 
-## 2. Cross-System Hooks (CoWork OS)
+## 2. Cross-System Hooks (NeoWorker)
 
 | Signal | Mission Control | Automations / triggers | Heartbeat | Briefing | Knowledge Graph | Memory / playbooks |
 |--------|-----------------|-------------------------|-----------|----------|-----------------|--------------------|

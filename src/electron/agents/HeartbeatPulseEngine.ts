@@ -112,6 +112,20 @@ export class HeartbeatPulseEngine {
       };
     }
 
+    if (!input.manualOverride && input.assignedTasks > 0) {
+      return {
+        kind: "idle",
+        reason: "Assigned work already in progress",
+        evidenceRefs,
+        signalIds,
+        signalCount: input.signals.length,
+        compressedSignalCount,
+        dueChecklistCount: input.dueChecklistItems.length,
+        dueProactiveCount: input.dueProactiveTasks.length,
+        workspaceId,
+      };
+    }
+
     if (!input.manualOverride && input.cooldownUntil && input.cooldownUntil > Date.now()) {
       return {
         kind: "idle",
@@ -164,7 +178,7 @@ export class HeartbeatPulseEngine {
       };
     }
 
-    if (input.pendingMentions > 0 || input.assignedTasks > 0 || input.manualOverride) {
+    if (input.pendingMentions > 0 || input.manualOverride) {
       const dispatchKind =
         profile === "dispatcher" ? "task" : "suggestion";
       return {

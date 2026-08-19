@@ -1,7 +1,7 @@
 {
-  "name": "@cowork-os/blender-mcp",
+  "name": "@neoworker/blender-mcp",
   "version": "0.1.0",
-  "description": "Blender scene, material, and render MCP connector for CoWork OS.",
+  "description": "Blender scene, material, and render MCP connector for NeoWorker.",
   "private": true,
   "type": "commonjs",
   "main": "dist/index.js",

@@ -8,7 +8,7 @@ import { SpreadsheetBuilder } from "../spreadsheet";
 
 describe("SpreadsheetBuilder", () => {
   it('writes formula strings (e.g. "=SUM(A1:A2)") as Excel formulas', async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-spreadsheet-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-spreadsheet-"));
     const workspace: Workspace = {
       id: "test-workspace",
       name: "test-workspace",

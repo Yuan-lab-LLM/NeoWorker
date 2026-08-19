@@ -1,6 +1,6 @@
 # Security Best Practices
 
-Recommended security practices for CoWork OS deployments.
+Recommended security practices for NeoWorker deployments.
 
 ## Initial Setup
 
@@ -13,7 +13,7 @@ Always start with pairing mode for external channels:
 
 ### 2. Use Dedicated Bot Accounts
 
-Create separate bot accounts for CoWork OS:
+Create separate bot accounts for NeoWorker:
 - Don't use personal accounts
 - Easier to audit and revoke
 - Limits blast radius if compromised
@@ -62,7 +62,7 @@ Periodically review:
 - Remove users who no longer need access
 - Rotate pairing codes if shared widely
 
-### 4. Keep CoWork OS Updated
+### 4. Keep NeoWorker Updated
 
 Install updates promptly:
 - Security fixes
@@ -224,7 +224,7 @@ If you suspect compromise:
 
 If you find a security issue:
 1. Do not disclose publicly
-2. Email info@coworkosapp.com
+2. Email info@neoworkerapp.com
 3. Include:
    - Description of the issue
    - Steps to reproduce
@@ -235,7 +235,7 @@ If you find a security issue:
 
 ### Q: Is my data sent to external servers?
 
-Only to the configured LLM provider (Anthropic/AWS Bedrock). No data is sent to CoWork OS servers.
+Only to the configured LLM provider (Anthropic/AWS Bedrock). No data is sent to NeoWorker servers.
 
 ### Q: Are my API keys stored securely?
 
@@ -247,7 +247,7 @@ Clipboard tools are blocked by default in group contexts. In DM contexts, only y
 
 ### Q: What happens if Docker isn't available?
 
-CoWork OS falls back to process isolation with timeouts. On macOS, native sandbox-exec is preferred.
+NeoWorker falls back to process isolation with timeouts. On macOS, native sandbox-exec is preferred.
 
 ### Q: How long are pairing codes valid?
 

@@ -20,7 +20,7 @@ export class GlobTools {
     ".build",
     "release",
     "out",
-    ".cowork",
+    ".neoworker",
     ".cache",
     ".parcel-cache",
     ".turbo",
@@ -369,8 +369,8 @@ export class GlobTools {
     // Convert each pattern to regex
     const regexParts = expandedPatterns.map((p) => {
       // Use a placeholder so "*" replacement doesn't accidentally rewrite the globstar expansion.
-      const GLOBSTAR = "__COWORK_GLOBSTAR__";
-      const GLOBSTAR_SLASH = "__COWORK_GLOBSTAR_SLASH__";
+      const GLOBSTAR = "__NEOWORKER_GLOBSTAR__";
+      const GLOBSTAR_SLASH = "__NEOWORKER_GLOBSTAR_SLASH__";
       let regex = p
         // Escape special regex characters (except glob chars * and ?)
         .replace(/[.+^${}()|[\]\\]/g, "\\$&")

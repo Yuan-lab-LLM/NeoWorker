@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach as _afterEach } from "v
 // Mock electron
 vi.mock("electron", () => ({
   app: {
-    getPath: vi.fn().mockReturnValue("/tmp/test-cowork"),
+    getPath: vi.fn().mockReturnValue("/tmp/test-neoworker"),
   },
 }));
 

@@ -31,7 +31,7 @@ export async function downscaleImage(
   const maxDim = options?.maxDimension ?? 1600;
 
   // sips only supports certain formats — convert everything to JPEG for analysis
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-img-"));
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-img-"));
   const inputExt = mimeType.includes("png") ? ".png" : mimeType.includes("webp") ? ".webp" : ".jpg";
   const inputPath = path.join(tmpDir, `input${inputExt}`);
   const outputPath = path.join(tmpDir, "output.jpg");

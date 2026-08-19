@@ -657,53 +657,39 @@ export class SearchProviderFactory {
 
   /**
    * Build the provider execution order for automatic search fallback.
-   * - If Brave is configured and multiple providers are available, prefer Brave first.
-   * - Then preserve explicit primary/fallback ordering when available.
+   * - Always respect the user's explicit primary/fallback ordering.
+   * - When no preference exists, prefer Brave among multiple configured providers.
    * - Fill remaining providers from the detected configured list.
-   * - DuckDuckGo is always appended as the last-resort fallback.
+   * - DuckDuckGo is appended as the last-resort fallback unless explicitly selected earlier.
    */
   private static getProviderExecutionOrder(settings: SearchSettings): SearchProviderType[] {
     const configuredProviders = this.getConfiguredProvidersFromSettings(settings);
-
-    // No paid providers configured — DuckDuckGo is the only option
-    if (configuredProviders.length === 0) {
-      return ["duckduckgo"];
-    }
-
-    if (configuredProviders.length === 1) {
-      return [...configuredProviders, "duckduckgo"];
-    }
-
     const orderedProviders: SearchProviderType[] = [];
-    const addProviderIfConfigured = (provider?: SearchProviderType | null) => {
+    const addProviderIfAvailable = (provider?: SearchProviderType | null) => {
       if (
         provider &&
-        configuredProviders.includes(provider) &&
+        (provider === "duckduckgo" || configuredProviders.includes(provider)) &&
         !orderedProviders.includes(provider)
       ) {
         orderedProviders.push(provider);
       }
     };
 
-    // Respect explicit primary/fallback preference where available.
-    addProviderIfConfigured(settings.primaryProvider);
-    addProviderIfConfigured(settings.fallbackProvider);
+    if (settings.primaryProvider) {
+      addProviderIfAvailable(settings.primaryProvider);
+    } else if (configuredProviders.length > 1 && configuredProviders.includes("brave")) {
+      addProviderIfAvailable("brave");
+    }
+
+    addProviderIfAvailable(settings.fallbackProvider);
 
     // Fill in any remaining configured providers.
     for (const provider of configuredProviders) {
-      addProviderIfConfigured(provider);
+      addProviderIfAvailable(provider);
     }
 
-    // Prefer Brave when available and multiple providers are configured.
-    if (orderedProviders.length > 1 && orderedProviders.includes("brave")) {
-      return [
-        "brave",
-        ...orderedProviders.filter((provider) => provider !== "brave"),
-        "duckduckgo",
-      ];
-    }
-
-    return [...orderedProviders, "duckduckgo"];
+    addProviderIfAvailable("duckduckgo");
+    return orderedProviders;
   }
 
   /**

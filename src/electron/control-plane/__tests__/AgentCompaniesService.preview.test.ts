@@ -50,7 +50,7 @@ describe("AgentCompaniesService preview", () => {
   });
 
   it("builds a resolved preview graph from a local Agent Companies package", () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-agent-companies-preview-"));
+    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-agent-companies-preview-"));
     tmpRoots.push(rootDir);
     writeFiles(rootDir, [
       [
@@ -147,7 +147,7 @@ assignee: "cto"
   });
 
   it("warns when COMPANY.md is missing and references cannot be resolved", () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-agent-companies-preview-"));
+    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-agent-companies-preview-"));
     tmpRoots.push(rootDir);
     writeFiles(rootDir, [
       [
@@ -179,7 +179,7 @@ reportsTo: "missing-manager"
   });
 
   it("throws an actionable error when the package folder does not exist", () => {
-    const rootDir = path.join(os.tmpdir(), "cowork-agent-companies-missing-folder");
+    const rootDir = path.join(os.tmpdir(), "neoworker-agent-companies-missing-folder");
 
     expect(() =>
       createService().previewImport({

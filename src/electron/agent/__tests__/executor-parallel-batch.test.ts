@@ -23,6 +23,8 @@ function createParallelExecutorFixture(
   executor.toolBatchParallelMax = 2;
   executor.totalToolCallCount = 0;
   executor.webSearchToolCallCount = 0;
+  executor.paidWebSearchToolCallCount = 0;
+  executor.duckDuckGoFallbackSearchCallCount = 0;
   executor.crossStepToolFailures = new Map();
   executor.normalizeToolName = vi.fn((name: string) => ({ name }));
   executor.applyPreToolUsePolicyHook = vi.fn(() => ({
@@ -45,35 +47,46 @@ function createParallelExecutorFixture(
   };
   executor.checkFileOperation = vi.fn(() => ({ blocked: false }));
   executor.evaluateWebFetchPolicy = vi.fn(() => ({ blocked: false }));
-  executor.evaluateWebSearchPolicyAndBudget = vi.fn((_: Any, stepCount: number) => ({
-    blocked: false,
-    scope: "task",
-    used: stepCount,
-    limit: 8,
-    remaining: Math.max(0, 8 - stepCount),
-    stepUsed: stepCount,
-    stepLimit: 3,
-    stepRemaining: Math.max(0, 3 - stepCount),
-  }));
+  executor.evaluateWebSearchPolicyAndBudget = vi.fn(
+    (_: Any, stepCount: number) => ({
+      blocked: false,
+      scope: "task",
+      used: stepCount,
+      limit: 8,
+      remaining: Math.max(0, 8 - stepCount),
+      stepUsed: stepCount,
+      stepLimit: 3,
+      stepRemaining: Math.max(0, 3 - stepCount),
+    }),
+  );
   executor.detectStrictTaskRootPathViolationInInput = vi.fn(() => null);
-  executor.rewriteToolInputPathByPinnedRoot = vi.fn((_: string, input: Any) => ({
-    rewritten: false,
-    input,
-  }));
+  executor.rewriteToolInputPathByPinnedRoot = vi.fn(
+    (_: string, input: Any) => ({
+      rewritten: false,
+      input,
+    }),
+  );
   executor.isParallelToolCallEligible = vi.fn(() => true);
   executor.enforceToolBudget = vi.fn();
-  executor.executeToolWithHeartbeat = vi.fn(async (toolName: string, input: Any) => ({
-    success: true,
-    toolName,
-    input,
-  }));
+  executor.executeToolWithHeartbeat = vi.fn(
+    async (toolName: string, input: Any) => ({
+      success: true,
+      toolName,
+      input,
+    }),
+  );
   executor.getToolTimeoutMs = vi.fn(() => 1000);
-  executor.tryWorkspaceBoundaryRecovery = vi.fn(async () => ({ recovered: false }));
+  executor.tryWorkspaceBoundaryRecovery = vi.fn(async () => ({
+    recovered: false,
+  }));
   executor.recordFileOperation = vi.fn();
   executor.recordToolUsage = vi.fn();
   executor.recordToolResult = vi.fn();
   executor.toolBatchSummaryGenerator = {
-    generateSummary: vi.fn(async () => ({ semanticSummary: "", source: "fallback" })),
+    generateSummary: vi.fn(async () => ({
+      semanticSummary: "",
+      source: "fallback",
+    })),
   };
   executor.getToolFailureReason = vi.fn((result: Any, fallback: string) =>
     typeof result?.error === "string" ? result.error : fallback,
@@ -90,7 +103,11 @@ function createParallelExecutorFixture(
   return { executor, events };
 }
 
-function makeToolUse(id: string, name: string, input: Record<string, unknown>): Any {
+function makeToolUse(
+  id: string,
+  name: string,
+  input: Record<string, unknown>,
+): Any {
   return {
     type: "tool_use",
     id,
@@ -132,24 +149,33 @@ describe("TaskExecutor parallel tool batches", () => {
       makeToolUse("use-2", "web_search", { value: "second", delayMs: 5 }),
     ];
 
-    const result = (await (executor as Any).tryExecuteEligibleToolBatchInParallel(
+    const result = (await (
+      executor as Any
+    ).tryExecuteEligibleToolBatchInParallel(
       makeParallelParams(responseContent),
     )) as { toolResults: LLMToolResult[] } | null;
 
     expect(result).not.toBeNull();
-    expect(result?.toolResults.map((entry) => entry.tool_use_id)).toEqual(["use-1", "use-2"]);
+    expect(result?.toolResults.map((entry) => entry.tool_use_id)).toEqual([
+      "use-1",
+      "use-2",
+    ]);
   });
 
   it("returns null to force serial fallback when any call is not parallel-eligible", async () => {
     const { executor, events } = createParallelExecutorFixture({
-      isParallelToolCallEligible: vi.fn((_toolName: string, input: Any) => input.parallel !== false),
+      isParallelToolCallEligible: vi.fn(
+        (_toolName: string, input: Any) => input.parallel !== false,
+      ),
     });
     const responseContent = [
       makeToolUse("use-1", "web_fetch", { parallel: true }),
       makeToolUse("use-2", "web_search", { parallel: false }),
     ];
 
-    const result = await (executor as Any).tryExecuteEligibleToolBatchInParallel(
+    const result = await (
+      executor as Any
+    ).tryExecuteEligibleToolBatchInParallel(
       makeParallelParams(responseContent),
     );
 
@@ -157,6 +183,53 @@ describe("TaskExecutor parallel tool batches", () => {
     expect((executor as Any).executeToolWithHeartbeat).not.toHaveBeenCalled();
     expect((executor as Any).enforceToolBudget).not.toHaveBeenCalled();
     expect(events.some((entry) => entry.type === "tool_call")).toBe(false);
+  });
+
+  it("rewrites over-budget parallel web searches to DuckDuckGo before dispatch", async () => {
+    const { executor } = createParallelExecutorFixture({
+      evaluateWebSearchPolicyAndBudget: vi.fn((_: Any, stepCount: number) => ({
+        blocked: false,
+        fallbackToDuckDuckGo: true,
+        reason: "Paid web_search budget reached; continuing with DuckDuckGo.",
+        scope: "task",
+        used: 4,
+        limit: 4,
+        remaining: 0,
+        stepUsed: stepCount,
+        stepLimit: 3,
+        stepRemaining: Math.max(0, 3 - stepCount),
+      })),
+    });
+    const responseContent = [
+      makeToolUse("search-1", "web_search", {
+        query: "first",
+        provider: "tavily",
+      }),
+      makeToolUse("search-2", "web_search", { query: "second" }),
+    ];
+
+    const result = await (
+      executor as Any
+    ).tryExecuteEligibleToolBatchInParallel(
+      makeParallelParams(responseContent),
+    );
+
+    expect(result).not.toBeNull();
+    expect(executor.executeToolWithHeartbeat).toHaveBeenNthCalledWith(
+      1,
+      "web_search",
+      expect.objectContaining({ query: "first", provider: "duckduckgo" }),
+      1000,
+    );
+    expect(executor.executeToolWithHeartbeat).toHaveBeenNthCalledWith(
+      2,
+      "web_search",
+      expect.objectContaining({ query: "second", provider: "duckduckgo" }),
+      1000,
+    );
+    expect(executor.webSearchToolCallCount).toBe(2);
+    expect(executor.paidWebSearchToolCallCount).toBe(0);
+    expect(executor.duckDuckGoFallbackSearchCallCount).toBe(2);
   });
 
   it("falls back to serial when deterministic web_search step budget preflight blocks overflow", async () => {
@@ -192,7 +265,9 @@ describe("TaskExecutor parallel tool batches", () => {
       makeToolUse("use-2", "web_search", { query: "two" }),
     ];
 
-    const result = await (executor as Any).tryExecuteEligibleToolBatchInParallel(
+    const result = await (
+      executor as Any
+    ).tryExecuteEligibleToolBatchInParallel(
       makeParallelParams(responseContent),
     );
 
@@ -216,14 +291,14 @@ describe("TaskExecutor parallel tool batches", () => {
     ]);
     params.requiredTools = new Set(["web_fetch"]);
 
-    const result = (await (executor as Any).tryExecuteEligibleToolBatchInParallel(params)) as
-      | {
-          toolResults: LLMToolResult[];
-          hadToolError: boolean;
-          hadAnyToolSuccess: boolean;
-          requiredToolsSucceeded?: Set<string>;
-        }
-      | null;
+    const result = (await (
+      executor as Any
+    ).tryExecuteEligibleToolBatchInParallel(params)) as {
+      toolResults: LLMToolResult[];
+      hadToolError: boolean;
+      hadAnyToolSuccess: boolean;
+      requiredToolsSucceeded?: Set<string>;
+    } | null;
 
     expect(result).not.toBeNull();
     expect(result?.hadToolError).toBe(true);
@@ -269,6 +344,49 @@ describe("TaskExecutor parallel tool batches", () => {
     );
   });
 
+  it("keeps an unavailable research source advisory in a parallel batch", async () => {
+    const { executor, events } = createParallelExecutorFixture({
+      executeToolWithHeartbeat: vi.fn(async (toolName: string) =>
+        toolName === "web_fetch"
+          ? {
+              result: {
+                success: false,
+                error: "HTTP 404: Not Found",
+                nonBlocking: true,
+                recoverableFallback: true,
+                failureKind: "source_unavailable",
+              },
+            }
+          : { result: { success: true } },
+      ),
+    });
+    const params = makeParallelParams([
+      makeToolUse("source-1", "web_fetch", {
+        url: "https://example.com/missing",
+      }),
+      makeToolUse("search-1", "web_search", { query: "replacement source" }),
+    ]);
+
+    const result = (await (
+      executor as Any
+    ).tryExecuteEligibleToolBatchInParallel(params)) as Any;
+
+    expect(result.hadToolError).toBe(false);
+    expect(result.hadRecoverableUnavailableAlternative).toBe(true);
+    expect(params.toolErrors.size).toBe(0);
+    expect(events.some((entry) => entry.type === "tool_error")).toBe(false);
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "tool_warning",
+        payload: expect.objectContaining({
+          tool: "web_fetch",
+          recoverableFallback: true,
+          failureKind: "source_unavailable",
+        }),
+      }),
+    );
+  });
+
   it("treats abort-like image results on a cancelled task as cancellation", () => {
     const { executor } = createParallelExecutorFixture();
     executor.cancelled = true;
@@ -289,10 +407,14 @@ describe("TaskExecutor parallel tool batches", () => {
     params.phase = "follow_up";
     params.followUp = true;
 
-    const result = await (executor as Any).tryExecuteEligibleToolBatchInParallel(params);
+    const result = await (
+      executor as Any
+    ).tryExecuteEligibleToolBatchInParallel(params);
 
     expect(result).not.toBeNull();
-    const toolCalls = events.filter((entry) => entry.type === "tool_call").map((entry) => entry.payload);
+    const toolCalls = events
+      .filter((entry) => entry.type === "tool_call")
+      .map((entry) => entry.payload);
     expect(toolCalls).toHaveLength(2);
     expect(toolCalls[0]).toMatchObject({
       toolUseId: "follow-1",

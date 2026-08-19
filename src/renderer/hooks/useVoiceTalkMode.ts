@@ -2,7 +2,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useVoiceInput } from "./useVoiceInput";
 import { shouldSpeak, getTextForSpeech } from "../utils/voice-directives";
 
-export type TalkModeState = "off" | "idle" | "listening" | "processing" | "speaking";
+export type TalkModeState =
+  "off" | "idle" | "listening" | "processing" | "speaking";
 
 interface UseVoiceTalkModeOptions {
   /** Send a message as if the user typed it */
@@ -47,17 +48,21 @@ const PTT_KEY_DEFAULT = "Space";
  *
  * Flow: Listen → Transcribe → Send message → Speak response → Listen again
  */
-export function useVoiceTalkMode(options: UseVoiceTalkModeOptions): UseVoiceTalkModeReturn {
+export function useVoiceTalkMode(
+  options: UseVoiceTalkModeOptions,
+): UseVoiceTalkModeReturn {
   const { onSendMessage, onToggle, onError } = options;
 
   const [isActive, setIsActive] = useState(false);
   const [talkState, setTalkState] = useState<TalkModeState>("off");
   const [lastTranscript, setLastTranscript] = useState<string | null>(null);
-  const [inputMode, setInputMode] = useState<"push_to_talk" | "voice_activity" | "disabled">(
-    "push_to_talk",
-  );
+  const [inputMode, setInputMode] = useState<
+    "push_to_talk" | "voice_activity" | "disabled"
+  >("push_to_talk");
   const [pushToTalkKey, setPushToTalkKey] = useState(PTT_KEY_DEFAULT);
-  const [responseMode, setResponseMode] = useState<"auto" | "manual" | "smart">("auto");
+  const [responseMode, setResponseMode] = useState<"auto" | "manual" | "smart">(
+    "auto",
+  );
   const [volume, setVolume] = useState(80);
 
   const isActiveRef = useRef(false);
@@ -219,7 +224,10 @@ export function useVoiceTalkMode(options: UseVoiceTalkModeOptions): UseVoiceTalk
       } else if (vadStartedRef.current) {
         // Silence after speech - start countdown
         const recordingDuration = Date.now() - vadRecordingStartRef.current;
-        if (recordingDuration > VAD_MIN_RECORDING_MS && !vadSilenceTimerRef.current) {
+        if (
+          recordingDuration > VAD_MIN_RECORDING_MS &&
+          !vadSilenceTimerRef.current
+        ) {
           vadSilenceTimerRef.current = setTimeout(() => {
             if (isActiveRef.current && voiceInput.state === "recording") {
               voiceInput.stopRecording(); // Will trigger transcription
@@ -254,7 +262,11 @@ export function useVoiceTalkMode(options: UseVoiceTalkModeOptions): UseVoiceTalk
       if (!isActiveRef.current) return;
       // Ignore if typing in an input/textarea
       const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      )
         return;
 
       if (normalizeKey(e.key) === pushToTalkKey && !pttPressedRef.current) {
@@ -293,7 +305,11 @@ export function useVoiceTalkMode(options: UseVoiceTalkModeOptions): UseVoiceTalk
   useEffect(() => {
     if (!isActive) return;
 
-    if (voiceInput.state === "recording" && talkState !== "listening" && talkState !== "speaking") {
+    if (
+      voiceInput.state === "recording" &&
+      talkState !== "listening" &&
+      talkState !== "speaking"
+    ) {
       setTalkState("listening");
     } else if (voiceInput.state === "processing") {
       setTalkState("processing");

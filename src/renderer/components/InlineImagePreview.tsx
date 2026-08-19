@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import type { FileViewerResult } from "../../electron/preload";
+import { translate, useLanguage } from "../i18n";
 
 type InlineImagePreviewProps = {
   filePath: string;
@@ -22,14 +23,20 @@ export function InlineImagePreview({
   workspacePath,
   onOpenViewer,
 }: InlineImagePreviewProps) {
+  useLanguage();
+  const t = translate;
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<FileViewerResult["data"] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [dimensions, setDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
 
   const meta = useMemo(() => {
     if (!result) return "";
-    const size = typeof result.size === "number" ? formatFileSize(result.size) : "";
+    const size =
+      typeof result.size === "number" ? formatFileSize(result.size) : "";
     const dims = dimensions ? `${dimensions.width}x${dimensions.height}` : "";
     return [dims, size].filter(Boolean).join(" • ");
   }, [result, dimensions]);
@@ -44,20 +51,37 @@ export function InlineImagePreview({
       setDimensions(null);
 
       try {
-        const response = await window.electronAPI.readFileForViewer(filePath, workspacePath);
+        const response = await window.electronAPI.readFileForViewer(
+          filePath,
+          workspacePath,
+        );
         if (cancelled) return;
         if (!response.success || !response.data) {
-          setError(response.error || "Failed to load image preview");
+          setError(
+            response.error ||
+              t(
+                "inlinePreview.image.error.load",
+                "Failed to load image preview",
+              ),
+          );
           return;
         }
         if (response.data.fileType !== "image" || !response.data.content) {
-          setError("File is not an image or cannot be previewed.");
+          setError(
+            t(
+              "inlinePreview.image.error.unsupported",
+              "File is not an image or cannot be previewed.",
+            ),
+          );
           return;
         }
         setResult(response.data);
       } catch (e: Any) {
         if (cancelled) return;
-        setError(e?.message || "Failed to load image preview");
+        setError(
+          e?.message ||
+            t("inlinePreview.image.error.load", "Failed to load image preview"),
+        );
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -88,9 +112,15 @@ export function InlineImagePreview({
 
   return (
     <div className="inline-image-preview">
-      {loading && <div className="inline-image-preview-loading">Loading image…</div>}
+      {loading && (
+        <div className="inline-image-preview-loading">
+          {t("inlinePreview.image.loading", "Loading image...")}
+        </div>
+      )}
 
-      {!loading && error && <div className="inline-image-preview-error">{error}</div>}
+      {!loading && error && (
+        <div className="inline-image-preview-error">{error}</div>
+      )}
 
       {!loading && !error && result?.content && (
         <>
@@ -99,8 +129,14 @@ export function InlineImagePreview({
               className="inline-image-preview-button"
               type="button"
               onClick={handleOpen}
-              title="Click to preview"
-              aria-label="Open image preview"
+              title={t(
+                "inlinePreview.image.clickToPreview",
+                "Click to preview",
+              )}
+              aria-label={t(
+                "inlinePreview.image.openPreview",
+                "Open image preview",
+              )}
             >
               <img
                 src={result.content}
@@ -109,7 +145,10 @@ export function InlineImagePreview({
                 onLoad={(e) => {
                   const img = e.currentTarget;
                   if (img?.naturalWidth && img?.naturalHeight) {
-                    setDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+                    setDimensions({
+                      width: img.naturalWidth,
+                      height: img.naturalHeight,
+                    });
                   }
                 }}
               />
@@ -118,8 +157,12 @@ export function InlineImagePreview({
               className="inline-image-preview-download-button"
               href={result.content}
               download={result.fileName || "image.png"}
-              title="Download image"
-              aria-label={`Download ${result.fileName || "image"}`}
+              title={t("fileViewer.downloadImage", "Download image")}
+              aria-label={t(
+                "fileViewer.downloadImageNamed",
+                "Download {name}",
+                { name: result.fileName || "image" },
+              )}
               onClick={(event) => event.stopPropagation()}
             >
               <Download size={17} strokeWidth={2.2} aria-hidden="true" />

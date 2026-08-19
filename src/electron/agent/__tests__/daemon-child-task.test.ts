@@ -3,6 +3,47 @@ import { describe, expect, it, vi } from "vitest";
 import { AgentDaemon } from "../daemon";
 
 describe("AgentDaemon.createChildTask", () => {
+  it("inherits project lineage from the parent task", async () => {
+    const taskRepo = {
+      findById: vi.fn().mockReturnValue({
+        id: "parent-1",
+        sessionId: "session-1",
+        companyId: "company-1",
+        goalId: "goal-1",
+        projectId: "project-1",
+      }),
+      update: vi.fn(),
+      create: vi.fn((task: Any) => ({
+        id: "child-task-1",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        ...task,
+      })),
+    };
+    const daemonLike = {
+      taskRepo,
+      startTask: vi.fn(),
+      ensureCollaborativeRunForParentTask: vi.fn(),
+    } as Any;
+
+    const child = await AgentDaemon.prototype.createChildTask.call(daemonLike, {
+      title: "Project child",
+      prompt: "Continue the project work.",
+      workspaceId: "ws-1",
+      parentTaskId: "parent-1",
+      agentType: "sub",
+    });
+
+    expect(taskRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: "company-1",
+        goalId: "goal-1",
+        projectId: "project-1",
+      }),
+    );
+    expect(child).toMatchObject({ projectId: "project-1", sessionId: "session-1" });
+  });
+
   it("persists the original child prompt as rawPrompt", async () => {
     const taskRepo = {
       findById: vi.fn().mockReturnValue(undefined),

@@ -197,11 +197,7 @@ const ALWAYS_VISIBLE_TOOLS = new Set([
   "Skill",
 ]);
 
-const SESSION_CHECKLIST_TOOLS = new Set([
-  "task_list_create",
-  "task_list_update",
-  "task_list_list",
-]);
+const SESSION_CHECKLIST_TOOLS = new Set(["task_list_create", "task_list_update", "task_list_list"]);
 
 const CHECKLIST_EXECUTION_INTENT_PATTERN =
   /\b(build|create|edit|fix|implement|modify|refactor|migrate|deploy|install|configure|test|verify|write|generate|ship|workflow|long-running|end-to-end)\b/i;
@@ -211,7 +207,7 @@ const INTEGRATION_INTENT_PATTERN =
 const BROWSER_INTENT_PATTERN =
   /\b(browser|website|web page|web app|page|dom|click|button|form|login|navigate|url|screenshot|visual|render|preview|open in browser)\b/i;
 const ARTIFACT_INTENT_PATTERN =
-  /\b(docx|pdf|document|report|spreadsheet|excel|xlsx|presentation|slides?|powerpoint|diagram|flowchart|mermaid|chart|graph|erd|gantt|timeline|mindmap|image|visualization)\b/i;
+  /\b(docx|word(?:\s+(?:document|file))?|pdf|document|report|spreadsheet|excel|xlsx|presentation|slides?|powerpoint|diagram|flowchart|mermaid|chart|graph|erd|gantt|timeline|mindmap|image|visualization)\b|(?:文档|报告|电子表格|工作簿|演示文稿|幻灯片|图表|图片|可视化)/i;
 const PDF_VISUAL_INTENT_PATTERN =
   /\b(pdf|document|page|pages)\b[\s\S]{0,80}\b(layout|visual|format(?:ting)?|design|style|appearance|colors?|font|typography|structure|scan(?:ned)?|ocr|image[- ]based|image[- ]only|handwrit(?:ing|ten)|look(?:s|ing)?)\b|\b(layout|visual|format(?:ting)?|design|style|appearance|colors?|font|typography|structure|scan(?:ned)?|ocr|image[- ]based|image[- ]only|handwrit(?:ing|ten))\b[\s\S]{0,80}\b(pdf|document|page|pages)\b/i;
 /** Matches prompts that request AI image generation (draw, picture, create image, etc.) */
@@ -230,7 +226,7 @@ const SCREEN_CONTEXT_INTENT_PATTERN =
 const EXPLICIT_APPLESCRIPT_INTENT_PATTERN =
   /\b(applescript|osascript|script editor|apple script|tell application|system events)\b/i;
 const NATIVE_APP_REFERENCE_PATTERN =
-  /\b(calculator|notes?|finder|preview|textedit|system settings|system preferences|simulator|ios simulator|xcode|mail|messages|photos|music|quicktime|terminal|iterm|warp|cursor|vscode|visual studio code|menu bar|dock|spotlight|native app|desktop app|macos app)\b/i;
+  /\b(calculator|finder|preview|textedit|system settings|system preferences|simulator|ios simulator|xcode|mail|messages|photos|music|quicktime|terminal|iterm|warp|cursor|vscode|visual studio code|menu bar|dock|spotlight|native app|desktop app|macos app|notes app)\b|\b(?:open|launch|activate|focus|switch to|use)\s+(?:the\s+)?notes\b/i;
 const NATIVE_GUI_ACTION_PATTERN =
   /\b(click|tap|press|type|enter|select|choose|toggle|drag|drop|scroll|hover|move (?:the )?mouse|cursor|navigate|create|rename|delete|compose|reply|submit)\b/i;
 const NATIVE_APP_OPEN_PATTERN =
@@ -243,7 +239,9 @@ const ADMIN_INTENT_PATTERN =
   /\b(personality|persona|agent name|user name|response style|quirks|vibes|lore|heartbeat|integration setup)\b/i;
 
 function normalizeTaskText(taskText?: string): string {
-  return String(taskText || "").trim().toLowerCase();
+  return String(taskText || "")
+    .trim()
+    .toLowerCase();
 }
 
 function hasBrowserSurfaceIntent(taskText: string): boolean {
@@ -267,14 +265,23 @@ export function hasNativeDesktopGuiIntent(taskText: string): boolean {
 
   if (hasBrowserSurfaceIntent(taskText)) return false;
 
-  return hasOpenOrFocusAction && hasGuiAction;
+  // Generic verbs such as "use" and "create" appear throughout skill prompts
+  // and artifact workflows. They only imply desktop GUI control when the task
+  // also names a native app; otherwise they must not divert shell/artifact work
+  // onto the computer-use lane.
+  return false;
 }
 
 function hasToolAffinity(toolName: string, tools?: Iterable<string>): boolean {
   if (!tools) return false;
   const target = toolName.trim().toLowerCase();
   for (const entry of tools) {
-    if (String(entry || "").trim().toLowerCase() === target) return true;
+    if (
+      String(entry || "")
+        .trim()
+        .toLowerCase() === target
+    )
+      return true;
   }
   return false;
 }
@@ -299,16 +306,36 @@ function inferToolExposureMetadata(
     }
   }
   if (EXPLICIT_ONLY_TOOLS.has(toolName)) {
-    return { lane: "admin", exposure: "explicit_only", overlapGroup: "admin_controls" };
+    return {
+      lane: "admin",
+      exposure: "explicit_only",
+      overlapGroup: "admin_controls",
+    };
   }
   if (ORCHESTRATION_TOOLS.has(toolName)) {
-    return { lane: "orchestration", exposure: "explicit_only", overlapGroup: "multi_agent" };
+    return {
+      lane: "orchestration",
+      exposure: "explicit_only",
+      overlapGroup: "multi_agent",
+    };
   }
   if (SESSION_CHECKLIST_TOOLS.has(toolName)) {
-    return { lane: "core", exposure: "conditional", overlapGroup: "session_checklist" };
+    return {
+      lane: "core",
+      exposure: "conditional",
+      overlapGroup: "session_checklist",
+    };
   }
-  if (INTEGRATION_TOOLS.has(toolName) || toolName.endsWith("_action") || toolName.startsWith("mcp_")) {
-    return { lane: "integration", exposure: "conditional", overlapGroup: "integration" };
+  if (
+    INTEGRATION_TOOLS.has(toolName) ||
+    toolName.endsWith("_action") ||
+    toolName.startsWith("mcp_")
+  ) {
+    return {
+      lane: "integration",
+      exposure: "conditional",
+      overlapGroup: "integration",
+    };
   }
   if (toolName.startsWith("browser_") || toolName.startsWith("canvas_")) {
     return {
@@ -319,7 +346,9 @@ function inferToolExposureMetadata(
   }
   if (ARTIFACT_TOOLS.has(toolName)) {
     const overlapGroup =
-      toolName.includes("document") || toolName.includes("presentation") || toolName.includes("spreadsheet")
+      toolName.includes("document") ||
+      toolName.includes("presentation") ||
+      toolName.includes("spreadsheet")
         ? "artifact_generation"
         : toolName === "create_diagram"
           ? "diagram_generation"
@@ -354,7 +383,11 @@ function inferToolExposureMetadata(
     };
   }
   if (isComputerUseToolName(toolName)) {
-    return { lane: "system", exposure: "conditional", overlapGroup: "computer_use" };
+    return {
+      lane: "system",
+      exposure: "conditional",
+      overlapGroup: "computer_use",
+    };
   }
   if (
     toolName === "web_search" ||
@@ -365,7 +398,11 @@ function inferToolExposureMetadata(
     return { lane: "research", exposure: "always", overlapGroup: "web_access" };
   }
   if (toolName === "glob" || toolName === "grep") {
-    return { lane: "code", exposure: "always", overlapGroup: "code_navigation" };
+    return {
+      lane: "code",
+      exposure: "always",
+      overlapGroup: "code_navigation",
+    };
   }
   if (ALWAYS_VISIBLE_TOOLS.has(toolName) || isReadOnlyByPrefix(toolName)) {
     return { lane: "core", exposure: "always" };
@@ -400,7 +437,11 @@ export function evaluateToolAvailability(
 
   const taskText = normalizeTaskText(ctx.taskText);
   if (!taskText) {
-    return { decision: "defer", reason: `hidden_without_task_signal:${metadata.lane}`, metadata };
+    return {
+      decision: "defer",
+      reason: `hidden_without_task_signal:${metadata.lane}`,
+      metadata,
+    };
   }
 
   if (normalizedToolName === "read_pdf_visual") {
@@ -413,28 +454,48 @@ export function evaluateToolAvailability(
     const mode = ctx.executionMode || "execute";
     const intent = String(ctx.taskIntent || "").toLowerCase();
     if (mode !== "execute" && mode !== "verified" && mode !== "debug") {
-      return { decision: "defer", reason: "checklist_execute_mode_required", metadata };
+      return {
+        decision: "defer",
+        reason: "checklist_execute_mode_required",
+        metadata,
+      };
     }
     if (["advice", "planning", "thinking", "chat"].includes(intent)) {
-      return { decision: "defer", reason: "checklist_substantial_execution_required", metadata };
+      return {
+        decision: "defer",
+        reason: "checklist_substantial_execution_required",
+        metadata,
+      };
     }
     if (intent === "workflow" || intent === "deep_work") {
       return { decision: "allow", metadata };
     }
     return CHECKLIST_EXECUTION_INTENT_PATTERN.test(taskText)
       ? { decision: "allow", metadata }
-      : { decision: "defer", reason: "checklist_substantial_execution_required", metadata };
+      : {
+          decision: "defer",
+          reason: "checklist_substantial_execution_required",
+          metadata,
+        };
   }
 
   switch (metadata.lane) {
     case "admin":
       return ADMIN_INTENT_PATTERN.test(taskText)
         ? { decision: "allow", metadata }
-        : { decision: "defer", reason: "explicit_admin_intent_required", metadata };
+        : {
+            decision: "defer",
+            reason: "explicit_admin_intent_required",
+            metadata,
+          };
     case "orchestration":
       return ORCHESTRATION_INTENT_PATTERN.test(taskText)
         ? { decision: "allow", metadata }
-        : { decision: "defer", reason: "explicit_multi_agent_intent_required", metadata };
+        : {
+            decision: "defer",
+            reason: "explicit_multi_agent_intent_required",
+            metadata,
+          };
     case "integration":
       return INTEGRATION_INTENT_PATTERN.test(taskText)
         ? { decision: "allow", metadata }
@@ -468,7 +529,11 @@ export function evaluateToolAvailability(
           return { decision: "allow", metadata };
         }
         if (hasNativeDesktopGuiIntent(taskText)) {
-          return { decision: "defer", reason: "prefer_computer_use_for_native_gui", metadata };
+          return {
+            decision: "defer",
+            reason: "prefer_computer_use_for_native_gui",
+            metadata,
+          };
         }
         return SYSTEM_INTENT_PATTERN.test(taskText) || ctx.taskDomain === "operations"
           ? { decision: "allow", metadata }
@@ -481,16 +546,31 @@ export function evaluateToolAvailability(
           barePointerReference ||
           SCREEN_CONTEXT_INTENT_PATTERN.test(taskText) ||
           SYSTEM_INTENT_PATTERN.test(taskText)
-          ? { decision: "allow", metadata: { ...metadata, overlapGroup: "chronicle" } }
-          : { decision: "defer", reason: "screen_context_intent_missing", metadata };
+          ? {
+              decision: "allow",
+              metadata: { ...metadata, overlapGroup: "chronicle" },
+            }
+          : {
+              decision: "defer",
+              reason: "screen_context_intent_missing",
+              metadata,
+            };
       }
       if (isComputerUseToolName(normalizedToolName)) {
         if (WEB_SURFACE_PATTERN.test(taskText) && !COMPUTER_USE_INTENT_PATTERN.test(taskText)) {
-          return { decision: "defer", reason: "prefer_browser_background_for_web_surface", metadata };
+          return {
+            decision: "defer",
+            reason: "prefer_browser_background_for_web_surface",
+            metadata,
+          };
         }
         return hasNativeDesktopGuiIntent(taskText) || ctx.taskDomain === "operations"
           ? { decision: "allow", metadata }
-          : { decision: "defer", reason: "computer_use_intent_missing", metadata };
+          : {
+              decision: "defer",
+              reason: "computer_use_intent_missing",
+              metadata,
+            };
       }
       return SYSTEM_INTENT_PATTERN.test(taskText) || ctx.taskDomain === "operations"
         ? { decision: "allow", metadata }
@@ -535,13 +615,6 @@ const ALWAYS_MUTATING = new Set([
   "browser_new_tab",
   "browser_close_tab",
   "browser_close",
-  "cloud_sandbox_create",
-  "cloud_sandbox_exec",
-  "cloud_sandbox_write_file",
-  "cloud_sandbox_delete",
-  "domain_register",
-  "domain_dns_add",
-  "domain_dns_delete",
   "x402_fetch",
   "execute_code",
   "click",
@@ -623,8 +696,8 @@ export function normalizeTaskDomain(taskDomain: TaskDomain | undefined): TaskDom
 }
 
 function applyModeGate(toolName: string, mode: ExecutionMode): string | null {
-  if (mode === "chat") {
-    return `Tool "${toolName}" is blocked in chat mode because chat mode is direct-answer only and does not allow tool calls.`;
+  if (mode === "chat" && isMutatingTool(toolName)) {
+    return `Tool "${toolName}" is blocked in chat mode because chat mode only allows read-only lookups.`;
   }
   if (toolName === "request_user_input") {
     if (mode === "plan" || mode === "debug") return null;
@@ -656,7 +729,11 @@ function applyHumanInputGate(
   return `Tool "${toolName}" is blocked because structured human input is disabled for this task.`;
 }
 
-function applyDomainGate(toolName: string, domain: TaskDomain, shellEnabled?: boolean): string | null {
+function applyDomainGate(
+  toolName: string,
+  domain: TaskDomain,
+  shellEnabled?: boolean,
+): string | null {
   if (domain === "auto" || domain === "code" || domain === "operations") return null;
 
   if (toolName === "run_command" || toolName === "run_applescript" || toolName === "execute_code") {
@@ -668,12 +745,7 @@ function applyDomainGate(toolName: string, domain: TaskDomain, shellEnabled?: bo
     return `Tool "${toolName}" is blocked for the "${domain}" domain because git mutation is not expected here.`;
   }
 
-  if (
-    toolName.startsWith("cloud_sandbox_") ||
-    toolName.startsWith("domain_") ||
-    toolName.startsWith("wallet_") ||
-    toolName.startsWith("x402_")
-  ) {
+  if (toolName.startsWith("x402_")) {
     return `Tool "${toolName}" is blocked for the "${domain}" domain because it is operations-specific.`;
   }
 

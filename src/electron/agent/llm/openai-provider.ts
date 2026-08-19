@@ -24,7 +24,10 @@ import {
 import { OpenAIOAuth, OpenAIOAuthTokens } from "./openai-oauth";
 import { imageToTextFallback } from "./image-utils";
 import { loadPiAiModule } from "./pi-ai-loader";
-import { toOpenAICompatibleMessages } from "./openai-compatible";
+import {
+  parseOpenAICompatibleToolArguments,
+  toOpenAICompatibleMessages,
+} from "./openai-compatible";
 import { resolveOutputTokenParamName } from "./output-token-policy";
 import {
   buildOpenAIPromptCacheFields,
@@ -1130,7 +1133,7 @@ export class OpenAIProvider implements LLMProvider {
             type: "tool_use",
             id: toolCall.id,
             name: toolCall.function.name,
-            input: JSON.parse(toolCall.function.arguments || "{}"),
+            input: parseOpenAICompatibleToolArguments(toolCall.function.arguments),
           });
         }
       }

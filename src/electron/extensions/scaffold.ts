@@ -1,7 +1,7 @@
 /**
  * Plugin Pack Scaffolding
  *
- * Creates new plugin pack skeletons with a valid cowork.plugin.json
+ * Creates new plugin pack skeletons with a valid neoworker.plugin.json
  * manifest and directory structure for user customization.
  */
 
@@ -45,7 +45,7 @@ interface ScaffoldOptions {
   includeExampleAgent?: boolean;
   /** Optional persona template ID to link */
   personaTemplateId?: string;
-  /** Target directory (defaults to ~/.cowork/extensions/) */
+  /** Target directory (defaults to ~/.neoworker/extensions/) */
   targetDir?: string;
 }
 
@@ -81,7 +81,7 @@ function validatePackName(name: string): string | null {
  * Get the user extensions directory
  */
 function getUserExtensionsDir(): string {
-  const userDataPath = app?.getPath?.("userData") || path.join(process.env.HOME || process.env.USERPROFILE || "", ".cowork");
+  const userDataPath = app?.getPath?.("userData") || path.join(process.env.HOME || process.env.USERPROFILE || "", ".neoworker");
   return path.join(userDataPath, "extensions");
 }
 
@@ -197,9 +197,9 @@ export async function scaffoldPluginPack(options: ScaffoldOptions): Promise<Scaf
 
     // Write manifest
     const manifest = generateManifest({ ...options, name: safeName });
-    const manifestPath = path.join(packDir, "cowork.plugin.json");
+    const manifestPath = path.join(packDir, "neoworker.plugin.json");
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n", "utf-8");
-    filesCreated.push("cowork.plugin.json");
+    filesCreated.push("neoworker.plugin.json");
 
     console.log(`[Scaffold] Created plugin pack at ${packDir}`);
 

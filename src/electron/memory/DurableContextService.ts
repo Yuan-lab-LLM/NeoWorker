@@ -164,18 +164,18 @@ function shouldSkipInjectedMessage(message: LLMMessage): boolean {
   if (isDurableContextToolResultMessage(message)) return true;
   const text = firstTextBlock(message).trimStart();
   return (
-    text.startsWith("<cowork_memory_recall>") ||
-    text.startsWith("<cowork_compaction_summary>") ||
-    text.startsWith("<cowork_shared_context>") ||
-    text.startsWith("<cowork_user_profile>") ||
-    text.startsWith("<cowork_structured_memory>") ||
-    text.startsWith("<cowork_recall_hints>")
+    text.startsWith("<neoworker_memory_recall>") ||
+    text.startsWith("<neoworker_compaction_summary>") ||
+    text.startsWith("<neoworker_shared_context>") ||
+    text.startsWith("<neoworker_user_profile>") ||
+    text.startsWith("<neoworker_structured_memory>") ||
+    text.startsWith("<neoworker_recall_hints>")
   );
 }
 
 function stripKnownSummaryTags(text: string): string {
   return text
-    .replace(/<\/?cowork_compaction_summary>/g, "")
+    .replace(/<\/?neoworker_compaction_summary>/g, "")
     .replace(/<\/?durable_context_summary[^>]*>/g, "")
     .trim();
 }

@@ -30,7 +30,7 @@ vi.mock("../../utils/google-calendar-api", () => ({
 
 describe("AmbientMonitoringService", () => {
   function createWorkspaceDir(name: string, entries: string[] = ["src"]): string {
-    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), `cowork-ambient-${name}-`));
+    const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), `neoworker-ambient-${name}-`));
     for (const entry of entries) {
       const fullPath = path.join(baseDir, entry);
       if (path.extname(entry)) {

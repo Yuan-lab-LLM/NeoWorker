@@ -19,7 +19,7 @@ export default defineConfig({
   },
   server: {
     host: '127.0.0.1',
-    port: Number(process.env.COWORK_DEV_SERVER_PORT || 5173),
+    port: Number(process.env.NEOWORKER_DEV_SERVER_PORT || 5173),
     strictPort: true,
   },
 })

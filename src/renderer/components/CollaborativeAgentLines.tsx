@@ -6,13 +6,26 @@
  * Matches the UX of "agents as lines over the input" with latest updates per agent.
  */
 
-import { useEffect, useState } from "react";
-import type { Task, AgentTeamRun, AgentThought, TaskEvent } from "../../shared/types";
+import { useEffect, useId, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import type {
+  Task,
+  AgentTeamRun,
+  AgentThought,
+  TaskEvent,
+  AgentRole,
+} from "../../shared/types";
 import { isSynthesisChildTask } from "../../shared/synthesis-agent-detection";
 import { getEmojiIcon } from "../utils/emoji-icon-map";
 import { stripLeadingEmoji } from "../utils/emoji-replacer";
 import { getEffectiveTaskEventType } from "../utils/task-event-compat";
 import { sanitizeToolCallTextFromAssistant } from "../../shared/tool-call-text-sanitizer";
+import { translate, useLanguage } from "../i18n";
+import { localizeProgressText } from "../utils/localized-progress-text";
+import {
+  getLocalizedSubagentDisplay,
+  type AgentRoleDisplayLike,
+} from "../utils/localized-agent-roles";
 
 interface CollaborativeAgentLinesProps {
   collaborativeRun: AgentTeamRun;
@@ -34,10 +47,19 @@ interface AgentLine {
   isStreaming: boolean;
   taskId: string | null; // null when not yet spawned
   icon?: string;
+  role?: AgentRoleDisplayLike;
   task?: Task | null;
 }
 
-type AgentLineStatusKind = "completed" | "failed" | "warning" | "running" | "pending";
+type AgentLineStatusKind =
+  | "completed"
+  | "failed"
+  | "partial"
+  | "needs-action"
+  | "approval"
+  | "resumable"
+  | "running"
+  | "pending";
 
 const STEP_EVENT_TYPES = new Set([
   "step_started",
@@ -65,94 +87,135 @@ function isToolBatchSummaryEvent(event: TaskEvent): boolean {
 }
 
 function isStageBoundaryEvent(event: TaskEvent): boolean {
-  if (event.type !== "timeline_group_started" && event.type !== "timeline_group_finished") {
+  if (
+    event.type !== "timeline_group_started" &&
+    event.type !== "timeline_group_finished"
+  ) {
     return false;
   }
   const p = (event.payload || {}) as Record<string, unknown>;
   const stage = String(p?.stage || "").toUpperCase();
   if (!STAGE_NAMES.has(stage)) return false;
   const groupId = String(event.groupId || p?.groupId || "").toLowerCase();
-  const message = String(p?.message || p?.groupLabel || "").trim().toUpperCase();
-  return groupId === `stage:${stage.toLowerCase()}` || message === `STARTING ${stage}` || message === stage;
+  const message = String(p?.message || p?.groupLabel || "")
+    .trim()
+    .toUpperCase();
+  return (
+    groupId === `stage:${stage.toLowerCase()}` ||
+    message === `STARTING ${stage}` ||
+    message === stage
+  );
 }
 
 /** Format tool/step labels for compact display (e.g. "grep done", "web search started") */
 function formatStepLabel(type: string, desc: string): string {
   const d = desc.trim();
-  if (!d) return type === "step_failed" ? "Step failed" : "Working on your request";
+  if (!d)
+    return localizeProgressText(
+      type === "step_failed" ? "Step failed" : "Working on your request",
+    );
   const running = /^Running\s+(.+)$/i.exec(d);
   const completed = /^(.+?)\s+completed$/i.exec(d);
   const failed = /^(.+?)\s+finished with issues$/i.exec(d);
   const humanize = (s: string) => s.trim().replace(/_/g, " ");
-  if (running) return `${humanize(running[1])} started`;
-  if (completed) return `${humanize(completed[1])} done`;
-  if (failed) return `${humanize(failed[1])} failed`;
+  if (running) return localizeProgressText(`${humanize(running[1])} started`);
+  if (completed) return localizeProgressText(`${humanize(completed[1])} done`);
+  if (failed) return localizeProgressText(`${humanize(failed[1])} failed`);
   if (type === "step_completed" && /^[a-z0-9_]+$/i.test(d))
-    return `${humanize(d)} done`;
+    return localizeProgressText(`${humanize(d)} done`);
   if (type === "step_started" && /^[a-z0-9_]+$/i.test(d))
-    return `${humanize(d)} started`;
-  return humanize(d);
+    return localizeProgressText(`${humanize(d)} started`);
+  return localizeProgressText(humanize(d));
 }
 
 function getStepLabelFromEvent(event: TaskEvent): string {
   const type = getEffectiveTaskEventType(event);
   const p = (event.payload || {}) as Record<string, unknown>;
   const step = p?.step as Record<string, unknown> | undefined;
-  const sanitize = (v: unknown) => sanitizeToolCallTextFromAssistant(String(v || "")).text;
-  const desc = sanitize(step?.description || p?.description || p?.message || "").trim();
+  const sanitize = (v: unknown) =>
+    sanitizeToolCallTextFromAssistant(String(v || "")).text;
+  const desc = sanitize(
+    step?.description || p?.description || p?.message || "",
+  ).trim();
   switch (type) {
     case "step_started":
-      return formatStepLabel(type, desc) || "Working on your request";
+      return (
+        formatStepLabel(type, desc) ||
+        localizeProgressText("Working on your request")
+      );
     case "step_completed":
-      return formatStepLabel(type, desc) || "Step completed";
+      return (
+        formatStepLabel(type, desc) || localizeProgressText("Step completed")
+      );
     case "step_failed": {
-      if (!desc) return "Step failed";
+      if (!desc) return localizeProgressText("Step failed");
       const label = formatStepLabel(type, desc);
-      return /\b(failed|error|issues|stopped)\b/i.test(label) ? label : `Failed: ${label}`;
+      return /\b(failed|error|issues|stopped|失败)\b/i.test(label)
+        ? label
+        : localizeProgressText(`Failed: ${label}`);
     }
     case "timeline_error":
     case "agent_failed":
     case "workflow_phase_failed":
     case "orchestration_node_failed":
-      return desc ? `Failed: ${desc}` : "Failed";
+      return localizeProgressText(desc ? `Failed: ${desc}` : "Failed");
     case "progress_update":
-      return desc || "Working on your request";
+      return localizeProgressText(desc || "Working on your request");
     default:
       return "";
   }
 }
 
-function getFailureLabel(taskId: string, childEvents: TaskEvent[]): string | null {
+function getFailureLabel(
+  taskId: string,
+  childEvents: TaskEvent[],
+): string | null {
   const failure = childEvents
-    .filter((e) => e.taskId === taskId && FAILURE_EVENT_TYPES.has(getEffectiveTaskEventType(e)))
+    .filter(
+      (e) =>
+        e.taskId === taskId &&
+        FAILURE_EVENT_TYPES.has(getEffectiveTaskEventType(e)),
+    )
     .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))[0];
   if (!failure) return null;
-  return getStepLabelFromEvent(failure) || "Failed";
+  return getStepLabelFromEvent(failure) || localizeProgressText("Failed");
 }
 
-function getTerminalTaskLabel(taskId: string, childEvents: TaskEvent[], task: Task): string | null {
+function getTerminalTaskLabel(
+  taskId: string,
+  childEvents: TaskEvent[],
+  task: Task,
+): string | null {
   switch (task.terminalStatus) {
     case "partial_success":
-      return "Completed with warnings";
+      return localizeProgressText("Completed with warnings");
     case "needs_user_action":
-      return "Needs user action";
+      return localizeProgressText("Needs user action");
     case "awaiting_approval":
-      return "Awaiting approval";
+      return localizeProgressText("Awaiting approval");
     case "resume_available":
-      return "Paused";
+      return localizeProgressText("Paused");
     case "failed":
-      return getFailureLabel(taskId, childEvents) || task.error || "Failed";
+      return (
+        getFailureLabel(taskId, childEvents) ||
+        task.error ||
+        localizeProgressText("Failed")
+      );
     default:
       break;
   }
 
   switch (task.status) {
     case "completed":
-      return "Completed";
+      return localizeProgressText("Completed");
     case "failed":
-      return getFailureLabel(taskId, childEvents) || task.error || "Failed";
+      return (
+        getFailureLabel(taskId, childEvents) ||
+        task.error ||
+        localizeProgressText("Failed")
+      );
     case "cancelled":
-      return "Cancelled";
+      return localizeProgressText("Cancelled");
     default:
       return null;
   }
@@ -164,8 +227,8 @@ function getLatestStepLabel(
   task: Task | null,
   isStreaming: boolean,
 ): string {
-  if (isStreaming) return "Working on your request";
-  if (!task) return "Awaiting instruction";
+  if (isStreaming) return localizeProgressText("Working on your request");
+  if (!task) return localizeProgressText("Awaiting instruction");
   const terminalLabel = getTerminalTaskLabel(taskId, childEvents, task);
   if (terminalLabel) return terminalLabel;
   const taskEvents = childEvents
@@ -185,14 +248,14 @@ function getLatestStepLabel(
   switch (task.status) {
     case "executing":
     case "planning":
-      return "Working on your request";
+      return localizeProgressText("Working on your request");
     case "completed":
-      return "Completed";
+      return localizeProgressText("Completed");
     case "failed":
     case "cancelled":
-      return "Stopped";
+      return localizeProgressText("Stopped");
     default:
-      return "Awaiting instruction";
+      return localizeProgressText("Awaiting instruction");
   }
 }
 
@@ -201,40 +264,101 @@ function getAgentLineStatusKind(
   status: string,
   isStreaming: boolean,
 ): AgentLineStatusKind {
-  if (task?.terminalStatus === "failed" || task?.status === "failed" || task?.status === "cancelled")
+  if (
+    task?.terminalStatus === "failed" ||
+    task?.status === "failed" ||
+    task?.status === "cancelled"
+  )
+    return "failed";
+  if (task?.terminalStatus === "partial_success") return "partial";
+  if (task?.terminalStatus === "needs_user_action") return "needs-action";
+  if (task?.terminalStatus === "awaiting_approval") return "approval";
+  if (task?.terminalStatus === "resume_available") return "resumable";
+  if (task?.status === "completed") return "completed";
+  if (status.startsWith("Step failed") || status.startsWith("Failed"))
     return "failed";
   if (
-    task?.terminalStatus === "partial_success" ||
-    task?.terminalStatus === "needs_user_action" ||
-    task?.terminalStatus === "awaiting_approval" ||
-    task?.terminalStatus === "resume_available"
+    isStreaming ||
+    task?.status === "executing" ||
+    task?.status === "planning"
   )
-    return "warning";
-  if (task?.status === "completed") return "completed";
-  if (status.startsWith("Step failed") || status.startsWith("Failed")) return "failed";
-  if (isStreaming || task?.status === "executing" || task?.status === "planning") return "running";
+    return "running";
   return "pending";
 }
 
-function getAgentLineStatusLabel(kind: AgentLineStatusKind, task: Task | null): string {
-  if (kind === "completed") return "Done";
-  if (kind === "failed") return task?.status === "cancelled" ? "Cancelled" : "Failed";
-  if (kind === "warning") return "Needs review";
-  if (kind === "running") return "Running";
-  return "Pending";
+function getAgentLineStatusLabel(
+  kind: AgentLineStatusKind,
+  task: Task | null,
+): string {
+  if (kind === "completed") return translate("collab.lines.done", "Done");
+  if (kind === "failed")
+    return task?.status === "cancelled"
+      ? translate("collab.lines.cancelled", "Cancelled")
+      : translate("collab.lines.failed", "Failed");
+  if (kind === "partial")
+    return translate("collab.lines.partial", "Partially completed");
+  if (kind === "needs-action")
+    return translate("collab.lines.needsAction", "Action needed");
+  if (kind === "approval")
+    return translate("collab.lines.awaitingApproval", "Awaiting approval");
+  if (kind === "resumable")
+    return translate("collab.lines.resumable", "Ready to resume");
+  if (kind === "running") return translate("collab.lines.running", "Running");
+  return translate("collab.lines.pending", "Pending");
+}
+
+function getAgentLineActionLabel(kind: AgentLineStatusKind): string {
+  if (kind === "partial")
+    return translate("collab.lines.action.viewIssues", "View issues");
+  if (kind === "needs-action")
+    return translate("collab.lines.action.handle", "Handle");
+  if (kind === "approval")
+    return translate("collab.lines.action.approve", "Review approval");
+  if (kind === "resumable")
+    return translate("collab.lines.action.resume", "Resume");
+  return translate("common.open", "Open");
 }
 
 function getSummaryPart(count: number, label: string): string | null {
   return count > 0 ? `${count} ${label}` : null;
 }
 
-function formatAgentSummary(counts: Record<AgentLineStatusKind, number>): string {
+function formatAgentSummary(
+  counts: Record<AgentLineStatusKind, number>,
+): string {
   return [
-    getSummaryPart(counts.completed, "done"),
-    getSummaryPart(counts.failed, "failed"),
-    getSummaryPart(counts.warning, "warning"),
-    getSummaryPart(counts.running, "running"),
-    getSummaryPart(counts.pending, "pending"),
+    getSummaryPart(
+      counts.completed,
+      translate("collab.lines.summary.done", "done"),
+    ),
+    getSummaryPart(
+      counts.failed,
+      translate("collab.lines.summary.failed", "failed"),
+    ),
+    getSummaryPart(
+      counts.partial,
+      translate("collab.lines.summary.partial", "partially completed"),
+    ),
+    getSummaryPart(
+      counts["needs-action"],
+      translate("collab.lines.summary.needsAction", "need action"),
+    ),
+    getSummaryPart(
+      counts.approval,
+      translate("collab.lines.summary.awaitingApproval", "awaiting approval"),
+    ),
+    getSummaryPart(
+      counts.resumable,
+      translate("collab.lines.summary.resumable", "ready to resume"),
+    ),
+    getSummaryPart(
+      counts.running,
+      translate("collab.lines.summary.running", "running"),
+    ),
+    getSummaryPart(
+      counts.pending,
+      translate("collab.lines.summary.pending", "pending"),
+    ),
   ]
     .filter(Boolean)
     .join(" · ");
@@ -249,15 +373,30 @@ export function CollaborativeAgentLines({
   isWrappingUp,
   mainTaskCompleted = false,
 }: CollaborativeAgentLinesProps) {
-  const [streamingByAgent, setStreamingByAgent] = useState<Map<string, AgentThought>>(new Map());
+  const language = useLanguage();
+  const t = translate;
+  const [isExpanded, setIsExpanded] = useState(true);
+  const agentListId = useId();
+  const [streamingByAgent, setStreamingByAgent] = useState<
+    Map<string, AgentThought>
+  >(new Map());
   const isMultiLlm = collaborativeRun.multiLlmMode === true;
 
   // Subscribe to streaming thoughts for "is thinking" indicator (maps agentRoleId -> thought)
   // Team items link child tasks to agent roles; we match via listTeamItems when needed
   const [teamItems, setTeamItems] = useState<
-    Array<{ id: string; title: string; sourceTaskId?: string; ownerAgentRoleId?: string; sortOrder?: number; icon?: string }>
+    Array<{
+      id: string;
+      title: string;
+      sourceTaskId?: string;
+      ownerAgentRoleId?: string;
+      sortOrder?: number;
+      icon?: string;
+    }>
   >([]);
-  const [agentRoles, setAgentRoles] = useState<Map<string, { icon?: string }>>(new Map());
+  const [agentRoles, setAgentRoles] = useState<
+    Map<string, AgentRoleDisplayLike & { icon?: string }>
+  >(new Map());
   useEffect(() => {
     window.electronAPI
       .listTeamItems(collaborativeRun.id)
@@ -273,7 +412,8 @@ export function CollaborativeAgentLines({
       (event: { runId?: string; type?: string; item?: Any }) => {
         if (event.runId !== collaborativeRun.id) return;
         if (
-          (event.type === "team_item_spawned" || event.type === "team_item_updated") &&
+          (event.type === "team_item_spawned" ||
+            event.type === "team_item_updated") &&
           event.item
         ) {
           setTeamItems((prev) => {
@@ -293,9 +433,9 @@ export function CollaborativeAgentLines({
   useEffect(() => {
     window.electronAPI
       .getAgentRoles(false)
-      .then((roles: Array<{ id: string; icon?: string }>) => {
-        const map = new Map<string, { icon?: string }>();
-        for (const r of roles) map.set(r.id, { icon: r.icon });
+      .then((roles: AgentRole[]) => {
+        const map = new Map<string, AgentRoleDisplayLike & { icon?: string }>();
+        for (const role of roles) map.set(role.id, role);
         setAgentRoles(map);
       })
       .catch(() => {});
@@ -312,7 +452,8 @@ export function CollaborativeAgentLines({
           return next;
         });
       } else if (
-        (event.type === "team_thought_added" || event.type === "team_thought_updated") &&
+        (event.type === "team_thought_added" ||
+          event.type === "team_thought_updated") &&
         event.thought
       ) {
         const t = event.thought as AgentThought;
@@ -359,6 +500,7 @@ export function CollaborativeAgentLines({
       isStreaming,
       taskId: t.id,
       icon: role?.icon,
+      role,
       task: t,
     });
   }
@@ -380,6 +522,7 @@ export function CollaborativeAgentLines({
       isStreaming,
       taskId: item.sourceTaskId || null,
       icon: role?.icon ?? item.icon,
+      role,
       task: null,
     });
   }
@@ -401,77 +544,170 @@ export function CollaborativeAgentLines({
       acc[line.statusKind] += 1;
       return acc;
     },
-    { completed: 0, failed: 0, warning: 0, running: 0, pending: 0 },
+    {
+      completed: 0,
+      failed: 0,
+      partial: 0,
+      "needs-action": 0,
+      approval: 0,
+      resumable: 0,
+      running: 0,
+      pending: 0,
+    },
   );
 
   return (
-    <div className="collaborative-agent-lines">
+    <div
+      className={`collaborative-agent-lines${isExpanded ? "" : " is-collapsed"}`}
+    >
       <div className="collab-lines-header">
         <span className="collab-lines-title">
-          {agentLines.length} {isMultiLlm ? "models" : "background agents"}
+          {isMultiLlm
+            ? t("collab.lines.modelCount", "{count} models", {
+                count: agentLines.length,
+              })
+            : t("collab.lines.agentCount", "{count} background agents", {
+                count: agentLines.length,
+              })}
         </span>
-        <span className="collab-lines-summary">{formatAgentSummary(statusCounts)}</span>
-        <span className="collab-lines-hint">@ to tag agents</span>
+        <span className="collab-lines-summary">
+          {formatAgentSummary(statusCounts)}
+        </span>
+        <span className="collab-lines-hint">
+          {t("collab.lines.tagHint", "@ to tag agents")}
+        </span>
+        <button
+          type="button"
+          className="collab-lines-toggle"
+          aria-expanded={isExpanded}
+          aria-controls={agentListId}
+          aria-label={
+            isExpanded
+              ? t("common.collapse", "Collapse")
+              : t("common.expand", "Expand")
+          }
+          title={
+            isExpanded
+              ? t("common.collapse", "Collapse")
+              : t("common.expand", "Expand")
+          }
+          onClick={() => setIsExpanded((expanded) => !expanded)}
+        >
+          {isExpanded ? (
+            <ChevronUp size={15} strokeWidth={2} aria-hidden="true" />
+          ) : (
+            <ChevronDown size={15} strokeWidth={2} aria-hidden="true" />
+          )}
+        </button>
       </div>
-      <div className="collab-lines-list">
-        {agentLines.map(({ id, title, status, statusKind, statusLabel, taskId, icon }) => (
-          <div key={id} className={`collab-agent-line collab-agent-line-${statusKind}`}>
-            <span className="collab-agent-status-text">
-              <span className="collab-agent-icon">
-                {(() => {
-                  const Icon = getEmojiIcon(icon || "🤖");
-                  return <Icon size={14} strokeWidth={1.5} />;
-                })()}
-              </span>
-              <span className="collab-agent-name">
-                {stripLeadingEmoji(title)}
-              </span>
-            </span>
-            <span
-              className={`collab-agent-state collab-agent-state-${statusKind}`}
-              title={status}
-              aria-label={status}
-            >
-              {statusLabel}
-            </span>
-            {taskId ? (
-              (() => {
-                const t = childByTaskId.get(taskId);
-                return t && isSynthesisChildTask(t);
-              })() ? (
-                <span
-                  className="collab-agent-open-empty"
-                  title="Synthesis output is shown in main view"
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="collab-agent-open-btn"
-                  onClick={() => onOpenAgent(taskId)}
-                  title="Open in main view"
-                >
-                  Open
-                </button>
-              )
-            ) : (
-              <span className="collab-agent-open-disabled">—</span>
+      {isExpanded && (
+        <div id={agentListId} className="collab-lines-details">
+          <div className="collab-lines-list">
+            {agentLines.map(
+              ({
+                id,
+                title,
+                status,
+                statusKind,
+                statusLabel,
+                taskId,
+                icon,
+                role,
+              }) => {
+                const display = getLocalizedSubagentDisplay(
+                  stripLeadingEmoji(title),
+                  language,
+                  role,
+                );
+                const actionLabel = getAgentLineActionLabel(statusKind);
+                return (
+                  <div
+                    key={id}
+                    className={`collab-agent-line collab-agent-line-${statusKind}`}
+                  >
+                    <span className="collab-agent-status-text">
+                      <span className="collab-agent-icon">
+                        {(() => {
+                          const Icon = getEmojiIcon(icon || "🤖");
+                          return <Icon size={14} strokeWidth={1.5} />;
+                        })()}
+                      </span>
+                      <span className="collab-agent-identity">
+                        <span className="collab-agent-name-row">
+                          <span className="collab-agent-name">
+                            {display.name}
+                          </span>
+                          {(display.profileName || display.codename) && (
+                            <span className="collab-agent-codename">
+                              {[display.profileName, display.codename]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </span>
+                          )}
+                        </span>
+                        {display.description && (
+                          <span className="collab-agent-duty">
+                            {display.description}
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                    <span
+                      className={`collab-agent-state collab-agent-state-${statusKind}`}
+                      title={status}
+                      aria-label={status}
+                    >
+                      {statusLabel}
+                    </span>
+                    {taskId ? (
+                      (() => {
+                        const t = childByTaskId.get(taskId);
+                        return t && isSynthesisChildTask(t);
+                      })() ? (
+                        <span
+                          className="collab-agent-open-empty"
+                          title={t(
+                            "collab.synthesisShownMain",
+                            "Synthesis output is shown in main view",
+                          )}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className="collab-agent-open-btn"
+                          onClick={() => onOpenAgent(taskId)}
+                          title={actionLabel}
+                        >
+                          {actionLabel}
+                        </button>
+                      )
+                    ) : (
+                      <span className="collab-agent-open-disabled">—</span>
+                    )}
+                  </div>
+                );
+              },
             )}
           </div>
-        ))}
-      </div>
-      {!mainTaskCompleted && onWrapUp && (
-        <div className="collab-lines-actions">
-          <span className="collab-lines-status">
-            {isWrappingUp ? "Wrapping up..." : isMultiLlm ? "Models are working..." : "Agents are working..."}
-          </span>
-          <button
-            type="button"
-            className={`collab-wrap-up-inline-btn${isWrappingUp ? " active" : ""}`}
-            onClick={onWrapUp}
-            disabled={isWrappingUp}
-          >
-            Wrap Up
-          </button>
+          {!mainTaskCompleted && onWrapUp && (
+            <div className="collab-lines-actions">
+              <span className="collab-lines-status">
+                {isWrappingUp
+                  ? t("collab.wrappingUp", "Wrapping up...")
+                  : isMultiLlm
+                    ? t("collab.modelsWorking", "Models are working...")
+                    : t("collab.agentsWorking", "Agents are working...")}
+              </span>
+              <button
+                type="button"
+                className={`collab-wrap-up-inline-btn${isWrappingUp ? " active" : ""}`}
+                onClick={onWrapUp}
+                disabled={isWrappingUp}
+              >
+                {t("collab.wrapUp", "Wrap Up")}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

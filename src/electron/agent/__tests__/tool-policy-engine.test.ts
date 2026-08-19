@@ -2,17 +2,31 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateToolPolicy,
   evaluateToolAvailability,
+  hasNativeDesktopGuiIntent,
   hasPdfVisualIntent,
 } from "../tool-policy-engine";
 
 describe("tool-policy-engine request_user_input gating", () => {
-  it("denies all tools in chat mode", () => {
-    const decision = evaluateToolPolicy("read_file", {
+  it("allows read-only lookup tools in chat mode", () => {
+    const readDecision = evaluateToolPolicy("read_file", {
+      executionMode: "chat",
+      taskDomain: "auto",
+    });
+    const webDecision = evaluateToolPolicy("web_search", {
+      executionMode: "chat",
+      taskDomain: "auto",
+    });
+    expect(readDecision.decision).toBe("allow");
+    expect(webDecision.decision).toBe("allow");
+  });
+
+  it("still blocks mutating tools in chat mode", () => {
+    const decision = evaluateToolPolicy("write_file", {
       executionMode: "chat",
       taskDomain: "auto",
     });
     expect(decision.decision).toBe("deny");
-    expect(decision.reason).toContain("chat mode");
+    expect(decision.reason).toContain("read-only lookups");
   });
 
   it("allows request_user_input in plan mode", () => {
@@ -201,6 +215,33 @@ describe("evaluateToolAvailability computer_use", () => {
   });
 });
 
+describe("hasNativeDesktopGuiIntent", () => {
+  it("does not treat PPT Master artifact instructions as native GUI work", () => {
+    expect(
+      hasNativeDesktopGuiIntent(
+        "/ppt-master 查询航班并生成 PPT. Use create_presentation to create the artifact. Packaging note: keep all project files together.",
+      ),
+    ).toBe(false);
+  });
+
+  it("recognizes an explicitly named native app interaction", () => {
+    expect(
+      hasNativeDesktopGuiIntent(
+        "Open Calculator and click 7 + 5, then tell me the result.",
+      ),
+    ).toBe(true);
+  });
+
+  it("recognizes an explicit Notes app interaction without treating ordinary notes as apps", () => {
+    expect(
+      hasNativeDesktopGuiIntent("Open Notes and create a note called Test Note."),
+    ).toBe(true);
+    expect(
+      hasNativeDesktopGuiIntent("Use the project note to create the final artifact."),
+    ).toBe(false);
+  });
+});
+
 describe("evaluateToolAvailability session checklist", () => {
   const baseCtx = {
     taskText: "summarize the latest release reactions",
@@ -334,5 +375,14 @@ describe("evaluateToolAvailability create_document", () => {
     expect(r.decision).toBe("allow");
     expect(r.metadata.lane).toBe("artifact");
     expect(r.metadata.overlapGroup).toBe("artifact_generation");
+  });
+
+  it("allows create_document for Chinese Word report requests", () => {
+    const r = evaluateToolAvailability("create_document", {
+      ...baseCtx,
+      taskText: "生成对比报告，Word 文件",
+    });
+    expect(r.decision).toBe("allow");
+    expect(r.metadata.lane).toBe("artifact");
   });
 });

@@ -8,7 +8,7 @@ import { SpreadsheetWorkbookSessionService } from "../SpreadsheetWorkbookSession
 
 describe("SpreadsheetWorkbookSessionService", () => {
   it("opens an xlsx workbook and returns a viewport", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-workbook-session-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-workbook-session-"));
     const outPath = path.join(tmpDir, "book.xlsx");
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Data");
@@ -38,7 +38,7 @@ describe("SpreadsheetWorkbookSessionService", () => {
   });
 
   it("applies cell patches and saves them back to xlsx", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-workbook-save-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-workbook-save-"));
     const outPath = path.join(tmpDir, "book.xlsx");
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Data");
@@ -95,7 +95,7 @@ describe("SpreadsheetWorkbookSessionService", () => {
   });
 
   it("supports structural row and column patches in the session model", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-workbook-structure-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-workbook-structure-"));
     const outPath = path.join(tmpDir, "people.csv");
     await fs.writeFile(outPath, "Name,Status\nAlice,Active", "utf-8");
 
@@ -141,8 +141,8 @@ describe("SpreadsheetWorkbookSessionService", () => {
   });
 
   it("rejects workbook files outside the workspace root", async () => {
-    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-workbook-workspace-"));
-    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-workbook-outside-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-workbook-workspace-"));
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-workbook-outside-"));
     const outsidePath = path.join(outsideDir, "people.csv");
     await fs.writeFile(outsidePath, "Name,Status\nAlice,Active", "utf-8");
 
@@ -157,8 +157,8 @@ describe("SpreadsheetWorkbookSessionService", () => {
   });
 
   it("revalidates workspace containment before saving a workbook", async () => {
-    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-workbook-save-root-"));
-    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-workbook-save-outside-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-workbook-save-root-"));
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-workbook-save-outside-"));
     const workspacePath = path.join(workspaceDir, "people.csv");
     const outsidePath = path.join(outsideDir, "people.csv");
     await fs.writeFile(workspacePath, "Name,Status\nAlice,Active", "utf-8");
@@ -189,8 +189,46 @@ describe("SpreadsheetWorkbookSessionService", () => {
     await expect(fs.readFile(outsidePath, "utf-8")).resolves.toContain("Mallory,External");
   });
 
+  it("reports an external-edit conflict without overwriting either version", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-workbook-conflict-"));
+    const outPath = path.join(tmpDir, "people.csv");
+    await fs.writeFile(outPath, "Name,Status\nAlice,Active", "utf-8");
+
+    const service = new SpreadsheetWorkbookSessionService();
+    const opened = await service.openWorkbook({
+      filePath: outPath,
+      workspacePath: tmpDir,
+    });
+    service.applyPatches(opened.session!.sessionId, [
+      {
+        type: "setCell",
+        sheetId: opened.session!.sheets[0].id,
+        row: 2,
+        column: 2,
+        input: { value: "Pending" },
+      },
+    ]);
+
+    await fs.writeFile(outPath, "Name,Status,Owner\nAlice,External,Mallory", "utf-8");
+    const saved = await service.saveWorkbook(opened.session!.sessionId);
+
+    expect(saved).toMatchObject({ success: false, conflict: true });
+    expect(saved.error).toContain("changed outside NeoWorker");
+    await expect(fs.readFile(outPath, "utf-8")).resolves.toContain("External,Mallory");
+
+    const pendingViewport = service.getViewport({
+      sessionId: opened.session!.sessionId,
+      sheetId: opened.session!.sheets[0].id,
+      startRow: 1,
+      endRow: 2,
+      startColumn: 1,
+      endColumn: 2,
+    });
+    expect(pendingViewport.viewport?.cells[1][1].displayValue).toBe("Pending");
+  });
+
   it("opens xlsm workbooks read-only to avoid corrupting macro package parts", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-workbook-xlsm-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-workbook-xlsm-"));
     const outPath = path.join(tmpDir, "macro.xlsm");
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("MacroData");
@@ -228,7 +266,7 @@ describe("SpreadsheetWorkbookSessionService", () => {
   });
 
   it("caps viewport responses and rejects oversized range patches", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-workbook-limits-"));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-workbook-limits-"));
     const outPath = path.join(tmpDir, "book.xlsx");
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Data");

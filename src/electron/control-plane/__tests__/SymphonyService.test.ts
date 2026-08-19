@@ -52,9 +52,9 @@ describeWithSqlite("SymphonyService", () => {
   };
 
   beforeEach(async () => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-symphony-"));
-    previousUserDataDir = process.env.COWORK_USER_DATA_DIR;
-    process.env.COWORK_USER_DATA_DIR = tmpDir;
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-symphony-"));
+    previousUserDataDir = process.env.NEOWORKER_USER_DATA_DIR;
+    process.env.NEOWORKER_USER_DATA_DIR = tmpDir;
 
     const [
       { DatabaseManager },
@@ -75,9 +75,9 @@ describeWithSqlite("SymphonyService", () => {
   afterEach(() => {
     manager?.close();
     if (previousUserDataDir === undefined) {
-      delete process.env.COWORK_USER_DATA_DIR;
+      delete process.env.NEOWORKER_USER_DATA_DIR;
     } else {
-      process.env.COWORK_USER_DATA_DIR = previousUserDataDir;
+      process.env.NEOWORKER_USER_DATA_DIR = previousUserDataDir;
     }
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -100,7 +100,7 @@ describeWithSqlite("SymphonyService", () => {
     expect(loaded.config.runtime).toBe("native");
     expect(loaded.promptTemplate).toContain("{{issue.title}}");
     expect(missing.error).toContain("no such file");
-    expect(missing.promptTemplate).toContain("CoWork OS issue");
+    expect(missing.promptTemplate).toContain("NeoWorker issue");
   });
 
   it("dispatches one eligible issue with native worktree-required config", async () => {

@@ -1,0 +1,6 @@
+import {
+  n as e,
+  t,
+} from "./align-horizontal-distribute-start-grmD7EQj-B0sAHjHU.js";
+e();
+export { t as default };

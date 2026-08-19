@@ -7,7 +7,13 @@
  * This file is in shared/ so it can be used by both the main process (gateway) and renderer.
  */
 
-import type { PersonalityId, PersonaId, EmojiUsage, PersonalityQuirks } from "./types";
+import {
+  DEFAULT_ASSISTANT_NAME,
+  type PersonalityId,
+  type PersonaId,
+  type EmojiUsage,
+  type PersonalityQuirks,
+} from "./types";
 
 /**
  * Message keys for channel notifications
@@ -104,35 +110,41 @@ export type ChannelUiKey =
   | "helpFull";
 
 const CHANNEL_UI_COPY: Record<ChannelUiKey, string> = {
-  welcomeStandard: "👋 Welcome to CoWork! Send me a task whenever you are ready.",
+  welcomeStandard:
+    "👋 Welcome to NeoWorker! Send me a task whenever you are ready.",
   welcomeBack:
     "👋 Welcome back!\n\nWorkspace: *{workspaceName}*\n\nSend me what you want to do.\n\nType /help for commands.",
   welcomeNoWorkspace:
-    "👋 Welcome to CoWork!\n\nFirst, add a workspace:\n`/addworkspace /path/to/project`\n\nOr add one from the desktop app.",
+    "👋 Welcome to NeoWorker!\n\nFirst, add a workspace:\n`/addworkspace /path/to/project`\n\nOr add one from the desktop app.",
   welcomeSingleWorkspace:
-    '👋 Welcome to CoWork!\n\n✅ Workspace: *{workspaceName}*\n\nTell me what you want to do.\n\nExamples:\n• "Add dark mode support"\n• "Fix the login bug"\n• "Create a new API endpoint"',
+    '👋 Welcome to NeoWorker!\n\n✅ Workspace: *{workspaceName}*\n\nTell me what you want to do.\n\nExamples:\n• "Add dark mode support"\n• "Fix the login bug"\n• "Create a new API endpoint"',
   welcomeSelectWorkspace:
-    "👋 Welcome to CoWork!\n\nSelect a workspace to start:\n\n{workspaceList}\nReply with a number (e.g., `1`)",
+    "👋 Welcome to NeoWorker!\n\nSelect a workspace to start:\n\n{workspaceList}\nReply with a number (e.g., `1`)",
   workspaceSelected: "✅ *{workspaceName}* selected!",
   workspaceSelectedExample:
     'You can now send tasks.\n\nExample: "Create a new React component called Button"',
-  unauthorized: "⚠️ You are not authorized to use this bot. Please contact the administrator.",
+  unauthorized:
+    "⚠️ You are not authorized to use this bot. Please contact the administrator.",
   pairingRequired: "🔐 Please enter your pairing code to get started.",
   pairingPrompt: "🔐 Please provide a pairing code.\n\nUsage: `/pair <code>`",
   pairingSuccess: "✅ Pairing successful! You can now use the bot.",
   pairingFailed: "❌ {error}",
-  unknownCommand: "Unknown command: {command}\n\nUse /help to see available commands.",
+  unknownCommand:
+    "Unknown command: {command}\n\nUse /help to see available commands.",
   statusHeader: "Online and ready.",
-  statusNoWorkspace: "⚠️ No workspace selected. Use /workspaces to see available workspaces.",
+  statusNoWorkspace:
+    "⚠️ No workspace selected. Use /workspaces to see available workspaces.",
   statusActiveTask: "🔄 Active task: {taskTitle} ({status})",
   workspacesNone:
-    "📁 No workspaces configured yet.\n\nAdd a workspace in the CoWork desktop app first, or use:\n`/addworkspace /path/to/your/project`",
+    "📁 No workspaces configured yet.\n\nAdd a workspace in the NeoWorker desktop app first, or use:\n`/addworkspace /path/to/your/project`",
   workspacesHeader: "📁 *Available Workspaces*",
-  workspacesFooter: "Reply with the number or name to select.\nExample: `1` or `myproject`",
+  workspacesFooter:
+    "Reply with the number or name to select.\nExample: `1` or `myproject`",
   workspacesSelectPrompt: "Tap a workspace to select it:",
   workspaceCurrent:
     "📁 Current workspace: *{workspaceName}*\n`{workspacePath}`\n\nUse `/workspaces` to see available workspaces.",
-  workspaceNoneSelected: "No workspace selected. Use `/workspaces` to see available workspaces.",
+  workspaceNoneSelected:
+    "No workspace selected. Use `/workspaces` to see available workspaces.",
   workspaceNotFound:
     '❌ Workspace not found: "{selector}"\n\nUse /workspaces to see available workspaces.',
   workspaceNotFoundShort: "❌ Workspace not found.",
@@ -153,9 +165,11 @@ const CHANNEL_UI_COPY: Record<ChannelUiKey, string> = {
     "🚀 Task started: \"{taskTitle}\"\n\nI'll update you when it's ready or if I need your input.",
   taskStartAckSimple: "I'm on it — I'll check back soon.",
   taskStartFailed: "❌ Failed to start task: {error}",
-  taskContinueFailed: "❌ Failed to send message. Use /newtask to start a new task.",
+  taskContinueFailed:
+    "❌ Failed to send message. Use /newtask to start a new task.",
   agentUnavailable: "❌ Agent not available. Please try again later.",
-  workspaceMissingForTask: "❌ Workspace not found. Please select a workspace with /workspace.",
+  workspaceMissingForTask:
+    "❌ Workspace not found. Please select a workspace with /workspace.",
   approvalNone: "❌ No pending approval request.",
   approvalApproved: "✅ Approved. Working on it.",
   approvalDenied: "🛑 Denied. Action cancelled.",
@@ -168,17 +182,21 @@ const CHANNEL_UI_COPY: Record<ChannelUiKey, string> = {
   queueStatus: "{statusText}",
   cancelled: "🛑 Task cancelled.",
   cancelNoActive: "No active task to cancel.",
-  newTaskReady: "🆕 Ready for a new task.\n\nSend me a message describing what you want to do.",
-  retryNone: "❌ No failed task found to retry.\n\nStart a new task by sending a message.",
+  newTaskReady:
+    "🆕 Ready for a new task.\n\nSend me a message describing what you want to do.",
+  retryNone:
+    "❌ No failed task found to retry.\n\nStart a new task by sending a message.",
   retrying: '🔄 Retrying task...\n\nOriginal prompt: "{taskTitle}"',
-  historyNone: "📋 No task history found.\n\nStart a new task by sending a message.",
+  historyNone:
+    "📋 No task history found.\n\nStart a new task by sending a message.",
   historyHeader: "📋 *Recent Tasks*\n\n{history}",
   skillsNone:
-    "📚 No skills available.\n\nSkills are stored in:\n`~/Library/Application Support/cowork-os/skills/`",
+    "📚 No skills available.\n\nSkills are stored in:\n`~/Library/Application Support/neoworker/skills/`",
   skillsLoadFailed: "❌ Failed to load skills.",
   skillSpecify:
     "❌ Please specify a skill ID.\n\nUsage: `/skill <id>`\n\nUse /skills to see available skills.",
-  skillNotFound: '❌ Skill "{skillId}" not found.\n\nUse /skills to see available skills.',
+  skillNotFound:
+    '❌ Skill "{skillId}" not found.\n\nUse /skills to see available skills.',
   skillToggle: "{emoji} *{skillName}* is now {statusText}",
   debugStatus: "🐛 Debug mode is now {statusText}",
   shellInvalidOption: "❌ Invalid option. Use `/shell on` or `/shell off`",
@@ -303,19 +321,24 @@ const PERSONA_CHANNEL_UI_OVERRIDES: Partial<
     workspaceSelected: "✅ *{workspaceName}* selected.",
     workspaceSelectedExample:
       'You can send tasks now.\n\nExample: "Create a new React component called Button"',
-    pairingPrompt: "🔐 Share your pairing code so I can connect.\n\nUsage: `/pair <code>`",
+    pairingPrompt:
+      "🔐 Share your pairing code so I can connect.\n\nUsage: `/pair <code>`",
     pairingSuccess: "✅ Paired. I'm ready.",
     pairingFailed: "❌ {error}",
-    unknownCommand: "I didn't recognize that command: {command}\n\nUse /help to see options.",
+    unknownCommand:
+      "I didn't recognize that command: {command}\n\nUse /help to see options.",
     statusHeader: "Here and ready.",
-    statusNoWorkspace: "⚠️ No workspace selected. Use /workspaces to choose one.",
+    statusNoWorkspace:
+      "⚠️ No workspace selected. Use /workspaces to choose one.",
     workspacesNone:
       "📁 No workspaces yet.\n\nAdd one in the desktop app, or use:\n`/addworkspace /path/to/your/project`",
     workspacesHeader: "📁 *Workspaces*",
-    workspacesFooter: "Reply with a number or name.\nExample: `1` or `myproject`",
+    workspacesFooter:
+      "Reply with a number or name.\nExample: `1` or `myproject`",
     workspaceCurrent:
       "📁 Current workspace: *{workspaceName}*\n`{workspacePath}`\n\nUse `/workspaces` to switch.",
-    workspaceNoneSelected: "No workspace selected yet. Use `/workspaces` to pick one.",
+    workspaceNoneSelected:
+      "No workspace selected yet. Use `/workspaces` to pick one.",
     workspaceNotFound:
       '❌ I couldn\'t find "{selector}".\n\nUse /workspaces to see available workspaces.',
     workspaceNotFoundShort: "I couldn't find that workspace.",
@@ -330,11 +353,13 @@ const PERSONA_CHANNEL_UI_OVERRIDES: Partial<
     workspaceRemoveUsage:
       "Please specify a workspace name to remove.\n\nUsage: `/removeworkspace <name>`",
     workspaceRemoved: 'Workspace "{workspaceName}" removed.',
-    taskStartAck: "I'm on it — \"{taskTitle}\".\n\nI'll check back soon or ask if I need input.",
+    taskStartAck:
+      "I'm on it — \"{taskTitle}\".\n\nI'll check back soon or ask if I need input.",
     taskStartAckSimple: "I'm on it. I'll check back soon.",
     taskContinueFailed: "I couldn't send that. Use /newtask to start fresh.",
     agentUnavailable: "I'm not available right now. Try again in a moment.",
-    workspaceMissingForTask: "I can't find a workspace. Use /workspace to select one.",
+    workspaceMissingForTask:
+      "I can't find a workspace. Use /workspace to select one.",
     approvalNone: "No pending approval right now.",
     approvalApproved: "Approved. I'm working on it.",
     approvalDenied: "Okay. I cancelled that.",
@@ -355,7 +380,8 @@ const PERSONA_CHANNEL_UI_OVERRIDES: Partial<
     skillsLoadFailed: "Couldn't load skills.",
     skillSpecify:
       "Please specify a skill ID.\n\nUsage: `/skill <id>`\n\nUse /skills to see available skills.",
-    skillNotFound: 'Skill "{skillId}" not found.\n\nUse /skills to see available skills.',
+    skillNotFound:
+      'Skill "{skillId}" not found.\n\nUse /skills to see available skills.',
     skillToggle: "{emoji} *{skillName}* is now {statusText}",
     debugStatus: "Debug mode is now {statusText}",
     shellInvalidOption: "Invalid option. Use `/shell on` or `/shell off`",
@@ -460,7 +486,10 @@ Example: "Add a login form"`,
 /**
  * Message templates organized by personality type
  */
-const CHANNEL_MESSAGES: Record<PersonalityId, Record<ChannelMessageKey, string>> = {
+const CHANNEL_MESSAGES: Record<
+  PersonalityId,
+  Record<ChannelMessageKey, string>
+> = {
   professional: {
     taskComplete: "Complete.",
     taskCompleteWithResult: "Complete.\n\n{result}",
@@ -556,7 +585,11 @@ const EMOJI_MAP: Record<ChannelMessageKey, string> = {
 /**
  * Add emoji based on emojiUsage setting
  */
-function addEmoji(message: string, key: ChannelMessageKey, emojiUsage: EmojiUsage): string {
+function addEmoji(
+  message: string,
+  key: ChannelMessageKey,
+  emojiUsage: EmojiUsage,
+): string {
   if (emojiUsage === "none") return message;
 
   const emoji = EMOJI_MAP[key];
@@ -565,7 +598,9 @@ function addEmoji(message: string, key: ChannelMessageKey, emojiUsage: EmojiUsag
   // For minimal, only add checkmarks for success
   if (
     emojiUsage === "minimal" &&
-    !["taskComplete", "taskCompleteWithResult", "followUpProcessed"].includes(key)
+    !["taskComplete", "taskCompleteWithResult", "followUpProcessed"].includes(
+      key,
+    )
   ) {
     return message;
   }
@@ -584,9 +619,16 @@ export function getChannelMessage(
   const { personality, emojiUsage, persona } = ctx;
 
   // Get base message for personality
-  const messages = CHANNEL_MESSAGES[personality] || CHANNEL_MESSAGES.professional;
-  const personaOverride = persona ? PERSONA_CHANNEL_MESSAGE_OVERRIDES[persona]?.[key] : undefined;
-  let message = personaOverride || messages[key] || CHANNEL_MESSAGES.professional[key] || key;
+  const messages =
+    CHANNEL_MESSAGES[personality] || CHANNEL_MESSAGES.professional;
+  const personaOverride = persona
+    ? PERSONA_CHANNEL_MESSAGE_OVERRIDES[persona]?.[key]
+    : undefined;
+  let message =
+    personaOverride ||
+    messages[key] ||
+    CHANNEL_MESSAGES.professional[key] ||
+    key;
 
   // Replace placeholders
   if (replacements) {
@@ -610,12 +652,17 @@ export function getChannelUiCopy(
   replacements?: Record<string, string | number>,
 ): string {
   const base = CHANNEL_UI_COPY[key] || key;
-  const override = ctx.persona ? PERSONA_CHANNEL_UI_OVERRIDES[ctx.persona]?.[key] : undefined;
+  const override = ctx.persona
+    ? PERSONA_CHANNEL_UI_OVERRIDES[ctx.persona]?.[key]
+    : undefined;
   let message = override || base;
 
   if (replacements) {
     for (const [placeholder, value] of Object.entries(replacements)) {
-      message = message.replace(new RegExp(`\\{${placeholder}\\}`, "g"), String(value));
+      message = message.replace(
+        new RegExp(`\\{${placeholder}\\}`, "g"),
+        String(value),
+      );
     }
   }
 
@@ -631,14 +678,18 @@ export function getCompletionMessage(
   result?: string,
   includeFollowUpHint = true,
 ): string {
-  const key: ChannelMessageKey = result ? "taskCompleteWithResult" : "taskComplete";
+  const key: ChannelMessageKey = result
+    ? "taskCompleteWithResult"
+    : "taskComplete";
   let message = getChannelMessage(key, ctx, result ? { result } : undefined);
 
   // Add follow-up hint for channels that support it
   if (includeFollowUpHint && ctx.personality !== "concise") {
-    const companionHint = "Send another message to continue, or use /newtask for a clean start.";
+    const companionHint =
+      "Send another message to continue, or use /newtask for a clean start.";
     const hints: Record<PersonalityId, string> = {
-      professional: "Send a follow-up message to continue, or use /newtask to start fresh.",
+      professional:
+        "Send a follow-up message to continue, or use /newtask to start fresh.",
       friendly: "Got more to do? Just send another message!",
       concise: "",
       creative: "The story continues... send your next chapter!",
@@ -646,7 +697,8 @@ export function getCompletionMessage(
       casual: "What's next? Just hit me up.",
       custom: "Send a follow-up message to continue.",
     };
-    const hint = ctx.persona === "companion" ? companionHint : hints[ctx.personality];
+    const hint =
+      ctx.persona === "companion" ? companionHint : hints[ctx.personality];
     if (hint) {
       message = `${message}\n\n${hint}`;
     }
@@ -659,7 +711,7 @@ export function getCompletionMessage(
  * Default message context using professional personality
  */
 export const DEFAULT_CHANNEL_CONTEXT: ChannelMessageContext = {
-  agentName: "CoWork",
+  agentName: DEFAULT_ASSISTANT_NAME,
   userName: undefined,
   personality: "professional",
   persona: undefined,

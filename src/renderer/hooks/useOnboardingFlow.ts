@@ -1,5 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import type { LLMProviderType, LLMSettingsData, PersonaId } from "../../shared/types";
+import {
+  DEFAULT_ASSISTANT_NAME,
+  type LLMProviderType,
+  type LLMSettingsData,
+  type PersonaId,
+} from "../../shared/types";
+import {
+  normalizeKimiApiKey,
+  type KimiConnectionErrorCode,
+} from "../../shared/kimi";
 import {
   deriveOnboardingPersonalityPreset,
   deriveOnboardingPersona,
@@ -9,6 +18,7 @@ import {
   type OnboardingResponseStyleId,
   type OnboardingTimeDrainId,
 } from "../../shared/onboarding";
+import { translate, useLanguage } from "../i18n";
 
 // Onboarding conversation states
 export type OnboardingState =
@@ -50,98 +60,364 @@ export type OnboardingState =
 
 // Conversation script - cinematic tone with clear product positioning
 const SCRIPT = {
-  greeting: [
-    "Initializing...",
-    "Systems online.",
-    "I can talk with you naturally, execute real work across tools, and remember how you like things done.",
-  ],
-  ask_name: "Before we start, what should I call myself?",
+  get greeting() {
+    return [
+      translate("onboarding.script.greeting.initializing", "Initializing..."),
+      translate("onboarding.script.greeting.systemsOnline", "Systems online."),
+      translate(
+        "onboarding.script.greeting.capability",
+        "I can talk with you naturally, execute real work across tools, and remember how you like things done.",
+      ),
+    ];
+  },
+  get ask_name() {
+    return translate(
+      "onboarding.script.askName",
+      "Before we start, what should I call myself?",
+    );
+  },
   confirm_name: (name: string) =>
     name
-      ? `${name}. Great choice. I'll carry that into every conversation.`
-      : "I'll go by CoWork. Ready when you are.",
-  ask_assistant_traits: "What kind of assistant do you want me to be? Pick what fits.",
-  confirm_assistant_traits:
-    "Good. I have the shape of the role now. Let me understand who I'm working with.",
-  ask_user_profile:
-    "And what should I call you?",
-  confirm_user_profile:
-    "Got it. I'll use that so this feels personal from the start.",
-  ask_time_drains:
-    "Where does your time disappear most often? Pick the things that actually drag on your day.",
-  confirm_time_drains:
-    "Good. Those are exactly the kinds of bottlenecks I should be paying attention to.",
-  ask_priorities:
-    "Given what you told me, what do you want the most help with first? Pick your top priorities.",
-  confirm_priorities:
-    "Perfect. That's concrete enough to optimize around from the start.",
-  ask_tools:
-    "What apps or tools are central to your workflow? Include anything I should treat like home base.",
-  confirm_tools:
-    "Good. I'll treat that stack as your working surface instead of starting from scratch each time.",
-  ask_response_style: "How do you like your responses?",
-  confirm_response_style:
-    "Understood. I'll keep that response shape consistent unless the task clearly needs otherwise.",
-  ask_additional_guidance:
-    "One last thing before setup: is there anything you'd always want me to keep in mind?",
-  confirm_additional_guidance:
-    "Good. I'll carry that forward as part of how I operate with you.",
-  ask_voice: "Would you like spoken responses when they help?",
-  confirm_voice_on: "Great. I'll speak when it adds clarity.",
-  confirm_voice_off: "No problem. We'll stay text-first for now.",
-  ask_work_style: "I want to match your pace. Do you prefer clear plans, or flexible execution?",
-  reflect_style_planner: "Perfect. I'll structure the work and keep progress visible.",
-  reflect_style_flexible: "Great. I'll move quickly and adapt as context changes.",
+      ? translate(
+          "onboarding.script.confirmName.named",
+          "{name}. Great choice. I'll carry that into every conversation.",
+          { name },
+        )
+      : translate(
+          "onboarding.script.confirmName.default",
+          `I'll go by ${DEFAULT_ASSISTANT_NAME}. Ready when you are.`,
+        ),
+  get ask_assistant_traits() {
+    return translate(
+      "onboarding.script.askAssistantTraits",
+      "What kind of assistant do you want me to be? Pick what fits.",
+    );
+  },
+  get confirm_assistant_traits() {
+    return translate(
+      "onboarding.script.confirmAssistantTraits",
+      "Good. I have the shape of the role now. Let me understand who I'm working with.",
+    );
+  },
+  get ask_user_profile() {
+    return translate(
+      "onboarding.script.askUserProfile",
+      "And what should I call you?",
+    );
+  },
+  get confirm_user_profile() {
+    return translate(
+      "onboarding.script.confirmUserProfile",
+      "Got it. I'll use that so this feels personal from the start.",
+    );
+  },
+  get ask_time_drains() {
+    return translate(
+      "onboarding.script.askTimeDrains",
+      "Where does your time disappear most often? Pick the things that actually drag on your day.",
+    );
+  },
+  get confirm_time_drains() {
+    return translate(
+      "onboarding.script.confirmTimeDrains",
+      "Good. Those are exactly the kinds of bottlenecks I should be paying attention to.",
+    );
+  },
+  get ask_priorities() {
+    return translate(
+      "onboarding.script.askPriorities",
+      "Given what you told me, what do you want the most help with first? Pick your top priorities.",
+    );
+  },
+  get confirm_priorities() {
+    return translate(
+      "onboarding.script.confirmPriorities",
+      "Perfect. That's concrete enough to optimize around from the start.",
+    );
+  },
+  get ask_tools() {
+    return translate(
+      "onboarding.script.askTools",
+      "What apps or tools are central to your workflow? Include anything I should treat like home base.",
+    );
+  },
+  get confirm_tools() {
+    return translate(
+      "onboarding.script.confirmTools",
+      "Good. I'll treat that stack as your working surface instead of starting from scratch each time.",
+    );
+  },
+  get ask_response_style() {
+    return translate(
+      "onboarding.script.askResponseStyle",
+      "How do you like your responses?",
+    );
+  },
+  get confirm_response_style() {
+    return translate(
+      "onboarding.script.confirmResponseStyle",
+      "Understood. I'll keep that response shape consistent unless the task clearly needs otherwise.",
+    );
+  },
+  get ask_additional_guidance() {
+    return translate(
+      "onboarding.script.askAdditionalGuidance",
+      "One last thing before setup: is there anything you'd always want me to keep in mind?",
+    );
+  },
+  get confirm_additional_guidance() {
+    return translate(
+      "onboarding.script.confirmAdditionalGuidance",
+      "Good. I'll carry that forward as part of how I operate with you.",
+    );
+  },
+  get ask_voice() {
+    return translate(
+      "onboarding.script.askVoice",
+      "Would you like spoken responses when they help?",
+    );
+  },
+  get confirm_voice_on() {
+    return translate(
+      "onboarding.script.confirmVoiceOn",
+      "Great. I'll speak when it adds clarity.",
+    );
+  },
+  get confirm_voice_off() {
+    return translate(
+      "onboarding.script.confirmVoiceOff",
+      "No problem. We'll stay text-first for now.",
+    );
+  },
+  get ask_work_style() {
+    return translate(
+      "onboarding.script.askWorkStyle",
+      "I want to match your pace. Do you prefer clear plans, or flexible execution?",
+    );
+  },
+  get reflect_style_planner() {
+    return translate(
+      "onboarding.script.reflectStylePlanner",
+      "Perfect. I'll structure the work and keep progress visible.",
+    );
+  },
+  get reflect_style_flexible() {
+    return translate(
+      "onboarding.script.reflectStyleFlexible",
+      "Great. I'll move quickly and adapt as context changes.",
+    );
+  },
   // Implications shown after work style selection
-  style_implications_planner: [
-    "• I'll map work into clear step-by-step plans",
-    "• You'll get steady updates with explicit next actions",
-    "• I'll remember repeat patterns so future tasks start faster",
-  ],
-  style_implications_flexible: [
-    "• I'll start fast and adjust in real time",
-    "• We'll iterate quickly instead of over-planning upfront",
-    "• I'll carry forward context from our conversations",
-  ],
-  ask_memory_trust:
-    "One trust setting before we continue: decide whether I should remember helpful context across conversations.",
-  confirm_memory_trust_on:
-    "Great. I'll keep useful preferences and context, and you can edit or delete memory anytime.",
-  confirm_memory_trust_off:
-    "Understood. I'll keep memory fully off with no memory storage for now. You can enable it later in Settings > Memory.",
-  transition_setup: "Choose the AI model that should power me.",
+  get style_implications_planner() {
+    return [
+      translate(
+        "onboarding.script.stylePlanner.plan",
+        "• I'll map work into clear step-by-step plans",
+      ),
+      translate(
+        "onboarding.script.stylePlanner.updates",
+        "• You'll get steady updates with explicit next actions",
+      ),
+      translate(
+        "onboarding.script.stylePlanner.memory",
+        "• I'll remember repeat patterns so future tasks start faster",
+      ),
+    ];
+  },
+  get style_implications_flexible() {
+    return [
+      translate(
+        "onboarding.script.styleFlexible.fast",
+        "• I'll start fast and adjust in real time",
+      ),
+      translate(
+        "onboarding.script.styleFlexible.iterate",
+        "• We'll iterate quickly instead of over-planning upfront",
+      ),
+      translate(
+        "onboarding.script.styleFlexible.context",
+        "• I'll carry forward context from our conversations",
+      ),
+    ];
+  },
+  get ask_memory_trust() {
+    return translate(
+      "onboarding.script.askMemoryTrust",
+      "One trust setting before we continue: decide whether I should remember helpful context across conversations.",
+    );
+  },
+  get confirm_memory_trust_on() {
+    return translate(
+      "onboarding.script.confirmMemoryTrustOn",
+      "Great. I'll keep useful preferences and context, and you can edit or delete memory anytime.",
+    );
+  },
+  get confirm_memory_trust_off() {
+    return translate(
+      "onboarding.script.confirmMemoryTrustOff",
+      "Understood. I'll keep memory fully off with no memory storage for now. You can enable it later in Settings > Memory.",
+    );
+  },
+  get transition_setup() {
+    return translate(
+      "onboarding.script.transitionSetup",
+      "Choose the AI model that should power me.",
+    );
+  },
   ollama_detected: (modelName: string) =>
-    `I found ${modelName} running locally on your machine via Ollama. Want to use it?`,
-  llm_intro: "This engine drives my reasoning and task execution. Pick what fits you best.",
+    translate(
+      "onboarding.script.ollamaDetected",
+      "I found {modelName} running locally on your machine via Ollama. Want to use it?",
+      { modelName },
+    ),
+  get llm_intro() {
+    return translate(
+      "onboarding.script.llmIntro",
+      "This engine drives my reasoning and task execution. Pick what fits you best.",
+    );
+  },
   llm_selected: (provider: string) => {
     const responses: Record<string, string> = {
-      anthropic: "Claude. That's a good match for us.",
-      openai: "OpenAI. Classic and reliable.",
-      gemini: "Gemini. Let's see what we can do together.",
-      ollama: "Local with Ollama. I like the privacy.",
-      openrouter: "OpenRouter. Lots of options to explore.",
-      bedrock: "AWS Bedrock. Enterprise-ready.",
-      groq: "Groq. Speedy and efficient.",
-      xai: "Grok. Let's put xAI to work.",
-      deepseek: "DeepSeek. Practical and cost-efficient.",
-      kimi: "Kimi. Solid choice.",
-      "nano-gpt": "NanoGPT. Flexible model routing.",
+      anthropic: translate(
+        "onboarding.script.llmSelected.anthropic",
+        "Claude. That's a good match for us.",
+      ),
+      openai: translate(
+        "onboarding.script.llmSelected.openai",
+        "OpenAI. Classic and reliable.",
+      ),
+      gemini: translate(
+        "onboarding.script.llmSelected.gemini",
+        "Gemini. Let's see what we can do together.",
+      ),
+      ollama: translate(
+        "onboarding.script.llmSelected.ollama",
+        "Local with Ollama. I like the privacy.",
+      ),
+      openrouter: translate(
+        "onboarding.script.llmSelected.openrouter",
+        "OpenRouter. Lots of options to explore.",
+      ),
+      bedrock: translate(
+        "onboarding.script.llmSelected.bedrock",
+        "AWS Bedrock. Enterprise-ready.",
+      ),
+      groq: translate(
+        "onboarding.script.llmSelected.groq",
+        "Groq. Speedy and efficient.",
+      ),
+      xai: translate(
+        "onboarding.script.llmSelected.xai",
+        "Grok. Let's put xAI to work.",
+      ),
+      deepseek: translate(
+        "onboarding.script.llmSelected.deepseek",
+        "DeepSeek. Practical and cost-efficient.",
+      ),
+      kimi: translate(
+        "onboarding.script.llmSelected.kimi",
+        "Kimi. Solid choice.",
+      ),
+      "nano-gpt": translate(
+        "onboarding.script.llmSelected.nanoGpt",
+        "NanoGPT. Flexible model routing.",
+      ),
     };
-    return responses[provider] || "Good choice.";
+    return (
+      responses[provider] ||
+      translate("onboarding.script.llmSelected.default", "Good choice.")
+    );
   },
-  llm_need_key: "To activate this provider, paste an API key from its dashboard.",
-  chatgpt_signin: "Opening ChatGPT sign-in...",
-  llm_testing: "Connecting...",
-  llm_success: "Connection confirmed. I'm ready to work with context.",
-  llm_error: "That didn't connect. Want to try another key?",
-  recap_intro: (name: string) => `Quick recap${name ? `, ${name}` : ""}, before we begin.`,
+  get llm_need_key() {
+    return translate(
+      "onboarding.script.llmNeedKey",
+      "To activate this provider, paste an API key from its dashboard.",
+    );
+  },
+  get chatgpt_signin() {
+    return translate(
+      "onboarding.script.chatgptSignin",
+      "Opening ChatGPT sign-in...",
+    );
+  },
+  get llm_testing() {
+    return translate("onboarding.script.llmTesting", "Connecting...");
+  },
+  get llm_success() {
+    return translate(
+      "onboarding.script.llmSuccess",
+      "Connection confirmed. I'm ready to work with context.",
+    );
+  },
+  get llm_error() {
+    return translate(
+      "onboarding.script.llmError",
+      "That didn't connect. Want to try another key?",
+    );
+  },
+  recap_intro: (name: string) =>
+    translate(
+      "onboarding.script.recapIntro",
+      "Quick recap{namePrefix}, before we begin.",
+      {
+        namePrefix: name ? `, ${name}` : "",
+      },
+    ),
   final_try_prompt: (name: string) =>
-    `${name || "CoWork"} is ready. Give me one quick prompt by voice or text.`,
+    translate(
+      "onboarding.script.finalTryPrompt",
+      "{name} is ready. Give me one quick prompt by voice or text.",
+      {
+        name: name || DEFAULT_ASSISTANT_NAME,
+      },
+    ),
   completion: (name: string) =>
-    `All set${name ? `, ${name}` : ""}. Tell me what you want done, or just talk with me.`,
-  save_error:
-    "I couldn't save your onboarding setup cleanly. Review the recap and try entering CoWork again.",
+    translate(
+      "onboarding.script.completion",
+      "All set{namePrefix}. Tell me what you want done, or just talk with me.",
+      {
+        namePrefix: name ? `, ${name}` : "",
+      },
+    ),
+  get save_error() {
+    return translate(
+      "onboarding.script.saveError",
+      "I couldn't save your onboarding setup cleanly. Review the recap and try entering NeoWorker again.",
+    );
+  },
 };
+
+function getKimiOnboardingErrorMessage(
+  errorCode?: KimiConnectionErrorCode,
+): string {
+  switch (errorCode) {
+    case "missing_key":
+      return translate(
+        "aiModels.kimi.error.missingKey",
+        "Paste your API key first.",
+      );
+    case "invalid_key":
+      return translate(
+        "aiModels.kimi.error.invalidKey",
+        "This key cannot be used. Copy the complete key again, or create a new one in Kimi.",
+      );
+    case "network":
+      return translate(
+        "aiModels.kimi.error.network",
+        "Kimi cannot be reached right now. Check your network and try again.",
+      );
+    case "no_models":
+      return translate(
+        "aiModels.kimi.error.noModels",
+        "The key works, but Kimi has no available models right now. Try again later.",
+      );
+    default:
+      return translate(
+        "aiModels.kimi.error.unknown",
+        "Kimi is temporarily unavailable. Try again later.",
+      );
+  }
+}
 
 interface UseOnboardingOptions {
   onComplete: (dontShowAgain: boolean) => void;
@@ -213,7 +489,7 @@ const INITIAL_ONBOARDING_DATA: OnboardingData = {
   detectedOllamaModel: null,
 };
 
-const ONBOARDING_RESUME_KEY = "cowork:onboarding:flow:v1";
+const ONBOARDING_RESUME_KEY = "neoworker:onboarding:flow:v1";
 
 const getFallbackTextForState = (
   state: OnboardingState,
@@ -222,7 +498,10 @@ const getFallbackTextForState = (
 ): string => {
   switch (state) {
     case "greeting": {
-      const index = Math.min(Math.max(greetingIndex, 0), SCRIPT.greeting.length - 1);
+      const index = Math.min(
+        Math.max(greetingIndex, 0),
+        SCRIPT.greeting.length - 1,
+      );
       return SCRIPT.greeting[index];
     }
     case "ask_name":
@@ -260,7 +539,9 @@ const getFallbackTextForState = (
     case "ask_voice":
       return SCRIPT.ask_voice;
     case "confirm_voice":
-      return data.voiceEnabled ? SCRIPT.confirm_voice_on : SCRIPT.confirm_voice_off;
+      return data.voiceEnabled
+        ? SCRIPT.confirm_voice_on
+        : SCRIPT.confirm_voice_off;
     case "ask_work_style":
       return SCRIPT.ask_work_style;
     case "reflect_style":
@@ -270,7 +551,9 @@ const getFallbackTextForState = (
     case "ask_memory_trust":
       return SCRIPT.ask_memory_trust;
     case "confirm_memory_trust":
-      return data.memoryEnabled ? SCRIPT.confirm_memory_trust_on : SCRIPT.confirm_memory_trust_off;
+      return data.memoryEnabled
+        ? SCRIPT.confirm_memory_trust_on
+        : SCRIPT.confirm_memory_trust_off;
     case "transition_setup":
       return SCRIPT.transition_setup;
     case "ollama_detected":
@@ -315,7 +598,11 @@ const clearResumeSnapshot = (): void => {
   }
 };
 
-export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOptions) {
+export function useOnboardingFlow({
+  onComplete,
+  workspaceId,
+}: UseOnboardingOptions) {
+  useLanguage();
   const [state, setState] = useState<OnboardingState>("dormant");
   const [currentText, setCurrentText] = useState("");
   const [greetingIndex, setGreetingIndex] = useState(0);
@@ -333,7 +620,9 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
     error?: string;
   } | null>(null);
   const [chatGptSignInLoading, setChatGptSignInLoading] = useState(false);
-  const [chatGptSignInError, setChatGptSignInError] = useState<string | null>(null);
+  const [chatGptSignInError, setChatGptSignInError] = useState<string | null>(
+    null,
+  );
 
   const [data, setData] = useState<OnboardingData>(INITIAL_ONBOARDING_DATA);
 
@@ -341,10 +630,12 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
   const startedRef = useRef(false);
   const canPersistRef = useRef(false);
   const styleCountdownIntervalRef = useRef<number | null>(null);
-  const saveOnboardingSettingsRef = useRef<() => Promise<OnboardingSaveResult>>(async () => ({
-    success: false,
-    error: SCRIPT.save_error,
-  }));
+  const saveOnboardingSettingsRef = useRef<() => Promise<OnboardingSaveResult>>(
+    async () => ({
+      success: false,
+      error: SCRIPT.save_error,
+    }),
+  );
   const asyncMutationTokenRef = useRef(0);
   const pendingLlmSettingsRef = useRef<Record<string, unknown> | null>(null);
 
@@ -407,11 +698,14 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
   }, []);
 
   // Helper to delay state transitions
-  const delayedTransition = useCallback((nextState: OnboardingState, delay: number) => {
-    timeoutRef.current = setTimeout(() => {
-      setState(nextState);
-    }, delay);
-  }, []);
+  const delayedTransition = useCallback(
+    (nextState: OnboardingState, delay: number) => {
+      timeoutRef.current = setTimeout(() => {
+        setState(nextState);
+      }, delay);
+    },
+    [],
+  );
 
   // Start the onboarding
   const start = useCallback(() => {
@@ -556,7 +850,11 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
             // Probe for local Ollama server before showing provider picker
             let settled = false;
             const settle = (
-              models: Array<{ name: string; size: number; modified: string }> | null,
+              models: Array<{
+                name: string;
+                size: number;
+                modified: string;
+              }> | null,
             ) => {
               if (settled) return;
               if (!isActiveAsyncMutation(mutationToken)) return;
@@ -564,7 +862,9 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
               if (models && models.length > 0) {
                 // Pick most recently modified model (proxy for last used)
                 const sorted = [...models].sort(
-                  (a, b) => new Date(b.modified).getTime() - new Date(a.modified).getTime(),
+                  (a, b) =>
+                    new Date(b.modified).getTime() -
+                    new Date(a.modified).getTime(),
                 );
                 const recommended = sorted[0].name;
                 setData((d) => ({ ...d, detectedOllamaModel: recommended }));
@@ -650,7 +950,7 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
     const trimmedName = name.trim();
     setData((d) => ({
       ...d,
-      assistantName: trimmedName || "CoWork",
+      assistantName: trimmedName || DEFAULT_ASSISTANT_NAME,
     }));
     setState("confirm_name");
     setCurrentText(SCRIPT.confirm_name(trimmedName));
@@ -664,53 +964,67 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
     setShowInput(true);
   }, [clearPendingTransition]);
 
-  const submitAssistantTraits = useCallback((traits: OnboardingAssistantTraitId[]) => {
-    const normalizedTraits =
-      traits.length > 0 ? Array.from(new Set(traits)) : INITIAL_ONBOARDING_DATA.assistantTraits;
-    const nextPersona = deriveOnboardingPersona({
-      ...INITIAL_ONBOARDING_DATA,
-      ...data,
-      assistantTraits: normalizedTraits,
-    });
+  const submitAssistantTraits = useCallback(
+    (traits: OnboardingAssistantTraitId[]) => {
+      const normalizedTraits =
+        traits.length > 0
+          ? Array.from(new Set(traits))
+          : INITIAL_ONBOARDING_DATA.assistantTraits;
+      const nextPersona = deriveOnboardingPersona({
+        ...INITIAL_ONBOARDING_DATA,
+        ...data,
+        assistantTraits: normalizedTraits,
+      });
 
-    setData((d) => ({
-      ...d,
-      assistantTraits: normalizedTraits,
-      persona: nextPersona,
-    }));
-    setState("confirm_assistant_traits");
-    setCurrentText(SCRIPT.confirm_assistant_traits);
-  }, [data]);
+      setData((d) => ({
+        ...d,
+        assistantTraits: normalizedTraits,
+        persona: nextPersona,
+      }));
+      setState("confirm_assistant_traits");
+      setCurrentText(SCRIPT.confirm_assistant_traits);
+    },
+    [data],
+  );
 
-  const submitUserProfile = useCallback((userName: string, userContext: string) => {
-    setData((d) => ({
-      ...d,
-      userName: userName.trim(),
-      userContext: userContext.trim(),
-    }));
-    setState("confirm_user_profile");
-    setCurrentText(SCRIPT.confirm_user_profile);
-  }, []);
+  const submitUserProfile = useCallback(
+    (userName: string, userContext: string) => {
+      setData((d) => ({
+        ...d,
+        userName: userName.trim(),
+        userContext: userContext.trim(),
+      }));
+      setState("confirm_user_profile");
+      setCurrentText(SCRIPT.confirm_user_profile);
+    },
+    [],
+  );
 
-  const submitTimeDrains = useCallback((timeDrains: OnboardingTimeDrainId[], other: string) => {
-    setData((d) => ({
-      ...d,
-      timeDrains: Array.from(new Set(timeDrains)),
-      timeDrainsOther: other.trim(),
-    }));
-    setState("confirm_time_drains");
-    setCurrentText(SCRIPT.confirm_time_drains);
-  }, []);
+  const submitTimeDrains = useCallback(
+    (timeDrains: OnboardingTimeDrainId[], other: string) => {
+      setData((d) => ({
+        ...d,
+        timeDrains: Array.from(new Set(timeDrains)),
+        timeDrainsOther: other.trim(),
+      }));
+      setState("confirm_time_drains");
+      setCurrentText(SCRIPT.confirm_time_drains);
+    },
+    [],
+  );
 
-  const submitPriorities = useCallback((priorities: OnboardingPriorityId[], other: string) => {
-    setData((d) => ({
-      ...d,
-      priorities: Array.from(new Set(priorities)),
-      prioritiesOther: other.trim(),
-    }));
-    setState("confirm_priorities");
-    setCurrentText(SCRIPT.confirm_priorities);
-  }, []);
+  const submitPriorities = useCallback(
+    (priorities: OnboardingPriorityId[], other: string) => {
+      setData((d) => ({
+        ...d,
+        priorities: Array.from(new Set(priorities)),
+        prioritiesOther: other.trim(),
+      }));
+      setState("confirm_priorities");
+      setCurrentText(SCRIPT.confirm_priorities);
+    },
+    [],
+  );
 
   const submitWorkflowTools = useCallback((workflowTools: string) => {
     setData((d) => ({
@@ -748,8 +1062,9 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
     setShowVoiceOptions(false);
     setData((d) => ({ ...d, voiceEnabled: enabled }));
     setState("confirm_voice");
-    setCurrentText(enabled ? SCRIPT.confirm_voice_on : SCRIPT.confirm_voice_off);
-
+    setCurrentText(
+      enabled ? SCRIPT.confirm_voice_on : SCRIPT.confirm_voice_off,
+    );
   }, []);
 
   // Handle work style selection
@@ -760,7 +1075,9 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
     setData((d) => ({ ...d, workStyle: style }));
     setState("reflect_style");
     setCurrentText(
-      style === "planner" ? SCRIPT.reflect_style_planner : SCRIPT.reflect_style_flexible,
+      style === "planner"
+        ? SCRIPT.reflect_style_planner
+        : SCRIPT.reflect_style_flexible,
     );
   }, []);
 
@@ -776,7 +1093,11 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
     setState("ask_work_style");
     setCurrentText(SCRIPT.ask_work_style);
     setShowInput(true);
-  }, [clearPendingTransition, clearStyleCountdownInterval, invalidateAsyncMutations]);
+  }, [
+    clearPendingTransition,
+    clearStyleCountdownInterval,
+    invalidateAsyncMutations,
+  ]);
 
   const setMemoryTrustChoice = useCallback((enabled: boolean) => {
     setData((d) => ({ ...d, memoryEnabled: enabled }));
@@ -785,7 +1106,11 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
   const submitMemoryTrust = useCallback((enabled: boolean) => {
     setData((d) => ({ ...d, memoryEnabled: enabled }));
     setState("confirm_memory_trust");
-    setCurrentText(enabled ? SCRIPT.confirm_memory_trust_on : SCRIPT.confirm_memory_trust_off);
+    setCurrentText(
+      enabled
+        ? SCRIPT.confirm_memory_trust_on
+        : SCRIPT.confirm_memory_trust_off,
+    );
   }, []);
 
   const continueFromRecap = useCallback(() => {
@@ -1062,7 +1387,7 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
       case "deepseek":
         return "deepseek-chat";
       case "kimi":
-        return "kimi-k2.5";
+        return "kimi-k3";
       case "nano-gpt":
         return "minimax/minimax-m2.7";
       default:
@@ -1070,16 +1395,20 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
     }
   }, []);
 
-  const loadExistingLlmSettings = useCallback(async (): Promise<LLMSettingsData | null> => {
-    try {
-      return await window.electronAPI.getLLMSettings();
-    } catch {
-      return null;
-    }
-  }, []);
+  const loadExistingLlmSettings =
+    useCallback(async (): Promise<LLMSettingsData | null> => {
+      try {
+        return await window.electronAPI.getLLMSettings();
+      } catch {
+        return null;
+      }
+    }, []);
 
   const getConfiguredModelForProvider = useCallback(
-    (provider: LLMProviderType, existingSettings?: LLMSettingsData | null): string => {
+    (
+      provider: LLMProviderType,
+      existingSettings?: LLMSettingsData | null,
+    ): string => {
       if (!existingSettings) {
         if (provider === "ollama" && data.detectedOllamaModel) {
           return data.detectedOllamaModel;
@@ -1127,10 +1456,16 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
       if (currentModel?.trim()) {
         return currentModel;
       }
-      if (existingSettings.providerType === provider && existingSettings.modelKey?.trim()) {
+      if (
+        existingSettings.providerType === provider &&
+        existingSettings.modelKey?.trim()
+      ) {
         return existingSettings.modelKey;
       }
-      if (provider === "openai" && existingSettings.openai?.authMethod === "oauth") {
+      if (
+        provider === "openai" &&
+        existingSettings.openai?.authMethod === "oauth"
+      ) {
         return "gpt-5.5";
       }
       if (provider === "ollama" && data.detectedOllamaModel) {
@@ -1142,13 +1477,17 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
   );
 
   const providerHasSavedCredentials = useCallback(
-    (provider: LLMProviderType, existingSettings?: LLMSettingsData | null): boolean => {
+    (
+      provider: LLMProviderType,
+      existingSettings?: LLMSettingsData | null,
+    ): boolean => {
       if (!existingSettings) return false;
 
       switch (provider) {
         case "anthropic":
           return !!(
-            existingSettings.anthropic?.apiKey || existingSettings.anthropic?.subscriptionToken
+            existingSettings.anthropic?.apiKey ||
+            existingSettings.anthropic?.subscriptionToken
           );
         case "openai":
           return !!(
@@ -1202,7 +1541,10 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
       } else if (provider === "deepseek") {
         testConfig.deepseek = { apiKey, model: "deepseek-chat" };
       } else if (provider === "kimi") {
-        testConfig.kimi = { apiKey };
+        testConfig.kimi = {
+          apiKey: normalizeKimiApiKey(apiKey),
+          model: "kimi-k3",
+        };
       } else if (provider === "nano-gpt") {
         testConfig.customProviders = {
           "nano-gpt": {
@@ -1226,7 +1568,10 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
       existingSettings?: LLMSettingsData | null,
     ) => {
       const trimmedApiKey = apiKey.trim();
-      const modelKey = getConfiguredModelForProvider(provider, existingSettings);
+      const modelKey = getConfiguredModelForProvider(
+        provider,
+        existingSettings,
+      );
       const settings: Record<string, unknown> = {
         providerType: provider,
         modelKey,
@@ -1246,7 +1591,9 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
       } else if (provider === "openai") {
         settings.openai = {
           ...existingSettings?.openai,
-          ...(trimmedApiKey ? { apiKey: trimmedApiKey, authMethod: "api_key" } : {}),
+          ...(trimmedApiKey
+            ? { apiKey: trimmedApiKey, authMethod: "api_key" }
+            : {}),
           model: modelKey,
         };
       } else if (provider === "gemini") {
@@ -1271,7 +1618,8 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
         settings.bedrock = {
           ...existingSettings?.bedrock,
           region: existingSettings?.bedrock?.region || "us-east-1",
-          useDefaultCredentials: existingSettings?.bedrock?.useDefaultCredentials ?? true,
+          useDefaultCredentials:
+            existingSettings?.bedrock?.useDefaultCredentials ?? true,
           model: modelKey,
         };
       } else if (provider === "groq") {
@@ -1295,7 +1643,9 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
       } else if (provider === "kimi") {
         settings.kimi = {
           ...existingSettings?.kimi,
-          ...(trimmedApiKey ? { apiKey: trimmedApiKey } : {}),
+          ...(trimmedApiKey
+            ? { apiKey: normalizeKimiApiKey(trimmedApiKey) }
+            : {}),
           model: modelKey,
         };
       } else if (provider === "nano-gpt") {
@@ -1400,6 +1750,26 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
             key,
             existingSettings,
           );
+          if (data.selectedProvider === "kimi") {
+            const kimiSettings = (saveSettings.kimi || {}) as Record<
+              string,
+              unknown
+            >;
+            saveSettings.kimi = {
+              ...kimiSettings,
+              apiKey: normalizeKimiApiKey(key),
+              baseUrl: result.resolvedBaseUrl,
+              model: result.resolvedModel || "kimi-k3",
+            };
+            saveSettings.modelKey = result.resolvedModel || "kimi-k3";
+            saveSettings.cachedKimiModels = (result.models || []).map(
+              (model) => ({
+                key: model.id,
+                displayName: model.name,
+                description: "Kimi model",
+              }),
+            );
+          }
           if (!isActiveAsyncMutation(mutationToken)) {
             return;
           }
@@ -1412,7 +1782,13 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
           if (!isActiveAsyncMutation(mutationToken)) {
             return;
           }
-          setTestResult({ success: false, error: result.error });
+          setTestResult({
+            success: false,
+            error:
+              data.selectedProvider === "kimi"
+                ? getKimiOnboardingErrorMessage(result.errorCode)
+                : result.error,
+          });
           setCurrentText(SCRIPT.llm_error);
           setShowApiInput(true);
         }
@@ -1452,7 +1828,9 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
     setCurrentText(SCRIPT.chatgpt_signin);
 
     try {
-      const result = await window.electronAPI.openaiOAuthStart({ persist: false });
+      const result = await window.electronAPI.openaiOAuthStart({
+        persist: false,
+      });
       if (!isActiveAsyncMutation(mutationToken)) return;
 
       if (!result?.success) {
@@ -1468,7 +1846,9 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
       const existingSettings = await loadExistingLlmSettings();
       if (!isActiveAsyncMutation(mutationToken)) return;
       if (!result.tokens) {
-        throw new Error("ChatGPT sign-in completed without onboarding credentials");
+        throw new Error(
+          "ChatGPT sign-in completed without onboarding credentials",
+        );
       }
 
       const modelKey = existingSettings?.openai?.model || "gpt-5.5";
@@ -1496,7 +1876,8 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
       setCurrentText(SCRIPT.llm_success);
     } catch (error) {
       if (!isActiveAsyncMutation(mutationToken)) return;
-      const message = error instanceof Error ? error.message : "ChatGPT sign-in failed";
+      const message =
+        error instanceof Error ? error.message : "ChatGPT sign-in failed";
       setChatGptSignInError(message);
       setTestResult({ success: false, error: message });
       setState("llm_setup");
@@ -1584,7 +1965,10 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
 
     const fallbackProvider =
       existingSettings?.providerType &&
-      providerHasSavedCredentials(existingSettings.providerType, existingSettings)
+      providerHasSavedCredentials(
+        existingSettings.providerType,
+        existingSettings,
+      )
         ? existingSettings.providerType
         : null;
     if (!isActiveAsyncMutation(mutationToken)) {
@@ -1610,129 +1994,148 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
   ]);
 
   // Save onboarding choices to settings
-  const saveOnboardingSettings = useCallback(async (): Promise<OnboardingSaveResult> => {
-    const name = data.assistantName || "CoWork";
-    const responseStyle = deriveResponseStylePreferences(data);
-    const activePersona = deriveOnboardingPersona(data);
-    const activePersonality = deriveOnboardingPersonalityPreset(data);
-    try {
-      // Save to AppearanceSettings (for backward compatibility)
-      const currentAppearance = await window.electronAPI.getAppearanceSettings();
-      await window.electronAPI.saveAppearanceSettings({
-        ...currentAppearance,
-        assistantName: name,
-      });
-
-      // Save to PersonalitySettings (primary location for agent identity)
-      const currentPersonality = await window.electronAPI.getPersonalitySettings();
-      await window.electronAPI.savePersonalitySettings({
-        ...currentPersonality,
-        activePersonality,
-        agentName: name,
-        workStyle: data.workStyle || undefined,
-        activePersona,
-        relationship: {
-          ...currentPersonality.relationship,
-          userName: data.userName.trim() || currentPersonality.relationship?.userName,
-        },
-        responseStyle,
-      });
-
-      if (window.electronAPI?.saveVoiceSettings && data.voiceEnabled !== null) {
-        await window.electronAPI.saveVoiceSettings({
-          enabled: data.voiceEnabled,
-          responseMode: "auto",
+  const saveOnboardingSettings =
+    useCallback(async (): Promise<OnboardingSaveResult> => {
+      const name = data.assistantName || DEFAULT_ASSISTANT_NAME;
+      const responseStyle = deriveResponseStylePreferences(data);
+      const activePersona = deriveOnboardingPersona(data);
+      const activePersonality = deriveOnboardingPersonalityPreset(data);
+      try {
+        // Save to AppearanceSettings (for backward compatibility)
+        const currentAppearance =
+          await window.electronAPI.getAppearanceSettings();
+        await window.electronAPI.saveAppearanceSettings({
+          ...currentAppearance,
+          assistantName: name,
         });
-      }
 
-      const pendingLlmSettings = pendingLlmSettingsRef.current;
-      if (pendingLlmSettings) {
-        await window.electronAPI.saveLLMSettings(pendingLlmSettings);
-        pendingLlmSettingsRef.current = null;
-      }
-
-      if (
-        window.electronAPI?.getMemoryFeaturesSettings &&
-        window.electronAPI?.saveMemoryFeaturesSettings
-      ) {
-        const currentMemoryFeatures = await window.electronAPI.getMemoryFeaturesSettings();
-        await window.electronAPI.saveMemoryFeaturesSettings({
-          ...currentMemoryFeatures,
-          contextPackInjectionEnabled: data.memoryEnabled,
-          heartbeatMaintenanceEnabled: data.memoryEnabled
-            ? currentMemoryFeatures.heartbeatMaintenanceEnabled
-            : false,
+        // Save to PersonalitySettings (primary location for agent identity)
+        const currentPersonality =
+          await window.electronAPI.getPersonalitySettings();
+        await window.electronAPI.savePersonalitySettings({
+          ...currentPersonality,
+          activePersonality,
+          agentName: name,
+          workStyle: data.workStyle || undefined,
+          activePersona,
+          relationship: {
+            ...currentPersonality.relationship,
+            userName:
+              data.userName.trim() || currentPersonality.relationship?.userName,
+          },
+          responseStyle,
         });
-      }
 
-      if (
-        window.electronAPI?.listWorkspaces &&
-        window.electronAPI?.getTempWorkspace &&
-        window.electronAPI?.getMemorySettings &&
-        window.electronAPI?.saveMemorySettings
-      ) {
-        const [workspaces, tempWorkspace] = await Promise.all([
-          window.electronAPI.listWorkspaces().catch(() => []),
-          window.electronAPI.getTempWorkspace().catch(() => null),
-        ]);
-
-        const workspaceIds = new Set<string>();
-        for (const workspace of workspaces || []) {
-          if (workspace?.id) workspaceIds.add(workspace.id);
-        }
-        if (tempWorkspace?.id) workspaceIds.add(tempWorkspace.id);
-
-        for (const targetWorkspaceId of Array.from(workspaceIds)) {
-          const currentMemorySettings = await window.electronAPI.getMemorySettings(targetWorkspaceId);
-          const nextPrivacyMode: typeof currentMemorySettings.privacyMode = data.memoryEnabled
-            ? currentMemorySettings.privacyMode === "disabled"
-              ? "normal"
-              : currentMemorySettings.privacyMode
-            : "disabled";
-          const nextMemorySettings = {
-            ...currentMemorySettings,
-            enabled: data.memoryEnabled,
-            autoCapture: data.memoryEnabled,
-            privacyMode: nextPrivacyMode,
-          };
-
-          const isUnchanged =
-            currentMemorySettings.enabled === nextMemorySettings.enabled &&
-            currentMemorySettings.autoCapture === nextMemorySettings.autoCapture &&
-            currentMemorySettings.privacyMode === nextMemorySettings.privacyMode;
-          if (isUnchanged) continue;
-
-          await window.electronAPI.saveMemorySettings({
-            workspaceId: targetWorkspaceId,
-            settings: nextMemorySettings,
+        if (
+          window.electronAPI?.saveVoiceSettings &&
+          data.voiceEnabled !== null
+        ) {
+          await window.electronAPI.saveVoiceSettings({
+            enabled: data.voiceEnabled,
+            responseMode: "auto",
           });
         }
-      }
 
-      if (workspaceId && window.electronAPI?.initWorkspaceKit && window.electronAPI?.applyOnboardingProfile) {
-        await window.electronAPI.initWorkspaceKit({
-          workspaceId,
-          mode: "missing",
-        });
-        await window.electronAPI.applyOnboardingProfile({
-          workspaceId,
-          data,
-        });
-      } else if (window.electronAPI?.applyOnboardingProfile) {
-        await window.electronAPI.applyOnboardingProfile({
-          workspaceId: null,
-          data,
-        });
+        const pendingLlmSettings = pendingLlmSettingsRef.current;
+        if (pendingLlmSettings) {
+          await window.electronAPI.saveLLMSettings(pendingLlmSettings);
+          pendingLlmSettingsRef.current = null;
+        }
+
+        if (
+          window.electronAPI?.getMemoryFeaturesSettings &&
+          window.electronAPI?.saveMemoryFeaturesSettings
+        ) {
+          const currentMemoryFeatures =
+            await window.electronAPI.getMemoryFeaturesSettings();
+          await window.electronAPI.saveMemoryFeaturesSettings({
+            ...currentMemoryFeatures,
+            contextPackInjectionEnabled: data.memoryEnabled,
+            heartbeatMaintenanceEnabled: data.memoryEnabled
+              ? currentMemoryFeatures.heartbeatMaintenanceEnabled
+              : false,
+          });
+        }
+
+        if (
+          window.electronAPI?.listWorkspaces &&
+          window.electronAPI?.getTempWorkspace &&
+          window.electronAPI?.getMemorySettings &&
+          window.electronAPI?.saveMemorySettings
+        ) {
+          const [workspaces, tempWorkspace] = await Promise.all([
+            window.electronAPI.listWorkspaces().catch(() => []),
+            window.electronAPI.getTempWorkspace().catch(() => null),
+          ]);
+
+          const workspaceIds = new Set<string>();
+          for (const workspace of workspaces || []) {
+            if (workspace?.id) workspaceIds.add(workspace.id);
+          }
+          if (tempWorkspace?.id) workspaceIds.add(tempWorkspace.id);
+
+          for (const targetWorkspaceId of Array.from(workspaceIds)) {
+            const currentMemorySettings =
+              await window.electronAPI.getMemorySettings(targetWorkspaceId);
+            const nextPrivacyMode: typeof currentMemorySettings.privacyMode =
+              data.memoryEnabled
+                ? currentMemorySettings.privacyMode === "disabled"
+                  ? "normal"
+                  : currentMemorySettings.privacyMode
+                : "disabled";
+            const nextMemorySettings = {
+              ...currentMemorySettings,
+              enabled: data.memoryEnabled,
+              autoCapture: data.memoryEnabled,
+              privacyMode: nextPrivacyMode,
+            };
+
+            const isUnchanged =
+              currentMemorySettings.enabled === nextMemorySettings.enabled &&
+              currentMemorySettings.autoCapture ===
+                nextMemorySettings.autoCapture &&
+              currentMemorySettings.privacyMode ===
+                nextMemorySettings.privacyMode;
+            if (isUnchanged) continue;
+
+            await window.electronAPI.saveMemorySettings({
+              workspaceId: targetWorkspaceId,
+              settings: nextMemorySettings,
+            });
+          }
+        }
+
+        if (
+          workspaceId &&
+          window.electronAPI?.initWorkspaceKit &&
+          window.electronAPI?.applyOnboardingProfile
+        ) {
+          await window.electronAPI.initWorkspaceKit({
+            workspaceId,
+            mode: "missing",
+          });
+          await window.electronAPI.applyOnboardingProfile({
+            workspaceId,
+            data,
+          });
+        } else if (window.electronAPI?.applyOnboardingProfile) {
+          await window.electronAPI.applyOnboardingProfile({
+            workspaceId: null,
+            data,
+          });
+        }
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to save onboarding settings:", error);
+        return {
+          success: false,
+          error:
+            error instanceof Error && error.message.trim()
+              ? error.message
+              : SCRIPT.save_error,
+        };
       }
-      return { success: true };
-    } catch (error) {
-      console.error("Failed to save onboarding settings:", error);
-      return {
-        success: false,
-        error: error instanceof Error && error.message.trim() ? error.message : SCRIPT.save_error,
-      };
-    }
-  }, [data, workspaceId]);
+    }, [data, workspaceId]);
 
   useEffect(() => {
     saveOnboardingSettingsRef.current = saveOnboardingSettings;
@@ -1749,7 +2152,11 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
 
   // Keep the style countdown moving while the implication panel is visible.
   useEffect(() => {
-    if (state !== "reflect_style" || !showStyleImplications || styleCountdown <= 0) {
+    if (
+      state !== "reflect_style" ||
+      !showStyleImplications ||
+      styleCountdown <= 0
+    ) {
       clearStyleCountdownInterval();
       return;
     }
@@ -1770,7 +2177,12 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
         return prev - 1;
       });
     }, 1000);
-  }, [clearStyleCountdownInterval, showStyleImplications, state, styleCountdown]);
+  }, [
+    clearStyleCountdownInterval,
+    showStyleImplications,
+    state,
+    styleCountdown,
+  ]);
 
   // Ensure the current step always has its required text and input controls.
   useEffect(() => {
@@ -1853,7 +2265,8 @@ export function useOnboardingFlow({ onComplete, workspaceId }: UseOnboardingOpti
     completeOnboarding,
     exitOnboarding,
     editRecapSection,
-    updateData: (updates: Partial<OnboardingData>) => setData((d) => ({ ...d, ...updates })),
+    updateData: (updates: Partial<OnboardingData>) =>
+      setData((d) => ({ ...d, ...updates })),
     canGoBack,
     goBack,
     selectProvider,

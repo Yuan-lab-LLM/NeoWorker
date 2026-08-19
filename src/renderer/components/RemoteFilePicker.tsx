@@ -1,5 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
-import { Folder, File, ChevronRight, ArrowLeft, Loader2 } from "lucide-react";
+import {
+  Folder,
+  File,
+  ChevronRight,
+  ArrowLeft,
+  Loader2,
+  X,
+} from "lucide-react";
+import { translate, useLanguage } from "../i18n";
 
 export interface RemoteFileEntry {
   name: string;
@@ -27,6 +35,8 @@ export function RemoteFilePicker({
   onSelect,
   onCancel,
 }: RemoteFilePickerProps) {
+  useLanguage();
+  const t = translate;
   const [selectedWorkspace, setSelectedWorkspace] = useState<RemoteWorkspace>(
     workspaces[0] ?? { id: "", name: "" },
   );
@@ -51,11 +61,18 @@ export function RemoteFilePicker({
       if (res?.ok && Array.isArray(res.files)) {
         setFiles(res.files);
       } else {
-        setError(res?.error || "Failed to list files");
+        setError(
+          res?.error ||
+            t("remoteFilePicker.error.list", "Failed to list files"),
+        );
         setFiles([]);
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to list files");
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("remoteFilePicker.error.list", "Failed to list files"),
+      );
       setFiles([]);
     } finally {
       setLoading(false);
@@ -107,18 +124,32 @@ export function RemoteFilePicker({
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="Select files from remote device"
+        aria-label={t(
+          "remoteFilePicker.aria",
+          "Select files from remote device",
+        )}
       >
         <div className="remote-file-picker-header">
-          <h3>Select files from {deviceName}</h3>
-          <button type="button" className="remote-file-picker-close" onClick={onCancel} aria-label="Close">
-            ×
+          <h3>
+            {t("remoteFilePicker.title", "Select files from {device}", {
+              device: deviceName,
+            })}
+          </h3>
+          <button
+            type="button"
+            className="remote-file-picker-close"
+            onClick={onCancel}
+            aria-label={t("common.close", "Close")}
+          >
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
         {workspaces.length > 1 && (
           <div className="remote-file-picker-workspace-select">
-            <label htmlFor="remote-workspace-select">Workspace:</label>
+            <label htmlFor="remote-workspace-select">
+              {t("workspace.label", "Workspace")}:
+            </label>
             <select
               id="remote-workspace-select"
               value={selectedWorkspace.id}
@@ -142,7 +173,7 @@ export function RemoteFilePicker({
             className="remote-file-picker-breadcrumb-item"
             onClick={() => handleGoBack(0)}
           >
-            {selectedWorkspace.name || "Workspace"}
+            {selectedWorkspace.name || t("workspace.label", "Workspace")}
           </button>
           {pathStack.map((segment, i) => (
             <span key={i} className="remote-file-picker-breadcrumb-sep">
@@ -162,12 +193,16 @@ export function RemoteFilePicker({
           {loading ? (
             <div className="remote-file-picker-loading">
               <Loader2 size={24} className="spin" />
-              <span>Loading...</span>
+              <span>{t("common.loading", "Loading...")}</span>
             </div>
           ) : error ? (
             <div className="remote-file-picker-error">
-              {error.includes("Unknown method") || error.includes("file.listDirectory")
-                ? "File selection requires the remote device to be updated. Please update CoWork on the remote device (e.g. Mac Mini) to the latest version, then try again."
+              {error.includes("Unknown method") ||
+              error.includes("file.listDirectory")
+                ? t(
+                    "remoteFilePicker.error.updateRequired",
+                    "File selection requires the remote device to be updated. Please update NeoWorker on the remote device to the latest version, then try again.",
+                  )
                 : error}
             </div>
           ) : (
@@ -184,7 +219,9 @@ export function RemoteFilePicker({
               )}
               {sortedFiles.map((entry) => {
                 const relativePath =
-                  currentPath === "." ? entry.name : `${currentPath}/${entry.name}`;
+                  currentPath === "."
+                    ? entry.name
+                    : `${currentPath}/${entry.name}`;
                 const isSelected = selectedPaths.has(relativePath);
                 return (
                   <button
@@ -202,7 +239,9 @@ export function RemoteFilePicker({
                     ) : (
                       <File size={18} />
                     )}
-                    <span className="remote-file-picker-row-name">{entry.name}</span>
+                    <span className="remote-file-picker-row-name">
+                      {entry.name}
+                    </span>
                     {entry.type === "file" && entry.size > 0 && (
                       <span className="remote-file-picker-row-size">
                         {entry.size >= 1024
@@ -219,11 +258,17 @@ export function RemoteFilePicker({
 
         <div className="remote-file-picker-footer">
           <span className="remote-file-picker-selected-count">
-            {selectedPaths.size} file{selectedPaths.size !== 1 ? "s" : ""} selected
+            {t("remoteFilePicker.selectedCount", "{count} files selected", {
+              count: selectedPaths.size,
+            })}
           </span>
           <div className="remote-file-picker-actions">
-            <button type="button" className="remote-file-picker-btn secondary" onClick={onCancel}>
-              Cancel
+            <button
+              type="button"
+              className="remote-file-picker-btn secondary"
+              onClick={onCancel}
+            >
+              {t("common.cancel", "Cancel")}
             </button>
             <button
               type="button"
@@ -231,7 +276,7 @@ export function RemoteFilePicker({
               onClick={handleConfirm}
               disabled={selectedPaths.size === 0}
             >
-              Add files
+              {t("remoteFilePicker.addFiles", "Add files")}
             </button>
           </div>
         </div>

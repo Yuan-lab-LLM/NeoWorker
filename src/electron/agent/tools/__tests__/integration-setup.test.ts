@@ -239,7 +239,7 @@ vi.mock("../../../settings/personality-manager", () => ({
     saveSettings: vi.fn(),
     setUserName: vi.fn(),
     getUserName: vi.fn(),
-    getAgentName: vi.fn().mockReturnValue("CoWork"),
+    getAgentName: vi.fn().mockReturnValue("NeoWorker"),
     setActivePersona: vi.fn(),
     setResponseStyle: vi.fn(),
     setQuirks: vi.fn(),
@@ -420,7 +420,7 @@ describe("integration_setup tool", () => {
 
 describe("skill_proposal tool", () => {
   it("create stores a proposal without mutating skills", async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-skill-proposal-create-"));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-skill-proposal-create-"));
     const registry = new ToolRegistry(
       createWorkspace(workspacePath),
       { logEvent: vi.fn() } as Any,
@@ -447,7 +447,7 @@ describe("skill_proposal tool", () => {
   });
 
   it("approve materializes a workspace skill", async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-skill-proposal-approve-"));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-skill-proposal-approve-"));
     const registry = new ToolRegistry(
       createWorkspace(workspacePath),
       { logEvent: vi.fn() } as Any,
@@ -479,7 +479,7 @@ describe("skill_proposal tool", () => {
   });
 
   it("reject enforces duplicate cooldown for same proposal signature", async () => {
-    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-skill-proposal-reject-"));
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-skill-proposal-reject-"));
     const registry = new ToolRegistry(
       createWorkspace(workspacePath),
       { logEvent: vi.fn() } as Any,

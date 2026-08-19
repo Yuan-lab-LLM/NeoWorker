@@ -2,15 +2,15 @@
 /**
  * Human Prompt QA Battery
  *
- * Runs a set of "non-technical user" prompts against the local Cowork OS hooks server,
+ * Runs a set of "non-technical user" prompts against the local NeoWorker OS hooks server,
  * then inspects the SQLite DB and cron store to verify outcomes.
  *
  * Usage:
  *   node scripts/qa/run_human_battery.cjs
  *
  * Env overrides:
- *   COWORK_HOOKS_ORIGIN, COWORK_HOOKS_TOKEN, COWORK_DB_PATH, COWORK_CRON_STORE_PATH
- *   COWORK_QA_WORKSPACE_ID
+ *   NEOWORKER_HOOKS_ORIGIN, NEOWORKER_HOOKS_TOKEN, NEOWORKER_DB_PATH, NEOWORKER_CRON_STORE_PATH
+ *   NEOWORKER_QA_WORKSPACE_ID
  */
 
 const fs = require('fs');
@@ -18,18 +18,18 @@ const path = require('path');
 const os = require('os');
 const { execFileSync } = require('child_process');
 
-const HOOKS_ORIGIN = process.env.COWORK_HOOKS_ORIGIN || 'http://127.0.0.1:9877';
-const HOOKS_TOKEN = process.env.COWORK_HOOKS_TOKEN || 'qa-token';
+const HOOKS_ORIGIN = process.env.NEOWORKER_HOOKS_ORIGIN || 'http://127.0.0.1:9877';
+const HOOKS_TOKEN = process.env.NEOWORKER_HOOKS_TOKEN || 'qa-token';
 const DB_PATH =
-  process.env.COWORK_DB_PATH ||
-  path.join(os.homedir(), 'Library', 'Application Support', 'cowork-os', 'cowork-os.db');
+  process.env.NEOWORKER_DB_PATH ||
+  path.join(os.homedir(), 'Library', 'Application Support', 'neoworker', 'neoworker.db');
 const CRON_STORE_PATH =
-  process.env.COWORK_CRON_STORE_PATH ||
-  path.join(os.homedir(), 'Library', 'Application Support', 'cowork-os', 'cron', 'jobs.json');
+  process.env.NEOWORKER_CRON_STORE_PATH ||
+  path.join(os.homedir(), 'Library', 'Application Support', 'neoworker', 'cron', 'jobs.json');
 
-const SQLITE_BUSY_TIMEOUT_MS = Number(process.env.COWORK_SQLITE_BUSY_TIMEOUT_MS) || 15000;
+const SQLITE_BUSY_TIMEOUT_MS = Number(process.env.NEOWORKER_SQLITE_BUSY_TIMEOUT_MS) || 15000;
 
-const QA_WORKSPACE_ID = process.env.COWORK_QA_WORKSPACE_ID || 'f0e94e20-1c54-4d8b-93fe-700c77ad3258';
+const QA_WORKSPACE_ID = process.env.NEOWORKER_QA_WORKSPACE_ID || 'f0e94e20-1c54-4d8b-93fe-700c77ad3258';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

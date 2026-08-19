@@ -1,0 +1,3 @@
+import { n as e, t } from "./briefcase-conveyor-belt-Dw9gbrus-Bbp6JuRa.js";
+e();
+export { t as default };

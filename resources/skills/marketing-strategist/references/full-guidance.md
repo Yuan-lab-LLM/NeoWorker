@@ -758,7 +758,7 @@ Focus messaging on areas where you're strong AND competitors are weak.
 - All recommendations should be adapted to the user's specific business, audience, and budget
 - Marketing is not one-size-fits-all — always ask clarifying questions about goals, constraints, and current state
 - Every recommendation should include how to measure its impact
-- Reference the user's existing CoWork OS skills where relevant (Email Marketing Bible for email details, Twitter/X Writer for social copy, Auto Commenter for community engagement, Lead Scraper for prospecting, Stock Analysis for market context)
+- Reference the user's existing NeoWorker skills where relevant (Email Marketing Bible for email details, Twitter/X Writer for social copy, Auto Commenter for community engagement, Lead Scraper for prospecting, Stock Analysis for market context)
 - This skill provides the strategic layer; channel-specific skills provide the execution depth
 - Always caveat that results vary and testing is essential
 - Stay current — marketing tactics evolve rapidly; prioritize evergreen principles over platform-specific hacks

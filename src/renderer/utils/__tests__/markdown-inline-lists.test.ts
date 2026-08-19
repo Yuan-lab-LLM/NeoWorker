@@ -11,9 +11,15 @@ describe("normalizeInlineLists", () => {
     const input =
       "Execution phases: 1. Detect (run `which claude`) 2. Install (if missing) 3. Authenticate (if required) 4. Execute (run commands)";
     const output = normalizeInlineLists(input);
-    expect(output).toContain("1. Detect (run `which claude`)\n2. Install (if missing)");
-    expect(output).toContain("2. Install (if missing)\n3. Authenticate (if required)");
-    expect(output).toContain("3. Authenticate (if required)\n4. Execute (run commands)");
+    expect(output).toContain(
+      "1. Detect (run `which claude`)\n2. Install (if missing)",
+    );
+    expect(output).toContain(
+      "2. Install (if missing)\n3. Authenticate (if required)",
+    );
+    expect(output).toContain(
+      "3. Authenticate (if required)\n4. Execute (run commands)",
+    );
   });
 
   it("splits inline numbered list with parenthesis", () => {
@@ -106,7 +112,7 @@ describe("unwrapMarkdownCodeBlocks", () => {
 \`\`\`
 # Collab-1773823736382 - Final Marketing Strategy Synthesis
 ## Executive summary
-CoWork OS should go to market as **the local-first AI agent OS for real work**.
+NeoWorker should go to market as **the local-first AI agent OS for real work**.
 \`\`\``;
     const output = unwrapMarkdownCodeBlocks(input);
     expect(output).toContain("# Collab-1773823736382");
@@ -175,7 +181,7 @@ describe("normalizeMarkdownForCollab", () => {
   });
 
   it("does not add closing ** when bold is already closed", () => {
-    const input = "**CoWork OS** most likely fits";
+    const input = "**NeoWorker** most likely fits";
     const output = normalizeMarkdownForCollab(input);
     expect(output).toBe(input);
   });

@@ -1,7 +1,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
-import { inlineLocalHtmlPreviewAssets } from "./html-preview-assets";
 import type { WebPagePreview } from "../../shared/web-page-preview";
+import { createWebPreviewUrl } from "../web-preview/web-preview-protocol";
 
 const REACT_BUILD_DIRS = ["dist", "build", "out"];
 
@@ -70,18 +70,26 @@ async function buildPreviewFromHtmlFile(args: {
   projectRoot?: string;
   framework?: WebPagePreview["framework"];
 }): Promise<WebPagePreview> {
-  const rawHtmlContent = await fs.readFile(args.htmlPath, "utf-8");
-  const htmlContent = await inlineLocalHtmlPreviewAssets({
-    htmlContent: rawHtmlContent,
-    htmlFilePath: args.htmlPath,
-    workspaceRoot: args.workspaceRoot,
-  });
+  // macOS exposes temporary directories through /var while fs.realpath resolves
+  // them through /private/var. Canonicalize both sides before the containment
+  // check so a file inside a temp workspace is not rejected as external.
+  const [realHtmlPath, realWorkspaceRoot] = await Promise.all([
+    fs.realpath(args.htmlPath),
+    fs.realpath(args.workspaceRoot),
+  ]);
+  const rawHtmlContent = await fs.readFile(realHtmlPath, "utf-8");
 
   return {
     format: "html",
     previewMode: "sandboxed_iframe",
     title: path.basename(args.htmlPath),
-    htmlContent,
+    // Load from a tokenized local origin instead of srcDoc. This preserves module
+    // scripts, relative assets, and root-relative build output such as /assets/.
+    htmlContent: rawHtmlContent,
+    previewUrl: createWebPreviewUrl({
+      htmlPath: realHtmlPath,
+      workspaceRoot: realWorkspaceRoot,
+    }),
     sourcePath: args.htmlPath,
     baseDir: path.dirname(args.htmlPath),
     projectRoot: args.projectRoot,

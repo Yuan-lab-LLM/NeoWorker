@@ -430,7 +430,7 @@ export class GitService {
 
   /**
    * Generate a branch name from a task title.
-   * e.g., "Fix login bug" -> "cowork/fix-login-bug-a1b2c3"
+   * e.g., "Fix login bug" -> "neoworker/fix-login-bug-a1b2c3"
    */
   static generateBranchName(title: string, prefix: string, taskId: string): string {
     const slug =

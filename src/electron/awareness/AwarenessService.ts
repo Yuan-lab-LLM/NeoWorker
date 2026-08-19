@@ -137,7 +137,7 @@ function normalizeProjectHint(filePath: string): string | null {
     .split(/[\\/]/)
     .filter(Boolean);
   if (parts.length === 0) return null;
-  const idx = parts.findIndex((part) => part === "src" || part === ".cowork" || part === "app");
+  const idx = parts.findIndex((part) => part === "src" || part === ".neoworker" || part === "app");
   if (idx > 0) return parts[idx - 1] || null;
   return parts[0] || null;
 }
@@ -290,7 +290,7 @@ export class AwarenessService {
       .map((belief) => `- ${belief.subject}: ${belief.value}`)
       .join("\n");
     const text = [
-      "<cowork_awareness_snapshot>",
+      "<neoworker_awareness_snapshot>",
       summary.currentFocus ? `Current focus: ${summary.currentFocus}` : "",
       activeAppEvent ? `Active app: ${activeAppEvent.title}` : "",
       browserEvent ? `Browser context: ${browserEvent.summary}` : "",
@@ -298,7 +298,7 @@ export class AwarenessService {
       recentProjects.length > 0 ? `Recent projects: ${recentProjects.join(" | ")}` : "",
       dueSoon.length > 0 ? `Due soon: ${dueSoon.join(" | ")}` : "",
       beliefLines ? `Beliefs:\n${beliefLines}` : "",
-      "</cowork_awareness_snapshot>",
+      "</neoworker_awareness_snapshot>",
     ]
       .filter(Boolean)
       .join("\n");

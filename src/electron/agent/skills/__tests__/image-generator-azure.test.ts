@@ -19,7 +19,7 @@ describe("ImageGenerator Azure", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-image-azure-"));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-image-azure-"));
   });
 
   afterEach(() => {

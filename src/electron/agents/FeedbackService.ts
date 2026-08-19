@@ -32,12 +32,12 @@ type WorkspaceState = {
   flushTimer: ReturnType<typeof setTimeout> | null;
 };
 
-const KIT_DIRNAME = ".cowork";
+const KIT_DIRNAME = ".neoworker";
 const FEEDBACK_DIR = path.join(KIT_DIRNAME, "feedback");
 const MISTAKES_PATH = path.join(KIT_DIRNAME, "MISTAKES.md");
 
-const AUTO_MISTAKES_START = "<!-- cowork:auto:mistakes:start -->";
-const AUTO_MISTAKES_END = "<!-- cowork:auto:mistakes:end -->";
+const AUTO_MISTAKES_START = "<!-- neoworker:auto:mistakes:start -->";
+const AUTO_MISTAKES_END = "<!-- neoworker:auto:mistakes:end -->";
 
 const FLUSH_DEBOUNCE_MS = 12_000;
 const STARTUP_REBUILD_LIMIT = 2500;

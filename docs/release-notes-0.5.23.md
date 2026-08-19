@@ -4,13 +4,13 @@ This page summarizes the product and engineering changes included in `0.5.23`, f
 
 ## Overview
 
-Release `0.5.23` expands CoWork in three main directions: a new **Subconscious reflective loop** for ongoing automation and learning, a deeper **execution/runtime refresh** centered on provider-aware prompt caching and adaptive output budgeting, and stronger **managed capability security** for imported skills and plugin packs. It also broadens **Usage Insights**, improves provider setup and failover behavior, and refreshes the desktop UI around settings, approvals, and task feedback.
+Release `0.5.23` expands NeoWorker in three main directions: a new **Subconscious reflective loop** for ongoing automation and learning, a deeper **execution/runtime refresh** centered on provider-aware prompt caching and adaptive output budgeting, and stronger **managed capability security** for imported skills and plugin packs. It also broadens **Usage Insights**, improves provider setup and failover behavior, and refreshes the desktop UI around settings, approvals, and task feedback.
 
 ## What changed
 
 ### Subconscious reflective loop
 
-- **New reflective subsystem**: CoWork now includes a dedicated subconscious runtime with persisted targets, backlog items, critiques, dispatch records, and run history.
+- **New reflective subsystem**: NeoWorker now includes a dedicated subconscious runtime with persisted targets, backlog items, critiques, dispatch records, and run history.
 - **Artifact storage**: subconscious runs can persist rendered backlog, winner summaries, JSONL artifacts, and other run outputs through a dedicated artifact store.
 - **Migration and settings support**: new migration and settings-manager layers support rollout of the subconscious subsystem without relying on the older self-improvement paths.
 - **Renderer and preload wiring**: the desktop app now exposes subconscious APIs and a dedicated settings panel so the reflective loop can be configured directly from the UI.

@@ -63,7 +63,7 @@ def save_config(cfg: dict) -> Path:
 
 
 def dotenv_env() -> dict:
-    """Shell env overlaid on the CoWork runtime `.env` (legacy `$HERMES_HOME/.env` fallback), so
+    """Shell env overlaid on the NeoWorker runtime `.env` (legacy `$HERMES_HOME/.env` fallback), so
     capability detection sees local tool creds (BROWSERBASE_API_KEY, EMAIL_*, AGENTMAIL_API_KEY, ...)
     even when the shell tool does not export them. Shell env wins; the .env only fills gaps."""
     merged: dict = {}

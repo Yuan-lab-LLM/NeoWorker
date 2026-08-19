@@ -1,4 +1,3 @@
-import * as fs from "fs";
 import * as fsPromises from "fs/promises";
 import * as path from "path";
 import {
@@ -7,17 +6,21 @@ import {
   Paragraph,
   TextRun,
   HeadingLevel,
-  AlignmentType as _AlignmentType,
+  AlignmentType,
   Table,
   TableRow,
   TableCell,
   WidthType,
   BorderStyle,
+  ShadingType,
 } from "docx";
-import PDFDocument from "pdfkit";
 import * as mammoth from "mammoth";
 import JSZip from "jszip";
 import { Workspace } from "../../../shared/types";
+import {
+  contentBlocksToMarkdown,
+  generatePDF,
+} from "../../utils/document-generators/pdf-generator";
 
 export interface ContentBlock {
   type: string; // 'heading' | 'paragraph' | 'list' | 'table' | 'code'
@@ -56,7 +59,7 @@ interface DocumentSection {
 }
 
 /**
- * DocumentBuilder creates Word documents (.docx) and PDFs using docx and pdfkit
+ * DocumentBuilder creates Word documents and validated, Unicode-safe PDFs.
  */
 export class DocumentBuilder {
   constructor(private workspace: Workspace) {}
@@ -156,6 +159,9 @@ export class DocumentBuilder {
     options: DocumentOptions,
   ): Promise<void> {
     const children: Paragraph[] = [];
+    const bodySize = (options.fontSize || 11) * 2;
+    const headingSizes = [52, 38, 32, 28, 24, 22];
+    const headingColors = ["172B4D", "1F4B99", "24466F", "36536F", "52677C", "64748B"];
 
     for (const block of content) {
       switch (block.type) {
@@ -164,9 +170,32 @@ export class DocumentBuilder {
           const headingLevel = this.getHeadingLevel(level);
           children.push(
             new Paragraph({
-              text: block.text,
+              children: [
+                new TextRun({
+                  text: block.text,
+                  bold: true,
+                  color: headingColors[level - 1],
+                  size: headingSizes[level - 1],
+                  font: "Aptos Display",
+                }),
+              ],
               heading: headingLevel,
-              spacing: { before: 240, after: 120 },
+              spacing: {
+                before: level === 1 ? 320 : 260,
+                after: level === 1 ? 180 : 120,
+              },
+              keepNext: true,
+              border:
+                level === 1
+                  ? {
+                      bottom: {
+                        style: BorderStyle.SINGLE,
+                        color: "D9E6F7",
+                        size: 8,
+                        space: 8,
+                      },
+                    }
+                  : undefined,
             }),
           );
           break;
@@ -175,8 +204,17 @@ export class DocumentBuilder {
         case "paragraph":
           children.push(
             new Paragraph({
-              children: [new TextRun({ text: block.text, size: (options.fontSize || 12) * 2 })],
-              spacing: { after: 200 },
+              children: [
+                new TextRun({
+                  text: block.text,
+                  size: bodySize,
+                  color: "26374A",
+                  font: "Aptos",
+                }),
+              ],
+              alignment: AlignmentType.JUSTIFIED,
+              indent: { firstLine: 420 },
+              spacing: { line: 360, after: 180 },
             }),
           );
           break;
@@ -186,9 +224,16 @@ export class DocumentBuilder {
           for (const item of items) {
             children.push(
               new Paragraph({
-                children: [new TextRun({ text: item, size: (options.fontSize || 12) * 2 })],
+                children: [
+                  new TextRun({
+                    text: item,
+                    size: bodySize,
+                    color: "26374A",
+                    font: "Aptos",
+                  }),
+                ],
                 bullet: { level: 0 },
-                spacing: { after: 100 },
+                spacing: { line: 320, after: 90 },
               }),
             );
           }
@@ -211,25 +256,38 @@ export class DocumentBuilder {
                                 new TextRun({
                                   text: cell,
                                   bold: rowIndex === 0,
-                                  size: (options.fontSize || 12) * 2,
+                                  size: rowIndex === 0 ? bodySize : bodySize - 1,
+                                  color: rowIndex === 0 ? "173B67" : "26374A",
+                                  font: "Aptos",
                                 }),
                               ],
+                              spacing: { after: 0 },
                             }),
                           ],
+                          shading:
+                            rowIndex === 0
+                              ? { fill: "EAF2FF", type: ShadingType.CLEAR }
+                              : rowIndex % 2 === 0
+                                ? { fill: "F8FAFC", type: ShadingType.CLEAR }
+                                : undefined,
+                          margins: {
+                            top: 120,
+                            bottom: 120,
+                            left: 140,
+                            right: 140,
+                          },
                           borders: {
-                            top: { style: BorderStyle.SINGLE, size: 1 },
-                            bottom: { style: BorderStyle.SINGLE, size: 1 },
-                            left: { style: BorderStyle.SINGLE, size: 1 },
-                            right: { style: BorderStyle.SINGLE, size: 1 },
+                            top: { style: BorderStyle.SINGLE, size: 4, color: "D8E1EC" },
+                            bottom: { style: BorderStyle.SINGLE, size: 4, color: "D8E1EC" },
+                            left: { style: BorderStyle.SINGLE, size: 4, color: "D8E1EC" },
+                            right: { style: BorderStyle.SINGLE, size: 4, color: "D8E1EC" },
                           },
                         }),
                     ),
                   }),
               ),
             });
-            children.push(new Paragraph({ children: [] })); // Spacing before table
             children.push(table as Any);
-            children.push(new Paragraph({ children: [] })); // Spacing after table
           }
           break;
         }
@@ -240,12 +298,13 @@ export class DocumentBuilder {
               children: [
                 new TextRun({
                   text: block.text,
-                  font: "Courier New",
+                  font: "Aptos Mono",
                   size: 20, // 10pt
-                  shading: { fill: "F0F0F0" },
+                  color: "203047",
+                  shading: { fill: "F1F5F9", type: ShadingType.CLEAR },
                 }),
               ],
-              spacing: { before: 200, after: 200 },
+              spacing: { before: 180, after: 180, line: 300 },
             }),
           );
           break;
@@ -253,16 +312,59 @@ export class DocumentBuilder {
         default:
           children.push(
             new Paragraph({
-              children: [new TextRun({ text: block.text, size: (options.fontSize || 12) * 2 })],
+              children: [
+                new TextRun({
+                  text: block.text,
+                  size: bodySize,
+                  color: "26374A",
+                  font: "Aptos",
+                }),
+              ],
+              spacing: { line: 360, after: 180 },
             }),
           );
       }
     }
 
     const doc = new Document({
-      creator: options.author || "CoWork OS",
+      creator: options.author || "NeoWorker",
       title: options.title,
       subject: options.subject,
+      styles: {
+        default: {
+          document: {
+            run: {
+              font: "Aptos",
+              size: bodySize,
+              color: "26374A",
+            },
+            paragraph: {
+              spacing: { line: 360, after: 180 },
+            },
+          },
+        },
+        paragraphStyles: [
+          {
+            id: "Normal",
+            name: "Normal",
+            quickFormat: true,
+            run: {
+              font: "Aptos",
+              size: bodySize,
+              color: "26374A",
+            },
+            paragraph: {
+              spacing: { line: 360, after: 180 },
+            },
+          },
+        ],
+        characterStyles: [
+          {
+            id: "DefaultParagraphFont",
+            name: "Default Paragraph Font",
+          },
+        ],
+      },
       sections: [
         {
           properties: {
@@ -270,8 +372,8 @@ export class DocumentBuilder {
               margin: {
                 top: (options.margins?.top || 1) * 1440, // Convert inches to twips
                 bottom: (options.margins?.bottom || 1) * 1440,
-                left: (options.margins?.left || 1) * 1440,
-                right: (options.margins?.right || 1) * 1440,
+                left: (options.margins?.left || 0.9) * 1440,
+                right: (options.margins?.right || 0.9) * 1440,
               },
             },
           },
@@ -292,109 +394,14 @@ export class DocumentBuilder {
     content: ContentBlock[],
     options: DocumentOptions,
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({
-        size: "LETTER",
-        margins: {
-          top: (options.margins?.top || 1) * 72,
-          bottom: (options.margins?.bottom || 1) * 72,
-          left: (options.margins?.left || 1) * 72,
-          right: (options.margins?.right || 1) * 72,
-        },
-        info: {
-          Title: options.title || "",
-          Author: options.author || "CoWork OS",
-          Subject: options.subject || "",
-        },
-      });
-
-      const stream = fs.createWriteStream(outputPath);
-      doc.pipe(stream);
-
-      const baseFontSize = options.fontSize || 12;
-
-      for (const block of content) {
-        switch (block.type) {
-          case "heading": {
-            const level = Math.min(Math.max(block.level || 1, 1), 6);
-            const fontSize = baseFontSize + (7 - level) * 2; // h1 = base+12, h6 = base+2
-            doc.font("Helvetica-Bold").fontSize(fontSize).text(block.text, { paragraphGap: 10 });
-            doc.moveDown(0.5);
-            break;
-          }
-
-          case "paragraph":
-            doc
-              .font("Helvetica")
-              .fontSize(baseFontSize)
-              .text(block.text, { paragraphGap: 8, lineGap: 4 });
-            doc.moveDown(0.5);
-            break;
-
-          case "list": {
-            const items = block.items || block.text.split("\n").filter((line) => line.trim());
-            doc.font("Helvetica").fontSize(baseFontSize);
-            for (const item of items) {
-              doc.text(`• ${item}`, { indent: 20, paragraphGap: 4 });
-            }
-            doc.moveDown(0.5);
-            break;
-          }
-
-          case "table": {
-            if (block.rows && block.rows.length > 0) {
-              doc.font("Helvetica").fontSize(baseFontSize - 1);
-              const columnCount = block.rows[0].length;
-              const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-              const colWidth = pageWidth / columnCount;
-
-              for (let rowIndex = 0; rowIndex < block.rows.length; rowIndex++) {
-                const row = block.rows[rowIndex];
-                const startY = doc.y;
-
-                // Draw cells
-                for (let colIndex = 0; colIndex < row.length; colIndex++) {
-                  const x = doc.page.margins.left + colIndex * colWidth;
-                  doc.font(rowIndex === 0 ? "Helvetica-Bold" : "Helvetica");
-                  doc.text(row[colIndex], x, startY, {
-                    width: colWidth - 10,
-                    continued: false,
-                  });
-                }
-
-                // Draw horizontal line
-                doc
-                  .moveTo(doc.page.margins.left, doc.y + 5)
-                  .lineTo(doc.page.margins.left + pageWidth, doc.y + 5)
-                  .stroke();
-
-                doc.moveDown(0.3);
-              }
-              doc.moveDown(0.5);
-            }
-            break;
-          }
-
-          case "code":
-            doc
-              .font("Courier")
-              .fontSize(baseFontSize - 2)
-              .fillColor("#333333")
-              .text(block.text, { paragraphGap: 8 });
-            doc.fillColor("#000000");
-            doc.moveDown(0.5);
-            break;
-
-          default:
-            doc.font("Helvetica").fontSize(baseFontSize).text(block.text);
-            doc.moveDown(0.5);
-        }
-      }
-
-      doc.end();
-
-      stream.on("finish", resolve);
-      stream.on("error", reject);
+    await generatePDF(outputPath, {
+      title:
+        options.title ||
+        content.find((block) => block.type === "heading")?.text ||
+        path.basename(outputPath, ".pdf"),
+      author: options.author || "NeoWorker",
+      markdown: contentBlocksToMarkdown(content),
+      format: "A4",
     });
   }
 

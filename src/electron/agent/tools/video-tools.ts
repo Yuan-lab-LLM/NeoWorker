@@ -178,7 +178,7 @@ export class VideoTools {
       {
         name: "generate_video",
         description: `Generate a video from a text prompt (or an image/video reference) using AI.
-CoWork OS will pick the best configured provider automatically (OpenAI Sora 2 / Azure Sora 2 / Gemini Veo 3.1 / Vertex AI Veo / Kling), unless you specify a provider.
+NeoWorker will pick the best configured provider automatically (OpenAI Sora 2 / Azure Sora 2 / Gemini Veo 3.1 / Vertex AI Veo / Kling), unless you specify a provider.
 
 Modes:
 - text_to_video (default): generate a video from a text prompt

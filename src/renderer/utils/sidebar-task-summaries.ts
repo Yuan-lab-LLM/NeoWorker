@@ -11,18 +11,19 @@ export function shouldHydrateTaskSummary(task: Task | undefined): boolean {
   if (hasFullTaskPrompt(task)) return false;
   return Boolean(
     task.sidebarPromptPreview ||
-      task.title ||
-      task.resultSummary ||
-      task.semanticSummary,
+    task.title ||
+    task.resultSummary ||
+    task.semanticSummary,
   );
 }
 
-export function getTaskHydrationAttemptKey(taskId: string, task: Task | undefined): string {
-  return [
-    taskId,
-    task?.updatedAt ?? "",
-    task?.sidebarPromptPreview ?? "",
-  ].join(":");
+export function getTaskHydrationAttemptKey(
+  taskId: string,
+  task: Task | undefined,
+): string {
+  return [taskId, task?.updatedAt ?? "", task?.sidebarPromptPreview ?? ""].join(
+    ":",
+  );
 }
 
 export function getTaskIdFromHydrationAttemptKey(key: string): string {
@@ -77,7 +78,11 @@ export function mergeSidebarTaskSummariesWithExisting(
 
   const merged = summaries.map((summary) => {
     const existing = existingById.get(summary.id);
-    if (!existing || !hasFullTaskPrompt(existing) || hasFullTaskPrompt(summary)) {
+    if (
+      !existing ||
+      !hasFullTaskPrompt(existing) ||
+      hasFullTaskPrompt(summary)
+    ) {
       return summary;
     }
 
@@ -88,7 +93,8 @@ export function mergeSidebarTaskSummariesWithExisting(
       prompt: existing.prompt,
       rawPrompt: existing.rawPrompt,
       userPrompt: existing.userPrompt,
-      sidebarPromptPreview: summary.sidebarPromptPreview ?? existing.sidebarPromptPreview,
+      sidebarPromptPreview:
+        summary.sidebarPromptPreview ?? existing.sidebarPromptPreview,
       agentConfig: existing.agentConfig
         ? { ...existing.agentConfig, ...(summary.agentConfig || {}) }
         : summary.agentConfig,
@@ -106,7 +112,10 @@ export function mergeSidebarInitialPageWithSelectedTask(
   summaries: Task[],
   selectedTaskId: string | null,
 ): Task[] {
-  const merged = mergeSidebarTaskSummariesWithExisting(existingTasks, summaries);
+  const merged = mergeSidebarTaskSummariesWithExisting(
+    existingTasks,
+    summaries,
+  );
   if (!selectedTaskId || merged.some((task) => task.id === selectedTaskId)) {
     return merged;
   }

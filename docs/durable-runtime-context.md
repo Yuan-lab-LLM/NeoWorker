@@ -2,7 +2,7 @@
 
 Durable Runtime Context is the opt-in runtime-memory lane for long task conversations. It stores sanitized task messages and compaction summaries in local SQLite, then exposes read-only `context_grep` and `context_describe` tools so an agent can recover compacted task facts without relying on the visible recent-message tail.
 
-This is inspired by Lossless-style conversation lookup, but the CoWork OS implementation is deliberately task-scoped and additive. It does not replace the main execution architecture, curated memory, archive memory, or workspace kit. It gives the existing runtime a compact, source-linked recall path when the active task outgrows the live context window.
+This is inspired by Lossless-style conversation lookup, but the NeoWorker implementation is deliberately task-scoped and additive. It does not replace the main execution architecture, curated memory, archive memory, or workspace kit. It gives the existing runtime a compact, source-linked recall path when the active task outgrows the live context window.
 
 ## When To Use It
 
@@ -73,12 +73,12 @@ The service also skips injected memory blocks and durable-context tool-result pa
 
 Skipped injected blocks include:
 
-- `<cowork_memory_recall>`
-- `<cowork_compaction_summary>`
-- `<cowork_shared_context>`
-- `<cowork_user_profile>`
-- `<cowork_structured_memory>`
-- `<cowork_recall_hints>`
+- `<neoworker_memory_recall>`
+- `<neoworker_compaction_summary>`
+- `<neoworker_shared_context>`
+- `<neoworker_user_profile>`
+- `<neoworker_structured_memory>`
+- `<neoworker_recall_hints>`
 - serialized `context_grep` / `context_describe` tool results
 
 ## Storage Model

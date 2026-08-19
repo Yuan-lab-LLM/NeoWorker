@@ -1,9 +1,17 @@
+import { translate } from "../i18n/index";
 /**
  * User-facing labels for agent tool calls (timeline / step feed).
  * Prefer plain language over raw tool ids (snake_case).
  */
 
 const TRUNC = 72;
+
+export function isLikelyMojibakeText(value: string): boolean {
+  const text = String(value || "");
+  if (!text) return false;
+  const replacementCount = (text.match(/\uFFFD/g) || []).length;
+  return replacementCount >= 2 || (replacementCount === 1 && text.length <= 12);
+}
 
 export function truncateLabel(s: string, max = TRUNC): string {
   const t = s.trim();
@@ -50,7 +58,11 @@ function formatSkillLabel(name: string): string {
 
 export function isSkillToolName(toolName: string | undefined): boolean {
   const normalized = (toolName || "").trim().toLowerCase();
-  return normalized === "skill" || normalized === "use_skill" || normalized === "run_skill";
+  return (
+    normalized === "skill" ||
+    normalized === "use_skill" ||
+    normalized === "run_skill"
+  );
 }
 
 function skillNameFromPayload(values: Record<string, unknown>): string {
@@ -73,15 +85,23 @@ function skillNameFromSkillPath(path: string): string {
 }
 
 function skillNameFromToolInput(input: Record<string, unknown>): string {
-  return skillNameFromPayload(input) || skillNameFromSkillPath(asTrimmedString(input.path));
+  return (
+    skillNameFromPayload(input) ||
+    skillNameFromSkillPath(asTrimmedString(input.path))
+  );
 }
 
-function skillNamesFromReadFilesResult(result: Record<string, unknown>): string[] {
+function skillNamesFromReadFilesResult(
+  result: Record<string, unknown>,
+): string[] {
   const files = Array.isArray(result.files) ? result.files : [];
   const names = files
     .map((entry) => {
-      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return "";
-      return skillNameFromSkillPath(asTrimmedString((entry as Record<string, unknown>).path));
+      if (!entry || typeof entry !== "object" || Array.isArray(entry))
+        return "";
+      return skillNameFromSkillPath(
+        asTrimmedString((entry as Record<string, unknown>).path),
+      );
     })
     .filter((entry) => entry.length > 0);
   return Array.from(new Set(names));
@@ -96,7 +116,9 @@ function summarizeList(values: string[], maxItems = 2): string {
   const items = values.slice(0, maxItems);
   if (items.length === 0) return "";
   const joined = items.join(", ");
-  return values.length > maxItems ? `${joined}, +${values.length - maxItems} more` : joined;
+  return values.length > maxItems
+    ? `${joined}, +${values.length - maxItems} more`
+    : joined;
 }
 
 export function isBrowserToolName(toolName: string | undefined): boolean {
@@ -213,6 +235,24 @@ export function friendlyToolRunningLabel(toolName: string | undefined): string {
       return "Running a command";
     case "task_history":
       return "Checking task history";
+    case "create_document":
+    case "generate_document":
+      return translate(
+        "generated.utils.timeline.tool.labels.218.0",
+        "Generating documentation",
+      );
+    case "create_spreadsheet":
+    case "generate_spreadsheet":
+      return translate(
+        "generated.utils.timeline.tool.labels.221.1",
+        "Generating and checking table",
+      );
+    case "create_presentation":
+    case "generate_presentation":
+      return translate(
+        "generated.utils.timeline.tool.labels.224.2",
+        "Building and checking presentation",
+      );
     default:
       return `Using ${t.replace(/_/g, " ")}`;
   }
@@ -233,7 +273,10 @@ type ToolInput = Record<string, unknown> | null | undefined;
 type ToolResult = Record<string, unknown> | null | undefined;
 
 /** Title for a tool_call row (present tense / intent). */
-export function friendlyToolCallTitle(tool: string | undefined, input: ToolInput): string {
+export function friendlyToolCallTitle(
+  tool: string | undefined,
+  input: ToolInput,
+): string {
   const tc = (tool || "").trim();
   if (!tc) return "Tool call";
 
@@ -241,30 +284,44 @@ export function friendlyToolCallTitle(tool: string | undefined, input: ToolInput
 
   if (tc === "web_fetch" || tc === "http_request") {
     const url = typeof ins.url === "string" ? ins.url.trim() : "";
-    return url ? `Fetching ${truncateLabel(hostOrPathFromUrl(url), 60)}` : "Fetching a web page";
+    return url
+      ? `Fetching ${truncateLabel(hostOrPathFromUrl(url), 60)}`
+      : "Fetching a web page";
   }
   if (tc === "web_search") {
     const q = typeof ins.query === "string" ? ins.query.trim() : "";
-    const provider = typeof ins.provider === "string" ? ins.provider.trim() : "";
-    const via = provider ? ` via ${provider.charAt(0).toUpperCase() + provider.slice(1)}` : "";
+    const provider =
+      typeof ins.provider === "string" ? ins.provider.trim() : "";
+    const via = provider
+      ? ` via ${provider.charAt(0).toUpperCase() + provider.slice(1)}`
+      : "";
     return q ? `Web search${via}: ${truncateLabel(q, 52)}` : `Web search${via}`;
   }
   if (isBrowserToolName(tc)) {
     if (tc === "browser_navigate") {
       const url = typeof ins.url === "string" ? ins.url.trim() : "";
-      return url ? `Browser navigate: ${truncateLabel(hostOrPathFromUrl(url), 52)}` : "Browser navigate";
+      return url
+        ? `Browser navigate: ${truncateLabel(hostOrPathFromUrl(url), 52)}`
+        : "Browser navigate";
     }
     if (tc === "browser_get_text") {
-      const selector = asTrimmedString(ins.selector) || asTrimmedString(ins.ref);
-      return selector ? `Browser get text: ${truncateLabel(selector, 42)}` : "Browser get text";
+      const selector =
+        asTrimmedString(ins.selector) || asTrimmedString(ins.ref);
+      return selector
+        ? `Browser get text: ${truncateLabel(selector, 42)}`
+        : "Browser get text";
     }
     if (tc === "browser_click") {
       const target = asTrimmedString(ins.ref) || asTrimmedString(ins.selector);
-      return target ? `Browser click: ${truncateLabel(target, 44)}` : "Browser click";
+      return target
+        ? `Browser click: ${truncateLabel(target, 44)}`
+        : "Browser click";
     }
     if (tc === "browser_fill" || tc === "browser_type") {
       const target = asTrimmedString(ins.ref) || asTrimmedString(ins.selector);
-      return target ? `Browser type: ${truncateLabel(target, 42)}` : "Browser type";
+      return target
+        ? `Browser type: ${truncateLabel(target, 42)}`
+        : "Browser type";
     }
     return friendlyBrowserRunningLabel(tc);
   }
@@ -284,7 +341,9 @@ export function friendlyToolCallTitle(tool: string | undefined, input: ToolInput
     if (skillName) return skillReadLabel(skillName, "running");
     const patterns = asTrimmedStringArray(ins.patterns);
     if (patterns.length > 0) {
-      const skillNames = patterns.map(skillNameFromSkillPath).filter((entry) => entry.length > 0);
+      const skillNames = patterns
+        .map(skillNameFromSkillPath)
+        .filter((entry) => entry.length > 0);
       if (skillNames.length === 1 && patterns.length === 1) {
         return skillReadLabel(skillNames[0], "running");
       }
@@ -294,7 +353,9 @@ export function friendlyToolCallTitle(tool: string | undefined, input: ToolInput
   }
   if (tc === "grep") {
     const pattern = asTrimmedString(ins.pattern);
-    return pattern ? `Search in files: ${truncateLabel(pattern, 48)}` : "Search in files";
+    return pattern
+      ? `Search in files: ${truncateLabel(pattern, 48)}`
+      : "Search in files";
   }
   if (tc === "search_files") {
     const query = asTrimmedString(ins.query) || asTrimmedString(ins.pattern);
@@ -318,6 +379,47 @@ export function friendlyToolCallTitle(tool: string | undefined, input: ToolInput
     const pattern = asTrimmedString(ins.pattern);
     return pattern ? `Find files: ${truncateLabel(pattern, 52)}` : "Find files";
   }
+  if (tc === "create_document" || tc === "generate_document") {
+    const filename = asTrimmedString(ins.filename);
+    return filename
+      ? translate(
+          "timeline.generateDocumentNamed",
+          "Generate document: {name}",
+          {
+            name: truncateLabel(filename, 48),
+          },
+        )
+      : translate(
+          "generated.utils.timeline.tool.labels.332.3",
+          "Generate documentation",
+        );
+  }
+  if (tc === "create_spreadsheet" || tc === "generate_spreadsheet") {
+    const filename = asTrimmedString(ins.filename);
+    return filename
+      ? translate(
+          "timeline.generateSpreadsheetNamed",
+          "Generate and check spreadsheet: {name}",
+          { name: truncateLabel(filename, 44) },
+        )
+      : translate(
+          "generated.utils.timeline.tool.labels.336.4",
+          "Generate and check forms",
+        );
+  }
+  if (tc === "create_presentation" || tc === "generate_presentation") {
+    const filename = asTrimmedString(ins.filename);
+    return filename
+      ? translate(
+          "timeline.generatePresentationNamed",
+          "Generate and check presentation: {name}",
+          { name: truncateLabel(filename, 40) },
+        )
+      : translate(
+          "generated.utils.timeline.tool.labels.340.5",
+          "Generate and review presentations",
+        );
+  }
 
   return friendlyToolRunningLabel(tc);
 }
@@ -339,28 +441,91 @@ export function friendlyToolResultTitle(
 
   if (tc === "web_fetch" || tc === "http_request") {
     const url = typeof res.url === "string" ? res.url.trim() : "";
-    const title = typeof res.title === "string" ? res.title.trim() : "";
+    const rawTitle = typeof res.title === "string" ? res.title.trim() : "";
+    const title = isLikelyMojibakeText(rawTitle) ? "" : rawTitle;
     const bit = title || (url ? hostOrPathFromUrl(url) : "");
     return bit ? `Fetched ${truncateLabel(bit, 64)}` : "Fetched page";
   }
   if (tc === "web_search") {
     const q = typeof res.query === "string" ? res.query.trim() : "";
-    const provider = typeof res.provider === "string" ? res.provider.trim() : "";
-    const via = provider ? ` via ${provider.charAt(0).toUpperCase() + provider.slice(1)}` : "";
-    return q ? `Searched${via}: ${truncateLabel(q, 52)}` : `Search complete${via}`;
+    const provider =
+      typeof res.provider === "string" ? res.provider.trim() : "";
+    const via = provider
+      ? ` via ${provider.charAt(0).toUpperCase() + provider.slice(1)}`
+      : "";
+    return q
+      ? `Searched${via}: ${truncateLabel(q, 52)}`
+      : `Search complete${via}`;
   }
   if (isBrowserToolName(tc)) {
     const url = typeof res.url === "string" ? res.url.trim() : "";
     const title = typeof res.title === "string" ? res.title.trim() : "";
     const page = title || (url ? hostOrPathFromUrl(url) : "");
     if (tc === "browser_navigate") {
-      return page ? `Browser navigate: ${truncateLabel(page, 52)}` : "Browser navigate";
+      return page
+        ? `Browser navigate: ${truncateLabel(page, 52)}`
+        : "Browser navigate";
     }
     const label = friendlyBrowserCompletedLabel(tc);
     return page ? `${label} — ${truncateLabel(page, 48)}` : label;
   }
   if (isSkillToolName(tc)) {
     return skillReadLabel(skillNameFromPayload(res), "completed");
+  }
+  if (
+    tc === "create_document" ||
+    tc === "generate_document" ||
+    tc === "create_spreadsheet" ||
+    tc === "generate_spreadsheet" ||
+    tc === "create_presentation" ||
+    tc === "generate_presentation"
+  ) {
+    const artifactPath =
+      asTrimmedString(res.path) ||
+      asTrimmedString(res.filename) ||
+      asTrimmedString(res.filePath);
+    const quality =
+      res.qualityCheck && typeof res.qualityCheck === "object"
+        ? (res.qualityCheck as Record<string, unknown>)
+        : {};
+    const issueCount =
+      typeof quality.issueCount === "number" ? quality.issueCount : 0;
+    const suffix =
+      issueCount > 0
+        ? translate(
+            "timeline.pendingIssueCount",
+            " · {count} issues to address",
+            { count: issueCount },
+          )
+        : translate(
+            "generated.utils.timeline.tool.labels.401.6",
+            "· Quality inspection completed",
+          );
+    const type = tc.includes("spreadsheet")
+      ? translate("generated.utils.timeline.tool.labels.403.7", "table")
+      : tc.includes("presentation")
+        ? translate(
+            "generated.utils.timeline.tool.labels.403.8",
+            "presentation",
+          )
+        : translate(
+            "generated.utils.timeline.tool.labels.403.9",
+            "Documentation",
+          );
+    return artifactPath
+      ? translate(
+          "timeline.artifactGeneratedNamed",
+          "{type} generated: {name}{suffix}",
+          {
+            type,
+            name: truncateLabel(fileBase(artifactPath), 42),
+            suffix,
+          },
+        )
+      : translate("timeline.artifactGenerated", "{type} generated{suffix}", {
+          type,
+          suffix,
+        });
   }
   if (tc === "read_file") {
     const path = asTrimmedString(res.path);
@@ -371,14 +536,16 @@ export function friendlyToolResultTitle(
   }
   if (tc === "read_files") {
     const skillNames = skillNamesFromReadFilesResult(res);
-    if (skillNames.length === 1) return skillReadLabel(skillNames[0], "completed");
+    if (skillNames.length === 1)
+      return skillReadLabel(skillNames[0], "completed");
     if (skillNames.length > 1) {
       return `Read ${skillNames.length} skills`;
     }
     const files = Array.isArray(res.files)
       ? res.files
           .map((entry) => {
-            if (!entry || typeof entry !== "object" || Array.isArray(entry)) return "";
+            if (!entry || typeof entry !== "object" || Array.isArray(entry))
+              return "";
             return asTrimmedString((entry as Record<string, unknown>).path);
           })
           .filter((entry) => entry.length > 0)
@@ -410,7 +577,10 @@ export function friendlyToolResultTitle(
 }
 
 /** Lane row when a parallel tool lane finishes */
-export function friendlyToolLaneCompletedLabel(toolName: string | undefined, failed: boolean): string {
+export function friendlyToolLaneCompletedLabel(
+  toolName: string | undefined,
+  failed: boolean,
+): string {
   const t = (toolName || "").trim();
   if (!t) return failed ? "Step failed" : "Done";
   if (failed) {

@@ -1,6 +1,6 @@
 # Permission System
 
-CoWork OS uses a layered permission engine instead of a single risk-only approval gate.
+NeoWorker uses a layered permission engine instead of a single risk-only approval gate.
 The current model separates coarse capability gates from export-sensitive approvals so ordinary
 network reads, raw outbound requests, and provenance-aware prompts can be handled differently
 without flattening everything into one approval bucket.
@@ -40,7 +40,7 @@ Permission rules can come from several places:
 
 - `session` - temporary grants and session-local rules stored in `SessionRuntime`
 - `workspace_db` - workspace-local rules stored in SQLite
-- `workspace_manifest` - checked-in workspace policy file at `.cowork/policy/permissions.json`
+- `workspace_manifest` - checked-in workspace policy file at `.neoworker/policy/permissions.json`
 - `profile` - encrypted profile-level rules in secure settings
 - `legacy_guardrails` - compatibility rules derived from older trusted-command patterns
 - `legacy_builtin_settings` - compatibility rules derived from earlier settings models
@@ -113,12 +113,12 @@ In other words:
 - **core automation uses stronger allow rules**
 - **it does not skip the permission engine entirely**
 
-An explicit empty `autoApproveTypes` list is also preserved as empty. CoWork no longer silently
+An explicit empty `autoApproveTypes` list is also preserved as empty. NeoWorker no longer silently
 falls back to "approve everything" when a policy intended to be narrow.
 
 ## Export-Sensitive Approvals
 
-CoWork now treats outbound data movement as its own approval lane: `data_export`.
+NeoWorker now treats outbound data movement as its own approval lane: `data_export`.
 
 Requests enter that lane when a tool could send workspace or imported content to an external
 service, even if the tool looks read-like from the user perspective.
@@ -147,7 +147,7 @@ The session-level "Approve all" convenience toggle also stays narrow. It can aut
 
 Soft denials are not always the end of the story.
 
-CoWork tracks denial counts per permission fingerprint in `SessionRuntime`:
+NeoWorker tracks denial counts per permission fingerprint in `SessionRuntime`:
 
 - `3` consecutive soft denials trigger fallback escalation
 - `20` total soft denials trigger fallback escalation
@@ -163,7 +163,7 @@ overridden by fallback.
 Different rule sources persist in different places:
 
 - session rules and temporary grants live in `SessionRuntime` snapshots
-- workspace-local rules are stored in SQLite and mirrored to `.cowork/policy/permissions.json`
+- workspace-local rules are stored in SQLite and mirrored to `.neoworker/policy/permissions.json`
 - profile rules are stored in encrypted secure settings
 
 Workspace-local rule removal updates both the database row and the manifest mirror. If the

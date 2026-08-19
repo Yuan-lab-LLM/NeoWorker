@@ -1,0 +1,3 @@
+import { n as e, t } from "./fan-DikdAYan-yw_4HJKx.js";
+t();
+export { e as default };

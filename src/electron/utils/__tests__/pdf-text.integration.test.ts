@@ -43,7 +43,7 @@ describe("extractPdfText integration", () => {
   });
 
   it("extracts text from a real PDF without depending on the review pipeline", async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cowork-pdf-text-int-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-pdf-text-int-"));
     tempDirs.push(dir);
     const pdfPath = path.join(dir, "sample.pdf");
 

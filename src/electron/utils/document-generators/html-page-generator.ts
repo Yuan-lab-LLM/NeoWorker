@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import { repairHiddenHtmlContent } from "../html-content-visibility";
 
 export interface LandingPageSection {
   title: string;
@@ -213,7 +214,7 @@ export async function generateLandingPage(
   outputPath: string,
   options: LandingPageOptions,
 ): Promise<{ success: boolean; path: string; size: number }> {
-  const html = buildLandingPageHTML(options);
+  const html = repairHiddenHtmlContent(buildLandingPageHTML(options)).content;
   fs.writeFileSync(outputPath, html, "utf-8");
   const stat = fs.statSync(outputPath);
   return { success: true, path: outputPath, size: stat.size };

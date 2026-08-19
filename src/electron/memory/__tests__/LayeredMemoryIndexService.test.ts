@@ -11,7 +11,7 @@ import { MemoryService } from "../MemoryService";
 const createdDirs: string[] = [];
 
 async function createWorkspace(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-layered-memory-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-layered-memory-"));
   createdDirs.push(dir);
   return dir;
 }
@@ -79,7 +79,7 @@ describe("LayeredMemoryIndexService", () => {
 
   it("reads existing topic files without rebuilding them", async () => {
     const workspacePath = await createWorkspace();
-    const topicsDir = path.join(workspacePath, ".cowork", "memory", "topics");
+    const topicsDir = path.join(workspacePath, ".neoworker", "memory", "topics");
     await fs.mkdir(topicsDir, { recursive: true });
     const topicPath = path.join(topicsDir, "prompts.md");
     await fs.writeFile(

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SearXNG Search for CoWork OS
+SearXNG Search for NeoWorker
 Privacy-respecting metasearch via self-hosted SearXNG.
 
 Environment:
@@ -61,7 +61,7 @@ def search(query: str, count: int = 5, lang: str = None) -> dict:
     url = f"{base_url}/search?{urllib.parse.urlencode(params)}"
     req = urllib.request.Request(url, headers={
         "Accept": "application/json",
-        "User-Agent": "CoWork-SearXNG/1.0"
+        "User-Agent": "NeoWorker-SearXNG/1.0"
     })
 
     try:

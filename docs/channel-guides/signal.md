@@ -1,6 +1,6 @@
 # Signal User Guide
 
-Signal is best for privacy-sensitive mobile control of CoWork, especially with strict sender policies and trusted users.
+Signal is best for privacy-sensitive mobile control of NeoWorker, especially with strict sender policies and trusted users.
 
 ## Best For
 

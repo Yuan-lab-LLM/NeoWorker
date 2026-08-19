@@ -158,7 +158,7 @@ export async function evaluateToolPolicyPipeline(
     // Workspace allow/pass does not discharge runtime approval metadata; it is
     // still evaluated by the permission engine or final runtime fallback below.
   } catch (error) {
-    if (process.env.COWORK_FAIL_CLOSED_TOOL_POLICY === "1") {
+    if (process.env.NEOWORKER_FAIL_CLOSED_TOOL_POLICY === "1") {
       trace.add("workspace_script", "deny", "workspace policy evaluation failed", {
         error: String((error as { message?: string })?.message || error || ""),
       });

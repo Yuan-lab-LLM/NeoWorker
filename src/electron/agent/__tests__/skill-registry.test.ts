@@ -424,7 +424,7 @@ describe("SkillRegistry", () => {
         managedSkillsDir: "/mock/skills",
       });
       expect(defaultRegistry.getRegistryUrl()).toBe(
-        "https://raw.githubusercontent.com/CoWork-OS/CoWork-OS/main/registry",
+        "https://raw.githubusercontent.com/NeoWorker/NeoWorker/main/registry",
       );
     });
 

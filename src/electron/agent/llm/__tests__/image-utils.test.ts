@@ -59,7 +59,7 @@ describe("image-utils", () => {
   it("loads supported image files from disk", async () => {
     const tempPath = path.join(
       os.tmpdir(),
-      `cowork-image-test-${Date.now()}-${Math.random().toString(16).slice(2)}.png`,
+      `neoworker-image-test-${Date.now()}-${Math.random().toString(16).slice(2)}.png`,
     );
     const pngBytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13]);
     try {
@@ -78,7 +78,7 @@ describe("image-utils", () => {
   it("rejects unsupported image formats from disk", async () => {
     const tempPath = path.join(
       os.tmpdir(),
-      `cowork-image-test-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`,
+      `neoworker-image-test-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`,
     );
     try {
       await fs.writeFile(tempPath, "not an image");

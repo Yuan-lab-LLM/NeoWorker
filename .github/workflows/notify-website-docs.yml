@@ -21,8 +21,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          gh api repos/CoWork-OS/cowork-os-web/dispatches \
+          gh api repos/NeoWorker/neoworker-web/dispatches \
             --method POST \
-            -f event_type=cowork_os_docs_changed \
+            -f event_type=neoworker_docs_changed \
             -f client_payload[source_repo]="${{ github.repository }}" \
             -f client_payload[sha]="${{ github.sha }}"

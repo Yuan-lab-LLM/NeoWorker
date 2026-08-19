@@ -15,11 +15,15 @@ export function normalizeEventsForTimelineUi(events: TaskEvent[]): TaskEvent[] {
         : "unknown-task";
     const currentSeq = seqByTask.get(taskId) || 0;
     const requestedSeq =
-      typeof event.seq === "number" && Number.isFinite(event.seq) && event.seq > 0
+      typeof event.seq === "number" &&
+      Number.isFinite(event.seq) &&
+      event.seq > 0
         ? Math.floor(event.seq)
         : undefined;
     const seq =
-      typeof requestedSeq === "number" && requestedSeq > currentSeq ? requestedSeq : currentSeq + 1;
+      typeof requestedSeq === "number" && requestedSeq > currentSeq
+        ? requestedSeq
+        : currentSeq + 1;
     seqByTask.set(taskId, seq);
 
     const eventId =
@@ -45,7 +49,10 @@ export function normalizeEventsForTimelineUi(events: TaskEvent[]): TaskEvent[] {
 
     return {
       ...normalized,
-      id: typeof event.id === "string" && event.id.trim().length > 0 ? event.id : normalized.id,
+      id:
+        typeof event.id === "string" && event.id.trim().length > 0
+          ? event.id
+          : normalized.id,
     } as TaskEvent;
   });
 }

@@ -16,7 +16,7 @@ const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
 // Import after mocking
-import { WebFetchTools } from "../web-fetch-tools";
+import { decodeHttpResponseBody, WebFetchTools } from "../web-fetch-tools";
 import { Workspace } from "../../../../shared/types";
 import { GuardrailManager } from "../../../guardrails/guardrail-manager";
 
@@ -50,7 +50,11 @@ describe("WebFetchTools", () => {
       enforceAllowedDomains: true,
       allowedDomains: ["example.com"],
     } as Any);
-    webFetchTools = new WebFetchTools(mockWorkspace, mockDaemon as Any, "test-task-id");
+    webFetchTools = new WebFetchTools(
+      mockWorkspace,
+      mockDaemon as Any,
+      "test-task-id",
+    );
   });
 
   afterEach(() => {
@@ -105,10 +109,14 @@ describe("WebFetchTools", () => {
   describe("webFetch", () => {
     describe("URL validation", () => {
       it("should reject non-HTTP URLs", async () => {
-        const result = await webFetchTools.webFetch({ url: "ftp://example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "ftp://example.com",
+        });
 
         expect(result.success).toBe(false);
-        expect(result.error).toContain("Only HTTP and HTTPS URLs are supported");
+        expect(result.error).toContain(
+          "Only HTTP and HTTPS URLs are supported",
+        );
       });
 
       it("should reject invalid URLs", async () => {
@@ -125,7 +133,9 @@ describe("WebFetchTools", () => {
           text: async () => "<html><body>Test</body></html>",
         });
 
-        const result = await webFetchTools.webFetch({ url: "http://example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "http://example.com",
+        });
 
         expect(result.success).toBe(true);
       });
@@ -137,7 +147,9 @@ describe("WebFetchTools", () => {
           text: async () => "<html><body>Test</body></html>",
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
       });
@@ -145,7 +157,9 @@ describe("WebFetchTools", () => {
       it("should block disallowed domains", async () => {
         vi.spyOn(GuardrailManager, "isDomainAllowed").mockReturnValue(false);
 
-        const result = await webFetchTools.webFetch({ url: "https://blocked.example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "https://blocked.example.com",
+        });
 
         expect(result.success).toBe(false);
         expect(result.error).toContain("Domain not allowed");
@@ -153,6 +167,50 @@ describe("WebFetchTools", () => {
     });
 
     describe("HTTP response handling", () => {
+      it("should decode GBK HTML declared by the response header", async () => {
+        const prefix = Buffer.from("<html><head><title>", "ascii");
+        const gbkTitle = Buffer.from([
+          0xc0, 0xcb, 0xb3, 0xb1, 0xd0, 0xc5, 0xcf, 0xa2,
+        ]);
+        const suffix = Buffer.from(
+          "</title></head><body>000977</body></html>",
+          "ascii",
+        );
+        const body = Buffer.concat([prefix, gbkTitle, suffix]);
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          headers: new Map([["content-type", "text/html; charset=GBK"]]),
+          arrayBuffer: async () =>
+            body.buffer.slice(
+              body.byteOffset,
+              body.byteOffset + body.byteLength,
+            ),
+        });
+
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com/stock",
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.title).toBe("浪潮信息");
+        expect(result.content).toContain("000977");
+        expect(result.content).not.toContain("�");
+      });
+
+      it("should fall back to GB18030 when legacy Chinese HTML omits charset", () => {
+        const bytes = Uint8Array.from([
+          0xc0, 0xcb, 0xb3, 0xb1, 0xd0, 0xc5, 0xcf, 0xa2,
+        ]);
+
+        expect(decodeHttpResponseBody(bytes, "text/html")).toBe("浪潮信息");
+      });
+
+      it("should keep valid UTF-8 Chinese text unchanged", () => {
+        const bytes = new TextEncoder().encode("浪潮信息");
+
+        expect(decodeHttpResponseBody(bytes, "text/html")).toBe("浪潮信息");
+      });
+
       it("should handle HTTP errors", async () => {
         mockFetch.mockResolvedValueOnce({
           ok: false,
@@ -160,10 +218,17 @@ describe("WebFetchTools", () => {
           statusText: "Not Found",
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com/notfound" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com/notfound",
+        });
 
         expect(result.success).toBe(false);
         expect(result.error).toContain("404");
+        expect(result).toMatchObject({
+          nonBlocking: true,
+          recoverableFallback: true,
+          failureKind: "source_unavailable",
+        });
       });
 
       it("should handle 500 errors", async () => {
@@ -173,10 +238,17 @@ describe("WebFetchTools", () => {
           statusText: "Internal Server Error",
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com/error" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com/error",
+        });
 
         expect(result.success).toBe(false);
         expect(result.error).toContain("500");
+        expect(result).toMatchObject({
+          nonBlocking: true,
+          recoverableFallback: true,
+          failureKind: "source_unavailable",
+        });
       });
 
       it("should handle JSON responses", async () => {
@@ -187,7 +259,9 @@ describe("WebFetchTools", () => {
           text: async () => JSON.stringify(jsonData),
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://api.example.com/data" });
+        const result = await webFetchTools.webFetch({
+          url: "https://api.example.com/data",
+        });
 
         expect(result.success).toBe(true);
         expect(result.title).toBe("JSON Response");
@@ -203,7 +277,9 @@ describe("WebFetchTools", () => {
           text: async () => invalidJson,
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://api.example.com/data" });
+        const result = await webFetchTools.webFetch({
+          url: "https://api.example.com/data",
+        });
 
         expect(result.success).toBe(true);
         expect(result.title).toBe("JSON Response");
@@ -217,7 +293,9 @@ describe("WebFetchTools", () => {
           text: async () => "Hello, World!",
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com/text" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com/text",
+        });
 
         expect(result.success).toBe(true);
         expect(result.title).toBe("Plain Text");
@@ -243,7 +321,9 @@ describe("WebFetchTools", () => {
           text: async () => html,
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.title).toBe("Test Page");
@@ -253,14 +333,17 @@ describe("WebFetchTools", () => {
       });
 
       it("should convert paragraphs", async () => {
-        const html = "<html><body><p>First paragraph</p><p>Second paragraph</p></body></html>";
+        const html =
+          "<html><body><p>First paragraph</p><p>Second paragraph</p></body></html>";
         mockFetch.mockResolvedValueOnce({
           ok: true,
           headers: new Map([["content-type", "text/html"]]),
           text: async () => html,
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.content).toContain("First paragraph");
@@ -268,14 +351,17 @@ describe("WebFetchTools", () => {
       });
 
       it("should convert bold and italic text", async () => {
-        const html = "<html><body><strong>Bold</strong> and <em>italic</em> text</body></html>";
+        const html =
+          "<html><body><strong>Bold</strong> and <em>italic</em> text</body></html>";
         mockFetch.mockResolvedValueOnce({
           ok: true,
           headers: new Map([["content-type", "text/html"]]),
           text: async () => html,
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.content).toContain("**Bold**");
@@ -283,14 +369,17 @@ describe("WebFetchTools", () => {
       });
 
       it("should convert code blocks", async () => {
-        const html = "<html><body><pre><code>const x = 1;</code></pre></body></html>";
+        const html =
+          "<html><body><pre><code>const x = 1;</code></pre></body></html>";
         mockFetch.mockResolvedValueOnce({
           ok: true,
           headers: new Map([["content-type", "text/html"]]),
           text: async () => html,
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.content).toContain("```");
@@ -298,28 +387,34 @@ describe("WebFetchTools", () => {
       });
 
       it("should convert inline code", async () => {
-        const html = "<html><body>Use <code>npm install</code> to install</body></html>";
+        const html =
+          "<html><body>Use <code>npm install</code> to install</body></html>";
         mockFetch.mockResolvedValueOnce({
           ok: true,
           headers: new Map([["content-type", "text/html"]]),
           text: async () => html,
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.content).toContain("`npm install`");
       });
 
       it("should convert lists", async () => {
-        const html = "<html><body><ul><li>Item 1</li><li>Item 2</li></ul></body></html>";
+        const html =
+          "<html><body><ul><li>Item 1</li><li>Item 2</li></ul></body></html>";
         mockFetch.mockResolvedValueOnce({
           ok: true,
           headers: new Map([["content-type", "text/html"]]),
           text: async () => html,
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.content).toContain("- Item 1");
@@ -327,7 +422,8 @@ describe("WebFetchTools", () => {
       });
 
       it("should include links when includeLinks is true", async () => {
-        const html = '<html><body><a href="https://test.com">Click here</a></body></html>';
+        const html =
+          '<html><body><a href="https://test.com">Click here</a></body></html>';
         mockFetch.mockResolvedValueOnce({
           ok: true,
           headers: new Map([["content-type", "text/html"]]),
@@ -344,7 +440,8 @@ describe("WebFetchTools", () => {
       });
 
       it("should exclude links when includeLinks is false", async () => {
-        const html = '<html><body><a href="https://test.com">Click here</a></body></html>';
+        const html =
+          '<html><body><a href="https://test.com">Click here</a></body></html>';
         mockFetch.mockResolvedValueOnce({
           ok: true,
           headers: new Map([["content-type", "text/html"]]),
@@ -362,14 +459,17 @@ describe("WebFetchTools", () => {
       });
 
       it("should remove script tags", async () => {
-        const html = '<html><body><script>alert("evil")</script><p>Safe content</p></body></html>';
+        const html =
+          '<html><body><script>alert("evil")</script><p>Safe content</p></body></html>';
         mockFetch.mockResolvedValueOnce({
           ok: true,
           headers: new Map([["content-type", "text/html"]]),
           text: async () => html,
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.content).not.toContain("alert");
@@ -377,14 +477,17 @@ describe("WebFetchTools", () => {
       });
 
       it("should remove style tags", async () => {
-        const html = "<html><body><style>.red { color: red; }</style><p>Content</p></body></html>";
+        const html =
+          "<html><body><style>.red { color: red; }</style><p>Content</p></body></html>";
         mockFetch.mockResolvedValueOnce({
           ok: true,
           headers: new Map([["content-type", "text/html"]]),
           text: async () => html,
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.content).not.toContain(".red");
@@ -405,7 +508,9 @@ describe("WebFetchTools", () => {
           text: async () => html,
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.content).not.toContain("Navigation");
@@ -421,7 +526,9 @@ describe("WebFetchTools", () => {
           text: async () => html,
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.content).toContain("&");
@@ -460,7 +567,9 @@ describe("WebFetchTools", () => {
           text: async () => html,
         });
 
-        const result = await webFetchTools.webFetch({ url: "https://example.com" });
+        const result = await webFetchTools.webFetch({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.content).not.toContain("[Content truncated]");
@@ -525,16 +634,21 @@ describe("WebFetchTools", () => {
 
         await webFetchTools.webFetch({ url: "https://example.com" });
 
-        expect(mockDaemon.logEvent).toHaveBeenCalledWith("test-task-id", "log", {
-          message: "Fetching: https://example.com",
-        });
+        expect(mockDaemon.logEvent).toHaveBeenCalledWith(
+          "test-task-id",
+          "log",
+          {
+            message: "Fetching: https://example.com",
+          },
+        );
       });
 
       it("should log tool result on success", async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
           headers: new Map([["content-type", "text/html"]]),
-          text: async () => "<html><head><title>Test</title></head><body>Content</body></html>",
+          text: async () =>
+            "<html><head><title>Test</title></head><body>Content</body></html>",
         });
 
         await webFetchTools.webFetch({ url: "https://example.com" });
@@ -552,7 +666,7 @@ describe("WebFetchTools", () => {
         );
       });
 
-      it("should log error on failure", async () => {
+      it("should log a recoverable source result when a page is unavailable", async () => {
         mockFetch.mockResolvedValueOnce({
           ok: false,
           status: 500,
@@ -566,7 +680,13 @@ describe("WebFetchTools", () => {
           "tool_result",
           expect.objectContaining({
             tool: "web_fetch",
-            error: expect.stringContaining("500"),
+            result: expect.objectContaining({
+              success: false,
+              error: expect.stringContaining("500"),
+              nonBlocking: true,
+              recoverableFallback: true,
+              failureKind: "source_unavailable",
+            }),
           }),
         );
       });
@@ -578,7 +698,9 @@ describe("WebFetchTools", () => {
         abortError.name = "AbortError";
         mockFetch.mockRejectedValueOnce(abortError);
 
-        const result = await webFetchTools.webFetch({ url: "https://slow-site.com" });
+        const result = await webFetchTools.webFetch({
+          url: "https://slow-site.com",
+        });
 
         expect(result.success).toBe(false);
         expect(result.error).toBe("Request timed out");
@@ -587,10 +709,86 @@ describe("WebFetchTools", () => {
   });
 
   describe("httpRequest", () => {
+    it("retries transient GET failures and preserves the underlying network cause", async () => {
+      mockFetch
+        .mockRejectedValueOnce(
+          Object.assign(new TypeError("fetch failed"), {
+            cause: Object.assign(new Error("socket disconnected"), {
+              code: "ECONNRESET",
+            }),
+          }),
+        )
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          headers: new Map([["content-type", "text/plain"]]),
+          text: async () => "Recovered",
+        });
+
+      const result = await webFetchTools.httpRequest({
+        url: "https://example.com",
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.body).toBe("Recovered");
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockDaemon.logEvent).toHaveBeenCalledWith(
+        "test-task-id",
+        "log",
+        expect.objectContaining({
+          message: expect.stringContaining("temporary network failure"),
+          error: "fetch failed: ECONNRESET: socket disconnected",
+        }),
+      );
+    });
+
+    it("does not retry unsafe POST requests after a transport failure", async () => {
+      mockFetch.mockRejectedValueOnce(new TypeError("fetch failed"));
+
+      const result = await webFetchTools.httpRequest({
+        url: "https://api.example.com/items",
+        method: "POST",
+        body: '{"name":"test"}',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result).toMatchObject({
+        nonBlocking: true,
+        recoverableFallback: true,
+        failureKind: "source_unavailable",
+      });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("treats a temporarily unavailable HTTP source as a recoverable fallback", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        statusText: "Service Unavailable",
+        headers: new Map([["content-type", "text/plain"]]),
+        text: async () => "Try again later",
+      });
+
+      const result = await webFetchTools.httpRequest({
+        url: "https://example.com/status",
+      });
+
+      expect(result).toMatchObject({
+        success: false,
+        status: 503,
+        nonBlocking: true,
+        recoverableFallback: true,
+        failureKind: "source_unavailable",
+      });
+    });
+
     it("should block disallowed domains for raw http requests", async () => {
       vi.spyOn(GuardrailManager, "isDomainAllowed").mockReturnValue(false);
 
-      const result = await webFetchTools.httpRequest({ url: "https://blocked.example.com" });
+      const result = await webFetchTools.httpRequest({
+        url: "https://blocked.example.com",
+      });
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("Domain not allowed");
@@ -598,10 +796,14 @@ describe("WebFetchTools", () => {
 
     describe("URL validation", () => {
       it("should reject non-HTTP URLs", async () => {
-        const result = await webFetchTools.httpRequest({ url: "ftp://example.com" });
+        const result = await webFetchTools.httpRequest({
+          url: "ftp://example.com",
+        });
 
         expect(result.success).toBe(false);
-        expect(result.error).toContain("Only HTTP and HTTPS URLs are supported");
+        expect(result.error).toContain(
+          "Only HTTP and HTTPS URLs are supported",
+        );
       });
 
       it("should reject invalid URLs", async () => {
@@ -627,7 +829,9 @@ describe("WebFetchTools", () => {
           text: async () => "Hello",
         });
 
-        const result = await webFetchTools.httpRequest({ url: "http://example.com" });
+        const result = await webFetchTools.httpRequest({
+          url: "http://example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.status).toBe(200);
@@ -642,7 +846,9 @@ describe("WebFetchTools", () => {
           text: async () => "Hello",
         });
 
-        const result = await webFetchTools.httpRequest({ url: "https://example.com" });
+        const result = await webFetchTools.httpRequest({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
       });
@@ -860,7 +1066,9 @@ describe("WebFetchTools", () => {
           text: async () => JSON.stringify({ data: "test" }),
         });
 
-        const result = await webFetchTools.httpRequest({ url: "https://api.example.com" });
+        const result = await webFetchTools.httpRequest({
+          url: "https://api.example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.status).toBe(200);
@@ -879,7 +1087,9 @@ describe("WebFetchTools", () => {
           text: async () => JSON.stringify(jsonData),
         });
 
-        const result = await webFetchTools.httpRequest({ url: "https://api.example.com/users" });
+        const result = await webFetchTools.httpRequest({
+          url: "https://api.example.com/users",
+        });
 
         expect(result.success).toBe(true);
         expect(result.body).toContain('"users"');
@@ -892,11 +1102,15 @@ describe("WebFetchTools", () => {
           ok: true,
           status: 200,
           statusText: "OK",
-          headers: new Map([["content-type", "application/json; charset=utf-8"]]),
+          headers: new Map([
+            ["content-type", "application/json; charset=utf-8"],
+          ]),
           text: async () => JSON.stringify(jsonData),
         });
 
-        const result = await webFetchTools.httpRequest({ url: "https://api.example.com" });
+        const result = await webFetchTools.httpRequest({
+          url: "https://api.example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.body).toContain('"message": "hello"');
@@ -912,7 +1126,9 @@ describe("WebFetchTools", () => {
           text: async () => invalidJson,
         });
 
-        const result = await webFetchTools.httpRequest({ url: "https://api.example.com" });
+        const result = await webFetchTools.httpRequest({
+          url: "https://api.example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.body).toBe(invalidJson);
@@ -927,7 +1143,9 @@ describe("WebFetchTools", () => {
           text: async () => "Plain text response",
         });
 
-        const result = await webFetchTools.httpRequest({ url: "https://example.com/text" });
+        const result = await webFetchTools.httpRequest({
+          url: "https://example.com/text",
+        });
 
         expect(result.success).toBe(true);
         expect(result.body).toBe("Plain text response");
@@ -943,7 +1161,9 @@ describe("WebFetchTools", () => {
           text: async () => html,
         });
 
-        const result = await webFetchTools.httpRequest({ url: "https://example.com" });
+        const result = await webFetchTools.httpRequest({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.body).toBe(html); // Raw HTML, not converted
@@ -958,7 +1178,9 @@ describe("WebFetchTools", () => {
           text: async () => "Page not found",
         });
 
-        const result = await webFetchTools.httpRequest({ url: "https://example.com/notfound" });
+        const result = await webFetchTools.httpRequest({
+          url: "https://example.com/notfound",
+        });
 
         expect(result.success).toBe(false);
         expect(result.status).toBe(404);
@@ -975,7 +1197,9 @@ describe("WebFetchTools", () => {
           text: async () => "Server error",
         });
 
-        const result = await webFetchTools.httpRequest({ url: "https://example.com/error" });
+        const result = await webFetchTools.httpRequest({
+          url: "https://example.com/error",
+        });
 
         expect(result.success).toBe(false);
         expect(result.status).toBe(500);
@@ -1042,7 +1266,9 @@ describe("WebFetchTools", () => {
           text: async () => "Short content",
         });
 
-        const result = await webFetchTools.httpRequest({ url: "https://example.com" });
+        const result = await webFetchTools.httpRequest({
+          url: "https://example.com",
+        });
 
         expect(result.success).toBe(true);
         expect(result.body).not.toContain("[Response truncated]");
@@ -1066,7 +1292,9 @@ describe("WebFetchTools", () => {
           text: async () => "Final destination",
         });
 
-        const result = await webFetchTools.httpRequest({ url: "https://example.com/redirect" });
+        const result = await webFetchTools.httpRequest({
+          url: "https://example.com/redirect",
+        });
 
         expect(result.success).toBe(true);
         expect(result.body).toBe("Final destination");
@@ -1102,9 +1330,11 @@ describe("WebFetchTools", () => {
       });
 
       it("should reject redirects to domains denied by network policy", async () => {
-        vi.spyOn(GuardrailManager, "isDomainAllowed").mockImplementation((url: string) => {
-          return !url.includes("blocked.example");
-        });
+        vi.spyOn(GuardrailManager, "isDomainAllowed").mockImplementation(
+          (url: string) => {
+            return !url.includes("blocked.example");
+          },
+        );
         mockFetch.mockResolvedValueOnce({
           ok: false,
           status: 302,
@@ -1113,7 +1343,9 @@ describe("WebFetchTools", () => {
           text: async () => "",
         });
 
-        const result = await webFetchTools.httpRequest({ url: "https://example.com/redirect" });
+        const result = await webFetchTools.httpRequest({
+          url: "https://example.com/redirect",
+        });
 
         expect(result.success).toBe(false);
         expect(result.error).toContain("Domain not allowed");
@@ -1127,7 +1359,9 @@ describe("WebFetchTools", () => {
         abortError.name = "AbortError";
         mockFetch.mockRejectedValueOnce(abortError);
 
-        const result = await webFetchTools.httpRequest({ url: "https://slow-site.com" });
+        const result = await webFetchTools.httpRequest({
+          url: "https://slow-site.com",
+        });
 
         expect(result.success).toBe(false);
         expect(result.status).toBe(0);
@@ -1137,7 +1371,9 @@ describe("WebFetchTools", () => {
       it("should handle network errors", async () => {
         mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-        const result = await webFetchTools.httpRequest({ url: "https://unreachable.com" });
+        const result = await webFetchTools.httpRequest({
+          url: "https://unreachable.com",
+        });
 
         expect(result.success).toBe(false);
         expect(result.error).toBe("Network error");
@@ -1159,9 +1395,13 @@ describe("WebFetchTools", () => {
           method: "POST",
         });
 
-        expect(mockDaemon.logEvent).toHaveBeenCalledWith("test-task-id", "log", {
-          message: "HTTP POST: https://api.example.com",
-        });
+        expect(mockDaemon.logEvent).toHaveBeenCalledWith(
+          "test-task-id",
+          "log",
+          {
+            message: "HTTP POST: https://api.example.com",
+          },
+        );
       });
 
       it("should log tool result on success", async () => {
@@ -1175,25 +1415,42 @@ describe("WebFetchTools", () => {
 
         await webFetchTools.httpRequest({ url: "https://example.com" });
 
-        expect(mockDaemon.logEvent).toHaveBeenCalledWith("test-task-id", "tool_result", {
-          tool: "http_request",
-          result: expect.objectContaining({
-            url: "https://example.com",
-            method: "GET",
-            status: 200,
-          }),
-        });
+        expect(mockDaemon.logEvent).toHaveBeenCalledWith(
+          "test-task-id",
+          "tool_result",
+          {
+            tool: "http_request",
+            result: expect.objectContaining({
+              url: "https://example.com",
+              method: "GET",
+              status: 200,
+            }),
+          },
+        );
       });
 
-      it("should log error on failure", async () => {
-        mockFetch.mockRejectedValueOnce(new Error("Connection failed"));
+      it("should log recoverable transport failures as non-blocking results", async () => {
+        mockFetch
+          .mockRejectedValueOnce(new Error("Connection failed"))
+          .mockRejectedValueOnce(new Error("Connection failed"))
+          .mockRejectedValueOnce(new Error("Connection failed"));
 
         await webFetchTools.httpRequest({ url: "https://example.com" });
 
-        expect(mockDaemon.logEvent).toHaveBeenCalledWith("test-task-id", "tool_result", {
-          tool: "http_request",
-          error: "Connection failed",
-        });
+        expect(mockDaemon.logEvent).toHaveBeenCalledWith(
+          "test-task-id",
+          "tool_result",
+          {
+            tool: "http_request",
+            result: expect.objectContaining({
+              success: false,
+              error: "Connection failed",
+              nonBlocking: true,
+              recoverableFallback: true,
+              failureKind: "source_unavailable",
+            }),
+          },
+        );
       });
 
       it("uses browser-like default headers for public web requests", async () => {
@@ -1212,7 +1469,8 @@ describe("WebFetchTools", () => {
           expect.objectContaining({
             headers: expect.objectContaining({
               "Accept-Language": "en-US,en;q=0.9",
-              Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+              Accept:
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             }),
           }),
         );

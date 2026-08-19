@@ -61,7 +61,7 @@ export function resolveGmailRuntimeConfig(
     return { ok: false, error: "gmail push token required" };
   }
 
-  const subscription = gmail?.subscription || "cowork-gmail-watch-push";
+  const subscription = gmail?.subscription || "neoworker-gmail-watch-push";
   const label = gmail?.label || "INBOX";
   const hookUrl = gmail?.hookUrl || "http://127.0.0.1:9877/hooks/gmail";
   const includeBody = gmail?.includeBody ?? true;

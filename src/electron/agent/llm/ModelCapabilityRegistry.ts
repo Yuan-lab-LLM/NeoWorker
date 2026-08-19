@@ -31,7 +31,7 @@ const CAPABILITY_SIGNALS: Record<ModelCapability, RegExp> = {
 };
 
 /**
- * Profiles for the three model tiers available in CoWork OS.
+ * Profiles for the three model tiers available in NeoWorker.
  * Mapped to the preference aliases accepted by resolveModelPreferenceToModelKey.
  */
 const PROFILES: ModelCapabilityProfile[] = [

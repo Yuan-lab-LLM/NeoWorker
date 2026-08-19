@@ -92,6 +92,7 @@ export interface LLMProviderConfig {
   piProvider?: string; // pi-ai KnownProvider (e.g. 'anthropic', 'openai', 'google')
   piApiKey?: string;
   // OpenAI-compatible endpoint
+  openaiCompatibleDisplayName?: string;
   openaiCompatibleApiKey?: string;
   openaiCompatibleBaseUrl?: string;
   // Mixture-of-Agents virtual provider
@@ -648,6 +649,11 @@ export type XAIModelKey = keyof typeof XAI_MODELS;
  * Kimi (Moonshot) models
  */
 export const KIMI_MODELS = {
+  "kimi-k3": {
+    id: "kimi-k3",
+    displayName: "Kimi K3",
+    description: "Latest Kimi model",
+  },
   "kimi-k2.5": {
     id: "kimi-k2.5",
     displayName: "Kimi K2.5",

@@ -113,8 +113,8 @@ export class McpTunnelForwarder {
   }
 
   private getTargetUrl(): string {
-    if (this.config.targetType === "cowork-host") {
-      return `http://127.0.0.1:${this.config.coworkHostPort || 3333}/mcp`;
+    if (this.config.targetType === "neoworker-host") {
+      return `http://127.0.0.1:${this.config.neoworkerHostPort || 3333}/mcp`;
     }
     if (!this.config.targetUrl) {
       throw new Error("Tunnel target URL is not configured");
@@ -124,12 +124,12 @@ export class McpTunnelForwarder {
   }
 
   private getTargetAuthHeaders(): Record<string, string> {
-    if (this.config.targetType !== "cowork-host") {
+    if (this.config.targetType !== "neoworker-host") {
       return {};
     }
     const token = MCPHostServer.getInstance().getHttpAuthToken();
     if (!token) {
-      throw new Error("CoWork MCP host auth token is not available");
+      throw new Error("NeoWorker MCP host auth token is not available");
     }
     return { authorization: `Bearer ${token}` };
   }

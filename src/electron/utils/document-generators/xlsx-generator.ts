@@ -33,7 +33,7 @@ export async function generateXLSX(
   const workbook = new ExcelJS.Workbook();
 
   // Metadata
-  workbook.creator = options.author || "CoWork OS";
+  workbook.creator = options.author || "NeoWorker";
   workbook.created = new Date();
   workbook.modified = new Date();
 

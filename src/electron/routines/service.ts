@@ -1477,7 +1477,7 @@ function cloneHooksSettings(settings: HooksConfig): HooksConfig {
 
 function buildRoutinePrompt(routine: Routine, triggerLabel: string, extraLines: string[] = []): string {
   const sections = [
-    "You are running a saved CoWork Routine.",
+    "You are running a saved NeoWorker Routine.",
     `Routine: ${routine.name}`,
     routine.description ? `Description: ${routine.description}` : null,
     `Trigger: ${triggerLabel}`,

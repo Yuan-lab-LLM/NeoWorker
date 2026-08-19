@@ -26,7 +26,7 @@ You can also launch it with the first question inline:
 /side how is it going?
 ```
 
-CoWork opens a right-side Side Chat panel and keeps the parent task selected on the left. Follow-up questions typed into the Side Chat composer stay inside the side conversation. Closing the panel only hides the side conversation; it does not stop the parent task.
+NeoWorker opens a right-side Side Chat panel and keeps the parent task selected on the left. Follow-up questions typed into the Side Chat composer stay inside the side conversation. Closing the panel only hides the side conversation; it does not stop the parent task.
 
 ## Behavior Contract
 

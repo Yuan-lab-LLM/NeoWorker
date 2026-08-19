@@ -96,9 +96,15 @@ describe("parallel-group-projection", () => {
     expect(group).toBeDefined();
     expect(group?.groupId).toBe(groupId);
     expect(group?.status).toBe("completed");
-    expect(group?.lanes.map((lane) => lane.toolUseId)).toEqual(["use-1", "use-2"]);
+    expect(group?.lanes.map((lane) => lane.toolUseId)).toEqual([
+      "use-1",
+      "use-2",
+    ]);
     expect(group?.lanes.map((lane) => lane.toolCallIndex)).toEqual([1, 2]);
-    expect(group?.lanes.map((lane) => lane.title)).toEqual(["Fetched page", "Search complete"]);
+    expect(group?.lanes.map((lane) => lane.title)).toEqual([
+      "Fetched page",
+      "Search complete",
+    ]);
 
     expect(projection.suppressedEventIds.has("evt-1")).toBe(false);
     expect(projection.suppressedEventIds.has("evt-2")).toBe(true);
@@ -137,7 +143,9 @@ describe("parallel-group-projection", () => {
 
     const projection = buildParallelGroupProjection(events);
     const group = projection.groupsByAnchorEventId.get("evt-1");
-    expect(group?.lanes[0]?.title).toContain("api.github.com/repos/org/repo/releases");
+    expect(group?.lanes[0]?.title).toContain(
+      "api.github.com/repos/org/repo/releases",
+    );
     expect(projection.suppressedEventIds.has("evt-4")).toBe(true);
   });
 
@@ -150,19 +158,26 @@ describe("parallel-group-projection", () => {
       }),
       makeEvent("timeline_step_started", "evt-2", {
         groupId,
-        step: { id: "tool_lane:step:use-1", description: "Running http_request" },
+        step: {
+          id: "tool_lane:step:use-1",
+          description: "Running http_request",
+        },
         status: "in_progress",
       }),
       makeEvent("tool_call", "evt-3", {
         tool: "http_request",
         toolUseId: "use-1",
-        input: { url: "https://api.github.com/repos/foo/bar/contents/src/electron" },
+        input: {
+          url: "https://api.github.com/repos/foo/bar/contents/src/electron",
+        },
       }),
     ];
 
     const projection = buildParallelGroupProjection(events);
     const group = projection.groupsByAnchorEventId.get("evt-1");
-    expect(group?.lanes[0]?.title).toContain("api.github.com/repos/foo/bar/contents/src/electron");
+    expect(group?.lanes[0]?.title).toContain(
+      "api.github.com/repos/foo/bar/contents/src/electron",
+    );
     expect(projection.suppressedEventIds.has("evt-3")).toBe(true);
   });
 
@@ -185,11 +200,17 @@ describe("parallel-group-projection", () => {
         tool: "search_files",
         toolUseId: "use-1",
         toolCallIndex: 1,
-        result: { matches: [{ path: "src/electron/agent/runtime/SessionRuntime.ts" }], totalFound: 1 },
+        result: {
+          matches: [{ path: "src/electron/agent/runtime/SessionRuntime.ts" }],
+          totalFound: 1,
+        },
       }),
       makeEvent("timeline_step_finished", "evt-4", {
         groupId,
-        step: { id: "tool_lane:step:use-1", description: "Running search_files" },
+        step: {
+          id: "tool_lane:step:use-1",
+          description: "Running search_files",
+        },
         status: "completed",
       }),
     ];
@@ -213,8 +234,14 @@ describe("parallel-group-projection", () => {
         toolCallIndex: 1,
         result: {
           files: [
-            { path: "src/electron/agent/runtime/SessionRuntime.ts", content: "..." },
-            { path: "src/electron/agent/runtime/ToolScheduler.ts", content: "..." },
+            {
+              path: "src/electron/agent/runtime/SessionRuntime.ts",
+              content: "...",
+            },
+            {
+              path: "src/electron/agent/runtime/ToolScheduler.ts",
+              content: "...",
+            },
           ],
         },
       }),
@@ -222,7 +249,9 @@ describe("parallel-group-projection", () => {
 
     const projection = buildParallelGroupProjection(events);
     const group = projection.groupsByAnchorEventId.get("evt-1");
-    expect(group?.lanes[0]?.title).toBe("Read files: SessionRuntime.ts, ToolScheduler.ts");
+    expect(group?.lanes[0]?.title).toBe(
+      "Read files: SessionRuntime.ts, ToolScheduler.ts",
+    );
   });
 
   it("shows skill names for grouped SKILL.md reads", () => {
@@ -280,7 +309,11 @@ describe("parallel-group-projection", () => {
         tool: "web_fetch",
         toolUseId: "use-1",
         toolCallIndex: 1,
-        result: { success: true, url: "https://ccunpacked.dev/", title: "CCUnpacked" },
+        result: {
+          success: true,
+          url: "https://ccunpacked.dev/",
+          title: "CCUnpacked",
+        },
         step: { id: "tool_lane:step:use-1", description: "Running web_fetch" },
         status: "completed",
       }),
@@ -289,5 +322,59 @@ describe("parallel-group-projection", () => {
     const projection = buildParallelGroupProjection(events);
     const group = projection.groupsByAnchorEventId.get("evt-1");
     expect(group?.lanes[0]?.title).toBe("Fetched CCUnpacked");
+  });
+
+  it("downgrades a missing candidate URL to skipped when a sibling source succeeds", () => {
+    const groupId = "tools:step:research:1";
+    const events: TaskEvent[] = [
+      makeEvent("timeline_group_started", "evt-1", {
+        groupId,
+        groupLabel: "Tool batch (2)",
+      }),
+      makeEvent("tool_call", "evt-2", {
+        groupId,
+        tool: "web_fetch",
+        toolUseId: "missing",
+        toolCallIndex: 1,
+        input: { url: "https://run.ai/missing" },
+      }),
+      makeEvent("tool_error", "evt-3", {
+        groupId,
+        tool: "web_fetch",
+        toolUseId: "missing",
+        toolCallIndex: 1,
+        error: "HTTP 404: Not Found",
+      }),
+      makeEvent("tool_call", "evt-4", {
+        groupId,
+        tool: "web_fetch",
+        toolUseId: "working",
+        toolCallIndex: 2,
+        input: { url: "https://www.kaytus.com/about/" },
+      }),
+      makeEvent("tool_result", "evt-5", {
+        groupId,
+        tool: "web_fetch",
+        toolUseId: "working",
+        toolCallIndex: 2,
+        result: { url: "https://www.kaytus.com/about/", title: "KAYTUS" },
+      }),
+      makeEvent(
+        "timeline_group_finished",
+        "evt-6",
+        { groupId, groupLabel: "Tool batch (2)" },
+        { status: "failed" },
+      ),
+    ];
+
+    const group =
+      buildParallelGroupProjection(events).groupsByAnchorEventId.get("evt-1");
+    expect(group?.status).toBe("completed");
+    expect(group?.lanes.map((lane) => lane.status)).toEqual([
+      "skipped",
+      "completed",
+    ]);
+    expect(group?.lanes[0]?.title).toContain("run.ai/missing");
+    expect(group?.lanes[0]?.title).not.toContain("failed");
   });
 });

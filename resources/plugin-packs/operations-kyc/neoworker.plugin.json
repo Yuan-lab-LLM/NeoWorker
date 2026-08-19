@@ -1,0 +1,44 @@
+{
+  "name": "operations-kyc-pack",
+  "displayName": "Operations / KYC",
+  "version": "0.1.0",
+  "description": "Operations and KYC workflows for document parsing, rules-grid evaluation, exception staging, and compliance review packets.",
+  "type": "pack",
+  "author": "NeoWorker",
+  "keywords": ["kyc", "operations", "compliance", "documents", "rules-grid"],
+  "icon": "🛡️",
+  "category": "Finance",
+  "recommendedConnectors": ["egnyte", "moodys", "spglobal"],
+  "skills": [
+    {
+      "id": "ops-kyc-doc-parse",
+      "name": "KYC Document Parsing",
+      "description": "Extract entity, ownership, identity, and document metadata from KYC packets.",
+      "icon": "📄",
+      "category": "Finance",
+      "prompt": "Parse KYC documents from provided files. Extract entity names, jurisdictions, registration IDs, beneficial owners, addresses, document dates, expiry dates, sanctions/PEP notes if sourced, missing documents, and confidence per field. Preserve source references for every extraction.",
+      "enabled": true
+    },
+    {
+      "id": "ops-kyc-rules",
+      "name": "KYC Rules Grid",
+      "description": "Evaluate extracted KYC facts against a configured rules grid.",
+      "icon": "📋",
+      "category": "Finance",
+      "prompt": "Evaluate KYC facts against the provided rules grid. Return pass/fail/needs-review per rule, source support, missing evidence, exception severity, and questions for compliance. Do not approve onboarding or provide legal advice.",
+      "enabled": true
+    }
+  ],
+  "slashCommands": [
+    {
+      "name": "kyc-doc-parse",
+      "description": "Parse a KYC document packet",
+      "skillId": "ops-kyc-doc-parse"
+    },
+    {
+      "name": "kyc-rules",
+      "description": "Evaluate KYC facts against a rules grid",
+      "skillId": "ops-kyc-rules"
+    }
+  ]
+}

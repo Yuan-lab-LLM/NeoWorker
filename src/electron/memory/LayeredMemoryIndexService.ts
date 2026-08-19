@@ -22,7 +22,7 @@ export interface LayeredMemorySnapshot {
 }
 
 function memoryRoot(workspacePath: string): string {
-  return path.join(workspacePath, ".cowork", "memory");
+  return path.join(workspacePath, ".neoworker", "memory");
 }
 
 function topicsDir(workspacePath: string): string {

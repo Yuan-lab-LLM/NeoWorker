@@ -31,7 +31,7 @@ const BetterSqlite3 = (() => {
 const describeWithNativeDb = BetterSqlite3 ? describe : describe.skip;
 
 async function createWorkspace(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-transcript-store-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-transcript-store-"));
   createdDirs.push(dir);
   return dir;
 }

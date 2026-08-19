@@ -1,5 +1,5 @@
 /**
- * Tests for workspace-local gateway router rules (.cowork/router/rules.monty)
+ * Tests for workspace-local gateway router rules (.neoworker/router/rules.monty)
  */
 
 import { describe, it, expect } from "vitest";
@@ -10,8 +10,8 @@ import { evaluateWorkspaceRouterRules } from "../router-rules";
 
 describe("evaluateWorkspaceRouterRules", () => {
   it("can reply deterministically based on message text", async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cowork-router-"));
-    const rulesDir = path.join(tmpDir, ".cowork", "router");
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "neoworker-router-"));
+    const rulesDir = path.join(tmpDir, ".neoworker", "router");
     await fs.mkdir(rulesDir, { recursive: true });
     await fs.writeFile(
       path.join(rulesDir, "rules.monty"),

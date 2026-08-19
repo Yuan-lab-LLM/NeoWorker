@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-const KIT_DIRNAME = ".cowork";
+const KIT_DIRNAME = ".neoworker";
 
 function getLocalDateStamp(now: Date): string {
   const yyyy = String(now.getFullYear());

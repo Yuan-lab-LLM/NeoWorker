@@ -7,10 +7,14 @@ function normalizePathForCompare(raw: string): string {
 }
 
 /** Get all output paths from a summary (created + modifiedFallback) */
-export function getAllOutputPathsFromSummary(summary: TaskOutputSummary | null | undefined): string[] {
+export function getAllOutputPathsFromSummary(
+  summary: TaskOutputSummary | null | undefined,
+): string[] {
   if (!summary) return [];
   const created = Array.isArray(summary.created) ? summary.created : [];
-  const modified = Array.isArray(summary.modifiedFallback) ? summary.modifiedFallback : [];
+  const modified = Array.isArray(summary.modifiedFallback)
+    ? summary.modifiedFallback
+    : [];
   const effective = created.length > 0 ? created : modified;
   const seen = new Set<string>();
   const out: string[] = [];
@@ -42,10 +46,16 @@ export function shouldShowPersistentNeedsUserActionBanner(
     | undefined,
 ): boolean {
   if (payload?.terminalStatus !== "needs_user_action") return false;
-  if (Array.isArray(payload.pendingChecklist) && payload.pendingChecklist.some((item) => typeof item === "string")) {
+  if (
+    Array.isArray(payload.pendingChecklist) &&
+    payload.pendingChecklist.some((item) => typeof item === "string")
+  ) {
     return true;
   }
-  if (typeof payload.verificationMessage === "string" && payload.verificationMessage.trim().length > 0) {
+  if (
+    typeof payload.verificationMessage === "string" &&
+    payload.verificationMessage.trim().length > 0
+  ) {
     return true;
   }
   return payload.verificationOutcome === "pending_user_action";
@@ -72,7 +82,9 @@ export function shouldShowCompletionToast(
     const show = isFirstCompletion || newPaths.length > 0;
     return {
       show,
-      pathsToRecord: show ? [...new Set([...notifiedSet, ...currentPaths])] : [],
+      pathsToRecord: show
+        ? [...new Set([...notifiedSet, ...currentPaths])]
+        : [],
     };
   }
 
@@ -112,14 +124,19 @@ export interface CompletionPanelDecision {
 
 export interface CompletionToastActionDependencies {
   resolveWorkspacePath: () => Promise<string | undefined>;
-  openFile: (path: string, workspacePath?: string) => Promise<string | undefined | null>;
+  openFile: (
+    path: string,
+    workspacePath?: string,
+  ) => Promise<string | undefined | null>;
   showInFinder: (path: string, workspacePath?: string) => Promise<void>;
   onViewInFiles: () => void;
   onOpenFileError?: (error: unknown) => void;
   onShowInFinderError?: (error: unknown) => void;
 }
 
-export function buildCompletionOutputMessage(summary: TaskOutputSummary): string {
+export function buildCompletionOutputMessage(
+  summary: TaskOutputSummary,
+): string {
   const primaryOutputName = getPrimaryOutputFileName(summary);
   if (summary.outputCount === 1) {
     return primaryOutputName || "1 file created";
@@ -133,15 +150,23 @@ export function buildCompletionOutputMessage(summary: TaskOutputSummary): string
   return `${summary.outputCount} files created`;
 }
 
-export function shouldTrackUnseenCompletion(context: Pick<CompletionViewContext, "isMainView" | "isSelectedTask">): boolean {
+export function shouldTrackUnseenCompletion(
+  context: Pick<CompletionViewContext, "isMainView" | "isSelectedTask">,
+): boolean {
   return !(context.isMainView && context.isSelectedTask);
 }
 
-export function decideCompletionPanelBehavior(context: CompletionViewContext): CompletionPanelDecision {
+export function decideCompletionPanelBehavior(
+  context: CompletionViewContext,
+): CompletionPanelDecision {
   if (context.isMainView && context.isSelectedTask && context.panelCollapsed) {
     return { autoOpenPanel: true, markUnseenOutput: false };
   }
-  if (!context.isMainView || context.panelCollapsed || !context.isSelectedTask) {
+  if (
+    !context.isMainView ||
+    context.panelCollapsed ||
+    !context.isSelectedTask
+  ) {
     return { autoOpenPanel: false, markUnseenOutput: true };
   }
   return { autoOpenPanel: false, markUnseenOutput: false };
@@ -155,11 +180,16 @@ export function removeTaskId(taskIds: string[], taskId: string): string[] {
   return taskIds.filter((id) => id !== taskId);
 }
 
-export function shouldClearUnseenOutputBadges(isMainView: boolean, rightPanelCollapsed: boolean): boolean {
+export function shouldClearUnseenOutputBadges(
+  isMainView: boolean,
+  rightPanelCollapsed: boolean,
+): boolean {
   return isMainView && !rightPanelCollapsed;
 }
 
-export function shouldNotifyForTaskCompletionTerminalStatus(terminalStatus?: string): boolean {
+export function shouldNotifyForTaskCompletionTerminalStatus(
+  terminalStatus?: string,
+): boolean {
   return typeof terminalStatus === "string" && terminalStatus !== "ok";
 }
 
@@ -173,7 +203,10 @@ export function createCompletionOutputToastActions(
       callback: async () => {
         if (!primaryOutputPath) return;
         const workspacePath = await dependencies.resolveWorkspacePath();
-        const openError = await dependencies.openFile(primaryOutputPath, workspacePath);
+        const openError = await dependencies.openFile(
+          primaryOutputPath,
+          workspacePath,
+        );
         if (openError) {
           dependencies.onOpenFileError?.(openError);
         }
@@ -216,25 +249,40 @@ export function buildTaskCompletionToast(options: {
     | "failed"
     | string;
 }): Omit<ToastNotification, "id"> {
-  const { taskId, taskTitle, outputSummary, actionDependencies, terminalStatus } = options;
+  const {
+    taskId,
+    taskTitle,
+    outputSummary,
+    actionDependencies,
+    terminalStatus,
+  } = options;
   const isNeedsUserAction =
-    terminalStatus === "needs_user_action" || terminalStatus === "awaiting_approval";
+    terminalStatus === "needs_user_action" ||
+    terminalStatus === "awaiting_approval";
   const isWarningCompletion =
-    isNeedsUserAction || terminalStatus === "partial_success" || terminalStatus === "resume_available";
-  const title = terminalStatus === "awaiting_approval"
-    ? "Task waiting for approval"
-    : terminalStatus === "resume_available"
-      ? "Task paused - resume available"
-      : isNeedsUserAction
-    ? "Task complete - action required"
-    : isWarningCompletion
-      ? "Task complete (warnings)"
-      : "Task complete";
-  const toastType: ToastNotification["type"] = isWarningCompletion ? "warning" : "success";
+    isNeedsUserAction ||
+    terminalStatus === "partial_success" ||
+    terminalStatus === "resume_available";
+  const title =
+    terminalStatus === "awaiting_approval"
+      ? "Task waiting for approval"
+      : terminalStatus === "resume_available"
+        ? "Task paused - resume available"
+        : isNeedsUserAction
+          ? "Task complete - action required"
+          : isWarningCompletion
+            ? "Task complete (warnings)"
+            : "Task complete";
+  const toastType: ToastNotification["type"] = isWarningCompletion
+    ? "warning"
+    : "success";
 
   if (hasTaskOutputs(outputSummary)) {
     const actions = actionDependencies
-      ? createCompletionOutputToastActions(outputSummary.primaryOutputPath, actionDependencies)
+      ? createCompletionOutputToastActions(
+          outputSummary.primaryOutputPath,
+          actionDependencies,
+        )
       : undefined;
     return {
       type: toastType,

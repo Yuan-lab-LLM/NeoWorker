@@ -1,0 +1,3 @@
+import { n as e, t } from "./book-lock-hAlPTyS2-B9HTg49p.js";
+e();
+export { t as default };

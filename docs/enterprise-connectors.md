@@ -1,11 +1,7 @@
 # Enterprise Connectors
 
-This document describes the current shipped MCP connector surface in CoWork OS. The goal is to expose enterprise and local creative integrations through a consistent MCP interface while keeping the app decoupled from connector implementation details and avoiding overlap with stronger native integrations.
+This document describes the current shipped MCP connector surface in NeoWorker. The goal is to expose enterprise and local creative integrations through a consistent MCP interface while keeping the app decoupled from connector implementation details and avoiding overlap with stronger native integrations.
 
-<p align="center">
-  <img src="../resources/branding/images/cowork-os-11.webp" alt="Connector catalog" width="700">
-  <br><em>The connector catalog exposes CRM, support, productivity, analytics, and payment integrations through one setup surface.</em>
-</p>
 
 ## Phase 1 Goals
 
@@ -18,14 +14,14 @@ This document describes the current shipped MCP connector surface in CoWork OS. 
 
 Shipped connectors run as MCP servers and expose tools over MCP (stdio, SSE, or WebSocket). Service connectors still use direct APIs under the hood (OAuth, REST, GraphQL), while local creative connectors drive localhost-only app bridges or APIs such as Rhino, Blender, and ComfyUI. The app consumes both styles consistently through MCP.
 
-For some integrations with strong native CoWork paths, the runtime now prefers direct APIs first and only falls back to MCP when needed. Today that applies to GitHub and Notion.
+For some integrations with strong native NeoWorker paths, the runtime now prefers direct APIs first and only falls back to MCP when needed. Today that applies to GitHub and Notion.
 
-Connector notifications are also part of the runtime surface now: MCP resource updates and catalog-change notifications can be bridged into CoWork's Event Triggers so connector-side content changes can wake agents or create follow-up tasks.
+Connector notifications are also part of the runtime surface now: MCP resource updates and catalog-change notifications can be bridged into NeoWorker's Event Triggers so connector-side content changes can wake agents or create follow-up tasks.
 
 Benefits:
 - Decoupled release cadence (connectors ship independently of the desktop app).
 - Supports local and managed deployments.
-- Works with existing CoWork MCP settings, registry, and tool discovery.
+- Works with existing NeoWorker MCP settings, registry, and tool discovery.
 - Avoids duplicate surfaces where native integrations are the better default.
 
 ## Connector Mentions In The Composer
@@ -45,7 +41,7 @@ See [Composer Mentions](composer-mentions.md) for the full resolver and runtime 
 
 ## Connector Events and Content Triggers
 
-CoWork can now treat MCP connector notifications as automation inputs, not just tool catalogs.
+NeoWorker can now treat MCP connector notifications as automation inputs, not just tool catalogs.
 
 - `notifications/resources/updated` can trigger automations for specific resources or folders.
 - `tools_changed`, `resources_changed`, and `prompts_changed` are normalized into `connector_event` payloads.
@@ -59,7 +55,7 @@ Examples:
 
 ## Connector Transport and Operations
 
-CoWork consumes MCP connectors across the supported transport modes:
+NeoWorker consumes MCP connectors across the supported transport modes:
 
 - **stdio** for most locally installed registry connectors
 - **SSE / streamable HTTP** when the connector exposes a hosted or long-lived server surface
@@ -67,18 +63,18 @@ CoWork consumes MCP connectors across the supported transport modes:
 
 Operational notes:
 
-- active trigger rules determine which connector resources CoWork subscribes to
+- active trigger rules determine which connector resources NeoWorker subscribes to
 - removing or disabling a trigger causes the MCP client manager to unsubscribe when that resource is no longer needed
 - reconnects rebuild tool/resource catalogs and re-apply the active subscription set
 - stale or failed subscriptions degrade to normal connector access rather than crashing the task runtime; operators should inspect connector status when trigger-driven automations stop firing
 
 ## Secure MCP Tunnels
 
-Secure MCP Tunnels are the governed remote-access path for private MCP tools. Instead of exposing a connector port publicly, the local CoWork app opens an outbound WebSocket to a relay you operate, and remote callers send MCP JSON-RPC through that relay with a separate caller token.
+Secure MCP Tunnels are the governed remote-access path for private MCP tools. Instead of exposing a connector port publicly, the local NeoWorker app opens an outbound WebSocket to a relay you operate, and remote callers send MCP JSON-RPC through that relay with a separate caller token.
 
 Use this when:
 
-- a hosted/remote CoWork surface needs to call a user's local CoWork MCP host
+- a hosted/remote NeoWorker surface needs to call a user's local NeoWorker MCP host
 - a connector runs on a private LAN and should not be published directly
 - an operator wants MCP access without ngrok, localtunnel, or a third-party tunnel service
 
@@ -123,7 +119,7 @@ Rhino, Blender, ComfyUI
   - `blender.render_view`
   - `comfyui.submit_flux_photoreal_pass`
 
-In the CoWork app, MCP tools are prefixed (default `mcp_`), so agents will see:
+In the NeoWorker app, MCP tools are prefixed (default `mcp_`), so agents will see:
 - `mcp_salesforce.search_records`
 - `mcp_jira.search_issues`
 
@@ -141,7 +137,7 @@ Use the following fields where applicable:
 
 Local file-oriented connectors must also:
 
-- require a project root such as `COWORK_ARCH_PROJECT_ROOT` or `COWORK_WORKSPACE_ROOT`
+- require a project root such as `NEOWORKER_ARCH_PROJECT_ROOT` or `NEOWORKER_WORKSPACE_ROOT`
 - reject URL-style file paths
 - normalize file and directory inputs before calling a bridge
 - reject paths that resolve outside the project root
@@ -300,7 +296,7 @@ Google Workspace uses one shared OAuth connection for the built-in Google tools 
 - Slides: create/get presentations, create/delete slides, add text boxes, replace text, and raw `batchUpdate` through MCP tools
 - Chat: message and space tools when the Google Workspace MCP connector exposes them
 
-Authentication is OAuth 2.0 with PKCE. Settings uses local callback port `18766`; connector OAuth/setup uses local callback port `18765`. The default consent set includes Drive, Gmail read/send/modify, Calendar, Spreadsheets, Documents, Tasks, Presentations, Chat messages, and Chat spaces readonly. CoWork merges these required scopes during setup and reports missing scopes in Google Workspace health/status responses; existing users with older tokens must reconnect to grant newly added scopes such as Calendar MCP tools, Tasks, or Slides.
+Authentication is OAuth 2.0 with PKCE. Settings uses local callback port `18766`; connector OAuth/setup uses local callback port `18765`. The default consent set includes Drive, Gmail read/send/modify, Calendar, Spreadsheets, Documents, Tasks, Presentations, Chat messages, and Chat spaces readonly. NeoWorker merges these required scopes during setup and reports missing scopes in Google Workspace health/status responses; existing users with older tokens must reconnect to grant newly added scopes such as Calendar MCP tools, Tasks, or Slides.
 
 Destructive or broad Google Workspace MCP actions require explicit confirmation fields, including calendar event create/update/delete, task-list deletion, task deletion, clearing completed tasks, slide deletion, replace-all-text, and raw Slides `batchUpdate`.
 
@@ -311,7 +307,7 @@ Rhino, Blender, and ComfyUI are bundled local connectors for concept architectur
 Common setup:
 
 ```sh
-COWORK_ARCH_PROJECT_ROOT=/absolute/path/to/project
+NEOWORKER_ARCH_PROJECT_ROOT=/absolute/path/to/project
 ```
 
 | Connector | Default endpoint | Required local dependency | Primary tools |
@@ -326,7 +322,7 @@ Security and reliability behavior:
 - undeclared tool names are rejected before endpoint dispatch
 - request timeouts are enforced for bridge/API calls
 - non-JSON error bodies are surfaced as readable connector errors
-- project file paths are scoped to `COWORK_ARCH_PROJECT_ROOT` or `COWORK_WORKSPACE_ROOT`
+- project file paths are scoped to `NEOWORKER_ARCH_PROJECT_ROOT` or `NEOWORKER_WORKSPACE_ROOT`
 - ComfyUI photoreal workflows apply `{{prompt}}`, `{{negativePrompt}}`, `{{sourceImagePath}}`, and `{{projectId}}` placeholders before submission
 - ComfyUI output collection can copy images into a project-root-relative `outputDir`
 
@@ -358,7 +354,7 @@ Use it to bootstrap new connectors quickly. It includes:
 | **Legal** | Clinical Trials |
 | **Creative / Architecture** | Rhino, Blender, ComfyUI |
 
-Not shipped in the current connector catalog: Slack, DocuSign, Outreach (removed from Tier-1). Slack remains available as a channel gateway. GitHub and Notion prefer native CoWork integrations first, with MCP as fallback.
+Not shipped in the current connector catalog: Slack, DocuSign, Outreach (removed from Tier-1). Slack remains available as a channel gateway. GitHub and Notion prefer native NeoWorker integrations first, with MCP as fallback.
 
 ## Chat Setup Orchestration (Tier-1)
 

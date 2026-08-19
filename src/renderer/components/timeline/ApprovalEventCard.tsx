@@ -43,16 +43,26 @@ export function ApprovalEventCard({
     >
       <div className="event-indicator">
         {showConnectorAbove && (
-          <span className="event-connector event-connector-above" aria-hidden="true" />
+          <span
+            className="event-connector event-connector-above"
+            aria-hidden="true"
+          />
         )}
         <span
           className={`event-indicator-icon approval-indicator status-${event.status}`}
           aria-label={STATUS_LABEL[event.status] ?? event.status}
         >
-          {event.status === "waiting" ? "⌛" : event.status === "success" ? "✓" : "⊘"}
+          {event.status === "waiting"
+            ? "⌛"
+            : event.status === "success"
+              ? "✓"
+              : "⊘"}
         </span>
         {showConnectorBelow && (
-          <span className="event-connector event-connector-below" aria-hidden="true" />
+          <span
+            className="event-connector event-connector-below"
+            aria-hidden="true"
+          />
         )}
       </div>
       <div className="event-content approval-event-content">
@@ -61,7 +71,9 @@ export function ApprovalEventCard({
           onClick={() => setExpanded((v) => !v)}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setExpanded((v) => !v); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") setExpanded((v) => !v);
+          }}
         >
           <div className="event-header-left">
             <svg
@@ -77,7 +89,9 @@ export function ApprovalEventCard({
               <path d="M9 18l6-6-6-6" />
             </svg>
             <div className="event-title">
-              <span className={`risk-badge risk-${event.risk}`}>{RISK_LABEL[event.risk]}</span>
+              <span className={`risk-badge risk-${event.risk}`}>
+                {RISK_LABEL[event.risk]}
+              </span>
               <span className="event-summary-text">{event.summary}</span>
             </div>
           </div>
@@ -90,7 +104,10 @@ export function ApprovalEventCard({
         {expanded && hasDetails && (
           <div className="event-details approval-details">
             <EvidenceList evidence={event.evidence} />
-            <RawEventDrawer rawEventIds={event.rawEventIds} allEvents={allEvents} />
+            <RawEventDrawer
+              rawEventIds={event.rawEventIds}
+              allEvents={allEvents}
+            />
           </div>
         )}
       </div>

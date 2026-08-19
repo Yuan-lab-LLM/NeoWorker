@@ -16,7 +16,7 @@ vi.mock("better-sqlite3", () => {
 
 vi.mock("electron", () => ({
   app: {
-    getPath: vi.fn().mockReturnValue("/tmp/test-cowork"),
+    getPath: vi.fn().mockReturnValue("/tmp/test-neoworker"),
   },
   BrowserWindow: {
     getAllWindows: vi.fn().mockReturnValue([]),
@@ -77,7 +77,9 @@ describe("MessageRouter WhatsApp task updates", () => {
     const adapter = createWhatsAppAdapter();
 
     (router as Any).adapters.set("whatsapp", adapter);
-    (router as Any).channelRepo.findByType = vi.fn().mockReturnValue({ id: "wa-1" });
+    (router as Any).channelRepo.findByType = vi
+      .fn()
+      .mockReturnValue({ id: "wa-1" });
     (router as Any).messageRepo.create = vi.fn();
     (router as Any).pendingTaskResponses.set("task-1", {
       adapter,
@@ -116,8 +118,12 @@ describe("MessageRouter WhatsApp task updates", () => {
     const adapter = createWhatsAppAdapter();
 
     (router as Any).adapters.set("whatsapp", adapter);
-    (router as Any).channelRepo.findById = vi.fn().mockReturnValue({ id: "wa-1" });
-    (router as Any).channelRepo.findByType = vi.fn().mockReturnValue({ id: "wa-1" });
+    (router as Any).channelRepo.findById = vi
+      .fn()
+      .mockReturnValue({ id: "wa-1" });
+    (router as Any).channelRepo.findByType = vi
+      .fn()
+      .mockReturnValue({ id: "wa-1" });
     (router as Any).messageRepo.create = vi.fn();
     (router as Any).pendingTaskResponses.set("task-2", {
       adapter,
@@ -126,9 +132,15 @@ describe("MessageRouter WhatsApp task updates", () => {
       sessionId: "session-1",
     });
 
-    await router.sendTaskUpdate("task-2", "Creating execution plan (model: gpt-5.4)...");
+    await router.sendTaskUpdate(
+      "task-2",
+      "Creating execution plan (model: gpt-5.4)...",
+    );
     await router.sendTaskUpdate("task-2", "Starting execution of 10 steps");
-    await router.sendTaskUpdate("task-2", "Executing step 3/10: Review repository activity");
+    await router.sendTaskUpdate(
+      "task-2",
+      "Executing step 3/10: Review repository activity",
+    );
 
     expect(adapter.sendMessage).not.toHaveBeenCalled();
   });
@@ -139,7 +151,9 @@ describe("MessageRouter WhatsApp task updates", () => {
     const adapter = createWhatsAppAdapter();
 
     (router as Any).adapters.set("whatsapp", adapter);
-    (router as Any).channelRepo.findByType = vi.fn().mockReturnValue({ id: "wa-1" });
+    (router as Any).channelRepo.findByType = vi
+      .fn()
+      .mockReturnValue({ id: "wa-1" });
     (router as Any).messageRepo.create = vi.fn();
     (router as Any).pendingTaskResponses.set("task-3", {
       adapter,
@@ -148,7 +162,10 @@ describe("MessageRouter WhatsApp task updates", () => {
       sessionId: "session-1",
     });
 
-    await router.sendTaskUpdate("task-3", "Completed step 2: Review repository activity");
+    await router.sendTaskUpdate(
+      "task-3",
+      "Completed step 2: Review repository activity",
+    );
     await router.sendTaskUpdate("task-3", "All steps completed");
 
     expect(adapter.sendMessage).not.toHaveBeenCalled();
@@ -160,7 +177,9 @@ describe("MessageRouter WhatsApp task updates", () => {
     const adapter = createWhatsAppAdapter();
 
     (router as Any).adapters.set("whatsapp", adapter);
-    (router as Any).channelRepo.findByType = vi.fn().mockReturnValue({ id: "wa-1" });
+    (router as Any).channelRepo.findByType = vi
+      .fn()
+      .mockReturnValue({ id: "wa-1" });
     (router as Any).messageRepo.create = vi.fn();
     (router as Any).pendingTaskResponses.set("task-tool-noise", {
       adapter,
@@ -172,7 +191,7 @@ describe("MessageRouter WhatsApp task updates", () => {
     await router.sendTaskUpdate("task-tool-noise", "Running read_pdf_visual");
     await router.sendTaskUpdate(
       "task-tool-noise",
-      'Grep search: "(?m)^\\s*[0-9]{1,3}\\s*$" in .cowork/tmp_sens_et_dieu.txt',
+      'Grep search: "(?m)^\\s*[0-9]{1,3}\\s*$" in .neoworker/tmp_sens_et_dieu.txt',
     );
     await router.sendTaskUpdate(
       "task-tool-noise",
@@ -196,7 +215,9 @@ describe("MessageRouter WhatsApp task updates", () => {
     const adapter = createWhatsAppAdapter();
 
     (router as Any).adapters.set("whatsapp", adapter);
-    (router as Any).channelRepo.findByType = vi.fn().mockReturnValue({ id: "wa-1" });
+    (router as Any).channelRepo.findByType = vi
+      .fn()
+      .mockReturnValue({ id: "wa-1" });
     (router as Any).messageRepo.create = vi.fn();
     (router as Any).pendingTaskResponses.set("task-approval-wa", {
       adapter,
@@ -219,8 +240,37 @@ describe("MessageRouter WhatsApp task updates", () => {
     expect(sent).toContain("A shell command needs approval to continue.");
     expect(sent).toContain("/approve approval");
     expect(sent).not.toContain("python3 - <<'PY'");
-    expect(sent).not.toContain("Review the shell command below before approving.");
+    expect(sent).not.toContain(
+      "Review the shell command below before approving.",
+    );
     expect(sent).not.toContain("Details:");
+  });
+
+  it("sends actionable text approval commands on WeChat", async () => {
+    const db = createMockDb();
+    const router = new MessageRouter(db, {}, undefined);
+    const adapter = createChatAdapter("weixin");
+
+    (router as Any).adapters.set("weixin", adapter);
+    (router as Any).pendingTaskResponses.set("task-approval-weixin", {
+      adapter,
+      channelId: "weixin-1",
+      chatId: "chat-1",
+      sessionId: "session-1",
+    });
+
+    await router.sendApprovalRequest("task-approval-weixin", {
+      id: "weixin-approval-12345678",
+      type: "data_export",
+      description: "Approve export",
+      details: {},
+    });
+
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1);
+    const sentPayload = adapter.sendMessage.mock.calls[0][0];
+    expect(sentPayload.text).toContain("/approve weixin-a");
+    expect(sentPayload.text).toContain("/deny weixin-a");
+    expect(sentPayload.inlineKeyboard).toBeUndefined();
   });
 
   it("keeps streamed assistant messages for in-between updates", async () => {
@@ -231,8 +281,12 @@ describe("MessageRouter WhatsApp task updates", () => {
     const adapter = createWhatsAppAdapter();
 
     (router as Any).adapters.set("whatsapp", adapter);
-    (router as Any).channelRepo.findById = vi.fn().mockReturnValue({ id: "wa-1" });
-    (router as Any).channelRepo.findByType = vi.fn().mockReturnValue({ id: "wa-1" });
+    (router as Any).channelRepo.findById = vi
+      .fn()
+      .mockReturnValue({ id: "wa-1" });
+    (router as Any).channelRepo.findByType = vi
+      .fn()
+      .mockReturnValue({ id: "wa-1" });
     (router as Any).messageRepo.create = vi.fn();
     (router as Any).pendingTaskResponses.set("task-4", {
       adapter,
@@ -241,7 +295,11 @@ describe("MessageRouter WhatsApp task updates", () => {
       sessionId: "session-1",
     });
 
-    await router.sendTaskUpdate("task-4", "I found the root cause. I'm patching it now.", true);
+    await router.sendTaskUpdate(
+      "task-4",
+      "I found the root cause. I'm patching it now.",
+      true,
+    );
 
     await vi.advanceTimersByTimeAsync(2000);
     await Promise.resolve();
@@ -274,7 +332,9 @@ describe("MessageRouter WhatsApp task updates", () => {
         .fn()
         .mockReturnValue({ id: `${channelType}-1` });
       (router as Any).messageRepo.create = vi.fn();
-      (router as Any).maybeSendTaskFeedbackControls = vi.fn().mockResolvedValue(undefined);
+      (router as Any).maybeSendTaskFeedbackControls = vi
+        .fn()
+        .mockResolvedValue(undefined);
       (router as Any).sendTaskArtifacts = vi.fn().mockResolvedValue(undefined);
       (router as Any).pendingTaskResponses.set(`task-complete-${channelType}`, {
         adapter,
@@ -283,7 +343,10 @@ describe("MessageRouter WhatsApp task updates", () => {
         sessionId: "session-1",
       });
 
-      await router.handleTaskCompletion(`task-complete-${channelType}`, richSummary);
+      await router.handleTaskCompletion(
+        `task-complete-${channelType}`,
+        richSummary,
+      );
 
       expect(adapter.sendMessage).toHaveBeenCalledTimes(1);
       expect(adapter.sendMessage).toHaveBeenCalledWith(
@@ -297,6 +360,311 @@ describe("MessageRouter WhatsApp task updates", () => {
 });
 
 describe("MessageRouter external channel task updates", () => {
+  it("starts a WeChat task silently and waits for the final answer", async () => {
+    const db = createMockDb();
+    const agentDaemon = {
+      startTask: vi.fn().mockResolvedValue(undefined),
+    };
+    const router = new MessageRouter(db, {}, agentDaemon as Any);
+    const adapter = createChatAdapter("weixin");
+    const task = {
+      id: "task-weixin-new",
+      workspaceId: "workspace-1",
+      title: "你好啊",
+      prompt: "你好啊",
+      status: "pending",
+      agentConfig: {},
+    };
+
+    (router as Any).sessionRepo.findById = vi.fn().mockReturnValue({
+      id: "session-1",
+      channelId: "weixin-1",
+      chatId: "chat-1",
+      workspaceId: "workspace-1",
+      state: "active",
+      context: {},
+    });
+    (router as Any).workspaceRepo.findById = vi.fn().mockReturnValue({
+      id: "workspace-1",
+      path: "/tmp/workspace-1",
+    });
+    (router as Any).taskRepo.create = vi.fn().mockReturnValue(task);
+    (router as Any).taskRepo.update = vi.fn();
+    (router as Any).persistInboundAttachments = vi.fn().mockResolvedValue([]);
+    (router as Any).maybeUpdatePrioritiesFromVoiceMessage = vi
+      .fn()
+      .mockResolvedValue(undefined);
+    (router as Any).sessionManager.linkSessionToTask = vi.fn();
+    (router as Any).sessionManager.updateSessionContext = vi.fn();
+
+    await (router as Any).forwardToDesktopApp(
+      adapter,
+      {
+        messageId: "message-1",
+        channel: "weixin",
+        userId: "user-1",
+        userName: "Allen",
+        chatId: "chat-1",
+        isGroup: false,
+        text: "你好啊",
+        timestamp: new Date(),
+      },
+      "session-1",
+    );
+
+    expect(agentDaemon.startTask).toHaveBeenCalledWith(task, undefined);
+    expect(adapter.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("sends WeChat only the final answer and redacts sensitive URL parameters", async () => {
+    const db = createMockDb();
+    const router = new MessageRouter(db, {}, undefined);
+    const adapter = createChatAdapter("weixin");
+
+    (router as Any).adapters.set("weixin", adapter);
+    (router as Any).channelRepo.findById = vi
+      .fn()
+      .mockReturnValue({ id: "weixin-1" });
+    (router as Any).channelRepo.findByType = vi
+      .fn()
+      .mockReturnValue({ id: "weixin-1" });
+    (router as Any).messageRepo.create = vi.fn();
+    (router as Any).maybeSendTaskFeedbackControls = vi
+      .fn()
+      .mockResolvedValue(undefined);
+    (router as Any).sendTaskArtifacts = vi.fn().mockResolvedValue(undefined);
+    (router as Any).pendingTaskResponses.set("task-weixin", {
+      adapter,
+      channelId: "weixin-1",
+      chatId: "chat-1",
+      sessionId: "session-1",
+    });
+
+    await router.sendTaskUpdate("task-weixin", "Planning prompt built");
+    await router.sendTaskUpdate(
+      "task-weixin",
+      "Searching web: 北京今天什么天气 via tavily",
+    );
+    await router.sendTaskUpdate(
+      "task-weixin",
+      "Fetching: https://api.example.com/weather?appid=secret-value",
+      true,
+    );
+
+    expect(adapter.sendMessage).not.toHaveBeenCalled();
+
+    await router.handleTaskCompletion(
+      "task-weixin",
+      "北京今天晴，详情：https://api.example.com/weather?appid=secret-value",
+    );
+
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1);
+    expect(adapter.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: "chat-1",
+        text: "北京今天晴，详情：https://api.example.com/weather?appid=[REDACTED]",
+      }),
+    );
+  });
+
+  it("continues a completed WeChat task instead of creating another task", async () => {
+    const db = createMockDb();
+    const agentDaemon = {
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+    };
+    const router = new MessageRouter(db, {}, agentDaemon as Any);
+    const adapter = createChatAdapter("weixin");
+    const session = {
+      id: "session-1",
+      channelId: "weixin-1",
+      chatId: "chat-1",
+      workspaceId: "workspace-1",
+      taskId: "task-existing",
+      state: "active",
+      context: {},
+    };
+
+    (router as Any).sessionRepo.findById = vi.fn().mockReturnValue(session);
+    (router as Any).taskRepo.findById = vi.fn().mockReturnValue({
+      id: "task-existing",
+      status: "completed",
+    });
+    (router as Any).workspaceRepo.findById = vi.fn().mockReturnValue({
+      id: "workspace-1",
+      path: "/tmp/workspace-1",
+    });
+    (router as Any).persistInboundAttachments = vi.fn().mockResolvedValue([]);
+    (router as Any).maybeUpdatePrioritiesFromVoiceMessage = vi
+      .fn()
+      .mockResolvedValue(undefined);
+    (router as Any).sessionManager.unlinkSessionFromTask = vi.fn();
+
+    await (router as Any).forwardToDesktopApp(
+      adapter,
+      {
+        messageId: "message-2",
+        channel: "weixin",
+        userId: "user-1",
+        userName: "Allen",
+        chatId: "chat-1",
+        isGroup: false,
+        text: "那明天呢？",
+        timestamp: new Date(),
+      },
+      "session-1",
+    );
+
+    expect(agentDaemon.sendMessage).toHaveBeenCalledWith(
+      "task-existing",
+      "那明天呢？",
+      undefined,
+    );
+    expect(
+      (router as Any).sessionManager.unlinkSessionFromTask,
+    ).not.toHaveBeenCalled();
+    expect(adapter.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("forwards a WeChat image to the desktop task with a visible attachment chip", async () => {
+    const db = createMockDb();
+    const agentDaemon = {
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      registerArtifact: vi.fn(),
+    };
+    const router = new MessageRouter(db, {}, agentDaemon as Any);
+    const adapter = createChatAdapter("weixin");
+    const session = {
+      id: "session-1",
+      channelId: "weixin-1",
+      chatId: "chat-1",
+      workspaceId: "workspace-1",
+      taskId: "task-existing",
+      state: "active",
+      context: {},
+    };
+    const savedImage = {
+      type: "image",
+      relPath: ".neoworker/inbox/attachments/weixin/photo.png",
+      absPath: "/tmp/workspace-1/.neoworker/inbox/attachments/weixin/photo.png",
+      fileName: "photo.png",
+      size: 128,
+      mimeType: "image/png",
+    };
+
+    (router as Any).sessionRepo.findById = vi.fn().mockReturnValue(session);
+    (router as Any).taskRepo.findById = vi.fn().mockReturnValue({
+      id: "task-existing",
+      status: "completed",
+    });
+    (router as Any).workspaceRepo.findById = vi.fn().mockReturnValue({
+      id: "workspace-1",
+      path: "/tmp/workspace-1",
+    });
+    (router as Any).persistInboundAttachments = vi
+      .fn()
+      .mockResolvedValue([savedImage]);
+    (router as Any).maybeUpdatePrioritiesFromVoiceMessage = vi
+      .fn()
+      .mockResolvedValue(undefined);
+
+    await (router as Any).forwardToDesktopApp(
+      adapter,
+      {
+        messageId: "image-message-1",
+        channel: "weixin",
+        userId: "user-1",
+        userName: "Allen",
+        chatId: "chat-1",
+        isGroup: false,
+        text: "请查看附件。",
+        timestamp: new Date(),
+        attachments: [
+          {
+            type: "image",
+            data: Buffer.from("image"),
+            mimeType: "image/png",
+            fileName: "photo.png",
+          },
+        ],
+      },
+      "session-1",
+    );
+
+    expect(agentDaemon.sendMessage).toHaveBeenCalledWith(
+      "task-existing",
+      [
+        "请查看附件。",
+        "",
+        "Attached files (relative to workspace):",
+        "- photo.png (.neoworker/inbox/attachments/weixin/photo.png)",
+        "  Attachment metadata: size=128; mime=image/png",
+      ].join("\n"),
+      [
+        {
+          filePath: savedImage.absPath,
+          mimeType: "image/png",
+          filename: "photo.png",
+          sizeBytes: 128,
+        },
+      ],
+    );
+    expect(agentDaemon.registerArtifact).toHaveBeenCalledWith(
+      "task-existing",
+      savedImage.absPath,
+      "image/png",
+    );
+  });
+
+  it("does not send the same WeChat final answer twice when completion follows a follow-up", async () => {
+    const db = createMockDb();
+    const router = new MessageRouter(db, {}, undefined);
+    const adapter = createChatAdapter("weixin");
+
+    (router as Any).adapters.set("weixin", adapter);
+    (router as Any).channelRepo.findById = vi
+      .fn()
+      .mockReturnValue({ id: "weixin-1" });
+    (router as Any).channelRepo.findByType = vi
+      .fn()
+      .mockReturnValue({ id: "weixin-1" });
+    (router as Any).messageRepo.create = vi.fn();
+    (router as Any).sendTaskArtifacts = vi.fn().mockResolvedValue(undefined);
+    (router as Any).pendingTaskResponses.set("task-weixin-dedup", {
+      adapter,
+      channelId: "weixin-1",
+      chatId: "chat-1",
+      sessionId: "session-1",
+    });
+
+    await router.flushStreamingUpdateForTask("task-weixin-dedup", "周日有雨。");
+    await router.handleTaskCompletion("task-weixin-dedup", "周日有雨。");
+
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1);
+    expect(adapter.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "周日有雨。" }),
+    );
+  });
+
+  it("does not send feedback prompts to WeChat", async () => {
+    const db = createMockDb();
+    const router = new MessageRouter(db, {}, undefined);
+    const adapter = createChatAdapter("weixin");
+
+    await (router as Any).maybeSendTaskFeedbackControls({
+      taskId: "task-weixin-feedback",
+      pending: {
+        adapter,
+        chatId: "chat-1",
+        sessionId: "session-1",
+      },
+      completionMessageId: "message-1",
+      contextType: "dm",
+    });
+
+    expect(adapter.sendMessage).not.toHaveBeenCalled();
+    expect(adapter.editMessageWithKeyboard).toBeUndefined();
+  });
+
   it("suppresses executor-internal task updates for telegram and discord too", async () => {
     const db = createMockDb();
 
@@ -305,7 +673,9 @@ describe("MessageRouter external channel task updates", () => {
       const adapter = createChatAdapter(channelType);
 
       (router as Any).adapters.set(channelType, adapter);
-      (router as Any).channelRepo.findByType = vi.fn().mockReturnValue({ id: `${channelType}-1` });
+      (router as Any).channelRepo.findByType = vi
+        .fn()
+        .mockReturnValue({ id: `${channelType}-1` });
       (router as Any).messageRepo.create = vi.fn();
       (router as Any).pendingTaskResponses.set(`task-${channelType}`, {
         adapter,
@@ -314,20 +684,38 @@ describe("MessageRouter external channel task updates", () => {
         sessionId: "session-1",
       });
 
-      await router.sendTaskUpdate(`task-${channelType}`, "LLM route selected: provider=azure, profile=cheap, source=profile_model, model=gpt-5.4-mini");
-      await router.sendTaskUpdate(`task-${channelType}`, "Creating execution plan (model: gpt-5.4)...");
-      await router.sendTaskUpdate(`task-${channelType}`, "Executing step 1/3: Inspect the codebase");
+      await router.sendTaskUpdate(
+        `task-${channelType}`,
+        "LLM route selected: provider=azure, profile=cheap, source=profile_model, model=gpt-5.4-mini",
+      );
+      await router.sendTaskUpdate(
+        `task-${channelType}`,
+        "Creating execution plan (model: gpt-5.4)...",
+      );
+      await router.sendTaskUpdate(
+        `task-${channelType}`,
+        "Executing step 1/3: Inspect the codebase",
+      );
       await router.sendTaskUpdate(
         `task-${channelType}`,
         "Execution strategy active: intent=advice, domain=general, convoMode=hybrid, execMode=plan, answerFirst=true, llmProfileHint=strong",
       );
-      await router.sendTaskUpdate(`task-${channelType}`, "Follow-up prompt built");
-      await router.sendTaskUpdate(`task-${channelType}`, "Processing follow-up message");
+      await router.sendTaskUpdate(
+        `task-${channelType}`,
+        "Follow-up prompt built",
+      );
+      await router.sendTaskUpdate(
+        `task-${channelType}`,
+        "Processing follow-up message",
+      );
       await router.sendTaskUpdate(
         `task-${channelType}`,
         "Answer-first short-circuit active. Skipping deep plan execution and finalizing.",
       );
-      await router.sendTaskUpdate(`task-${channelType}`, "execution_run_summary");
+      await router.sendTaskUpdate(
+        `task-${channelType}`,
+        "execution_run_summary",
+      );
 
       expect(adapter.sendMessage).not.toHaveBeenCalled();
     }
@@ -343,7 +731,9 @@ describe("MessageRouter external channel task updates", () => {
       id: "slack-1",
       config: { progressRelayMode: "curated" },
     });
-    (router as Any).channelRepo.findByType = vi.fn().mockReturnValue({ id: "slack-1" });
+    (router as Any).channelRepo.findByType = vi
+      .fn()
+      .mockReturnValue({ id: "slack-1" });
     (router as Any).messageRepo.create = vi.fn();
     (router as Any).pendingTaskResponses.set("task-slack-curated", {
       adapter,
@@ -352,9 +742,18 @@ describe("MessageRouter external channel task updates", () => {
       sessionId: "session-1",
     });
 
-    await router.sendTaskUpdate("task-slack-curated", "Creating execution plan (model: gpt-5.4)...");
-    await router.sendTaskUpdate("task-slack-curated", "Executing step 1/3: Inspect the codebase");
-    await router.sendTaskUpdate("task-slack-curated", "Completed step 1: Inspect the codebase");
+    await router.sendTaskUpdate(
+      "task-slack-curated",
+      "Creating execution plan (model: gpt-5.4)...",
+    );
+    await router.sendTaskUpdate(
+      "task-slack-curated",
+      "Executing step 1/3: Inspect the codebase",
+    );
+    await router.sendTaskUpdate(
+      "task-slack-curated",
+      "Completed step 1: Inspect the codebase",
+    );
 
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1);
     expect(adapter.sendMessage).toHaveBeenCalledWith(
@@ -381,14 +780,18 @@ describe("MessageRouter external channel task updates", () => {
     const db = createMockDb();
     const router = new MessageRouter(db, {}, undefined);
     const adapter = createChatAdapter("whatsapp");
-    adapter.editMessage = vi.fn().mockRejectedValueOnce(new Error("edit failed"));
+    adapter.editMessage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("edit failed"));
 
     (router as Any).adapters.set("whatsapp", adapter);
     (router as Any).channelRepo.findById = vi.fn().mockReturnValue({
       id: "wa-1",
       config: { progressRelayMode: "curated" },
     });
-    (router as Any).channelRepo.findByType = vi.fn().mockReturnValue({ id: "wa-1" });
+    (router as Any).channelRepo.findByType = vi
+      .fn()
+      .mockReturnValue({ id: "wa-1" });
     (router as Any).messageRepo.create = vi.fn();
     (router as Any).pendingTaskResponses.set("task-wa-edit-fallback", {
       adapter,
@@ -429,7 +832,9 @@ describe("MessageRouter external channel task updates", () => {
       id: "slack-1",
       config: { progressRelayMode: "curated" },
     });
-    (router as Any).channelRepo.findByType = vi.fn().mockReturnValue({ id: "slack-1" });
+    (router as Any).channelRepo.findByType = vi
+      .fn()
+      .mockReturnValue({ id: "slack-1" });
     (router as Any).messageRepo.create = vi.fn();
     (router as Any).pendingTaskResponses.set("task-slack-stream", {
       adapter,
@@ -438,7 +843,11 @@ describe("MessageRouter external channel task updates", () => {
       sessionId: "session-1",
     });
 
-    await router.sendTaskUpdate("task-slack-stream", "I found the root cause. Applying the fix now.", true);
+    await router.sendTaskUpdate(
+      "task-slack-stream",
+      "I found the root cause. Applying the fix now.",
+      true,
+    );
 
     await vi.advanceTimersByTimeAsync(2000);
     await Promise.resolve();
@@ -462,8 +871,12 @@ describe("MessageRouter external channel task updates", () => {
     const adapter = createChatAdapter("discord");
 
     (router as Any).adapters.set("discord", adapter);
-    (router as Any).channelRepo.findById = vi.fn().mockReturnValue({ id: "discord-1" });
-    (router as Any).channelRepo.findByType = vi.fn().mockReturnValue({ id: "discord-1" });
+    (router as Any).channelRepo.findById = vi
+      .fn()
+      .mockReturnValue({ id: "discord-1" });
+    (router as Any).channelRepo.findByType = vi
+      .fn()
+      .mockReturnValue({ id: "discord-1" });
     (router as Any).messageRepo.create = vi.fn();
     (router as Any).pendingTaskResponses.set("task-discord", {
       adapter,
@@ -472,7 +885,11 @@ describe("MessageRouter external channel task updates", () => {
       sessionId: "session-1",
     });
 
-    await router.sendTaskUpdate("task-discord", "I found the issue. Applying the fix now.", true);
+    await router.sendTaskUpdate(
+      "task-discord",
+      "I found the issue. Applying the fix now.",
+      true,
+    );
 
     await vi.advanceTimersByTimeAsync(2000);
     await Promise.resolve();
@@ -494,7 +911,9 @@ describe("MessageRouter external channel task updates", () => {
       const adapter = createChatAdapter(channelType);
 
       (router as Any).adapters.set(channelType, adapter);
-      (router as Any).channelRepo.findByType = vi.fn().mockReturnValue({ id: `${channelType}-1` });
+      (router as Any).channelRepo.findByType = vi
+        .fn()
+        .mockReturnValue({ id: `${channelType}-1` });
       (router as Any).messageRepo.create = vi.fn();
       (router as Any).pendingTaskResponses.set(`task-noise-${channelType}`, {
         adapter,
@@ -503,12 +922,18 @@ describe("MessageRouter external channel task updates", () => {
         sessionId: "session-1",
       });
 
-      await router.sendTaskUpdate(`task-noise-${channelType}`, "Running run_command");
+      await router.sendTaskUpdate(
+        `task-noise-${channelType}`,
+        "Running run_command",
+      );
       await router.sendTaskUpdate(
         `task-noise-${channelType}`,
         "Resuming execution after user input",
       );
-      await router.sendTaskUpdate(`task-noise-${channelType}`, "Glob search: */*.pdf in .");
+      await router.sendTaskUpdate(
+        `task-noise-${channelType}`,
+        "Glob search: */*.pdf in .",
+      );
       await router.sendTaskUpdate(
         `task-noise-${channelType}`,
         "Tool error (run_command): permission denied",

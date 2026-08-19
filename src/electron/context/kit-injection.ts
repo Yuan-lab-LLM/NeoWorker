@@ -58,8 +58,8 @@ export function buildWorkspaceKitSections(ctx: InjectionContext): RenderedKitSec
     if (!contract) continue;
     if (!shouldIncludeContract(contract, ctx)) continue;
 
-    const relPath = path.join(".cowork", contract.file).replace(/\\/g, "/");
-    const absPath = path.join(ctx.workspacePath, ".cowork", contract.file);
+    const relPath = path.join(".neoworker", contract.file).replace(/\\/g, "/");
+    const absPath = path.join(ctx.workspacePath, ".neoworker", contract.file);
     const parsed = parseKitDocument(absPath, contract, relPath);
     if (!parsed) continue;
 
@@ -91,8 +91,8 @@ export function buildRoleKitSection(
   const contract = WORKSPACE_KIT_CONTRACTS[file];
   if (!contract) return null;
 
-  const relPath = path.join(".cowork", "agents", roleDir, file).replace(/\\/g, "/");
-  const absPath = path.join(workspacePath, ".cowork", "agents", roleDir, file);
+  const relPath = path.join(".neoworker", "agents", roleDir, file).replace(/\\/g, "/");
+  const absPath = path.join(workspacePath, ".neoworker", "agents", roleDir, file);
   const parsed = parseKitDocument(absPath, contract, relPath);
   if (!parsed) return null;
 

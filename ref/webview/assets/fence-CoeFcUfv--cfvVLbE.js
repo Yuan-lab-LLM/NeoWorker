@@ -1,0 +1,3 @@
+import { n as e, t } from "./fence-CoeFcUfv-DDy1BzMk.js";
+t();
+export { e as default };

@@ -1,6 +1,6 @@
-# OpenClaw vs CoWork OS Feature Comparison
+# OpenClaw vs NeoWorker Feature Comparison
 
-This document compares the features shown in the provided comparison list against the current evidence available in the **CoWork OS** repository and the **OpenClaw** repository.
+This document compares the features shown in the provided comparison list against the current evidence available in the **NeoWorker** repository and the **OpenClaw** repository.
 
 ## Scope
 
@@ -25,32 +25,32 @@ Compared features:
 High level:
 
 - **OpenClaw** appears stronger on plain-markdown workspace memory and public skill registry/discovery.
-- **CoWork OS** appears stronger on structured memory architecture, Workflow Intelligence, approval-gated skill creation, built-in governance/security controls, and now a shared turn kernel / tool scheduler / orchestration graph stack for delegated work.
+- **NeoWorker** appears stronger on structured memory architecture, Workflow Intelligence, approval-gated skill creation, built-in governance/security controls, and now a shared turn kernel / tool scheduler / orchestration graph stack for delegated work.
 - Some items in the screenshot are not first-class product terms in either repo, so a few rows are marked **Partial** or **Unclear**.
 
 ## Comparison Table
 
-| Feature | CoWork OS | OpenClaw | Notes |
+| Feature | NeoWorker | OpenClaw | Notes |
 |---|---|---|---|
-| Memory system | Yes | Yes | CoWork OS now has layered memory with curated hot memory, archive recall, session recall, topic packs, knowledge graph, workspace kit, and imported ChatGPT history. OpenClaw uses workspace markdown memory files such as `MEMORY.md` and `memory/YYYY-MM-DD.md`. |
+| Memory system | Yes | Yes | NeoWorker now has layered memory with curated hot memory, archive recall, session recall, topic packs, knowledge graph, workspace kit, and imported ChatGPT history. OpenClaw uses workspace markdown memory files such as `MEMORY.md` and `memory/YYYY-MM-DD.md`. |
 | Memory size | Partial / not explicit | Partial / not explicit | Neither repo clearly presents a specific memory-capacity feature or configurable marketed size in the reviewed docs. Both focus more on compaction and management. |
-| Memory nudges | Partial | Yes | CoWork OS has failure-pattern nudges and proactive reminder-style behavior via memory/persona systems, but not a clearly named “memory nudge” feature. OpenClaw explicitly references heartbeat nudges. |
-| Memory flush | Yes | Yes | CoWork OS flushes compaction summaries into durable memory. OpenClaw documents automatic pre-compaction memory flush and silent memory flush to disk. |
-| Memory injection security | Partial | Partial | Both have adjacent controls, but not necessarily under this exact label. CoWork OS documents sanitization, privacy protection, prompt hardening, and memory controls. OpenClaw documents trust boundaries and explicitly treats prompt-injection-only findings as out of scope without a boundary bypass. |
+| Memory nudges | Partial | Yes | NeoWorker has failure-pattern nudges and proactive reminder-style behavior via memory/persona systems, but not a clearly named “memory nudge” feature. OpenClaw explicitly references heartbeat nudges. |
+| Memory flush | Yes | Yes | NeoWorker flushes compaction summaries into durable memory. OpenClaw documents automatic pre-compaction memory flush and silent memory flush to disk. |
+| Memory injection security | Partial | Partial | Both have adjacent controls, but not necessarily under this exact label. NeoWorker documents sanitization, privacy protection, prompt hardening, and memory controls. OpenClaw documents trust boundaries and explicitly treats prompt-injection-only findings as out of scope without a boundary bypass. |
 | Skill system | Yes | Yes | Both repos clearly support reusable skills. |
-| Skill standard | Yes | Yes | CoWork OS has a documented skill quality specification. OpenClaw has a documented skill bundle structure centered on `SKILL.md` plus registry metadata. |
-| Autonomous skill creation | Partial, approval-gated | Partial / unclear | CoWork OS supports `skill_proposal.create` but requires approval before a skill is materialized. OpenClaw supports publish/install/discovery flows, but reviewed docs do not clearly show autonomous self-authoring by the agent. |
-| Reflective learning loop | Yes | Partial | CoWork OS has explicit Workflow Intelligence documentation, reinforcement loops, correction capture, and `memory_save`. OpenClaw has learning references, but not as clearly productized in the reviewed sources. |
-| Skill security scanning | Yes | Partial | CoWork OS documents skill validation/audit tooling. OpenClaw shows install gating and unsafe-skill reporting, but no equally explicit skill scan pipeline was found in the reviewed material. |
-| Session history search | Yes | Yes | CoWork OS supports explicit recent-run recall through `search_sessions` plus archive/global retrieval. OpenClaw includes a dedicated sessions history tool. |
-| Cross-session user modeling | Yes | Partial | CoWork OS has relationship memory, user profile extraction, and adaptive style/personalization. OpenClaw has personal assistant and profile/persona concepts, but less explicit structured cross-session user modeling in the reviewed docs. |
-| Cache-stable memory | Yes | Yes | CoWork OS now documents provider-aware stable-prefix prompt caching driven by session-scoped prompt sections and persisted prompt-cache state. OpenClaw explicitly documents cache-stable prompt behavior by keeping the time-zone section stable. |
+| Skill standard | Yes | Yes | NeoWorker has a documented skill quality specification. OpenClaw has a documented skill bundle structure centered on `SKILL.md` plus registry metadata. |
+| Autonomous skill creation | Partial, approval-gated | Partial / unclear | NeoWorker supports `skill_proposal.create` but requires approval before a skill is materialized. OpenClaw supports publish/install/discovery flows, but reviewed docs do not clearly show autonomous self-authoring by the agent. |
+| Reflective learning loop | Yes | Partial | NeoWorker has explicit Workflow Intelligence documentation, reinforcement loops, correction capture, and `memory_save`. OpenClaw has learning references, but not as clearly productized in the reviewed sources. |
+| Skill security scanning | Yes | Partial | NeoWorker documents skill validation/audit tooling. OpenClaw shows install gating and unsafe-skill reporting, but no equally explicit skill scan pipeline was found in the reviewed material. |
+| Session history search | Yes | Yes | NeoWorker supports explicit recent-run recall through `search_sessions` plus archive/global retrieval. OpenClaw includes a dedicated sessions history tool. |
+| Cross-session user modeling | Yes | Partial | NeoWorker has relationship memory, user profile extraction, and adaptive style/personalization. OpenClaw has personal assistant and profile/persona concepts, but less explicit structured cross-session user modeling in the reviewed docs. |
+| Cache-stable memory | Yes | Yes | NeoWorker now documents provider-aware stable-prefix prompt caching driven by session-scoped prompt sections and persisted prompt-cache state. OpenClaw explicitly documents cache-stable prompt behavior by keeping the time-zone section stable. |
 
 ## Detailed Notes by Feature
 
 ### 1. Memory system
 
-**CoWork OS**
+**NeoWorker**
 
 - README describes a persistent memory system, knowledge graph, relationship memory, workspace kit, and ChatGPT history import.
 - `docs/features.md` describes hybrid `search_memories`, memory compression, privacy protection, and auto-capture.
@@ -65,12 +65,12 @@ High level:
 
 Neither repo, in the reviewed sources, positions “memory size” as a clear feature with a concrete product-level quota or configurable marketed capacity.
 
-- CoWork OS focuses on compaction, compression, hybrid retrieval, and flush behavior.
+- NeoWorker focuses on compaction, compression, hybrid retrieval, and flush behavior.
 - OpenClaw focuses on compaction, session summaries, and memory flush to disk.
 
 ### 3. Memory nudges
 
-**CoWork OS**
+**NeoWorker**
 
 - Has adjacent behavior rather than a directly named memory-nudge feature.
 - `docs/changelog.md` mentions repeated-failure detection that nudges the agent to switch strategy.
@@ -83,7 +83,7 @@ Neither repo, in the reviewed sources, positions “memory size” as a clear fe
 
 ### 4. Memory flush
 
-**CoWork OS**
+**NeoWorker**
 
 - `docs/context-compaction.md` states that compaction summaries are flushed to `MemoryService` for cross-session recall.
 - The same document describes pre-compaction flush and proactive compaction behavior.
@@ -97,7 +97,7 @@ Neither repo, in the reviewed sources, positions “memory size” as a clear fe
 
 This feature label is somewhat interpretation-dependent, so the comparison below is based on adjacent security controls.
 
-**CoWork OS**
+**NeoWorker**
 
 - `docs/security-guide.md` documents sanitization, prompt/skill hardening, validation, and protections around memory/context injection.
 - `docs/workflow-intelligence.md` documents durable evidence, critique, winner selection, target-scoped reflection, reviewable suggestions, and feedback learning.
@@ -112,7 +112,7 @@ This feature label is somewhat interpretation-dependent, so the comparison below
 
 Both repos clearly have a real skill system.
 
-**CoWork OS**
+**NeoWorker**
 
 - README advertises 151 built-in skills.
 - `resources/skills/` contains bundled skills.
@@ -125,7 +125,7 @@ Both repos clearly have a real skill system.
 
 ### 7. Skill standard
 
-**CoWork OS**
+**NeoWorker**
 
 - `docs/skills-quality-spec.md` defines quality standards for bundled skills.
 - Validation and audit commands are documented in `docs/development.md`.
@@ -137,7 +137,7 @@ Both repos clearly have a real skill system.
 
 ### 8. Autonomous skill creation
 
-**CoWork OS**
+**NeoWorker**
 
 - Supports approval-gated skill creation via `skill_proposal.create`, `approve`, and `reject`.
 - `docs/integration-skill-bootstrap-lifecycle.md` is explicit that proposals do not directly mutate skills without approval.
@@ -149,7 +149,7 @@ Both repos clearly have a real skill system.
 
 ### 9. Reflective learning loop
 
-**CoWork OS**
+**NeoWorker**
 
 - `docs/workflow-intelligence.md` documents the reflective architecture and its learning substrate.
 - Includes correction capture, playbook reinforcement, user preference learning, and agent-initiated `memory_save`.
@@ -157,11 +157,11 @@ Both repos clearly have a real skill system.
 **OpenClaw**
 
 - Repository search shows references to learning and feedback flows.
-- But the reviewed docs do not present an equally explicit, centralized architecture page comparable to CoWork OS's Workflow Intelligence design.
+- But the reviewed docs do not present an equally explicit, centralized architecture page comparable to NeoWorker's Workflow Intelligence design.
 
 ### 10. Skill security scanning
 
-**CoWork OS**
+**NeoWorker**
 
 - `docs/skills-quality-spec.md` and `docs/development.md` document validation and audit tooling:
   - `npm run skills:validate-routing`
@@ -176,7 +176,7 @@ Both repos clearly have a real skill system.
 
 ### 11. Session history search
 
-**CoWork OS**
+**NeoWorker**
 
 - `docs/features.md` documents unified archive search plus explicit session recall via `search_sessions`.
 - `docs/workspace-memory-flow.md` documents transcript spans/checkpoints and tool-driven recall.
@@ -188,7 +188,7 @@ Both repos clearly have a real skill system.
 
 ### 12. Cross-session user modeling
 
-**CoWork OS**
+**NeoWorker**
 
 - `docs/relationship-agent-architecture.md` and `docs/workflow-intelligence.md` document relationship memory, user profile extraction, commitment tracking, and personalization.
 - README also describes Adaptive Style Engine and related evolving-intelligence behavior.
@@ -200,7 +200,7 @@ Both repos clearly have a real skill system.
 
 ### 13. Cache-stable memory
 
-**CoWork OS**
+**NeoWorker**
 
 - `docs/providers.md` documents default-on provider-aware prompt caching with stable system sections, volatile turn sections, Anthropic auto mode, and OpenRouter Claude explicit breakpoints.
 - `docs/execution-runtime-model.md` documents stable-prefix prompt caching driven by session- vs turn-scoped prompt sections.
@@ -214,15 +214,15 @@ Both repos clearly have a real skill system.
 
 If the goal is a feature-for-feature comparison against the provided list:
 
-- **CoWork OS leads** on structured memory architecture, reflective learning, user modeling, approval-gated skill creation, and skill validation/audit.
+- **NeoWorker leads** on structured memory architecture, reflective learning, user modeling, approval-gated skill creation, and skill validation/audit.
 - **OpenClaw leads** on public skill-registry/discovery workflows, simple workspace-native memory files, and heartbeat-style nudges.
 - **Both** support core memory and skills, but they package these capabilities differently:
-  - **CoWork OS** favors governance, structure, and production controls.
+  - **NeoWorker** favors governance, structure, and production controls.
   - **OpenClaw** favors personal-assistant workflows, workspace-native simplicity, and extensible operator tooling.
 
 ## Evidence References
 
-### CoWork OS
+### NeoWorker
 
 - `README.md`
 - `docs/features.md`

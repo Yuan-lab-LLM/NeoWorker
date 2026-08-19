@@ -53,10 +53,10 @@ describe("OpenRouterProvider attribution headers", () => {
         headers: expect.objectContaining({
           Authorization: "Bearer test-key",
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://github.com/CoWork-OS/CoWork-OS",
-          "X-OpenRouter-Title": "CoWork OS",
+          "HTTP-Referer": "https://github.com/NeoWorker/NeoWorker",
+          "X-OpenRouter-Title": "NeoWorker",
           "X-OpenRouter-Categories": "personal-agent,programming-app",
-          "X-Title": "CoWork OS",
+          "X-Title": "NeoWorker",
         }),
       }),
     );
@@ -224,10 +224,10 @@ describe("OpenRouterProvider attribution headers", () => {
     expect(fetchMock).toHaveBeenCalledWith("https://openrouter.ai/api/v1/models", {
       headers: {
         Authorization: "Bearer test-key",
-        "HTTP-Referer": "https://github.com/CoWork-OS/CoWork-OS",
-        "X-OpenRouter-Title": "CoWork OS",
+        "HTTP-Referer": "https://github.com/NeoWorker/NeoWorker",
+        "X-OpenRouter-Title": "NeoWorker",
         "X-OpenRouter-Categories": "personal-agent,programming-app",
-        "X-Title": "CoWork OS",
+        "X-Title": "NeoWorker",
       },
     });
   });

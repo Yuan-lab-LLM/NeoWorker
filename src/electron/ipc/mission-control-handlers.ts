@@ -1205,10 +1205,56 @@ export function setupMissionControlHandlers(deps: MissionControlDeps): void {
     },
   );
 
-  ipcMain.handle(IPC_CHANNELS.MC_PROJECT_LIST, async (_, companyId: string) => {
-    const validated = validateInput(UUIDSchema, companyId, "company ID");
-    return core.listProjects({ companyId: validated });
+  ipcMain.handle(
+    IPC_CHANNELS.MC_PROJECT_LIST,
+    async (_, request: string | { companyId: string; includeArchived?: boolean }) => {
+      const companyId = typeof request === "string" ? request : request.companyId;
+      const validated = validateInput(UUIDSchema, companyId, "company ID");
+      return core.listProjects({
+        companyId: validated,
+        includeArchived: typeof request === "object" && request.includeArchived === true,
+      });
+    },
+  );
+
+  ipcMain.handle(IPC_CHANNELS.MC_PROJECT_WORKSPACE_LIST, async (_, projectId: string) => {
+    const validated = validateInput(UUIDSchema, projectId, "project ID");
+    return core.listProjectWorkspaces(validated);
   });
+
+  ipcMain.handle(
+    IPC_CHANNELS.MC_PROJECT_WORKSPACE_LINK,
+    async (_, request: { projectId: string; workspaceId: string; isPrimary?: boolean }) => {
+      checkRateLimit(IPC_CHANNELS.MC_PROJECT_WORKSPACE_LINK);
+      return core.linkProjectWorkspace({
+        projectId: validateInput(UUIDSchema, request.projectId, "project ID"),
+        workspaceId: requireString(request.workspaceId, "workspace ID"),
+        isPrimary: request.isPrimary === true,
+      });
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.MC_PROJECT_WORKSPACE_UNLINK,
+    async (_, request: { projectId: string; workspaceId: string }) => {
+      checkRateLimit(IPC_CHANNELS.MC_PROJECT_WORKSPACE_UNLINK);
+      return core.unlinkProjectWorkspace(
+        validateInput(UUIDSchema, request.projectId, "project ID"),
+        requireString(request.workspaceId, "workspace ID"),
+      );
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.MC_PROJECT_WORKSPACE_SET_PRIMARY,
+    async (_, request: { projectId: string; workspaceId: string }) => {
+      checkRateLimit(IPC_CHANNELS.MC_PROJECT_WORKSPACE_SET_PRIMARY);
+      return core.setPrimaryProjectWorkspace(
+        validateInput(UUIDSchema, request.projectId, "project ID"),
+        requireString(request.workspaceId, "workspace ID"),
+      );
+    },
+  );
 
   ipcMain.handle(IPC_CHANNELS.MC_PROJECT_GET, async (_, projectId: string) => {
     const validated = validateInput(UUIDSchema, projectId, "project ID");
@@ -1245,6 +1291,42 @@ export function setupMissionControlHandlers(deps: MissionControlDeps): void {
         monthlyBudgetCost:
           request.monthlyBudgetCost === null ? null : optionalNumber(request.monthlyBudgetCost),
         archivedAt: request.archivedAt === null ? null : optionalNumber(request.archivedAt),
+      });
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.MC_PROJECT_CREATE_WITH_WORKSPACE,
+    async (
+      _,
+      request: {
+        companyId?: string;
+        goalId?: string;
+        name: string;
+        description?: string;
+        status?: "active" | "paused" | "completed" | "archived";
+        monthlyBudgetCost?: number | null;
+        archivedAt?: number | null;
+        workspaceId: string;
+      },
+    ) => {
+      checkRateLimit(IPC_CHANNELS.MC_PROJECT_CREATE);
+      return core.createProjectWithWorkspace({
+        companyId: optionalUuid(request.companyId, "company ID"),
+        goalId: optionalUuid(request.goalId, "goal ID"),
+        name: requireString(request.name, "project name"),
+        description:
+          request.description === null ? undefined : optionalString(request.description),
+        status: optionalString(request.status) as
+          | "active"
+          | "paused"
+          | "completed"
+          | "archived"
+          | undefined,
+        monthlyBudgetCost:
+          request.monthlyBudgetCost === null ? null : optionalNumber(request.monthlyBudgetCost),
+        archivedAt: request.archivedAt === null ? null : optionalNumber(request.archivedAt),
+        workspaceId: requireString(request.workspaceId, "workspace ID"),
       });
     },
   );

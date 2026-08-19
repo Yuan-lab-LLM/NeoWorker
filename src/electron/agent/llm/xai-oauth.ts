@@ -320,7 +320,7 @@ export class XAIOAuth {
     if (shell?.openExternal) {
       await shell.openExternal(authorizeUrl);
     } else {
-      console.log("[xAI OAuth] Open this URL to authorize CoWork OS with xAI:");
+      console.log("[xAI OAuth] Open this URL to authorize NeoWorker with xAI:");
       console.log(authorizeUrl);
     }
 

@@ -1,6 +1,6 @@
 # Presentation Artifacts and PPTX Preview
 
-CoWork treats generated PowerPoint decks as first-class presentation artifacts. The current model is review-first: users can inspect slides in the task feed, a resizable right sidebar, or fullscreen mode, then request changes through the same follow-up composer used for spreadsheet and document artifacts. Direct slide editing controls are not part of v1.
+NeoWorker treats generated PowerPoint decks as first-class presentation artifacts. The current model is review-first: users can inspect slides in the task feed, a resizable right sidebar, or fullscreen mode, then request changes through the same follow-up composer used for spreadsheet and document artifacts. Direct slide editing controls are not part of v1.
 
 Presentation artifacts are one surface of the broader [Everything Workbench](everything-workbench.md): generated knowledge-work files open in-place, can be reviewed in context, and keep the follow-up composer beside the artifact.
 
@@ -117,9 +117,14 @@ The preview service is `src/electron/utils/PptxPreviewService.ts`.
 
 Render priority:
 
-1. Codex bundled `@oai/artifact-tool` presentation renderer.
-2. Local `soffice` conversion to PDF plus `pdftoppm` page rendering.
-3. Text-only slide and speaker-note preview.
+1. Local `soffice` conversion to PDF plus `pdftoppm` page rendering. The
+   renderer receives a NeoWorker-managed fontconfig profile with macOS,
+   Windows, and Linux CJK font aliases so Chinese text is not silently replaced
+   by empty boxes.
+2. Codex bundled `@oai/artifact-tool` presentation renderer when LibreOffice
+   cannot render the deck.
+3. Text-only slide and speaker-note preview only when neither image renderer is
+   available.
 
 `PptxPreviewService` is used as a singleton from the Electron IPC layer so render cache and in-flight render dedupe are shared across preview surfaces.
 
@@ -136,9 +141,13 @@ The shared generator is `src/electron/utils/document-generators/pptx-generator.t
 
 Generation behavior:
 
-- uses Codex's bundled `@oai/artifact-tool` runtime first
-- falls back to `pptxgenjs` when the bundled runtime is missing or fails
-- registers the generated `.pptx` as a task artifact with the correct MIME type
+- generic PowerPoint requests route to the bundled `presentation-studio` skill,
+  which uses a source-first PptxGenJS workflow adapted from MiniMax's
+  MIT-licensed presentation design and QA guidance
+- native `generate_presentation` / `create_presentation` calls remain available
+  as the structured low-level generator
+- OfficeCLI remains the structural/content quality inspector for the final file
+- the generated `.pptx` is registered as a task artifact with the correct MIME type
 
 The bundled `kami` skill remains available for explicit editorial slide-deck workflows when the user asks for Kami by name. General presentation generation should use the native presentation tools and Codex presentation runtime by default.
 

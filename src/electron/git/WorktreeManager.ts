@@ -13,7 +13,7 @@ import {
 } from "../../shared/types";
 import { createLogger } from "../utils/logger";
 
-const WORKTREES_DIR = ".cowork-worktrees";
+const WORKTREES_DIR = ".neoworker-worktrees";
 const SETTINGS_KEY = "worktree_settings";
 const SECURE_SETTINGS_CATEGORY = "worktree";
 const logger = createLogger("WorktreeManager");
@@ -123,7 +123,7 @@ export class WorktreeManager {
 
   /**
    * Create a worktree for a task.
-   * The worktree is placed at: <repo-root>/.cowork-worktrees/<taskId-short>/
+   * The worktree is placed at: <repo-root>/.neoworker-worktrees/<taskId-short>/
    */
   async createForTask(
     taskId: string,
@@ -157,7 +157,7 @@ export class WorktreeManager {
       fs.rmSync(worktreePath, { recursive: true, force: true });
     }
 
-    // Ensure .cowork-worktrees is in .gitignore
+    // Ensure .neoworker-worktrees is in .gitignore
     await this.ensureGitignore(repoPath, workspacePath);
 
     // Create the worktree
@@ -367,7 +367,7 @@ export class WorktreeManager {
   }
 
   /**
-   * Ensure .cowork-worktrees is in the .gitignore file.
+   * Ensure .neoworker-worktrees is in the .gitignore file.
    * Uses a session-level cache to avoid redundant file I/O, and writes the
    * full file content atomically to prevent partial writes from concurrent calls.
    */
@@ -396,7 +396,7 @@ export class WorktreeManager {
 
       if (!content.includes(entry)) {
         const newline = content.length > 0 && !content.endsWith("\n") ? "\n" : "";
-        const updated = content + `${newline}# CoWork OS worktrees\n${entry}\n`;
+        const updated = content + `${newline}# NeoWorker worktrees\n${entry}\n`;
         fs.writeFileSync(gitignorePath, updated, "utf-8");
       }
 

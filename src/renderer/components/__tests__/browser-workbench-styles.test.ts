@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const stylesPath = fileURLToPath(new URL("../../styles/index.css", import.meta.url));
+const stylesPath = fileURLToPath(
+  new URL("../../styles/index.css", import.meta.url),
+);
 
 describe("Browser workbench styles", () => {
   it("keeps sidebar chrome below the app title bar", () => {
@@ -59,9 +61,15 @@ describe("Browser workbench styles", () => {
   it("styles live browser annotations as an overlay with pins and composer", () => {
     const source = readFileSync(stylesPath, "utf8");
 
-    expect(source).toMatch(/\.browser-workbench-webview-frame\s*\{[^}]*position:\s*relative;/s);
-    expect(source).toMatch(/\.browser-live-annotation-layer\s*\{[^}]*cursor:\s*crosshair;/s);
-    expect(source).toMatch(/\.browser-live-annotation-box\s*\{[^}]*border:\s*2px solid #0ea5e9;/s);
+    expect(source).toMatch(
+      /\.browser-workbench-webview-frame\s*\{[^}]*position:\s*relative;/s,
+    );
+    expect(source).toMatch(
+      /\.browser-live-annotation-layer\s*\{[^}]*cursor:\s*crosshair;/s,
+    );
+    expect(source).toMatch(
+      /\.browser-live-annotation-box\s*\{[^}]*border:\s*2px solid #0ea5e9;/s,
+    );
     expect(source).toContain(".browser-live-annotation-pin");
     expect(source).toContain(".browser-live-annotation-composer");
   });

@@ -331,7 +331,7 @@ export function compactNetworkToolResultForLocalModel(opts: {
   }
 
   const compacted = compactNetworkEnvelopeForLocalModel(parsed as Record<string, Any>);
-  compacted._cowork_compacted_for_local_model = true;
+  compacted._neoworker_compacted_for_local_model = true;
   compacted._compaction_note =
     "Network response compacted for local Ollama context. URLs, dates, counts, headers, and representative body text were preserved; refetch the source URL if exact omitted text is needed.";
 

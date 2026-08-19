@@ -1,6 +1,6 @@
 # Document Artifacts
 
-CoWork treats task-created Word-style files as first-class artifacts instead of plain file links.
+NeoWorker treats task-created Word-style files as first-class artifacts instead of plain file links.
 
 This page documents the current document artifact concept for local word-processing outputs produced by tasks. The richest in-app experience is for `.docx`: it opens directly in an editable document surface with a Google Docs-style toolbar and saves back to the same file. Other recognized Word-style formats are surfaced as document artifacts with best-effort preview and external-app/folder actions.
 
@@ -41,7 +41,7 @@ The in-app editor supports the current lightweight document editing surface:
 - copy document text
 - open the file externally for full Microsoft Word, Pages, or LibreOffice behavior
 
-For everyday generated document work, this makes CoWork the default Word-style workspace instead of a separate Microsoft Word, Pages, or Google Docs session. Complex layout fidelity, comments, track changes, embedded objects, and advanced native document features still belong in external editors through the provided open actions.
+For everyday generated document work, this makes NeoWorker the default Word-style workspace instead of a separate Microsoft Word, Pages, or Google Docs session. Complex layout fidelity, comments, track changes, embedded objects, and advanced native document features still belong in external editors through the provided open actions.
 
 ## Fullscreen Follow-Up Flow
 

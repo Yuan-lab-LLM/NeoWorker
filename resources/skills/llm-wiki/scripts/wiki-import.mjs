@@ -59,7 +59,7 @@ function parseArgs(argv) {
 async function fetchRemoteSource(source) {
   const response = await fetch(source, {
     headers: {
-      "user-agent": "cowork-os-llm-wiki-import/1.0",
+      "user-agent": "neoworker-llm-wiki-import/1.0",
       accept:
         "text/html, text/markdown, text/plain, application/json, image/*;q=0.8, */*;q=0.1",
     },

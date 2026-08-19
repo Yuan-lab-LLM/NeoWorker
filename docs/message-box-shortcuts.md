@@ -38,7 +38,7 @@ The built-in app command catalog is:
 | `/goal pause` | Pauses the selected task's persistent goal. |
 | `/goal resume` | Resumes the selected task's persistent goal and continues work from the current task state. |
 | `/goal clear` | Clears the selected task's persistent goal metadata. |
-| `/multitask [N] <task>` | Starts a fresh collaborative multitask run. CoWork strips the command prefix, splits the request into `N` lane-specific child tasks (`2-8`, default `4`), runs them through the existing team orchestrator, and synthesizes the result. See [Multitask Command](multitask.md). |
+| `/multitask [N] <task>` | Starts a fresh collaborative multitask run. NeoWorker strips the command prefix, splits the request into `N` lane-specific child tasks (`2-8`, default `4`), runs them through the existing team orchestrator, and synthesizes the result. See [Multitask Command](multitask.md). |
 | `/compact [context]` | Starts a safe continuation-brief workflow that summarizes context, decisions, open questions, constraints, and next actions. |
 | `/doctor [context]` | Starts a diagnostic workflow for workspace/app state, integrations, permissions, skills, commands, and setup issues. It should not make changes unless explicitly asked. |
 | `/undo [context]` | Starts a safe undo-planning workflow. It does not roll back, delete, or modify anything unless the user explicitly approves a follow-up action. |
@@ -56,7 +56,7 @@ They can come from:
 
 - a skill ID such as `/llm-wiki`
 - a plugin-pack alias from `slashCommands`, such as `/gmail-summary-drive`
-- the bundled **CoWork Shortcuts** pack
+- the bundled **NeoWorker Shortcuts** pack
 
 `/review` is the code-review shortcut. It routes to the bundled `code-reviewer` skill, passes the text after `/review` as the review target or focus, and is read-only by default. Examples:
 
@@ -96,15 +96,15 @@ Claude-for-Legal plugin-pack commands use the same slash picker and skills runti
 
 Submitting the card sends a follow-up message to the same task; blank fields are preserved so the workflow can flag missing inputs. See [Claude-for-Legal Workflows](claude-for-legal.md).
 
-## CoWork Shortcuts Pack
+## NeoWorker Shortcuts Pack
 
-CoWork OS ships a bundled **CoWork Shortcuts** plugin pack at:
+NeoWorker ships a bundled **NeoWorker Shortcuts** plugin pack at:
 
 ```text
-resources/plugin-packs/cowork-shortcuts/cowork.plugin.json
+resources/plugin-packs/neoworker-shortcuts/neoworker.plugin.json
 ```
 
-The manifest ID is `cowork-shortcuts-pack`.
+The manifest ID is `neoworker-shortcuts-pack`.
 
 The pack seeds general productivity workflow shortcuts as skills. They are not hard-coded app actions.
 
@@ -181,7 +181,7 @@ Customize remains the authoring and enable/disable surface. There is no separate
 | Plugin alias backend resolution | `src/electron/agent/skill-slash-aliases.ts` |
 | Generic skill slash execution | `src/electron/agent/executor.ts` |
 | Multitask command parser and lane planning | `src/shared/multitask-command.ts`, `src/electron/agents/MultitaskLanePlanner.ts` |
-| Bundled shortcut pack | `resources/plugin-packs/cowork-shortcuts/cowork.plugin.json` |
+| Bundled shortcut pack | `resources/plugin-packs/neoworker-shortcuts/neoworker.plugin.json` |
 
 ## Focused Checks
 

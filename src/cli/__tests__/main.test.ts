@@ -86,7 +86,7 @@ describe("run command guard", () => {
     const code = await main(["run", "doctor"]);
 
     expect(code).toBe(1);
-    expect(stderr).toContain('Did you mean `cowork doctor`?');
-    expect(stderr).toContain("cowork run --force doctor");
+    expect(stderr).toContain('Did you mean `neoworker doctor`?');
+    expect(stderr).toContain("neoworker run --force doctor");
   });
 });

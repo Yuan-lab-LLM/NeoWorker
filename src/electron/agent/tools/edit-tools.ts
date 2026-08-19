@@ -8,6 +8,7 @@ import {
   getWorkspaceRelativePosixPath,
 } from "../../security/project-access";
 import { LLMTool } from "../llm/types";
+import { repairHiddenHtmlContent } from "../../utils/html-content-visibility";
 
 /**
  * EditTools provides surgical file editing capabilities
@@ -107,7 +108,7 @@ export class EditTools {
         throw new Error("File path must be within workspace");
       }
 
-      // Enforce per-project access for `.cowork/projects/*`
+      // Enforce per-project access for `.neoworker/projects/*`
       const relPosix = getWorkspaceRelativePosixPath(workspaceRoot, fullPath);
       if (relPosix !== null) {
         const projectId = getProjectIdFromWorkspaceRelPath(relPosix);
@@ -166,6 +167,13 @@ export class EditTools {
         replacements = 1;
       }
 
+      const extension = path.extname(fullPath).toLowerCase();
+      const visibilityRepair =
+        extension === ".html" || extension === ".htm"
+          ? repairHiddenHtmlContent(newContent)
+          : { content: newContent, repaired: false, reasons: [] };
+      newContent = visibilityRepair.content;
+
       // Write file
       fs.writeFileSync(fullPath, newContent, "utf-8");
 
@@ -176,6 +184,7 @@ export class EditTools {
           replacements,
           oldLength: old_string.length,
           newLength: new_string.length,
+          visibilityRepairApplied: visibilityRepair.repaired,
         },
       });
 

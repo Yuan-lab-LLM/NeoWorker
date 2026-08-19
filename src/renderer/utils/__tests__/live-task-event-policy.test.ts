@@ -18,16 +18,18 @@ function event(type: string, payload: Record<string, unknown> = {}): TaskEvent {
 
 describe("live task event policy", () => {
   it("keeps user-critical events immediate", () => {
-    expect(classifyLiveTaskEvent(event("approval_requested"))).toBe("immediate");
-    expect(classifyLiveTaskEvent(event("assistant_message", { message: "Done" }))).toBe(
+    expect(classifyLiveTaskEvent(event("approval_requested"))).toBe(
       "immediate",
     );
+    expect(
+      classifyLiveTaskEvent(event("assistant_message", { message: "Done" })),
+    ).toBe("immediate");
   });
 
   it("batches successful tool results", () => {
-    expect(classifyLiveTaskEvent(event("tool_result", { tool: "read_file" }))).toBe(
-      "batchable",
-    );
+    expect(
+      classifyLiveTaskEvent(event("tool_result", { tool: "read_file" })),
+    ).toBe("batchable");
   });
 
   it("coalesces repeated provider and network failures", () => {
@@ -39,7 +41,9 @@ describe("live task event policy", () => {
     });
 
     expect(classifyLiveTaskEvent(failed)).toBe("coalescible");
-    expect(getLiveTaskEventCoalesceFingerprint(failed)).toContain("FETCH_FAILED");
+    expect(getLiveTaskEventCoalesceFingerprint(failed)).toContain(
+      "FETCH_FAILED",
+    );
   });
 
   it("hides live-only background noise", () => {

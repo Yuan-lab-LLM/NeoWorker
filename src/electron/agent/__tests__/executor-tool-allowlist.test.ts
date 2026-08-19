@@ -11,6 +11,7 @@ describe("TaskExecutor tool allow-list semantics", () => {
         .mockReturnValue([
           { name: "read_file" },
           { name: "write_file" },
+          { name: "copy_file" },
           { name: "canvas_push" },
           { name: "create_diagram" },
           { name: "generate_video" },
@@ -42,6 +43,7 @@ describe("TaskExecutor tool allow-list semantics", () => {
     expect(availableTools).toEqual([
       { name: "read_file" },
       { name: "write_file" },
+      { name: "copy_file" },
       { name: "create_diagram" },
       { name: "generate_video" },
       { name: "get_video_generation_job" },
@@ -236,7 +238,7 @@ describe("TaskExecutor tool allow-list semantics", () => {
     executor.task = {
       title: "PDF Q&A",
       prompt:
-        "Based on the attached PDF at .cowork/uploads/123/report.pdf, answer what the contract says about renewal.",
+        "Based on the attached PDF at .neoworker/uploads/123/report.pdf, answer what the contract says about renewal.",
       agentConfig: {
         taskIntent: "execution",
       },
@@ -369,6 +371,34 @@ describe("TaskExecutor tool allow-list semantics", () => {
     expect(contract.mode).toBe("mutation_required");
     expect(Array.from(contract.requiredTools)).toContain("get_video_generation_job");
     expect(Array.from(contract.requiredTools)).not.toContain("write_file");
+  });
+
+  it("treats copying a source workbook to a new version as a file mutation", () => {
+    const executor = createExecutor();
+    executor.agentPolicyConfig = null;
+    executor.workspace = { path: process.cwd() };
+    executor.getEffectiveExecutionMode = vi.fn().mockReturnValue("execute");
+
+    const step = {
+      id: "copy-workbook-version",
+      description: "复制源文件为新版本（AI软件部门版）",
+      kind: "primary",
+      status: "pending",
+    };
+
+    const contract = (executor as Any).resolveStepExecutionContract(step);
+    const allowlist = (executor as Any).buildStepToolAllowlist(
+      contract,
+      contract.requiresMutation ? "mutation_required" : "analysis",
+      "writing",
+      step.description,
+    );
+
+    expect(contract.mode).toBe("mutation_required");
+    expect(contract.artifactKind).toBe("file");
+    expect(Array.from(contract.requiredTools)).toContain("copy_file");
+    expect(allowlist.has("copy_file")).toBe(true);
+    expect(allowlist.has("run_command")).toBe(false);
   });
 
   it("promotes a single-step research report task to mutation-required when the task prompt asks for a report artifact", () => {

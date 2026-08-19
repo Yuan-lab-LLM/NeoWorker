@@ -73,7 +73,7 @@ type MacOSCoreLocationProviderOptions = LocationProviderOptions;
 
 const DEFAULT_TIMEOUT_MS = 15000;
 const LOCATION_HELPER_DIR = "location-helper-macos";
-const LOCATION_HELPER_EXECUTABLE = "CoWorkLocationHelper";
+const LOCATION_HELPER_EXECUTABLE = "NeoWorkerLocationHelper";
 
 const VALID_LOCATION_SOURCES: ReadonlySet<string> = new Set<DesktopLocationSource>([
   "macos_core_location",
@@ -135,7 +135,7 @@ export class MacOSCoreLocationProvider implements NativeLocationProvider {
     const accuracy = request.accuracy === "coarse" ? "coarse" : "precise";
     const responsePath = path.join(
       this.tmpdir(),
-      `cowork-location-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.json`,
+      `neoworker-location-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.json`,
     );
     const helperArgs = [
       "--accuracy",
@@ -240,7 +240,7 @@ export class WindowsLocationProvider implements NativeLocationProvider {
     const accuracy = request.accuracy === "coarse" ? "coarse" : "precise";
     const responsePath = path.join(
       this.tmpdir(),
-      `cowork-location-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.json`,
+      `neoworker-location-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.json`,
     );
     const psArgs = [
       "-NoProfile",
@@ -343,7 +343,7 @@ export class LinuxGeoClueProvider implements NativeLocationProvider {
     const accuracy = request.accuracy === "coarse" ? "coarse" : "precise";
     const responsePath = path.join(
       this.tmpdir(),
-      `cowork-location-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.json`,
+      `neoworker-location-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.json`,
     );
     const scriptArgs = [
       scriptPath,

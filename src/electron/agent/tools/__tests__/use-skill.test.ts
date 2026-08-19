@@ -23,7 +23,7 @@ vi.mock("../../../settings/personality-manager", () => ({
       };
     }),
     getUserName: vi.fn().mockImplementation(() => mockPersonalitySettings.relationship?.userName),
-    getAgentName: vi.fn().mockReturnValue("CoWork"),
+    getAgentName: vi.fn().mockReturnValue("NeoWorker"),
     setActivePersona: vi.fn().mockImplementation((personaId: string) => {
       mockPersonalitySettings.activePersona = personaId;
     }),
@@ -965,7 +965,7 @@ describe("set_user_name tool", () => {
 
       expect(result.success).toBe(true);
       expect(result.message).toContain("Bob");
-      expect(result.message).toContain("CoWork");
+      expect(result.message).toContain("NeoWorker");
     });
 
     it("should trim whitespace from name", async () => {

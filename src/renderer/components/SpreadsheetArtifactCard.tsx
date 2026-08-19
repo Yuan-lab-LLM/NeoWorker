@@ -3,9 +3,11 @@ import { createPortal } from "react-dom";
 import { ArrowUpRight, FolderOpen } from "lucide-react";
 import {
   canOpenSpreadsheetInApp,
-  getSpreadsheetFileExtension,
   getSpreadsheetFormatLabel,
 } from "../../shared/spreadsheet-formats";
+import { translate, useLanguage } from "../i18n";
+import { ArtifactFileTypeIcon } from "./ArtifactFileTypeIcon";
+import { ArtifactDownloadButton } from "./ArtifactDownloadButton";
 
 type SpreadsheetArtifactCardProps = {
   filePath: string;
@@ -22,15 +24,18 @@ export function SpreadsheetArtifactCard({
   workspacePath,
   onOpenViewer,
 }: SpreadsheetArtifactCardProps) {
+  useLanguage();
+  const t = translate;
   const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
   const actionsRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const fileName = getFileName(filePath);
   const formatLabel = getSpreadsheetFormatLabel(filePath);
-  const extension = getSpreadsheetFileExtension(filePath);
   const canOpenInViewer = canOpenSpreadsheetInApp(filePath);
-  const iconLabel = extension === ".numbers" ? "N" : extension === ".gsheet" ? "G" : "X";
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -105,9 +110,10 @@ export function SpreadsheetArtifactCard({
 
   return (
     <div className="spreadsheet-artifact-card">
-      <div className="spreadsheet-artifact-icon" aria-hidden="true">
-        <span>{iconLabel}</span>
-      </div>
+      <ArtifactFileTypeIcon
+        filePath={filePath}
+        className="spreadsheet-artifact-icon"
+      />
       <button
         type="button"
         className="spreadsheet-artifact-file"
@@ -115,24 +121,31 @@ export function SpreadsheetArtifactCard({
         title={fileName}
       >
         <span className="spreadsheet-artifact-name">{fileName}</span>
-        <span className="spreadsheet-artifact-meta">Spreadsheet · {formatLabel}</span>
+        <span className="spreadsheet-artifact-meta">
+          {t("artifactCard.spreadsheetMeta", "Spreadsheet · {format}", {
+            format: formatLabel,
+          })}
+        </span>
       </button>
       <div className="spreadsheet-artifact-actions" ref={actionsRef}>
         <button
           type="button"
           className="spreadsheet-artifact-open"
           onClick={handleOpenViewer}
-          title="Open spreadsheet preview"
+          title={t(
+            "artifactCard.openSpreadsheetPreview",
+            "Open spreadsheet preview",
+          )}
         >
           <ArrowUpRight size={18} strokeWidth={2} />
-          <span>Open</span>
+          <span>{t("common.open", "Open")}</span>
         </button>
         <button
           type="button"
           className="spreadsheet-artifact-menu-btn"
           onClick={() => setMenuOpen((current) => !current)}
-          title="Open options"
-          aria-label="Open options"
+          title={t("artifactCard.openOptions", "Open options")}
+          aria-label={t("artifactCard.openOptions", "Open options")}
           aria-expanded={menuOpen}
           aria-haspopup="menu"
         >
@@ -144,9 +157,19 @@ export function SpreadsheetArtifactCard({
             fill="none"
             aria-hidden="true"
           >
-            <path d="M3.5 5.25L7 8.75L10.5 5.25" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M3.5 5.25L7 8.75L10.5 5.25"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </button>
+        <ArtifactDownloadButton
+          filePath={filePath}
+          workspacePath={workspacePath}
+        />
       </div>
       {menuOpen &&
         menuPosition &&
@@ -155,17 +178,34 @@ export function SpreadsheetArtifactCard({
             className="spreadsheet-artifact-menu"
             ref={menuRef}
             role="menu"
-            style={{ position: "fixed", top: menuPosition.top, left: menuPosition.left, right: "auto" }}
+            style={{
+              position: "fixed",
+              top: menuPosition.top,
+              left: menuPosition.left,
+              right: "auto",
+            }}
           >
-            <button type="button" role="menuitem" onClick={() => handleOpenWithApp("Microsoft Excel")}>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleOpenWithApp("Microsoft Excel")}
+            >
               <span className="spreadsheet-artifact-app-icon excel">X</span>
               Microsoft Excel
             </button>
-            <button type="button" role="menuitem" onClick={() => handleOpenWithApp("Numbers")}>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleOpenWithApp("Numbers")}
+            >
               <span className="spreadsheet-artifact-app-icon numbers">N</span>
               Numbers
             </button>
-            <button type="button" role="menuitem" onClick={() => handleOpenWithApp("Microsoft Outlook")}>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleOpenWithApp("Microsoft Outlook")}
+            >
               <span className="spreadsheet-artifact-app-icon outlook">O</span>
               Microsoft Outlook
             </button>
@@ -174,7 +214,7 @@ export function SpreadsheetArtifactCard({
               <span className="spreadsheet-artifact-app-icon finder">
                 <FolderOpen size={14} />
               </span>
-              Open in folder
+              {t("common.openInFolder", "Open in folder")}
             </button>
           </div>,
           document.body,

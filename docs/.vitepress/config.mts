@@ -1,15 +1,15 @@
 import { defineConfig } from 'vitepress';
 
 export default defineConfig({
-  title: 'CoWork OS',
-  description: 'CoWork OS is a local-first, security-hardened desktop and CLI runtime for operating AI agents in production.',
-  base: '/CoWork-OS/',
+  title: 'NeoWorker',
+  description: 'NeoWorker is a local-first, security-hardened desktop and CLI runtime for operating AI agents in production.',
+  base: '/NeoWorker/',
 
   ignoreDeadLinks: true,
 
   head: [
     ['meta', { name: 'theme-color', content: '#646cff' }],
-    ['meta', { name: 'description', content: 'CoWork OS helps teams run local-first AI workflows from desktop and CLI surfaces with approvals, guardrails, and multi-channel operations.' }],
+    ['meta', { name: 'description', content: 'NeoWorker helps teams run local-first AI workflows from desktop and CLI surfaces with approvals, guardrails, and multi-channel operations.' }],
     ['meta', { name: 'keywords', content: 'local-first AI agent OS, AI CLI, approvals, guardrails, production AI workflows' }],
   ],
 
@@ -21,7 +21,7 @@ export default defineConfig({
       { text: 'Release Notes', link: '/release-notes-0.5.49' },
       { text: 'Architecture', link: '/architecture' },
       { text: 'Security', link: '/security/' },
-      { text: 'GitHub', link: 'https://github.com/CoWork-OS/CoWork-OS' },
+      { text: 'GitHub', link: 'https://github.com/NeoWorker/NeoWorker' },
     ],
 
     sidebar: [
@@ -30,8 +30,8 @@ export default defineConfig({
         items: [
           { text: 'Introduction', link: '/' },
           { text: 'Getting Started', link: '/getting-started' },
-          { text: 'CoWork CLI', link: '/cli' },
-          { text: "Beginner's Guide", link: '/cowork-school' },
+          { text: 'NeoWorker CLI', link: '/cli' },
+          { text: "Beginner's Guide", link: '/neoworker-school' },
           { text: 'Platform Updates', link: '/integration-skill-bootstrap-lifecycle' },
         ],
       },
@@ -41,7 +41,7 @@ export default defineConfig({
           { text: 'Overview', link: '/architecture' },
           { text: 'Reliability Flywheel', link: '/reliability-flywheel' },
           { text: 'Runtime Visibility', link: '/operator-runtime-visibility' },
-          { text: 'CoWork CLI', link: '/cli' },
+          { text: 'NeoWorker CLI', link: '/cli' },
           { text: 'Terminal Tabs', link: '/terminal-tabs' },
           { text: 'Computer Use (macOS)', link: '/computer-use' },
           { text: 'Live Canvas', link: '/live-canvas' },
@@ -80,7 +80,7 @@ export default defineConfig({
           { text: 'Channel Integrations', link: '/channels' },
           { text: 'Channel Comparison', link: '/channel-comparison' },
           { text: 'Composer Mentions', link: '/composer-mentions' },
-          { text: 'CoWork CLI', link: '/cli' },
+          { text: 'NeoWorker CLI', link: '/cli' },
           { text: 'Side Chat', link: '/side-chat' },
           { text: 'Terminal Tabs', link: '/terminal-tabs' },
           { text: 'Inbox Agent', link: '/inbox-agent' },
@@ -121,7 +121,7 @@ export default defineConfig({
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/CoWork-OS/CoWork-OS' },
+      { icon: 'github', link: 'https://github.com/NeoWorker/NeoWorker' },
     ],
 
     search: {
@@ -130,7 +130,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright CoWork OS Contributors',
+      copyright: 'Copyright NeoWorker Contributors',
     },
   },
 });

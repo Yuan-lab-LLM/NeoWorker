@@ -1,6 +1,6 @@
 # Release Notes 0.5.47
 
-Release `0.5.47` is a reliability-focused release for longer-running CoWork OS sessions. It reduces main-thread memory search pressure, improves multi-agent and multi-task renderer stability, tightens permission/privacy behavior, and keeps the macOS desktop artifact on the unsigned fallback distribution path.
+Release `0.5.47` is a reliability-focused release for longer-running NeoWorker sessions. It reduces main-thread memory search pressure, improves multi-agent and multi-task renderer stability, tightens permission/privacy behavior, and keeps the macOS desktop artifact on the unsigned fallback distribution path.
 
 ## Highlights
 
