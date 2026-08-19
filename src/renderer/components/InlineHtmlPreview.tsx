@@ -263,6 +263,8 @@ export function InlineHtmlPreview({
   showChrome = false,
   onOpenViewer,
 }: InlineHtmlPreviewProps) {
+  useLanguage();
+  const t = translate;
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<FileViewerResult["data"] | null>(null);
   const [error, setError] = useState<string | null>(null);

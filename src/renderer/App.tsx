@@ -80,6 +80,7 @@ import {
   IntegrationMentionSelection,
   AgentRole,
   TaskTimelinePageCursor,
+  TaskTimelinePageResult,
   ActiveArtifactContext,
 } from "../shared/types";
 import { getEffectiveTaskEventType } from "./utils/task-event-compat";
@@ -96,6 +97,15 @@ import {
   appendRendererTaskEvents,
   capTaskEvents,
 } from "./utils/task-event-append";
+import { TaskTimelineCache } from "./utils/task-timeline-cache";
+import {
+  TASK_TIMELINE_HISTORY_BYTE_LIMIT,
+  TASK_TIMELINE_HISTORY_LIMIT,
+  TASK_TIMELINE_INITIAL_BYTE_LIMIT,
+  TASK_TIMELINE_INITIAL_LIMIT,
+  TASK_TIMELINE_MAX_PAGE_LIMIT,
+  TASK_TIMELINE_SINGLE_EVENT_BYTE_LIMIT,
+} from "../shared/task-timeline-limits";
 import { applyPersistedLanguage, translate, useLanguage } from "./i18n";
 import {
   FEATURE_VISIBILITY,
@@ -2228,6 +2238,7 @@ const MAX_TIMELINE_HISTORY_EVENTS = 1200;
 const MAX_TIMELINE_HISTORY_PAYLOAD_BYTES = 2 * 1024 * 1024;
 const MAX_TIMELINE_HISTORY_PAGE_PAYLOAD_BYTES = 512 * 1024;
 const MAX_EVENT_DETAIL_NEGATIVE_CACHE_ENTRIES = 120;
+const MAX_EVENT_DETAIL_CACHE_ENTRIES = 120;
 const EVENT_DETAIL_NEGATIVE_CACHE_MS = 30 * 1000;
 const APPROVAL_TOAST_PREFIX = "approval-request-";
 const RENDERER_DROPPED_EVENT_TYPES = new Set(["log", "task_analysis"]);
@@ -3233,13 +3244,19 @@ export function App() {
     [mergeSelectedTaskTimelineEvents],
   );
 
-  // Platform detection for Windows-specific UI (custom window controls, opaque backgrounds)
-  const isWindows =
-    hasElectronAPI && window.electronAPI.getPlatform() === "win32";
-  useEffect(() => {
+  // Platform detection for window chrome and platform-specific surfaces.
+  const platform = hasElectronAPI ? window.electronAPI.getPlatform() : "";
+  const usesNativeWindowFrame =
+    hasElectronAPI && window.electronAPI.getNativeFrameMode?.() === true;
+  const isWindows = platform === "win32";
+  useLayoutEffect(() => {
     document.documentElement.classList.toggle(
       "platform-darwin",
-      hasElectronAPI && window.electronAPI.getPlatform() === "darwin",
+      platform === "darwin",
+    );
+    document.documentElement.classList.toggle(
+      "platform-native-frame",
+      usesNativeWindowFrame,
     );
     if (isWindows) {
       document.documentElement.classList.add("platform-win32");
@@ -6348,6 +6365,7 @@ export function App() {
       taskId: string,
       remote: { deviceId: string; deviceName: string },
     ) => {
+      const requestSequence = ++remoteTaskOpenRequestSeqRef.current;
       try {
         const [taskResult, timelineResult] = await Promise.all([
           window.electronAPI?.deviceProxyRequest?.({
@@ -6370,11 +6388,50 @@ export function App() {
         const remoteTask = (
           taskResult?.payload as { task?: Task | null } | undefined
         )?.task;
-        const remoteEvents = (
-          (eventsResult?.payload as { events?: TaskEvent[] } | undefined)
-            ?.events || []
-        ).sort((a, b) => a.timestamp - b.timestamp);
-        if (!remoteTask) return;
+        let timelinePage = timelineResult?.payload as
+          | TaskTimelinePageResult
+          | undefined;
+        if (!timelinePage?.events) {
+          const eventsResult = await window.electronAPI?.deviceProxyRequest?.({
+            deviceId: remote.deviceId,
+            method: "task.events",
+            params: { taskId, limit: TASK_TIMELINE_MAX_PAGE_LIMIT },
+          });
+          const fallbackEvents = (
+            (eventsResult?.payload as { events?: TaskEvent[] } | undefined)
+              ?.events || []
+          ).sort((a, b) => a.timestamp - b.timestamp);
+          timelinePage = {
+            taskId,
+            events: fallbackEvents,
+            nextCursor: null,
+            hasMoreHistory: false,
+            summary: {
+              eventCount: fallbackEvents.length,
+              payloadBytes: 0,
+              truncatedEventCount: 0,
+              largestEventPayloadBytes: 0,
+            },
+          };
+          if (fallbackEvents.length >= TASK_TIMELINE_MAX_PAGE_LIMIT) {
+            addToast({
+              id: `remote-history-limited:${remote.deviceId}:${taskId}`,
+              type: "warning",
+              title: "Earlier remote history unavailable",
+              message:
+                "This device uses an older history API. The newest 600 events are shown; earlier events require updating that device.",
+            });
+          }
+        }
+        if (
+          !remoteTask ||
+          requestSequence !== remoteTaskOpenRequestSeqRef.current
+        )
+          return;
+
+        eventDetailCacheRef.current.clear();
+        eventDetailPreviewRef.current.clear();
+        eventDetailInFlightRef.current.clear();
 
         setRemoteTaskView({
           deviceId: remote.deviceId,

@@ -373,6 +373,7 @@ export function BrowserWorkbenchView({
   onOpenSettings,
   turnContext,
 }: BrowserWorkbenchViewProps) {
+  const initialNavigationUrl = normalizeUrl(initialUrl || "");
   useLanguage();
   const t = translate;
   const webviewRef = useRef<Any>(null);
@@ -384,7 +385,7 @@ export function BrowserWorkbenchView({
   const liveAnnotationInspectRequestIdRef = useRef(0);
   const webviewDomReadyRef = useRef(false);
   const registeredWebContentsIdRef = useRef<number | null>(null);
-  const activeUrlRef = useRef(initialUrl || "");
+  const activeUrlRef = useRef(initialNavigationUrl);
   const activeTabIdRef = useRef("active");
   const titleRef = useRef("");
   const onStatusChangeRef = useRef(onStatusChange);
