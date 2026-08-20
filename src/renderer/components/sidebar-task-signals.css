@@ -1,0 +1,90 @@
+.sidebar-task-signals {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sidebar-task-liveness {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
+.sidebar-task-liveness > span {
+  width: 6px;
+  height: 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.sidebar-task-liveness.state-working {
+  color: var(--color-accent);
+}
+
+.sidebar-task-liveness.state-working > span {
+  animation: sidebar-task-liveness-pulse 1.8s ease-in-out infinite;
+}
+
+.sidebar-task-liveness.state-waiting {
+  color: var(--color-text-muted);
+}
+
+.sidebar-task-liveness.state-waiting > span {
+  background: transparent;
+  opacity: 0.78;
+}
+
+.cli-task-source-icon {
+  position: relative;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.cli-task-source-icon:hover,
+.cli-task-source-icon:focus-visible {
+  background: var(--color-bg-hover);
+  opacity: 1;
+}
+
+.sidebar-task-source-overflow {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 2px;
+  border-radius: 5px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-muted);
+  font-size: 8px;
+  font-weight: 650;
+  line-height: 12px;
+  text-align: center;
+}
+
+@keyframes sidebar-task-liveness-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-task-liveness.state-working > span {
+    animation: none;
+  }
+}

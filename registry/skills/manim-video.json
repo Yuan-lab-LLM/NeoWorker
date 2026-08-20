@@ -1,0 +1,117 @@
+{
+  "id": "manim-video",
+  "name": "Manim Video",
+  "description": "Plan, scaffold, and render Manim Community Edition explainer videos for math, algorithms, technical concepts, and data stories.",
+  "icon": "🎬",
+  "category": "Creative",
+  "prompt": "# Manim Video\n\nUse this skill when the user wants a Manim Community Edition animation: mathematical explainers, equation walkthroughs, algorithm visualizations, architecture build-ups, research explainers, or 3Blue1Brown-style technical videos.\n\nDo not use this skill when:\n- the task is live-action editing, stock-footage montage, or general motion graphics better served by a timeline editor\n- the output is a static diagram, slide deck, or single image\n- the user only wants high-level brainstorming with no renderable plan or code output\n\nInputs:\n- Topic: {{topic}}\n- Mode: {{mode}}\n- Audience: {{audience}}\n- Target length seconds: {{target_length_seconds}}\n- Output dir: {{output_dir}}\n- Voiceover: {{voiceover}}\n\nExecution workflow:\n1. Resolve the project directory first. If `{{output_dir}}` is empty, use `manim-video-project` in the current workspace.\n2. Run `bash {baseDir}/scripts/setup.sh` and surface missing dependencies before deeper work.\n3. Read `{baseDir}/SKILL.md` and `{baseDir}/references/full-guidance.md`. If setup or render problems appear, also read `{baseDir}/references/troubleshooting.md`.\n4. Bootstrap the project skeleton with `python3 {baseDir}/scripts/bootstrap_project.py` using the resolved directory and the provided inputs.\n5. Produce or update these project files in the resolved directory:\n   - `plan.md`\n   - `script.py`\n   - `concat.txt`\n   - `render.sh`\n   - optional `voiceover.md`\n6. Keep `script.py` renderable:\n   - one `Scene` subclass per beat\n   - shared theme constants at the top\n   - monospace `Text`, raw-string `MathTex`, explicit `run_time`, and `self.wait()` after key reveals\n   - scene cleanup before exit\n7. Write run artifacts to:\n   - `{artifactDir}/project-manifest.md`\n   - `{artifactDir}/render-checklist.md`\n   - `{artifactDir}/review-notes.md`\n8. If dependencies are satisfied and the user asked for execution, render draft scenes first with the generated `render.sh` script. Only move to production quality after the draft review passes.\n9. End with the exact project path, created or updated files, missing dependencies if any, and the next render command.\n\nSuccess criteria:\n- The project contains a coherent narrative plan and a renderable Manim script.\n- Draft render commands are ready without manual setup guesswork.\n- The run leaves a clear manifest and review checklist in `{artifactDir}`.",
+  "parameters": [
+    {
+      "name": "topic",
+      "type": "string",
+      "description": "What the animation should explain or visualize",
+      "required": true
+    },
+    {
+      "name": "mode",
+      "type": "select",
+      "description": "Primary video pattern to scaffold",
+      "required": false,
+      "options": [
+        "auto",
+        "concept-explainer",
+        "equation-derivation",
+        "algorithm-visualization",
+        "data-story",
+        "architecture-diagram",
+        "paper-explainer",
+        "3d-visualization"
+      ]
+    },
+    {
+      "name": "audience",
+      "type": "string",
+      "description": "Target audience for pacing and explanation depth",
+      "required": false
+    },
+    {
+      "name": "target_length_seconds",
+      "type": "string",
+      "description": "Approximate target runtime in seconds",
+      "required": false
+    },
+    {
+      "name": "output_dir",
+      "type": "string",
+      "description": "Workspace-relative or absolute output directory for the Manim project",
+      "required": false
+    },
+    {
+      "name": "voiceover",
+      "type": "select",
+      "description": "Whether to scaffold a voiceover script",
+      "required": false,
+      "options": [
+        "auto",
+        "on",
+        "off"
+      ]
+    }
+  ],
+  "enabled": true,
+  "invocation": {
+    "userInvocable": true
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "NeoWorker",
+    "homepage": "https://github.com/NousResearch/hermes-agent/tree/main/skills/creative/manim-video",
+    "tags": [
+      "manim",
+      "video",
+      "animation",
+      "math",
+      "explainer",
+      "creative",
+      "technical-communication"
+    ],
+    "routing": {
+      "useWhen": "Use when the user asks to create a Manim animation, 3Blue1Brown-style explainer, animated math walkthrough, equation derivation, algorithm visualization, technical concept video, or animated data story.",
+      "dontUseWhen": "Do not use for live-action video editing, generic marketing motion graphics, static diagrams, or requests that only want conceptual brainstorming without renderable outputs.",
+      "outputs": "A workspace-local Manim project with a narrative plan, renderable script, render helper files, and run artifacts under {artifactDir}.",
+      "successCriteria": "The skill produces a coherent plan, a renderable Manim script with scene structure, dependency status, and concrete next-step render commands.",
+      "expectedArtifacts": [
+        "project-manifest.md",
+        "render-checklist.md",
+        "review-notes.md"
+      ],
+      "keywords": [
+        "manim",
+        "3blue1brown",
+        "math animation",
+        "equation derivation",
+        "algorithm visualization",
+        "technical explainer video",
+        "animated architecture diagram",
+        "animated data story"
+      ],
+      "examples": {
+        "positive": [
+          "Make a 3Blue1Brown-style Manim video explaining gradient descent.",
+          "Build a Manim animation that walks through Dijkstra's algorithm.",
+          "Create an animated equation derivation video in Manim CE.",
+          "Use the manim-video skill for this request."
+        ],
+        "negative": [
+          "Edit this talking-head video and add B-roll.",
+          "Design a static system diagram for this architecture review.",
+          "Brainstorm three animation concepts, but do not create code or project files.",
+          "Do not use manim-video for unrelated copywriting or generic video-editing work."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "medium"
+    }
+  }
+}

@@ -1,0 +1,641 @@
+import { LLMMessage, LLMContent as _LLMContent, LLMToolResult as _LLMToolResult } from "./llm";
+import { estimateImageTokens } from "./llm/image-utils";
+
+/**
+ * Context Manager handles conversation history to prevent "input too long" errors
+ * Manages context through compaction and truncation
+ */
+
+// Approximate token limits for different models
+const MODEL_LIMITS: Record<string, number> = {
+  "opus-4-5": 200000,
+  "sonnet-4-5": 200000,
+  "haiku-4-5": 200000,
+  "sonnet-4": 200000,
+  "sonnet-3-5": 200000,
+  "haiku-3-5": 200000,
+  // Common OpenAI model ids (conservative; underestimating is safer than overrunning).
+  "gpt-4o": 128000,
+  "gpt-4o-mini": 128000,
+  "gpt-4.1": 128000,
+  "gpt-4.1-mini": 128000,
+  "gpt-4-turbo": 128000,
+  "gpt-3.5-turbo": 16000,
+  default: 100000,
+};
+
+function inferModelLimit(modelKey: string): number | null {
+  const key = modelKey.toLowerCase().trim();
+  if (!key) return null;
+
+  // Anthropic raw ids: e.g. "claude-3-5-sonnet-latest"
+  if (
+    key.startsWith("claude-") ||
+    key.includes("sonnet") ||
+    key.includes("opus") ||
+    key.includes("haiku")
+  ) {
+    return 200000;
+  }
+
+  // Try to parse "8k", "16k", "32k", "128k" patterns.
+  const match = key.match(/(^|[^0-9])(\d{1,3})k([^0-9]|$)/);
+  if (match) {
+    const k = Number(match[2]);
+    if (Number.isFinite(k) && k > 0) {
+      return k * 1000;
+    }
+  }
+
+  return null;
+}
+
+// Reserve tokens for system prompt and response
+const RESERVED_TOKENS = 8000;
+
+// Maximum tokens for a single tool result
+const MAX_TOOL_RESULT_TOKENS_DEFAULT = 10000;
+const MAX_TOOL_RESULT_TOKENS_DOCUMENT = 30000;
+
+// Number of trailing messages inspected to identify "active" file paths.
+// Older messages that reference these paths are given budget priority during compaction.
+const ACTIVE_PATH_CONTEXT_WINDOW = 4;
+
+// Messages that begin with one of these tags are treated as "pinned" and should
+// survive compaction. (They are system-generated context blocks, not normal chat turns.)
+const PINNED_MESSAGE_TAG_PREFIXES = [
+  "<neoworker_memory_recall>",
+  "<neoworker_compaction_summary>",
+  "<neoworker_shared_context>",
+] as const;
+
+function messageTextForPinnedCheck(message: LLMMessage): string {
+  if (typeof message.content === "string") return message.content;
+  if (!Array.isArray(message.content)) return "";
+
+  // Prefer the first text block if present.
+  for (const block of message.content as Any[]) {
+    if (block && block.type === "text" && typeof block.text === "string") {
+      return block.text;
+    }
+  }
+  return "";
+}
+
+function isPinnedMessage(message: LLMMessage): boolean {
+  const text = messageTextForPinnedCheck(message).trimStart();
+  if (!text) return false;
+  return PINNED_MESSAGE_TAG_PREFIXES.some((prefix) => text.startsWith(prefix));
+}
+
+function messageHasToolUse(message: LLMMessage): boolean {
+  if (!Array.isArray(message.content)) return false;
+  return message.content.some((block: Any) => block?.type === "tool_use");
+}
+
+function messageHasToolResult(message: LLMMessage): boolean {
+  if (!Array.isArray(message.content)) return false;
+  return message.content.some((block: Any) => block?.type === "tool_result");
+}
+
+/**
+ * Estimate token count from text (rough approximation)
+ * LLMs use ~4 characters per token on average for English text
+ */
+export function estimateTokens(text: string): number {
+  if (!text) return 0;
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Estimate tokens for a message
+ */
+export function estimateMessageTokens(message: LLMMessage): number {
+  if (typeof message.content === "string") {
+    return estimateTokens(message.content) + 10; // Add overhead for role, etc.
+  }
+
+  let tokens = 10; // Base overhead
+  for (const content of message.content) {
+    if (content.type === "text") {
+      tokens += estimateTokens(content.text);
+    } else if (content.type === "tool_use") {
+      tokens += estimateTokens(content.name) + estimateTokens(JSON.stringify(content.input));
+    } else if (content.type === "tool_result") {
+      tokens += estimateTokens(content.content);
+    } else if (content.type === "image") {
+      tokens += estimateImageTokens(content);
+    }
+  }
+  return tokens;
+}
+
+/**
+ * Estimate total tokens for all messages
+ */
+export function estimateTotalTokens(messages: LLMMessage[], systemPrompt?: string): number {
+  let total = systemPrompt ? estimateTokens(systemPrompt) : 0;
+  for (const msg of messages) {
+    total += estimateMessageTokens(msg);
+  }
+  return total;
+}
+
+/**
+ * Truncate a string to fit within token limit
+ */
+export function truncateToTokens(text: string, maxTokens: number): string {
+  const maxChars = maxTokens * 4;
+  if (text.length <= maxChars) return text;
+
+  const truncated = text.slice(0, maxChars - 100);
+  return truncated + "\n\n[... content truncated due to length ...]";
+}
+
+/**
+ * Safely parse JSON, returning null if parsing fails
+ */
+function safeJsonParse(jsonString: string): Any | null {
+  try {
+    return JSON.parse(jsonString);
+  } catch {
+    return null;
+  }
+}
+
+function isExpandedDocumentPayload(parsed: Any): boolean {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
+  if (typeof parsed.content !== "string") return false;
+
+  const format = String(parsed.format || "").toLowerCase();
+  if (format === "docx" || format === "pdf" || format === "pptx") return true;
+
+  const filePath = String(parsed.path || "").toLowerCase();
+  return /\.(docx|pdf|pptx)$/i.test(filePath);
+}
+
+function getToolResultTokenBudget(parsed: Any | null): number {
+  if (parsed && isExpandedDocumentPayload(parsed)) {
+    return MAX_TOOL_RESULT_TOKENS_DOCUMENT;
+  }
+  return MAX_TOOL_RESULT_TOKENS_DEFAULT;
+}
+
+/**
+ * Truncate tool result content if too large
+ */
+export function truncateToolResult(result: string): string {
+  if (typeof result !== "string") {
+    return "";
+  }
+  // For JSON results, try to preserve structure
+  const parsed = safeJsonParse(result);
+  const tokenBudget = getToolResultTokenBudget(parsed);
+  const maxChars = tokenBudget * 4;
+
+  if (result.length <= maxChars) return result;
+
+  if (parsed !== null) {
+    // If it's an array, limit items
+    if (Array.isArray(parsed)) {
+      const limited = parsed.slice(0, 50);
+      const truncatedJson = JSON.stringify(limited, null, 2);
+      if (truncatedJson.length <= maxChars) {
+        return truncatedJson + `\n\n[... showing ${limited.length} of ${parsed.length} items ...]`;
+      }
+    }
+
+    // If it's an object with content field (like file content), truncate the content
+    if (parsed.content && typeof parsed.content === "string") {
+      const contentBudget = isExpandedDocumentPayload(parsed)
+        ? Math.max(4000, tokenBudget - 1500)
+        : Math.floor(tokenBudget / 2);
+      parsed.content = truncateToTokens(parsed.content, contentBudget);
+      return JSON.stringify(parsed, null, 2);
+    }
+  }
+
+  // Plain text truncation
+  return truncateToTokens(result, tokenBudget);
+}
+
+export type CompactionKind = "none" | "tool_truncation_only" | "message_removal";
+
+export type CompactionMeta = {
+  availableTokens: number;
+  originalTokens: number;
+  truncatedToolResults: {
+    didTruncate: boolean;
+    count: number;
+    tokensAfter: number;
+  };
+  removedMessages: {
+    didRemove: boolean;
+    count: number;
+    tokensAfter: number;
+    messages: LLMMessage[];
+  };
+  kind: CompactionKind;
+};
+
+export type CompactionResult = {
+  messages: LLMMessage[];
+  meta: CompactionMeta;
+};
+
+/**
+ * Context Manager class
+ */
+export class ContextManager {
+  private modelKey: string;
+  private maxTokens: number;
+
+  constructor(modelKey: string = "default") {
+    this.modelKey = modelKey;
+    this.maxTokens = MODEL_LIMITS[modelKey] || inferModelLimit(modelKey) || MODEL_LIMITS.default;
+  }
+
+  /**
+   * Get available tokens for messages (after reserving for system and response)
+   */
+  getAvailableTokens(systemPromptTokens: number = 0): number {
+    return this.maxTokens - RESERVED_TOKENS - systemPromptTokens;
+  }
+
+  /**
+   * Get the model's estimated total context window.
+   */
+  getModelTokenLimit(): number {
+    return this.maxTokens;
+  }
+
+  /**
+   * Estimate how many output tokens remain for a request, given current input.
+   */
+  estimateMaxOutputTokens(messages: LLMMessage[], systemPrompt: string = ""): number {
+    const inputTokens = estimateTotalTokens(messages, systemPrompt);
+    return Math.max(1, this.maxTokens - inputTokens);
+  }
+
+  /**
+   * Compact messages to fit within token limit
+   * Preserves recent messages and summarizes older ones
+   */
+  compactMessages(messages: LLMMessage[], systemPromptTokens: number = 0): LLMMessage[] {
+    return this.compactMessagesWithMeta(messages, systemPromptTokens).messages;
+  }
+
+  compactMessagesWithMeta(
+    messages: LLMMessage[],
+    systemPromptTokens: number = 0,
+  ): CompactionResult {
+    const availableTokens = this.getAvailableTokens(systemPromptTokens);
+    let currentTokens = estimateTotalTokens(messages);
+
+    // If we're within limits, return as-is
+    if (currentTokens <= availableTokens) {
+      return {
+        messages,
+        meta: {
+          availableTokens,
+          originalTokens: currentTokens,
+          truncatedToolResults: { didTruncate: false, count: 0, tokensAfter: currentTokens },
+          removedMessages: { didRemove: false, count: 0, tokensAfter: currentTokens, messages: [] },
+          kind: "none",
+        },
+      };
+    }
+
+    console.log(`Context too large (${currentTokens} tokens), compacting...`);
+
+    // Strategy 1: Truncate large tool results
+    const truncated = this.truncateLargeResultsWithMeta(messages);
+    currentTokens = estimateTotalTokens(truncated.messages);
+
+    if (currentTokens <= availableTokens) {
+      console.log(`After truncating tool results: ${currentTokens} tokens`);
+      return {
+        messages: truncated.messages,
+        meta: {
+          availableTokens,
+          originalTokens: estimateTotalTokens(messages),
+          truncatedToolResults: {
+            didTruncate: truncated.count > 0,
+            count: truncated.count,
+            tokensAfter: currentTokens,
+          },
+          removedMessages: { didRemove: false, count: 0, tokensAfter: currentTokens, messages: [] },
+          kind: "tool_truncation_only",
+        },
+      };
+    }
+
+    // Strategy 2: Remove older message pairs (keep first and recent)
+    const removed = this.removeOlderMessagesWithMeta(truncated.messages, availableTokens);
+    currentTokens = estimateTotalTokens(removed.messages);
+
+    console.log(`After compaction: ${currentTokens} tokens, ${removed.messages.length} messages`);
+    return {
+      messages: removed.messages,
+      meta: {
+        availableTokens,
+        originalTokens: estimateTotalTokens(messages),
+        truncatedToolResults: {
+          didTruncate: truncated.count > 0,
+          count: truncated.count,
+          tokensAfter: estimateTotalTokens(truncated.messages),
+        },
+        removedMessages: {
+          didRemove: removed.removedMessages.length > 0,
+          count: removed.removedMessages.length,
+          tokensAfter: currentTokens,
+          messages: removed.removedMessages,
+        },
+        kind: removed.removedMessages.length > 0 ? "message_removal" : "tool_truncation_only",
+      },
+    };
+  }
+
+  /**
+   * Truncate large tool results in messages
+   */
+  private truncateLargeResultsWithMeta(messages: LLMMessage[]): {
+    messages: LLMMessage[];
+    count: number;
+  } {
+    let truncatedCount = 0;
+    const out = messages.map((msg) => {
+      if (typeof msg.content === "string") return msg;
+
+      // Check if this message has tool results
+      const hasToolResults = msg.content.some((c) => c.type === "tool_result");
+      if (!hasToolResults) return msg;
+
+      // Truncate tool results
+      const newContent = msg.content.map((content) => {
+        if (content.type === "tool_result") {
+          const next = truncateToolResult(content.content);
+          if (next !== content.content) truncatedCount += 1;
+          return {
+            type: "tool_result" as const,
+            tool_use_id: content.tool_use_id,
+            content: next,
+            ...(content.is_error ? { is_error: content.is_error } : {}),
+          };
+        }
+        return content;
+      }) as LLMMessage["content"];
+
+      return { ...msg, content: newContent };
+    });
+    return { messages: out, count: truncatedCount };
+  }
+
+  /**
+   * Remove older messages while preserving conversation flow
+   */
+  /**
+   * Extract file paths referenced in a set of messages (for active-work context detection).
+   */
+  private extractFilePathsFromMessages(msgs: LLMMessage[]): Set<string> {
+    const paths = new Set<string>();
+    const pathRegex = /(?:\/[\w.@-]+){2,}(?:\.\w+)?/g;
+    for (const msg of msgs) {
+      const text =
+        typeof msg.content === "string"
+          ? msg.content
+          : Array.isArray(msg.content)
+            ? (msg.content as Array<{ type: string; text?: string; input?: unknown; content?: string }>)
+                .map((c) => {
+                  if (c.type === "text") return c.text || "";
+                  if (c.type === "tool_use") return JSON.stringify(c.input || "");
+                  if (c.type === "tool_result") return typeof c.content === "string" ? c.content : "";
+                  return "";
+                })
+                .join(" ")
+            : "";
+      const matches = text.match(pathRegex);
+      if (matches) matches.forEach((p) => paths.add(p));
+    }
+    return paths;
+  }
+
+  /**
+   * Check if a message references any of the given active file paths.
+   */
+  private messageReferencesActivePaths(msg: LLMMessage, activePaths: Set<string>): boolean {
+    if (activePaths.size === 0) return false;
+    const text =
+      typeof msg.content === "string"
+        ? msg.content
+        : Array.isArray(msg.content)
+          ? (msg.content as Array<{ type: string; text?: string; input?: unknown; content?: string }>)
+              .map((c) => {
+                if (c.type === "text") return c.text || "";
+                if (c.type === "tool_use") return JSON.stringify(c.input || "");
+                if (c.type === "tool_result") return typeof c.content === "string" ? c.content : "";
+                return "";
+              })
+              .join(" ")
+          : "";
+    for (const path of activePaths) {
+      if (text.includes(path)) return true;
+    }
+    return false;
+  }
+
+  private removeOlderMessagesWithMeta(
+    messages: LLMMessage[],
+    targetTokens: number,
+  ): { messages: LLMMessage[]; removedMessages: LLMMessage[] } {
+    if (messages.length <= 2) return { messages, removedMessages: [] };
+
+    // Keep first message (task context) and work backwards from end
+    let currentTokens = 0;
+    const keep = new Set<number>();
+
+    // Always keep the first message (original task)
+    const firstMsg = messages[0];
+    const firstMsgTokens = estimateMessageTokens(firstMsg);
+    keep.add(0);
+    currentTokens += firstMsgTokens;
+
+    // Always keep pinned messages (system-generated context blocks).
+    for (let i = 1; i < messages.length; i++) {
+      if (!isPinnedMessage(messages[i])) continue;
+      keep.add(i);
+      currentTokens += estimateMessageTokens(messages[i]);
+    }
+
+    // Extract file paths from recent messages to identify actively-worked files.
+    // Older messages referencing these files should be preserved if budget allows.
+    const recentSliceStart = Math.max(1, messages.length - ACTIVE_PATH_CONTEXT_WINDOW);
+    const activeFilePaths = this.extractFilePathsFromMessages(
+      messages.slice(recentSliceStart),
+    );
+
+    // Prioritize keeping messages that reference active files (from older section).
+    // Reserve up to 70% of budget for recency, use remaining for active-file context.
+    const activeFileBudget = targetTokens * 0.15; // Up to 15% of budget for active-file messages
+    let activeFileTokensUsed = 0;
+    for (let i = 1; i < recentSliceStart; i++) {
+      if (keep.has(i)) continue;
+      if (!this.messageReferencesActivePaths(messages[i], activeFilePaths)) continue;
+      const msgTokens = estimateMessageTokens(messages[i]);
+      if (activeFileTokensUsed + msgTokens > activeFileBudget) continue;
+      keep.add(i);
+      currentTokens += msgTokens;
+      activeFileTokensUsed += msgTokens;
+    }
+
+    // Add messages from the end until we hit the limit (preserve recency).
+    for (let i = messages.length - 1; i > 0; i--) {
+      if (keep.has(i)) continue;
+      const msg = messages[i];
+      const msgTokens = estimateMessageTokens(msg);
+
+      const prevIdx = i - 1;
+      const preserveAdjacentToolPair =
+        msg.role === "user" &&
+        messageHasToolResult(msg) &&
+        prevIdx >= 0 &&
+        !keep.has(prevIdx) &&
+        messages[prevIdx]?.role === "assistant" &&
+        messageHasToolUse(messages[prevIdx]);
+
+      if (preserveAdjacentToolPair) {
+        const prevTokens = estimateMessageTokens(messages[prevIdx]);
+        if (currentTokens + msgTokens + prevTokens > targetTokens) {
+          break;
+        }
+        keep.add(prevIdx);
+        keep.add(i);
+        currentTokens += msgTokens + prevTokens;
+        i = prevIdx;
+        continue;
+      }
+
+      if (currentTokens + msgTokens > targetTokens) {
+        break;
+      }
+
+      keep.add(i);
+      currentTokens += msgTokens;
+    }
+
+    const keptIndices = Array.from(keep).sort((a, b) => a - b);
+    const compacted = keptIndices.map((i) => messages[i]);
+
+    const removedMessages: LLMMessage[] = [];
+    for (let i = 1; i < messages.length; i++) {
+      if (!keep.has(i)) removedMessages.push(messages[i]);
+    }
+
+    return { messages: compacted, removedMessages };
+  }
+
+  /**
+   * Check if adding a message would exceed limits
+   */
+  wouldExceedLimit(
+    currentMessages: LLMMessage[],
+    newMessage: LLMMessage,
+    systemPromptTokens: number = 0,
+  ): boolean {
+    const currentTokens = estimateTotalTokens(currentMessages);
+    const newTokens = estimateMessageTokens(newMessage);
+    const availableTokens = this.getAvailableTokens(systemPromptTokens);
+
+    return currentTokens + newTokens > availableTokens;
+  }
+
+  /**
+   * Get current context utilization as a ratio (0-1+).
+   */
+  getContextUtilization(
+    messages: LLMMessage[],
+    systemPromptTokens: number = 0,
+  ): { currentTokens: number; availableTokens: number; utilization: number } {
+    const currentTokens = estimateTotalTokens(messages);
+    const availableTokens = this.getAvailableTokens(systemPromptTokens);
+    return {
+      currentTokens,
+      availableTokens,
+      utilization: availableTokens > 0 ? currentTokens / availableTokens : 0,
+    };
+  }
+
+  /**
+   * Proactive compaction: compact down to a target utilization (e.g. 55%)
+   * rather than only compacting when the context exceeds the hard limit.
+   * This frees ample slack for a comprehensive compaction summary.
+   */
+  proactiveCompactWithMeta(
+    messages: LLMMessage[],
+    systemPromptTokens: number = 0,
+    targetUtilization: number = 0.55,
+  ): CompactionResult {
+    const availableTokens = this.getAvailableTokens(systemPromptTokens);
+    const targetTokens = Math.floor(availableTokens * targetUtilization);
+    let currentTokens = estimateTotalTokens(messages);
+    const originalTokens = currentTokens;
+
+    if (currentTokens <= targetTokens) {
+      return {
+        messages,
+        meta: {
+          availableTokens,
+          originalTokens,
+          truncatedToolResults: { didTruncate: false, count: 0, tokensAfter: currentTokens },
+          removedMessages: { didRemove: false, count: 0, tokensAfter: currentTokens, messages: [] },
+          kind: "none",
+        },
+      };
+    }
+
+    // Strategy 1: Truncate large tool results
+    const truncated = this.truncateLargeResultsWithMeta(messages);
+    currentTokens = estimateTotalTokens(truncated.messages);
+
+    if (currentTokens <= targetTokens) {
+      return {
+        messages: truncated.messages,
+        meta: {
+          availableTokens,
+          originalTokens,
+          truncatedToolResults: {
+            didTruncate: truncated.count > 0,
+            count: truncated.count,
+            tokensAfter: currentTokens,
+          },
+          removedMessages: { didRemove: false, count: 0, tokensAfter: currentTokens, messages: [] },
+          kind: "tool_truncation_only",
+        },
+      };
+    }
+
+    // Strategy 2: Remove older messages down to targetTokens
+    const removed = this.removeOlderMessagesWithMeta(truncated.messages, targetTokens);
+    currentTokens = estimateTotalTokens(removed.messages);
+
+    return {
+      messages: removed.messages,
+      meta: {
+        availableTokens,
+        originalTokens,
+        truncatedToolResults: {
+          didTruncate: truncated.count > 0,
+          count: truncated.count,
+          tokensAfter: estimateTotalTokens(truncated.messages),
+        },
+        removedMessages: {
+          didRemove: removed.removedMessages.length > 0,
+          count: removed.removedMessages.length,
+          tokensAfter: currentTokens,
+          messages: removed.removedMessages,
+        },
+        kind: removed.removedMessages.length > 0 ? "message_removal" : "tool_truncation_only",
+      },
+    };
+  }
+}

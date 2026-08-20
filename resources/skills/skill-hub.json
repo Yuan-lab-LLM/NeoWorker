@@ -1,0 +1,64 @@
+{
+  "id": "skill-hub",
+  "name": "skill-hub",
+  "description": "Use the skill-hub CLI to search, install, update, and publish agent skills from skill-hub.com. Use when you need to fetch new skills on the fly, sync installed skills to latest or a specific version, or publish new/updated skill folders with the npm-installed skill-hub CLI.",
+  "icon": "🔧",
+  "category": "Tools",
+  "prompt": "# skill-hub CLI\n\nInstall\n\n```bash\nnpm i -g skill-hub\n```\n\nAuth (publish)\n\n```bash\nskill-hub login\nskill-hub whoami\n```\n\nSearch\n\n```bash\nskill-hub search \"postgres backups\"\n```\n\nInstall\n\n```bash\nskill-hub install my-skill\nskill-hub install my-skill --version 1.2.3\n```\n\nUpdate (hash-based match + upgrade)\n\n```bash\nskill-hub update my-skill\nskill-hub update my-skill --version 1.2.3\nskill-hub update --all\nskill-hub update my-skill --force\nskill-hub update --all --no-input --force\n```\n\nList\n\n```bash\nskill-hub list\n```\n\nPublish\n\n```bash\nskill-hub publish ./my-skill --slug my-skill --name \"My Skill\" --version 1.2.0 --changelog \"Fixes + docs\"\n```\n\nNotes\n\n- Default registry: https://skill-hub.com (override with skill-hub_REGISTRY or --registry)\n- Default workdir: cwd (falls back to NeoWorker workspace); install dir: ./skills (override with --workdir / --dir / skill-hub_WORKDIR)\n- Update command hashes local files, resolves matching version, and upgrades to latest unless --version is set",
+  "parameters": [],
+  "enabled": true,
+  "requires": {
+    "bins": [
+      "skill-hub"
+    ],
+    "anyBins": [
+      "npm",
+      "pnpm",
+      "yarn"
+    ]
+  },
+  "install": [
+    {
+      "id": "npm",
+      "kind": "npm",
+      "package": "skill-hub",
+      "label": "Install via npm (npm i -g skill-hub)",
+      "bins": [
+        "skill-hub"
+      ]
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "author": "NeoWorker",
+    "homepage": "https://skill-hub.com",
+    "tags": [
+      "cli",
+      "registry",
+      "skills"
+    ],
+    "routing": {
+      "useWhen": "Use when the user asks to use the skill-hub CLI to search, install, update, and publish agent skills from skill-hub.com. Use when you need to fetch new skills on the fly, sync installed skills to latest or a specific version, or publish new/updated skill folders with the npm-installed skill-hub CLI.",
+      "dontUseWhen": "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.",
+      "outputs": "Outcome from skill-hub: task-specific result plus concrete action notes.",
+      "successCriteria": "Returns concrete actions and decisions matching the requested task, with no fabricated tool-side behavior.",
+      "examples": {
+        "positive": [
+          "Use the skill-hub skill for this request.",
+          "Help me with skill-hub.",
+          "Use when the user asks to use the skill-hub CLI to search, install, update, and publish agent skills from skill-hub.com. Use when you need to fetch new skills on the fly, sync installed skills to latest or a specific version, or publish new/updated skill folders with the npm-installed skill-hub CLI.",
+          "skill-hub: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.",
+          "Do not use skill-hub for unrelated requests.",
+          "This request is outside skill-hub scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

@@ -1,0 +1,1187 @@
+/**
+ * Tests for CustomSkillLoader
+ */
+
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import type { CustomSkill } from "../../../shared/types";
+import * as path from "path";
+
+// Track file system operations
+let mockFiles: Map<string, string> = new Map();
+let mockDirs: Set<string> = new Set();
+let mockDirExists = true;
+const getFilename = (p: string): string => path.basename(p);
+function normalizePath(p: string): string {
+  return p.replaceAll("\\\\", "/");
+}
+
+function mockExists(p: string): boolean {
+  const normalized = normalizePath(p);
+  if (normalized.endsWith("/skills") || normalized === "skills") return mockDirExists;
+  if (mockDirs.has(normalized)) return true;
+  const filename = getFilename(p);
+  for (const [key] of mockFiles) {
+    if (key.endsWith(filename)) return true;
+  }
+  return false;
+}
+
+function mockRead(p: string): string {
+  const filename = getFilename(p);
+  for (const [key, value] of mockFiles) {
+    if (key.endsWith(filename)) return value;
+  }
+  throw new Error(`File not found: ${p}`);
+}
+
+function mockReaddir(): string[] {
+  return Array.from(mockFiles.keys())
+    .filter((k) => k.endsWith(".json"))
+    .map((k) => getFilename(k));
+}
+
+function mockStat(p: string): { isDirectory: () => boolean } {
+  const normalized = normalizePath(p);
+  return {
+    isDirectory: () => mockDirs.has(normalized),
+  };
+}
+
+// Mock electron app
+vi.mock("electron", () => ({
+  app: {
+    getPath: vi.fn().mockReturnValue("/mock/user/data"),
+  },
+}));
+
+// Mock fs module - use a function to extract just the filename from any path
+vi.mock("fs", () => ({
+  default: {
+    existsSync: vi.fn().mockImplementation(mockExists),
+    readFileSync: vi.fn().mockImplementation(mockRead),
+    readdirSync: vi.fn().mockImplementation(mockReaddir),
+    statSync: vi.fn().mockImplementation(mockStat),
+  },
+  existsSync: vi.fn().mockImplementation(mockExists),
+  readFileSync: vi.fn().mockImplementation(mockRead),
+  readdirSync: vi.fn().mockImplementation(mockReaddir),
+  statSync: vi.fn().mockImplementation(mockStat),
+}));
+
+// Import after mocking
+import { CustomSkillLoader, getCustomSkillLoader } from "../custom-skill-loader";
+
+// Helper to create a test skill
+function createTestSkill(overrides: Partial<CustomSkill> = {}): CustomSkill {
+  return {
+    id: "test-skill",
+    name: "Test Skill",
+    description: "A test skill for unit testing",
+    icon: "🧪",
+    category: "Testing",
+    prompt: "This is a test prompt with {{param1}} and {{param2}}",
+    parameters: [
+      { name: "param1", type: "string", description: "First param", required: true },
+      {
+        name: "param2",
+        type: "string",
+        description: "Second param",
+        required: false,
+        default: "default-value",
+      },
+    ],
+    enabled: true,
+    ...overrides,
+  };
+}
+
+describe("CustomSkillLoader", () => {
+  let loader: CustomSkillLoader;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFiles.clear();
+    mockDirs.clear();
+    mockDirExists = true;
+    // Create a fresh instance for each test
+    loader = new CustomSkillLoader();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe("getSkillsDirectory", () => {
+    it("should return the skills directory path", () => {
+      const dir = loader.getSkillsDirectory();
+      expect(dir).toContain("skills");
+    });
+  });
+
+  describe("validateSkill", () => {
+    it("should validate a valid skill", async () => {
+      const skill = createTestSkill();
+      mockFiles.set("test-skill.json", JSON.stringify(skill));
+
+      await loader.reloadSkills();
+      const loaded = loader.getSkill("test-skill");
+
+      expect(loaded).toBeDefined();
+      expect(loaded?.id).toBe("test-skill");
+    });
+
+    it("should reject skill without id", async () => {
+      const skill = createTestSkill({ id: "" });
+      mockFiles.set("bad-skill.json", JSON.stringify(skill));
+
+      await loader.reloadSkills();
+      const loaded = loader.getSkill("");
+
+      expect(loaded).toBeUndefined();
+    });
+
+    it("should reject skill without name", async () => {
+      const skill = createTestSkill({ name: "" });
+      mockFiles.set("no-name.json", JSON.stringify(skill));
+
+      await loader.reloadSkills();
+      expect(loader.listSkills()).toHaveLength(0);
+    });
+
+    it("should reject skill without description", async () => {
+      const skill = createTestSkill({ description: "" });
+      mockFiles.set("no-desc.json", JSON.stringify(skill));
+
+      await loader.reloadSkills();
+      expect(loader.listSkills()).toHaveLength(0);
+    });
+
+    it("should reject skill without prompt", async () => {
+      const skill = createTestSkill({ prompt: "" });
+      mockFiles.set("no-prompt.json", JSON.stringify(skill));
+
+      await loader.reloadSkills();
+      expect(loader.listSkills()).toHaveLength(0);
+    });
+  });
+
+  describe("expandPrompt", () => {
+    it("should replace placeholders with values", () => {
+      const skill = createTestSkill();
+      const result = loader.expandPrompt(skill, {
+        param1: "value1",
+        param2: "value2",
+      });
+
+      expect(result).toBe("This is a test prompt with value1 and value2");
+    });
+
+    it("should use default values when parameter not provided", () => {
+      const skill = createTestSkill();
+      const result = loader.expandPrompt(skill, {
+        param1: "value1",
+      });
+
+      expect(result).toBe("This is a test prompt with value1 and default-value");
+    });
+
+    it("should remove unreplaced placeholders", () => {
+      const skill = createTestSkill({
+        prompt: "Test {{param1}} and {{unknown}}",
+        parameters: [{ name: "param1", type: "string", description: "P1", required: true }],
+      });
+      const result = loader.expandPrompt(skill, { param1: "hello" });
+
+      expect(result).toBe("Test hello and");
+    });
+
+    it("should handle skills with no parameters", () => {
+      const skill = createTestSkill({
+        prompt: "Simple prompt without placeholders",
+        parameters: [],
+      });
+      const result = loader.expandPrompt(skill, {});
+
+      expect(result).toBe("Simple prompt without placeholders");
+    });
+
+    it("should handle numeric values", () => {
+      const skill = createTestSkill({
+        prompt: "Count: {{count}}",
+        parameters: [{ name: "count", type: "number", description: "A number", required: true }],
+      });
+      const result = loader.expandPrompt(skill, { count: 42 });
+
+      expect(result).toBe("Count: 42");
+    });
+
+    it("should handle boolean values", () => {
+      const skill = createTestSkill({
+        prompt: "Enabled: {{enabled}}",
+        parameters: [
+          { name: "enabled", type: "boolean", description: "A boolean", required: true },
+        ],
+      });
+      const result = loader.expandPrompt(skill, { enabled: true });
+
+      expect(result).toBe("Enabled: true");
+    });
+
+    it("should resolve {baseDir} to a sibling skill folder when present", () => {
+      const localLoader = new CustomSkillLoader({
+        bundledSkillsDir: "/mock/resources/skills",
+        managedSkillsDir: "/mock/managed/skills",
+      });
+      const skill = createTestSkill({
+        id: "sample-skill",
+        filePath: "/mock/resources/skills/sample-skill.json",
+        prompt: "Run {baseDir}/scripts/do.sh",
+      });
+      mockDirs.add("/mock/resources/skills/sample-skill");
+      mockDirs.add("/mock/resources/skills/sample-skill/scripts");
+
+      const result = localLoader.expandBaseDir(skill.prompt, skill);
+
+      expect(result).toContain("/mock/resources/skills/sample-skill/scripts/do.sh");
+    });
+
+    it("should fall back to manifest directory when sibling skill folder is missing", () => {
+      const localLoader = new CustomSkillLoader({
+        bundledSkillsDir: "/mock/resources/skills",
+        managedSkillsDir: "/mock/managed/skills",
+      });
+      const skill = createTestSkill({
+        id: "fallback-skill",
+        filePath: "/mock/resources/skills/fallback-skill.json",
+        prompt: "Run {baseDir}/scripts/do.sh",
+      });
+      mockDirs.add("/mock/resources/skills/scripts");
+
+      const result = localLoader.expandBaseDir(skill.prompt, skill);
+
+      expect(result).toContain("/mock/resources/skills/scripts/do.sh");
+      expect(result).not.toContain("/mock/resources/skills/fallback-skill/scripts/do.sh");
+    });
+  });
+
+  describe("listSkills", () => {
+    it("should return empty array when no skills", async () => {
+      await loader.reloadSkills();
+      expect(loader.listSkills()).toEqual([]);
+    });
+
+    it("should return all loaded skills", async () => {
+      const skill1 = createTestSkill({ id: "skill-1", name: "Skill 1" });
+      const skill2 = createTestSkill({ id: "skill-2", name: "Skill 2" });
+
+      mockFiles.set("skill-1.json", JSON.stringify(skill1));
+      mockFiles.set("skill-2.json", JSON.stringify(skill2));
+
+      await loader.reloadSkills();
+      const skills = loader.listSkills();
+
+      expect(skills).toHaveLength(2);
+    });
+
+    it("should sort by priority first", async () => {
+      const skill1 = createTestSkill({ id: "skill-1", name: "Skill 1", priority: 10 });
+      const skill2 = createTestSkill({ id: "skill-2", name: "Skill 2", priority: 5 });
+
+      mockFiles.set("skill-1.json", JSON.stringify(skill1));
+      mockFiles.set("skill-2.json", JSON.stringify(skill2));
+
+      await loader.reloadSkills();
+      const skills = loader.listSkills();
+
+      expect(skills[0].id).toBe("skill-2"); // Lower priority number = first
+      expect(skills[1].id).toBe("skill-1");
+    });
+
+    it("should sort by category when priority is equal", async () => {
+      const skill1 = createTestSkill({ id: "skill-1", name: "Skill 1", category: "Zebra" });
+      const skill2 = createTestSkill({ id: "skill-2", name: "Skill 2", category: "Alpha" });
+
+      mockFiles.set("skill-1.json", JSON.stringify(skill1));
+      mockFiles.set("skill-2.json", JSON.stringify(skill2));
+
+      await loader.reloadSkills();
+      const skills = loader.listSkills();
+
+      expect(skills[0].id).toBe("skill-2"); // Alpha before Zebra
+      expect(skills[1].id).toBe("skill-1");
+    });
+
+    it("should sort by name when category and priority are equal", async () => {
+      const skill1 = createTestSkill({ id: "skill-1", name: "Zebra", category: "Testing" });
+      const skill2 = createTestSkill({ id: "skill-2", name: "Alpha", category: "Testing" });
+
+      mockFiles.set("skill-1.json", JSON.stringify(skill1));
+      mockFiles.set("skill-2.json", JSON.stringify(skill2));
+
+      await loader.reloadSkills();
+      const skills = loader.listSkills();
+
+      expect(skills[0].id).toBe("skill-2"); // Alpha before Zebra
+      expect(skills[1].id).toBe("skill-1");
+    });
+  });
+
+  describe("listTaskSkills", () => {
+    it("should exclude guideline skills", async () => {
+      const taskSkill = createTestSkill({ id: "task-skill", type: undefined });
+      const guidelineSkill = createTestSkill({ id: "guideline-skill", type: "guideline" });
+
+      mockFiles.set("task-skill.json", JSON.stringify(taskSkill));
+      mockFiles.set("guideline-skill.json", JSON.stringify(guidelineSkill));
+
+      await loader.reloadSkills();
+      const taskSkills = loader.listTaskSkills();
+
+      expect(taskSkills).toHaveLength(1);
+      expect(taskSkills[0].id).toBe("task-skill");
+    });
+  });
+
+  describe("listGuidelineSkills", () => {
+    it("should only return guideline skills", async () => {
+      const taskSkill = createTestSkill({ id: "task-skill", type: undefined });
+      const guidelineSkill = createTestSkill({ id: "guideline-skill", type: "guideline" });
+
+      mockFiles.set("task-skill.json", JSON.stringify(taskSkill));
+      mockFiles.set("guideline-skill.json", JSON.stringify(guidelineSkill));
+
+      await loader.reloadSkills();
+      const guidelineSkills = loader.listGuidelineSkills();
+
+      expect(guidelineSkills).toHaveLength(1);
+      expect(guidelineSkills[0].id).toBe("guideline-skill");
+    });
+  });
+
+  describe("getEnabledGuidelinesPrompt", () => {
+    it("should return empty string when no guidelines", async () => {
+      const taskSkill = createTestSkill({ id: "task-skill" });
+      mockFiles.set("task-skill.json", JSON.stringify(taskSkill));
+
+      await loader.reloadSkills();
+      const prompt = loader.getEnabledGuidelinesPrompt();
+
+      expect(prompt).toBe("");
+    });
+
+    it("should combine enabled guideline prompts", async () => {
+      const guideline1 = createTestSkill({
+        id: "guideline-1",
+        type: "guideline",
+        prompt: "Guideline 1 content",
+        enabled: true,
+      });
+      const guideline2 = createTestSkill({
+        id: "guideline-2",
+        type: "guideline",
+        prompt: "Guideline 2 content",
+        enabled: true,
+      });
+
+      mockFiles.set("guideline-1.json", JSON.stringify(guideline1));
+      mockFiles.set("guideline-2.json", JSON.stringify(guideline2));
+
+      await loader.reloadSkills();
+      const prompt = loader.getEnabledGuidelinesPrompt();
+
+      expect(prompt).toContain("Guideline 1 content");
+      expect(prompt).toContain("Guideline 2 content");
+    });
+
+    it("should exclude disabled guidelines", async () => {
+      const enabledGuideline = createTestSkill({
+        id: "enabled-guideline",
+        type: "guideline",
+        prompt: "Enabled content",
+        enabled: true,
+      });
+      const disabledGuideline = createTestSkill({
+        id: "disabled-guideline",
+        type: "guideline",
+        prompt: "Disabled content",
+        enabled: false,
+      });
+
+      mockFiles.set("enabled-guideline.json", JSON.stringify(enabledGuideline));
+      mockFiles.set("disabled-guideline.json", JSON.stringify(disabledGuideline));
+
+      await loader.reloadSkills();
+      const prompt = loader.getEnabledGuidelinesPrompt();
+
+      expect(prompt).toContain("Enabled content");
+      expect(prompt).not.toContain("Disabled content");
+    });
+  });
+
+  describe("getSkill", () => {
+    it("should return undefined for non-existent skill", async () => {
+      await loader.reloadSkills();
+      const skill = loader.getSkill("non-existent");
+      expect(skill).toBeUndefined();
+    });
+
+    it("should return the skill by id", async () => {
+      const testSkill = createTestSkill({ id: "my-skill" });
+      mockFiles.set("my-skill.json", JSON.stringify(testSkill));
+
+      await loader.reloadSkills();
+      const skill = loader.getSkill("my-skill");
+
+      expect(skill).toBeDefined();
+      expect(skill?.id).toBe("my-skill");
+    });
+
+    it("unregisters managed plugin skills for a pack without removing workspace skills", () => {
+      const managedSkill = createTestSkill({
+        id: "smb-plan-payroll",
+        source: "managed",
+        metadata: { pluginSource: "smb-complete" },
+      });
+      const otherPackSkill = createTestSkill({
+        id: "legal-review",
+        source: "managed",
+        metadata: { pluginSource: "commercial-legal-pack" },
+      });
+      const workspaceSkill = createTestSkill({
+        id: "smb-custom-override",
+        source: "workspace",
+        metadata: { pluginSource: "smb-complete" },
+      });
+
+      loader.registerPluginSkill(managedSkill);
+      loader.registerPluginSkill(otherPackSkill);
+      loader.registerPluginSkill(workspaceSkill);
+
+      expect(loader.unregisterPluginSkills("smb-complete")).toBe(1);
+      expect(loader.getSkill("smb-plan-payroll")).toBeUndefined();
+      expect(loader.getSkill("legal-review")).toBeDefined();
+      expect(loader.getSkill("smb-custom-override")).toBeDefined();
+    });
+  });
+
+  describe("reloadSkills", () => {
+    it("should clear existing skills before loading", async () => {
+      const skill1 = createTestSkill({ id: "skill-1" });
+      mockFiles.set("skill-1.json", JSON.stringify(skill1));
+      await loader.reloadSkills();
+
+      expect(loader.listSkills()).toHaveLength(1);
+
+      // Clear files and reload
+      mockFiles.clear();
+      await loader.reloadSkills();
+
+      expect(loader.listSkills()).toHaveLength(0);
+    });
+
+    it("should handle malformed JSON gracefully", async () => {
+      mockFiles.set("bad.json", "not valid json");
+      mockFiles.set("good.json", JSON.stringify(createTestSkill({ id: "good" })));
+
+      await loader.reloadSkills();
+
+      // Should still load the valid skill
+      expect(loader.listSkills()).toHaveLength(1);
+      expect(loader.getSkill("good")).toBeDefined();
+    });
+
+    it("silently ignores build-mode metadata file", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockFiles.set("build-mode.json", JSON.stringify({ mode: "dev" }));
+      mockFiles.set("good.json", JSON.stringify(createTestSkill({ id: "good" })));
+
+      await loader.reloadSkills();
+
+      expect(loader.listSkills()).toHaveLength(1);
+      expect(loader.getSkill("good")).toBeDefined();
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("Invalid skill file: build-mode.json"),
+      );
+      warnSpy.mockRestore();
+    });
+
+    it("still warns for truly invalid skill files", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      mockFiles.set("bad-skill.json", JSON.stringify({ id: "bad-skill" }));
+      mockFiles.set("good.json", JSON.stringify(createTestSkill({ id: "good" })));
+
+      await loader.reloadSkills();
+
+      expect(loader.listSkills()).toHaveLength(1);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Invalid skill file: bad-skill.json"),
+      );
+      warnSpy.mockRestore();
+    });
+
+    it("should return empty array when directory does not exist", async () => {
+      mockDirExists = false;
+      const skills = await loader.reloadSkills();
+      expect(skills).toEqual([]);
+    });
+  });
+
+  describe("initialize", () => {
+    it("should only initialize once", async () => {
+      const skill = createTestSkill({ id: "init-skill" });
+      mockFiles.set("init-skill.json", JSON.stringify(skill));
+
+      await loader.initialize();
+      expect(loader.listSkills()).toHaveLength(1);
+
+      // Clear files - should not affect loaded skills since already initialized
+      mockFiles.clear();
+      await loader.initialize();
+      expect(loader.listSkills()).toHaveLength(1);
+    });
+  });
+});
+
+describe("listModelInvocableSkills", () => {
+  let loader: CustomSkillLoader;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFiles.clear();
+    mockDirExists = true;
+    loader = new CustomSkillLoader();
+  });
+
+  it("should return empty array when no skills", async () => {
+    await loader.reloadSkills();
+    expect(loader.listModelInvocableSkills()).toEqual([]);
+  });
+
+  it("should exclude guideline skills", async () => {
+    const taskSkill = createTestSkill({ id: "task-skill", type: "task" });
+    const guidelineSkill = createTestSkill({ id: "guideline-skill", type: "guideline" });
+
+    mockFiles.set("task-skill.json", JSON.stringify(taskSkill));
+    mockFiles.set("guideline-skill.json", JSON.stringify(guidelineSkill));
+
+    await loader.reloadSkills();
+    const invocableSkills = loader.listModelInvocableSkills();
+
+    expect(invocableSkills).toHaveLength(1);
+    expect(invocableSkills[0].id).toBe("task-skill");
+  });
+
+  it("should exclude disabled skills", async () => {
+    const enabledSkill = createTestSkill({ id: "enabled-skill", enabled: true });
+    const disabledSkill = createTestSkill({ id: "disabled-skill", enabled: false });
+
+    mockFiles.set("enabled-skill.json", JSON.stringify(enabledSkill));
+    mockFiles.set("disabled-skill.json", JSON.stringify(disabledSkill));
+
+    await loader.reloadSkills();
+    const invocableSkills = loader.listModelInvocableSkills();
+
+    expect(invocableSkills).toHaveLength(1);
+    expect(invocableSkills[0].id).toBe("enabled-skill");
+  });
+
+  it("should exclude skills with disableModelInvocation set", async () => {
+    const invocableSkill = createTestSkill({ id: "invocable-skill" });
+    const nonInvocableSkill = createTestSkill({
+      id: "non-invocable-skill",
+      invocation: { disableModelInvocation: true },
+    });
+
+    mockFiles.set("invocable-skill.json", JSON.stringify(invocableSkill));
+    mockFiles.set("non-invocable-skill.json", JSON.stringify(nonInvocableSkill));
+
+    await loader.reloadSkills();
+    const invocableSkills = loader.listModelInvocableSkills();
+
+    expect(invocableSkills).toHaveLength(1);
+    expect(invocableSkills[0].id).toBe("invocable-skill");
+  });
+
+  it("should include skills with disableModelInvocation false", async () => {
+    const skill = createTestSkill({
+      id: "explicit-invocable",
+      invocation: { disableModelInvocation: false },
+    });
+
+    mockFiles.set("explicit-invocable.json", JSON.stringify(skill));
+
+    await loader.reloadSkills();
+    const invocableSkills = loader.listModelInvocableSkills();
+
+    expect(invocableSkills).toHaveLength(1);
+    expect(invocableSkills[0].id).toBe("explicit-invocable");
+  });
+
+  it("should include skills without invocation policy", async () => {
+    const skill = createTestSkill({ id: "no-policy-skill" });
+    // Ensure no invocation property
+    delete (skill as Any).invocation;
+
+    mockFiles.set("no-policy-skill.json", JSON.stringify(skill));
+
+    await loader.reloadSkills();
+    const invocableSkills = loader.listModelInvocableSkills();
+
+    expect(invocableSkills).toHaveLength(1);
+    expect(invocableSkills[0].id).toBe("no-policy-skill");
+  });
+
+  it("should filter out skills requiring unavailable tools", async () => {
+    const shellDependentSkill = createTestSkill({
+      id: "shell-dependent",
+      requires: { tools: ["run_command"] } as Any,
+    });
+    const safeSkill = createTestSkill({ id: "safe-skill" });
+
+    mockFiles.set("shell-dependent.json", JSON.stringify(shellDependentSkill));
+    mockFiles.set("safe-skill.json", JSON.stringify(safeSkill));
+
+    await loader.reloadSkills();
+    const invocableSkills = loader.listModelInvocableSkills({
+      availableToolNames: new Set(["read_file", "web_fetch"]),
+    });
+
+    expect(invocableSkills).toHaveLength(1);
+    expect(invocableSkills[0].id).toBe("safe-skill");
+  });
+
+  it("should filter out binary-dependent skills when run_command is unavailable", async () => {
+    const binarySkill = createTestSkill({
+      id: "binary-skill",
+      requires: { bins: ["summarize"] },
+    });
+    const safeSkill = createTestSkill({ id: "safe-skill" });
+
+    mockFiles.set("binary-skill.json", JSON.stringify(binarySkill));
+    mockFiles.set("safe-skill.json", JSON.stringify(safeSkill));
+
+    await loader.reloadSkills();
+    const invocableSkills = loader.listModelInvocableSkills({
+      availableToolNames: new Set(["read_file", "web_fetch"]),
+    });
+
+    expect(invocableSkills).toHaveLength(1);
+    expect(invocableSkills[0].id).toBe("safe-skill");
+  });
+
+  it("can include binary-dependent skills for routing even when run_command is unavailable", async () => {
+    const binarySkill = createTestSkill({
+      id: "binary-skill",
+      description: "Run a CLI-backed review workflow",
+      requires: { bins: ["claude"] },
+    });
+    const safeSkill = createTestSkill({ id: "safe-skill" });
+
+    mockFiles.set("binary-skill.json", JSON.stringify(binarySkill));
+    mockFiles.set("safe-skill.json", JSON.stringify(safeSkill));
+
+    await loader.reloadSkills();
+    const invocableSkills = loader.listModelInvocableSkills({
+      availableToolNames: new Set(["read_file", "web_fetch"]),
+      includePrereqBlockedSkills: true,
+    });
+
+    expect(invocableSkills).toHaveLength(2);
+    expect(invocableSkills.map((skill) => skill.id)).toContain("binary-skill");
+  });
+
+  it("should require an explicit codex-cli skill invocation for ranking", async () => {
+    const codexSkill = createTestSkill({
+      id: "codex-cli",
+      name: "Codex CLI Agent",
+      description: "Run Codex CLI tasks",
+      metadata: {
+        routing: {
+          keywords: ["codex"],
+        },
+      },
+    });
+
+    mockFiles.set("codex-cli.json", JSON.stringify(codexSkill));
+
+    await loader.reloadSkills();
+
+    expect(loader.rankModelInvocableSkillsForQuery("run a generic agent on this issue")).toEqual([]);
+    expect(loader.rankModelInvocableSkillsForQuery("run codex on this issue")).toEqual([]);
+
+    const ranked = loader.rankModelInvocableSkillsForQuery(
+      "Use the Codex CLI Agent skill to run on this issue",
+    );
+    expect(ranked).toHaveLength(1);
+    expect(ranked[0]?.skill.id).toBe("codex-cli");
+  });
+
+  it("should require an explicit gemini skill invocation for ranking", async () => {
+    const geminiSkill = createTestSkill({
+      id: "gemini",
+      name: "Gemini",
+      description: "Gemini CLI for one-shot Q&A, summaries, and generation.",
+      category: "Tools",
+      metadata: {
+        routing: {
+          useWhen: "Use when the user asks to use Gemini CLI for one-shot Q&A.",
+          examples: {
+            positive: ["Use the gemini skill for this request."],
+            negative: ["Do not use gemini for unrelated requests."],
+          },
+        },
+      },
+    });
+
+    mockFiles.set("gemini.json", JSON.stringify(geminiSkill));
+
+    await loader.reloadSkills();
+
+    const productNewsPrompt =
+      "what's new about gemini based on the last google IO announcements";
+    expect(loader.rankModelInvocableSkillsForQuery(productNewsPrompt)).toEqual([]);
+
+    const productNewsDescriptions = loader.getSkillDescriptionsForModel({
+      routingQuery: productNewsPrompt,
+      shortlistSize: 5,
+    });
+    expect(productNewsDescriptions).not.toContain("- gemini:");
+
+    const explicitRanked = loader.rankModelInvocableSkillsForQuery(
+      "Use the gemini skill to answer this question.",
+    );
+    expect(explicitRanked).toHaveLength(1);
+    expect(explicitRanked[0]?.skill.id).toBe("gemini");
+  });
+
+  it("should rank autoresearch-report for scientific literature prompts", async () => {
+    const autoresearchReport = createTestSkill({
+      id: "autoresearch-report",
+      name: "AutoResearch Report",
+      description: "Run an autonomous scientific research pipeline.",
+      category: "Research",
+      metadata: {
+        routing: {
+          useWhen: "Use when the user wants a scientific literature review or evidence synthesis.",
+          dontUseWhen: "Do not use for casual summaries or broad business-market research.",
+          outputs: "A cited research report with evidence and uncertainties.",
+          successCriteria: "The report is structured, cited, reproducible, and separates evidence from synthesis.",
+          keywords: [
+            "autoresearch report",
+            "autoresearch-report",
+            "scientific research",
+            "literature review",
+            "evidence synthesis",
+            "research report",
+          ],
+          examples: {
+            positive: [
+              "Use the autoresearch-report skill for this request.",
+              "Help me with autoresearch report.",
+            ],
+            negative: ["Do not use autoresearch-report for unrelated requests."],
+          },
+        },
+      },
+    });
+    const genericSkill = createTestSkill({
+      id: "generic-research",
+      name: "Generic Research",
+      description: "General research helper.",
+    });
+
+    mockFiles.set("autoresearch-report.json", JSON.stringify(autoresearchReport));
+    mockFiles.set("generic-research.json", JSON.stringify(genericSkill));
+
+    await loader.reloadSkills();
+
+    const ranked = loader.rankModelInvocableSkillsForQuery(
+      "Use the autoresearch-report skill to produce a scientific literature review on Alzheimer's disease genetics.",
+      { limit: 2 },
+    );
+
+    expect(ranked[0]?.skill.id).toBe("autoresearch-report");
+    expect(ranked[0]?.score).toBeGreaterThan(ranked[1]?.score ?? 0);
+  });
+});
+
+describe("getSkillDescriptionsForModel", () => {
+  let loader: CustomSkillLoader;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFiles.clear();
+    mockDirExists = true;
+    loader = new CustomSkillLoader();
+  });
+
+  it("should return empty string when no skills", async () => {
+    await loader.reloadSkills();
+    expect(loader.getSkillDescriptionsForModel()).toBe("");
+  });
+
+  it("should format skills by category", async () => {
+    const devSkill = createTestSkill({
+      id: "git-commit",
+      name: "Git Commit",
+      description: "Create a commit",
+      category: "Development",
+    });
+    const writingSkill = createTestSkill({
+      id: "translate",
+      name: "Translate",
+      description: "Translate content",
+      category: "Writing",
+    });
+
+    mockFiles.set("git-commit.json", JSON.stringify(devSkill));
+    mockFiles.set("translate.json", JSON.stringify(writingSkill));
+
+    await loader.reloadSkills();
+    const descriptions = loader.getSkillDescriptionsForModel();
+
+    expect(descriptions).toContain("Development:");
+    expect(descriptions).toContain("Writing:");
+    expect(descriptions).toContain("git-commit: Create a commit");
+    expect(descriptions).toContain("translate: Translate content");
+  });
+
+  it("should use General category for skills without category", async () => {
+    const skill = createTestSkill({
+      id: "no-category",
+      description: "A skill without category",
+    });
+    delete (skill as Any).category;
+
+    mockFiles.set("no-category.json", JSON.stringify(skill));
+
+    await loader.reloadSkills();
+    const descriptions = loader.getSkillDescriptionsForModel();
+
+    expect(descriptions).toContain("General:");
+    expect(descriptions).toContain("no-category: A skill without category");
+  });
+
+  it("should include parameter info with required markers", async () => {
+    const skill = createTestSkill({
+      id: "parameterized-skill",
+      description: "A skill with params",
+      category: "Testing",
+      parameters: [
+        { name: "path", type: "string", description: "File path", required: true },
+        { name: "language", type: "select", description: "Target language", required: false },
+      ],
+    });
+
+    mockFiles.set("parameterized-skill.json", JSON.stringify(skill));
+
+    await loader.reloadSkills();
+    const descriptions = loader.getSkillDescriptionsForModel();
+
+    expect(descriptions).toContain(
+      "parameterized-skill: A skill with params (args: path*, language) [user-invocable]",
+    );
+  });
+
+  it("should not include param info for skills without parameters", async () => {
+    const skill = createTestSkill({
+      id: "no-params",
+      description: "A skill without params",
+      category: "Testing",
+      parameters: [],
+    });
+
+    mockFiles.set("no-params.json", JSON.stringify(skill));
+
+    await loader.reloadSkills();
+    const descriptions = loader.getSkillDescriptionsForModel();
+
+    expect(descriptions).toContain("no-params: A skill without params");
+    expect(descriptions).not.toContain("(params:");
+  });
+
+  it("should exclude guideline skills from descriptions", async () => {
+    const taskSkill = createTestSkill({
+      id: "task-skill",
+      description: "A task skill",
+      category: "Testing",
+    });
+    const guidelineSkill = createTestSkill({
+      id: "guideline-skill",
+      description: "A guideline skill",
+      category: "Testing",
+      type: "guideline",
+    });
+
+    mockFiles.set("task-skill.json", JSON.stringify(taskSkill));
+    mockFiles.set("guideline-skill.json", JSON.stringify(guidelineSkill));
+
+    await loader.reloadSkills();
+    const descriptions = loader.getSkillDescriptionsForModel();
+
+    expect(descriptions).toContain("task-skill");
+    expect(descriptions).not.toContain("guideline-skill");
+  });
+
+  it("should exclude disabled skills from descriptions", async () => {
+    const enabledSkill = createTestSkill({
+      id: "enabled-skill",
+      description: "An enabled skill",
+      category: "Testing",
+      enabled: true,
+    });
+    const disabledSkill = createTestSkill({
+      id: "disabled-skill",
+      description: "A disabled skill",
+      category: "Testing",
+      enabled: false,
+    });
+
+    mockFiles.set("enabled-skill.json", JSON.stringify(enabledSkill));
+    mockFiles.set("disabled-skill.json", JSON.stringify(disabledSkill));
+
+    await loader.reloadSkills();
+    const descriptions = loader.getSkillDescriptionsForModel();
+
+    expect(descriptions).toContain("enabled-skill");
+    expect(descriptions).not.toContain("disabled-skill");
+  });
+
+  it("should apply routing shortlist for a focused query", async () => {
+    const deploySkill = createTestSkill({
+      id: "render-deploy",
+      name: "Render Deploy",
+      description: "Deploy applications to Render cloud",
+      category: "Deploy",
+    });
+    const audioSkill = createTestSkill({
+      id: "speech",
+      name: "Speech",
+      description: "Text to speech generation and voiceover",
+      category: "Media",
+    });
+    const tradingSkill = createTestSkill({
+      id: "crypto-trading",
+      name: "Crypto Trading",
+      description: "Crypto trading workflows",
+      category: "Finance",
+    });
+
+    mockFiles.set("render-deploy.json", JSON.stringify(deploySkill));
+    mockFiles.set("speech.json", JSON.stringify(audioSkill));
+    mockFiles.set("crypto-trading.json", JSON.stringify(tradingSkill));
+
+    await loader.reloadSkills();
+    const descriptions = loader.getSkillDescriptionsForModel({
+      routingQuery: "deploy my app to render",
+      shortlistSize: 1,
+    });
+
+    expect(descriptions).toContain("Routing shortlist: showing 1 of 3 skills");
+    expect(descriptions).toContain("render-deploy");
+    expect(descriptions).not.toContain("crypto-trading");
+    expect(descriptions).not.toContain("speech");
+  });
+
+  it("should hide codex-cli for generic Codex mentions but expose it for explicit skill requests", async () => {
+    const codexCli = createTestSkill({
+      id: "codex-cli",
+      name: "Codex CLI Agent",
+      description:
+        "Review a PR with Codex CLI.",
+      category: "Development",
+      metadata: {
+        routing: {
+          keywords: ["codex"],
+          useWhen:
+            "Use when the user wants to review a PR with Codex CLI. Triggers on: 'codex review', 'spin up codex for review', 'review PR with codex'.",
+          dontUseWhen:
+            "Do not use for planning or discussion only.",
+          outputs:
+            "Review output from Codex CLI agent.",
+          successCriteria:
+            "Codex CLI completes the review and returns output.",
+          examples: {
+            positive: [
+              "Use the Codex CLI Agent skill to review PR #55",
+              "Run the codex-cli skill for this PR review",
+            ],
+            negative: ["Fix this issue (use coding-agent for generic)"],
+          },
+        },
+      },
+    });
+    const codingAgent = createTestSkill({
+      id: "coding-agent",
+      name: "Coding-agent",
+      description:
+        "Run Codex CLI, OpenCode, or Pi Coding Agent via background process.",
+      category: "Tools",
+      metadata: {
+        routing: {
+          useWhen:
+            "Use when the user asks to run a coding agent. Triggers on: 'coding agent', 'run agent'.",
+          dontUseWhen:
+            "Do not use when the user explicitly names Codex CLI (use codex-cli).",
+          outputs:
+            "Task result from coding agent.",
+          successCriteria:
+            "Coding agent executes the requested task.",
+          examples: {
+            positive: [
+              "Run a coding agent on this",
+              "Use the coding-agent skill",
+            ],
+            negative: ["Review PR with Codex (use codex-cli)"],
+          },
+        },
+      },
+    });
+
+    mockFiles.set("codex-cli.json", JSON.stringify(codexCli));
+    mockFiles.set("coding-agent.json", JSON.stringify(codingAgent));
+
+    await loader.reloadSkills();
+
+    const genericMentionRanked = loader.rankModelInvocableSkillsForQuery(
+      "We need to review PR #55 on neoworker os repo. Spin up Codex to review it.",
+      { limit: 2 },
+    );
+    expect(genericMentionRanked.map((entry) => entry.skill.id)).not.toContain("codex-cli");
+
+    const explicitRanked = loader.rankModelInvocableSkillsForQuery(
+      "Use the Codex CLI Agent skill to review PR #55 on neoworker os repo.",
+      { limit: 2 },
+    );
+    expect(explicitRanked[0]?.skill.id).toBe("codex-cli");
+    expect(explicitRanked[0]?.score).toBeGreaterThan(explicitRanked[1]?.score ?? 0);
+
+    const genericDescriptions = loader.getSkillDescriptionsForModel({
+      routingQuery:
+        "We need to review PR #55 on neoworker os repo. Spin up Codex to review it.",
+      shortlistSize: 1,
+    });
+    expect(genericDescriptions).not.toContain("- codex-cli:");
+
+    const explicitDescriptions = loader.getSkillDescriptionsForModel({
+      routingQuery: "Use the Codex CLI Agent skill to review PR #55 on neoworker os repo.",
+      shortlistSize: 1,
+    });
+
+    expect(explicitDescriptions).toContain("codex-cli");
+    expect(explicitDescriptions).not.toContain("- coding-agent:");
+  });
+
+  it("should not treat distant activation and skill-name words as an explicit codex-cli request", async () => {
+    const codexCli = createTestSkill({
+      id: "codex-cli",
+      name: "Codex CLI Agent",
+      description: "Review a PR with Codex CLI.",
+      category: "Development",
+      metadata: {
+        routing: {
+          useWhen: "Use when the user explicitly wants to review a PR with Codex CLI.",
+        },
+      },
+    });
+
+    mockFiles.set("codex-cli.json", JSON.stringify(codexCli));
+
+    await loader.reloadSkills();
+
+    const ranked = loader.rankModelInvocableSkillsForQuery(
+      [
+        "This pasted note mentions the Codex CLI Agent in passing.",
+        "You can run local models if needed.",
+        "But this request is only asking for a summary of the article.",
+      ].join("\n"),
+      { limit: 3 },
+    );
+
+    expect(ranked.map((entry) => entry.skill.id)).not.toContain("codex-cli");
+  });
+
+  it("should include fallback discovery hint when routing confidence is low", async () => {
+    mockFiles.set(
+      "render-deploy.json",
+      JSON.stringify(
+        createTestSkill({
+          id: "render-deploy",
+          description: "Deploy web apps",
+        }),
+      ),
+    );
+    mockFiles.set(
+      "speech.json",
+      JSON.stringify(
+        createTestSkill({
+          id: "speech",
+          description: "Generate narration",
+        }),
+      ),
+    );
+
+    await loader.reloadSkills();
+    const descriptions = loader.getSkillDescriptionsForModel({
+      routingQuery: "unknownconcepttotallyunrelated",
+      shortlistSize: 2,
+      lowConfidenceThreshold: 0.9,
+    });
+
+    expect(descriptions).toContain("Routing confidence is low");
+    expect(descriptions).toContain("Review the listed skills carefully");
+  });
+
+  it("should truncate descriptions to respect prompt text budget", async () => {
+    const hugeDescription = "x".repeat(10_000);
+    mockFiles.set(
+      "huge.json",
+      JSON.stringify(
+        createTestSkill({
+          id: "huge-skill",
+          description: hugeDescription,
+          category: "Huge",
+        }),
+      ),
+    );
+
+    await loader.reloadSkills();
+    const descriptions = loader.getSkillDescriptionsForModel({
+      textBudgetChars: 400,
+    });
+
+    expect(descriptions.length).toBeLessThanOrEqual(1700);
+    expect(descriptions).toContain("truncated for prompt budget");
+  });
+
+  it("should reject updating external read-only skills", async () => {
+    const externalSkill = createTestSkill({
+      id: "external-skill",
+      source: "external",
+      filePath: "/shared/skills/external-skill.json",
+    });
+    (loader as Any).skills.set(externalSkill.id, externalSkill);
+
+    await expect(
+      loader.updateSkill("external-skill", { description: "Updated description" }),
+    ).rejects.toThrow("Cannot update external read-only skills");
+  });
+
+  it("should validate external skill directories before saving them", () => {
+    mockDirs.add("/shared/skills");
+
+    expect(loader.setExternalSkillDirs(["/shared/skills"])).toEqual(["/shared/skills"]);
+    expect(() => loader.setExternalSkillDirs(["relative/skills"])).toThrow(
+      "External skill directory must be a directory",
+    );
+  });
+});
+
+describe("getCustomSkillLoader", () => {
+  it("should return singleton instance", () => {
+    const instance1 = getCustomSkillLoader();
+    const instance2 = getCustomSkillLoader();
+
+    expect(instance1).toBe(instance2);
+  });
+});

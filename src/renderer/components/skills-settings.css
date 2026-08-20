@@ -1,0 +1,122 @@
+/* Custom Skills is rendered in both Settings and the capability manager.
+ * Keep its heading rhythm and actions local so legacy global button rules
+ * cannot reintroduce glossy gradients or mismatched alignment. */
+.skills-settings .skills-settings-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  margin: 0;
+}
+
+.skills-settings .skills-settings-heading-copy {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+}
+
+.skills-settings .skills-settings-heading-copy h3 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 24px;
+}
+
+.skills-settings .skills-settings-heading-copy .settings-description {
+  max-width: 720px;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.skills-settings .skills-settings-header .settings-section-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.skills-settings .skills-settings-header :is(.btn-primary, .btn-secondary) {
+  min-height: 36px;
+  padding: 0 13px;
+  appearance: none;
+  border-radius: 9px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: none !important;
+  filter: none;
+  text-shadow: none;
+  transform: none;
+}
+
+.skills-settings .skills-settings-header :is(.btn-primary, .btn-secondary)::before {
+  display: none !important;
+}
+
+.skills-settings .skills-settings-header .btn-secondary {
+  border: 1px solid var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+  background: var(--color-bg-elevated) !important;
+}
+
+.skills-settings .skills-settings-header .btn-secondary:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-action-primary) 24%, var(--color-border)) !important;
+  color: var(--color-text-primary) !important;
+  background: var(--color-bg-hover) !important;
+  box-shadow: none !important;
+  filter: none;
+  transform: none;
+}
+
+.skills-settings .skills-settings-header .btn-primary {
+  border: 1px solid var(--color-action-primary) !important;
+  color: #ffffff !important;
+  background: var(--color-action-primary) !important;
+  box-shadow: none !important;
+}
+
+.skills-settings .skills-settings-header .btn-primary:hover:not(:disabled) {
+  border-color: var(--color-action-primary-hover) !important;
+  color: #ffffff !important;
+  background: var(--color-action-primary-hover) !important;
+  box-shadow: none !important;
+  filter: none;
+  transform: none;
+}
+
+.skills-settings .skills-settings-header :is(.btn-primary, .btn-secondary):active:not(:disabled) {
+  box-shadow: none !important;
+  filter: none;
+  transform: translateY(1px);
+}
+
+.skills-settings .skills-settings-header :is(.btn-primary, .btn-secondary):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-action-primary) 16%, transparent) !important;
+}
+
+.theme-dark .skills-settings .skills-settings-header .btn-secondary {
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+  background: var(--color-bg-elevated) !important;
+}
+
+@media (max-width: 760px) {
+  .skills-settings .skills-settings-header {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 14px;
+  }
+
+  .skills-settings .skills-settings-header .settings-section-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}

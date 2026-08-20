@@ -1,0 +1,646 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
+import { Check, X, Play, Loader2 } from "lucide-react";
+import type { Task, TaskEvent } from "../../shared/types";
+import { normalizeMarkdownForCollab } from "../utils/markdown-inline-lists";
+import { getEmojiIcon } from "../utils/emoji-icon-map";
+import { replaceEmojisInChildren } from "../utils/emoji-replacer";
+import { getEffectiveTaskEventType } from "../utils/task-event-compat";
+import { sanitizeToolCallTextFromAssistant } from "../../shared/tool-call-text-sanitizer";
+import { formatProviderErrorForDisplay } from "../../shared/provider-error-format";
+import { localizeErrorText } from "../utils/localized-error-text";
+import { translate, useLanguage } from "../i18n";
+
+interface AgentRoleInfo {
+  id: string;
+  displayName: string;
+  icon: string;
+  color: string;
+}
+
+interface DispatchedAgentsPanelProps {
+  parentTaskId: string;
+  childTasks: Task[];
+  childEvents: TaskEvent[];
+  onSelectChildTask?: (taskId: string) => void;
+  onOpenChildAgentSidebar?: (taskId: string) => void;
+}
+
+const SAFE_LINK_PROTOCOL_REGEX = /^(https?:|mailto:|tel:)/i;
+
+function safeMarkdownUrlTransform(url: string): string {
+  const normalized = url.trim();
+  if (!normalized) return "";
+  if (
+    normalized.startsWith("#") ||
+    normalized.startsWith("/") ||
+    normalized.startsWith("./") ||
+    normalized.startsWith("../")
+  ) {
+    return normalized;
+  }
+  return SAFE_LINK_PROTOCOL_REGEX.test(normalized) ? normalized : "";
+}
+
+/** Display event types worth showing in the stream */
+const DISPLAY_EVENT_TYPES = new Set<string>([
+  "assistant_message",
+  "step_started",
+  "progress_update",
+  "step_completed",
+  "step_failed",
+  "plan_created",
+  "task_completed",
+  "task_cancelled",
+  "error",
+]);
+
+type StreamEventType =
+  | "assistant_message"
+  | "step_started"
+  | "progress_update"
+  | "step_completed"
+  | "step_failed"
+  | "plan_created"
+  | "task_completed"
+  | "task_cancelled"
+  | "error";
+
+const COMPACT_STREAM_EVENT_TYPES = new Set<StreamEventType>([
+  "step_started",
+  "step_completed",
+  "step_failed",
+  "progress_update",
+]);
+
+interface StreamItem {
+  id: string;
+  taskId: string;
+  agentRoleId: string;
+  agentIcon: string;
+  agentColor: string;
+  agentName: string;
+  type: StreamEventType;
+  content: string;
+  timestamp: number;
+}
+
+function isCompactStreamEventType(type: StreamEventType): boolean {
+  return COMPACT_STREAM_EVENT_TYPES.has(type);
+}
+
+function buildTaskCompletionStreamText(payload: TaskEvent["payload"]): string {
+  const p = payload as Record<string, unknown> | undefined;
+  const resultSummary =
+    typeof p?.resultSummary === "string" ? p.resultSummary.trim() : "";
+  const semanticSummary =
+    typeof p?.semanticSummary === "string" ? p.semanticSummary.trim() : "";
+  const verificationVerdict =
+    typeof p?.verificationVerdict === "string"
+      ? p.verificationVerdict.trim()
+      : "";
+  const verificationReport =
+    typeof p?.verificationReport === "string"
+      ? p.verificationReport.trim()
+      : "";
+
+  const summary = [resultSummary, semanticSummary]
+    .filter((value) => value.length > 0)
+    .join("\n\n");
+  if (!verificationVerdict && !verificationReport) {
+    return summary || "Task completed successfully";
+  }
+
+  const verification = [
+    verificationVerdict ? `Verification: ${verificationVerdict}` : "",
+    verificationReport || "",
+  ]
+    .filter((value) => value.length > 0)
+    .join("\n");
+
+  return [summary, verification]
+    .filter((value) => value.length > 0)
+    .join("\n\n");
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- event payloads are untyped
+function formatEventContent(
+  type: StreamEventType,
+  payload: TaskEvent["payload"],
+  task?: Task | null,
+): string {
+  const p = payload as Record<string, unknown> | undefined;
+  const step = p?.step as Record<string, unknown> | undefined;
+  const plan = p?.plan as Record<string, unknown> | undefined;
+  const sanitize = (value: unknown): string =>
+    sanitizeToolCallTextFromAssistant(String(value || "")).text;
+  switch (type) {
+    case "assistant_message":
+      return sanitize(p?.message);
+    case "step_started":
+      return `Starting: ${sanitize(step?.description || p?.description || "step") || "step"}`;
+    case "progress_update":
+      return sanitize(p?.message);
+    case "step_completed":
+      return `Completed: ${sanitize(step?.description || p?.description || "step") || "step"}`;
+    case "step_failed":
+      return `Failed: ${sanitize(step?.description || p?.description || "step") || "step"} — ${sanitize(
+        localizeErrorText(
+          formatProviderErrorForDisplay(String(p?.error || p?.reason || ""), {
+            task,
+          }),
+        ),
+      )}`;
+    case "plan_created": {
+      const steps = (plan?.steps as unknown[]) || (p?.steps as unknown[]) || [];
+      return `Created plan with ${steps.length} step${steps.length !== 1 ? "s" : ""}`;
+    }
+    case "task_completed":
+      return buildTaskCompletionStreamText(payload);
+    case "task_cancelled":
+      return "Task was cancelled";
+    case "error":
+      return sanitize(
+        localizeErrorText(
+          formatProviderErrorForDisplay(
+            String(p?.message || p?.error || "An error occurred"),
+            { task },
+          ),
+        ),
+      );
+    default:
+      return "";
+  }
+}
+
+function StreamBubble({
+  item,
+  isCompactEvent,
+}: {
+  item: StreamItem;
+  isCompactEvent: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = item.content.length > 600;
+  const displayContent =
+    !isCompactEvent && isLong && !expanded
+      ? item.content.slice(0, 600) + "..."
+      : item.content;
+
+  const time = new Date(item.timestamp);
+  const timeStr = time.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const isStep =
+    item.type === "step_started" ||
+    item.type === "step_completed" ||
+    item.type === "step_failed";
+  const isMarkdown = item.type === "assistant_message";
+
+  if (isCompactEvent) {
+    return (
+      <div className="thought-bubble thought-bubble-compact-event">
+        <div className="stream-event-row">
+          <div className="stream-event-main">
+            {item.type === "step_completed" && (
+              <Check
+                size={14}
+                strokeWidth={2.5}
+                className="step-icon step-icon-completed"
+              />
+            )}
+            {item.type === "step_failed" && (
+              <X
+                size={14}
+                strokeWidth={2.5}
+                className="step-icon step-icon-failed"
+              />
+            )}
+            {item.type === "step_started" && (
+              <Play
+                size={14}
+                strokeWidth={2}
+                className="step-icon step-icon-started"
+              />
+            )}
+            {item.type === "progress_update" && (
+              <Loader2
+                size={14}
+                strokeWidth={2}
+                className="step-icon step-icon-progress"
+              />
+            )}
+            <p
+              className={`step-event ${item.type === "step_completed" ? "step-completed" : ""} ${item.type === "step_failed" ? "step-failed" : ""} ${item.type === "progress_update" ? "step-progress" : ""}`}
+            >
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkBreaks]}
+                components={{
+                  p: ({ children }) => (
+                    <>{replaceEmojisInChildren(children, 13)}</>
+                  ),
+                  li: ({ children }) => (
+                    <>{replaceEmojisInChildren(children, 13)}</>
+                  ),
+                }}
+              >
+                {normalizeMarkdownForCollab(displayContent)}
+              </ReactMarkdown>
+            </p>
+          </div>
+          <span className="stream-event-time thought-time">{timeStr}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="thought-bubble">
+      <div className="thought-content markdown-content">
+        {isStep ? (
+          <p
+            className={`step-event ${item.type === "step_completed" ? "step-completed" : ""} ${item.type === "step_failed" ? "step-failed" : ""}`}
+          >
+            {item.type === "step_completed" && (
+              <Check
+                size={14}
+                strokeWidth={2.5}
+                className="step-icon step-icon-completed"
+              />
+            )}
+            {item.type === "step_failed" && (
+              <X
+                size={14}
+                strokeWidth={2.5}
+                className="step-icon step-icon-failed"
+              />
+            )}
+            {item.type === "step_started" && (
+              <Play
+                size={14}
+                strokeWidth={2}
+                className="step-icon step-icon-started"
+              />
+            )}
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkBreaks]}
+              components={{
+                p: ({ children }) => (
+                  <>{replaceEmojisInChildren(children, 13)}</>
+                ),
+                li: ({ children }) => (
+                  <>{replaceEmojisInChildren(children, 13)}</>
+                ),
+              }}
+            >
+              {normalizeMarkdownForCollab(displayContent)}
+            </ReactMarkdown>
+          </p>
+        ) : isMarkdown ? (
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm, remarkBreaks]}
+            urlTransform={safeMarkdownUrlTransform}
+          >
+            {normalizeMarkdownForCollab(displayContent)}
+          </ReactMarkdown>
+        ) : (
+          <p>{displayContent}</p>
+        )}
+      </div>
+      <div className="thought-footer">
+        <span className="thought-time">{timeStr}</span>
+        {!isCompactEvent && isLong && (
+          <button
+            className="thought-expand-btn"
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded
+              ? translate("common.showLess", "Show less")
+              : translate("common.showMore", "Show more")}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DispatchPhaseIndicator({ childTasks }: { childTasks: Task[] }) {
+  const allTerminal = childTasks.every(
+    (t) =>
+      t.status === "completed" ||
+      t.status === "failed" ||
+      t.status === "cancelled",
+  );
+  const anyWorking = childTasks.some(
+    (t) =>
+      t.status === "executing" ||
+      t.status === "planning" ||
+      t.status === "interrupted",
+  );
+  const phase = allTerminal
+    ? "complete"
+    : anyWorking
+      ? "working"
+      : "dispatched";
+
+  const phases = ["dispatched", "working", "complete"];
+  const labels: Record<string, string> = {
+    dispatched: translate("dispatchedAgents.phase.dispatched", "Dispatched"),
+    working: translate("dispatchedAgents.phase.working", "Working"),
+    complete: translate("dispatchedAgents.phase.complete", "Complete"),
+  };
+  const currentIndex = phases.indexOf(phase);
+
+  return (
+    <div className="phase-indicator">
+      {phases.map((p, i) => (
+        <div key={p} className="phase-step-wrapper">
+          <div
+            className={`phase-step ${i < currentIndex ? "phase-completed" : ""} ${i === currentIndex ? "phase-active" : ""}`}
+          >
+            <span className="phase-dot" />
+            <span className="phase-label">{labels[p]}</span>
+          </div>
+          {i < phases.length - 1 && (
+            <div
+              className={`phase-connector ${i < currentIndex ? "phase-connector-active" : ""}`}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function DispatchedAgentsPanel({
+  parentTaskId: _parentTaskId,
+  childTasks,
+  childEvents,
+  onSelectChildTask,
+  onOpenChildAgentSidebar,
+}: DispatchedAgentsPanelProps) {
+  useLanguage();
+  const [agentRoles, setAgentRoles] = useState<Map<string, AgentRoleInfo>>(
+    new Map(),
+  );
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+  const scrollParentRef = useRef<HTMLElement | null>(null);
+
+  // Load agent roles once
+  useEffect(() => {
+    window.electronAPI
+      .getAgentRoles(false)
+      .then((roles: AgentRoleInfo[]) => {
+        const map = new Map<string, AgentRoleInfo>();
+        for (const r of roles) {
+          map.set(r.id, {
+            id: r.id,
+            displayName: r.displayName,
+            icon: r.icon,
+            color: r.color,
+          });
+        }
+        setAgentRoles(map);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Auto-scroll: detect scrollable ancestor
+  useEffect(() => {
+    const panel = scrollRef.current;
+    if (!panel) return;
+    let scrollParent: HTMLElement | null = panel.parentElement;
+    while (scrollParent) {
+      const style = getComputedStyle(scrollParent);
+      const overflowY = style.overflowY;
+      if (
+        overflowY === "auto" ||
+        overflowY === "scroll" ||
+        overflowY === "overlay"
+      ) {
+        break;
+      }
+      scrollParent = scrollParent.parentElement;
+    }
+    if (!scrollParent) return;
+    scrollParentRef.current = scrollParent;
+
+    const onScroll = () => {
+      const remaining =
+        scrollParent!.scrollHeight -
+        scrollParent!.scrollTop -
+        scrollParent!.clientHeight;
+      stickToBottomRef.current = remaining <= 120;
+    };
+    onScroll();
+    scrollParent.addEventListener("scroll", onScroll);
+    return () => scrollParent!.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Scroll to bottom when new events arrive
+  useEffect(() => {
+    if (stickToBottomRef.current && scrollParentRef.current) {
+      scrollParentRef.current.scrollTop = scrollParentRef.current.scrollHeight;
+    }
+  }, [childEvents]);
+
+  // Resolve agent info per child task
+  const agentInfos = useMemo(() => {
+    return childTasks.map((task) => {
+      const role = task.assignedAgentRoleId
+        ? agentRoles.get(task.assignedAgentRoleId)
+        : undefined;
+      return {
+        task,
+        role,
+        status: task.status,
+      };
+    });
+  }, [childTasks, agentRoles]);
+
+  // Build the event stream
+  const streamItems = useMemo(() => {
+    const items: StreamItem[] = [];
+    for (const event of childEvents) {
+      const effectiveType = getEffectiveTaskEventType(event);
+      if (!DISPLAY_EVENT_TYPES.has(effectiveType)) continue;
+      const task = childTasks.find((t) => t.id === event.taskId);
+      if (!task) continue;
+      const role = task.assignedAgentRoleId
+        ? agentRoles.get(task.assignedAgentRoleId)
+        : undefined;
+
+      const content = formatEventContent(
+        effectiveType as StreamEventType,
+        event.payload,
+        task,
+      );
+      if (!content) continue;
+
+      items.push({
+        id: event.id || `${event.taskId}-${event.timestamp}`,
+        taskId: event.taskId,
+        agentRoleId: task.assignedAgentRoleId || "unknown",
+        agentIcon: role?.icon || "🤖",
+        agentColor: role?.color || "#6366f1",
+        agentName: role?.displayName || task.title.replace(/^@[^:]+:\s*/, ""),
+        type: effectiveType as StreamEventType,
+        content,
+        timestamp: event.timestamp,
+      });
+    }
+    return items;
+  }, [childEvents, childTasks, agentRoles]);
+
+  const workingCount = childTasks.filter(
+    (t) =>
+      t.status === "executing" ||
+      t.status === "planning" ||
+      t.status === "interrupted",
+  ).length;
+  const openChildAgent = onOpenChildAgentSidebar ?? onSelectChildTask;
+
+  return (
+    <div className="dispatched-agents-panel" ref={scrollRef}>
+      <div className="thoughts-header">
+        <span className="thoughts-title">
+          {translate("dispatchedAgents.title", "Dispatched Agents ({count})", {
+            count: childTasks.length,
+          })}
+        </span>
+      </div>
+
+      {/* Agent chips */}
+      <div className="team-announcement">
+        <div className="team-announcement-text">
+          {translate(
+            "dispatchedAgents.workingOnSubtasks",
+            "{count} agents working on sub-tasks",
+            {
+              count: childTasks.length,
+            },
+          )}
+        </div>
+        <div className="team-members-grid">
+          {agentInfos.map((info) => (
+            <div
+              key={info.task.id}
+              className="team-member-chip"
+              style={{
+                borderColor: info.role?.color || "#6366f1",
+                cursor: openChildAgent ? "pointer" : undefined,
+              }}
+              onClick={() => openChildAgent?.(info.task.id)}
+              title={translate(
+                "dispatchedAgents.openAgentTask",
+                "Click to view {name}'s task",
+                {
+                  name:
+                    info.role?.displayName ||
+                    translate("dispatchedAgents.agent", "agent"),
+                },
+              )}
+            >
+              <span className="team-member-icon">
+                {(() => {
+                  const Icon = getEmojiIcon(info.role?.icon || "🤖");
+                  return <Icon size={16} strokeWidth={1.5} />;
+                })()}
+              </span>
+              <span
+                className="team-member-name"
+                style={{ color: info.role?.color || "#6366f1" }}
+              >
+                {info.role?.displayName ||
+                  translate("dispatchedAgents.agent", "Agent")}
+              </span>
+              <span className={`dispatched-agent-status status-${info.status}`}>
+                {info.status === "executing" || info.status === "interrupted"
+                  ? translate("dispatchedAgents.status.working", "working")
+                  : info.status === "planning"
+                    ? translate("dispatchedAgents.status.planning", "planning")
+                    : translate(
+                        `dispatchedAgents.status.${info.status}`,
+                        info.status,
+                      )}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <DispatchPhaseIndicator childTasks={childTasks} />
+
+      {/* Event stream */}
+      <div className="thoughts-stream">
+        {streamItems.length === 0 && (
+          <div className="thoughts-empty">
+            {translate(
+              "dispatchedAgents.empty.dispatching",
+              "Dispatching agents and waiting for results...",
+            )}
+          </div>
+        )}
+        {streamItems.map((item, i) => {
+          const prev = i > 0 ? streamItems[i - 1] : null;
+          const showHeader = !prev || prev.agentRoleId !== item.agentRoleId;
+          const isCompactEvent = isCompactStreamEventType(item.type);
+
+          return (
+            <div key={item.id}>
+              <div
+                className={`stream-thought ${isCompactEvent ? "stream-thought-compact" : ""}`}
+                style={{ borderLeftColor: item.agentColor }}
+              >
+                {showHeader && (
+                  <div className="stream-agent-header-inline">
+                    <span className="stream-agent-icon">
+                      {(() => {
+                        const Icon = getEmojiIcon(item.agentIcon);
+                        return <Icon size={14} strokeWidth={1.5} />;
+                      })()}
+                    </span>
+                    <span
+                      className="stream-agent-name-inline"
+                      style={{ color: item.agentColor }}
+                    >
+                      {item.agentName}
+                    </span>
+                  </div>
+                )}
+                <StreamBubble item={item} isCompactEvent={isCompactEvent} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Sticky status bar */}
+      {workingCount > 0 && (
+        <div className="collab-phase-status">
+          <Loader2
+            className="collab-phase-spinner"
+            size={14}
+            strokeWidth={2.5}
+          />
+          <span className="collab-phase-label">
+            {translate(
+              "dispatchedAgents.statusBar.working",
+              "{count} agents working...",
+              {
+                count: workingCount,
+              },
+            )}
+          </span>
+        </div>
+      )}
+      <div ref={bottomRef} />
+    </div>
+  );
+}

@@ -1,0 +1,327 @@
+# Remote Access Guide
+
+NeoWorker provides multiple options for remote access to your Control Plane, allowing you to manage tasks, monitor progress, and interact with agents from anywhere.
+
+Remote access is now also the foundation for the desktop **Devices** tab. The same Control Plane connection can be saved as a managed remote device, letting you:
+
+- connect and reconnect a remote NeoWorker node from the desktop UI
+- launch tasks on that machine
+- inspect remote task history in a remote session view
+- browse remote workspaces
+- attach files directly from the remote filesystem before dispatching a task
+
+## Overview
+
+The Control Plane WebSocket server binds to `127.0.0.1:18789` by default for security. For remote access, you have three options:
+
+| Method | Use Case | Setup Complexity |
+|--------|----------|------------------|
+| **SSH Tunnel** | Personal use, existing SSH infrastructure | Low |
+| **Tailscale Serve** | Private network access (Tailnet only) | Medium |
+| **Tailscale Funnel** | Public internet access | Medium |
+
+For private MCP tool access, use [Secure MCP Tunnels](secure-mcp-tunnels.md) instead of exposing a local MCP port. Secure MCP Tunnels open an outbound WebSocket from the local NeoWorker app to a relay you operate and forward only authenticated MCP JSON-RPC requests.
+
+When the server is running, it also serves a minimal web dashboard at `/` (same host/port).
+This is useful for headless/VPS setups: open the URL in a browser (via tunnel/Tailscale), paste the token, and manage tasks, approvals, and pending structured input requests.
+It also includes basic workspace, channel, and account management so you can bring up a fresh VPS without a desktop UI.
+
+In headless/managed deployments, NeoWorker fails closed on raw public binds. Binding the Control Plane to `0.0.0.0` or `::` is blocked unless Tailscale is enabled, the process is running inside a privately published container (`NEOWORKER_CONTROL_PLANE_BIND_CONTEXT=container`), or you set the break-glass `NEOWORKER_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND=1`.
+
+## Finding the Remote Address
+
+Before connecting from your main NeoWorker machine, determine the address that is actually reachable from the client.
+
+### Same Local Network
+
+If the remote machine is a Mac mini, laptop, or VM on the same LAN:
+
+1. Enable **Allow LAN Connections** in NeoWorker Settings > Control Plane.
+2. On the remote machine, find its local IP:
+
+```bash
+ifconfig | grep "inet "
+```
+
+3. Use the private LAN address, usually something like:
+   - `192.168.x.x`
+   - `10.x.x.x`
+   - `172.16.x.x` to `172.31.x.x`
+4. Do not use:
+   - `127.0.0.1` because that is loopback on the remote machine only
+   - `0.0.0.0` because that is a bind address, not a destination address
+
+Example:
+
+```text
+ws://192.168.64.4:18789
+```
+
+### Public / External Network
+
+If the remote machine is not on the same local network:
+
+- Preferred: use **Tailscale** and connect with the Tailscale hostname / `wss://` URL
+- Safe fallback: use an **SSH tunnel** and connect locally to `ws://127.0.0.1:18789`
+- Direct public IP is possible only with an explicit break-glass public-bind override, firewall rules, TLS, and a strong token
+- Reverse proxies should preserve a loopback/private daemon bind when possible. If the browser dashboard is served through a public origin, set `NEOWORKER_CONTROL_PLANE_ALLOWED_ORIGINS=https://your-host.example`; only set `NEOWORKER_CONTROL_PLANE_TRUST_PROXY=1` behind a proxy you control.
+
+If you are using a VPS or another network you do not fully control, prefer Tailscale or SSH tunnel over a raw public WebSocket endpoint.
+
+## SSH Tunnel (Recommended for Personal Use)
+
+SSH tunnels provide secure remote access using standard SSH port forwarding. This is ideal if you already have SSH access to the machine running NeoWorker.
+
+### Prerequisites
+
+- SSH access to the remote machine running NeoWorker
+- Control Plane enabled. For a packaged Linux server release or source Node daemon, start `node bin/neoworkerd-node.js`; for headless Electron, start `node bin/neoworkerd.js`; for desktop, use Settings UI.
+- Authentication token available (printed on first generation, or via `--print-control-plane-token`)
+
+### Setup
+
+1. **Enable Control Plane** in NeoWorker Settings > Control Plane
+   - Packaged Linux server release: run `node bin/neoworkerd-node.js --print-control-plane-token` from the extracted package directory.
+   - Source/headless: start with `node bin/neoworkerd-node.js` (Node daemon) or `node bin/neoworkerd.js` (headless Electron).
+2. **Note your token** (copy it for client configuration)
+3. **Create SSH tunnel** from your local machine:
+
+```bash
+# Basic SSH tunnel
+ssh -N -L 18789:127.0.0.1:18789 user@remote-host
+
+# With keep-alive for long sessions
+ssh -N -L 18789:127.0.0.1:18789 -o ServerAliveInterval=60 user@remote-host
+
+# Background mode
+ssh -fN -L 18789:127.0.0.1:18789 user@remote-host
+```
+
+4. **Connect your client** to `ws://127.0.0.1:18789` with your token
+
+### SSH Tunnel Options
+
+| Flag | Description |
+|------|-------------|
+| `-N` | Don't execute remote commands (tunnel only) |
+| `-L` | Local port forwarding |
+| `-f` | Run in background |
+| `-o ServerAliveInterval=60` | Keep connection alive |
+
+### Custom Port
+
+If you've configured a different port in NeoWorker:
+
+```bash
+# Replace 18789 with your configured port
+ssh -N -L <local-port>:127.0.0.1:<remote-port> user@remote-host
+```
+
+### Persistent Tunnel with autossh
+
+For automatic reconnection, use `autossh`:
+
+```bash
+# Install autossh
+brew install autossh  # macOS
+apt install autossh   # Debian/Ubuntu
+
+# Create persistent tunnel
+autossh -M 0 -N -L 18789:127.0.0.1:18789 \
+  -o "ServerAliveInterval=30" \
+  -o "ServerAliveCountMax=3" \
+  user@remote-host
+```
+
+## Tailscale Integration
+
+Tailscale provides zero-config VPN networking. NeoWorker supports two modes:
+
+### Tailscale Serve (Private Network)
+
+Exposes your Control Plane to devices on your Tailnet only.
+
+1. **Install Tailscale** from [tailscale.com](https://tailscale.com)
+2. **Connect to your Tailnet**: `tailscale up`
+3. **Enable in NeoWorker**: Settings > Control Plane > Tailscale Mode > "Serve"
+4. **Access via**: `wss://<hostname>.<tailnet>.ts.net`
+
+### Tailscale Funnel (Public Internet)
+
+Exposes your Control Plane to the public internet (requires Tailscale subscription).
+
+1. **Enable Funnel** on your Tailscale account
+2. **Enable in NeoWorker**: Settings > Control Plane > Tailscale Mode > "Funnel"
+3. **Access via**: `wss://<hostname>.<tailnet>.ts.net` from anywhere
+
+## Security Considerations
+
+### Best Practices
+
+1. **Keep gateway loopback-only**: Headless/managed startup blocks `0.0.0.0`/`::` unless Tailscale, private container context, or a break-glass override is configured
+2. **Use strong tokens**: NeoWorker generates 256-bit tokens by default
+3. **Pin browser origins behind proxies**: set `NEOWORKER_CONTROL_PLANE_ALLOWED_ORIGINS` for reverse-proxied dashboards
+4. **Rotate tokens regularly**: Use the "Regenerate Token" button periodically
+5. **Enable TLS**: Use `wss://` over public networks (automatic with Tailscale)
+6. **Rate limiting**: NeoWorker automatically blocks IPs after 5 failed auth attempts
+
+### Authentication Flow
+
+```
+Client                              NeoWorker Control Plane
+  │                                        │
+  │  ─────── WebSocket Connect ──────────► │
+  │                                        │
+  │  ◄────── Challenge (nonce) ─────────── │
+  │                                        │
+  │  ─────── Connect { token } ──────────► │
+  │                                        │
+  │  ◄────── Success + Client ID ───────── │
+  │                                        │
+  │  ═══════ Authenticated Session ═══════ │
+```
+
+### Token Storage
+
+- Tokens are encrypted using the OS keychain (via Electron's safeStorage)
+- Never share tokens in plain text
+- Use environment variables or secure vaults for automation
+
+## Client Configuration
+
+### Example: Node.js Client
+
+```javascript
+const WebSocket = require('ws');
+
+const ws = new WebSocket('ws://127.0.0.1:18789');
+
+ws.on('open', () => {
+  // Send connect request with token
+  ws.send(JSON.stringify({
+    type: 'req',
+    id: '1',
+    method: 'connect',
+    params: {
+      token: 'your-token-here',
+      deviceName: 'My CLI Client'
+    }
+  }));
+});
+
+ws.on('message', (data) => {
+  const frame = JSON.parse(data);
+  console.log('Received:', frame);
+});
+```
+
+### Example: Python Client
+
+```python
+import asyncio
+import websockets
+import json
+
+async def connect():
+    uri = "ws://127.0.0.1:18789"
+    async with websockets.connect(uri) as ws:
+        # Authenticate
+        await ws.send(json.dumps({
+            "type": "req",
+            "id": "1",
+            "method": "connect",
+            "params": {
+                "token": "your-token-here",
+                "deviceName": "Python Client"
+            }
+        }))
+
+        response = await ws.recv()
+        print(f"Response: {response}")
+
+asyncio.run(connect())
+```
+
+## Remote Client Mode (Connecting to Remote NeoWorker)
+
+NeoWorker can also operate as a client connecting to a remote Control Plane. This is useful when you want to use a local NeoWorker instance to manage tasks on a remote machine.
+
+### Configuration
+
+In Settings > Control Plane > Remote Connection:
+
+| Setting | Description |
+|---------|-------------|
+| **Gateway URL** | WebSocket URL (e.g., `ws://127.0.0.1:18789` via SSH tunnel) |
+| **Token** | Control Plane authentication token from the remote machine |
+| **Device name** | Human-readable label shown in the Devices tab |
+| **Purpose** | Optional remote-device role hint used in device cards and task routing |
+
+### Devices tab workflow
+
+Once the remote endpoint is reachable:
+
+1. Open the desktop **Devices** tab.
+2. Click **Add new device**.
+3. Enter the gateway URL, token, device name, and optional purpose.
+4. Save and connect the device.
+5. Select the device to:
+   - run a task remotely
+   - list remote workspaces
+   - attach files from a remote workspace
+   - inspect tasks, alerts, apps, storage, and device details
+
+When you open a remote task from that tab, NeoWorker shows a remote-session banner so you can tell you are reviewing another machine's task history rather than the local machine's active session.
+| **TLS Fingerprint** | (Optional) Certificate pin for `wss://` connections |
+
+### Examples
+
+- Same network Mac mini or laptop: `ws://192.168.1.25:18789`
+- Same host over SSH tunnel: `ws://127.0.0.1:18789`
+- Tailscale: `wss://my-mac.tailnet-name.ts.net`
+
+### Connection Modes
+
+| Mode | Description |
+|------|-------------|
+| **Local** | This NeoWorker instance runs the Control Plane server |
+| **Remote** | Connect to a Control Plane on another machine |
+
+## Troubleshooting
+
+### SSH Tunnel Issues
+
+**Connection refused:**
+```bash
+# Check if NeoWorker is running and Control Plane is enabled
+curl http://127.0.0.1:18789/health
+```
+
+**Tunnel disconnects:**
+```bash
+# Use keep-alive options
+ssh -N -L 18789:127.0.0.1:18789 \
+  -o ServerAliveInterval=30 \
+  -o ServerAliveCountMax=3 \
+  user@remote-host
+```
+
+### Authentication Failures
+
+**"Too many failed attempts":**
+- Wait 5 minutes (automatic ban expires)
+- Or restart the Control Plane server
+
+**"Invalid token":**
+- Verify token matches the one in NeoWorker settings
+- Check for extra whitespace when copying
+
+### Tailscale Issues
+
+**"Funnel not available":**
+- Ensure you have a Tailscale subscription with Funnel enabled
+- Run `tailscale serve status` to check configuration
+
+## API Reference
+
+Protocol reference (methods/events/error codes) lives in `src/electron/control-plane/protocol.ts`.

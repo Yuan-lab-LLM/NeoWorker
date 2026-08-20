@@ -1,0 +1,50 @@
+{
+  "id": "codex-cli",
+  "name": "Codex CLI Agent",
+  "description": "Run OpenAI Codex CLI as a background agent — detect, install, configure, and execute coding tasks via codex exec.",
+  "icon": "⚡",
+  "category": "Development",
+  "prompt": "# Codex CLI Agent\n\nUse this skill only when the request explicitly names this skill, such as \"use the Codex CLI Agent skill\" or \"run the codex-cli skill\".\n\nDo not use this skill when:\n- The request only mentions Codex in general (for example \"use codex\", \"codex review\", or \"spin up codex\")\n- The request is for planning, discussion, or non-executable output\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries.\n2. Read `{baseDir}/references/full-guidance.md` for the full Detect → Setup → Execute playbook.\n3. Follow the phases in order: Phase 0 (detect) → Phase 1 (install if missing) → Phase 1b (auth if needed) → Phase 2 (execute).\n4. Never skip the detection phase — always run `which codex` first.\n5. If Codex is not installed, guide the user through setup via npm install before proceeding.\n6. PTY is auto-allocated by NeoWorker for codex commands — no special syntax needed.\n7. Return the task result or setup completion status.",
+  "parameters": [],
+  "enabled": true,
+  "requires": {
+    "bins": ["codex"]
+  },
+  "install": [
+    {
+      "id": "codex-npm",
+      "kind": "npm",
+      "label": "Install Codex CLI via npm",
+      "package": "@openai/codex",
+      "bins": ["codex"]
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "routing": {
+      "keywords": ["codex"],
+      "useWhen": "Use only when the user explicitly asks for the Codex CLI Agent skill itself. Triggers on: 'use the Codex CLI Agent skill', 'run the codex-cli skill'.",
+      "dontUseWhen": "Do not use when the request only mentions Codex generally, or when the request is for planning or discussion only.",
+      "outputs": "Task result from Codex CLI agent, or step-by-step setup instructions if CLI is not installed or configured.",
+      "successCriteria": "Codex CLI executes the requested task and returns output, OR user is fully guided through installation and configuration.",
+      "examples": {
+        "positive": [
+          "Use the Codex CLI Agent skill to review PR #55",
+          "Run the codex-cli skill to fix this bug",
+          "Please use the Codex CLI Agent skill for this task"
+        ],
+        "negative": [
+          "Use codex to review my PR",
+          "Spin up a Codex agent to review PR #55",
+          "Run codex on this issue",
+          "Review this code (generic)",
+          "Explain how Codex works",
+          "Write a plan for this feature"
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "medium"
+    }
+  }
+}

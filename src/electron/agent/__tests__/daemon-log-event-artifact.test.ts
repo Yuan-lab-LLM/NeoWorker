@@ -1,0 +1,393 @@
+import { describe, expect, it, vi } from "vitest";
+
+import { AgentDaemon } from "../daemon";
+import { normalizeLlmProviderType } from "../../../shared/llmProviderDisplay";
+import { LLM_PROVIDER_TYPES } from "../../../shared/types";
+import { sanitizeTimelineEventForStorage } from "../timeline-payload-sanitizer";
+
+function createDaemonLike(taskOverrides: Record<string, unknown> = {}) {
+  let seq = 0;
+  return {
+    logEvent: (AgentDaemon.prototype as Any).logEvent,
+    taskRepo: {
+      findById: vi.fn().mockReturnValue({
+        id: "task-1",
+        workspaceId: "workspace-1",
+        agentConfig: {},
+        ...taskOverrides,
+      }),
+    },
+    workspaceRepo: {
+      findById: vi.fn().mockReturnValue({
+        id: "workspace-1",
+        path: "/workspace",
+      }),
+    },
+    timelineMetrics: {
+      totalEvents: 0,
+      droppedEvents: 0,
+      orderViolations: 0,
+      stepStateMismatches: 0,
+      completionGateBlocks: 0,
+      evidenceGateFails: 0,
+    },
+    getCurrentEventSeq: vi.fn().mockImplementation(() => seq),
+    nextEventSeq: vi.fn().mockImplementation(() => {
+      seq += 1;
+      return seq;
+    }),
+    activeTimelineStageByTask: new Map(),
+    transitionTimelineStage: vi.fn(),
+    trackTimelineStepState: vi.fn(),
+    trackEvidenceRefs: vi.fn(),
+    persistTimelineEvent: vi.fn(),
+    activeTasks: new Map(),
+    mediaPreviewMessagesByTask: new Map(),
+    lastKnownLlmProviderByTask: new Map(),
+    normalizeProviderTypeValue: (AgentDaemon.prototype as Any).normalizeProviderTypeValue,
+    getProviderTypeFromLogMessage: (AgentDaemon.prototype as Any).getProviderTypeFromLogMessage,
+    getProviderTypeFromPayload: (AgentDaemon.prototype as Any).getProviderTypeFromPayload,
+    getTaskAgentConfigProviderType: (AgentDaemon.prototype as Any).getTaskAgentConfigProviderType,
+    getActiveExecutorProviderType: (AgentDaemon.prototype as Any).getActiveExecutorProviderType,
+    rememberTaskLlmProviderType: (AgentDaemon.prototype as Any).rememberTaskLlmProviderType,
+    resolveTaskLlmProviderType: (AgentDaemon.prototype as Any).resolveTaskLlmProviderType,
+    maybeEnrichLlmTelemetryPayload: (AgentDaemon.prototype as Any).maybeEnrichLlmTelemetryPayload,
+    normalizeArtifactEventPayload: (AgentDaemon.prototype as Any).normalizeArtifactEventPayload,
+    maybeEmitAssistantMediaPreview: (AgentDaemon.prototype as Any).maybeEmitAssistantMediaPreview,
+    shouldEmitInlineHtmlFramePreview: (AgentDaemon.prototype as Any).shouldEmitInlineHtmlFramePreview,
+  } as Any;
+}
+
+describe("AgentDaemon.logEvent artifact normalization", () => {
+  it("does not open a new timeline stage after task_completed", () => {
+    const daemonLike = createDaemonLike();
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "task_completed", {
+      message: "Task completed successfully",
+    });
+
+    expect(daemonLike.transitionTimelineStage).not.toHaveBeenCalled();
+    const [timelineEvent] = (daemonLike.persistTimelineEvent as Any).mock.calls[0];
+    expect(timelineEvent.legacyType).toBe("task_completed");
+  });
+
+  it("does not reopen a timeline stage for post-completion events", () => {
+    const daemonLike = createDaemonLike({ status: "completed" });
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "verification_started", {
+      message: "Running post-completion verification",
+    });
+
+    expect(daemonLike.transitionTimelineStage).not.toHaveBeenCalled();
+    expect(daemonLike.persistTimelineEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("normalizes relative artifact paths to absolute workspace paths and assigns stable label", () => {
+    const daemonLike = createDaemonLike();
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "artifact_created", {
+      path: "reports/final.pdf",
+    });
+
+    const [timelineEvent, options] = (daemonLike.persistTimelineEvent as Any).mock.calls[0];
+    expect(timelineEvent.type).toBe("timeline_artifact_emitted");
+    expect(timelineEvent.payload.path).toBe("/workspace/reports/final.pdf");
+    expect(timelineEvent.payload.label).toBe("final.pdf");
+    expect(options.legacyType).toBe("artifact_created");
+    expect(options.legacyPayload.path).toBe("/workspace/reports/final.pdf");
+  });
+
+  it("keeps URL artifacts and defaults label to the URL when missing", () => {
+    const daemonLike = createDaemonLike();
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "timeline_artifact_emitted", {
+      path: "https://example.com/report.pdf",
+    });
+
+    const [timelineEvent] = (daemonLike.persistTimelineEvent as Any).mock.calls[0];
+    expect(timelineEvent.payload.path).toBe("https://example.com/report.pdf");
+    expect(timelineEvent.payload.label).toBe("https://example.com/report.pdf");
+  });
+
+  it("emits an internal assistant video preview bubble once for previewable video files", () => {
+    const daemonLike = createDaemonLike();
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "file_created", {
+      path: "artifacts/hyperframes-demo.mp4",
+      type: "video",
+      mimeType: "video/mp4",
+    });
+
+    expect((daemonLike.persistTimelineEvent as Any).mock.calls).toHaveLength(2);
+
+    const [fileEvent, fileOptions] = (daemonLike.persistTimelineEvent as Any).mock.calls[0];
+    expect(fileEvent.type).toBe("timeline_artifact_emitted");
+    expect(fileOptions.legacyType).toBe("file_created");
+
+    const [assistantEvent, assistantOptions] = (daemonLike.persistTimelineEvent as Any).mock.calls[1];
+    expect(assistantEvent.type).toBe("timeline_step_updated");
+    expect(assistantEvent.payload.legacyType).toBe("assistant_message");
+    expect(assistantEvent.payload.internal).toBe(true);
+    expect(String(assistantEvent.payload.message)).toContain("::video{");
+    expect(String(assistantEvent.payload.message)).toContain('path="artifacts/hyperframes-demo.mp4"');
+    expect(assistantOptions.legacyType).toBe("assistant_message");
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "artifact_created", {
+      path: "/workspace/artifacts/hyperframes-demo.mp4",
+      mimeType: "video/mp4",
+    });
+
+    expect((daemonLike.persistTimelineEvent as Any).mock.calls).toHaveLength(3);
+  });
+
+  it("emits an internal assistant frame preview for HTML outputs that fit inline surfaces", () => {
+    const daemonLike = createDaemonLike({
+      title: "Show an investment performance chart",
+      prompt: "Create a compact investment performance card with a chart.",
+    });
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "file_created", {
+      path: "artifacts/investment-performance.html",
+      mimeType: "text/html",
+      label: "Investment performance",
+    });
+
+    expect((daemonLike.persistTimelineEvent as Any).mock.calls).toHaveLength(2);
+
+    const [assistantEvent, assistantOptions] = (daemonLike.persistTimelineEvent as Any).mock.calls[1];
+    expect(assistantEvent.type).toBe("timeline_step_updated");
+    expect(assistantEvent.payload.legacyType).toBe("assistant_message");
+    expect(assistantEvent.payload.internal).toBe(true);
+    expect(String(assistantEvent.payload.message)).toContain("::frame{");
+    expect(String(assistantEvent.payload.message)).toContain('path="artifacts/investment-performance.html"');
+    expect(String(assistantEvent.payload.message)).toContain('kind="preview"');
+    expect(assistantOptions.legacyType).toBe("assistant_message");
+  });
+
+  it("does not render provisional HTML bootstrap files as full-size frames", () => {
+    const daemonLike = createDaemonLike({
+      title: "Show an investment performance chart",
+      prompt: "Create a compact investment performance card with a chart.",
+    });
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "file_created", {
+      path: "artifacts/investment-performance.html",
+      source: "artifact_bootstrap",
+    });
+
+    expect((daemonLike.persistTimelineEvent as Any).mock.calls).toHaveLength(1);
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "file_created", {
+      path: "artifacts/investment-performance.html",
+      mimeType: "text/html",
+      source: "write_file",
+    });
+
+    expect((daemonLike.persistTimelineEvent as Any).mock.calls).toHaveLength(3);
+    const [assistantEvent] = (daemonLike.persistTimelineEvent as Any).mock.calls[2];
+    expect(String(assistantEvent.payload.message)).toContain("::frame{");
+  });
+
+  it("does not emit inline frame previews for full website or landing page HTML artifacts", () => {
+    const daemonLike = createDaemonLike({
+      title: "Create a landing page design",
+      prompt: "Build a landing page HTML for a finance app.",
+    });
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "file_created", {
+      path: "artifacts/landing-page.html",
+      mimeType: "text/html",
+      label: "Landing page",
+    });
+
+    expect((daemonLike.persistTimelineEvent as Any).mock.calls).toHaveLength(1);
+    const [fileEvent] = (daemonLike.persistTimelineEvent as Any).mock.calls[0];
+    expect(fileEvent.type).toBe("timeline_artifact_emitted");
+  });
+
+  it("does not emit inline frames for Chinese full-page HTML requests", () => {
+    const daemonLike = createDaemonLike({
+      title: "制作一份完整的人工智能产业研究网页",
+      prompt: "生成完整网页，包含目录、数据表格、时间线和交互效果。",
+    });
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "file_created", {
+      path: ".neoworker/在当前工作区生成_output_token_budget_test_html_制作一份完整的人工智能.html",
+      mimeType: "text/html",
+      source: "write_file",
+    });
+
+    expect((daemonLike.persistTimelineEvent as Any).mock.calls).toHaveLength(1);
+    const [fileEvent] = (daemonLike.persistTimelineEvent as Any).mock.calls[0];
+    expect(fileEvent.type).toBe("timeline_artifact_emitted");
+  });
+
+  it("backfills llm_usage providerType from route logs for every registered provider", () => {
+    for (const providerType of LLM_PROVIDER_TYPES) {
+      const daemonLike = createDaemonLike();
+
+      AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "log", {
+        message: `LLM route selected: provider=${providerType}, profile=cheap, source=profile_model, model=gpt-5.4-mini`,
+      });
+      AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "llm_usage", {
+        modelId: "gpt-5.4-mini",
+        modelKey: "gpt-5.4-mini",
+        delta: { inputTokens: 10, outputTokens: 2, cost: 0 },
+      });
+
+      const [timelineEvent, options] = (daemonLike.persistTimelineEvent as Any).mock.calls.at(-1);
+      const normalizedProviderType = normalizeLlmProviderType(providerType);
+
+      expect(timelineEvent.payload.providerType).toBe(normalizedProviderType);
+      expect(options.legacyPayload.providerType).toBe(normalizedProviderType);
+    }
+  });
+
+  it("falls back to the active executor provider when llm_usage arrives without structured provider metadata", () => {
+    const daemonLike = createDaemonLike();
+    daemonLike.activeTasks.set("task-1", {
+      executor: { provider: { type: "openrouter" } },
+      lastAccessed: Date.now(),
+      status: "active",
+    });
+
+    AgentDaemon.prototype.logEvent.call(daemonLike, "task-1", "llm_usage", {
+      modelId: "gpt-5.4",
+      modelKey: "gpt-5.4",
+      delta: { inputTokens: 10, outputTokens: 2, cost: 0 },
+    });
+
+    const [timelineEvent, options] = (daemonLike.persistTimelineEvent as Any).mock.calls.at(-1);
+    expect(timelineEvent.payload.providerType).toBe("openrouter");
+    expect(options.legacyPayload.providerType).toBe("openrouter");
+  });
+});
+
+describe("AgentDaemon.emitTaskEvent legacy alias bridge", () => {
+  it("emits both timeline and legacy alias events for local subscribers", () => {
+    const emit = vi.fn();
+    const daemonLike = {
+      emit,
+      resolveLegacyTaskEventAlias: (AgentDaemon.prototype as Any).resolveLegacyTaskEventAlias,
+    } as Any;
+
+    (AgentDaemon.prototype as Any).emitTaskEvent.call(daemonLike, {
+      id: "event-1",
+      taskId: "task-1",
+      timestamp: Date.now(),
+      type: "timeline_step_updated",
+      payload: {
+        message: "Hello from assistant",
+        legacyType: "assistant_message",
+      },
+      schemaVersion: 2,
+      legacyType: "assistant_message",
+    } as Any);
+
+    expect(emit).toHaveBeenCalledWith(
+      "timeline_step_updated",
+      expect.objectContaining({
+        taskId: "task-1",
+        type: "timeline_step_updated",
+      }),
+    );
+    expect(emit).toHaveBeenCalledWith(
+      "assistant_message",
+      expect.objectContaining({
+        taskId: "task-1",
+        message: "Hello from assistant",
+      }),
+    );
+  });
+
+  it("skips legacy error aliases when no error listener is registered", () => {
+    const emit = vi.fn();
+    const daemonLike = {
+      emit,
+      listenerCount: vi.fn().mockReturnValue(0),
+      resolveLegacyTaskEventAlias: (AgentDaemon.prototype as Any).resolveLegacyTaskEventAlias,
+    } as Any;
+
+    (AgentDaemon.prototype as Any).emitTaskEvent.call(daemonLike, {
+      id: "event-2",
+      taskId: "task-1",
+      timestamp: Date.now(),
+      type: "timeline_task_status",
+      payload: {
+        message: "Task failed before execution started",
+        legacyType: "error",
+      },
+      schemaVersion: 2,
+      legacyType: "error",
+    } as Any);
+
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit).toHaveBeenCalledWith(
+      "timeline_task_status",
+      expect.objectContaining({
+        taskId: "task-1",
+        type: "timeline_task_status",
+      }),
+    );
+  });
+});
+
+describe("AgentDaemon.persistTimelineEvent", () => {
+  it("emits the sanitized stored event to live listeners and renderer IPC", () => {
+    const rawImage = "c".repeat(1_000_000);
+    const emitTaskEvent = vi.fn();
+    const daemonLike = {
+      eventRepo: {
+        create: vi.fn((event) => sanitizeTimelineEventForStorage(event)),
+      },
+      taskRepo: {
+        findById: vi.fn().mockReturnValue(null),
+      },
+      maybeMaterializeMailComposeInlineFrame: vi.fn(),
+      logActivityForEvent: vi.fn(),
+      emitTaskEvent,
+      maybeEmitTeamThought: vi.fn(),
+      maybeMaterializeMailComposeInlineFrame: vi.fn(),
+      captureToMemory: vi.fn().mockResolvedValue(undefined),
+    } as Any;
+
+    (AgentDaemon.prototype as Any).persistTimelineEvent.call(
+      daemonLike,
+      {
+        id: "event-1",
+        taskId: "task-1",
+        timestamp: Date.now(),
+        type: "timeline_step_updated",
+        schemaVersion: 2,
+        payload: {
+          legacyType: "tool_result",
+          result: {
+            screenshotBase64: rawImage,
+          },
+        },
+        legacyType: "tool_result",
+      },
+      {
+        legacyType: "tool_result",
+        legacyPayload: {
+          result: {
+            screenshotBase64: rawImage,
+          },
+        },
+      },
+    );
+
+    const emittedEvent = emitTaskEvent.mock.calls[0]?.[0];
+    expect(emittedEvent.payload.result.screenshotBase64).toBeUndefined();
+    expect(emittedEvent.payload.result.screenshotBase64Omitted).toBe(true);
+    expect(daemonLike.logActivityForEvent).toHaveBeenCalledWith(
+      "task-1",
+      "tool_result",
+      expect.objectContaining({
+        result: expect.objectContaining({
+          screenshotBase64Omitted: true,
+        }),
+      }),
+    );
+  });
+});

@@ -1,0 +1,73 @@
+{
+  "id": "portfolio-optimizer",
+  "name": "Portfolio Optimizer",
+  "description": "Modern portfolio theory optimization including Markowitz mean-variance, Black-Litterman, risk parity, and efficient frontier construction with constraints.",
+  "icon": "⚖️",
+  "category": "Finance",
+  "prompt": "# Portfolio Optimizer\n\nUse this skill only when the request is in scope:\n- Use when the user asks about portfolio optimization, asset allocation, efficient frontier, Markowitz optimization, Black-Litterman, risk parity, diversification, rebalancing, or optimal portfolio construction.\n\nDo not use this skill when:\n- Do not use when the request is about individual stock analysis, financial modeling, risk metrics only (use Risk Analyzer), or tax planning.\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Outcome from Portfolio Optimizer: optimized asset allocation with weights, expected return, risk metrics, efficient frontier positioning, and rebalancing recommendations..\n5. Verify success criteria: Returns specific allocation weights, portfolio expected return and risk, Sharpe ratio, comparison to current allocation, and actionable rebalancing steps..",
+  "parameters": [
+    {
+      "name": "holdings",
+      "type": "string",
+      "description": "Current portfolio holdings and weights (e.g., SPY 40%, AGG 30%, GLD 10%, VWO 20%)",
+      "required": true
+    },
+    {
+      "name": "objective",
+      "type": "select",
+      "description": "Optimization objective",
+      "required": true,
+      "options": [
+        "Maximize Sharpe Ratio",
+        "Minimize Volatility",
+        "Target Return",
+        "Risk Parity",
+        "Maximum Diversification"
+      ]
+    },
+    {
+      "name": "question",
+      "type": "string",
+      "description": "Your specific optimization question",
+      "required": true
+    },
+    {
+      "name": "constraints",
+      "type": "string",
+      "description": "Portfolio constraints (e.g., long-only, max 25% per position, no emerging markets)",
+      "required": false
+    },
+    {
+      "name": "targetReturn",
+      "type": "string",
+      "description": "Target annual return for optimization (e.g., 8%)",
+      "required": false
+    }
+  ],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks about portfolio optimization, asset allocation, efficient frontier, Markowitz optimization, Black-Litterman, risk parity, diversification, rebalancing, or optimal portfolio construction.",
+      "dontUseWhen": "Do not use when the request is about individual stock analysis, financial modeling, risk metrics only (use Risk Analyzer), or tax planning.",
+      "outputs": "Outcome from Portfolio Optimizer: optimized asset allocation with weights, expected return, risk metrics, efficient frontier positioning, and rebalancing recommendations.",
+      "successCriteria": "Returns specific allocation weights, portfolio expected return and risk, Sharpe ratio, comparison to current allocation, and actionable rebalancing steps.",
+      "examples": {
+        "positive": [
+          "Use the portfolio-optimizer skill for this request.",
+          "Help me with portfolio optimizer.",
+          "Use when the user asks about portfolio optimization, asset allocation, efficient frontier, Markowitz optimization, Black-Litterman, risk parity, diversification, rebalancing, or optimal portfolio construction.",
+          "Portfolio Optimizer: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use when the request is about individual stock analysis, financial modeling, risk metrics only (use Risk Analyzer), or tax planning.",
+          "Do not use portfolio-optimizer for unrelated requests.",
+          "This request is outside portfolio optimizer scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

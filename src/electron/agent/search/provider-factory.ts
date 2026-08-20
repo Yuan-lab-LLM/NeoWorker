@@ -1,0 +1,736 @@
+import * as fs from "fs";
+import * as path from "path";
+import {
+  SearchProvider,
+  SearchProviderConfig,
+  SearchProviderType,
+  SearchType,
+  SearchQuery,
+  SearchResponse,
+  SEARCH_PROVIDER_INFO,
+} from "./types";
+import { TavilyProvider } from "./tavily-provider";
+import { ExaProvider } from "./exa-provider";
+import { BraveProvider } from "./brave-provider";
+import { SerpApiProvider } from "./serpapi-provider";
+import { GoogleProvider } from "./google-provider";
+import { DuckDuckGoProvider } from "./duckduckgo-provider";
+import { SecureSettingsRepository } from "../../database/SecureSettingsRepository";
+import { getUserDataDir } from "../../utils/user-data-dir";
+
+const LEGACY_SETTINGS_FILE = "search-settings.json";
+
+/**
+ * Stored settings for Search provider
+ */
+export interface SearchSettings {
+  primaryProvider: SearchProviderType | null;
+  fallbackProvider: SearchProviderType | null;
+  tavily?: {
+    apiKey?: string;
+  };
+  exa?: {
+    apiKey?: string;
+  };
+  brave?: {
+    apiKey?: string;
+  };
+  serpapi?: {
+    apiKey?: string;
+  };
+  google?: {
+    apiKey?: string;
+    searchEngineId?: string;
+  };
+}
+
+const DEFAULT_SETTINGS: SearchSettings = {
+  primaryProvider: null,
+  fallbackProvider: null,
+};
+
+/**
+ * Factory for creating Search providers with fallback support
+ */
+export class SearchProviderFactory {
+  private static readonly PROVIDER_RATE_LIMIT_COOLDOWN_MS = 2 * 60 * 1000;
+  private static readonly PROVIDER_QUOTA_COOLDOWN_MS = 15 * 60 * 1000;
+  private static providerCooldowns: Map<
+    SearchProviderType,
+    {
+      until: number;
+      reason: string;
+      failureClass: "provider_quota" | "provider_rate_limit";
+    }
+  > = new Map();
+
+  private static async sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private static isTransientSearchError(error: Any): boolean {
+    const message = String(error?.message || "");
+    return (
+      /rate limit/i.test(message) ||
+      /429/.test(message) ||
+      /too many requests/i.test(message) ||
+      /timeout/i.test(message) ||
+      /ETIMEDOUT/i.test(message) ||
+      /ECONNRESET/i.test(message) ||
+      /EAI_AGAIN/i.test(message) ||
+      /503/.test(message) ||
+      /502/.test(message) ||
+      /504/.test(message) ||
+      /service unavailable/i.test(message)
+    );
+  }
+
+  private static classifyProviderFailure(
+    message: string,
+  ): "provider_quota" | "provider_rate_limit" | "external_unknown" {
+    if (
+      /rate.*limit|too many requests|\b429\b|retry later|request limit/i.test(message) ||
+      /temporarily blocked/i.test(message)
+    ) {
+      return "provider_rate_limit";
+    }
+    if (
+      /quota|usage.*limit|\b432\b|upgrade your plan|billing|payment required|resource.*exhausted/i.test(
+        message,
+      )
+    ) {
+      return "provider_quota";
+    }
+    return "external_unknown";
+  }
+
+  private static isQuotaOrRateLimitedError(error: Any): boolean {
+    const message = String(error?.message || "");
+    const failureClass = this.classifyProviderFailure(message);
+    return failureClass === "provider_quota" || failureClass === "provider_rate_limit";
+  }
+
+  private static buildSearchProviderError(
+    message: string,
+    opts: {
+      provider: SearchProviderType;
+      failureClass: "provider_quota" | "provider_rate_limit" | "external_unknown";
+      failedProviders: Array<{
+        provider: SearchProviderType;
+        error: string;
+        failureClass: "provider_quota" | "provider_rate_limit" | "external_unknown";
+      }>;
+      providerErrorScope?: "provider" | "global";
+    },
+  ): Error {
+    const error = new Error(message) as Any;
+    error.provider = opts.provider;
+    error.failedProvider = opts.provider;
+    error.failureClass = opts.failureClass;
+    error.providerErrorScope = opts.providerErrorScope || "provider";
+    error.failedProviders = opts.failedProviders.map(({ provider, error: providerError }) => ({
+      provider,
+      error: providerError,
+    }));
+    return error as Error;
+  }
+
+  private static setProviderCooldown(
+    provider: SearchProviderType,
+    failureClass: "provider_quota" | "provider_rate_limit" | "external_unknown",
+    reason: string,
+  ): void {
+    if (failureClass !== "provider_quota" && failureClass !== "provider_rate_limit") {
+      return;
+    }
+    const cooldownMs =
+      failureClass === "provider_quota"
+        ? this.PROVIDER_QUOTA_COOLDOWN_MS
+        : this.PROVIDER_RATE_LIMIT_COOLDOWN_MS;
+    this.providerCooldowns.set(provider, {
+      until: Date.now() + cooldownMs,
+      reason,
+      failureClass,
+    });
+  }
+
+  private static clearProviderCooldown(provider: SearchProviderType): void {
+    this.providerCooldowns.delete(provider);
+  }
+
+  private static getProviderCooldown(provider: SearchProviderType): {
+    until: number;
+    reason: string;
+    failureClass: "provider_quota" | "provider_rate_limit";
+  } | null {
+    const cooldown = this.providerCooldowns.get(provider);
+    if (!cooldown) return null;
+    if (Date.now() >= cooldown.until) {
+      this.providerCooldowns.delete(provider);
+      return null;
+    }
+    return cooldown;
+  }
+
+  private static resolveProviderErrorScope(
+    query: SearchQuery,
+    providerErrors: Array<{
+      provider: SearchProviderType;
+      error: string;
+      failureClass: "provider_quota" | "provider_rate_limit" | "external_unknown";
+    }>,
+  ): "provider" | "global" {
+    if (!query.provider) return "global";
+    if (!providerErrors.length) return "provider";
+    const distinctFailedProviders = new Set(providerErrors.map((entry) => entry.provider));
+    return distinctFailedProviders.size === 1 && distinctFailedProviders.has(query.provider)
+      ? "provider"
+      : "global";
+  }
+
+  private static async searchWithRetry(
+    provider: SearchProvider,
+    query: SearchQuery,
+    maxAttempts = 3,
+  ): Promise<SearchResponse> {
+    let lastError: Any;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await provider.search(query);
+      } catch (error: Any) {
+        lastError = error;
+        if (!this.isTransientSearchError(error) || attempt === maxAttempts) {
+          throw error;
+        }
+        // Exponential backoff with jitter: ~1s, ~2s, ~4s
+        const baseDelay = 1000 * Math.pow(2, attempt - 1);
+        const jitter = Math.random() * 500;
+        await this.sleep(baseDelay + jitter);
+      }
+    }
+
+    throw lastError || new Error("Search failed");
+  }
+  private static legacySettingsPath: string;
+  private static cachedSettings: SearchSettings | null = null;
+  private static migrationCompleted = false;
+
+  /**
+   * Initialize the factory
+   */
+  static initialize(): void {
+    const userDataPath = getUserDataDir();
+    this.legacySettingsPath = path.join(userDataPath, LEGACY_SETTINGS_FILE);
+
+    // Migrate from legacy JSON file to encrypted database
+    this.migrateFromLegacyFile();
+  }
+
+  /**
+   * Migrate settings from legacy JSON file to encrypted database
+   */
+  private static migrateFromLegacyFile(): void {
+    if (this.migrationCompleted) return;
+
+    try {
+      // Check if SecureSettingsRepository is initialized
+      if (!SecureSettingsRepository.isInitialized()) {
+        console.log(
+          "[SearchProviderFactory] SecureSettingsRepository not yet initialized, skipping migration",
+        );
+        return;
+      }
+
+      const repository = SecureSettingsRepository.getInstance();
+
+      // Check if already migrated to database
+      if (repository.exists("search")) {
+        this.migrationCompleted = true;
+        return;
+      }
+
+      // Check if legacy file exists
+      if (!fs.existsSync(this.legacySettingsPath)) {
+        console.log("[SearchProviderFactory] No legacy settings file found");
+        this.migrationCompleted = true;
+        return;
+      }
+
+      console.log(
+        "[SearchProviderFactory] Migrating settings from legacy JSON file to encrypted database...",
+      );
+
+      // Create backup before migration
+      const backupPath = this.legacySettingsPath + ".migration-backup";
+      fs.copyFileSync(this.legacySettingsPath, backupPath);
+
+      try {
+        // Read legacy settings
+        const data = fs.readFileSync(this.legacySettingsPath, "utf-8");
+        const parsed = JSON.parse(data);
+
+        // Handle migration from old format (providerType -> primaryProvider)
+        if (parsed.providerType && !parsed.primaryProvider) {
+          parsed.primaryProvider = parsed.providerType;
+          delete parsed.providerType;
+        }
+
+        const legacySettings = { ...DEFAULT_SETTINGS, ...parsed };
+
+        // Save to encrypted database
+        repository.save("search", legacySettings);
+        console.log("[SearchProviderFactory] Settings migrated to encrypted database");
+
+        // Migration successful - delete backup and original
+        fs.unlinkSync(backupPath);
+        fs.unlinkSync(this.legacySettingsPath);
+        console.log("[SearchProviderFactory] Migration complete, cleaned up legacy files");
+
+        this.migrationCompleted = true;
+      } catch (migrationError) {
+        console.error("[SearchProviderFactory] Migration failed, backup preserved at:", backupPath);
+        throw migrationError;
+      }
+    } catch (error) {
+      console.error("[SearchProviderFactory] Migration failed:", error);
+    }
+  }
+
+  /**
+   * Get the path to legacy settings file (for testing)
+   */
+  static getSettingsPath(): string {
+    return this.legacySettingsPath;
+  }
+
+  /**
+   * Load settings from encrypted database
+   */
+  static loadSettings(): SearchSettings {
+    if (this.cachedSettings) {
+      return this.cachedSettings;
+    }
+
+    let settings: SearchSettings = { ...DEFAULT_SETTINGS };
+
+    try {
+      // Try to load from encrypted database
+      if (SecureSettingsRepository.isInitialized()) {
+        const repository = SecureSettingsRepository.getInstance();
+        const stored = repository.load<SearchSettings>("search");
+        if (stored) {
+          settings = { ...DEFAULT_SETTINGS, ...stored };
+        }
+      }
+    } catch (error) {
+      console.error("[SearchProviderFactory] Failed to load settings from database:", error);
+    }
+
+    // Auto-detect and select providers if primaryProvider is not set.
+    // Only auto-select paid providers — DuckDuckGo is an implicit last-resort fallback.
+    if (!settings.primaryProvider) {
+      const orderedProviders = this.getProviderExecutionOrder(settings).filter(
+        (p) => p !== "duckduckgo",
+      );
+      if (orderedProviders.length > 0) {
+        settings.primaryProvider = orderedProviders[0];
+        console.log(
+          `[SearchProviderFactory] Auto-selected primary provider: ${orderedProviders[0]}`,
+        );
+        if (orderedProviders.length > 1 && !settings.fallbackProvider) {
+          settings.fallbackProvider = orderedProviders[1];
+          console.log(
+            `[SearchProviderFactory] Auto-selected fallback provider: ${orderedProviders[1]}`,
+          );
+        }
+      }
+    }
+
+    this.cachedSettings = settings;
+    return settings;
+  }
+
+  /**
+   * Get list of configured provider types from settings only
+   * Note: Environment variables are no longer used for security reasons.
+   */
+  private static getConfiguredProvidersFromSettings(
+    settings: SearchSettings,
+  ): SearchProviderType[] {
+    const configured: SearchProviderType[] = [];
+
+    // Check Tavily
+    if (settings.tavily?.apiKey) {
+      configured.push("tavily");
+    }
+    // Check Exa
+    if (settings.exa?.apiKey) {
+      configured.push("exa");
+    }
+    // Check Brave
+    if (settings.brave?.apiKey) {
+      configured.push("brave");
+    }
+    // Check SerpAPI
+    if (settings.serpapi?.apiKey) {
+      configured.push("serpapi");
+    }
+    // Check Google (requires both API key and Search Engine ID)
+    if (settings.google?.apiKey && settings.google?.searchEngineId) {
+      configured.push("google");
+    }
+
+    return configured;
+  }
+
+  /**
+   * Save settings to encrypted database
+   */
+  static saveSettings(settings: SearchSettings): void {
+    try {
+      if (!SecureSettingsRepository.isInitialized()) {
+        throw new Error("SecureSettingsRepository not initialized");
+      }
+
+      const repository = SecureSettingsRepository.getInstance();
+
+      // Load existing settings to preserve API keys that weren't changed
+      let existingSettings: SearchSettings = { ...DEFAULT_SETTINGS };
+      const stored = repository.load<SearchSettings>("search");
+      if (stored) {
+        existingSettings = stored;
+      }
+
+      // Merge settings, preserving existing API keys if new ones aren't provided
+      const settingsToSave: SearchSettings = {
+        primaryProvider: settings.primaryProvider,
+        fallbackProvider: settings.fallbackProvider,
+        tavily: settings.tavily?.apiKey ? settings.tavily : existingSettings.tavily,
+        exa: settings.exa?.apiKey ? settings.exa : existingSettings.exa,
+        brave: settings.brave?.apiKey ? settings.brave : existingSettings.brave,
+        serpapi: settings.serpapi?.apiKey ? settings.serpapi : existingSettings.serpapi,
+        google:
+          settings.google?.apiKey || settings.google?.searchEngineId
+            ? { ...existingSettings.google, ...settings.google }
+            : existingSettings.google,
+      };
+
+      // Save to encrypted database
+      repository.save("search", settingsToSave);
+      this.cachedSettings = settingsToSave;
+
+      console.log("[SearchProviderFactory] Settings saved to encrypted database");
+    } catch (error) {
+      console.error("[SearchProviderFactory] Failed to save settings:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clear cached settings
+   */
+  static clearCache(): void {
+    this.cachedSettings = null;
+    this.providerCooldowns.clear();
+  }
+
+  /**
+   * Get the config for creating a provider
+   * Note: All credentials must be configured via the Settings UI.
+   */
+  private static getProviderConfig(providerType: SearchProviderType): SearchProviderConfig {
+    const settings = this.loadSettings();
+    return {
+      type: providerType,
+      tavilyApiKey: settings.tavily?.apiKey,
+      exaApiKey: settings.exa?.apiKey,
+      braveApiKey: settings.brave?.apiKey,
+      serpApiKey: settings.serpapi?.apiKey,
+      googleApiKey: settings.google?.apiKey,
+      googleSearchEngineId: settings.google?.searchEngineId,
+    };
+  }
+
+  /**
+   * Create a provider based on current settings or override
+   */
+  static createProvider(overrideType?: SearchProviderType): SearchProvider {
+    const settings = this.loadSettings();
+    const providerType = overrideType || settings.primaryProvider;
+
+    if (!providerType) {
+      throw new Error("No search provider configured");
+    }
+
+    const config = this.getProviderConfig(providerType);
+    return this.createProviderFromConfig(config);
+  }
+
+  /**
+   * Create provider from explicit config
+   */
+  static createProviderFromConfig(config: SearchProviderConfig): SearchProvider {
+    switch (config.type) {
+      case "tavily":
+        return new TavilyProvider(config);
+      case "exa":
+        return new ExaProvider(config);
+      case "brave":
+        return new BraveProvider(config);
+      case "serpapi":
+        return new SerpApiProvider(config);
+      case "google":
+        return new GoogleProvider(config);
+      case "duckduckgo":
+        return new DuckDuckGoProvider(config);
+      default:
+        throw new Error(`Unknown search provider type: ${config.type}`);
+    }
+  }
+
+  /**
+   * Execute a search with automatic fallback on failure
+   */
+  static async searchWithFallback(query: SearchQuery): Promise<SearchResponse> {
+    const settings = this.loadSettings();
+
+    // getProviderExecutionOrder always includes DuckDuckGo as a last-resort fallback.
+    // When a provider is explicitly requested we still allow fallback on quota/rate errors.
+    const providerExecutionOrder = this.getProviderExecutionOrder(settings);
+    const providersToTry = query.provider
+      ? [query.provider, ...providerExecutionOrder.filter((provider) => provider !== query.provider)]
+      : providerExecutionOrder;
+    if (!providersToTry.length) {
+      throw new Error("No search provider available");
+    }
+
+    const providerErrors: Array<{
+      provider: SearchProviderType;
+      error: string;
+      failureClass: "provider_quota" | "provider_rate_limit" | "external_unknown";
+    }> = [];
+
+    const activeProviders = providersToTry.filter((provider) => !this.getProviderCooldown(provider));
+    const cooledProviders = providersToTry.filter((provider) => !!this.getProviderCooldown(provider));
+    const skipCooledProviders = activeProviders.length > 0;
+    const orderedProviders = [...activeProviders, ...cooledProviders];
+
+    for (let i = 0; i < orderedProviders.length; i++) {
+      const providerType = orderedProviders[i];
+      const cooldown = this.getProviderCooldown(providerType);
+      if (skipCooledProviders && cooldown) {
+        const remainingSeconds = Math.max(1, Math.ceil((cooldown.until - Date.now()) / 1000));
+        const skippedMessage =
+          `Search provider (${providerType}) skipped due to recent ${cooldown.failureClass} ` +
+          `(cooldown ${remainingSeconds}s remaining): ${cooldown.reason}`;
+        providerErrors.push({
+          provider: providerType,
+          error: skippedMessage,
+          failureClass: cooldown.failureClass,
+        });
+        const nextProvider = orderedProviders[i + 1];
+        if (nextProvider) {
+          console.log(`Attempting fallback to ${nextProvider}...`);
+        }
+        continue;
+      }
+
+      try {
+        const providerConfig = this.getProviderConfig(providerType);
+        const provider = this.createProviderFromConfig(providerConfig);
+        const scopedQuery: SearchQuery = { ...query, provider: providerType };
+        const response = await this.searchWithRetry(provider, scopedQuery);
+        this.clearProviderCooldown(providerType);
+        return response;
+      } catch (error: Any) {
+        const message = error?.message || "Search provider request failed";
+        const failureClass = this.classifyProviderFailure(message);
+        const scopedMessage = `Search provider (${providerType}) failed: ${message}`;
+        providerErrors.push({ provider: providerType, error: scopedMessage, failureClass });
+        console.error(`Search provider (${providerType}) failed:`, message);
+        this.setProviderCooldown(providerType, failureClass, message);
+
+        const requestedProviderFailed = !!query.provider && providerType === query.provider;
+        if (requestedProviderFailed && !this.isQuotaOrRateLimitedError(error)) {
+          throw this.buildSearchProviderError(scopedMessage, {
+            provider: providerType,
+            failureClass,
+            failedProviders: providerErrors,
+            providerErrorScope: "provider",
+          });
+        }
+
+        const nextProvider = orderedProviders[i + 1];
+        if (nextProvider) {
+          console.log(`Attempting fallback to ${nextProvider}...`);
+        }
+      }
+    }
+
+    if (providerErrors.length === 1) {
+      const onlyFailure = providerErrors[0];
+      throw this.buildSearchProviderError(onlyFailure.error, {
+        provider: onlyFailure.provider,
+        failureClass: onlyFailure.failureClass,
+        failedProviders: providerErrors,
+        providerErrorScope: this.resolveProviderErrorScope(query, providerErrors),
+      });
+    }
+
+    const aggregateMessage = `Search failed after trying all configured providers: ${providerErrors
+      .map((entry) => entry.error)
+      .join("; ")}`;
+    const firstFailure = providerErrors[0];
+    throw this.buildSearchProviderError(aggregateMessage, {
+      provider: firstFailure?.provider || (query.provider || "duckduckgo"),
+      failureClass: firstFailure?.failureClass || "external_unknown",
+      failedProviders: providerErrors,
+      providerErrorScope: this.resolveProviderErrorScope(query, providerErrors),
+    });
+  }
+
+  /**
+   * Get available providers based on saved configuration
+   * Note: Environment variables are no longer checked for security reasons.
+   */
+  static getAvailableProviders(): Array<{
+    type: SearchProviderType;
+    name: string;
+    description: string;
+    configured: boolean;
+    supportedTypes: SearchType[];
+  }> {
+    const settings = this.loadSettings();
+    return [
+      {
+        type: "tavily",
+        name: SEARCH_PROVIDER_INFO.tavily.displayName,
+        description: SEARCH_PROVIDER_INFO.tavily.description,
+        configured: !!settings.tavily?.apiKey,
+        supportedTypes: [...SEARCH_PROVIDER_INFO.tavily.supportedTypes],
+      },
+      {
+        type: "exa",
+        name: SEARCH_PROVIDER_INFO.exa.displayName,
+        description: SEARCH_PROVIDER_INFO.exa.description,
+        configured: !!settings.exa?.apiKey,
+        supportedTypes: [...SEARCH_PROVIDER_INFO.exa.supportedTypes],
+      },
+      {
+        type: "brave",
+        name: SEARCH_PROVIDER_INFO.brave.displayName,
+        description: SEARCH_PROVIDER_INFO.brave.description,
+        configured: !!settings.brave?.apiKey,
+        supportedTypes: [...SEARCH_PROVIDER_INFO.brave.supportedTypes],
+      },
+      {
+        type: "serpapi",
+        name: SEARCH_PROVIDER_INFO.serpapi.displayName,
+        description: SEARCH_PROVIDER_INFO.serpapi.description,
+        configured: !!settings.serpapi?.apiKey,
+        supportedTypes: [...SEARCH_PROVIDER_INFO.serpapi.supportedTypes],
+      },
+      {
+        type: "google",
+        name: SEARCH_PROVIDER_INFO.google.displayName,
+        description: SEARCH_PROVIDER_INFO.google.description,
+        configured: !!(settings.google?.apiKey && settings.google?.searchEngineId),
+        supportedTypes: [...SEARCH_PROVIDER_INFO.google.supportedTypes],
+      },
+      {
+        type: "duckduckgo",
+        name: SEARCH_PROVIDER_INFO.duckduckgo.displayName,
+        description: SEARCH_PROVIDER_INFO.duckduckgo.description,
+        configured: true, // Always available, no API key needed
+        supportedTypes: [...SEARCH_PROVIDER_INFO.duckduckgo.supportedTypes],
+      },
+    ];
+  }
+
+  /**
+   * Check if any paid search provider is configured (excludes free DuckDuckGo fallback).
+   */
+  static isAnyProviderConfigured(): boolean {
+    return this.getAvailableProviders().some((p) => p.configured && p.type !== "duckduckgo");
+  }
+
+  /**
+   * Build the provider execution order for automatic search fallback.
+   * - Always respect the user's explicit primary/fallback ordering.
+   * - When no preference exists, prefer Brave among multiple configured providers.
+   * - Fill remaining providers from the detected configured list.
+   * - DuckDuckGo is appended as the last-resort fallback unless explicitly selected earlier.
+   */
+  private static getProviderExecutionOrder(settings: SearchSettings): SearchProviderType[] {
+    const configuredProviders = this.getConfiguredProvidersFromSettings(settings);
+    const orderedProviders: SearchProviderType[] = [];
+    const addProviderIfAvailable = (provider?: SearchProviderType | null) => {
+      if (
+        provider &&
+        (provider === "duckduckgo" || configuredProviders.includes(provider)) &&
+        !orderedProviders.includes(provider)
+      ) {
+        orderedProviders.push(provider);
+      }
+    };
+
+    if (settings.primaryProvider) {
+      addProviderIfAvailable(settings.primaryProvider);
+    } else if (configuredProviders.length > 1 && configuredProviders.includes("brave")) {
+      addProviderIfAvailable("brave");
+    }
+
+    addProviderIfAvailable(settings.fallbackProvider);
+
+    // Fill in any remaining configured providers.
+    for (const provider of configuredProviders) {
+      addProviderIfAvailable(provider);
+    }
+
+    addProviderIfAvailable("duckduckgo");
+    return orderedProviders;
+  }
+
+  /**
+   * Get current configuration status
+   */
+  static getConfigStatus(): {
+    primaryProvider: SearchProviderType | null;
+    fallbackProvider: SearchProviderType | null;
+    providers: Array<{
+      type: SearchProviderType;
+      name: string;
+      description: string;
+      configured: boolean;
+      supportedTypes: SearchType[];
+    }>;
+    isConfigured: boolean;
+  } {
+    const settings = this.loadSettings();
+    return {
+      primaryProvider: settings.primaryProvider,
+      fallbackProvider: settings.fallbackProvider,
+      providers: this.getAvailableProviders(),
+      isConfigured: this.isAnyProviderConfigured(),
+    };
+  }
+
+  /**
+   * Test a provider configuration
+   */
+  static async testProvider(
+    providerType: SearchProviderType,
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const config = this.getProviderConfig(providerType);
+      const provider = this.createProviderFromConfig(config);
+      return await provider.testConnection();
+    } catch (error: Any) {
+      return {
+        success: false,
+        error: error.message || "Failed to create provider",
+      };
+    }
+  }
+}

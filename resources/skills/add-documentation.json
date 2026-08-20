@@ -1,0 +1,59 @@
+{
+  "id": "add-documentation",
+  "name": "Add Documentation",
+  "description": "Generate JSDoc/docstrings for functions",
+  "icon": "📚",
+  "category": "Development",
+  "prompt": "Please add documentation to all functions in {{path}}.\n\nRequirements:\n- Use {{style}} documentation style\n- Document all parameters with types\n- Document return values\n- Add brief description of what each function does\n- Include @example where helpful\n- Note any side effects or exceptions\n\nPreserve existing documentation if it's accurate, enhance if needed.\n\nWrite the final edited file or patch artifacts to:\n- `{artifactDir}/documentation-summary.md` for the summary.\n- `{artifactDir}` when creating optional snapshots.",
+  "parameters": [
+    {
+      "name": "path",
+      "type": "string",
+      "description": "Path to the file to document",
+      "required": true
+    },
+    {
+      "name": "style",
+      "type": "select",
+      "description": "Documentation style",
+      "required": true,
+      "default": "JSDoc",
+      "options": [
+        "JSDoc",
+        "TSDoc",
+        "Python docstring",
+        "Javadoc",
+        "XML comments"
+      ]
+    }
+  ],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when users ask for in-code docs, docstring addition, or API-level comments.",
+      "dontUseWhen": "Don't use for content translation or narrative changelogs.",
+      "outputs": "Updated code artifacts with improved inline documentation.",
+      "successCriteria": "Retains behavior while improving doc clarity and consistency.",
+      "expectedArtifacts": [
+        "documentation-summary.md"
+      ],
+      "examples": {
+        "positive": [
+          "Use the add-documentation skill for this request.",
+          "Help me with add documentation.",
+          "Use when users ask for in-code docs, docstring addition, or API-level comments.",
+          "Add Documentation: provide an actionable result."
+        ],
+        "negative": [
+          "Don't use for content translation or narrative changelogs.",
+          "Do not use add-documentation for unrelated requests.",
+          "This request is outside add documentation scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

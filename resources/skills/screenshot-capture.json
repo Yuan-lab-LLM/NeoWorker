@@ -1,0 +1,45 @@
+{
+  "id": "screenshot-capture",
+  "name": "Screenshot Capture",
+  "description": "Capture desktop screenshots with OS-aware save-location rules, app/window/region support, and bundled helpers.",
+  "icon": "📸",
+  "category": "Tools",
+  "prompt": "# Screenshot Capture\n\nUse this skill when the user explicitly asks for a screenshot, for whole-system desktop captures, or when a tool-specific capture cannot get what you need.\n\nRead `{baseDir}/SKILL.md` for routing boundaries and `{baseDir}/references/full-guidance.md` for the save-location policy, platform matrix, and command patterns.\n\nExecution workflow:\n1. Prefer the most integrated capture tool available for the target surface.\n2. On macOS, run `{baseDir}/scripts/ensure_macos_permissions.sh` before app or window capture.\n3. Use the bundled helpers in `{baseDir}/scripts` instead of re-deriving OS-specific commands.\n4. Save to the explicit path if the user provided one, the OS default screenshot location if they did not, or temp when Codex needs a private inspection capture.\n5. Report the saved file path(s) clearly.\n",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "version": "1.0.0",
+    "author": "NeoWorker",
+    "routing": {
+      "keywords": [
+        "screenshot",
+        "screen capture",
+        "capture screen",
+        "desktop capture",
+        "window capture",
+        "take screenshot"
+      ],
+      "useWhen": "Use when someone wants a screenshot, desktop capture, app capture, window capture, region capture, or when a tool-specific capture cannot get what is needed.",
+      "dontUseWhen": "Do not use when a better-integrated screenshot tool is available for the requested surface, or when the request is unrelated to visual capture.",
+      "outputs": "Saved screenshot path(s) plus a brief capture note when needed.",
+      "successCriteria": "Returns the saved screenshot path(s), uses the requested save location, and follows the platform-specific capture workflow without inventing unavailable tools.",
+      "examples": {
+        "positive": [
+          "Take a screenshot of this app window.",
+          "Capture the full desktop and save it to a file.",
+          "Take a screenshot of Codex and put it in temp.",
+          "Use Screenshot Capture for this desktop capture."
+        ],
+        "negative": [
+          "Summarize this text without taking a screenshot.",
+          "Write a plan for a capture workflow.",
+          "This is a browser-only automation task with a better tool available.",
+          "This request does not involve any visual capture."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "medium"
+    }
+  }
+}

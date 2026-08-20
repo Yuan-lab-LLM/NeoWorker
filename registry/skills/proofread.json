@@ -1,0 +1,42 @@
+{
+  "id": "proofread",
+  "name": "Proofread",
+  "description": "Check document for grammar and clarity",
+  "icon": "✏️",
+  "category": "Writing",
+  "prompt": "Please proofread the document at {{path}}.\n\nCheck for:\n- Spelling errors\n- Grammar mistakes\n- Punctuation issues\n- Awkward phrasing\n- Unclear sentences\n- Consistency (terminology, formatting)\n- Tone appropriateness\n\nFor each issue:\n1. Quote the original text\n2. Explain the problem\n3. Suggest a correction\n\nAt the end, provide:\n- Overall quality score (1-10)\n- Summary of common issues\n- General improvement suggestions",
+  "parameters": [
+    {
+      "name": "path",
+      "type": "string",
+      "description": "Path to the document",
+      "required": true
+    }
+  ],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks to check document for grammar and clarity.",
+      "dontUseWhen": "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.",
+      "outputs": "Outcome from Proofread: task-specific result plus concrete action notes.",
+      "successCriteria": "Returns concrete actions and decisions matching the requested task, with no fabricated tool-side behavior.",
+      "examples": {
+        "positive": [
+          "Use the proofread skill for this request.",
+          "Help me with proofread.",
+          "Use when the user asks to check document for grammar and clarity.",
+          "Proofread: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.",
+          "Do not use proofread for unrelated requests.",
+          "This request is outside proofread scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "id": "playwright-qa",
+  "name": "Playwright QA",
+  "description": "Automated visual QA testing using Playwright — navigate web apps like a real user, capture screenshots, find bugs, and fix them.",
+  "icon": "🎭",
+  "category": "Development",
+  "prompt": "Run automated visual QA on the web application at {{url}}.\n\nIf `server_command` is provided, start the dev server with `{{server_command}}` before QA begins.\n\nChecks to run: {{checks}}\n\nWorkflow:\n1. Use qa_run to start the full QA pipeline\n2. Review the report for issues\n3. Fix any critical or major issues found\n4. Re-run qa_run to verify fixes\n5. Call qa_cleanup when done\n\nProvide a summary of all findings and fixes.",
+  "parameters": [
+    {
+      "name": "url",
+      "type": "string",
+      "description": "Target URL to test (defaults to http://localhost:3000)",
+      "required": false,
+      "default": "http://localhost:3000"
+    },
+    {
+      "name": "server_command",
+      "type": "string",
+      "description": "Command to start the dev server (e.g., 'npm run dev')",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "checks",
+      "type": "string",
+      "description": "Comma-separated checks: visual_snapshot, console_errors, network_errors, interaction_test, responsive_check, accessibility_check, performance_check",
+      "required": false,
+      "default": "visual_snapshot,console_errors,network_errors,interaction_test"
+    }
+  ],
+  "enabled": true,
+  "metadata": {
+    "authoring": {
+      "complexity": "low"
+    },
+    "routing": {
+      "useWhen": "Any web app task that mentions testing, catching bugs, verifying it works, shipping, or quality — even without explicitly mentioning Playwright or visual QA. Trigger on phrases like 'test it', 'catch bugs', 'before shipping', 'make sure it works', 'verify it', 'does it work', 'ship it', 'check for issues' alongside web app work.",
+      "dontUseWhen": "The task is purely about unit tests (jest/vitest), API testing, non-web application testing, or native mobile app testing.",
+      "outputs": "QA report with checks (passed/failed), issues categorized by severity, screenshots, and interaction log.",
+      "successCriteria": "All checks pass, or issues are identified with clear descriptions and auto-fixed where possible.",
+      "examples": {
+        "positive": [
+          "Build a todo app in React, test it to catch any bugs before shipping",
+          "Build a dashboard and make sure it works",
+          "Create a landing page and verify everything looks right",
+          "Build this web app and ship it bug-free",
+          "Make a React app, test it",
+          "Build a weather app and check for issues",
+          "Create the app and QA it",
+          "Build and test the frontend",
+          "Does the app work?",
+          "Test this web app with Playwright",
+          "Run visual QA on localhost:3000",
+          "Check my site for bugs",
+          "Do automated browser testing",
+          "Verify the UI works",
+          "Screenshot and test the web app",
+          "Find visual bugs in my project",
+          "Test the app like a real user",
+          "QA the frontend",
+          "Run Playwright tests",
+          "Make sure it works before we ship"
+        ],
+        "negative": [
+          "Write unit tests with Jest",
+          "Run jest/vitest tests",
+          "Test the API endpoints with curl",
+          "Do load testing with k6",
+          "This is a native iOS/Android app",
+          "Run backend unit tests"
+        ]
+      }
+    }
+  }
+}

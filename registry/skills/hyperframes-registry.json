@@ -1,0 +1,53 @@
+{
+  "id": "hyperframes-registry",
+  "name": "HyperFrames Registry",
+  "description": "Install and wire reusable HyperFrames blocks and components with `hyperframes add`.",
+  "icon": "🧩",
+  "category": "Creative",
+  "prompt": "# HyperFrames Registry\n\nBundled upstream source: https://github.com/heygen-com/hyperframes\n\nUse this skill when the user wants to install reusable HyperFrames blocks or components, wire them into a composition, inspect registry items, or work with `hyperframes add` and `hyperframes.json`.\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for the add workflow and the block-versus-component distinction.\n2. Read the relevant wiring guide from `{baseDir}/references/` when the user needs help inserting a block or component into a composition.\n3. Prefer `hyperframes add <name>` over hand-copying registry assets.\n4. When the task becomes composition authoring after install, switch to the `hyperframes` skill.\n5. Return the install command, the files written, and the exact wiring pattern the user should apply.\n\nSuccess criteria:\n- Chooses the right registry install flow for blocks versus components.\n- Gives accurate wiring guidance for the installed asset.\n- Makes the next composition-edit step obvious after installation.",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "version": "0.4.3",
+    "author": "HeyGen",
+    "homepage": "https://github.com/heygen-com/hyperframes",
+    "tags": [
+      "video",
+      "registry",
+      "components",
+      "blocks",
+      "html",
+      "creative"
+    ],
+    "routing": {
+      "keywords": [
+        "hyperframes add",
+        "hyperframes registry",
+        "registry block",
+        "registry component",
+        "hyperframes.json"
+      ],
+      "useWhen": "Use when the user wants to discover, install, or wire HyperFrames registry blocks and components, or when they explicitly mention `hyperframes add` or `hyperframes.json`.",
+      "dontUseWhen": "Do not use for general composition authoring, animation choreography, or non-HyperFrames package management.",
+      "outputs": "HyperFrames registry install commands plus the correct block or component wiring instructions.",
+      "successCriteria": "Returns the right add command and the correct follow-up wiring pattern for the chosen registry item.",
+      "examples": {
+        "positive": [
+          "Install the data-chart block with hyperframes add and wire it in.",
+          "Show me how to add a grain-overlay component to this composition.",
+          "Use the hyperframes-registry skill for this request.",
+          "How should hyperframes.json configure custom registry paths?"
+        ],
+        "negative": [
+          "Write a fresh HyperFrames composition from scratch.",
+          "Animate this headline with GSAP easing.",
+          "Render this HyperFrames project to MP4.",
+          "Install a React component from shadcn."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "medium"
+    }
+  }
+}

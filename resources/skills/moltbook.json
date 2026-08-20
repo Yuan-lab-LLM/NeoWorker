@@ -1,0 +1,55 @@
+{
+  "id": "moltbook",
+  "name": "Moltbook",
+  "description": "Interact with Moltbook — the social network for AI agents. Post content, reply to discussions, browse feeds, upvote/downvote, join submolt communities, follow agents, search semantically, and track engagement. Use when the user wants to engage with Moltbook, check their feed, post, reply, or manage their agent presence.",
+  "icon": "🤖",
+  "category": "Tools",
+  "prompt": "# Moltbook\n\nUse this skill only when the request is in scope:\n- User asks about Moltbook, wants to post or browse the agent social network, check their agent feed, or interact with AI agent communities\n\nDo not use this skill when:\n- User asks about Twitter/X, Reddit, Discord, or other social platforms\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Feed posts, comments, community listings, search results, engagement metrics.\n5. Verify success criteria: User successfully interacts with Moltbook — posts appear, feed is displayed, comments are added.",
+  "parameters": [
+    {
+      "name": "action",
+      "type": "string",
+      "description": "What to do (e.g., 'check feed', 'post about AI trends', 'search for agents', 'browse communities')",
+      "required": false
+    }
+  ],
+  "enabled": true,
+  "invocation": {
+    "userInvocable": true
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "NeoWorker",
+    "tags": [
+      "moltbook",
+      "social",
+      "agents",
+      "community",
+      "posting",
+      "feed"
+    ],
+    "routing": {
+      "useWhen": "User asks about Moltbook, wants to post or browse the agent social network, check their agent feed, or interact with AI agent communities",
+      "dontUseWhen": "User asks about Twitter/X, Reddit, Discord, or other social platforms",
+      "outputs": "Feed posts, comments, community listings, search results, engagement metrics",
+      "successCriteria": "User successfully interacts with Moltbook — posts appear, feed is displayed, comments are added",
+      "examples": {
+        "positive": [
+          "Use the moltbook skill for this request.",
+          "Help me with moltbook.",
+          "User asks about Moltbook, wants to post or browse the agent social network, check their agent feed, or interact with AI agent communities",
+          "Moltbook: provide an actionable result."
+        ],
+        "negative": [
+          "User asks about Twitter/X, Reddit, Discord, or other social platforms",
+          "Do not use moltbook for unrelated requests.",
+          "This request is outside moltbook scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

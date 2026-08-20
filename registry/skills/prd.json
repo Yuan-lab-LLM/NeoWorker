@@ -1,0 +1,38 @@
+{
+  "id": "prd",
+  "name": "prd",
+  "description": "Generate a structured Product Requirements Document from a feature request.",
+  "icon": "📋",
+  "category": "Product",
+  "prompt": "# prd\n\nUse this skill only when the request is in scope:\n- Use when the user asks to generate a structured Product Requirements Document from a feature request.\n\nDo not use this skill when:\n- Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Outcome from prd: task-specific result plus concrete action notes..\n5. Verify success criteria: Returns concrete actions and decisions matching the requested task, with no fabricated tool-side behavior..",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "version": "1.0.0",
+    "author": "snarktank/ralph",
+    "repository": "https://github.com/snarktank/ralph/tree/main/skills/prd",
+    "routing": {
+      "useWhen": "Use when the user asks to generate a structured Product Requirements Document from a feature request.",
+      "dontUseWhen": "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.",
+      "outputs": "Outcome from prd: task-specific result plus concrete action notes.",
+      "successCriteria": "Returns concrete actions and decisions matching the requested task, with no fabricated tool-side behavior.",
+      "examples": {
+        "positive": [
+          "Use the prd skill for this request.",
+          "Help me with prd.",
+          "Use when the user asks to generate a structured Product Requirements Document from a feature request.",
+          "prd: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.",
+          "Do not use prd for unrelated requests.",
+          "This request is outside prd scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: media: https:; font-src 'self' data:; connect-src 'self' ws: wss: https:; media-src 'self' data: blob: media: https:; worker-src 'self' blob:; frame-src 'self' web-preview:; form-action 'self';"
+    />
+    <link rel="icon" type="image/png" href="./neoworker-app-icon.png" />
+    <title>NeoWorker</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="/density-bootstrap.js"></script>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

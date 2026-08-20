@@ -1,0 +1,66 @@
+{
+  "id": "memory-upgrade-regressions-2026-04-07",
+  "title": "Memory upgrade regression coverage for checkpoints, quotes, layers, and temporal KG",
+  "source": {
+    "incident": "internal-memory-upgrade",
+    "taskId": "memory-upgrade-plan"
+  },
+  "categories": [
+    {
+      "id": "exact-quote-lookup",
+      "prompt": "What exact words did we use about never mutating the production DB directly?",
+      "assertions": {
+        "requiredTool": "search_quotes",
+        "expectedSourceType": "transcript_span"
+      }
+    },
+    {
+      "id": "decision-rationale-recall",
+      "prompt": "Why did we choose the runtime-native checkpoint path instead of external hooks?",
+      "assertions": {
+        "expectedLayer": "L1",
+        "requiresRationale": true
+      }
+    },
+    {
+      "id": "assistant-said-recall",
+      "prompt": "What did the assistant actually say after the compaction warning?",
+      "assertions": {
+        "requiredTool": "search_quotes",
+        "expectedSpeaker": "assistant"
+      }
+    },
+    {
+      "id": "preference-with-rationale",
+      "prompt": "What workspace preference do we have for archive injection, and why?",
+      "assertions": {
+        "expectedLayer": "L0",
+        "requiresRationale": true
+      }
+    },
+    {
+      "id": "fact-changed-over-time",
+      "prompt": "Who owned the deployment pipeline before and after the migration on April 7, 2026?",
+      "assertions": {
+        "requiredTool": "kg_get_neighbors",
+        "requiresAsOf": true,
+        "rejectsStaleCurrentFact": true
+      }
+    },
+    {
+      "id": "topic-follow-up-after-compaction",
+      "prompt": "After compaction, continue the memory upgrade task without losing the checkpoint design details.",
+      "assertions": {
+        "requiredTool": "memory_topics_load",
+        "requiresCheckpointRecovery": true
+      }
+    }
+  ],
+  "metrics": [
+    "search_quotes_recall_at_k",
+    "search_memories_recall_at_k",
+    "answerability_after_compaction",
+    "stale_temporal_fact_false_positive_rate"
+  ],
+  "notes": "Internal-only corpus scaffold for the memory upgrade plan. Populate concrete task IDs and transcript references before using this as a gate in CI."
+}

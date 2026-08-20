@@ -1,0 +1,85 @@
+{
+  "id": "youtube",
+  "name": "YouTube",
+  "description": "Fetch transcripts, metadata, and captions from YouTube videos. Use when you need to summarize a video, answer questions about its content, extract key points, compare videos, or pull quotes with timestamps. Supports auto-generated and manual captions, multiple languages, and translation.",
+  "icon": "📺",
+  "category": "Tools",
+  "requires": {
+    "anyBins": [
+      "yt-dlp",
+      "python3"
+    ]
+  },
+  "install": [
+    {
+      "id": "brew-yt-dlp",
+      "kind": "brew",
+      "label": "Install yt-dlp (brew)",
+      "formula": "yt-dlp",
+      "bins": [
+        "yt-dlp"
+      ],
+      "os": [
+        "darwin",
+        "linux"
+      ]
+    },
+    {
+      "id": "pip-transcript-api",
+      "kind": "npm",
+      "label": "Install youtube-transcript-api (pipx)",
+      "package": "youtube-transcript-api",
+      "bins": [
+        "youtube_transcript_api"
+      ]
+    }
+  ],
+  "prompt": "# YouTube\n\nUse this skill only when the request is in scope:\n- User shares a YouTube link, asks to summarize a video, wants to know what a video says, asks to extract information from a YouTube video, or needs video transcripts\n\nDo not use this skill when:\n- User wants to upload or stream video, manage a YouTube channel, or edit video files\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Video transcripts with timestamps, summaries, key quotes, metadata, chapter breakdowns.\n5. Verify success criteria: User receives accurate transcript content with timestamps and clear formatting.",
+  "parameters": [
+    {
+      "name": "url",
+      "type": "string",
+      "description": "YouTube video URL or video ID",
+      "required": false
+    }
+  ],
+  "enabled": true,
+  "invocation": {
+    "userInvocable": true
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "NeoWorker",
+    "tags": [
+      "youtube",
+      "video",
+      "transcript",
+      "captions",
+      "subtitles",
+      "summary"
+    ],
+    "routing": {
+      "useWhen": "User shares a YouTube link, asks to summarize a video, wants to know what a video says, asks to extract information from a YouTube video, or needs video transcripts",
+      "dontUseWhen": "User wants to upload or stream video, manage a YouTube channel, or edit video files",
+      "outputs": "Video transcripts with timestamps, summaries, key quotes, metadata, chapter breakdowns",
+      "successCriteria": "User receives accurate transcript content with timestamps and clear formatting",
+      "examples": {
+        "positive": [
+          "Use the youtube skill for this request.",
+          "Help me with youtube.",
+          "User shares a YouTube link, asks to summarize a video, wants to know what a video says, asks to extract information from a YouTube video, or needs video transcripts",
+          "YouTube: provide an actionable result."
+        ],
+        "negative": [
+          "User wants to upload or stream video, manage a YouTube channel, or edit video files",
+          "Do not use youtube for unrelated requests.",
+          "This request is outside youtube scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

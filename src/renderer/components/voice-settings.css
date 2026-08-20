@@ -1,0 +1,158 @@
+.voice-settings {
+  width: 100%;
+  max-width: 900px;
+  color: var(--color-text);
+}
+
+.voice-settings .voice-mode-card,
+.voice-settings .voice-quick-settings,
+.voice-settings .voice-advanced-content > .settings-section {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-bg);
+  box-shadow: none;
+}
+
+.voice-settings .voice-mode-card {
+  margin: 0;
+  padding: 18px 16px;
+}
+
+.voice-settings .voice-mode-card .settings-header-row {
+  align-items: center;
+}
+
+.voice-settings .voice-mode-card h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 21px;
+}
+
+.voice-settings .voice-mode-card .settings-description {
+  margin: 3px 0 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.voice-settings .voice-status {
+  width: fit-content;
+  margin: 10px 0 0;
+  padding: 5px 8px;
+  border-radius: 7px;
+  font-size: 11px;
+}
+
+.voice-settings .voice-quick-settings {
+  margin: 14px 0 0;
+  padding: 16px;
+  background: var(--color-bg);
+}
+
+.voice-settings .voice-quick-heading {
+  align-items: center;
+  margin-bottom: 14px;
+  color: var(--color-text-muted);
+}
+
+.voice-settings .voice-quick-heading > svg {
+  width: 18px;
+  height: 18px;
+  color: var(--color-text-tertiary);
+}
+
+.voice-settings .voice-quick-eyebrow {
+  margin-bottom: 2px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.voice-settings .voice-quick-heading h4 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 20px;
+}
+
+.voice-settings .voice-quick-heading p {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.voice-settings .voice-quick-grid,
+.voice-settings .voice-quick-controls {
+  gap: 12px;
+}
+
+.voice-settings .voice-quick-controls {
+  margin-top: 12px;
+}
+
+.voice-settings .voice-quick-system-note {
+  min-height: 60px;
+  border-style: solid;
+  border-color: var(--color-border-subtle);
+  background: color-mix(in srgb, var(--color-bg-secondary) 56%, transparent);
+}
+
+.voice-settings .voice-quick-footer {
+  margin-top: 14px;
+  padding-top: 12px;
+}
+
+.voice-settings .voice-advanced-toggle {
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: 7px;
+}
+
+.voice-settings .voice-advanced-toggle:hover,
+.voice-settings .voice-advanced-toggle.is-open {
+  background: var(--color-bg-hover);
+}
+
+.voice-settings .voice-advanced-content {
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+}
+
+.voice-settings .voice-advanced-content > .settings-section {
+  margin: 0 0 12px;
+  padding: 16px;
+}
+
+.voice-settings .voice-advanced-content > .settings-section h4 {
+  margin: 0 0 10px;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.theme-light .voice-settings .voice-mode-card,
+.theme-light .voice-settings .voice-quick-settings,
+.theme-light .voice-settings .voice-advanced-content > .settings-section {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+}
+
+.theme-dark .voice-settings .voice-mode-card,
+.theme-dark .voice-settings .voice-quick-settings,
+.theme-dark .voice-settings .voice-advanced-content > .settings-section {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+@media (max-width: 720px) {
+  .voice-settings .voice-quick-grid,
+  .voice-settings .voice-quick-controls {
+    grid-template-columns: 1fr;
+  }
+}

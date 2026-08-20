@@ -1,0 +1,53 @@
+name: macOS DMG Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: "Expected package version"
+        required: true
+        default: "0.5.43"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Build and smoke macOS DMG
+    runs-on: macos-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Force HTTPS for GitHub git dependencies
+        shell: bash
+        run: |
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify release version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          if [ "${version}" != "${{ inputs.expected_version }}" ]; then
+            echo "Expected version ${{ inputs.expected_version }}, found ${version}" >&2
+            exit 1
+          fi
+
+      - name: Package macOS app
+        run: npm run package:mac:unsigned
+
+      - name: Smoke macOS DMG
+        run: npm run package:mac:smoke -- --expected-version=${{ inputs.expected_version }} --allow-unsigned

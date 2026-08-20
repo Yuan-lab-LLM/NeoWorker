@@ -1,0 +1,57 @@
+{
+  "id": "hyperframes",
+  "name": "HyperFrames",
+  "description": "Create HTML-native video compositions, captions, voiceovers, transitions, and audio-reactive motion with the HyperFrames framework.",
+  "icon": "🎥",
+  "category": "Creative",
+  "prompt": "# HyperFrames\n\nBundled upstream source: https://github.com/heygen-com/hyperframes\n\nUse this skill when the user wants to author or edit HyperFrames compositions: HTML-based videos, title cards, overlays, captions, subtitles, synced narration, audio-reactive visuals, scene transitions, or composition structure.\n\nDo not use this skill when:\n- the task is generic editing in a timeline editor like Premiere, CapCut, or DaVinci\n- the output is a static image, slide deck, or non-HyperFrames web page\n- the user only needs CLI setup or command help; use `hyperframes-cli`\n- the task is specifically about installing reusable blocks or components; use `hyperframes-registry`\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for composition rules and non-negotiable constraints.\n2. Read only the relevant supporting files from `{baseDir}/references/`, `{baseDir}/house-style.md`, `{baseDir}/visual-styles.md`, `{baseDir}/patterns.md`, and `{baseDir}/data-in-motion.md`.\n3. For animation-specific patterns and GSAP API details, read the bundled `gsap` skill.\n4. Keep output deterministic: valid `data-*` timing attributes, registered GSAP timelines, no async timeline construction, and no infinite repeats.\n5. Finish with the concrete next validation or render commands when applicable.\n\nSuccess criteria:\n- Produces valid HyperFrames composition code or targeted edits.\n- Preserves the skill bundle's layout, timing, and transition rules.\n- Leaves the user with clear lint, preview, or render next steps.",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "version": "0.4.3",
+    "author": "HeyGen",
+    "homepage": "https://github.com/heygen-com/hyperframes",
+    "tags": [
+      "video",
+      "animation",
+      "html",
+      "gsap",
+      "captions",
+      "tts",
+      "creative"
+    ],
+    "routing": {
+      "keywords": [
+        "hyperframes",
+        "html video",
+        "video composition",
+        "captions",
+        "subtitles",
+        "tts",
+        "audio reactive",
+        "scene transition"
+      ],
+      "useWhen": "Use when the user wants to build or edit a HyperFrames composition, HTML-based video, motion-driven explainer, captioned video, synced narration sequence, or reusable scene structure in HyperFrames.",
+      "dontUseWhen": "Do not use for generic timeline-editor video work, static design deliverables, or CLI-only setup and troubleshooting requests that are better handled by hyperframes-cli.",
+      "outputs": "HyperFrames composition code, targeted composition edits, or concrete composition guidance that follows the bundled framework rules.",
+      "successCriteria": "Returns valid HyperFrames-oriented output that respects composition structure, timing, and animation constraints, plus the next verification commands when needed.",
+      "examples": {
+        "positive": [
+          "Create a HyperFrames product intro with captions and a lower third.",
+          "Edit this HyperFrames composition to add a transition and voiceover timing.",
+          "Make an HTML-based explainer video in HyperFrames.",
+          "Use the hyperframes skill for this request."
+        ],
+        "negative": [
+          "Trim this interview in Premiere and add B-roll.",
+          "Make me a static keynote slide about this launch.",
+          "Show me how to install HyperFrames and check FFmpeg.",
+          "Run hyperframes add to install a registry block."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "medium"
+    }
+  }
+}

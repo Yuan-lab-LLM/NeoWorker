@@ -1,0 +1,35 @@
+{
+  "id": "github",
+  "name": "Github",
+  "description": "Interact with GitHub using the `gh` CLI. Use `gh issue`, `gh pr`, `gh run`, and `gh api` for issues, PRs, CI runs, and advanced queries.",
+  "icon": "🐙",
+  "category": "Tools",
+  "prompt": "# GitHub Skill\n\nUse the `gh` CLI to interact with GitHub. Always specify `--repo owner/repo` when not in a git directory, or use URLs directly.\n\n## Pull Requests\n\nCheck CI status on a PR:\n\n```bash\ngh pr checks 55 --repo owner/repo\n```\n\nImportant: `gh pr checks` exits non-zero when checks fail. If you need the output even on failure, append `|| true` or use `gh pr view --json statusCheckRollup` first.\n\nList recent workflow runs:\n\n```bash\ngh run list --repo owner/repo --limit 10\n```\n\nView a run and see which steps failed:\n\n```bash\ngh run view <run-id> --repo owner/repo\n```\n\nView logs for failed steps only:\n\n```bash\ngh run view <run-id> --repo owner/repo --log-failed\n```\n\nIf `gh run view` fails, confirm the numeric run id from `gh run list --repo owner/repo --limit 10 --json databaseId,workflowName,status,conclusion,headBranch,displayTitle` and retry with that `databaseId`. If needed, fall back to `gh api repos/owner/repo/actions/runs/<run-id>`.\n\n## API for Advanced Queries\n\nThe `gh api` command is useful for accessing data not available through other subcommands.\n\nGet PR with specific fields:\n\n```bash\ngh api repos/owner/repo/pulls/55 --jq '.title, .state, .user.login'\n```\n\n## JSON Output\n\nMost commands support `--json` for structured output. You can use `--jq` to filter:\n\n```bash\ngh issue list --repo owner/repo --json number,title --jq '.[] | \"\\(.number): \\(.title)\"'\n```",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks to interact with GitHub using the gh CLI. Use gh issue, gh pr, gh run, and gh api for issues, PRs, CI runs, and advanced queries.",
+      "dontUseWhen": "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.",
+      "outputs": "Outcome from Github: task-specific result plus concrete action notes.",
+      "successCriteria": "Returns concrete actions and decisions matching the requested task, with no fabricated tool-side behavior.",
+      "examples": {
+        "positive": [
+          "Use the github skill for this request.",
+          "Help me with github.",
+          "Use when the user asks to interact with GitHub using the gh CLI. Use gh issue, gh pr, gh run, and gh api for issues, PRs, CI runs, and advanced queries.",
+          "Github: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.",
+          "Do not use github for unrelated requests.",
+          "This request is outside github scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "id": "ios-development",
+  "name": "iOS Development",
+  "description": "iOS/Swift development: SwiftUI, UIKit, Core Data, Xcode builds, simulator management, code signing, and App Store submission.",
+  "icon": "🍎",
+  "category": "Engineering",
+  "prompt": "# iOS Development\n\nUse this skill only when the request is in scope:\n- Use when the user asks about iOS development, Swift, SwiftUI, UIKit, Xcode, Core Data, SwiftData, App Store submission, TestFlight, or iOS simulator management.\n\nDo not use this skill when:\n- Do not use for Android development (use android-development), React Native (use the mobile pack's react-native skill), or general mobile CI/CD (use the mobile pack's build-pipeline skill).\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Swift code, SwiftUI views, Xcode commands, and iOS development guidance..\n5. Verify success criteria: Returns valid Swift/SwiftUI code or Xcode CLI commands..",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks about iOS development, Swift, SwiftUI, UIKit, Xcode, Core Data, SwiftData, App Store submission, TestFlight, or iOS simulator management.",
+      "dontUseWhen": "Do not use for Android development (use android-development), React Native (use the mobile pack's react-native skill), or general mobile CI/CD (use the mobile pack's build-pipeline skill).",
+      "outputs": "Swift code, SwiftUI views, Xcode commands, and iOS development guidance.",
+      "successCriteria": "Returns valid Swift/SwiftUI code or Xcode CLI commands.",
+      "examples": {
+        "positive": [
+          "Use the ios-development skill for this request.",
+          "Help me with ios development.",
+          "Use when the user asks about iOS development, Swift, SwiftUI, UIKit, Xcode, Core Data, SwiftData, App Store submission, TestFlight, or iOS simulator management.",
+          "iOS Development: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use for Android development (use android-development), React Native (use the mobile pack's react-native skill), or general mobile CI/CD (use the mobile pack's build-pipeline skill).",
+          "Do not use ios-development for unrelated requests.",
+          "This request is outside ios development scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

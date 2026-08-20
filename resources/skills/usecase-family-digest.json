@@ -1,0 +1,67 @@
+{
+  "id": "usecase-family-digest",
+  "name": "Family Digest",
+  "description": "Draft a daily digest based on calendar + tasks. Stops before sending.",
+  "icon": "👨‍👩‍👧‍👦",
+  "category": "Use Cases",
+  "prompt": "Daily digest workflow.\n\nGoal\n- Draft a clear digest message for visibility (calendar + tasks).\n\nInputs\n- Range: {{range}}\n- Recipient description (who this is for): {{recipient}}\n- Tone: {{tone}}\n\nSteps\n1) Collect calendar events for the chosen range (\"{{range}}\").\n   - Use calendar_action or google-workspace.calendar_events_list for Google Calendar if configured; otherwise use apple_calendar_action if available.\n2) Collect task/reminder signals:\n   - Use apple_reminders_action if available.\n   - Also list relevant scheduled tasks (schedule_task list) if any.\n3) Draft a digest message in tone \"{{tone}}\" aimed at \"{{recipient}}\".\n   - Keep it short, scannable, and specific times.\n4) STOP BEFORE SENDING. Ask me to confirm the message and where to send it.\n",
+  "parameters": [
+    {
+      "name": "range",
+      "type": "select",
+      "description": "Time range to summarize",
+      "required": false,
+      "default": "today",
+      "options": [
+        "today",
+        "tomorrow",
+        "week"
+      ]
+    },
+    {
+      "name": "recipient",
+      "type": "string",
+      "description": "Who this digest is for (e.g., \"my parents\", \"my partner\")",
+      "required": false,
+      "default": "my family"
+    },
+    {
+      "name": "tone",
+      "type": "select",
+      "description": "Writing tone",
+      "required": false,
+      "default": "concise",
+      "options": [
+        "concise",
+        "friendly",
+        "formal"
+      ]
+    }
+  ],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks to draft a daily digest based on calendar + tasks. Stops before sending.",
+      "dontUseWhen": "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.",
+      "outputs": "Outcome from Family Digest: task-specific result plus concrete action notes.",
+      "successCriteria": "Returns concrete actions and decisions matching the requested task, with no fabricated tool-side behavior.",
+      "examples": {
+        "positive": [
+          "Use the usecase-family-digest skill for this request.",
+          "Help me with family digest.",
+          "Use when the user asks to draft a daily digest based on calendar + tasks. Stops before sending.",
+          "Family Digest: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.",
+          "Do not use usecase-family-digest for unrelated requests.",
+          "This request is outside family digest scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

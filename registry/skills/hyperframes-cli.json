@@ -1,0 +1,65 @@
+{
+  "id": "hyperframes-cli",
+  "name": "HyperFrames CLI",
+  "description": "Scaffold, lint, preview, render, transcribe, and troubleshoot HyperFrames projects with the HyperFrames CLI.",
+  "icon": "🛠️",
+  "category": "Tools",
+  "prompt": "# HyperFrames CLI\n\nBundled upstream source: https://github.com/heygen-com/hyperframes\n\nUse this skill when the user needs command-line help for HyperFrames: project scaffolding, linting, previewing, rendering, transcription, TTS, environment checks, or CLI troubleshooting.\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for the supported command set and command examples.\n2. Prefer `npx hyperframes ...` commands unless the project already has another wrapper in place.\n3. Use `npx hyperframes doctor` first when render or environment issues appear.\n4. When the user is authoring compositions rather than asking about commands, switch to the `hyperframes` skill.\n5. Return the exact commands to run, plus any required prerequisites or troubleshooting notes.\n\nSuccess criteria:\n- Gives the user the right HyperFrames CLI commands for the task.\n- Calls out environment blockers like FFmpeg or Chrome clearly.\n- Separates scaffold, preview, lint, and render workflows cleanly.",
+  "parameters": [],
+  "enabled": true,
+  "install": [
+    {
+      "id": "hyperframes-npm",
+      "kind": "npm",
+      "package": "hyperframes",
+      "bins": [
+        "hyperframes"
+      ],
+      "label": "Install HyperFrames CLI via npm"
+    }
+  ],
+  "metadata": {
+    "version": "0.4.3",
+    "author": "HeyGen",
+    "homepage": "https://github.com/heygen-com/hyperframes",
+    "tags": [
+      "video",
+      "cli",
+      "ffmpeg",
+      "rendering",
+      "tts",
+      "transcription"
+    ],
+    "routing": {
+      "keywords": [
+        "hyperframes cli",
+        "hyperframes init",
+        "hyperframes render",
+        "hyperframes preview",
+        "hyperframes lint",
+        "hyperframes doctor"
+      ],
+      "useWhen": "Use when the user asks how to initialize, lint, preview, render, transcribe, synthesize speech, benchmark, or troubleshoot a HyperFrames project from the command line.",
+      "dontUseWhen": "Do not use when the main task is authoring composition HTML or choosing animations inside a composition; use hyperframes or gsap for that work.",
+      "outputs": "Exact HyperFrames CLI commands, setup guidance, or troubleshooting steps for the requested workflow.",
+      "successCriteria": "Returns the correct CLI workflow and command sequence, including environment diagnostics when rendering or setup is involved.",
+      "examples": {
+        "positive": [
+          "How do I run hyperframes init for a product promo?",
+          "Give me the HyperFrames render command for a draft MP4.",
+          "Use hyperframes-cli to troubleshoot why rendering fails.",
+          "Show me the CLI commands to preview and lint this HyperFrames project."
+        ],
+        "negative": [
+          "Write the composition HTML for this intro scene.",
+          "Design the transitions for this HyperFrames animation.",
+          "Install a HyperFrames registry component into my project.",
+          "Edit this video in Final Cut Pro."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "id": "gsap",
+  "name": "GSAP",
+  "description": "GSAP animation patterns for HyperFrames: tweens, timelines, easing, stagger, responsive motion, and performance-aware choreography.",
+  "icon": "✨",
+  "category": "Creative",
+  "prompt": "# GSAP\n\nBundled upstream source: https://github.com/heygen-com/hyperframes\n\nUse this skill when the user needs GSAP help inside a HyperFrames composition: timelines, easing, stagger, transform animation, matchMedia, responsive motion, or reusable effect patterns.\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for the GSAP API patterns and timeline rules.\n2. Read `{baseDir}/references/effects.md` when the user needs ready-made effect snippets.\n3. For audio-reactive animation workflows, use `{baseDir}/scripts/extract-audio-data.py` when extracting frequency-band data would help.\n4. Keep recommendations compatible with HyperFrames timing and deterministic render constraints.\n5. Return concrete tween or timeline code, not just conceptual advice.\n\nSuccess criteria:\n- Produces valid GSAP patterns that fit HyperFrames compositions.\n- Uses performant transform- and opacity-first motion where possible.\n- Gives code the user can drop into a timeline with minimal cleanup.",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "version": "0.4.3",
+    "author": "HeyGen",
+    "homepage": "https://github.com/heygen-com/hyperframes",
+    "tags": [
+      "gsap",
+      "animation",
+      "timelines",
+      "easing",
+      "video",
+      "hyperframes"
+    ],
+    "routing": {
+      "keywords": [
+        "gsap",
+        "timeline",
+        "stagger",
+        "easing",
+        "matchMedia",
+        "audio reactive"
+      ],
+      "useWhen": "Use when the user asks to build or refine GSAP tweens, timelines, easing, stagger, responsive animation, or performance-aware motion for a HyperFrames composition.",
+      "dontUseWhen": "Do not use for non-GSAP animation systems, pure CLI setup, or general composition structure questions that belong in the hyperframes skill.",
+      "outputs": "Concrete GSAP code patterns, timeline guidance, or effect snippets suitable for HyperFrames.",
+      "successCriteria": "Returns working GSAP-oriented code or precise animation guidance that respects HyperFrames playback and rendering constraints.",
+      "examples": {
+        "positive": [
+          "Animate these caption words with a GSAP stagger.",
+          "Build a GSAP timeline for this HyperFrames title card.",
+          "Use the gsap skill for this request.",
+          "How should I do audio-reactive GSAP motion in HyperFrames?"
+        ],
+        "negative": [
+          "Render this HyperFrames project to video.",
+          "Install a HyperFrames registry block.",
+          "Explain CSS transitions in general with no GSAP.",
+          "Trim a video clip in ffmpeg."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "medium"
+    }
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "id": "tax-optimizer",
+  "name": "Tax Optimizer",
+  "description": "Tax optimization strategies including tax-loss harvesting, wash sale rule navigation, asset location optimization, Roth conversion analysis, and charitable giving strategies.",
+  "icon": "🏛️",
+  "category": "Finance",
+  "prompt": "# Tax Optimizer\n\nUse this skill only when the request is in scope:\n- Use when the user asks about tax-loss harvesting, wash sale rules, asset location, Roth conversion, tax-efficient investing, capital gains management, charitable giving tax strategies, or tax-optimized withdrawal sequencing.\n\nDo not use this skill when:\n- Do not use when the request is about tax preparation/filing, business tax strategy, estate tax planning, or non-investment tax questions.\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Outcome from Tax Optimizer: tax-efficient strategy recommendations with quantified tax savings, implementation steps, timing guidance, and compliance guardrails..\n5. Verify success criteria: Returns specific tax optimization actions with estimated dollar savings, applicable rules and thresholds, implementation timeline, and clear warnings about compliance requirements like wash sale rules..",
+  "parameters": [
+    {
+      "name": "portfolio",
+      "type": "string",
+      "description": "Portfolio details including account types and holdings (e.g., Taxable: SPY $200K, AAPL $50K; IRA: BND $100K; Roth: VTI $75K)",
+      "required": true
+    },
+    {
+      "name": "strategy",
+      "type": "select",
+      "description": "Tax optimization strategy to focus on",
+      "required": true,
+      "options": [
+        "Tax-Loss Harvesting",
+        "Asset Location",
+        "Roth Conversion",
+        "Charitable Giving",
+        "Capital Gains Management",
+        "Comprehensive"
+      ]
+    },
+    {
+      "name": "question",
+      "type": "string",
+      "description": "Your specific tax optimization question",
+      "required": true
+    },
+    {
+      "name": "taxBracket",
+      "type": "select",
+      "description": "Federal marginal tax bracket",
+      "required": true,
+      "options": [
+        "10%",
+        "12%",
+        "22%",
+        "24%",
+        "32%",
+        "35%",
+        "37%"
+      ]
+    },
+    {
+      "name": "filingStatus",
+      "type": "select",
+      "description": "Tax filing status",
+      "required": true,
+      "options": [
+        "Single",
+        "Married Filing Jointly",
+        "Married Filing Separately",
+        "Head of Household"
+      ]
+    }
+  ],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks about tax-loss harvesting, wash sale rules, asset location, Roth conversion, tax-efficient investing, capital gains management, charitable giving tax strategies, or tax-optimized withdrawal sequencing.",
+      "dontUseWhen": "Do not use when the request is about tax preparation/filing, business tax strategy, estate tax planning, or non-investment tax questions.",
+      "outputs": "Outcome from Tax Optimizer: tax-efficient strategy recommendations with quantified tax savings, implementation steps, timing guidance, and compliance guardrails.",
+      "successCriteria": "Returns specific tax optimization actions with estimated dollar savings, applicable rules and thresholds, implementation timeline, and clear warnings about compliance requirements like wash sale rules.",
+      "examples": {
+        "positive": [
+          "Use the tax-optimizer skill for this request.",
+          "Help me with tax optimizer.",
+          "Use when the user asks about tax-loss harvesting, wash sale rules, asset location, Roth conversion, tax-efficient investing, capital gains management, charitable giving tax strategies, or tax-optimized withdrawal sequencing.",
+          "Tax Optimizer: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use when the request is about tax preparation/filing, business tax strategy, estate tax planning, or non-investment tax questions.",
+          "Do not use tax-optimizer for unrelated requests.",
+          "This request is outside tax optimizer scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

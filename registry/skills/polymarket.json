@@ -1,0 +1,52 @@
+{
+  "id": "polymarket",
+  "name": "Polymarket",
+  "description": "Query Polymarket prediction markets — search events, check odds and prices, view trending markets, track price momentum, get orderbook depth, analyze volume, and monitor market resolution timelines. Use when the user asks about prediction markets, betting odds, event probabilities, or Polymarket data.",
+  "icon": "📊",
+  "category": "Tools",
+  "prompt": "# Polymarket\n\nUse this skill only when the request is in scope:\n- User asks about prediction markets, betting odds, event probabilities, Polymarket data, what markets think about something, or wants to check odds on any topic\n\nDo not use this skill when:\n- User is asking about stock market prices, crypto token prices (not prediction markets), or wants to place actual trades\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Market odds, trending events, price movements, orderbook data, resolution timelines.\n5. Verify success criteria: User receives clear, formatted prediction market data with probabilities shown as percentages.",
+  "parameters": [
+    {
+      "name": "query",
+      "type": "string",
+      "description": "What to search for or ask about (e.g., 'Trump election odds', 'trending crypto markets', 'AI predictions')",
+      "required": false
+    }
+  ],
+  "enabled": true,
+  "metadata": {
+    "version": "1.0.0",
+    "author": "NeoWorker",
+    "tags": [
+      "prediction-markets",
+      "odds",
+      "polymarket",
+      "betting",
+      "probabilities",
+      "events"
+    ],
+    "routing": {
+      "useWhen": "User asks about prediction markets, betting odds, event probabilities, Polymarket data, what markets think about something, or wants to check odds on any topic",
+      "dontUseWhen": "User is asking about stock market prices, crypto token prices (not prediction markets), or wants to place actual trades",
+      "outputs": "Market odds, trending events, price movements, orderbook data, resolution timelines",
+      "successCriteria": "User receives clear, formatted prediction market data with probabilities shown as percentages",
+      "examples": {
+        "positive": [
+          "Use the polymarket skill for this request.",
+          "Help me with polymarket.",
+          "User asks about prediction markets, betting odds, event probabilities, Polymarket data, what markets think about something, or wants to check odds on any topic",
+          "Polymarket: provide an actionable result."
+        ],
+        "negative": [
+          "User is asking about stock market prices, crypto token prices (not prediction markets), or wants to place actual trades",
+          "Do not use polymarket for unrelated requests.",
+          "This request is outside polymarket scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

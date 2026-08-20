@@ -1,0 +1,82 @@
+# Everything Workbench
+
+NeoWorker is the GUI-first, CLI-capable local AI super app and everything app for everyday work. It is meant to cover more than office-style files: coding, terminal work, email, research, web design, documents, spreadsheets, decks, PDFs, agent spawning and management, automations, inbox work, channels, devices, skills, and long-running tasks all live in one governed workspace. The desktop app is the primary review and workbench surface; `neoworker` adds a terminal entrypoint for starting local tasks against the same runtime.
+
+The Everything Workbench is the proof point for that positioning: ask for an artifact, open it in-place, review or edit it, then ask the agent for follow-up changes without leaving the task. For everyday work, NeoWorker should be the app you reach for instead of a separate coding app, mail app, browser preview, Word processor, spreadsheet tool, or slide deck editor. External-open actions remain available when a specialized native app is still the better tool for advanced edge cases.
+
+## Broader Positioning
+
+Use NeoWorker as the app where personal agentic work starts and stays:
+
+- code, review repositories, run local project tasks, and keep real terminal tabs beside the agent
+- create reusable agents, spawn parallel work, and monitor agent runs from visual surfaces
+- research, summarize, draft, and maintain knowledge
+- design and revise web pages and frontend experiences
+- create and work with Word-style documents, Excel-style spreadsheets, PowerPoint-style decks, PDFs, and local files
+- automate recurring work across channels, connectors, devices, and schedules
+- coordinate long-running personal or company operations with memory, skills, approvals, and runtime visibility
+
+The artifact workbench strengthens this positioning because generated files become part of the same agentic loop instead of dead-end downloads.
+
+## Core Model
+
+The workbench model is shared across supported artifact types:
+
+1. A task creates or updates a local file.
+2. The task feed shows a compact artifact card instead of a plain file link.
+3. The main **Open** action opens the artifact in a resizable right sidebar when an in-app surface is available.
+4. The fullscreen button promotes the same artifact into a focused workspace.
+5. The follow-up composer stays with the artifact so the user can request changes in context.
+6. The preview refreshes after the follow-up finishes and the relevant file changes.
+7. Dropdown actions still provide external app, browser, folder, and copy-path options.
+8. Live websites can open in the Browser Workbench so interactive browser-use tasks happen beside the task instead of in a hidden or external browser.
+9. Terminal tabs can open under the composer so direct CLI work happens in the same workspace as the task, artifacts, browser, approvals, and files.
+
+This keeps the agent next to the work product. A spreadsheet can be selected and copied, a DOCX can be edited and saved, a deck can be reviewed slide by slide, a generated page can be opened in a sandboxed preview, and a PDF/LaTeX pair can be inspected from the same task surface.
+
+## Supported Artifact Workspaces
+
+- **Documents**: Word-style outputs render as document cards. DOCX opens directly in an editable sidebar/fullscreen document surface with Google Docs-style controls, save, copy, external-open, and follow-up refresh. Other Word-style formats use best-effort preview or external actions. See [Document Artifacts](document-artifacts.md).
+- **Spreadsheets**: Excel workbooks and CSV/TSV files open in an editable sheet workbench with selection, row/column selection, copy, zoom, add row/column, save, and follow-up context. Native/app-owned spreadsheet formats keep card and external actions. See [Spreadsheet Artifacts](spreadsheet-artifacts.md).
+- **Presentations**: PPTX decks open in a slide viewer with thumbnails, navigation, zoom, speaker notes, text-first loading, cached slide images, and follow-up refresh after requested edits. Legacy PowerPoint formats keep external actions. See [Presentation Artifacts and PPTX Preview](pptx-generation-and-preview.md).
+- **Web pages**: Generated HTML/HTM files and built React output open in a sandboxed iframe preview with browser/folder/copy actions. Fullscreen mode supports follow-up edits and defers refresh until the updated output is ready. See [Web Page Artifacts](web-page-artifacts.md).
+- **Live websites**: Browser-use tasks open a visible in-app Browser Workbench by default. The agent and user share the same right-sidebar/fullscreen Browser V2 webview, with navigation controls, desktop/tablet/mobile viewport testing, snapshot refs, diagnostics, downloads/uploads, screenshots, annotation, and visible cursor movement during actions. See [Browser Workbench](browser-workbench.md) and [Browser V2 Architecture](browser-v2-architecture.md).
+- **Terminal tabs**: Direct CLI work opens in xterm.js + node-pty terminal tabs under the message box, with native macOS shell and Windows `cmd.exe` behavior, keyboard shortcuts, Tab completion, interactive prompts, resizing, and closeable tabs. See [Terminal Tabs](terminal-tabs.md).
+- **PDF and LaTeX**: Source-first LaTeX workflows preserve the editable `.tex` file and pair it with the compiled PDF in one artifact workbench when a local TeX engine is available.
+- **Uploaded PDFs**: PDF attachments are imported into `.neoworker/uploads/...`, summarized into a compact attachment block, and read more deeply on demand with `parse_document`. The attachment block preserves the workspace-relative path, page count, extraction status, OCR/scan signals, and a short excerpt without inlining the full PDF into every prompt. Visual/layout PDF questions use `read_pdf_visual` instead.
+- **Uploaded videos**: MP4, MOV, and WebM attachments are imported into `.neoworker/uploads/...`, sampled into representative frames, and analyzed through image-capable model input. The extracted contact sheet and representative frame are stored under `.neoworker/video-frames/...` and emitted as inline image artifacts in the task timeline. See [Video Attachments](video-attachments.md).
+- **General previews**: The format-aware file preview popup remains available for files that do not have a dedicated artifact workbench.
+
+## Positioning Boundary
+
+Use NeoWorker as the default app for everyday generated knowledge work:
+
+- draft and revise reports, memos, summaries, one-pagers, and DOCX files
+- create and adjust spreadsheets, CSVs, tables, and lightweight workbook outputs
+- review generated decks and request slide changes through follow-up prompts
+- inspect generated HTML pages and built React output without leaving the task
+- test live websites and local web apps in the in-app browser while watching the agent click, type, scroll, inspect the page, and validate responsive breakpoints
+- run direct terminal sessions without leaving the task workspace
+- keep the task timeline, artifact, and follow-up request in one context
+
+Use external apps only when the work needs advanced native behavior:
+
+- Excel pivot tables, complex charting, macros, and deep workbook modeling
+- Word track changes, comments, embedded objects, and high-fidelity layout repair
+- Keynote/PowerPoint direct slide authoring beyond review and agent-requested edits
+- Pages, Numbers, Google Docs, Google Sheets, or Google Slides native cloud behavior
+
+The product promise is "one app for the everyday work most people currently split across coding tools, mail clients, browsers, Word, Excel, PowerPoint, and chat." NeoWorker keeps specialized external-open paths for advanced native workflows, but the default loop is create, review, edit, test, and revise in one place with the agent beside the work.
+
+## Related Docs
+
+- [Features](features.md)
+- [Getting Started](getting-started.md)
+- [Document Artifacts](document-artifacts.md)
+- [Spreadsheet Artifacts](spreadsheet-artifacts.md)
+- [Presentation Artifacts and PPTX Preview](pptx-generation-and-preview.md)
+- [Web Page Artifacts](web-page-artifacts.md)
+- [Video Attachments](video-attachments.md)
+- [Browser Workbench](browser-workbench.md)
+- [Browser V2 Architecture](browser-v2-architecture.md)
+- [Terminal Tabs](terminal-tabs.md)

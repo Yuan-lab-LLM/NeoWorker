@@ -1,0 +1,85 @@
+{
+  "id": "risk-analyzer",
+  "name": "Risk Analyzer",
+  "description": "Portfolio risk analysis including Value at Risk (parametric, historical, Monte Carlo), Conditional VaR, stress testing, drawdown analysis, and factor exposure assessment.",
+  "icon": "🛡️",
+  "category": "Finance",
+  "prompt": "# Risk Analyzer\n\nUse this skill only when the request is in scope:\n- Use when the user asks about portfolio risk, Value at Risk, VaR, CVaR, stress testing, drawdown analysis, factor exposure, risk budgeting, beta, tracking error, or any risk measurement and management question.\n\nDo not use this skill when:\n- Do not use when the request is about portfolio construction/optimization (use Portfolio Optimizer), company valuation, or financial modeling.\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Outcome from Risk Analyzer: comprehensive risk assessment with VaR/CVaR calculations, stress test results, factor exposures, drawdown analysis, and risk management recommendations..\n5. Verify success criteria: Returns quantified risk metrics at the specified confidence level and horizon, identifies key risk concentrations, provides stress test impacts, and recommends actionable risk mitigation steps..",
+  "parameters": [
+    {
+      "name": "portfolio",
+      "type": "string",
+      "description": "Portfolio holdings with weights and/or dollar amounts (e.g., SPY 50%, TLT 30%, GLD 20%; $500K total)",
+      "required": true
+    },
+    {
+      "name": "riskMetric",
+      "type": "select",
+      "description": "Primary risk metric to analyze",
+      "required": true,
+      "options": [
+        "Value at Risk",
+        "Conditional VaR",
+        "Stress Test",
+        "Drawdown Analysis",
+        "Factor Exposure",
+        "Comprehensive"
+      ]
+    },
+    {
+      "name": "question",
+      "type": "string",
+      "description": "Your specific risk analysis question",
+      "required": true
+    },
+    {
+      "name": "confidence",
+      "type": "select",
+      "description": "Confidence level for VaR calculations",
+      "required": true,
+      "options": [
+        "90%",
+        "95%",
+        "99%"
+      ]
+    },
+    {
+      "name": "horizon",
+      "type": "select",
+      "description": "Time horizon for risk measurement",
+      "required": true,
+      "options": [
+        "1 Day",
+        "1 Week",
+        "1 Month",
+        "1 Year"
+      ]
+    }
+  ],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks about portfolio risk, Value at Risk, VaR, CVaR, stress testing, drawdown analysis, factor exposure, risk budgeting, beta, tracking error, or any risk measurement and management question.",
+      "dontUseWhen": "Do not use when the request is about portfolio construction/optimization (use Portfolio Optimizer), company valuation, or financial modeling.",
+      "outputs": "Outcome from Risk Analyzer: comprehensive risk assessment with VaR/CVaR calculations, stress test results, factor exposures, drawdown analysis, and risk management recommendations.",
+      "successCriteria": "Returns quantified risk metrics at the specified confidence level and horizon, identifies key risk concentrations, provides stress test impacts, and recommends actionable risk mitigation steps.",
+      "examples": {
+        "positive": [
+          "Use the risk-analyzer skill for this request.",
+          "Help me with risk analyzer.",
+          "Use when the user asks about portfolio risk, Value at Risk, VaR, CVaR, stress testing, drawdown analysis, factor exposure, risk budgeting, beta, tracking error, or any risk measurement and management question.",
+          "Risk Analyzer: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use when the request is about portfolio construction/optimization (use Portfolio Optimizer), company valuation, or financial modeling.",
+          "Do not use risk-analyzer for unrelated requests.",
+          "This request is outside risk analyzer scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

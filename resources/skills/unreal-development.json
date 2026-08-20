@@ -1,0 +1,35 @@
+{
+  "id": "unreal-development",
+  "name": "Unreal Engine Development",
+  "description": "Unreal Engine development: C++/Blueprint patterns, Gameplay Framework, Niagara, Lumen/Nanite, multiplayer, and packaging.",
+  "icon": "🔷",
+  "category": "Engineering",
+  "prompt": "# Unreal Engine Development\n\nUse this skill only when the request is in scope:\n- Use when the user asks about Unreal Engine, UE5, C++ game development, Blueprints, Gameplay Framework, Niagara, Lumen, Nanite, multiplayer replication, or Unreal packaging.\n\nDo not use this skill when:\n- Do not use for Unity (use unity-development), Godot (use the game pack's godot skill), or cross-engine performance (use game-performance).\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: C++ code, Blueprint guidance, Unreal build commands, and UE development patterns..\n5. Verify success criteria: Returns valid Unreal C++ code or UE workflow guidance..",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks about Unreal Engine, UE5, C++ game development, Blueprints, Gameplay Framework, Niagara, Lumen, Nanite, multiplayer replication, or Unreal packaging.",
+      "dontUseWhen": "Do not use for Unity (use unity-development), Godot (use the game pack's godot skill), or cross-engine performance (use game-performance).",
+      "outputs": "C++ code, Blueprint guidance, Unreal build commands, and UE development patterns.",
+      "successCriteria": "Returns valid Unreal C++ code or UE workflow guidance.",
+      "examples": {
+        "positive": [
+          "Use the unreal-development skill for this request.",
+          "Help me with unreal engine development.",
+          "Use when the user asks about Unreal Engine, UE5, C++ game development, Blueprints, Gameplay Framework, Niagara, Lumen, Nanite, multiplayer replication, or Unreal packaging.",
+          "Unreal Engine Development: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use for Unity (use unity-development), Godot (use the game pack's godot skill), or cross-engine performance (use game-performance).",
+          "Do not use unreal-development for unrelated requests.",
+          "This request is outside unreal engine development scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}
