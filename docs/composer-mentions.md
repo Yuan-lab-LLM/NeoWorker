@@ -107,7 +107,7 @@ Core implementation files:
 Focused checks:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/integrations/__tests__/integration-mention-options.test.ts \
   src/renderer/components/__tests__/prompt-composer-input.test.ts \
   src/renderer/components/__tests__/integration-mention-text.test.ts

@@ -162,7 +162,7 @@ Implementation landmarks:
 - `src/cli/main.ts`: argument parsing, interactive terminal UI, slash commands, diagnostics, and remote dispatch
 - `src/cli/direct-run.ts`: local one-shot task execution
 - `src/electron/main.ts`: hidden `--neoworker-cli-direct-run` app-entry mode for local CLI tasks
-- `tsconfig.cli.json`: CLI TypeScript build target
+- `config/typescript/tsconfig.cli.json`: CLI TypeScript build target
 
 Common local commands:
 
@@ -182,10 +182,10 @@ Focused validation:
 ```bash
 npm run build:cli
 npm run build:electron
-npx vitest run src/cli/__tests__/main.test.ts src/cli/__tests__/terminal-ui.test.ts src/cli/__tests__/local-control-plane-discovery.test.ts
+npx vitest --config config/vitest.config.ts run src/cli/__tests__/main.test.ts src/cli/__tests__/terminal-ui.test.ts src/cli/__tests__/local-control-plane-discovery.test.ts
 ```
 
-For packaged or npm-release checks, verify the package includes `dist/cli`, `bin/neoworker-cli.js`, and `tsconfig.cli.json`, then test both `neoworker --help` and one local `neoworker run` command from a clean install.
+For packaged or npm-release checks, verify the package includes `dist/cli`, `bin/neoworker-cli.js`, and `config/typescript/tsconfig.cli.json`, then test both `neoworker --help` and one local `neoworker run` command from a clean install.
 
 ## Renderer Bundle Size
 
@@ -198,7 +198,7 @@ Current bundle-splitting rules:
   lazy-loaded behind its own lightweight fallback.
 - Lazy-load secondary views from `App.tsx`: Settings, Browser, Home, Devices, Health, Ideas, Inbox Agent, Agents Hub, and Mission Control.
 - Keep the in-app browser workbench renderer-owned. `BrowserWorkbenchView` registers its Electron webview `webContentsId` with the main process, and browser tools route visible actions through `BrowserWorkbenchService` into `BrowserSessionManager`. Browser V2 automation should be CDP-backed through Electron `webContents.debugger` for snapshots, ref-aware actions, dialogs, diagnostics, downloads/uploads, emulation, traces, and screenshots; renderer DOM scripts are compatibility fallback, not the primary control plane. Browser Workbench IPC also carries open requests, status updates, screenshot capture, annotation handoff, diagnostics state, cursor events for visible agent movement, and viewport events so `browser_emulate` can resize the shared webview for responsive QA. Do not replace generated web artifact iframes with this live browser path; artifact previews and live website testing are separate surfaces. See [Browser Workbench](browser-workbench.md) and [Browser V2 Architecture](browser-v2-architecture.md).
-- Keep Browser Use Cloud as an explicit backend, not a default fallback. The Browser Use client lives in `src/electron/agent/browser/browser-use-cloud-client.ts`, uses `BROWSER_USE_API_KEY` or encrypted `browser-use` settings, and connects through the existing Playwright CDP path. Preserve the private/local target block, API error redaction, stale-session retry, and pending-stop behavior when changing browser routing. Focused checks: `npx vitest run src/electron/agent/browser/__tests__/browser-use-cloud-client.test.ts src/electron/agent/tools/__tests__/browser-tools.test.ts src/electron/security/__tests__/network-policy.test.ts tests/tools/shell-tools.test.ts`.
+- Keep Browser Use Cloud as an explicit backend, not a default fallback. The Browser Use client lives in `src/electron/agent/browser/browser-use-cloud-client.ts`, uses `BROWSER_USE_API_KEY` or encrypted `browser-use` settings, and connects through the existing Playwright CDP path. Preserve the private/local target block, API error redaction, stale-session retry, and pending-stop behavior when changing browser routing. Focused checks: `npx vitest --config config/vitest.config.ts run src/electron/agent/browser/__tests__/browser-use-cloud-client.test.ts src/electron/agent/tools/__tests__/browser-tools.test.ts src/electron/security/__tests__/network-policy.test.ts tests/tools/shell-tools.test.ts`.
 - Keep CSS split by surface. `src/renderer/styles/index.css` is for app-wide tokens/layout plus the
   small critical composer startup block needed before lazy chunks hydrate. `src/renderer/components/main-content.css`
   owns the heavier task surface, welcome view, remote file picker, workspace/permission dropdowns, and
@@ -249,7 +249,7 @@ Implementation rules:
 Focused validation:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/routines/workflow/__tests__/validation.test.ts \
   src/electron/routines/workflow/__tests__/repository.test.ts \
   src/electron/routines/workflow/__tests__/engine.test.ts \
@@ -295,8 +295,8 @@ Focused helpers exported from `MainContent.tsx` for tests:
 Validate changes with:
 
 ```bash
-npx vitest run src/renderer/components/__tests__/main-content-working-state.test.ts
-npx vitest run src/electron/agent/__tests__/executor-schedule-slash.test.ts src/electron/cron/__tests__/service.test.ts src/electron/routines/__tests__/service.test.ts src/electron/hooks/__tests__/server.test.ts src/electron/triggers/__tests__/EventTriggerService.test.ts
+npx vitest --config config/vitest.config.ts run src/renderer/components/__tests__/main-content-working-state.test.ts
+npx vitest --config config/vitest.config.ts run src/electron/agent/__tests__/executor-schedule-slash.test.ts src/electron/cron/__tests__/service.test.ts src/electron/routines/__tests__/service.test.ts src/electron/hooks/__tests__/server.test.ts src/electron/triggers/__tests__/EventTriggerService.test.ts
 npm run build:react
 ```
 
@@ -328,7 +328,7 @@ Design rules:
 Focused validation:
 
 ```bash
-npx oxlint src/electron/terminal/TerminalPtyManager.ts src/renderer/components/TerminalTabsDock.tsx
+npx oxlint --config config/oxlint.json src/electron/terminal/TerminalPtyManager.ts src/renderer/components/TerminalTabsDock.tsx
 npm run build:electron
 npm run build:react
 npm run type-check
@@ -366,7 +366,7 @@ See also:
 Run focused memory-observation checks when touching structured memory metadata, Memory Hub Inspector actions, prompt recall privacy, or memory backfill:
 
 ```bash
-npx vitest run src/electron/memory/__tests__/MemoryObservationService.mock.test.ts src/electron/memory/__tests__/MemoryObservationService.test.ts
+npx vitest --config config/vitest.config.ts run src/electron/memory/__tests__/MemoryObservationService.mock.test.ts src/electron/memory/__tests__/MemoryObservationService.test.ts
 npm run type-check
 ```
 
@@ -377,8 +377,8 @@ The native SQLite test file can skip locally when `better-sqlite3` is unavailabl
 Run focused durable-context checks when touching active-task recall, compaction-summary persistence, Memory Hub durable-context settings, `context_grep`, `context_describe`, or memory clearing:
 
 ```bash
-npx vitest run src/electron/agent/tools/__tests__/system-tools-new.test.ts src/electron/settings/__tests__/memory-features-manager.test.ts src/electron/agent/__tests__/executor-chat-mode.test.ts
-npx vitest run src/electron/memory/__tests__/DurableContextService.test.ts
+npx vitest --config config/vitest.config.ts run src/electron/agent/tools/__tests__/system-tools-new.test.ts src/electron/settings/__tests__/memory-features-manager.test.ts src/electron/agent/__tests__/executor-chat-mode.test.ts
+npx vitest --config config/vitest.config.ts run src/electron/memory/__tests__/DurableContextService.test.ts
 npm run type-check
 ```
 
@@ -491,7 +491,7 @@ Implementation notes:
 Focused checks:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/utils/__tests__/spreadsheet-preview.test.ts \
   src/renderer/components/__tests__/spreadsheet-artifact-card.test.ts \
   src/renderer/components/__tests__/spreadsheet-artifact-viewer.test.ts
@@ -518,7 +518,7 @@ Implementation notes:
 Focused checks:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/utils/__tests__/document-preview.test.ts \
   src/electron/utils/__tests__/document-writer.test.ts \
   src/renderer/components/__tests__/document-artifact-card.test.ts \
@@ -547,7 +547,7 @@ Implementation notes:
 Focused checks:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/utils/__tests__/PptxPreviewService.test.ts \
   src/renderer/components/__tests__/presentation-artifact-card.test.ts \
   src/renderer/components/__tests__/presentation-artifact-viewer.test.ts
@@ -575,7 +575,7 @@ Implementation notes:
 Focused checks:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/utils/__tests__/web-preview.test.ts \
   src/renderer/components/__tests__/web-artifact-card.test.ts \
   src/renderer/components/__tests__/web-artifact-viewer.test.ts
@@ -602,7 +602,7 @@ Implementation and QA notes:
 For completion/output UX changes, run the focused suites:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/utils/__tests__/latex-compiler.test.ts \
   src/electron/agent/tools/__tests__/document-tools.test.ts \
   src/renderer/utils/__tests__/latex-artifacts.test.ts \
@@ -620,7 +620,7 @@ When unit-testing `TaskExecutor` completion paths, mock `daemon.getTaskEvents()`
 For structured input, executor recovery, and timeline-lane changes, run:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/daemon/__tests__/control-plane-methods.test.ts \
   src/electron/agent/__tests__/daemon-input-request.test.ts \
   src/electron/agent/tools/__tests__/request-user-input.test.ts \
@@ -636,7 +636,7 @@ npx vitest run \
 For sidebar virtualization and `@chenglou/pretext` measurement work in the `NeoWorker/NeoWorker` repo, run:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/renderer/__tests__/sidebar-helpers.test.ts \
   src/renderer/hooks/__tests__/useVirtualList.test.ts \
   src/renderer/utils/__tests__/pretext-adapter.test.ts \
@@ -670,7 +670,7 @@ Implementation boundaries:
 Focused checks:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/integrations/__tests__/integration-mention-options.test.ts \
   src/renderer/components/__tests__/prompt-composer-input.test.ts \
   src/renderer/components/__tests__/integration-mention-text.test.ts
@@ -700,8 +700,8 @@ Rules:
 Focused checks:
 
 ```bash
-npx vitest run src/electron/mailbox/__tests__/MailboxAgentSearchService.test.ts
-npx tsc -p tsconfig.electron.json
+npx vitest --config config/vitest.config.ts run src/electron/mailbox/__tests__/MailboxAgentSearchService.test.ts
+npx tsc -p config/typescript/tsconfig.electron.json
 npm run type-check
 ```
 
@@ -725,7 +725,7 @@ Implementation boundaries:
 Focused checks:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/shared/__tests__/message-shortcuts.test.ts \
   src/shared/__tests__/skill-slash-commands.test.ts \
   src/electron/agent/__tests__/skill-slash-aliases.test.ts \

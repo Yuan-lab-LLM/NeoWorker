@@ -200,16 +200,16 @@ node bin/neoworkerctl.js call config.get
 1. Build and start:
 
 ```bash
-docker compose up --build -d
+docker compose -f deploy/docker/compose.yml up --build -d
 ```
 
 If you prefer the **Node daemon** container with no desktop window or Xvfb, use the compose profile:
 
 ```bash
-docker compose --profile node up --build -d neoworker-node
+docker compose -f deploy/docker/compose.yml --profile node up --build -d neoworker-node
 ```
 
-Defaults in `docker-compose.yml`:
+Defaults in `deploy/docker/compose.yml`:
 
 - Persistent data volume mounted at `/data`
 - A persistent workspace volume mounted at `/workspace` (bootstrapped automatically). You can swap this for a host bind mount if you want NeoWorker to operate on files on the VPS.
@@ -220,7 +220,7 @@ Defaults in `docker-compose.yml`:
 2. View the Control Plane token (printed on first startup when it’s generated):
 
 ```bash
-docker compose logs -f neoworker
+docker compose -f deploy/docker/compose.yml logs -f neoworker
 ```
 
 If you need to print it again later, restart with:
@@ -606,7 +606,7 @@ Choose one option based on whether you want to keep data.
 ```bash
 # If running via docker-compose in this repo
 cd /path/to/neoworker-vps
-docker compose down
+docker compose -f deploy/docker/compose.yml down
 
 # If running via systemd
 sudo systemctl stop neoworker neoworker-node
@@ -629,7 +629,7 @@ Keep data directories/volumes intact to preserve state:
 ```bash
 # Docker (removes anonymous/named volumes used for DB, workspace state, and tasks)
 cd /path/to/neoworker-vps
-docker compose down -v
+docker compose -f deploy/docker/compose.yml down -v
 
 # systemd (remove user-data store)
 sudo rm -rf /var/lib/neoworker

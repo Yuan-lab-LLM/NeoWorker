@@ -143,7 +143,7 @@ Imported third-party packs still use the normal imported-capability security gat
 Use these focused checks after changing Codex Security scan orchestration, the bundled pack manifest, or directory-backed skill loading:
 
 ```bash
-npx vitest run src/electron/agent/tools/__tests__/registry-tool-catalog.test.ts src/electron/extensions/__tests__/codex-security-plugin-pack-manifest.test.ts
+npx vitest --config config/vitest.config.ts run src/electron/agent/tools/__tests__/registry-tool-catalog.test.ts src/electron/extensions/__tests__/codex-security-plugin-pack-manifest.test.ts
 npm run build:electron
 ```
 

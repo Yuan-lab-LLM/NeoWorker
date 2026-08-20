@@ -126,7 +126,7 @@ Focused coverage lives in:
 Recommended checks when changing this feature:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/utils/__tests__/document-preview.test.ts \
   src/electron/utils/__tests__/document-writer.test.ts \
   src/renderer/components/__tests__/document-artifact-card.test.ts \

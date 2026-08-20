@@ -134,7 +134,7 @@ Back up that directory (or the Docker volume) to back up the instance.
 To pin the daemon to a specific IANA timezone (e.g. for cron, timestamps, scheduling):
 
 - Set `NEOWORKER_TZ` in the environment (e.g. `NEOWORKER_TZ=America/New_York`, `NEOWORKER_TZ=Europe/London`).
-- **Docker:** In `docker-compose.yml`, add `NEOWORKER_TZ=America/New_York` under `environment`. The entrypoint sets `TZ` from `NEOWORKER_TZ` before starting.
+- **Docker:** In `deploy/docker/compose.yml`, add `NEOWORKER_TZ=America/New_York` under `environment`. The entrypoint sets `TZ` from `NEOWORKER_TZ` before starting.
 - **Systemd:** In `/etc/neoworker.env` (or your env file), add `NEOWORKER_TZ=America/New_York`. The daemon applies it at startup.
 - Invalid IANA timezone values fall back to UTC with a warning.
 

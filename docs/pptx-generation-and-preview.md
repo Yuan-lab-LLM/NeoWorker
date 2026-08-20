@@ -183,7 +183,7 @@ This keeps the deck review experience responsive without introducing a partial P
 Focused tests:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/utils/__tests__/PptxPreviewService.test.ts \
   src/renderer/components/__tests__/presentation-artifact-card.test.ts \
   src/renderer/components/__tests__/presentation-artifact-viewer.test.ts

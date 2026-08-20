@@ -144,7 +144,7 @@ See [Browser Workbench](browser-workbench.md) for live-browser behavior and [Bro
 Focused tests:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/utils/__tests__/web-preview.test.ts \
   src/renderer/components/__tests__/web-artifact-card.test.ts \
   src/renderer/components/__tests__/web-artifact-viewer.test.ts

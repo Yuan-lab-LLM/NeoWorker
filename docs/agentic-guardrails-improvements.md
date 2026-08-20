@@ -388,4 +388,4 @@ This also prevents misleading step-context prompts (lines 16901–16909) from in
 ## Verification
 
 - **TypeScript:** `npx tsc --noEmit` — no errors (unrelated GuardrailSettings.tsx errors pre-existed)
-- **Tests:** `npx vitest run src/electron/agent/__tests__/` — **624/624 passed**
+- **Tests:** `npx vitest --config config/vitest.config.ts run src/electron/agent/__tests__/` — **624/624 passed**

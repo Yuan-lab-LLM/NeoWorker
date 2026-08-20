@@ -135,8 +135,8 @@ Core files:
 Focused checks:
 
 ```bash
-npx vitest run src/electron/mailbox/__tests__/MailboxAgentSearchService.test.ts
-npx tsc -p tsconfig.electron.json
+npx vitest --config config/vitest.config.ts run src/electron/mailbox/__tests__/MailboxAgentSearchService.test.ts
+npx tsc -p config/typescript/tsconfig.electron.json
 npm run type-check
 ```
 

@@ -153,7 +153,7 @@ jobs:
           node - <<'NODE'
           const fs = require('fs');
           const version = process.env.NPM_VERSION;
-          const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+          const changelog = fs.readFileSync('docs/CHANGELOG.md', 'utf8');
           const marker = `## [${version}]`;
           const start = changelog.indexOf(marker);
 
@@ -333,7 +333,7 @@ jobs:
           node - <<'NODE'
           const fs = require('fs');
           const version = process.env.NPM_VERSION;
-          const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+          const changelog = fs.readFileSync('docs/CHANGELOG.md', 'utf8');
           const marker = `## [${version}]`;
           const start = changelog.indexOf(marker);
 

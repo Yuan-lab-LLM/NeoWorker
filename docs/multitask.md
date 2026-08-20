@@ -65,7 +65,7 @@ V1 is command-first. It does not yet promote already queued tasks into one multi
 ## Focused Checks
 
 ```bash
-npx vitest \
+npx vitest --config config/vitest.config.ts \
   src/shared/__tests__/multitask-command.test.ts \
   src/electron/agents/__tests__/MultitaskLanePlanner.test.ts \
   src/electron/agents/__tests__/AgentTeamOrchestrator.test.ts
@@ -74,6 +74,6 @@ npx vitest \
 For broader validation after multitask changes:
 
 ```bash
-npx vitest src/shared/__tests__ src/electron/agents/__tests__ src/renderer/components/__tests__
+npx vitest --config config/vitest.config.ts src/shared/__tests__ src/electron/agents/__tests__ src/renderer/components/__tests__
 npm run type-check
 ```

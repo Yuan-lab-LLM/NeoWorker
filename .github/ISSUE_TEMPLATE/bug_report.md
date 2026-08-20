@@ -44,7 +44,7 @@ What area is affected?
 - [ ] Other
 
 ## Security Impact
-Is this a security-related bug? If so, please consider reporting via our [security advisory process](SECURITY.md) instead of a public issue.
+Is this a security-related bug? If so, please consider reporting via our [security advisory process](../../docs/SECURITY.md) instead of a public issue.
 
 ## Logs
 <details>
@@ -63,4 +63,4 @@ Add any other context about the problem here.
 - [ ] I have searched existing issues to ensure this is not a duplicate
 - [ ] I have included all relevant information above
 - [ ] I am using the latest version of NeoWorker
-- [ ] This is NOT a security vulnerability (report those via SECURITY.md)
+- [ ] This is NOT a security vulnerability (report those via [the security policy](../../docs/SECURITY.md))

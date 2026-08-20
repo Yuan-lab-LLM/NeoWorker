@@ -56,6 +56,7 @@ build:
       - any-glob-to-any-file:
           - 'package.json'
           - 'package-lock.json'
-          - 'tsconfig*.json'
-          - 'vite.config.ts'
+          - 'tsconfig.json'
+          - 'config/typescript/*.json'
+          - 'config/vite.config.ts'
           - 'build/**/*'

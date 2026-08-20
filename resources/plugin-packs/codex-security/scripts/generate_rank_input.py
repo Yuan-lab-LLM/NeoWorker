@@ -76,6 +76,7 @@ EXCLUDED_FILENAMES = {
     "CHANGELOG",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
+    "compose.yml",
     "Dockerfile",
     "Gemfile",
     "Gemfile.lock",

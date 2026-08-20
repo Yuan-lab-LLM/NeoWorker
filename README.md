@@ -1,5 +1,5 @@
 <p align="right">
-  <strong>English</strong> | <a href="./README.zh-CN.md">简体中文</a>
+  <strong>English</strong> | <a href="./docs/README.zh-CN.md">简体中文</a>
 </p>
 
 <p align="center">
@@ -34,9 +34,9 @@
   &nbsp;·&nbsp;
   <a href="./docs/architecture.md">Architecture</a>
   &nbsp;·&nbsp;
-  <a href="./SECURITY.md">Security</a>
+  <a href="./docs/SECURITY.md">Security</a>
   &nbsp;·&nbsp;
-  <a href="./CONTRIBUTING.md">Contributing</a>
+  <a href="./docs/CONTRIBUTING.md">Contributing</a>
 </p>
 
 ## What is NeoWorker?
@@ -93,7 +93,7 @@ The current source version is **<code>0.5.52</code>**. The first GitHub Release 
 - a Windows <code>.exe</code> installer
 - release notes and checksums
 
-See [CHANGELOG.md](./CHANGELOG.md) for version history.
+See the [changelog](./docs/CHANGELOG.md) for version history.
 
 ## Quick start
 
@@ -275,7 +275,7 @@ npm test
 - Before enabling full access, verify the task source, execution scope, and expected write locations.
 - When calling third-party models, search providers, or connectors, review their privacy and retention policies.
 
-Do not report security vulnerabilities through a public Issue. Use the repository's **Security Advisory** feature and see [SECURITY.md](./SECURITY.md).
+Do not report security vulnerabilities through a public Issue. Use the repository's **Security Advisory** feature and see the [security policy](./docs/SECURITY.md).
 
 ## Documentation
 
@@ -287,15 +287,15 @@ Do not report security vulnerabilities through a public Issue. Use the repositor
 | [Task automation](./docs/task-automations.md) | [Permission system](./docs/permission-system.md) |
 | [Messaging channels](./docs/channels.md) | [NeoWorker CLI](./docs/cli.md) |
 
-See [CHANGELOG.md](./CHANGELOG.md) for version history.
+See the [changelog](./docs/CHANGELOG.md) for version history.
 
 ## Contributing
 
 Bug reports, documentation improvements, and feature contributions are welcome. Please read:
 
-- [Contributing guide](./CONTRIBUTING.md)
-- [Code of Conduct](./CODE_OF_CONDUCT.md)
-- [Security policy](./SECURITY.md)
+- [Contributing guide](./docs/CONTRIBUTING.md)
+- [Code of Conduct](./docs/CODE_OF_CONDUCT.md)
+- [Security policy](./docs/SECURITY.md)
 
 For substantial changes, open an Issue first and describe the problem, use case, expected behavior, and validation approach before submitting a Pull Request.
 

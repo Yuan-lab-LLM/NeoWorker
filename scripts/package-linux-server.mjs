@@ -231,7 +231,7 @@ async function main() {
     );
     await copyIfPresent("package-lock.json", packageRoot);
 
-    for (const relativePath of ["README.md", "CHANGELOG.md", "LICENSE"]) {
+    for (const relativePath of ["README.md", "docs/CHANGELOG.md", "LICENSE"]) {
       await copyIfPresent(relativePath, packageRoot);
     }
 

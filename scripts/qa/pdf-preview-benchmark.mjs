@@ -159,7 +159,7 @@ async function main() {
   if (!baseUrl) {
     const port = await getAvailablePort();
     baseUrl = `http://127.0.0.1:${port}`;
-    viteProcess = spawn(process.execPath, [path.join(repoRoot, "node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", String(port), "--strictPort"], {
+    viteProcess = spawn(process.execPath, [path.join(repoRoot, "node_modules/vite/bin/vite.js"), "--config", path.join(repoRoot, "config/vite.config.ts"), "--host", "127.0.0.1", "--port", String(port), "--strictPort"], {
       cwd: repoRoot,
       stdio: ["ignore", "pipe", "pipe"],
     });

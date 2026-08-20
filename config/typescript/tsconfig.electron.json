@@ -2,9 +2,9 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "commonjs",
-    "lib": ["ES2022"],
-    "outDir": "dist/daemon",
-    "rootDir": "src",
+    "lib": ["ES2022", "DOM"],
+    "outDir": "../../dist/electron",
+    "rootDir": "../../src",
     "moduleResolution": "node",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -15,13 +15,18 @@
     "noUnusedParameters": false,
     "noEmit": false,
     "allowImportingTsExtensions": false,
-    "baseUrl": ".",
+    "baseUrl": "../..",
     "paths": {
       "@/*": ["src/*"],
       "@shared/*": ["src/shared/*"]
     }
   },
-  "include": ["src/daemon/**/*"],
-  "exclude": ["node_modules", "dist", "**/__tests__/**", "**/*.test.ts"]
+  "include": ["../../src/electron/**/*", "../../src/shared/**/*"],
+  "exclude": [
+    "../../node_modules",
+    "../../dist",
+    "../../src/renderer",
+    "../../src/**/__tests__/**",
+    "../../src/**/*.test.ts"
+  ]
 }
-

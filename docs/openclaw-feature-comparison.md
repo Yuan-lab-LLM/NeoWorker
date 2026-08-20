@@ -105,7 +105,7 @@ This feature label is somewhat interpretation-dependent, so the comparison below
 
 **OpenClaw**
 
-- `SECURITY.md` clearly says prompt-injection-only findings are out of scope unless they bypass an auth, policy, allowlist, approval, or sandbox boundary.
+- `docs/SECURITY.md` clearly says prompt-injection-only findings are out of scope unless they bypass an auth, policy, allowlist, approval, or sandbox boundary.
 - OpenClaw documents trust boundaries and an explicit trusted-operator model rather than presenting “memory injection security” as a standalone feature.
 
 ### 6. Skill system

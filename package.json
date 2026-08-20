@@ -3,15 +3,15 @@
   "version": "0.1.0",
   "description": "NeoWorker - GUI-first, CLI-capable local AI super app and everything app for coding, email, agents, documents, spreadsheets, presentations, web design, automations, and agentic work",
   "main": "dist/electron/electron/main.js",
-  "author": "NeoWorker Contributors",
+  "author": "Huifu1018",
   "license": "MIT",
-  "homepage": "https://github.com/NeoWorker/NeoWorker#readme",
+  "homepage": "https://github.com/Yuan-lab-LLM/NeoWorker#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/NeoWorker/NeoWorker.git"
+    "url": "git+https://github.com/Yuan-lab-LLM/NeoWorker.git"
   },
   "bugs": {
-    "url": "https://github.com/NeoWorker/NeoWorker/issues"
+    "url": "https://github.com/Yuan-lab-LLM/NeoWorker/issues"
   },
   "files": [
     "dist",
@@ -26,14 +26,12 @@
     ".npmrc",
     ".env.example",
     "README.md",
-    "CHANGELOG.md",
+    "docs/CHANGELOG.md",
     "LICENSE",
     "tsconfig.json",
-    "tsconfig.cli.json",
-    "tsconfig.daemon.json",
-    "tsconfig.electron.json",
-    "tsconfig.node.json",
-    "vite.config.ts"
+    "config/typescript",
+    "config/vite.config.ts",
+    "config/agent-policy.example.toml"
   ],
   "bin": {
     "neoworker": "bin/neoworker-cli.js",
@@ -47,13 +45,13 @@
     "postinstall": "node scripts/codesign_electron_dev.mjs",
     "dev": "node scripts/dev_with_logs.mjs",
     "dev:start": "node scripts/dev_start.mjs",
-    "dev:react": "vite",
-    "dev:electron": "tsc -p tsconfig.electron.json && cross-env ELECTRON_RUN_AS_NODE= NODE_ENV=development electron .",
+    "dev:react": "vite --config config/vite.config.ts",
+    "dev:electron": "tsc -p config/typescript/tsconfig.electron.json && cross-env ELECTRON_RUN_AS_NODE= NODE_ENV=development electron .",
     "clean:dist": "node scripts/clean_dist.mjs",
-    "build:react": "vite build",
-    "build:electron": "tsc -p tsconfig.electron.json",
-    "build:daemon": "tsc -p tsconfig.daemon.json",
-    "build:cli": "tsc -p tsconfig.cli.json",
+    "build:react": "vite build --config config/vite.config.ts",
+    "build:electron": "tsc -p config/typescript/tsconfig.electron.json",
+    "build:daemon": "tsc -p config/typescript/tsconfig.daemon.json",
+    "build:cli": "tsc -p config/typescript/tsconfig.cli.json",
     "build:healthkit-bridge": "node scripts/build_healthkit_bridge.mjs",
     "build:location-helper-macos": "node scripts/build_location_helper_macos.mjs",
     "build:location-helpers": "node scripts/copy_location_helpers.mjs",
@@ -64,9 +62,10 @@
     "office:release-gate": "npm run build:electron && node scripts/qa/office-artifact-release-gate.cjs",
     "skills:validate-routing": "node scripts/qa/validate-skills-routing.mjs",
     "skills:validate-content": "node scripts/qa/validate-skills-content.mjs",
-    "type-check": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "lint": "oxlint --config config/oxlint.json src tests",
+    "type-check": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest --config config/vitest.config.ts run",
+    "test:watch": "vitest --config config/vitest.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

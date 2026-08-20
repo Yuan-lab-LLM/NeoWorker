@@ -121,5 +121,5 @@ Recommended checks for this feature area:
 npm run skills:validate-routing
 npm run skills:validate-content
 npm run skills:audit
-npx vitest run src/shared/__tests__/skill-slash-commands.test.ts src/electron/agent/__tests__/executor-schedule-slash.test.ts src/electron/gateway/__tests__/whatsapp-command-utils.test.ts
+npx vitest --config config/vitest.config.ts run src/shared/__tests__/skill-slash-commands.test.ts src/electron/agent/__tests__/executor-schedule-slash.test.ts src/electron/gateway/__tests__/whatsapp-command-utils.test.ts
 ```

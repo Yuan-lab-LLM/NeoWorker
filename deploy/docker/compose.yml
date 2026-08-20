@@ -1,6 +1,8 @@
 services:
   neoworker:
-    build: .
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
     init: true
     restart: unless-stopped
     security_opt:
@@ -45,8 +47,8 @@ services:
   neoworker-node:
     profiles: ["node"]
     build:
-      context: .
-      dockerfile: Dockerfile.node
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.node
     init: true
     restart: unless-stopped
     security_opt:

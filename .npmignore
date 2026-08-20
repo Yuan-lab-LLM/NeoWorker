@@ -28,7 +28,7 @@ tests/
 *.test.js
 *.spec.ts
 *.spec.js
-vitest.config.ts
+config/vitest.config.ts
 coverage/
 
 # Source files (dist is included)
@@ -42,7 +42,7 @@ release/
 
 # Config files not needed at runtime
 .eslintrc*
-eslint.config.js
+config/eslint.config.js
 .prettierrc*
 .editorconfig
 

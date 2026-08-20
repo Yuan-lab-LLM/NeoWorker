@@ -398,7 +398,7 @@ Always register the complete handler set through `setupRoutineHandlers(routineSe
 Run the focused workflow and renderer checks after changing Studio behavior:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/routines/workflow/__tests__/validation.test.ts \
   src/electron/routines/workflow/__tests__/repository.test.ts \
   src/electron/routines/workflow/__tests__/engine.test.ts \

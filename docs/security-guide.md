@@ -565,7 +565,7 @@ If you discover a security vulnerability:
 2. Use GitHub Security Advisories (Security tab > Report a vulnerability)
 3. Include reproduction steps and impact assessment
 
-See [SECURITY.md](../SECURITY.md) for full details.
+See [SECURITY.md](./SECURITY.md) for full details.
 
 ---
 
@@ -728,7 +728,7 @@ See [Codex Security Scans](codex-security-scans.md) for scan modes and artifact 
 
 ```bash
 npm run test                # Full suite (4,932 tests total: 4,854 passed, 78 skipped; includes security)
-npx vitest run tests/security   # Security-focused tests only (135 tests)
+npx vitest --config config/vitest.config.ts run tests/security   # Security-focused tests only (135 tests)
 npm run test:coverage       # With coverage report
 ```
 

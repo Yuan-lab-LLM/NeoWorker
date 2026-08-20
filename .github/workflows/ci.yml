@@ -56,7 +56,7 @@ jobs:
           echo "log_opts=${before}..${head}" >> "$GITHUB_OUTPUT"
 
       - name: Run gitleaks on new commits
-        run: gitleaks git --no-banner --redact --log-opts="${{ steps.range.outputs.log_opts }}"
+        run: gitleaks git --config=config/gitleaks.toml --no-banner --redact --log-opts="${{ steps.range.outputs.log_opts }}"
 
   regression-policy:
     name: Regression Policy Gate

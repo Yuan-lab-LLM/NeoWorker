@@ -40,7 +40,7 @@ Release `0.5.45` is a broad platform, workflow, and reliability release. It adds
   - `npm run build:electron`
   - `npm run build:connectors`
   - `npm run build:react`
-  - `npx vitest run tests/tools/shell-tools.test.ts src/electron/agent/tools/__tests__/browser-tools.test.ts src/electron/security/__tests__/network-policy.test.ts`
+  - `npx vitest --config config/vitest.config.ts run tests/tools/shell-tools.test.ts src/electron/agent/tools/__tests__/browser-tools.test.ts src/electron/security/__tests__/network-policy.test.ts`
   - `npm run package:mac:unsigned`
   - `node scripts/smoke-desktop-artifacts.mjs --platform=mac --allow-unsigned --expected-version=0.5.45`
   - `git diff --check`

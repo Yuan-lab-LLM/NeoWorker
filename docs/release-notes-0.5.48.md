@@ -26,10 +26,10 @@ Run the focused checks before tagging or publishing:
 npm run type-check
 npm run build:electron
 npm run build:react
-npx vitest run src/electron/tunnels/__tests__/protocol.test.ts src/electron/tunnels/__tests__/relay.test.ts
-npx vitest run src/electron/cron/__tests__/service.test.ts src/electron/routines/__tests__/service.test.ts
-npx vitest run src/electron/database/__tests__/task-event-repository-timeline-page.test.ts src/electron/agent/__tests__/timeline-payload-sanitizer.test.ts
-npx vitest run src/renderer/components/__tests__/side-chat-panel.test.ts src/renderer/components/mission-control/__tests__/MCOverviewTab.test.ts
+npx vitest --config config/vitest.config.ts run src/electron/tunnels/__tests__/protocol.test.ts src/electron/tunnels/__tests__/relay.test.ts
+npx vitest --config config/vitest.config.ts run src/electron/cron/__tests__/service.test.ts src/electron/routines/__tests__/service.test.ts
+npx vitest --config config/vitest.config.ts run src/electron/database/__tests__/task-event-repository-timeline-page.test.ts src/electron/agent/__tests__/timeline-payload-sanitizer.test.ts
+npx vitest --config config/vitest.config.ts run src/renderer/components/__tests__/side-chat-panel.test.ts src/renderer/components/mission-control/__tests__/MCOverviewTab.test.ts
 npm run tunnel-relay:test
 npm run release:smoke
 ```

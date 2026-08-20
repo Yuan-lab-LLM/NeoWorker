@@ -309,7 +309,7 @@ For **NeoWorker MCP host** targets, make sure the requested port is free. NeoWor
 Focused tests:
 
 ```bash
-npx vitest run src/electron/tunnels/__tests__/protocol.test.ts src/electron/tunnels/__tests__/relay.test.ts
+npx vitest --config config/vitest.config.ts run src/electron/tunnels/__tests__/protocol.test.ts src/electron/tunnels/__tests__/relay.test.ts
 ```
 
 Compile:

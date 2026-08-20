@@ -1,9 +1,9 @@
 <p align="right">
-  <a href="./README.md">English</a> | <strong>简体中文</strong>
+  <a href="../README.md">English</a> | <strong>简体中文</strong>
 </p>
 
 <p align="center">
-  <img src="./screenshots/readme/neoworker-logo.svg" alt="NeoWorker — AI · Work · Ready" width="560">
+  <img src="../screenshots/readme/neoworker-logo.svg" alt="NeoWorker — AI · Work · Ready" width="560">
 </p>
 
 <h1 align="center">NeoWorker</h1>
@@ -16,7 +16,7 @@
 <p align="center">
   <a href="https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest"><img src="https://img.shields.io/github/v/release/Yuan-lab-LLM/NeoWorker?display_name=tag&sort=semver&style=flat-square" alt="Latest release"></a>
   <a href="https://github.com/Yuan-lab-LLM/NeoWorker/actions/workflows/ci.yml"><img src="https://github.com/Yuan-lab-LLM/NeoWorker/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-f4c430?style=flat-square" alt="MIT License"></a>
+  <a href="../LICENSE"><img src="https://img.shields.io/badge/license-MIT-f4c430?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/Node.js-%E2%89%A524-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node.js >= 24">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-147EFB?style=flat-square" alt="macOS and Windows">
 </p>
@@ -30,9 +30,9 @@
   &nbsp;·&nbsp;
   <a href="#neoworker-能做什么">功能</a>
   &nbsp;·&nbsp;
-  <a href="./docs/features.md">完整能力</a>
+  <a href="./features.md">完整能力</a>
   &nbsp;·&nbsp;
-  <a href="./docs/architecture.md">架构</a>
+  <a href="./architecture.md">架构</a>
   &nbsp;·&nbsp;
   <a href="./SECURITY.md">安全</a>
   &nbsp;·&nbsp;
@@ -50,7 +50,7 @@ NeoWorker 采用本地优先、模型可替换、能力可扩展的设计：工�
 ## NeoWorker 如何工作
 
 <p align="center">
-  <img src="./screenshots/readme/neoworker-how-it-works-v2.png" alt="NeoWorker 工作流程：Ask、Plan、Execute、Deliver" width="860">
+  <img src="../screenshots/readme/neoworker-how-it-works-v2.png" alt="NeoWorker 工作流程：Ask、Plan、Execute、Deliver" width="860">
   <br><em>描述目标，NeoWorker 负责规划、执行并交付可以继续使用的成果。</em>
 </p>
 
@@ -68,7 +68,7 @@ NeoWorker 采用本地优先、模型可替换、能力可扩展的设计：工�
 - **高权限操作可治理**：文件写入、Shell、浏览器和外部应用操作受工作区边界、权限模式和审批策略控制。
 
 <p align="center">
-  <img src="./screenshots/readme/neoworker-capabilities-v2.png" alt="NeoWorker 连接工具、构建知识与自动化任务" width="900">
+  <img src="../screenshots/readme/neoworker-capabilities-v2.png" alt="NeoWorker 连接工具、构建知识与自动化任务" width="900">
   <br><em>连接工具、构建知识、自动化任务，让同一个工作台承接完整过程。</em>
 </p>
 
@@ -93,7 +93,7 @@ NeoWorker 聚焦把 AI 从对话助手升级为能够持续理解上下文、执
 - Windows `.exe` 安装程序
 - 对应版本的更新说明和校验信息
 
-版本变更请查看 [CHANGELOG.md](./CHANGELOG.md)。
+版本变更请查看[版本记录](./CHANGELOG.md)。
 
 ## 快速开始
 
@@ -275,19 +275,19 @@ npm test
 - 开启“完全访问”前，应确认任务来源、执行范围和预期写入位置。
 - 调用第三方模型、搜索或连接器时，请同时遵守对应服务商的隐私与数据保留政策。
 
-发现安全问题时，请不要提交公开 Issue。请通过仓库的 **Security Advisory** 私下报告，详情见 [SECURITY.md](./SECURITY.md)。
+发现安全问题时，请不要提交公开 Issue。请通过仓库的 **Security Advisory** 私下报告，详情见[安全政策](./SECURITY.md)。
 
 ## 文档
 
 | 使用 NeoWorker | 开发与扩展 |
 | --- | --- |
-| [Getting Started](./docs/getting-started.md) | [系统架构](./docs/architecture.md) |
-| [功能总览](./docs/features.md) | [开发指南](./docs/development.md) |
-| [Everything Workbench](./docs/everything-workbench.md) | [模型服务商](./docs/providers.md) |
-| [自动化任务](./docs/task-automations.md) | [权限系统](./docs/permission-system.md) |
-| [消息渠道](./docs/channels.md) | [NeoWorker CLI](./docs/cli.md) |
+| [Getting Started](./getting-started.md) | [系统架构](./architecture.md) |
+| [功能总览](./features.md) | [开发指南](./development.md) |
+| [Everything Workbench](./everything-workbench.md) | [模型服务商](./providers.md) |
+| [自动化任务](./task-automations.md) | [权限系统](./permission-system.md) |
+| [消息渠道](./channels.md) | [NeoWorker CLI](./cli.md) |
 
-另请参阅 [版本记录](./CHANGELOG.md)。
+另请参阅[版本记录](./CHANGELOG.md)。
 
 ## 参与贡献
 
@@ -301,7 +301,7 @@ npm test
 
 ## 许可证
 
-NeoWorker 基于 [MIT License](./LICENSE) 发布。完整版权与许可信息请查看 [LICENSE](./LICENSE)。
+NeoWorker 基于 [MIT License](../LICENSE) 发布。完整版权与许可信息请查看 [LICENSE](../LICENSE)。
 
 ---
 

@@ -118,7 +118,7 @@ This means Side Chat can explain what it can see from inherited and live parent 
 Run the focused Side Chat checks with:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/agent/__tests__/daemon-fork-session.test.ts \
   src/electron/agent/__tests__/executor-chat-mode.test.ts \
   src/electron/agent/__tests__/tool-policy-pipeline.test.ts \

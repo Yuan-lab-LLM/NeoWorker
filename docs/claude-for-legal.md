@@ -78,7 +78,7 @@ The bundled legal packs keep NeoWorker's legal workflow guardrails:
 Focused checks:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/renderer/utils/__tests__/legal-demand-intake.test.ts \
   src/renderer/utils/__tests__/message-slash-options.test.ts
 ```

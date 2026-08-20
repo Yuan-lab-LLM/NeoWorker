@@ -77,7 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Release notes for 0.5.49**: see [Release Notes 0.5.49](docs/release-notes-0.5.49.md).
-- **CLI local runner**: added the `neoworker` npm binary, CLI source/build coverage, local Control Plane discovery, terminal UI helpers, direct-run support, and package inclusion for `tsconfig.cli.json`.
+- **CLI local runner**: added the `neoworker` npm binary, CLI source/build coverage, local Control Plane discovery, terminal UI helpers, direct-run support, and package inclusion for `config/typescript/tsconfig.cli.json`.
 - **Browser Use Cloud stealth backend**: Browser V2 can now explicitly route `browser_navigate` through Browser Use Cloud with `browser_provider: "browser-use-cloud"`, using `BROWSER_USE_API_KEY` or encrypted `browser-use` settings, Browser Use API v3 session creation, CDP attach, optional proxy/profile/timeout/recording/screen controls, stale-session retry, and remote-session stop handling.
 - **Codex Security workflows**: added repository, diff, and deep security scan workflows, workspace-local scan artifact orchestration, report validation/render helpers, and the bundled Codex Security plugin pack with skills, references, scripts, and assets.
 - **Automation outcomes**: scheduled/automated runs can now record actionable, informational, low-value, and failed outcomes, with Mission Control surfacing outcome summaries and recent run details.

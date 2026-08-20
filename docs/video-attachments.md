@@ -78,7 +78,7 @@ Dev-log classification also treats command-start lines containing options such a
 Focused checks for this feature:
 
 ```bash
-npx vitest run src/electron/agent/__tests__/executor-image-attachments.test.ts src/electron/utils/__tests__/validation.test.ts src/electron/ipc/__tests__/video-preview-transcode.test.ts tests/dev-log-utils.test.ts
+npx vitest --config config/vitest.config.ts run src/electron/agent/__tests__/executor-image-attachments.test.ts src/electron/utils/__tests__/validation.test.ts src/electron/ipc/__tests__/video-preview-transcode.test.ts tests/dev-log-utils.test.ts
 npm run type-check
 git diff --check
 ```

@@ -70,7 +70,7 @@ completed review.
 Run the focused regression coverage with:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/agent/__tests__/document-analysis-pipeline.test.ts \
   src/electron/agent/__tests__/executor-plan-parsing.test.ts \
   src/electron/agent/__tests__/executor-tool-allowlist.test.ts \

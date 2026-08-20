@@ -188,7 +188,7 @@ Customize remains the authoring and enable/disable surface. There is no separate
 Run the focused shortcut checks with:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/shared/__tests__/message-shortcuts.test.ts \
   src/shared/__tests__/skill-slash-commands.test.ts \
   src/electron/agent/__tests__/skill-slash-aliases.test.ts \

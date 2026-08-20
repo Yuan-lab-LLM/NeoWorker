@@ -121,7 +121,7 @@ Focused coverage lives in:
 Recommended checks when changing this feature:
 
 ```bash
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/utils/__tests__/spreadsheet-preview.test.ts \
   src/renderer/components/__tests__/spreadsheet-artifact-card.test.ts \
   src/renderer/components/__tests__/spreadsheet-artifact-viewer.test.ts

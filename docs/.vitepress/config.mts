@@ -21,7 +21,7 @@ export default defineConfig({
       { text: 'Release Notes', link: '/release-notes-0.5.50' },
       { text: 'Architecture', link: '/architecture' },
       { text: 'Security', link: '/security/' },
-      { text: 'GitHub', link: 'https://github.com/NeoWorker/NeoWorker' },
+      { text: 'GitHub', link: 'https://github.com/Yuan-lab-LLM/NeoWorker' },
     ],
 
     sidebar: [
@@ -117,15 +117,15 @@ export default defineConfig({
           { text: 'aurl skill (OpenAPI/GraphQL)', link: '/skills/aurl' },
           { text: 'Use Cases', link: '/use-cases' },
           { text: 'Simplify & Batch', link: '/simplify-batch' },
-          { text: 'Contributing', link: '/contributing' },
-          { text: 'Changelog', link: '/changelog' },
+          { text: 'Contributing', link: '/CONTRIBUTING' },
+          { text: 'Changelog', link: '/CHANGELOG' },
           { text: 'Project Status', link: '/project-status' },
         ],
       },
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/NeoWorker/NeoWorker' },
+      { icon: 'github', link: 'https://github.com/Yuan-lab-LLM/NeoWorker' },
     ],
 
     search: {
@@ -134,7 +134,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright NeoWorker Contributors',
+      copyright: 'Copyright Huifu1018',
     },
   },
 });

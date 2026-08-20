@@ -198,6 +198,6 @@ The focused renderer test coverage lives in `src/renderer/components/__tests__/m
 When changing this flow, run:
 
 ```bash
-npx vitest run src/renderer/components/__tests__/main-content-working-state.test.ts
+npx vitest --config config/vitest.config.ts run src/renderer/components/__tests__/main-content-working-state.test.ts
 npm run build:react
 ```

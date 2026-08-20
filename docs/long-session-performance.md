@@ -178,7 +178,7 @@ Run the focused fixture and repository coverage:
 
 ```bash
 npm run qa:perf:fixtures
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/control-plane/__tests__/task-event-transport.test.ts \
   src/electron/database/__tests__/task-event-repository-timeline-page.test.ts \
   src/electron/database/__tests__/task-event-repository-replay.test.ts \

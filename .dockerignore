@@ -1,4 +1,4 @@
-445510node_modules/
+node_modules/
 dist/
 release/
 out/
@@ -24,4 +24,3 @@ yarn-error.log*
 screenshots/
 vm-bundle/
 ZeroLeaks-Report-*.pdf
-

@@ -104,6 +104,10 @@ vm-bundle/
 *.asar
 /build/numbat/
 
+# Connector checks may emit these source-adjacent JavaScript files.
+/connectors/google-workspace-mcp/src/index.js
+/connectors/maps-mcp/src/index.js
+
 # Temporary files
 /.tmp/
 tmp/

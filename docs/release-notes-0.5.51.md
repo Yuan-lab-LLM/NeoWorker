@@ -40,7 +40,7 @@ Release `0.5.51` is a reliability and governance release focused on safer agent 
 npm run fmt:check
 npm run type-check
 npm run lint
-npx vitest run \
+npx vitest --config config/vitest.config.ts run \
   src/electron/security/numbat/__tests__/NumbatBinaryResolver.test.ts \
   src/electron/security/numbat/__tests__/NumbatHookClient.test.ts \
   src/electron/security/numbat/__tests__/NumbatRecordIngestor.test.ts \

@@ -284,8 +284,8 @@ During validation, a temporary legacy fallback toggle can remain available for r
 Focused automated checks:
 
 ```bash
-npx vitest run src/electron/browser/__tests__/browser-session-manager.test.ts src/electron/agent/tools/__tests__/browser-tools.test.ts
-npx vitest run src/electron/agent/browser/__tests__/browser-use-cloud-client.test.ts src/electron/agent/tools/__tests__/browser-tools.test.ts src/electron/security/__tests__/network-policy.test.ts tests/tools/shell-tools.test.ts
+npx vitest --config config/vitest.config.ts run src/electron/browser/__tests__/browser-session-manager.test.ts src/electron/agent/tools/__tests__/browser-tools.test.ts
+npx vitest --config config/vitest.config.ts run src/electron/agent/browser/__tests__/browser-use-cloud-client.test.ts src/electron/agent/tools/__tests__/browser-tools.test.ts src/electron/security/__tests__/network-policy.test.ts tests/tools/shell-tools.test.ts
 npm run build:react
 npm run build:electron
 npm run type-check

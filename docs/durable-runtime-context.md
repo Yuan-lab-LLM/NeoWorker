@@ -212,8 +212,8 @@ Expected behavior:
 Run focused checks after touching Durable Runtime Context:
 
 ```bash
-npx vitest run src/electron/agent/tools/__tests__/system-tools-new.test.ts src/electron/settings/__tests__/memory-features-manager.test.ts src/electron/agent/__tests__/executor-chat-mode.test.ts
-npx vitest run src/electron/memory/__tests__/DurableContextService.test.ts
+npx vitest --config config/vitest.config.ts run src/electron/agent/tools/__tests__/system-tools-new.test.ts src/electron/settings/__tests__/memory-features-manager.test.ts src/electron/agent/__tests__/executor-chat-mode.test.ts
+npx vitest --config config/vitest.config.ts run src/electron/memory/__tests__/DurableContextService.test.ts
 npm run type-check
 ```
 
