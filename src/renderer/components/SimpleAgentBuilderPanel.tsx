@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -30,6 +37,7 @@ import {
   getLocalizedAgentRoleText,
 } from "../utils/localized-agent-roles";
 import { getAgentRoleLinkedSkillLabels } from "../utils/agent-role-skills";
+import { getAgentRolePortrait } from "../utils/agent-role-portraits";
 import { getLocalizedSkillText } from "../utils/localized-skills";
 import { getSemanticIconVisual } from "../utils/semantic-icon-map";
 import "./simple-agent-builder.css";
@@ -223,7 +231,7 @@ export function applySimpleBuilderName(
       ...starterPrompt,
       title: replaceName(starterPrompt.title),
       prompt: replaceName(starterPrompt.prompt),
-      description: replaceName(starterPrompt.description),
+      description: replaceName(starterPrompt.description || ""),
     })),
     routines: plan.routines.map((routine) => ({
       ...routine,
@@ -1046,8 +1054,11 @@ export function SimpleAgentBuilderPanel({
           </div>
         ) : visibleRoles.length ? (
           <div className="simple-agent-directory-grid">
-            {visibleRoles.map((role) => {
+            {visibleRoles.map((role, roleIndex) => {
               const localized = getLocalizedAgentRoleText(role);
+              const roleName =
+                localized.name || role.displayName || role.name;
+              const portrait = getAgentRolePortrait(role);
               const capabilities = (role.capabilities || [])
                 .slice(0, 3)
                 .map(getLocalizedAgentCapability);
@@ -1068,99 +1079,120 @@ export function SimpleAgentBuilderPanel({
                 <article
                   key={role.id}
                   className={`simple-agent-card${role.isActive ? "" : " disabled"}`}
+                  style={
+                    {
+                      "--simple-agent-role-accent":
+                        role.color || "var(--simple-agent-blue)",
+                    } as CSSProperties
+                  }
                 >
-                  <div className="simple-agent-card-head">
-                    <span className="simple-agent-card-icon">
-                      <RoleIcon
-                        size={19}
-                        strokeWidth={1.8}
-                        aria-hidden="true"
-                      />
-                    </span>
-                    <div>
-                      <h3>{localized.name || role.displayName || role.name}</h3>
-                      <span
-                        className={role.isActive ? "available" : "unavailable"}
-                      >
-                        <CheckCircle2 size={12} aria-hidden="true" />
-                        {role.isActive
-                          ? translate(
-                              "generated.components.simpleagentbuilderpanel.808.54",
-                              "Available",
-                            )
-                          : translate(
-                              "generated.components.simpleagentbuilderpanel.808.55",
-                              "Not enabled",
-                            )}
+                  <div className="simple-agent-card-visual">
+                    <img
+                      src={portrait}
+                      alt=""
+                      width={400}
+                      height={500}
+                      loading={roleIndex < 4 ? "eager" : "lazy"}
+                      decoding="async"
+                      aria-hidden="true"
+                    />
+                    <div className="simple-agent-card-head">
+                      <span className="simple-agent-card-icon">
+                        <RoleIcon
+                          size={18}
+                          strokeWidth={1.8}
+                          aria-hidden="true"
+                        />
                       </span>
+                      <div>
+                        <h3 title={roleName}>{roleName}</h3>
+                        <span
+                          className={
+                            role.isActive ? "available" : "unavailable"
+                          }
+                        >
+                          <CheckCircle2 size={12} aria-hidden="true" />
+                          {role.isActive
+                            ? translate(
+                                "generated.components.simpleagentbuilderpanel.808.54",
+                                "Available",
+                              )
+                            : translate(
+                                "generated.components.simpleagentbuilderpanel.808.55",
+                                "Not enabled",
+                              )}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <p>
-                    {localized.description ||
-                      translate(
-                        "generated.components.simpleagentbuilderpanel.812.56",
-                        "Can perform professional tasks for the team.",
-                      )}
-                  </p>
-                  <div
-                    className="simple-agent-card-skills"
-                    aria-label={translate(
-                      "generated.components.simpleagentbuilderpanel.813.57",
-                      "Related skills",
-                    )}
-                  >
-                    <strong>
-                      {translate(
-                        "generated.components.simpleagentbuilderpanel.814.58",
+                  <div className="simple-agent-card-content">
+                    <p>
+                      {localized.description ||
+                        translate(
+                          "generated.components.simpleagentbuilderpanel.812.56",
+                          "Can perform professional tasks for the team.",
+                        )}
+                    </p>
+                    <div
+                      className="simple-agent-card-skills"
+                      aria-label={translate(
+                        "generated.components.simpleagentbuilderpanel.813.57",
                         "Related skills",
                       )}
-                    </strong>
-                    {linkedSkills.length ? (
-                      <div>
-                        {linkedSkills.slice(0, 2).map((skill) => (
-                          <span key={skill}>{skill}</span>
-                        ))}
-                        {linkedSkills.length > 2 ? (
-                          <em>+{linkedSkills.length - 2}</em>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <span>
+                    >
+                      <strong>
                         {translate(
-                          "generated.components.simpleagentbuilderpanel.823.59",
-                          "Automatically match by task",
+                          "generated.components.simpleagentbuilderpanel.814.58",
+                          "Related skills",
                         )}
-                      </span>
-                    )}
-                  </div>
-                  <div className="simple-agent-card-footer">
-                    <div
-                      className="simple-agent-card-capabilities"
-                      aria-label={translate(
-                        "generated.components.simpleagentbuilderpanel.827.60",
-                        "Good at ability",
-                      )}
-                    >
-                      {capabilities.map((capability) => (
-                        <span key={capability}>{capability}</span>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      disabled={!role.isActive}
-                      onClick={() => onSelectRole(role)}
-                    >
-                      {role.isActive
-                        ? translate(
-                            "generated.components.simpleagentbuilderpanel.837.61",
-                            "Schedule tasks",
-                          )
-                        : translate(
-                            "generated.components.simpleagentbuilderpanel.837.62",
-                            "Not available yet",
+                      </strong>
+                      {linkedSkills.length ? (
+                        <div>
+                          {linkedSkills.slice(0, 2).map((skill) => (
+                            <span key={skill}>{skill}</span>
+                          ))}
+                          {linkedSkills.length > 2 ? (
+                            <em>+{linkedSkills.length - 2}</em>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span>
+                          {translate(
+                            "generated.components.simpleagentbuilderpanel.823.59",
+                            "Automatically match by task",
                           )}
-                      <ArrowRight size={14} aria-hidden="true" />
-                    </button>
+                        </span>
+                      )}
+                    </div>
+                    <div className="simple-agent-card-footer">
+                      <div
+                        className="simple-agent-card-capabilities"
+                        aria-label={translate(
+                          "generated.components.simpleagentbuilderpanel.827.60",
+                          "Good at ability",
+                        )}
+                      >
+                        {capabilities.map((capability) => (
+                          <span key={capability}>{capability}</span>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!role.isActive}
+                        onClick={() => onSelectRole(role)}
+                      >
+                        {role.isActive
+                          ? translate(
+                              "generated.components.simpleagentbuilderpanel.837.61",
+                              "Schedule tasks",
+                            )
+                          : translate(
+                              "generated.components.simpleagentbuilderpanel.837.62",
+                              "Not available yet",
+                            )}
+                        <ArrowRight size={14} aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
                 </article>
               );

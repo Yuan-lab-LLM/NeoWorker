@@ -21,20 +21,22 @@ const styles = readFileSync(
 
 describe("SimpleAgentBuilderPanel", () => {
   it("keeps one focused creation flow with compact overview information", () => {
-    expect(source).toContain("智能体团队");
+    expect(source).toContain('"Agent team"');
     expect(source).toContain(
-      "创建新智能体，或从现有智能体中选择合适的负责人。",
+      '"Create a new agent or select an appropriate leader from an existing agent."',
     );
-    expect(source).toContain("浏览智能体");
-    expect(source).toContain("你的智能体应该做什么？");
+    expect(source).toContain('"Browse agents"');
+    expect(source).toContain('"What should your agent do?"');
     expect(source).toMatch(
       /className="simple-agent-create-icon">\s*<Bot size=\{22\}/,
     );
-    expect(source).toContain("描述它应该做什么");
-    expect(source).toContain("可选，留空将根据任务自动生成");
-    expect(source).toContain("团队聊天问答");
-    expect(source).toContain("晨间规划助手");
-    expect(source).toContain("缺陷分诊助手");
+    expect(source).toContain('"describe what it should do"');
+    expect(source).toContain(
+      '"Optional, leave it blank and it will be automatically generated based on the task"',
+    );
+    expect(source).toContain('"Team Chat Q&A"');
+    expect(source).toContain('"Morning Planning Assistant"');
+    expect(source).toContain('"Defect Triage Assistant"');
     expect(source).not.toContain("构建可持续工作的智能体团队");
     expect(source).not.toContain("智能体概览");
     expect(source).not.toContain("频道目标");
@@ -82,12 +84,12 @@ describe("SimpleAgentBuilderPanel", () => {
     expect(source).toContain("createManagedAgentFromPlan");
     expect(source).toContain("activate: true");
     expect(source).toContain("getAgentRoles(true)");
-    expect(source).toContain("现有智能体");
-    expect(source).toContain("搜索智能体");
-    expect(source).toContain("产品与技术");
-    expect(source).toContain("研究与分析");
-    expect(source).toContain("内容与增长");
-    expect(source).toContain("规划与协作");
+    expect(source).toContain('"Existing agents"');
+    expect(source).toContain('"Search agent"');
+    expect(source).toContain('"Products and Technology"');
+    expect(source).toContain('"research and analysis"');
+    expect(source).toContain('"Content and growth"');
+    expect(source).toContain('"Planning and collaboration"');
     expect(source).toContain("getLocalizedAgentRoleText");
     expect(source).toContain("getLocalizedAgentCapability");
     expect(source).not.toContain("推荐模板");
@@ -101,7 +103,8 @@ describe("SimpleAgentBuilderPanel", () => {
   it("selects an expert for a later task instead of opening a prompt-only detail or auto-running", () => {
     expect(source).toContain("onSelectRole: (role: AgentRole) => void");
     expect(source).toContain("onClick={() => onSelectRole(role)}");
-    expect(source).toContain('role.isActive ? "安排任务" : "暂不可用"');
+    expect(source).toContain('"Schedule tasks"');
+    expect(source).toContain('"Not available yet"');
     expect(source).not.toContain("simple-agent-detail");
     expect(source).not.toContain("可以直接使用");
     expect(source).not.toContain("setSelectedRole");
@@ -121,13 +124,21 @@ describe("SimpleAgentBuilderPanel", () => {
   it("shows visible, accessible progress while generating an agent", () => {
     expect(source).toContain('aria-live="polite"');
     expect(source).toContain('aria-busy="true"');
-    expect(source).toContain("理解目标");
-    expect(source).toContain("匹配能力");
-    expect(source).toContain("完成配置");
+    expect(source).toContain('"Understand the goal"');
+    expect(source).toContain('"Matching ability"');
+    expect(source).toContain('"Complete configuration"');
     expect(source).toContain("simple-agent-progress-track");
     expect(styles).toContain("@keyframes simple-agent-progress-flow");
     expect(styles).toContain("@keyframes simple-agent-status-sheen");
     expect(styles).toContain("@media (prefers-reduced-motion: reduce)");
+  });
+
+  it("combines each expert card with an independently mapped portrait", () => {
+    expect(source).toContain("getAgentRolePortrait(role)");
+    expect(source).toContain('className="simple-agent-card-visual"');
+    expect(source).toContain('loading={roleIndex < 4 ? "eager" : "lazy"}');
+    expect(styles).toContain("--simple-agent-role-accent");
+    expect(styles).toContain("mix-blend-mode: multiply");
   });
 
   it("localizes skill choices before asking a Chinese user to select one", () => {

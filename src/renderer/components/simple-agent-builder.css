@@ -727,29 +727,31 @@
 .simple-agent-directory-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;
   margin-top: 18px;
 }
 
 .simple-agent-card {
+  --simple-agent-role-accent: var(--simple-agent-blue);
   min-width: 0;
-  min-height: 196px;
+  min-height: 322px;
   display: flex;
   flex-direction: column;
-  padding: 16px;
+  overflow: hidden;
+  padding: 0;
   border: 1px solid #dce6f2;
-  border-radius: 14px;
+  border-radius: 16px;
   background: #ffffff;
   transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
+    border-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .simple-agent-card:hover {
-  border-color: #b9d4f6;
-  box-shadow: 0 14px 30px -26px rgba(31, 84, 148, 0.72);
-  transform: translateY(-1px);
+  border-color: #a9ccf5;
+  box-shadow: 0 18px 34px -28px rgba(31, 84, 148, 0.72);
+  transform: translateY(-2px);
 }
 
 .simple-agent-card.disabled {
@@ -757,26 +759,94 @@
   opacity: 0.72;
 }
 
+.simple-agent-card-visual {
+  position: relative;
+  min-height: 142px;
+  overflow: hidden;
+  isolation: isolate;
+  border-bottom: 1px solid #e2ebf6;
+  background:
+    radial-gradient(
+      circle at 84% 14%,
+      color-mix(in srgb, var(--simple-agent-role-accent) 18%, transparent),
+      transparent 42%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--simple-agent-role-accent) 10%, #f7faff),
+      #fbfdff 64%
+    );
+}
+
+.simple-agent-card-visual::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.88) 0%,
+    rgba(255, 255, 255, 0.54) 42%,
+    rgba(255, 255, 255, 0.04) 76%
+  );
+  content: "";
+  pointer-events: none;
+}
+
+.simple-agent-card-visual > img {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: -2;
+  width: 63%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 24%;
+  filter: brightness(1.035) contrast(1.02) saturate(0.94);
+  mix-blend-mode: multiply;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.72) 24%,
+    #000000 47%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.72) 24%,
+    #000000 47%
+  );
+  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.simple-agent-card:hover .simple-agent-card-visual > img {
+  transform: scale(1.025) translateY(-2px);
+}
+
+.simple-agent-card.disabled .simple-agent-card-visual > img {
+  filter: grayscale(0.35) brightness(1.04) contrast(1.01) saturate(0.72);
+}
+
 .simple-agent-card-head {
+  position: relative;
+  z-index: 1;
+  width: 62%;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 11px;
-  align-items: center;
+  gap: 9px;
+  align-items: start;
+  padding: 16px 0 0 15px;
 }
 
 .simple-agent-card-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--simple-agent-blue);
-  border: 1px solid #c7ddf8;
-  background: #eff6ff;
-}
-
-.simple-agent-card-icon {
-  width: 39px;
-  height: 39px;
-  border-radius: 11px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid color-mix(in srgb, var(--simple-agent-role-accent) 24%, #c7ddf8);
+  border-radius: 10px;
+  color: color-mix(in srgb, var(--simple-agent-role-accent) 72%, #176fe8);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
 
 .simple-agent-card-head > div {
@@ -784,14 +854,15 @@
 }
 
 .simple-agent-card h3 {
+  display: -webkit-box;
   overflow: hidden;
   margin: 0;
   color: var(--simple-agent-text);
-  font-size: 14px;
-  font-weight: 680;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.28;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .simple-agent-card-head .available,
@@ -811,11 +882,19 @@
   color: #8b6b35;
 }
 
-.simple-agent-card > p {
+.simple-agent-card-content {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 14px 15px 15px;
+}
+
+.simple-agent-card-content > p {
   display: -webkit-box;
   overflow: hidden;
   min-height: 42px;
-  margin: 14px 0 0;
+  margin: 0;
   color: #62758d;
   font-size: 12px;
   line-height: 1.7;
@@ -828,7 +907,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  margin-top: 12px;
+  margin-top: 11px;
   color: #72849a;
   font-size: 10px;
 }
@@ -873,7 +952,7 @@
   justify-content: space-between;
   gap: 10px;
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: 14px;
 }
 
 .simple-agent-card-capabilities {
@@ -1044,6 +1123,16 @@
 
   .simple-agent-builder * {
     scroll-behavior: auto !important;
+  }
+
+  .simple-agent-card,
+  .simple-agent-card-visual > img {
+    transition: none;
+  }
+
+  .simple-agent-card:hover,
+  .simple-agent-card:hover .simple-agent-card-visual > img {
+    transform: none;
   }
 }
 
