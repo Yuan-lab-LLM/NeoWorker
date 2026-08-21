@@ -33,6 +33,12 @@ jobs:
           node-version: "24"
           cache: npm
 
+      - name: Cache pinned Numbat toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/neoworker/numbat-build
+          key: ${{ runner.os }}-numbat-${{ hashFiles('resources/numbat/source-manifest.json') }}
+
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 

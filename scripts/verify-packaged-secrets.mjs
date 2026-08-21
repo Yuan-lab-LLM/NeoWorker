@@ -98,7 +98,10 @@ async function main() {
   try {
     extractAll(asarPath, extractedDir);
     for (const filePath of await walk(extractedDir)) {
-      const relativePath = path.relative(extractedDir, filePath);
+      const relativePath = path
+        .relative(extractedDir, filePath)
+        .split(path.sep)
+        .join("/");
       const fileName = path.basename(filePath).toLowerCase();
       const stat = await fs.stat(filePath);
       if (stat.size === 0 || stat.size > MAX_TEXT_BYTES) continue;
