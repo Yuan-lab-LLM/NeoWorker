@@ -145,12 +145,7 @@ function run(command, args, options = {}) {
 }
 
 function tarPath(filePath) {
-  if (process.platform !== "win32") return filePath;
-  const normalized = path.resolve(filePath).replaceAll("\\", "/");
-  const driveMatch = normalized.match(/^([A-Za-z]):\/(.*)$/);
-  return driveMatch
-    ? `/${driveMatch[1].toLowerCase()}/${driveMatch[2]}`
-    : normalized;
+  return path.resolve(filePath);
 }
 
 async function download(url, outputPath, expectedSha256, label) {
