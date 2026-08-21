@@ -60,7 +60,7 @@
     "numbat:build": "node scripts/build_numbat_runtime.mjs",
     "numbat:verify": "node scripts/build_numbat_runtime.mjs --verify-only",
     "package": "npm run build:with-numbat && node scripts/run_electron_builder.mjs --publish never && node scripts/release-artifact-names.mjs && node scripts/release-artifact-names.mjs --check",
-    "package:win:x64": "npm run numbat:build -- --target=win32-x64 && node scripts/run_electron_builder.mjs --win --x64 --publish never && node scripts/release-artifact-names.mjs && node scripts/release-artifact-names.mjs --check",
+    "package:win:x64": "npm run numbat:build -- --target=win32-x64 && npm run build && node scripts/run_electron_builder.mjs --win --x64 --publish never && node scripts/release-artifact-names.mjs && node scripts/release-artifact-names.mjs --check",
     "package:mac": "node scripts/package-mac-with-env.mjs",
     "package:mac:unsigned": "cross-env NEOWORKER_MAC_UNSIGNED=1 node scripts/package-mac-with-env.mjs",
     "package:desktop:smoke": "node scripts/smoke-desktop-artifacts.mjs",
