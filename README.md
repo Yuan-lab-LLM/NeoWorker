@@ -108,13 +108,18 @@ After the first public release, download the installer from [GitHub Releases](ht
 
 #### macOS installation notes
 
-<p align="center">
-  <img src="./screenshots/readme/macos-install-guide.svg" alt="Install NeoWorker on macOS: download the DMG, move NeoWorker to Applications, then use Open Anyway only if macOS blocks an unsigned preview build" width="900">
-</p>
-
 1. Download the macOS <code>.dmg</code> only from the official [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases) page.
-2. Open the disk image, drag **NeoWorker** into **Applications**, and launch it from Applications.
-3. A signed and notarized release should open normally. If macOS blocks an **unsigned preview build**, first try to open NeoWorker once, then go to **Apple menu → System Settings → Privacy & Security**. Scroll to **Security**, verify that the blocked app is NeoWorker, click **Open Anyway**, and authenticate when prompted. Apple notes that this button is available for about one hour after the blocked launch attempt.
+2. Open the disk image and drag **NeoWorker** onto **Applications**.
+
+   <p align="center">
+     <img src="./screenshots/readme/macos-install/01-drag-neoworker-to-applications.png" alt="Real macOS disk image window showing NeoWorker being dragged into Applications" width="560">
+     <br>
+     <sub>Actual NeoWorker macOS disk image.</sub>
+   </p>
+
+3. Launch NeoWorker from **Applications**. A signed and notarized release should open normally.
+4. If macOS blocks an **unsigned preview build**, close the warning and open **Apple menu → System Settings → Privacy & Security**. Scroll to **Security**, verify that the blocked app is **NeoWorker**, and click **Open Anyway**.
+5. In the confirmation dialog, click **Open Anyway** once more and authenticate if macOS asks. The exact wording varies by macOS version; Apple notes that the button is available for about one hour after the blocked launch attempt.
 
 > [!WARNING]
 > Do **not** enable “Anywhere” or run <code>sudo spctl --master-disable</code>. Those actions disable Gatekeeper checks system-wide. The **Open Anyway** flow creates an exception only for the app you reviewed. See [Apple's guidance for opening an app from an unknown developer](https://support.apple.com/guide/mac-help/mh40616/mac).
