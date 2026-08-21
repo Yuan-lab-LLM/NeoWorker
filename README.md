@@ -106,25 +106,25 @@ After the first public release, download the installer from [GitHub Releases](ht
 | **macOS** | <code>.dmg</code> | Open the disk image and drag NeoWorker into Applications. See the notes below for unsigned preview builds. |
 | **Windows** | <code>.exe</code> | Run the installer and follow the setup prompts. |
 
-#### macOS installation notes
+#### macOS 安装说明
 
-1. Download the macOS <code>.dmg</code> only from the official [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases) page.
-2. Open the disk image and drag **NeoWorker** onto **Applications**.
+1. 只从官方 [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases) 页面下载 macOS <code>.dmg</code> 安装包。
+2. 双击打开下载的 <code>.dmg</code>，将 **NeoWorker** 图标拖到 **Applications（应用程序）** 文件夹。
 
    <p align="center">
-     <img src="./screenshots/readme/macos-install/01-drag-neoworker-to-applications.png" alt="Real macOS disk image window showing NeoWorker being dragged into Applications" width="560">
+     <img src="./screenshots/readme/macos-install/01-drag-neoworker-to-applications-v2.png" alt="NeoWorker macOS 安装窗口：将 NeoWorker 拖到 Applications 文件夹" width="760">
      <br>
-     <sub>Actual NeoWorker macOS disk image.</sub>
+     <sub>NeoWorker macOS 安装窗口：拖入 Applications 即完成安装。</sub>
    </p>
 
-3. Launch NeoWorker from **Applications**. A signed and notarized release should open normally.
-4. If macOS blocks an **unsigned preview build**, close the warning and open **Apple menu → System Settings → Privacy & Security**. Scroll to **Security**, verify that the blocked app is **NeoWorker**, and click **Open Anyway**.
-5. In the confirmation dialog, click **Open Anyway** once more and authenticate if macOS asks. The exact wording varies by macOS version; Apple notes that the button is available for about one hour after the blocked launch attempt.
+3. 打开 Finder 的 **应用程序** 文件夹，双击 **NeoWorker** 启动。
+4. 如果 macOS 拦截的是**未签名的预览版**，先关闭拦截提示，然后进入 **Apple 菜单 → 系统设置 → 隐私与安全性**。向下滚动到 **安全性** 区域，确认被拦截的应用是 **NeoWorker**，再点击 **仍要打开**。
+5. 在二次确认窗口中再次点击 **仍要打开**；如果系统要求验证身份，请输入 Mac 登录密码或使用 Touch ID。不同 macOS 版本的文案可能略有差异；该按钮通常只会在应用被拦截后的一段时间内显示。
 
 > [!WARNING]
-> Do **not** enable “Anywhere” or run <code>sudo spctl --master-disable</code>. Those actions disable Gatekeeper checks system-wide. The **Open Anyway** flow creates an exception only for the app you reviewed. See [Apple's guidance for opening an app from an unknown developer](https://support.apple.com/guide/mac-help/mh40616/mac).
+> 不要开启“任何来源”，也不要运行 <code>sudo spctl --master-disable</code>。这些操作会在整个系统范围内关闭 Gatekeeper 检查；上面的 **仍要打开** 流程只会为你确认过的 NeoWorker 创建单应用例外。详见 [Apple：安全地打开 Mac 上的 App](https://support.apple.com/guide/mac-help/mh40616/mac)。
 
-If macOS reports that the app **“is damaged”** or **“will damage your computer”**, do not bypass the warning. Delete that copy, download it again from the official Releases page, verify any published checksum, and report the affected release if the warning persists.
+如果 macOS 提示应用**“已损坏”**或**“将对电脑造成伤害”**，请不要绕过警告。删除当前安装包，从官方 Releases 页面重新下载并核对发布页提供的校验值；如果仍然出现，请提交 Issue，并附上 NeoWorker 版本、macOS 版本和完整提示内容。
 
 ### Run from source
 
