@@ -455,6 +455,12 @@ export function MCBoardTab({
   const [restoringTaskIds, setRestoringTaskIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [permanentDeleteRequest, setPermanentDeleteRequest] =
+    useState<ArchivedTaskRecord | null>(null);
+  const [permanentlyDeleting, setPermanentlyDeleting] = useState(false);
+  const [permanentDeleteError, setPermanentDeleteError] = useState<
+    string | null
+  >(null);
   const [archiveNoticeTaskIds, setArchiveNoticeTaskIds] = useState<string[]>(
     [],
   );
@@ -697,6 +703,35 @@ export function MCBoardTab({
     },
     [loadArchivedTasks, refreshTaskViews],
   );
+
+  const confirmPermanentDeletion = useCallback(async () => {
+    if (!permanentDeleteRequest || permanentlyDeleting) return;
+    setPermanentlyDeleting(true);
+    setPermanentDeleteError(null);
+    try {
+      await window.electronAPI.purgeArchivedTask(
+        permanentDeleteRequest.task.id,
+      );
+      setPermanentDeleteRequest(null);
+      await refreshTaskViews();
+      await loadArchivedTasks();
+    } catch (error) {
+      console.error("Failed to permanently delete task:", error);
+      setPermanentDeleteError(
+        translate(
+          "missionControl.trash.permanentDeleteFailed",
+          "Unable to permanently delete this task. Try again.",
+        ),
+      );
+    } finally {
+      setPermanentlyDeleting(false);
+    }
+  }, [
+    loadArchivedTasks,
+    permanentDeleteRequest,
+    permanentlyDeleting,
+    refreshTaskViews,
+  ]);
 
   useEffect(() => {
     if (!recentlyDeletedOpen) return;
@@ -2067,29 +2102,126 @@ export function MCBoardTab({
                           {formatRestoreWindow(record.expiresAt)}
                         </span>
                       </div>
-                      <button
-                        type="button"
-                        disabled={isRestoring}
-                        onClick={() =>
-                          void restoreArchivedTasks([record.task.id])
-                        }
-                      >
-                        <RotateCcw size={14} />
-                        {isRestoring
-                          ? translate(
-                              "generated.components.mission.control.mcboardtab.1375.127",
-                              "Recovering…",
-                            )
-                          : translate(
-                              "generated.components.mission.control.mcboardtab.1375.128",
-                              "recovery task",
-                            )}
-                      </button>
+                      <div className="mc-task-trash-row-actions">
+                        <button
+                          type="button"
+                          disabled={isRestoring || permanentlyDeleting}
+                          onClick={() =>
+                            void restoreArchivedTasks([record.task.id])
+                          }
+                        >
+                          <RotateCcw size={14} />
+                          {isRestoring
+                            ? translate(
+                                "generated.components.mission.control.mcboardtab.1375.127",
+                                "Recovering…",
+                              )
+                            : translate(
+                                "generated.components.mission.control.mcboardtab.1375.128",
+                                "recovery task",
+                              )}
+                        </button>
+                        <button
+                          type="button"
+                          className="mc-task-trash-permanent-delete"
+                          disabled={isRestoring || permanentlyDeleting}
+                          onClick={() => {
+                            setPermanentDeleteError(null);
+                            setPermanentDeleteRequest(record);
+                          }}
+                        >
+                          <Trash2 size={14} />
+                          {translate(
+                            "missionControl.trash.permanentDelete",
+                            "Delete permanently",
+                          )}
+                        </button>
+                      </div>
                     </article>
                   );
                 })}
               </div>
             )}
+          </section>
+        </div>
+      )}
+
+      {permanentDeleteRequest && (
+        <div
+          className="mc-task-delete-backdrop mc-task-permanent-delete-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !permanentlyDeleting) {
+              setPermanentDeleteRequest(null);
+              setPermanentDeleteError(null);
+            }
+          }}
+        >
+          <section
+            className="mc-task-delete-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mc-task-permanent-delete-title"
+          >
+            <span className="mc-task-delete-icon" aria-hidden="true">
+              <Trash2 size={19} />
+            </span>
+            <div className="mc-task-delete-copy">
+              <h2 id="mc-task-permanent-delete-title">
+                {translate(
+                  "missionControl.trash.permanentDeleteTitle",
+                  "Permanently delete “{name}”?",
+                  {
+                    name: getDisplayTaskTitle(
+                      permanentDeleteRequest.task.title,
+                    ),
+                  },
+                )}
+              </h2>
+              <p>
+                {translate(
+                  "missionControl.trash.permanentDeleteDescription",
+                  "The task, its execution records, and local worktree data will be removed immediately. This action cannot be undone.",
+                )}
+              </p>
+              {permanentDeleteError && (
+                <div className="mc-task-delete-error">
+                  {permanentDeleteError}
+                </div>
+              )}
+            </div>
+            <div className="mc-task-delete-actions">
+              <button
+                type="button"
+                className="mc-task-delete-cancel"
+                disabled={permanentlyDeleting}
+                onClick={() => {
+                  setPermanentDeleteRequest(null);
+                  setPermanentDeleteError(null);
+                }}
+              >
+                {translate(
+                  "generated.components.mission.control.mcboardtab.1427.131",
+                  "Cancel",
+                )}
+              </button>
+              <button
+                type="button"
+                className="mc-task-delete-confirm"
+                disabled={permanentlyDeleting}
+                onClick={() => void confirmPermanentDeletion()}
+              >
+                {permanentlyDeleting
+                  ? translate(
+                      "missionControl.trash.permanentlyDeleting",
+                      "Deleting…",
+                    )
+                  : translate(
+                      "missionControl.trash.permanentDelete",
+                      "Delete permanently",
+                    )}
+              </button>
+            </div>
           </section>
         </div>
       )}

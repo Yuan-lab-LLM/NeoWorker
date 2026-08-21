@@ -18,7 +18,7 @@
 .resource-activity-row,
 .resource-advice,
 .resource-token-summary,
-.resource-cost-details > div {
+.resource-usage-details > div {
   display: flex;
 }
 
@@ -122,10 +122,10 @@
 .resource-token-ring span { position: absolute; color: #325997; font-size: 15px; font-weight: 750; z-index: 1; }
 .resource-token-summary strong { color: #34425a; font-size: 13px; }
 .resource-token-summary p { margin: 4px 0 0; color: #8d9aad; font-size: 11px; line-height: 1.45; }
-.resource-cost-details { display: grid; gap: 0; margin: 0; border-top: 1px solid #e9eef5; }
-.resource-cost-details > div { align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e9eef5; }
-.resource-cost-details dt { color: #8290a3; font-size: 12px; }
-.resource-cost-details dd { margin: 0; color: #435573; font-size: 12px; font-weight: 700; }
+.resource-usage-details { display: grid; gap: 0; margin: 0; border-top: 1px solid #e9eef5; }
+.resource-usage-details > div { align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e9eef5; }
+.resource-usage-details dt { color: #8290a3; font-size: 12px; }
+.resource-usage-details dd { margin: 0; color: #435573; font-size: 12px; font-weight: 700; }
 .resource-inline-warning { display: flex; align-items: center; gap: 5px; margin: 13px 0 0; color: #ae761e; font-size: 11px; line-height: 1.4; }
 .resource-empty-state { padding: 28px 0; color: #9aa6b6; font-size: 13px; }
 

@@ -87,7 +87,7 @@ NeoWorker 聚焦把 AI 从对话助手升级为能够持续理解上下文、执
 
 ## 当前版本
 
-当前源码版本为 **`0.5.52`**。首次 GitHub Release 建议同时提供：
+当前源码版本为 **`v0.1`**（安装包语义版本为 `0.1.0`），与 NeoWorker 应用内显示一致。首次 GitHub Release 建议同时提供：
 
 - macOS `.dmg` 与 `.zip`
 - Windows `.exe` 安装程序
@@ -103,10 +103,23 @@ NeoWorker 聚焦把 AI 从对话助手升级为能够持续理解上下文、执
 
 | 平台 | 安装包 | 安装方式 |
 | --- | --- | --- |
-| **macOS** | `.dmg` | 打开镜像，将 NeoWorker 拖入 Applications。 |
+| **macOS** | `.dmg` | 打开镜像，将 NeoWorker 拖入“应用程序”；未签名预览包请参阅下方说明。 |
 | **Windows** | `.exe` | 运行安装程序并按提示完成安装。 |
 
-如果 macOS 阻止打开未签名的预览包，请前往 **系统设置 → 隐私与安全性**，核对应用来源后选择 **仍要打开**。
+#### macOS 安装须知
+
+<p align="center">
+  <img src="../screenshots/readme/macos-install-guide-zh-CN.svg" alt="macOS 安装 NeoWorker：下载 DMG、拖入应用程序，未签名预览包被拦截时再使用仍要打开" width="900">
+</p>
+
+1. 仅从官方 [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases) 页面下载 macOS `.dmg` 安装包。
+2. 打开磁盘映像，将 **NeoWorker** 拖入 **应用程序（Applications）** 文件夹，再从“应用程序”中启动。
+3. 已签名并完成 Apple 公证的版本通常可以直接打开。如果 macOS 拦截的是**未签名预览包**，请先尝试打开一次 NeoWorker，然后进入 **Apple 菜单 → 系统设置 → 隐私与安全性**。下滑到 **安全性** 区域，确认被阻止的应用是 NeoWorker，点击 **仍要打开**，并按提示验证身份。Apple 说明该按钮通常只会在被拦截后约一小时内显示。
+
+> [!WARNING]
+> 不要开启“任何来源”，也不要运行 `sudo spctl --master-disable`。这会在整个系统范围内关闭 Gatekeeper 检查；“仍要打开”只会为你已核对的这个应用创建例外。详细说明请参阅 [Apple：打开来自未知开发者的 Mac App](https://support.apple.com/zh-cn/guide/mac-help/mh40616/mac)。
+
+如果系统提示应用**“已损坏”**或**“将对电脑造成伤害”**，请不要绕过警告。删除当前安装包，从官方 Releases 页面重新下载，核对发布页提供的校验值；如果仍然出现，请提交 Issue 并注明版本与 macOS 版本。
 
 ### 从源码运行
 

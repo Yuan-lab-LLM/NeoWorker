@@ -1,10 +1,5 @@
-import {
-  LLMProvider,
-  LLMProviderType,
-  LLMRequest,
-  LLMResponse,
-  PROVIDER_IMAGE_CAPS,
-} from "./types";
+import { LLMProvider, LLMProviderType, LLMRequest, LLMResponse } from "./types";
+import { getProviderImageCaps } from "./image-utils";
 import {
   toOpenAICompatibleMessages,
   toOpenAICompatibleTools,
@@ -240,8 +235,13 @@ export class OpenAICompatibleProvider implements LLMProvider {
   }
 
   async createMessage(request: LLMRequest): Promise<LLMResponse> {
-    const caps = PROVIDER_IMAGE_CAPS[this.type];
-    const supportsImages = caps?.supportsImages === true;
+    const model = this.normalizeModelForEndpoint(
+      request.model || this.defaultModel,
+    );
+    const supportsImages = getProviderImageCaps(
+      this.type,
+      model,
+    ).supportsImages;
     const messages = toOpenAICompatibleMessages(
       request.messages,
       request.system,
@@ -252,9 +252,6 @@ export class OpenAICompatibleProvider implements LLMProvider {
     );
 
     try {
-      const model = this.normalizeModelForEndpoint(
-        request.model || this.defaultModel,
-      );
       const tools = request.tools
         ? toOpenAICompatibleTools(request.tools, this.getToolOptions(model))
         : undefined;

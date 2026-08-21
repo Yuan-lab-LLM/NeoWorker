@@ -784,9 +784,10 @@
   z-index: -1;
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.88) 0%,
-    rgba(255, 255, 255, 0.54) 42%,
-    rgba(255, 255, 255, 0.04) 76%
+    rgba(255, 255, 255, 0.97) 0%,
+    rgba(255, 255, 255, 0.94) 46%,
+    rgba(255, 255, 255, 0.7) 55%,
+    rgba(255, 255, 255, 0.08) 74%
   );
   content: "";
   pointer-events: none;
@@ -796,7 +797,7 @@
   position: absolute;
   inset: 0 0 0 auto;
   z-index: -2;
-  width: 63%;
+  width: 56%;
   height: 100%;
   object-fit: cover;
   object-position: center 24%;
@@ -805,14 +806,14 @@
   -webkit-mask-image: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(0, 0, 0, 0.72) 24%,
-    #000000 47%
+    rgba(0, 0, 0, 0.68) 30%,
+    #000000 48%
   );
   mask-image: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(0, 0, 0, 0.72) 24%,
-    #000000 47%
+    rgba(0, 0, 0, 0.68) 30%,
+    #000000 48%
   );
   transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -828,7 +829,7 @@
 .simple-agent-card-head {
   position: relative;
   z-index: 1;
-  width: 62%;
+  width: 54%;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 9px;

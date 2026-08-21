@@ -1223,6 +1223,24 @@ export function getLocalizedSkillText(
     };
   }
 
+  // External and workspace skills are user-authored content. Their names are
+  // identifiers chosen by the user or by the imported SKILL.md, so replacing
+  // an unknown one with a generic localized workflow label is misleading.
+  if (skill.source === "external" || skill.source === "workspace") {
+    return {
+      name: normalizeInternalToolNamesForDisplay(skill.name, language),
+      description: normalizeInternalToolNamesForDisplay(
+        skill.description || "",
+        language,
+      ),
+      category:
+        skill.source === "external"
+          ? "自定义"
+          : getLocalizedSkillCategory(skill.category, language),
+      source: getLocalizedSkillSource(skill.source, language),
+    };
+  }
+
   const localized =
     ZH_SKILL_TEXT_BY_ID[skill.id] || ZH_SKILL_TEXT_BY_NAME[skill.name];
   if (!localized) return getPluginSkillFallback(skill, language);
@@ -1370,6 +1388,7 @@ const ZH_PARAMETER_NAMES: Record<string, string> = {
   amount_threshold: "金额阈值",
   analysisType: "分析类型",
   analysis_type: "分析类型",
+  animation: "动画",
   arr: "年度经常性收入（ARR）",
   assetClass: "资产类别",
   assumptions: "假设条件",
@@ -1461,6 +1480,7 @@ const ZH_PARAMETER_NAMES: Record<string, string> = {
   output_report_path: "报告保存位置",
   output_style: "输出风格",
   owner_hints: "负责人提示",
+  palette: "配色方案",
   packaging: "打包格式",
   parallel: "并行执行",
   party_size: "用餐人数",
@@ -1472,6 +1492,8 @@ const ZH_PARAMETER_NAMES: Record<string, string> = {
   project_name: "项目名称",
   projectionYears: "预测年数",
   prompt: "提示词",
+  profile: "质量模式",
+  question: "具体问题",
   quarter: "财报季度",
   query: "查询",
   quiet_hours: "安静时段",
@@ -1485,6 +1507,7 @@ const ZH_PARAMETER_NAMES: Record<string, string> = {
   revenueGrowth: "收入增长率",
   riskMetric: "风险指标",
   run_librarian: "运行资料管理员",
+  route: "生成方式",
   scope: "范围",
   scope_filter: "范围筛选",
   scope_hint: "文件或文件夹范围",
@@ -1497,12 +1520,14 @@ const ZH_PARAMETER_NAMES: Record<string, string> = {
   since: "起始时间",
   sentiment_csv: "情绪数据 CSV",
   source: "来源",
+  source_path: "源文件",
   source_material_path: "源素材文件",
   stage: "阶段",
   stale_hours: "停滞时长（小时）",
   start_time: "开始时间",
   strategy: "策略",
   style: "风格",
+  slide_count: "幻灯片数量",
   symbol: "交易标的",
   system_name: "系统名称",
   target: "目标",
@@ -1527,6 +1552,7 @@ const ZH_PARAMETER_NAMES: Record<string, string> = {
   url: "链接",
   urls: "网址列表",
   voiceover: "旁白",
+  visual_style: "视觉风格",
   wacc: "加权平均资本成本（WACC）",
   what: "学习主题",
 };

@@ -4,7 +4,10 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Task, TaskEvent, Workspace } from "../../../shared/types";
-import { SessionRetentionService } from "../SessionRetentionService";
+import {
+  SessionRetentionService,
+  TASK_TRASH_RETENTION_MS,
+} from "../SessionRetentionService";
 
 const nativeSqliteAvailable = await import("better-sqlite3")
   .then((module) => {
@@ -235,6 +238,52 @@ describe("SessionRetentionService unit", () => {
 
     expect(result.sessions.map((session) => session.id)).toEqual(["openai-task"]);
     expect(tasks.map((task) => task.id).sort()).toEqual(["openai-task", "other-task"]);
+  });
+
+  it("permanently deletes every task in an archived session", async () => {
+    const tasks: Task[] = [
+      makeTask({ id: "session-root", sessionId: "session-1" }),
+      makeTask({ id: "session-follow-up", sessionId: "session-1" }),
+      makeTask({ id: "keep-me" }),
+    ];
+    const service = makeService(tasks);
+    const cleanedTaskIds: string[] = [];
+    service.archiveSession("session-1");
+
+    const result = await service.purgeArchivedSession("session-1", {
+      deleteTask: (task) => cleanedTaskIds.push(task.id),
+    });
+
+    expect(result.deletedTaskIds).toEqual(["session-root", "session-follow-up"]);
+    expect(cleanedTaskIds).toEqual(["session-root", "session-follow-up"]);
+    expect(tasks.map((task) => task.id)).toEqual(["keep-me"]);
+  });
+
+  it("does not permanently delete a session outside recently deleted", async () => {
+    const tasks: Task[] = [makeTask({ id: "active-session" })];
+    const service = makeService(tasks);
+
+    await expect(service.purgeArchivedSession("active-session")).rejects.toThrow(
+      "not in recently deleted",
+    );
+    expect(tasks.map((task) => task.id)).toEqual(["active-session"]);
+  });
+
+  it("automatically purges recently deleted sessions after seven days", async () => {
+    const tasks: Task[] = [
+      makeTask({ id: "expired-trash" }),
+      makeTask({ id: "ordinary-task" }),
+    ];
+    const service = makeService(tasks);
+    service.archiveSession("expired-trash");
+
+    const result = await service.pruneExpiredTrash(
+      Date.now() + TASK_TRASH_RETENTION_MS,
+    );
+
+    expect(result.sessionCount).toBe(1);
+    expect(result.deletedTaskIds).toEqual(["expired-trash"]);
+    expect(tasks.map((task) => task.id)).toEqual(["ordinary-task"]);
   });
 });
 

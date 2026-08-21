@@ -312,6 +312,63 @@ describe("ToolRegistry tool catalog versioning", () => {
     expect((registry as Any).getApprovalTypeForTool("click")).toBe("computer_use");
   });
 
+  it("does not ask again before analyzing a file uploaded for the current task", () => {
+    const registry = new ToolRegistry(createWorkspace(), createDaemon(), "task-uploaded-visual");
+
+    expect(
+      (registry as Any).getApprovalTypeForTool("analyze_image", {
+        path: ".neoworker/uploads/1787313766312/screenshot.png",
+      }),
+    ).toBeNull();
+    expect(
+      (registry as Any).getApprovalTypeForTool("read_pdf_visual", {
+        path: ".neoworker/uploads/1787313766312/report.pdf",
+      }),
+    ).toBeNull();
+    expect(
+      (registry as Any).getApprovalTypeForTool("analyze_image", {
+        path: "private/customer-photo.png",
+      }),
+    ).toBe("data_export");
+    expect(
+      (registry as Any).isUserUploadedVisualInput("analyze_image", {
+        path: ".neoworker/uploads/1787313766312/../../private.png",
+      }),
+    ).toBe(false);
+  });
+
+  it("bypasses the approval middleware for a current-task upload", async () => {
+    const daemon = {
+      ...createDaemon(),
+      evaluateToolPermission: vi.fn(),
+      requestApproval: vi.fn(),
+    };
+    const registry = new ToolRegistry(
+      createWorkspace(),
+      daemon,
+      "task-uploaded-visual-middleware",
+    );
+    const [middleware] = (registry as Any).buildExecutionMiddlewares();
+    const next = vi.fn().mockResolvedValue({ success: true });
+
+    await expect(
+      middleware(
+        {
+          request: {
+            name: "analyze_image",
+            input: {
+              path: ".neoworker/uploads/1787313766312/screenshot.png",
+            },
+          },
+        },
+        next,
+      ),
+    ).resolves.toMatchObject({ result: { success: true } });
+    expect(daemon.evaluateToolPermission).not.toHaveBeenCalled();
+    expect(daemon.requestApproval).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
   it("renders rollout tool descriptions from the shared tool-prompt metadata", () => {
     const registry = new ToolRegistry(createWorkspace(), createDaemon(), "task-prompting");
     const runCommand = registry.getTools().find((tool) => tool.name === "run_command");

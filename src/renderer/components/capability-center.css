@@ -62,7 +62,8 @@
   height: 44px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
   border-radius: 13px;
   color: var(--color-accent-dark);
   background: linear-gradient(
@@ -102,8 +103,16 @@
 }
 
 .capability-center-secondary-button:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 52%, var(--color-border));
-  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-bg-elevated));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 52%,
+    var(--color-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 7%,
+    var(--color-bg-elevated)
+  );
 }
 
 .capability-center-secondary-button:active,
@@ -125,7 +134,8 @@
   border: 1px solid var(--color-border);
   border-radius: 16px;
   background: color-mix(in srgb, var(--color-bg-elevated) 96%, transparent);
-  box-shadow: 0 12px 34px color-mix(in srgb, var(--color-accent) 5%, transparent);
+  box-shadow: 0 12px 34px
+    color-mix(in srgb, var(--color-accent) 5%, transparent);
 }
 
 .expert-task-guide {
@@ -141,7 +151,11 @@
   padding: 22px 24px;
   border-right: 1px solid var(--color-border-subtle);
   background:
-    radial-gradient(circle at 16% 0%, rgba(var(--color-accent-rgb), 0.13), transparent 15rem),
+    radial-gradient(
+      circle at 16% 0%,
+      rgba(var(--color-accent-rgb), 0.13),
+      transparent 15rem
+    ),
     color-mix(in srgb, var(--color-accent) 5%, var(--color-bg-elevated));
 }
 
@@ -196,7 +210,8 @@
   width: 100%;
   margin-top: 18px;
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
   border-radius: 12px;
   color: var(--color-text-primary);
   background: color-mix(in srgb, var(--color-bg-elevated) 85%, transparent);
@@ -231,8 +246,16 @@
 
 .smart-team-button:hover,
 .smart-team-button.is-selected {
-  border-color: color-mix(in srgb, var(--color-accent) 70%, var(--color-border));
-  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-bg-elevated));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 70%,
+    var(--color-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 10%,
+    var(--color-bg-elevated)
+  );
 }
 
 .expert-task-composer {
@@ -323,7 +346,11 @@
 }
 
 .expert-task-composer textarea:focus {
-  border-color: color-mix(in srgb, var(--color-accent) 72%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 72%,
+    var(--color-border)
+  );
   box-shadow: 0 0 0 3px var(--color-accent-subtle);
 }
 
@@ -453,8 +480,13 @@
   padding: 7px;
   border: 1px solid var(--color-border-subtle);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--color-bg-secondary) 75%, var(--color-bg-elevated));
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--color-text-primary) 4%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--color-bg-secondary) 75%,
+    var(--color-bg-elevated)
+  );
+  box-shadow: 0 4px 16px
+    color-mix(in srgb, var(--color-text-primary) 4%, transparent);
   backdrop-filter: blur(16px) saturate(1.15);
   -webkit-backdrop-filter: blur(16px) saturate(1.15);
 }
@@ -488,7 +520,11 @@
 
 .capability-center-tab-list button:hover {
   color: var(--color-text-primary);
-  background: color-mix(in srgb, var(--color-accent) 5%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 5%,
+    var(--color-bg-elevated)
+  );
 }
 
 .capability-center-tab-list button > span {
@@ -496,7 +532,11 @@
 }
 
 .capability-center-tab-list button.is-selected {
-  border-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 22%,
+    var(--color-border)
+  );
   color: var(--color-accent-dark);
   background: var(--color-bg-elevated);
   font-weight: 750;
@@ -535,10 +575,87 @@
   background: var(--color-bg-elevated);
   font-size: 12px;
   font-weight: 680;
+  font-family: inherit;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .capability-center-view-mode > svg:first-child {
+  color: var(--color-accent-dark);
+}
+
+.capability-center-view-mode > svg:last-child {
+  transition: transform 0.16s ease;
+}
+
+.capability-center-view-mode > svg:last-child.is-open {
+  transform: rotate(180deg);
+}
+
+.capability-center-view-mode:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 32%,
+    var(--color-border)
+  );
+  color: var(--color-text-primary);
+  background: var(--color-bg-hover);
+}
+
+.capability-center-view-mode:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-subtle);
+}
+
+.capability-center-scene-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.capability-center-scene-menu-popover {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 7px);
+  right: 0;
+  display: grid;
+  width: 188px;
+  max-height: 310px;
+  gap: 2px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg-elevated);
+  box-shadow: 0 14px 34px
+    color-mix(in srgb, var(--color-text-primary) 14%, transparent);
+}
+
+.capability-center-scene-menu-popover button {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--color-text-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.capability-center-scene-menu-popover button:hover,
+.capability-center-scene-menu-popover button.is-selected {
+  color: var(--color-text-primary);
+  background: var(--color-bg-hover);
+}
+
+.capability-center-scene-menu-popover button.is-selected {
   color: var(--color-accent-dark);
 }
 
@@ -603,14 +720,19 @@
   border-radius: 10px;
   color: var(--color-text-muted);
   background: var(--color-bg-elevated);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-text-primary) 3%, transparent);
+  box-shadow: 0 1px 2px
+    color-mix(in srgb, var(--color-text-primary) 3%, transparent);
   transition:
     border-color 0.18s ease,
     box-shadow 0.18s ease;
 }
 
 .skill-scene-search:focus-within {
-  border-color: color-mix(in srgb, var(--color-accent) 70%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 70%,
+    var(--color-border)
+  );
   box-shadow: 0 0 0 3px var(--color-accent-subtle);
 }
 
@@ -653,7 +775,7 @@
   margin-top: 0;
 }
 
-.skill-scene-filter-row .capability-center-view-mode {
+.skill-scene-filter-row .capability-center-scene-menu {
   flex: 0 0 auto;
 }
 
@@ -681,7 +803,11 @@
 }
 
 .skill-scene-filter-list button:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 38%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 38%,
+    var(--color-border)
+  );
   color: var(--color-text-primary);
 }
 
@@ -693,7 +819,8 @@
   border-color: var(--color-accent);
   color: #fff;
   background: var(--color-action-primary);
-  box-shadow: 0 5px 13px color-mix(in srgb, var(--color-accent) 18%, transparent);
+  box-shadow: 0 5px 13px
+    color-mix(in srgb, var(--color-accent) 18%, transparent);
 }
 
 .skill-scene-bento {
@@ -710,9 +837,14 @@
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--skill-scene-tone) 18%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--skill-scene-tone) 18%, var(--color-border));
   border-radius: 15px;
-  background: color-mix(in srgb, var(--skill-scene-tint) 23%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--skill-scene-tint) 23%,
+    var(--color-bg-elevated)
+  );
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #fff 55%, transparent),
     0 7px 22px color-mix(in srgb, var(--skill-scene-tone) 6%, transparent);
@@ -724,7 +856,11 @@
 }
 
 .skill-scene-card:hover {
-  border-color: color-mix(in srgb, var(--skill-scene-tone) 42%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--skill-scene-tone) 42%,
+    var(--color-border)
+  );
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #fff 62%, transparent),
     0 13px 28px color-mix(in srgb, var(--skill-scene-tone) 11%, transparent);
@@ -796,7 +932,8 @@
   border-radius: 13px;
   box-sizing: content-box;
   background: color-mix(in srgb, var(--color-bg-elevated) 84%, transparent);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--skill-scene-tone) 10%, transparent);
+  box-shadow: 0 8px 24px
+    color-mix(in srgb, var(--skill-scene-tone) 10%, transparent);
 }
 
 .skill-scene-visual > em {
@@ -812,7 +949,8 @@
   border-radius: 999px;
   color: var(--skill-scene-tone);
   background: color-mix(in srgb, #fff 84%, var(--skill-scene-tint));
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--skill-scene-tone) 12%, transparent);
+  box-shadow: 0 4px 12px
+    color-mix(in srgb, var(--skill-scene-tone) 12%, transparent);
   font-size: 10.5px;
   font-style: normal;
   font-weight: 760;
@@ -864,7 +1002,11 @@
   border: 1px solid var(--skill-scene-border);
   border-radius: 11px;
   color: var(--skill-scene-tone);
-  background: color-mix(in srgb, var(--skill-scene-tint) 72%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--skill-scene-tint) 72%,
+    var(--color-bg-elevated)
+  );
   box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 64%, transparent);
 }
 
@@ -906,7 +1048,8 @@
 .skill-scene-skill-list {
   min-height: 0;
   margin-top: 14px;
-  border-top: 1px solid color-mix(in srgb, var(--skill-scene-tone) 11%, var(--color-border-subtle));
+  border-top: 1px solid
+    color-mix(in srgb, var(--skill-scene-tone) 11%, var(--color-border-subtle));
 }
 
 .skill-scene-skill-list > button {
@@ -965,19 +1108,32 @@
   min-height: 22px;
   align-items: center;
   padding: 0 7px;
-  border: 1px solid color-mix(in srgb, var(--color-warning) 16%, var(--color-border-subtle));
+  border: 1px solid
+    color-mix(in srgb, var(--color-warning) 16%, var(--color-border-subtle));
   border-radius: 6px;
   color: var(--color-warning);
-  background: color-mix(in srgb, var(--color-warning) 5%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-warning) 5%,
+    var(--color-bg-elevated)
+  );
   font-size: 10.5px;
   font-weight: 650;
   white-space: nowrap;
 }
 
 .skill-scene-state.is-ready {
-  border-color: color-mix(in srgb, var(--color-accent) 14%, var(--color-border-subtle));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 14%,
+    var(--color-border-subtle)
+  );
   color: var(--color-accent-dark);
-  background: color-mix(in srgb, var(--color-accent) 5%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 5%,
+    var(--color-bg-elevated)
+  );
 }
 
 .skill-scene-empty {
@@ -1098,7 +1254,8 @@
   border: 1px solid var(--color-border);
   border-radius: 15px;
   background: var(--color-bg-elevated);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--color-text-primary) 5%, transparent);
+  box-shadow: 0 8px 24px
+    color-mix(in srgb, var(--color-text-primary) 5%, transparent);
 }
 
 .skill-scene-results-header {
@@ -1109,7 +1266,11 @@
   gap: 20px;
   padding: 14px 17px;
   border-bottom: 1px solid var(--color-border-subtle);
-  background: color-mix(in srgb, var(--color-accent) 3%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 3%,
+    var(--color-bg-elevated)
+  );
 }
 
 .skill-scene-results-header span {
@@ -1133,7 +1294,8 @@
   align-items: center;
   gap: 6px;
   padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
   border-radius: 8px;
   color: var(--color-accent-dark);
   background: var(--color-bg-elevated);
@@ -1174,7 +1336,8 @@
 .skill-scene-result-filters button.is-selected {
   color: var(--color-accent-dark);
   background: var(--color-bg-elevated);
-  box-shadow: 0 1px 4px color-mix(in srgb, var(--color-text-primary) 7%, transparent);
+  box-shadow: 0 1px 4px
+    color-mix(in srgb, var(--color-text-primary) 7%, transparent);
 }
 
 .skill-scene-result-list {
@@ -1205,7 +1368,11 @@
 }
 
 .skill-result-row:hover {
-  background: color-mix(in srgb, var(--skill-result-tint) 34%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--skill-result-tint) 34%,
+    var(--color-bg-elevated)
+  );
 }
 
 .skill-result-icon {
@@ -1249,14 +1416,22 @@
   padding: 0 7px;
   border-radius: 7px;
   color: var(--color-warning);
-  background: color-mix(in srgb, var(--color-warning) 7%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-warning) 7%,
+    var(--color-bg-elevated)
+  );
   font-size: 9.5px;
   white-space: nowrap;
 }
 
 .skill-result-state.is-ready {
   color: var(--color-accent-dark);
-  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 7%,
+    var(--color-bg-elevated)
+  );
 }
 
 .skill-result-row > svg {
@@ -1355,9 +1530,17 @@
 }
 
 .capability-featured-refresh:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 36%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 36%,
+    var(--color-border)
+  );
   color: var(--color-accent-dark);
-  background: color-mix(in srgb, var(--color-accent) 5%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 5%,
+    var(--color-bg-elevated)
+  );
 }
 
 .capability-featured-refresh:hover svg {
@@ -1392,7 +1575,8 @@
   text-align: left;
   cursor: pointer;
   isolation: isolate;
-  box-shadow: 0 5px 16px color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  box-shadow: 0 5px 16px
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent);
   transition:
     border-color 0.22s ease,
     box-shadow 0.22s ease,
@@ -1501,8 +1685,13 @@
 }
 
 .capability-featured-card:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
-  box-shadow: 0 13px 26px color-mix(in srgb, var(--color-accent) 13%, transparent);
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 45%,
+    var(--color-border)
+  );
+  box-shadow: 0 13px 26px
+    color-mix(in srgb, var(--color-accent) 13%, transparent);
   transform: translateY(-3px);
 }
 
@@ -1521,7 +1710,11 @@
 }
 
 .capability-center-search:focus-within {
-  border-color: color-mix(in srgb, var(--color-accent) 70%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 70%,
+    var(--color-border)
+  );
   box-shadow: 0 0 0 3px var(--color-accent-subtle);
 }
 
@@ -1567,10 +1760,15 @@
   min-height: 25px;
   align-items: center;
   padding: 0 8px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
   border-radius: 8px;
   color: var(--color-accent-dark);
-  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 7%,
+    var(--color-bg-elevated)
+  );
   font-size: 11px;
   font-weight: 720;
   font-variant-numeric: tabular-nums;
@@ -1587,7 +1785,11 @@
   padding: 5px;
   border: 1px solid var(--color-border-subtle);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--color-bg-secondary) 72%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-bg-secondary) 72%,
+    var(--color-bg-elevated)
+  );
 }
 
 .expert-directory-search {
@@ -1624,7 +1826,11 @@
 
 .expert-filter-list button:hover {
   color: var(--color-text-primary);
-  background: color-mix(in srgb, var(--color-accent) 5%, var(--color-bg-secondary));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 5%,
+    var(--color-bg-secondary)
+  );
 }
 
 .expert-filter-list button:active {
@@ -1635,7 +1841,8 @@
   color: var(--color-accent-dark);
   background: var(--color-bg-elevated);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--color-accent) 20%, var(--color-border-subtle)),
+    0 0 0 1px
+      color-mix(in srgb, var(--color-accent) 20%, var(--color-border-subtle)),
     0 3px 10px color-mix(in srgb, var(--color-text-primary) 7%, transparent);
 }
 
@@ -1658,10 +1865,15 @@
   gap: 9px;
   min-height: 36px;
   padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
   border-radius: 8px;
   color: var(--color-text-primary);
-  background: color-mix(in srgb, var(--color-accent) 4%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 4%,
+    var(--color-bg-elevated)
+  );
   text-align: left;
   cursor: pointer;
   transition:
@@ -1692,8 +1904,16 @@
 
 .expert-directory-smart-team:hover,
 .expert-directory-smart-team.is-selected {
-  border-color: color-mix(in srgb, var(--color-accent) 62%, var(--color-border));
-  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-bg-elevated));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 62%,
+    var(--color-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 10%,
+    var(--color-bg-elevated)
+  );
 }
 
 .expert-directory-smart-team:active {
@@ -1712,7 +1932,8 @@
   margin: 18px 0 30px;
   padding: 19px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 14%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent) 14%, var(--color-border));
   border-radius: 18px;
   background:
     radial-gradient(
@@ -1841,7 +2062,11 @@
   background:
     radial-gradient(
       circle at 92% -8%,
-      color-mix(in srgb, var(--capability-card-tone, var(--color-accent)) 9%, transparent),
+      color-mix(
+        in srgb,
+        var(--capability-card-tone, var(--color-accent)) 9%,
+        transparent
+      ),
       transparent 8.5rem
     ),
     var(--color-bg-elevated);
@@ -1857,11 +2082,19 @@
 .capability-center-card.is-featured {
   min-height: 232px;
   padding: 18px;
-  border-color: color-mix(in srgb, var(--capability-card-tone) 16%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--capability-card-tone) 16%,
+    var(--color-border)
+  );
   background:
     linear-gradient(
       148deg,
-      color-mix(in srgb, var(--capability-card-tint) 58%, var(--color-bg-elevated)),
+      color-mix(
+        in srgb,
+        var(--capability-card-tint) 58%,
+        var(--color-bg-elevated)
+      ),
       var(--color-bg-elevated) 64%
     ),
     var(--color-bg-elevated);
@@ -1872,10 +2105,22 @@
 
 .capability-center-card.is-featured:first-child {
   color: #f8fbff;
-  border-color: color-mix(in srgb, var(--capability-card-tone) 58%, transparent);
+  border-color: color-mix(
+    in srgb,
+    var(--capability-card-tone) 58%,
+    transparent
+  );
   background:
-    radial-gradient(circle at 86% 14%, rgba(255, 255, 255, 0.14), transparent 8rem),
-    linear-gradient(145deg, color-mix(in srgb, var(--capability-card-tone) 86%, #0f172a), #111827);
+    radial-gradient(
+      circle at 86% 14%,
+      rgba(255, 255, 255, 0.14),
+      transparent 8rem
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--capability-card-tone) 86%, #0f172a),
+      #111827
+    );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.17),
     0 16px 34px color-mix(in srgb, var(--capability-card-tone) 20%, transparent);
@@ -1926,7 +2171,11 @@
   background:
     linear-gradient(
       135deg,
-      color-mix(in srgb, var(--capability-card-tint) 42%, var(--color-bg-elevated)),
+      color-mix(
+        in srgb,
+        var(--capability-card-tint) 42%,
+        var(--color-bg-elevated)
+      ),
       var(--color-bg-elevated) 46%
     ),
     var(--color-bg-elevated);
@@ -1957,11 +2206,19 @@
 }
 
 .capability-center-card:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-border)) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 32%,
+    var(--color-border)
+  ) !important;
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #fff 42%, transparent),
     0 12px 26px
-      color-mix(in srgb, var(--capability-card-tone, var(--color-accent)) 11%, transparent) !important;
+      color-mix(
+        in srgb,
+        var(--capability-card-tone, var(--color-accent)) 11%,
+        transparent
+      ) !important;
   transform: translateY(-2px);
 }
 
@@ -1970,8 +2227,16 @@
 }
 
 .capability-center-card.is-selected {
-  border-color: color-mix(in srgb, var(--color-accent) 78%, var(--color-border)) !important;
-  background: color-mix(in srgb, var(--color-accent) 4%, var(--color-bg-elevated));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 78%,
+    var(--color-border)
+  ) !important;
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 4%,
+    var(--color-bg-elevated)
+  );
   box-shadow:
     0 0 0 2px var(--color-accent-subtle),
     0 12px 28px color-mix(in srgb, var(--color-accent) 8%, transparent) !important;
@@ -2036,9 +2301,17 @@
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  border-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 22%,
+    var(--color-border)
+  );
   color: var(--color-accent-dark);
-  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 8%,
+    var(--color-bg-elevated)
+  );
 }
 
 .capability-center-card:hover .capability-center-icon {
@@ -2065,13 +2338,21 @@
 .capability-card-state.is-ready {
   border-color: color-mix(in srgb, var(--color-accent) 18%, transparent);
   color: var(--color-accent-dark);
-  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 7%,
+    var(--color-bg-elevated)
+  );
 }
 
 .capability-card-state.is-warning {
   border-color: color-mix(in srgb, var(--color-warning) 20%, transparent);
   color: var(--color-warning);
-  background: color-mix(in srgb, var(--color-warning) 7%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-warning) 7%,
+    var(--color-bg-elevated)
+  );
 }
 
 .capability-center-card h3 {
@@ -2108,7 +2389,8 @@
   overflow: hidden;
   padding: 15px;
   border-radius: 14px;
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-text-primary) 4%, transparent);
+  box-shadow: 0 1px 2px
+    color-mix(in srgb, var(--color-text-primary) 4%, transparent);
 }
 
 .expert-card::before {
@@ -2116,8 +2398,16 @@
 }
 
 .expert-card.is-selected {
-  border-color: color-mix(in srgb, var(--color-accent) 48%, var(--color-border));
-  background: color-mix(in srgb, var(--color-accent) 4%, var(--color-bg-elevated));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 48%,
+    var(--color-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 4%,
+    var(--color-bg-elevated)
+  );
 }
 
 .expert-card-header {
@@ -2171,9 +2461,17 @@
 }
 
 .expert-card-configure:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 35%,
+    var(--color-border)
+  );
   color: var(--color-accent-dark);
-  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 7%,
+    var(--color-bg-elevated)
+  );
 }
 
 .expert-card-configure:active {
@@ -2208,10 +2506,19 @@
   min-width: 0;
   overflow: hidden;
   padding: 3px 6px;
-  border: 1px solid color-mix(in srgb, var(--capability-card-tone) 11%, var(--color-border-subtle));
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--capability-card-tone) 11%,
+      var(--color-border-subtle)
+    );
   border-radius: 6px;
   color: var(--color-text-secondary);
-  background: color-mix(in srgb, var(--capability-card-tint) 52%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--capability-card-tint) 52%,
+    var(--color-bg-elevated)
+  );
   font-size: 9.5px;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -2284,7 +2591,11 @@
   overflow: hidden;
   padding: 2px 6px;
   border-radius: 5px;
-  background: color-mix(in srgb, var(--color-accent) 5%, var(--color-bg-secondary));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 5%,
+    var(--color-bg-secondary)
+  );
   color: var(--color-text-secondary);
   font-style: normal;
   text-overflow: ellipsis;
@@ -2320,10 +2631,15 @@
 .expert-capability-list span {
   flex: 0 0 auto;
   padding: 2px 6px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 12%, var(--color-border-subtle));
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent) 12%, var(--color-border-subtle));
   border-radius: 5px;
   color: var(--color-text-secondary);
-  background: color-mix(in srgb, var(--color-accent) 3%, var(--color-bg-secondary));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 3%,
+    var(--color-bg-secondary)
+  );
   font-size: 10px;
 }
 
@@ -2336,10 +2652,15 @@
   gap: 7px;
   margin: 0;
   padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 26%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent) 26%, var(--color-border));
   border-radius: 8px;
   color: var(--color-accent-dark);
-  background: color-mix(in srgb, var(--color-accent) 5%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 5%,
+    var(--color-bg-elevated)
+  );
   font-size: 11px;
   font-weight: 740;
   white-space: nowrap;
@@ -2364,8 +2685,16 @@
 
 .expert-card:hover .expert-card-select:not(:disabled) {
   color: var(--color-accent-dark);
-  border-color: color-mix(in srgb, var(--color-accent) 48%, var(--color-border));
-  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-bg-elevated));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 48%,
+    var(--color-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 8%,
+    var(--color-bg-elevated)
+  );
 }
 
 .expert-card:hover .expert-card-select:hover:not(:disabled) {
@@ -2422,15 +2751,24 @@
 
 .capability-card-primary {
   padding: 0 11px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 38%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent) 38%, var(--color-border));
   color: var(--color-accent-dark);
   background: var(--color-accent-subtle);
 }
 
 .capability-card-primary:hover:not(:disabled),
 .capability-card-primary[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--color-accent) 72%, var(--color-border));
-  background: color-mix(in srgb, var(--color-accent) 17%, var(--color-bg-elevated));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 72%,
+    var(--color-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 17%,
+    var(--color-bg-elevated)
+  );
 }
 
 .capability-card-primary:disabled {
@@ -2533,7 +2871,8 @@
 .capability-center-empty button {
   min-height: 34px;
   padding: 0 12px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
   border-radius: 8px;
   color: var(--color-accent-dark);
   background: var(--color-bg-elevated);
@@ -2561,8 +2900,16 @@
 }
 
 .theme-dark .capability-center-icon {
-  border-color: color-mix(in srgb, currentColor 32%, var(--color-border)) !important;
-  background: color-mix(in srgb, currentColor 12%, var(--color-bg-elevated)) !important;
+  border-color: color-mix(
+    in srgb,
+    currentColor 32%,
+    var(--color-border)
+  ) !important;
+  background: color-mix(
+    in srgb,
+    currentColor 12%,
+    var(--color-bg-elevated)
+  ) !important;
 }
 
 @media (max-width: 1120px) {
@@ -2608,7 +2955,11 @@
   .skill-scene-card.is-teamwork .skill-scene-skill-list > button {
     grid-template-columns: 8px minmax(0, 1fr) auto 14px;
     border-bottom: 1px dashed
-      color-mix(in srgb, var(--skill-scene-tone) 11%, var(--color-border-subtle));
+      color-mix(
+        in srgb,
+        var(--skill-scene-tone) 11%,
+        var(--color-border-subtle)
+      );
   }
 
   .skill-scene-card.is-legal .skill-scene-skill-list .skill-scene-state,
@@ -2713,7 +3064,7 @@
     flex-direction: column;
   }
 
-  .skill-scene-filter-row .capability-center-view-mode {
+  .skill-scene-filter-row .capability-center-scene-menu {
     display: none;
   }
 
@@ -2940,10 +3291,12 @@
   position: relative;
   min-height: 190px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--skill-workspace-tone) 18%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--skill-workspace-tone) 18%, var(--color-border));
   border-radius: 20px;
   background: var(--skill-workspace-tint);
-  box-shadow: 0 18px 44px color-mix(in srgb, var(--skill-workspace-tone) 7%, transparent);
+  box-shadow: 0 18px 44px
+    color-mix(in srgb, var(--skill-workspace-tone) 7%, transparent);
   isolation: isolate;
 }
 
@@ -3021,7 +3374,8 @@
   align-items: center;
   gap: 7px;
   padding: 0 11px;
-  border: 1px solid color-mix(in srgb, var(--skill-workspace-tone) 22%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--skill-workspace-tone) 22%, var(--color-border));
   border-radius: 9px;
   color: var(--skill-workspace-tone);
   background: color-mix(in srgb, var(--color-bg-elevated) 94%, transparent);
@@ -3041,7 +3395,11 @@
   padding: 5px;
   border: 1px solid var(--color-border-subtle);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--color-bg-secondary) 72%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-bg-secondary) 72%,
+    var(--color-bg-elevated)
+  );
 }
 
 .skill-workspace-toolbar > span {
@@ -3104,9 +3462,14 @@
   overflow: hidden;
   flex-direction: column;
   padding: 17px;
-  border: 1px solid color-mix(in srgb, var(--polished-skill-tone) 17%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--polished-skill-tone) 17%, var(--color-border));
   border-radius: 17px;
-  background: color-mix(in srgb, var(--polished-skill-tint) 34%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--polished-skill-tint) 34%,
+    var(--color-bg-elevated)
+  );
   box-shadow: 0 8px 24px color-mix(in srgb, #0f172a 4%, transparent);
   transition:
     transform 0.2s ease,
@@ -3121,13 +3484,26 @@
 .polished-skill-card.is-featured {
   grid-row: span 2;
   padding: 22px;
-  border-color: color-mix(in srgb, var(--polished-skill-tone) 31%, var(--color-border));
-  background: color-mix(in srgb, var(--polished-skill-tint) 60%, var(--color-bg-elevated));
+  border-color: color-mix(
+    in srgb,
+    var(--polished-skill-tone) 31%,
+    var(--color-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--polished-skill-tint) 60%,
+    var(--color-bg-elevated)
+  );
 }
 
 .polished-skill-card:hover {
-  border-color: color-mix(in srgb, var(--polished-skill-tone) 45%, var(--color-border));
-  box-shadow: 0 16px 34px color-mix(in srgb, var(--polished-skill-tone) 10%, transparent);
+  border-color: color-mix(
+    in srgb,
+    var(--polished-skill-tone) 45%,
+    var(--color-border)
+  );
+  box-shadow: 0 16px 34px
+    color-mix(in srgb, var(--polished-skill-tone) 10%, transparent);
   transform: translateY(-2px);
 }
 
@@ -3225,11 +3601,19 @@
   margin-top: auto;
   padding-top: 14px;
   border-top: 1px solid
-    color-mix(in srgb, var(--polished-skill-tone) 10%, var(--color-border-subtle));
+    color-mix(
+      in srgb,
+      var(--polished-skill-tone) 10%,
+      var(--color-border-subtle)
+    );
 }
 
 .polished-skill-card-footer > span {
-  color: color-mix(in srgb, var(--polished-skill-tone) 15%, var(--color-bg-elevated));
+  color: color-mix(
+    in srgb,
+    var(--polished-skill-tone) 15%,
+    var(--color-bg-elevated)
+  );
   font-size: 28px;
   font-weight: 800;
   line-height: 1;
@@ -3344,7 +3728,11 @@
   margin-top: 20px;
   border: 0;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--color-bg-secondary) 70%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-bg-secondary) 70%,
+    var(--color-bg-elevated)
+  );
 }
 
 .expert-task-guide-copy {
@@ -3383,7 +3771,11 @@
 
 .expert-card {
   min-height: 190px;
-  background: color-mix(in srgb, var(--capability-card-tint) 24%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--capability-card-tint) 24%,
+    var(--color-bg-elevated)
+  );
 }
 
 .capability-center-section-heading.is-connectors {
@@ -3495,7 +3887,8 @@
   align-items: center;
   gap: 12px;
   padding: 14px;
-  border: 1px solid color-mix(in srgb, var(--connector-tone) 15%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--connector-tone) 15%, var(--color-border));
   border-radius: 14px;
   background: var(--color-bg-elevated);
   box-shadow: 0 7px 20px color-mix(in srgb, #0f172a 4%, transparent);
@@ -3845,16 +4238,25 @@
   align-items: center;
   gap: 5px;
   padding: 5px 8px;
-  border: 1px solid color-mix(in srgb, var(--color-warning) 28%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--color-warning) 28%, var(--color-border));
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-warning) 8%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-warning) 8%,
+    var(--color-bg-elevated)
+  );
   color: var(--color-warning);
   font-size: 11px;
   font-weight: 650;
 }
 
 .capability-bundle-state.is-ready {
-  border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--color-success) 28%,
+    var(--color-border)
+  );
   background: var(--color-success-subtle);
   color: var(--color-success);
 }
@@ -4307,11 +4709,13 @@
   background: #f0f5ff;
 }
 
-.skill-scene-browser.is-detail .skill-scene-filter-list button.is-selected::after {
+.skill-scene-browser.is-detail
+  .skill-scene-filter-list
+  button.is-selected::after {
   background: #2c6ee7;
 }
 
-.skill-scene-browser.is-detail .capability-center-view-mode {
+.skill-scene-browser.is-detail .capability-center-scene-menu {
   display: none;
 }
 
@@ -4408,7 +4812,10 @@
 }
 
 .skill-workspace-highlight-grid {
-  grid-template-columns: minmax(0, 1.05fr) minmax(260px, 0.52fr) minmax(260px, 0.52fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(260px, 0.52fr) minmax(
+      260px,
+      0.52fr
+    );
   grid-auto-rows: 164px;
   gap: 12px;
   margin-top: 14px;
@@ -4890,7 +5297,8 @@
 
 .skill-workspace-hero > .skill-scene-artwork-fallback svg {
   padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--skill-workspace-tone) 22%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--skill-workspace-tone) 22%, transparent);
   border-radius: 18px;
   box-sizing: content-box;
   background: color-mix(in srgb, #fff 76%, transparent);
@@ -4967,7 +5375,8 @@
   pointer-events: none;
 }
 
-.skill-workspace-feature-stage .skill-workspace-section-heading:not(.is-catalog) {
+.skill-workspace-feature-stage
+  .skill-workspace-section-heading:not(.is-catalog) {
   position: relative;
   z-index: 1;
   display: flex;
@@ -5044,8 +5453,11 @@
   max-width: 50%;
 }
 
-.skill-workspace-feature-stage .polished-skill-card:not(.is-featured) .polished-skill-icon {
-  box-shadow: 0 5px 14px color-mix(in srgb, var(--polished-skill-tone) 11%, transparent);
+.skill-workspace-feature-stage
+  .polished-skill-card:not(.is-featured)
+  .polished-skill-icon {
+  box-shadow: 0 5px 14px
+    color-mix(in srgb, var(--polished-skill-tone) 11%, transparent);
 }
 
 .skill-workspace-feature-stage .polished-skill-card:not(.is-featured) h5 {
@@ -5064,7 +5476,10 @@
     color 0.18s ease;
 }
 
-.skill-workspace-feature-stage .polished-skill-card:hover .polished-skill-card-footer button {
+.skill-workspace-feature-stage
+  .polished-skill-card:hover
+  .polished-skill-card-footer
+  button {
   gap: 9px;
 }
 
@@ -5090,7 +5505,9 @@
 }
 
 /* Readable density: skills are a primary product surface, not a settings table. */
-.skill-workspace-feature-stage .polished-skill-card.is-featured .polished-skill-icon::after,
+.skill-workspace-feature-stage
+  .polished-skill-card.is-featured
+  .polished-skill-icon::after,
 .skill-workspace-feature-stage .polished-skill-state,
 .skill-workspace-feature-stage .polished-skill-category {
   font-size: 11px;
@@ -5114,7 +5531,10 @@
   line-height: 1.52;
 }
 
-.skill-workspace-feature-stage .polished-skill-card:not(.is-featured) .polished-skill-tags span,
+.skill-workspace-feature-stage
+  .polished-skill-card:not(.is-featured)
+  .polished-skill-tags
+  span,
 .polished-skill-tags span {
   min-height: 22px;
   padding-inline: 8px;
@@ -5293,7 +5713,8 @@
   border-radius: 14px;
   color: var(--skill-detail-tone);
   background: var(--skill-detail-tint);
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--skill-detail-tone) 10%, transparent);
+  box-shadow: 0 8px 20px
+    color-mix(in srgb, var(--skill-detail-tone) 10%, transparent);
 }
 
 .skill-detail-heading > div > span {
@@ -5641,7 +6062,8 @@
 }
 
 /* Recommendation stage: one typography rhythm for every card. */
-.skill-workspace-feature-stage .skill-workspace-section-heading:not(.is-catalog) {
+.skill-workspace-feature-stage
+  .skill-workspace-section-heading:not(.is-catalog) {
   align-items: flex-start;
   margin: 0 4px 14px;
 }
@@ -5684,18 +6106,24 @@
   margin: 0;
 }
 
-.skill-workspace-feature-stage .polished-skill-card.is-featured .polished-skill-card-topline {
+.skill-workspace-feature-stage
+  .polished-skill-card.is-featured
+  .polished-skill-card-topline {
   min-height: 38px;
 }
 
-.skill-workspace-feature-stage .polished-skill-card.is-featured .polished-skill-icon {
+.skill-workspace-feature-stage
+  .polished-skill-card.is-featured
+  .polished-skill-icon {
   width: 38px;
   height: 38px;
   padding: 0;
   border-radius: 10px;
 }
 
-.skill-workspace-feature-stage .polished-skill-card.is-featured .polished-skill-icon::after {
+.skill-workspace-feature-stage
+  .polished-skill-card.is-featured
+  .polished-skill-icon::after {
   display: none;
   content: none;
 }
@@ -5711,11 +6139,15 @@
   min-width: 0;
 }
 
-.skill-workspace-feature-stage .polished-skill-card:not(.is-featured) .polished-skill-copy {
+.skill-workspace-feature-stage
+  .polished-skill-card:not(.is-featured)
+  .polished-skill-copy {
   margin-top: 8px;
 }
 
-.skill-workspace-feature-stage .polished-skill-card.is-featured .polished-skill-copy {
+.skill-workspace-feature-stage
+  .polished-skill-card.is-featured
+  .polished-skill-copy {
   margin-top: 15px;
 }
 
@@ -5727,7 +6159,9 @@
   line-height: 1.2;
 }
 
-.skill-workspace-feature-stage .polished-skill-card:not(.is-featured) .polished-skill-category {
+.skill-workspace-feature-stage
+  .polished-skill-card:not(.is-featured)
+  .polished-skill-category {
   display: none;
 }
 
@@ -5783,14 +6217,18 @@
 }
 
 .skill-workspace-feature-stage .polished-skill-tags,
-.skill-workspace-feature-stage .polished-skill-card:not(.is-featured) .polished-skill-tags {
+.skill-workspace-feature-stage
+  .polished-skill-card:not(.is-featured)
+  .polished-skill-tags {
   min-height: 22px;
   align-items: center;
   margin-top: auto;
   padding-top: 7px;
 }
 
-.skill-workspace-feature-stage .polished-skill-card.is-featured .polished-skill-tags {
+.skill-workspace-feature-stage
+  .polished-skill-card.is-featured
+  .polished-skill-tags {
   margin-top: 13px;
   padding-top: 0;
 }
@@ -5803,14 +6241,18 @@
 }
 
 .skill-workspace-feature-stage .polished-skill-card-footer,
-.skill-workspace-feature-stage .polished-skill-card:not(.is-featured) .polished-skill-card-footer {
+.skill-workspace-feature-stage
+  .polished-skill-card:not(.is-featured)
+  .polished-skill-card-footer {
   min-height: 24px;
   align-items: flex-end;
   margin-top: 8px;
   padding-top: 8px;
 }
 
-.skill-workspace-feature-stage .polished-skill-card.is-featured .polished-skill-card-footer {
+.skill-workspace-feature-stage
+  .polished-skill-card.is-featured
+  .polished-skill-card-footer {
   margin-top: auto;
   padding-top: 13px;
 }
@@ -5856,7 +6298,8 @@
   }
 }
 
-/* Main-route capability management: keep common operations out of Settings. */
+/* Capability browsing actions plus the legacy MCP manager surface. Skill
+ * management lives in Settings and is reached through the header action. */
 .capability-center-header-actions,
 .capability-manager-header-actions {
   display: flex;
@@ -5878,9 +6321,17 @@
 }
 
 .capability-center-icon-button:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 36%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 36%,
+    var(--color-border)
+  );
   color: var(--color-accent-dark);
-  background: color-mix(in srgb, var(--color-accent) 5%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 5%,
+    var(--color-bg-elevated)
+  );
 }
 
 .capability-center-page .is-spinning {
@@ -5953,10 +6404,15 @@
 }
 
 .capability-manager-tabs button.is-selected {
-  border-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 22%,
+    var(--color-border)
+  );
   color: var(--color-accent-dark);
   background: var(--color-bg-elevated);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+  box-shadow: 0 2px 8px
+    color-mix(in srgb, var(--color-text-primary) 6%, transparent);
 }
 
 .capability-manager-content {
@@ -5965,7 +6421,8 @@
   border: 1px solid var(--color-border-subtle);
   border-radius: 14px;
   background: var(--color-bg-elevated);
-  box-shadow: 0 8px 28px color-mix(in srgb, var(--color-text-primary) 5%, transparent);
+  box-shadow: 0 8px 28px
+    color-mix(in srgb, var(--color-text-primary) 5%, transparent);
 }
 
 .capability-manager-content .settings-section,
@@ -6042,7 +6499,9 @@
   line-height: 21px;
 }
 
-.capability-manager-content .skills-settings :is(.btn-primary, .btn-secondary, .btn-danger) {
+.capability-manager-content
+  .skills-settings
+  :is(.btn-primary, .btn-secondary, .btn-danger) {
   display: inline-flex;
   min-height: 34px;
   flex: 0 0 auto;
@@ -6064,8 +6523,14 @@
   color: var(--color-text-primary);
 }
 
-.capability-manager-content .skills-settings .btn-secondary:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
+.capability-manager-content
+  .skills-settings
+  .btn-secondary:hover:not(:disabled) {
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 24%,
+    var(--color-border)
+  );
   background: var(--color-bg-hover);
 }
 
@@ -6144,18 +6609,18 @@
   display: inline-flex;
   width: auto;
   min-width: max-content;
-  min-height: 34px;
+  min-height: 36px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding: 0 11px;
+  padding: 0 12px;
   border: 1px solid var(--color-border-subtle);
   border-radius: 8px;
   background: var(--color-bg-elevated);
   color: var(--color-text-secondary);
-  font-size: 12.5px;
-  font-weight: 580;
+  font-size: 13.5px;
+  font-weight: 620;
   line-height: 1;
   white-space: nowrap;
   word-break: keep-all;
@@ -6181,21 +6646,25 @@
 }
 
 .capability-manager-content .skills-category-filter-item.active {
-  border-color: color-mix(in srgb, var(--color-accent) 34%, var(--color-border));
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 34%,
+    var(--color-border)
+  );
   background: var(--color-accent-subtle);
   color: var(--color-accent-dark);
 }
 
 .capability-manager-content .skills-category-filter-item span {
   display: inline-grid;
-  min-width: 18px;
-  height: 18px;
+  min-width: 20px;
+  height: 20px;
   place-items: center;
   padding: 0 4px;
   border-radius: 5px;
   background: color-mix(in srgb, currentColor 7%, transparent);
   color: inherit;
-  font-size: 10px;
+  font-size: 10.5px;
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
@@ -6267,7 +6736,8 @@
   flex: 0 0 32px;
   align-items: center;
   justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 16%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent) 16%, var(--color-border));
   border-radius: 8px;
   background: var(--color-accent-subtle);
   color: var(--color-accent-dark);
@@ -6364,7 +6834,9 @@
   border-radius: 14px;
   background: #ffffff;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .capability-manager-content.is-connectors .mcp-server-card:hover {
@@ -6519,7 +6991,9 @@
   border-radius: 12px;
   background: #ffffff;
   box-shadow: none;
-  transition: border-color 150ms ease, background-color 150ms ease;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
 }
 
 .capability-manager-content.is-connectors .registry-server-card:hover {
@@ -6586,8 +7060,12 @@
   gap: 7px;
 }
 
-.capability-manager-content.is-connectors .registry-server-actions .button-primary,
-.capability-manager-content.is-connectors .registry-server-actions .button-secondary {
+.capability-manager-content.is-connectors
+  .registry-server-actions
+  .button-primary,
+.capability-manager-content.is-connectors
+  .registry-server-actions
+  .button-secondary {
   min-height: 32px;
   padding: 0 12px;
   border-radius: 8px;
@@ -6596,7 +7074,9 @@
   font-weight: 600;
 }
 
-.capability-manager-content.is-connectors .registry-server-actions .button-primary {
+.capability-manager-content.is-connectors
+  .registry-server-actions
+  .button-primary {
   border: 1px solid var(--color-action-primary);
   color: #ffffff;
   background: var(--color-action-primary);
@@ -6609,7 +7089,9 @@
   background: var(--color-action-primary-hover);
 }
 
-.capability-manager-content.is-connectors .registry-server-actions .button-secondary {
+.capability-manager-content.is-connectors
+  .registry-server-actions
+  .button-secondary {
   border: 1px solid #dce3eb;
   color: #475467;
   background: #ffffff;
@@ -6629,9 +7111,7 @@
   margin-bottom: 6px;
 }
 
-.capability-manager-content.is-connectors
-  .mcp-settings
-  > .settings-section {
+.capability-manager-content.is-connectors .mcp-settings > .settings-section {
   box-sizing: border-box;
   padding-top: var(--settings-section-intro-inset, 14px);
   padding-inline: 22px;
@@ -6713,11 +7193,15 @@
   margin: 0 0 15px;
 }
 
-.capability-manager-content.is-connectors .mcp-tunnel-form-grid .settings-field {
+.capability-manager-content.is-connectors
+  .mcp-tunnel-form-grid
+  .settings-field {
   margin: 0;
 }
 
-.capability-manager-content.is-connectors .settings-field > label:not(.settings-checkbox) {
+.capability-manager-content.is-connectors
+  .settings-field
+  > label:not(.settings-checkbox) {
   display: block;
   margin: 0 0 6px;
   color: #344054;
@@ -6740,7 +7224,9 @@
   line-height: 20px;
   outline: none;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
-  transition: border-color 150ms ease, box-shadow 150ms ease,
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
     background-color 150ms ease;
 }
 
@@ -6801,7 +7287,9 @@
   cursor: pointer;
 }
 
-.capability-manager-content.is-connectors .settings-checkbox input[type="checkbox"] {
+.capability-manager-content.is-connectors
+  .settings-checkbox
+  input[type="checkbox"] {
   width: 16px;
   height: 16px;
   margin: 0;
@@ -6847,7 +7335,9 @@
   gap: 17px 18px;
 }
 
-.capability-manager-content.is-connectors .mcp-config-form-grid .settings-field {
+.capability-manager-content.is-connectors
+  .mcp-config-form-grid
+  .settings-field {
   margin: 0;
 }
 
@@ -6888,8 +7378,12 @@
   background: var(--color-action-primary-hover);
 }
 
-.capability-manager-content.is-connectors .mcp-form-actions .button-primary:disabled,
-.capability-manager-content.is-connectors .settings-actions .button-primary:disabled {
+.capability-manager-content.is-connectors
+  .mcp-form-actions
+  .button-primary:disabled,
+.capability-manager-content.is-connectors
+  .settings-actions
+  .button-primary:disabled {
   border-color: #d8e0e9;
   color: #98a2b3;
   background: #edf1f5;
@@ -6936,7 +7430,10 @@
   color: var(--color-text-muted);
 }
 
-.theme-dark .capability-manager-content.is-connectors .mcp-server-actions .button-small {
+.theme-dark
+  .capability-manager-content.is-connectors
+  .mcp-server-actions
+  .button-small {
   border-color: rgba(255, 255, 255, 0.11);
   color: var(--color-text-secondary);
   background: rgba(255, 255, 255, 0.045);
@@ -6945,13 +7442,17 @@
 .theme-dark .capability-manager-content.is-connectors .registry-filters,
 .theme-dark .capability-manager-content.is-connectors .registry-server-card,
 .theme-dark .capability-manager-content.is-connectors .registry-search,
-.theme-dark .capability-manager-content.is-connectors .registry-category-select {
+.theme-dark
+  .capability-manager-content.is-connectors
+  .registry-category-select {
   border-color: rgba(255, 255, 255, 0.1);
   color: var(--color-text-secondary);
   background: rgba(255, 255, 255, 0.045);
 }
 
-.theme-dark .capability-manager-content.is-connectors .registry-server-card:hover {
+.theme-dark
+  .capability-manager-content.is-connectors
+  .registry-server-card:hover {
   border-color: rgba(255, 255, 255, 0.17);
   background: rgba(255, 255, 255, 0.065);
 }
@@ -6960,7 +7461,9 @@
   color: var(--color-text-primary);
 }
 
-.theme-dark .capability-manager-content.is-connectors .registry-server-description,
+.theme-dark
+  .capability-manager-content.is-connectors
+  .registry-server-description,
 .theme-dark .capability-manager-content.is-connectors .registry-server-meta {
   color: var(--color-text-muted);
 }
@@ -6971,7 +7474,10 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
-.theme-dark .capability-manager-content.is-connectors .settings-section-header h3,
+.theme-dark
+  .capability-manager-content.is-connectors
+  .settings-section-header
+  h3,
 .theme-dark .capability-manager-content.is-connectors .settings-section > h3,
 .theme-dark .capability-manager-content.is-connectors .mcp-add-form h4,
 .theme-dark .capability-manager-content.is-connectors .settings-field > label,
@@ -7010,9 +7516,7 @@
     padding: 16px;
   }
 
-  .capability-manager-content.is-connectors
-    .mcp-settings
-    > .settings-section {
+  .capability-manager-content.is-connectors .mcp-settings > .settings-section {
     padding-inline: 16px;
     padding-bottom: 16px;
   }
@@ -7100,7 +7604,11 @@
   padding: 22px 24px;
   border: 1px solid var(--color-border-subtle);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--color-bg-secondary) 38%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-bg-secondary) 38%,
+    var(--color-bg-elevated)
+  );
 }
 
 .capability-page-intro-copy {
@@ -7116,10 +7624,15 @@
   height: 42px;
   flex: 0 0 42px;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
   border-radius: 11px;
   color: var(--color-accent-dark);
-  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 7%,
+    var(--color-bg-elevated)
+  );
 }
 
 .capability-page-intro h2 {
@@ -7212,7 +7725,11 @@
   min-height: 0;
   justify-content: center;
   padding: 22px 24px;
-  background: color-mix(in srgb, var(--color-bg-secondary) 45%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-bg-secondary) 45%,
+    var(--color-bg-elevated)
+  );
 }
 
 .expert-task-guide-visual {
@@ -7235,7 +7752,11 @@
 .connector-recommendations {
   border-color: var(--color-border-subtle);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--color-bg-secondary) 36%, var(--color-bg-elevated));
+  background: color-mix(
+    in srgb,
+    var(--color-bg-secondary) 36%,
+    var(--color-bg-elevated)
+  );
 }
 
 @media (max-width: 900px) {

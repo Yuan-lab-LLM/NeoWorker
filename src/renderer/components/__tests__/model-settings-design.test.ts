@@ -24,14 +24,29 @@ describe("model settings presentation", () => {
   });
 
   it("explains a usage cell with localized date, token and call values", () => {
-    expect(settingsSource).toContain('new Intl.DateTimeFormat("zh-CN"');
+    expect(settingsSource).toContain("new Intl.DateTimeFormat(");
+    expect(settingsSource).toContain(
+      'language === "zh-CN" ? "zh-CN" : "en-US"',
+    );
     expect(settingsSource).toContain("data-tooltip={tooltipLabel}");
-    expect(settingsSource).toContain("· 无调用");
-    expect(settingsSource).toContain("次调用");
+    expect(settingsSource).toContain('"settings.usage.noCallsForPeriod"');
+    expect(settingsSource).toContain('"settings.usage.periodSummary"');
     expect(settingsSource).toContain(
       "tabIndex={value > 0 || callCount > 0 ? 0 : -1}",
     );
     expect(settingsStyles).toContain("span[data-tooltip]::after");
     expect(settingsStyles).toContain("span[data-tooltip]:focus-visible::after");
+  });
+
+  it("keeps the saved model count and configuration checkboxes in sync", () => {
+    expect(settingsSource).toMatch(
+      /openAddModelModal[\s\S]*?getProviderSavedConfiguredModels\([\s\S]*?setSelectedModelsForAdd/,
+    );
+    expect(settingsSource).toMatch(
+      /confirmAddModel[\s\S]*?replaceProviderModelsInRegistry\(/,
+    );
+    expect(settingsSource).toMatch(
+      /selectedProviderConfiguredModels\.map\(\(model\) => \(\{/,
+    );
   });
 });

@@ -59,8 +59,8 @@ const SIDEBAR_FOCUSED_DATE_HEADER_HEIGHT = 26;
 const SIDEBAR_LOAD_MORE_HEIGHT = 32;
 const SIDEBAR_VIRTUALIZATION_MIN_ROWS = 30;
 const SIDEBAR_LOAD_MORE_THRESHOLD_PX = 320;
-const SIDEBAR_TASK_MENU_WIDTH = 168;
-const SIDEBAR_TASK_MENU_ESTIMATED_HEIGHT = 168;
+const SIDEBAR_TASK_MENU_WIDTH = 136;
+const SIDEBAR_TASK_MENU_ESTIMATED_HEIGHT = 102;
 const SIDEBAR_TASK_MENU_GAP = 8;
 const SIDEBAR_TASK_MENU_VIEWPORT_PADDING = 8;
 
@@ -1772,7 +1772,7 @@ function SidebarComponent({
                 <span>
                   {translate(
                     "sidebar.sessions.archive",
-                    "Move to recently deleted",
+                    "Delete",
                   )}
                 </span>
               </button>

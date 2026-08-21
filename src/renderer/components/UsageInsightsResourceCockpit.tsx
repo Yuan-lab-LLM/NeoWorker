@@ -47,12 +47,6 @@ function formatTokens(value: number): string {
   return String(value);
 }
 
-function formatCurrency(value: number): string {
-  if (value >= 1) return `$${value.toFixed(2)}`;
-  if (value >= 0.01) return `$${value.toFixed(3)}`;
-  return `$${value.toFixed(4)}`;
-}
-
 function shortDate(
   timestamp: number,
   language: SupportedLanguage,
@@ -699,16 +693,7 @@ export function UsageInsightsResourceCockpit({
                 </p>
               </div>
             </div>
-            <dl className="resource-cost-details">
-              <div>
-                <dt>
-                  {translate(
-                    "generated.components.usageinsightsresourcecockpit.285.43",
-                    "Expenses for this period",
-                  )}
-                </dt>
-                <dd>{formatCurrency(data.costMetrics.totalCost)}</dd>
-              </div>
+            <dl className="resource-usage-details">
               <div>
                 <dt>
                   {translate(

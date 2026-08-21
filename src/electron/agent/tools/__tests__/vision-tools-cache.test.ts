@@ -175,6 +175,59 @@ describe("VisionTools cache and page range guards", () => {
     }
   });
 
+  it("uses the configured DeepSeek vision model for image analysis", async () => {
+    const vision = createVisionTools();
+    const loadSettingsSpy = vi.spyOn(LLMProviderFactory, "loadSettings").mockReturnValue({
+      providerType: "deepseek",
+      modelKey: "deepseek-v4-flash-vision-exp",
+      deepseek: {
+        apiKey: "deepseek-key",
+        model: "deepseek-v4-flash-vision-exp",
+        baseUrl: "https://api.deepseek.com",
+      },
+    } as Any);
+    const deepSeekSpy = vi
+      .spyOn(vision, "analyzeWithDeepSeek")
+      .mockResolvedValue("DeepSeek vision result");
+
+    try {
+      const result = await vision.analyzeBuffer({
+        base64: "AA==",
+        mimeType: "image/png",
+        prompt: "describe the image",
+        maxTokens: 64,
+        toolName: "analyze_image",
+      });
+
+      expect(deepSeekSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: "deepseek-key",
+          baseUrl: "https://api.deepseek.com",
+          model: "deepseek-v4-flash-vision-exp",
+          mimeType: "image/png",
+        }),
+      );
+      expect(result).toEqual({
+        success: true,
+        provider: "deepseek",
+        model: "deepseek-v4-flash-vision-exp",
+        text: "DeepSeek vision result",
+      });
+    } finally {
+      deepSeekSpy.mockRestore();
+      loadSettingsSpy.mockRestore();
+    }
+  });
+
+  it("exposes DeepSeek as an analyze_image provider override", () => {
+    const analyzeImage = VisionTools.getToolDefinitions().find(
+      (definition) => definition.name === "analyze_image",
+    );
+    expect(analyzeImage?.input_schema.properties?.provider?.enum).toContain(
+      "deepseek",
+    );
+  });
+
   it("aliases provider=openai to Azure when Azure is configured and no direct OpenAI key exists", async () => {
     const vision = createVisionTools();
     const loadSettingsSpy = vi.spyOn(LLMProviderFactory, "loadSettings").mockReturnValue({

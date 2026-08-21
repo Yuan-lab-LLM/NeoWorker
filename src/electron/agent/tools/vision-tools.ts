@@ -17,12 +17,19 @@ import { AgentDaemon } from "../daemon";
 import { LLMTool, MODELS } from "../llm/types";
 import { LLMProviderFactory, type LLMSettings } from "../llm/provider-factory";
 import { OpenAIProvider } from "../llm/openai-provider";
+import { DeepSeekProvider } from "../llm/deepseek-provider";
+import { getProviderImageCaps } from "../llm/image-utils";
 import type { OpenAIOAuthTokens } from "../llm/openai-oauth";
 import { downscaleImage } from "./image-utils";
 import { createLogger } from "../../utils/logger";
 import { buildSensitiveSourceRefForPath } from "../security/export-permission-context";
 
-type VisionProvider = "azure" | "openai" | "anthropic" | "bedrock";
+type VisionProvider =
+  | "azure"
+  | "openai"
+  | "anthropic"
+  | "bedrock"
+  | "deepseek";
 
 const DEFAULT_MAX_TOKENS = 900;
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20MB
@@ -114,6 +121,12 @@ function buildSetupHint(provider: VisionProvider): {
         type: "open_settings",
         label: "Set up Amazon Bedrock credentials",
         target: "bedrock",
+      };
+    case "deepseek":
+      return {
+        type: "open_settings",
+        label: "Set up DeepSeek API key",
+        target: "deepseek",
       };
   }
 }
@@ -298,9 +311,9 @@ export class VisionTools {
             },
             provider: {
               type: "string",
-              enum: ["azure", "openai", "anthropic", "bedrock"],
+              enum: ["azure", "openai", "anthropic", "bedrock", "deepseek"],
               description:
-                "Optional provider override for a non-Gemini vision provider.",
+                "Optional vision provider override.",
             },
             model: {
               type: "string",
@@ -341,7 +354,7 @@ export class VisionTools {
             },
             provider: {
               type: "string",
-              enum: ["azure", "openai", "anthropic", "bedrock"],
+              enum: ["azure", "openai", "anthropic", "bedrock", "deepseek"],
               description: "Optional vision provider override.",
             },
           },
@@ -568,7 +581,8 @@ export class VisionTools {
       normalizedProviderOverride === "azure" ||
       normalizedProviderOverride === "openai" ||
       normalizedProviderOverride === "anthropic" ||
-      normalizedProviderOverride === "bedrock"
+      normalizedProviderOverride === "bedrock" ||
+      normalizedProviderOverride === "deepseek"
         ? (normalizedProviderOverride as VisionProvider)
         : undefined;
 
@@ -580,6 +594,7 @@ export class VisionTools {
           if (normalizedProviderType === "bedrock") order.push("bedrock");
           if (normalizedProviderType === "openai") order.push("openai");
           if (normalizedProviderType === "anthropic") order.push("anthropic");
+          if (normalizedProviderType === "deepseek") order.push("deepseek");
           return order;
         })();
 
@@ -714,6 +729,48 @@ export class VisionTools {
             modelOverride || settings.bedrock?.model || defaultModel;
           const text = await this.analyzeWithBedrock({
             settings,
+            model,
+            prompt,
+            base64,
+            mimeType,
+            maxTokens,
+          });
+          this.daemon.logEvent(this.taskId, "tool_result", {
+            tool: toolName,
+            success: true,
+            provider,
+            model,
+          });
+          return { success: true, provider, model, text };
+        }
+
+        if (provider === "deepseek") {
+          const apiKey = settings.deepseek?.apiKey?.trim();
+          if (!apiKey) {
+            lastError = "DeepSeek API key not configured.";
+            continue;
+          }
+          const globalModel = String(settings.modelKey || "").trim();
+          const providerModel = settings.deepseek?.model?.trim() || "";
+          const configuredVisionModel = [globalModel, providerModel].find(
+            (candidate) =>
+              getProviderImageCaps("deepseek", candidate).supportsImages,
+          );
+          const model =
+            modelOverride ||
+            configuredVisionModel ||
+            providerModel ||
+            globalModel ||
+            "deepseek-chat";
+          if (!getProviderImageCaps("deepseek", model).supportsImages) {
+            lastError =
+              `DeepSeek model "${model}" does not support image analysis. ` +
+              "Switch to a DeepSeek vision model.";
+            continue;
+          }
+          const text = await this.analyzeWithDeepSeek({
+            apiKey,
+            baseUrl: settings.deepseek?.baseUrl,
             model,
             prompt,
             base64,
@@ -1071,6 +1128,52 @@ export class VisionTools {
     });
 
     return response.choices?.[0]?.message?.content?.trim() || "";
+  }
+
+  private async analyzeWithDeepSeek(args: {
+    apiKey: string;
+    baseUrl?: string;
+    model: string;
+    prompt: string;
+    base64: string;
+    mimeType: string;
+    maxTokens: number;
+  }): Promise<string> {
+    const provider = new DeepSeekProvider({
+      type: "deepseek",
+      model: args.model,
+      deepseekApiKey: args.apiKey,
+      deepseekBaseUrl: args.baseUrl,
+    });
+    const response = await provider.createMessage({
+      model: args.model,
+      maxTokens: args.maxTokens,
+      system: "",
+      toolChoice: "none",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: args.prompt },
+            {
+              type: "image",
+              data: args.base64,
+              mimeType: args.mimeType as
+                | "image/jpeg"
+                | "image/png"
+                | "image/gif"
+                | "image/webp",
+            },
+          ],
+        },
+      ],
+    });
+
+    return response.content
+      .filter((block) => block.type === "text")
+      .map((block) => (block.type === "text" ? block.text : ""))
+      .join("\n")
+      .trim();
   }
 
   private async analyzeWithOpenAIOAuth(args: {

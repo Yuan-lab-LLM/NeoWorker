@@ -99,8 +99,6 @@ import {
 import { classifySkillScene } from "../utils/skill-scene-classifier";
 import { NeoWorkerPageHeader } from "./NeoWorkerPageHeader";
 import { MCPSettings } from "./MCPSettings";
-import { SkillHubBrowser } from "./SkillHubBrowser";
-import { SkillsSettings } from "./SkillsSettings";
 import "./capability-center.css";
 
 type CapabilityTab = "experts" | "skills" | "bundles" | "connectors" | "mcp";
@@ -110,6 +108,7 @@ type ExpertFilter = "all" | "build" | "insight" | "content" | "coordination";
 type SkillFilter = "all" | "ready" | "setup" | "disabled";
 type SkillSceneId =
   | "all"
+  | "custom"
   | "research"
   | "legal"
   | "data"
@@ -117,8 +116,7 @@ type SkillSceneId =
   | "engineering"
   | "teamwork";
 type SkillCatalogCategoryId = string;
-type CapabilityManagerMode = "skills" | "connectors" | null;
-type SkillManagerView = "installed" | "store";
+type CapabilityManagerMode = "connectors" | null;
 
 type CapabilityRole = {
   id: string;
@@ -169,6 +167,7 @@ type CapabilityBundle = {
 
 interface CapabilityCenterProps {
   onOpenExperts: () => void;
+  onOpenSkillsSettings: () => void;
   initialTab?: CapabilityTab;
   mode?: CapabilityCenterMode;
   onBackToTeam?: () => void;
@@ -489,7 +488,7 @@ const DEFAULT_SKILL_CATALOG_CATEGORIES: SkillCatalogCategoryDefinition[] = [
 ];
 
 type SkillSceneDefinition = {
-  id: Exclude<SkillSceneId, "all">;
+  id: Exclude<SkillSceneId, "all" | "custom">;
   title: string;
   description: string;
   image: string;
@@ -1249,12 +1248,20 @@ const SKILL_SCENE_FILTERS: Array<{ id: SkillSceneId; label: string }> = [
     label: translate("generated.components.capabilitycenter.479.221", "All"),
   },
   ...SKILL_SCENES.map((scene) => ({ id: scene.id, label: scene.title })),
+  {
+    id: "custom",
+    label: translate("capabilities.scene.custom", "Custom"),
+  },
 ];
+
+const isCustomSkillEntry = (skill: Pick<SkillStatusEntry, "source">) =>
+  skill.source !== "bundled";
 
 const skillMatchesScene = (
   skill: SkillStatusEntry,
   scene: SkillSceneDefinition,
 ) => {
+  if (isCustomSkillEntry(skill)) return false;
   const localized = getLocalizedSkillText(skill);
   return (
     classifySkillScene(
@@ -1438,6 +1445,7 @@ function CapabilityPageIntro({
 
 export function CapabilityCenter({
   onOpenExperts,
+  onOpenSkillsSettings,
   onCreateExpertTask,
   onUseSkill,
   onUseBundle,
@@ -1472,6 +1480,7 @@ export function CapabilityCenter({
   const [expertFilter, setExpertFilter] = useState<ExpertFilter>("all");
   const [skillFilter, setSkillFilter] = useState<SkillFilter>("all");
   const [skillScene, setSkillScene] = useState<SkillSceneId>("all");
+  const [isSceneMenuOpen, setIsSceneMenuOpen] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<SkillStatusEntry | null>(
     null,
   );
@@ -1484,18 +1493,37 @@ export function CapabilityCenter({
   const [taskBrief, setTaskBrief] = useState("");
   const [creatingTask, setCreatingTask] = useState(false);
   const [managerMode, setManagerMode] = useState<CapabilityManagerMode>(null);
-  const [skillManagerView, setSkillManagerView] =
-    useState<SkillManagerView>("installed");
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [bundleTogglePending, setBundleTogglePending] = useState<string | null>(
     null,
   );
   const taskComposerRef = useRef<HTMLFormElement>(null);
   const taskInputRef = useRef<HTMLTextAreaElement>(null);
+  const sceneMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSkillDetailLanguage(appLanguage);
   }, [appLanguage]);
+
+  useEffect(() => {
+    if (!isSceneMenuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!sceneMenuRef.current?.contains(event.target as Node)) {
+        setIsSceneMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsSceneMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSceneMenuOpen]);
 
   useEffect(() => {
     setSkillCatalogCategory("all");
@@ -1612,8 +1640,7 @@ export function CapabilityCenter({
       return;
     }
     if (activeTab === "skills") {
-      setSkillManagerView("installed");
-      setManagerMode("skills");
+      onOpenSkillsSettings();
       return;
     }
     if (activeTab === "connectors" || activeTab === "mcp") {
@@ -1658,16 +1685,18 @@ export function CapabilityCenter({
     );
   });
   const selectedSkillScene =
-    skillScene === "all"
+    skillScene === "all" || skillScene === "custom"
       ? null
       : SKILL_SCENES.find((scene) => scene.id === skillScene) || null;
   const sceneMatchedSkills =
     skillScene === "all"
       ? queryMatchedSkills
-      : queryMatchedSkills.filter((skill) => {
-          const scene = SKILL_SCENES.find((item) => item.id === skillScene);
-          return scene ? skillMatchesScene(skill, scene) : true;
-        });
+      : skillScene === "custom"
+        ? queryMatchedSkills.filter(isCustomSkillEntry)
+        : queryMatchedSkills.filter((skill) => {
+            const scene = SKILL_SCENES.find((item) => item.id === skillScene);
+            return scene ? skillMatchesScene(skill, scene) : true;
+          });
   const skillFilterCounts: Record<SkillFilter, number> = {
     all: sceneMatchedSkills.length,
     ready: sceneMatchedSkills.filter(
@@ -1739,7 +1768,21 @@ export function CapabilityCenter({
     skillScene === "all" &&
     skillFilter === "all" &&
     !normalisedQuery;
-  const SelectedSceneIcon = selectedSkillScene?.Icon || PhMagnifyingGlass;
+  const selectedSkillSceneLabel =
+    skillScene === "custom"
+      ? translate("capabilities.scene.custom", "Custom")
+      : selectedSkillScene?.title;
+  const selectedSkillSceneDescription =
+    skillScene === "custom"
+      ? translate(
+          "capabilities.scene.customDescription",
+          "Skills you created, imported from an external directory, or added in the current workspace.",
+        )
+      : selectedSkillScene?.description;
+  const SelectedSceneIcon =
+    skillScene === "custom"
+      ? CirclesThreePlus
+      : selectedSkillScene?.Icon || PhMagnifyingGlass;
   const visibleConnectors = connectors.filter((connector) =>
     matches(
       `${connector.name} ${connector.description || ""} ${getLocalizedMcpServerDescription(connector)}`,
@@ -1973,41 +2016,20 @@ export function CapabilityCenter({
     ],
   };
 
-  if (managerMode) {
-    const isSkillManager = managerMode === "skills";
+  if (managerMode === "connectors") {
     return (
       <main className="main-content capability-center-page capability-manager-page">
         <NeoWorkerPageHeader
           className="capability-center-product-header capability-manager-header"
-          title={
-            isSkillManager
-              ? translate(
-                  "generated.components.capabilitycenter.1033.242",
-                  "management skills",
-                )
-              : translate(
-                  "generated.components.capabilitycenter.1033.243",
-                  "Management connector",
-                )
-          }
-          description={
-            isSkillManager
-              ? translate(
-                  "generated.components.capabilitycenter.1036.244",
-                  "Create, import and refresh skills. Changes from the local directory, registry, and ClawHub will be synchronized back to the skill homepage.",
-                )
-              : translate(
-                  "generated.components.capabilitycenter.1037.245",
-                  "Connect external tools with real data and add, connect, test and configure permissions here.",
-                )
-          }
-          icon={
-            isSkillManager ? (
-              <PhSparkle size={19} weight="duotone" />
-            ) : (
-              <PlugsConnected size={19} weight="duotone" />
-            )
-          }
+          title={translate(
+            "generated.components.capabilitycenter.1033.243",
+            "Management connector",
+          )}
+          description={translate(
+            "generated.components.capabilitycenter.1037.245",
+            "Connect external tools with real data and add, connect, test and configure permissions here.",
+          )}
+          icon={<PlugsConnected size={19} weight="duotone" />}
           actions={
             <div className="capability-manager-header-actions">
               <button
@@ -2039,53 +2061,9 @@ export function CapabilityCenter({
           }
         />
         <section className="capability-manager-shell">
-          {isSkillManager ? (
-            <>
-              <nav
-                className="capability-manager-tabs"
-                aria-label={translate(
-                  "generated.components.capabilitycenter.1071.248",
-                  "Skill management method",
-                )}
-              >
-                <button
-                  type="button"
-                  className={
-                    skillManagerView === "installed" ? "is-selected" : ""
-                  }
-                  onClick={() => setSkillManagerView("installed")}
-                >
-                  <Wrench size={16} />{" "}
-                  {translate(
-                    "generated.components.capabilitycenter.1077.249",
-                    "Local and custom skills",
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className={skillManagerView === "store" ? "is-selected" : ""}
-                  onClick={() => setSkillManagerView("store")}
-                >
-                  <Package size={16} />{" "}
-                  {translate(
-                    "generated.components.capabilitycenter.1084.250",
-                    "Registry and ClawHub",
-                  )}
-                </button>
-              </nav>
-              <div className="capability-manager-content">
-                {skillManagerView === "installed" ? (
-                  <SkillsSettings />
-                ) : (
-                  <SkillHubBrowser onSkillInstalled={() => requestRefresh()} />
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="capability-manager-content is-connectors">
-              <MCPSettings />
-            </div>
-          )}
+          <div className="capability-manager-content is-connectors">
+            <MCPSettings />
+          </div>
         </section>
       </main>
     );
@@ -2270,6 +2248,7 @@ export function CapabilityCenter({
                       onClick={() => {
                         setSkillScene(filter.id);
                         setSkillFilter("all");
+                        setIsSceneMenuOpen(false);
                       }}
                       aria-pressed={skillScene === filter.id}
                     >
@@ -2277,20 +2256,61 @@ export function CapabilityCenter({
                     </button>
                   ))}
                 </div>
-                <span
-                  className="capability-center-view-mode"
-                  aria-label={translate(
-                    "generated.components.capabilitycenter.1234.263",
-                    "Currently browsing by scene",
-                  )}
+                <div
+                  ref={sceneMenuRef}
+                  className="capability-center-scene-menu"
                 >
-                  <LayoutGrid size={15} />
-                  {translate(
-                    "generated.components.capabilitycenter.1236.264",
-                    "Browse by scene",
+                  <button
+                    type="button"
+                    className="capability-center-view-mode"
+                    aria-haspopup="menu"
+                    aria-expanded={isSceneMenuOpen}
+                    onClick={() => setIsSceneMenuOpen((open) => !open)}
+                  >
+                    <LayoutGrid size={15} />
+                    {selectedSkillSceneLabel ||
+                      translate(
+                        "generated.components.capabilitycenter.1236.264",
+                        "Browse by scene",
+                      )}
+                    <ChevronDown
+                      className={isSceneMenuOpen ? "is-open" : ""}
+                      size={14}
+                    />
+                  </button>
+                  {isSceneMenuOpen && (
+                    <div
+                      className="capability-center-scene-menu-popover"
+                      role="menu"
+                      aria-label={translate(
+                        "generated.components.capabilitycenter.1218.262",
+                        "Filter skills by scenario",
+                      )}
+                    >
+                      {SKILL_SCENE_FILTERS.map((filter) => (
+                        <button
+                          key={filter.id}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={skillScene === filter.id}
+                          className={
+                            skillScene === filter.id ? "is-selected" : ""
+                          }
+                          onClick={() => {
+                            setSkillScene(filter.id);
+                            setSkillFilter("all");
+                            setIsSceneMenuOpen(false);
+                          }}
+                        >
+                          <span>{filter.label}</span>
+                          {skillScene === filter.id ? (
+                            <Check size={14} strokeWidth={2.2} />
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
                   )}
-                  <ChevronDown size={14} />
-                </span>
+                </div>
               </div>
             </div>
 
@@ -2337,7 +2357,7 @@ export function CapabilityCenter({
                       <h3 id="skill-scene-results-title">
                         {normalisedQuery
                           ? `“${query.trim()}”`
-                          : selectedSkillScene?.title ||
+                          : selectedSkillSceneLabel ||
                             translate(
                               "generated.components.capabilitycenter.1283.265",
                               "All skills",
@@ -2373,7 +2393,7 @@ export function CapabilityCenter({
                             "generated.components.capabilitycenter.1295.269",
                             "Sort out matching professional abilities for you by name, purpose and work scenario.",
                           )
-                        : selectedSkillScene?.description}
+                        : selectedSkillSceneDescription}
                     </p>
                   </div>
                   {selectedSkillScene && (
@@ -2494,7 +2514,7 @@ export function CapabilityCenter({
                                 "generated.components.capabilitycenter.1381.276",
                                 "More",
                               )}
-                              {selectedSkillScene?.title ||
+                              {selectedSkillSceneLabel ||
                                 translate(
                                   "generated.components.capabilitycenter.1381.277",
                                   "scene",

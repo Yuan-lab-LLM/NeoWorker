@@ -709,6 +709,25 @@ export class SkillRegistry {
     };
   }
 
+  /**
+   * Read a local SKILL.md bundle without copying it into the managed skills
+   * directory. External skill directories are intentionally read-only, but
+   * should accept the same bundle format as URL and Git imports.
+   */
+  loadExternalSkillBundle(bundleDir: string): CustomSkill {
+    const resolvedBundleDir = path.resolve(bundleDir);
+    const skillMdPath = path.join(resolvedBundleDir, "SKILL.md");
+    if (!fs.existsSync(skillMdPath)) {
+      throw new Error(`External skill bundle does not contain SKILL.md: ${resolvedBundleDir}`);
+    }
+
+    return {
+      ...this.importSkillBundle(resolvedBundleDir, resolvedBundleDir),
+      source: "external",
+      filePath: skillMdPath,
+    };
+  }
+
   private copyImportBundle(sourceDir: string, targetDir: string): void {
     const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
     fs.mkdirSync(targetDir, { recursive: true });

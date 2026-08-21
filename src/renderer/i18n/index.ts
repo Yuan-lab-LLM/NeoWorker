@@ -137,8 +137,29 @@ const translations: Record<SupportedLanguage, Record<string, string>> = {
     "fileViewer.previewFailedHint":
       "The preview encountered an error. Return to the file list and try again.",
     "skills.category.all": "All",
+    "skills.category.custom": "Custom",
     "skills.category.count": "{count} skills",
     "skills.categoryFilter": "Skill categories",
+    "skills.scan": "Scan skills",
+    "skills.scanning": "Scanning…",
+    "skills.notice.scanAdded":
+      "Scan complete: {count} new skills found, {total} total.",
+    "skills.notice.scanCurrent":
+      "Scan complete. The skill list is up to date ({total} total).",
+    "skills.notice.directoryAdded":
+      "Directory added and scanned. {count} skills loaded.",
+    "skills.notice.directoryRemoved": "External skill directory removed.",
+    "skills.notice.duplicateDirectory":
+      "This directory has already been added.",
+    "skills.notice.created": "Skill created.",
+    "skills.notice.saved": "Skill saved.",
+    "skills.directory.loadedCount": "{count} skills loaded",
+    "skills.directory.waiting": "Connected · no skill found",
+    "skills.directory.connectedDirectories": "Connected directories",
+    "skills.directory.summary": "{directories} directories · {skills} skills",
+    "capabilities.scene.custom": "Custom",
+    "capabilities.scene.customDescription":
+      "Skills you created, imported from an external directory, or added in the current workspace.",
     "task.actions.renamePrompt": "Rename task",
     "task.conversationNavigation": "Conversation navigation",
     "task.conversationTurn": "Conversation {number}",
@@ -254,6 +275,13 @@ const translations: Record<SupportedLanguage, Record<string, string>> = {
       "Failed to restore {count} tasks. They may be beyond the 7-day recovery window.",
     "missionControl.restore.withinDays": "Restorable within {count} days",
     "missionControl.restore.withinHours": "Restorable within {count} hours",
+    "missionControl.trash.permanentDelete": "Delete permanently",
+    "missionControl.trash.permanentDeleteDescription":
+      "The task, its execution records, and local worktree data will be removed immediately. This action cannot be undone.",
+    "missionControl.trash.permanentDeleteFailed":
+      "Unable to permanently delete this task. Try again.",
+    "missionControl.trash.permanentDeleteTitle": "Permanently delete “{name}”?",
+    "missionControl.trash.permanentlyDeleting": "Deleting…",
     "missionControl.task.moveToDeletedNamed":
       "Move “{name}” to Recently Deleted",
     "missionControl.task.selectNamed": "Select “{name}”",
@@ -875,7 +903,7 @@ const translations: Record<SupportedLanguage, Record<string, string>> = {
     "sidebar.proactive": "Daily assistant",
     "sidebar.proactiveAgent": "Daily assistant",
     "sidebar.projects": "Project",
-    "sidebar.sessions.archive": "Move to recently deleted",
+    "sidebar.sessions.archive": "Delete",
     "sidebar.sessions.completed": "Completed",
     "sidebar.sessions.conversations": "Conversations",
     "sidebar.sessions.completedWithNewResultHint":
@@ -6520,9 +6548,11 @@ const translations: Record<SupportedLanguage, Record<string, string>> = {
       "为常用工作创建自定义提示词模板。技能会存为 JSON 文件，可以共享或纳入版本控制。",
     "skills.openFolder": "打开文件夹",
     "skills.reload": "重新加载",
+    "skills.scan": "扫描技能",
+    "skills.scanning": "正在扫描…",
     "skills.newSkill": "新建技能",
     "skills.externalDirectories": "外部技能目录",
-    "skills.addDirectory": "添加目录",
+    "skills.addDirectory": "添加并扫描",
     "skills.externalDirectoriesHint":
       "外部目录会以只读方式加载。托管安装仍会进入 NeoWorker 主技能文件夹，并优先于这些共享路径。",
     "skills.open": "打开",
@@ -6531,6 +6561,22 @@ const translations: Record<SupportedLanguage, Record<string, string>> = {
     "skills.empty.hint":
       "点击“新建技能”创建第一个技能，或点击“打开文件夹”手动添加技能 JSON 文件。",
     "skills.uncategorized": "未分类",
+    "skills.category.custom": "自定义",
+    "skills.notice.scanAdded":
+      "扫描完成：发现 {count} 个新技能，共 {total} 个。",
+    "skills.notice.scanCurrent": "扫描完成，技能列表已是最新，共 {total} 个。",
+    "skills.notice.directoryAdded": "目录已添加并扫描，加载了 {count} 个技能。",
+    "skills.notice.directoryRemoved": "已移除外部技能目录。",
+    "skills.notice.duplicateDirectory": "这个目录已经添加过了。",
+    "skills.notice.created": "技能已创建。",
+    "skills.notice.saved": "技能已保存。",
+    "skills.directory.loadedCount": "已加载 {count} 个技能",
+    "skills.directory.waiting": "已连接 · 未发现技能",
+    "skills.directory.connectedDirectories": "已连接目录",
+    "skills.directory.summary": "{directories} 个目录 · {skills} 个技能",
+    "capabilities.scene.custom": "自定义",
+    "capabilities.scene.customDescription":
+      "查看你创建、从外部目录导入，或在当前工作区添加的技能。",
     "skills.badge.behavior": "行为",
     "skills.use": "使用",
     "skills.edit": "编辑",
@@ -7507,7 +7553,7 @@ const translations: Record<SupportedLanguage, Record<string, string>> = {
     "sidebar.sessions.rename": "重命名",
     "sidebar.sessions.pin": "固定",
     "sidebar.sessions.unpin": "取消固定",
-    "sidebar.sessions.archive": "归档",
+    "sidebar.sessions.archive": "删除",
     "sidebar.sessions.delete": "删除",
     "sidebar.sessions.deleteConfirm": "确定要删除这个会话吗？此操作无法撤销。",
     "sidebar.sessions.deleteError": "无法删除会话，请稍后再试。",
@@ -13687,11 +13733,6 @@ const translations: Record<SupportedLanguage, Record<string, string>> = {
     "appearance.colorMode.dark": "深色",
     "appearance.colorMode.system": "跟随系统",
     "appearance.colorMode.auto": "自动",
-    "appearance.homeWidgets": "首页组件",
-    "appearance.homeWidgets.description":
-      "显示在输入框附近的可选工作区组件，默认关闭。",
-    "appearance.homeWidgets.researchVault": "显示研究资料库",
-    "appearance.homeWidgets.nextActions": "显示下一步行动",
     "appearance.language": "语言",
     "appearance.language.description": "选择界面语言。",
     "appearance.developerLogging": "开发日志",

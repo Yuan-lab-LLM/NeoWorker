@@ -6498,6 +6498,33 @@ export async function setupIpcHandlers(
       });
   });
 
+  ipcMain.handle(IPC_CHANNELS.TASK_PURGE_ARCHIVED, async (_, id: string) => {
+    const validated = validateInput(UUIDSchema, id, "task ID");
+    const task = taskRepo.findById(validated);
+    if (!task) {
+      throw new Error(`Task not found: ${validated}`);
+    }
+    return sessionRetentionService.purgeArchivedSession(
+      task.sessionId || task.id,
+      {
+        deleteTask: async (sessionTask) => {
+          await agentDaemon.cancelTask(sessionTask.id);
+          if (!sessionTask.worktreePath && !sessionTask.worktreeBranch) return;
+          try {
+            await agentDaemon
+              .getWorktreeManager()
+              .cleanup(sessionTask.id, true);
+          } catch (error) {
+            logger.warn(
+              `[TASK_PURGE_ARCHIVED] Worktree cleanup failed for ${sessionTask.id}:`,
+              error,
+            );
+          }
+        },
+      },
+    );
+  });
+
   ipcMain.handle(IPC_CHANNELS.TASK_DELETE, async (_, id: string) => {
     const existingTask = taskRepo.findById(id);
 
@@ -11013,6 +11040,20 @@ export async function setupIpcHandlers(
     const limit = typeof query.limit === "number" ? query.limit : undefined;
     return teamRunRepo.listByTeam(teamId, limit);
   });
+
+  ipcMain.handle(
+    IPC_CHANNELS.TEAM_RUN_LIST_RECENT_TASKS,
+    async (_, requestedLimit?: number) => {
+      const limit =
+        typeof requestedLimit === "number" && Number.isFinite(requestedLimit)
+          ? Math.max(1, Math.min(50, Math.floor(requestedLimit)))
+          : 4;
+      return teamRunRepo
+        .listRecentRootTaskIds(limit)
+        .map((taskId) => taskRepo.findById(taskId))
+        .filter((task): task is Task => Boolean(task));
+    },
+  );
 
   ipcMain.handle(IPC_CHANNELS.TEAM_RUN_GET, async (_, id: string) => {
     const validated = validateInput(UUIDSchema, id, "team run ID");

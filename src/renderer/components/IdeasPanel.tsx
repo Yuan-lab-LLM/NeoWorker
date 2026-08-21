@@ -134,6 +134,31 @@ const IDEA_COLLAGE_COVERS: Record<number, string> = {
   49: "/ideas/collage/49-research-local.webp",
 };
 
+// Use purpose-built covers for selected ideas, while every other later card
+// keeps its own unique collage. This prevents repeated image URLs and mixes
+// photography, 3D, editorial illustration, watercolor, paper craft, and clay.
+const IDEA_COVER_OVERRIDES: Record<number, string> = {
+  0: "/ideas/generated/00-morning-brief-sunrise.webp",
+  16: "/ideas/generated/16-team-collaboration-documentary.webp",
+  18: "/ideas/generated/18-debug-error-cinematic.webp",
+  22: "/ideas/generated/22-refactor-code-isometric.webp",
+  26: "/ideas/generated/26-content-monitor-editorial.webp",
+  28: "/ideas/research-analytics-v2.webp",
+  30: "/ideas/generated/30-proofread-watercolor.webp",
+  34: "/ideas/generated/34-email-marketing-pop-art.webp",
+  35: "/ideas/generated/35-contract-review-paper-cut.webp",
+  36: "/ideas/generated/36-demand-letter-still-life.webp",
+  37: "/ideas/generated/37-legal-research-library.webp",
+  38: "/ideas/generated/38-image-generation-mixed-media.webp",
+  39: "/ideas/generated/39-transcribe-neon.webp",
+  40: "/ideas/generated/40-agentic-image-loop-glass.webp",
+  42: "/ideas/generated/42-analyze-csv-clay.webp",
+  44: "/ideas/generated/44-restaurant-booking-photo.webp",
+  45: "/ideas/generated/45-household-board-tactile.webp",
+  46: "/ideas/generated/46-smart-home-isometric.webp",
+  48: "/ideas/generated/48-compare-files-swiss.webp",
+};
+
 const IDEA_CATEGORY_FALLBACK_COVERS: Record<IdeaCategory, string> = {
   all: "/ideas/workspace.webp",
   "daily-ops": "/ideas/morning-brief.webp",
@@ -912,7 +937,8 @@ export function IdeasPanel({ onUsePrompt }: IdeasPanelProps) {
                   <div className="ideas-card-cover">
                     <img
                       src={ideaCoverUrl(
-                        IDEA_PHOTO_COVERS[ideaIndex] ??
+                        IDEA_COVER_OVERRIDES[ideaIndex] ??
+                          IDEA_PHOTO_COVERS[ideaIndex] ??
                           IDEA_COLLAGE_COVERS[ideaIndex],
                       )}
                       alt=""

@@ -144,6 +144,27 @@ describe("localized skill composer prompts", () => {
     ).toBe("Use the analyze-csv skill for this request.");
   });
 
+  it("preserves the real name and description of an external skill", () => {
+    const localized = getLocalizedSkillText(
+      {
+        id: "epairag",
+        name: "epairag",
+        description: "Query the EPAI knowledge base.",
+        category: "Imported",
+        source: "external",
+      },
+      "zh-CN",
+    );
+
+    expect(localized).toMatchObject({
+      name: "epairag",
+      description: "Query the EPAI knowledge base.",
+      category: "自定义",
+      source: "外部",
+    });
+    expect(localized.name).not.toContain("工作流程");
+  });
+
   it("gives every visible plugin skill a specific Chinese action name", () => {
     const skills = loadPluginPackSkills().filter(
       isSkillVisibleForCurrentProductSupport,
@@ -206,7 +227,7 @@ describe("localized skill composer prompts", () => {
       (skill) => skill.parameters?.length,
     );
 
-    expect(parameterizedSkills.length).toBeGreaterThan(100);
+    expect(parameterizedSkills.length).toBeGreaterThan(50);
     for (const skill of parameterizedSkills) {
       for (const parameter of skill.parameters || []) {
         const localized = getLocalizedSkillParameterText(

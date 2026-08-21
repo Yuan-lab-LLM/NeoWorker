@@ -25,23 +25,25 @@ describe("Mission Control task detail layout", () => {
     expect(source).toContain("mc-task-detail-date-control");
     expect(source).toContain('type="date"');
     expect(source).toContain("handleSetTaskDueDate");
-    expect(source).toContain('"补充任务信息"');
-    expect(source).toContain(">记录备注</strong>");
-    expect(source).toContain(">只保存，不执行</small>");
-    expect(source).toContain(">让负责人处理</strong>");
-    expect(source).toContain(">会继续运行任务</small>");
-    expect(source).toContain('"保存任务备注"');
+    expect(source).toContain('"Supplementary task information"');
+    expect(source).toContain('"Record notes"');
+    expect(source).toContain('"Only save, do not execute"');
+    expect(source).toContain('"Let the person in charge handle it"');
+    expect(source).toContain('"The task will continue to run"');
+    expect(source).toContain('"Save task notes"');
     expect(source).toContain('taskUpdateMode === "note"');
     expect(source).toContain('useState<"note" | "action">');
     expect(source).toContain("handleSendTaskMessage");
     expect(source).toContain('includeTypes={["comment"]}');
     expect(source).toContain('excludeTypes={["comment"]}');
-    expect(source).toContain('"技术日志"');
-    expect(source).toContain('"任务异常时用于排查，不需要日常操作"');
+    expect(source).toContain('"Technical log"');
+    expect(source).toContain(
+      '"Used for troubleshooting when tasks are abnormal and does not require daily operations"',
+    );
     expect(source).toContain("isTechnicalLogOpen");
     expect(source).toContain("setIsTechnicalLogOpen(hasRunError)");
     expect(source).toContain("{isTechnicalLogOpen && (");
-    expect(source).toContain('"如何排查"');
+    expect(source).toContain('"How to troubleshoot"');
     expect(source).toContain("showUnreadState={false}");
     expect(source).toContain("showDescriptionsInCompact");
   });

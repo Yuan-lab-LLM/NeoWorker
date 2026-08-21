@@ -35,6 +35,17 @@ describe("Tools & Integrations visual system", () => {
     expect(styles).toContain(".skills-empty");
   });
 
+  it("uses the product action colour for enabled switches", () => {
+    expect(styles).toContain(
+      ".builtin-tool-toggle input:checked + .builtin-tool-toggle-slider",
+    );
+    expect(styles).toContain(
+      ".cp-toggle input:checked + .cp-toggle-slider",
+    );
+    expect(styles).toContain("border-color: var(--color-action-primary)");
+    expect(styles).toContain("background: var(--color-action-primary)");
+  });
+
   it("keeps the connector search input visually owned by its outer shell", () => {
     expect(styles).toContain('.cm-search\n  input[type="search"]:focus');
     expect(styles).toContain("background: transparent");

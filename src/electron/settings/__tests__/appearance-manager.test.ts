@@ -162,6 +162,29 @@ describe("AppearanceManager settings", () => {
     );
   });
 
+  it("removes retired home widget preferences from stored profiles", () => {
+    mocks.storedSettings = {
+      themeMode: "system",
+      homeResearchVaultEnabled: true,
+      homeNextActionsEnabled: true,
+    } as Partial<AppearanceSettings> & {
+      homeResearchVaultEnabled: boolean;
+      homeNextActionsEnabled: boolean;
+    };
+
+    const settings = AppearanceManager.loadSettings();
+
+    expect(settings).not.toHaveProperty("homeResearchVaultEnabled");
+    expect(settings).not.toHaveProperty("homeNextActionsEnabled");
+    expect(mocks.repositorySave).toHaveBeenCalledWith(
+      "appearance",
+      expect.not.objectContaining({
+        homeResearchVaultEnabled: true,
+        homeNextActionsEnabled: true,
+      }),
+    );
+  });
+
   it.each(["CoWork OS", "CoWorkOS", "CrewWork", "QuiverReady"])(
     "migrates the legacy assistant name %s to NeoWorker",
     (legacyName) => {

@@ -14,7 +14,22 @@ import {
 } from "./types";
 import type { LLMProviderType } from "../../../shared/types";
 
-const SUPPORTED_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
+const SUPPORTED_EXTENSIONS = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+]);
+
+const DEEPSEEK_VISION_MODEL_PATTERN =
+  /(?:^|[/:._-])(?:vision|vl\d*|janus(?:-pro)?|ocr|multimodal)(?:$|[/:._-])/i;
+
+const DEEPSEEK_VISION_CAPS: LLMProviderImageCaps = {
+  supportsImages: true,
+  maxImageBytes: 20 * 1024 * 1024,
+  supportedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+};
 
 /**
  * Guess the image MIME type from a file path extension.
@@ -37,8 +52,26 @@ export function isSupportedImageFile(filePath: string): boolean {
   return SUPPORTED_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 }
 
-/** Get the image capability limits for a given provider type. */
-export function getProviderImageCaps(providerType: LLMProviderType): LLMProviderImageCaps {
+/**
+ * Get image capability limits for a provider/model pair.
+ *
+ * Most providers expose one transport shape for all models, so their provider
+ * capability remains the default. DeepSeek is different: its ordinary chat
+ * models are text-only while explicitly named Vision/VL/Janus/OCR models use
+ * the OpenAI-compatible multimodal message shape. Keep that distinction at the
+ * model level so a text model never receives images and a visual model does not
+ * lose them because of a provider-wide flag.
+ */
+export function getProviderImageCaps(
+  providerType: LLMProviderType,
+  modelId?: string,
+): LLMProviderImageCaps {
+  if (
+    providerType === "deepseek" &&
+    DEEPSEEK_VISION_MODEL_PATTERN.test(String(modelId || "").trim())
+  ) {
+    return DEEPSEEK_VISION_CAPS;
+  }
   return (
     PROVIDER_IMAGE_CAPS[providerType] ?? {
       supportsImages: false,
@@ -55,12 +88,14 @@ export function getProviderImageCaps(providerType: LLMProviderType): LLMProvider
 export function validateImageForProvider(
   image: LLMImageContent,
   providerType: LLMProviderType,
+  modelId?: string,
 ): string | null {
-  const caps = getProviderImageCaps(providerType);
+  const caps = getProviderImageCaps(providerType, modelId);
   if (!caps.supportsImages) {
     return `Provider "${providerType}" does not support inline images.`;
   }
-  const rawSize = image.originalSizeBytes ?? Math.ceil((image.data.length * 3) / 4);
+  const rawSize =
+    image.originalSizeBytes ?? Math.ceil((image.data.length * 3) / 4);
   if (rawSize > caps.maxImageBytes) {
     const sizeMB = (rawSize / (1024 * 1024)).toFixed(1);
     const limitMB = (caps.maxImageBytes / (1024 * 1024)).toFixed(0);
@@ -75,7 +110,9 @@ export function validateImageForProvider(
 /**
  * Read an image file from disk and produce an LLMImageContent.
  */
-export async function loadImageFromFile(filePath: string): Promise<LLMImageContent> {
+export async function loadImageFromFile(
+  filePath: string,
+): Promise<LLMImageContent> {
   const mimeType = guessImageMimeType(filePath);
   if (!mimeType) {
     throw new Error(`Unsupported image format: ${path.extname(filePath)}`);
@@ -113,8 +150,12 @@ export function createImageContent(
  *
  * Without actual image dimensions we use file-size heuristics.
  */
-export function estimateImageTokens(image: LLMImageContent, providerType?: string): number {
-  const sizeBytes = image.originalSizeBytes ?? Math.ceil((image.data.length * 3) / 4);
+export function estimateImageTokens(
+  image: LLMImageContent,
+  providerType?: string,
+): number {
+  const sizeBytes =
+    image.originalSizeBytes ?? Math.ceil((image.data.length * 3) / 4);
   const sizeMB = sizeBytes / (1024 * 1024);
   if (sizeMB <= 0.5) return 1000;
   if (sizeMB <= 2) return 2000;
@@ -126,7 +167,8 @@ export function estimateImageTokens(image: LLMImageContent, providerType?: strin
  * Produce a text description as a fallback for providers that do not support images.
  */
 export function imageToTextFallback(image: LLMImageContent): string {
-  const sizeBytes = image.originalSizeBytes ?? Math.ceil((image.data.length * 3) / 4);
+  const sizeBytes =
+    image.originalSizeBytes ?? Math.ceil((image.data.length * 3) / 4);
   const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(1);
   return `[Image attached: ${image.mimeType}, ${sizeMB}MB - this provider does not support inline images. Switch to an image-capable model/provider and resend the image.]`;
 }
@@ -139,8 +181,9 @@ export function imageToTextFallback(image: LLMImageContent): string {
 export function stripImagesForUnsupportedProvider(
   messages: LLMMessage[],
   providerType: LLMProviderType,
+  modelId?: string,
 ): LLMMessage[] {
-  const caps = getProviderImageCaps(providerType);
+  const caps = getProviderImageCaps(providerType, modelId);
   if (caps.supportsImages) return messages;
 
   return messages.map((msg) => {

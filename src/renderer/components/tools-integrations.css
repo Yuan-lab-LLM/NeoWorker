@@ -20,6 +20,22 @@
   --color-action-primary-hover: #1676d2;
 }
 
+/* Keep enabled switches consistent with the rest of Settings. The muted
+   workspace accent is for navigation and low-emphasis selection; an enabled
+   control uses the product action colour so it cannot read as disabled. */
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(
+    .settings-toggle input:checked + .toggle-slider,
+    .toggle-switch input:checked + .toggle-slider,
+    .skill-toggle input:checked + .skill-toggle-slider,
+    .builtin-tool-toggle input:checked + .builtin-tool-toggle-slider,
+    .cp-toggle input:checked + .cp-toggle-slider
+  ) {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-primary);
+}
+
 /* The vertical information architecture should feel like navigation, not a
    stack of filled buttons. */
 .settings-page

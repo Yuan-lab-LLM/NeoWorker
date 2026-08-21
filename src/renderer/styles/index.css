@@ -3088,9 +3088,16 @@ a,
   top: auto;
   right: auto;
   z-index: 10000;
-  width: 168px;
-  min-width: 168px;
+  width: 136px;
+  min-width: 136px;
+  padding: 3px;
   margin-top: 0;
+}
+
+.task-item-menu-floating .task-item-menu-option {
+  min-height: 32px;
+  gap: 8px;
+  padding: 6px 9px;
 }
 
 .task-item-menu::before {
@@ -17212,7 +17219,7 @@ a,
 .command-prompt-glyph {
   color: #ad93ff;
   font-family: "SF Mono", "Menlo", "Monaco", var(--font-mono);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
   flex-shrink: 0;
@@ -17223,7 +17230,7 @@ a,
   min-width: 0;
   flex: 1 1 auto;
   font-family: "SF Mono", "Menlo", "Monaco", var(--font-mono);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--terminal-text);
   white-space: nowrap;
   overflow: hidden;
@@ -17232,7 +17239,7 @@ a,
 
 .command-output-title .command-cwd {
   font-family: "SF Mono", "Menlo", "Monaco", var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--terminal-muted);
   opacity: 0.85;
   white-space: nowrap;
@@ -17372,8 +17379,8 @@ a,
 
 .command-output-content pre {
   font-family: "SF Mono", "Menlo", "Monaco", var(--font-mono);
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 11px;
+  line-height: 1.5;
   color: var(--terminal-text);
   background: transparent;
   white-space: pre-wrap;
@@ -29468,7 +29475,7 @@ a,
 }
 
 .density-focused .command-output-title .command-text {
-  font-size: 12px;
+  font-size: 11px;
 }
 
 /* Hide stdin (terminal prompt) in focused mode */
@@ -29497,7 +29504,8 @@ a,
 }
 
 .density-focused .command-output-content pre {
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 /* Softer stop button */

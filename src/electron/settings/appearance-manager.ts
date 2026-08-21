@@ -25,8 +25,6 @@ const DEFAULT_SETTINGS: AppearanceSettings = {
   timelineVerbosity: "verbose",
   timelineVerbosityConfigured: false,
   devRunLoggingEnabled: false,
-  homeResearchVaultEnabled: false,
-  homeNextActionsEnabled: false,
   disclaimerAccepted: false,
   onboardingCompleted: false,
   onboardingCompletedAt: undefined,
@@ -37,6 +35,8 @@ type StoredAppearanceSettings = Partial<AppearanceSettings> & {
   visualTheme?: unknown;
   accentColor?: unknown;
   uiDensity?: unknown;
+  homeResearchVaultEnabled?: unknown;
+  homeNextActionsEnabled?: unknown;
 };
 
 const LEGACY_PRODUCT_ASSISTANT_NAMES = new Set([
@@ -78,14 +78,6 @@ function sanitizeAppearanceSettings(
       typeof input.devRunLoggingEnabled === "boolean"
         ? input.devRunLoggingEnabled
         : DEFAULT_SETTINGS.devRunLoggingEnabled,
-    homeResearchVaultEnabled:
-      typeof input.homeResearchVaultEnabled === "boolean"
-        ? input.homeResearchVaultEnabled
-        : DEFAULT_SETTINGS.homeResearchVaultEnabled,
-    homeNextActionsEnabled:
-      typeof input.homeNextActionsEnabled === "boolean"
-        ? input.homeNextActionsEnabled
-        : DEFAULT_SETTINGS.homeNextActionsEnabled,
     disclaimerAccepted:
       input.disclaimerAccepted ?? DEFAULT_SETTINGS.disclaimerAccepted,
     onboardingCompleted:
@@ -240,8 +232,8 @@ export class AppearanceManager {
             !isValidTimelineVerbosity(stored.timelineVerbosity) ||
             typeof stored.timelineVerbosityConfigured !== "boolean" ||
             typeof stored.devRunLoggingEnabled !== "boolean" ||
-            typeof stored.homeResearchVaultEnabled !== "boolean" ||
-            typeof stored.homeNextActionsEnabled !== "boolean" ||
+            "homeResearchVaultEnabled" in stored ||
+            "homeNextActionsEnabled" in stored ||
             typeof stored.language !== "string" ||
             stored.language.trim().length === 0 ||
             stored.assistantName !== settings.assistantName ||
@@ -281,8 +273,6 @@ export class AppearanceManager {
           JSON.stringify({
             timelineVerbosity: settings.timelineVerbosity,
             devRunLoggingEnabled: settings.devRunLoggingEnabled,
-            homeResearchVaultEnabled: settings.homeResearchVaultEnabled,
-            homeNextActionsEnabled: settings.homeNextActionsEnabled,
             language: settings.language,
           }),
         );
@@ -392,14 +382,6 @@ export class AppearanceManager {
           typeof settings.devRunLoggingEnabled === "boolean"
             ? settings.devRunLoggingEnabled
             : existingSettings.devRunLoggingEnabled,
-        homeResearchVaultEnabled:
-          typeof settings.homeResearchVaultEnabled === "boolean"
-            ? settings.homeResearchVaultEnabled
-            : existingSettings.homeResearchVaultEnabled,
-        homeNextActionsEnabled:
-          typeof settings.homeNextActionsEnabled === "boolean"
-            ? settings.homeNextActionsEnabled
-            : existingSettings.homeNextActionsEnabled,
       };
 
       const repository = SecureSettingsRepository.getInstance();

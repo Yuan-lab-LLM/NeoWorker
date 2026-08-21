@@ -64,6 +64,16 @@ export interface SessionPruneResult {
   deletedTaskIds: string[];
 }
 
+export interface SessionPurgeResult {
+  sessionId: string;
+  taskCount: number;
+  deletedTaskIds: string[];
+}
+
+export interface SessionPurgeOptions {
+  deleteTask?: (task: Task) => Promise<void> | void;
+}
+
 export class SessionRetentionService {
   constructor(
     private readonly taskRepo: TaskRepository,
@@ -132,6 +142,53 @@ export class SessionRetentionService {
     return this.metadataRepo.rename(sessionId, name);
   }
 
+  async purgeArchivedSession(
+    sessionId: string,
+    options: SessionPurgeOptions = {},
+  ): Promise<SessionPurgeResult> {
+    const normalizedSessionId = String(sessionId || "").trim();
+    const metadata = this.metadataRepo
+      .findBySessionIds([normalizedSessionId])
+      .get(normalizedSessionId);
+    if (!metadata?.archivedAt) {
+      throw new Error(
+        `Session is not in recently deleted: ${normalizedSessionId}`,
+      );
+    }
+    return this.purgeSession(normalizedSessionId, options);
+  }
+
+  async pruneExpiredTrash(
+    now = Date.now(),
+    options: SessionPurgeOptions = {},
+  ): Promise<SessionPruneResult> {
+    const candidates = this.listSessions({
+      includeArchived: true,
+      limit: 10000,
+    }).filter(
+      (session) =>
+        typeof session.archivedAt === "number" &&
+        now - session.archivedAt >= TASK_TRASH_RETENTION_MS,
+    );
+    const result: SessionPruneResult = {
+      dryRun: false,
+      deleted: false,
+      sessions: candidates,
+      sessionCount: candidates.length,
+      taskCount: candidates.reduce((sum, session) => sum + session.count, 0),
+      skippedActive: 0,
+      skippedPinned: 0,
+      deletedTaskIds: [],
+    };
+
+    for (const session of candidates) {
+      const purged = await this.purgeSession(session.id, options);
+      result.deletedTaskIds.push(...purged.deletedTaskIds);
+    }
+    result.deleted = result.deletedTaskIds.length > 0;
+    return result;
+  }
+
   async pruneSessions(
     filters: SessionRetentionFilters,
     options: {
@@ -162,17 +219,34 @@ export class SessionRetentionService {
     }
 
     for (const session of candidates) {
-      const tasks = this.tasksForSession(session.id, 10000);
-      for (const task of tasks) {
-        await options.deleteTask?.(task);
-        this.taskRepo.delete(task.id);
-        result.deletedTaskIds.push(task.id);
-      }
-      this.metadataRepo.delete(session.id);
+      const purged = await this.purgeSession(session.id, options);
+      result.deletedTaskIds.push(...purged.deletedTaskIds);
     }
 
     result.deleted = true;
     return result;
+  }
+
+  private async purgeSession(
+    sessionId: string,
+    options: SessionPurgeOptions,
+  ): Promise<SessionPurgeResult> {
+    const tasks = this.tasksForSession(sessionId, 10000);
+    if (tasks.length === 0) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+    const deletedTaskIds: string[] = [];
+    for (const task of tasks) {
+      await options.deleteTask?.(task);
+      this.taskRepo.delete(task.id);
+      deletedTaskIds.push(task.id);
+    }
+    this.metadataRepo.delete(sessionId);
+    return {
+      sessionId,
+      taskCount: tasks.length,
+      deletedTaskIds,
+    };
   }
 
   private buildSessionSummaries(tasks: Task[]): TaskSessionSummary[] {

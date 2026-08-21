@@ -7659,6 +7659,27 @@
   gap: 4px;
 }
 
+.mc-task-trash-row > .mc-task-trash-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mc-task-trash-row .mc-task-trash-permanent-delete {
+  border-color: color-mix(in srgb, #dc2626 22%, var(--task-border));
+  color: #c62828;
+}
+
+.mc-task-trash-row .mc-task-trash-permanent-delete:hover:not(:disabled) {
+  border-color: color-mix(in srgb, #dc2626 38%, var(--task-border));
+  background: color-mix(in srgb, #dc2626 7%, var(--task-surface));
+}
+
+.mc-task-permanent-delete-backdrop {
+  z-index: 1420;
+}
+
 .mc-task-trash-row strong {
   overflow: hidden;
   color: var(--task-text);
@@ -7697,6 +7718,10 @@
 
   .mc-task-trash-row button {
     justify-self: start;
+  }
+
+  .mc-task-trash-row > .mc-task-trash-row-actions {
+    justify-content: flex-start;
   }
 }
 

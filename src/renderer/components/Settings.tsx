@@ -378,10 +378,6 @@ interface SettingsProps {
   onSettingsChanged?: () => void;
   devRunLoggingEnabled: boolean;
   onDevRunLoggingEnabledChange: (enabled: boolean) => void;
-  homeResearchVaultEnabled: boolean;
-  homeNextActionsEnabled: boolean;
-  onHomeResearchVaultEnabledChange: (enabled: boolean) => void;
-  onHomeNextActionsEnabledChange: (enabled: boolean) => void;
   initialTab?: SettingsTab;
   workspaceId?: string;
   onCreateTask?: (title: string, prompt: string) => void;
@@ -2154,10 +2150,6 @@ export function Settings({
   onSettingsChanged,
   devRunLoggingEnabled,
   onDevRunLoggingEnabledChange,
-  homeResearchVaultEnabled,
-  homeNextActionsEnabled,
-  onHomeResearchVaultEnabledChange,
-  onHomeNextActionsEnabledChange,
   initialTab = "appearance",
   workspaceId,
   onCreateTask,
@@ -2342,9 +2334,7 @@ export function Settings({
   const [addModelProviderType, setAddModelProviderType] =
     useState<LLMProviderType>("gemini");
   const [modelProviderSearch, setModelProviderSearch] = useState("");
-  const [selectedModelsForAdd, setSelectedModelsForAdd] = useState<string[]>([
-    language,
-  ]);
+  const [selectedModelsForAdd, setSelectedModelsForAdd] = useState<string[]>([]);
   const [expandedModelProviders, setExpandedModelProviders] = useState<
     Record<string, boolean>
   >({});
@@ -3882,24 +3872,6 @@ export function Settings({
     );
   };
 
-  const addModelToProviderRegistry = (
-    sourceSettings: LLMSettingsData,
-    providerType: LLMProviderType,
-    modelName: string,
-  ): LLMSettingsData => {
-    const model = modelName.trim();
-    if (!model) return sourceSettings;
-    const registryKey = resolveCustomProviderId(providerType);
-    const existing = sourceSettings.providerModelRegistry?.[registryKey] || {};
-    return writeProviderModelRegistryEntry(sourceSettings, providerType, {
-      models: normalizeProviderModelNames([...(existing.models || []), model]),
-      enabled: {
-        ...(existing.enabled || {}),
-        [model]: true,
-      },
-    });
-  };
-
   const removeModelFromProviderRegistry = (
     sourceSettings: LLMSettingsData,
     providerType: LLMProviderType,
@@ -3936,6 +3908,23 @@ export function Settings({
     return writeProviderModelRegistryEntry(sourceSettings, providerType, {
       models,
       enabled: enabledMap,
+    });
+  };
+
+  const replaceProviderModelsInRegistry = (
+    sourceSettings: LLMSettingsData,
+    providerType: LLMProviderType,
+    modelNames: string[],
+  ): LLMSettingsData => {
+    const registryKey = resolveCustomProviderId(providerType);
+    const existing = sourceSettings.providerModelRegistry?.[registryKey] || {};
+    const models = normalizeProviderModelNames(modelNames);
+    const enabled = Object.fromEntries(
+      models.map((model) => [model, existing.enabled?.[model] !== false]),
+    );
+    return writeProviderModelRegistryEntry(sourceSettings, providerType, {
+      models,
+      enabled,
     });
   };
 
@@ -7884,7 +7873,17 @@ export function Settings({
       ) as LLMProviderType;
       setAddModelProviderType(nextProviderType);
       const primaryModel = getProviderPrimaryModel(nextProviderType).trim();
-      setSelectedModelsForAdd(primaryModel ? [primaryModel] : []);
+      const configuredModels = getProviderSavedConfiguredModels(
+        nextProviderType,
+        settingsRef.current,
+      );
+      setSelectedModelsForAdd(
+        configuredModels.length > 0
+          ? configuredModels
+          : primaryModel
+            ? [primaryModel]
+            : [],
+      );
       setModelProviderSearch("");
       setAddModelModalOpen(true);
       void loadModelCatalogForAdd(nextProviderType);
@@ -7904,33 +7903,58 @@ export function Settings({
         });
         return;
       }
-      const modelKey = getProviderPrimaryModel(selectedProviderType);
-      const modelKeys =
-        selectedModelsForAdd.length > 0 ? selectedModelsForAdd : [modelKey];
-      const nextSettings = modelKeys.reduce(
-        (next, nextModelKey) =>
-          addModelToProviderRegistry(
-            {
-              ...next,
-              providerType: selectedProviderType,
-              modelKey: nextModelKey || next.modelKey,
-            },
-            selectedProviderType,
-            nextModelKey,
-          ),
-        settingsRef.current,
+      const currentPrimaryModel = getProviderPrimaryModel(
+        selectedProviderType,
+      );
+      const modelKeys = normalizeProviderModelNames(
+        selectedModelsForAdd.length > 0
+          ? selectedModelsForAdd
+          : [currentPrimaryModel],
+      );
+      const nextPrimaryModel = modelKeys.includes(currentPrimaryModel)
+        ? currentPrimaryModel
+        : modelKeys[0] || "";
+      let nextSettings = replaceProviderModelsInRegistry(
+        {
+          ...settingsRef.current,
+          providerType: selectedProviderType,
+        },
+        selectedProviderType,
+        modelKeys,
+      );
+      nextSettings = writeProviderPrimaryModelSetting(
+        nextSettings,
+        selectedProviderType,
+        nextPrimaryModel,
       );
       settingsRef.current = nextSettings;
       setSettings(nextSettings);
+      setProviderPrimaryModel(selectedProviderType, nextPrimaryModel);
       setSelectedModelsForAdd([]);
       setAddModelModalOpen(false);
-      void handleSave({ stayOnPage: true });
+      void handleSave({
+        stayOnPage: true,
+        selectedModel: {
+          providerType: selectedProviderType,
+          modelName: nextPrimaryModel,
+        },
+      });
     };
 
     const selectProviderForModelAdd = (providerType: LLMProviderType) => {
       setAddModelProviderType(providerType);
       const primaryModel = getProviderPrimaryModel(providerType).trim();
-      setSelectedModelsForAdd(primaryModel ? [primaryModel] : []);
+      const configuredModels = getProviderSavedConfiguredModels(
+        providerType,
+        settingsRef.current,
+      );
+      setSelectedModelsForAdd(
+        configuredModels.length > 0
+          ? configuredModels
+          : primaryModel
+            ? [primaryModel]
+            : [],
+      );
       void loadModelCatalogForAdd(providerType);
     };
 
@@ -8131,18 +8155,17 @@ export function Settings({
       handleTestConnection(providerType);
     const selectedProviderPrimaryModel =
       getProviderPrimaryModel(selectedProviderType).trim();
+    const selectedProviderConfiguredModels = getProviderSavedConfiguredModels(
+      selectedProviderType,
+    );
     const selectedProviderModelCatalog = Array.from(
       new Map(
         [
           ...getModelCatalogForAdd(selectedProviderType),
-          ...(selectedProviderPrimaryModel
-            ? [
-                {
-                  key: selectedProviderPrimaryModel,
-                  displayName: selectedProviderPrimaryModel,
-                },
-              ]
-            : []),
+          ...selectedProviderConfiguredModels.map((model) => ({
+            key: model,
+            displayName: model,
+          })),
         ].map((model) => [model.key, model]),
       ).values(),
     );
@@ -13797,14 +13820,6 @@ export function Settings({
                         devRunLoggingEnabled={devRunLoggingEnabled}
                         onDevRunLoggingEnabledChange={
                           onDevRunLoggingEnabledChange
-                        }
-                        homeResearchVaultEnabled={homeResearchVaultEnabled}
-                        homeNextActionsEnabled={homeNextActionsEnabled}
-                        onHomeResearchVaultEnabledChange={
-                          onHomeResearchVaultEnabledChange
-                        }
-                        onHomeNextActionsEnabledChange={
-                          onHomeNextActionsEnabledChange
                         }
                       />
                     )}

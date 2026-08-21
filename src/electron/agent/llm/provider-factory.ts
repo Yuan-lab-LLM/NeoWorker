@@ -71,6 +71,7 @@ import { getSafeStorage } from "../../utils/safe-storage";
 import { createLogger } from "../../utils/logger";
 import { ModelCapabilityRegistry } from "./ModelCapabilityRegistry";
 import { normalizePromptCachingSettings } from "./prompt-cache";
+import { getProviderImageCaps } from "./image-utils";
 import {
   getKimiEndpointCandidates,
   normalizeKimiApiKey,
@@ -1021,9 +1022,11 @@ export interface LLMSettings {
   providerModelRegistry?: Record<string, LLMProviderModelRegistryEntry>;
   /** Text-to-image model selection. Default tried first; backup used on failure. */
   imageGeneration?: {
-    defaultProvider?: "openai" | "openai-codex" | "azure" | "openrouter" | "gemini";
+    defaultProvider?:
+      "openai" | "openai-codex" | "azure" | "openrouter" | "gemini";
     defaultModel?: "gpt-image-2" | "gpt-image-1.5" | "nano-banana-2";
-    backupProvider?: "openai" | "openai-codex" | "azure" | "openrouter" | "gemini";
+    backupProvider?:
+      "openai" | "openai-codex" | "azure" | "openrouter" | "gemini";
     backupModel?: "gpt-image-2" | "gpt-image-1.5" | "nano-banana-2";
     timeouts?: {
       openai?: number;
@@ -1306,12 +1309,17 @@ export class LLMProviderFactory {
     slot: MoaModelSlot,
   ): ResolvedMoaSlot[] {
     if (slot.providerType === "moa") {
-      throw new Error("Mixture of Agents presets cannot reference another MoA preset.");
+      throw new Error(
+        "Mixture of Agents presets cannot reference another MoA preset.",
+      );
     }
 
     const candidates: ResolvedMoaSlot[] = [];
     const seen = new Set<string>();
-    const addCandidate = (providerType: LLMProviderType, modelKey: string): void => {
+    const addCandidate = (
+      providerType: LLMProviderType,
+      modelKey: string,
+    ): void => {
       const resolvedProviderType = resolveCustomProviderId(providerType);
       if (!resolvedProviderType || resolvedProviderType === "moa") return;
       if (!this.isProviderConfigured(settings, resolvedProviderType)) return;
@@ -1459,7 +1467,7 @@ export class LLMProviderFactory {
       );
       return Boolean(
         hasText(config?.apiKey) ||
-          (hasText(config?.baseUrl) && hasText(config?.model)),
+        (hasText(config?.baseUrl) && hasText(config?.model)),
       );
     }
 
@@ -1471,8 +1479,8 @@ export class LLMProviderFactory {
       case "openai":
         return Boolean(
           hasText(settings.openai?.apiKey) ||
-            hasText(settings.openai?.accessToken) ||
-            hasText(settings.openai?.refreshToken),
+          hasText(settings.openai?.accessToken) ||
+          hasText(settings.openai?.refreshToken),
         );
       case "gemini":
         return hasText(settings.gemini?.apiKey);
@@ -1486,8 +1494,8 @@ export class LLMProviderFactory {
       case "xai-oauth":
         return Boolean(
           hasText(settings.xai?.apiKey) ||
-            (hasText(settings.xai?.accessToken) &&
-              hasText(settings.xai?.refreshToken)),
+          (hasText(settings.xai?.accessToken) &&
+            hasText(settings.xai?.refreshToken)),
         );
       case "azure":
         return Boolean(
@@ -1496,13 +1504,13 @@ export class LLMProviderFactory {
       case "azure-anthropic":
         return Boolean(
           hasText(settings.azureAnthropic?.apiKey) &&
-            hasText(settings.azureAnthropic?.endpoint),
+          hasText(settings.azureAnthropic?.endpoint),
         );
       case "bedrock":
         return Boolean(
           (hasText(settings.bedrock?.accessKeyId) &&
             hasText(settings.bedrock?.secretAccessKey)) ||
-            hasText(settings.bedrock?.profile),
+          hasText(settings.bedrock?.profile),
         );
       case "ollama":
         return Boolean(
@@ -1515,7 +1523,7 @@ export class LLMProviderFactory {
       case "openai-compatible":
         return Boolean(
           hasText(settings.openaiCompatible?.baseUrl) &&
-            hasText(settings.openaiCompatible?.model),
+          hasText(settings.openaiCompatible?.model),
         );
       case "moa":
         return this.getEnabledMoaPresets(settings).some((preset) =>
@@ -1546,8 +1554,10 @@ export class LLMProviderFactory {
     const customEntry = getCustomProviderEntry(resolvedProviderType);
     if (customEntry) {
       return Boolean(
-        getCustomProviderConfig(settings.customProviders, resolvedProviderType)
-          ?.model?.trim(),
+        getCustomProviderConfig(
+          settings.customProviders,
+          resolvedProviderType,
+        )?.model?.trim(),
       );
     }
 
@@ -1606,10 +1616,7 @@ export class LLMProviderFactory {
     const registry = settings.providerModelRegistry?.[registryKey];
     const deploymentModels =
       registryKey === "azure"
-        ? [
-            settings.azure?.deployment,
-            ...(settings.azure?.deployments || []),
-          ]
+        ? [settings.azure?.deployment, ...(settings.azure?.deployments || [])]
         : registryKey === "azure-anthropic"
           ? [
               settings.azureAnthropic?.deployment,
@@ -1652,13 +1659,12 @@ export class LLMProviderFactory {
     const hasExplicitDeployments =
       (registryKey === "azure" &&
         Boolean(
-          settings.azure?.deployment ||
-            settings.azure?.deployments?.length,
+          settings.azure?.deployment || settings.azure?.deployments?.length,
         )) ||
       (registryKey === "azure-anthropic" &&
         Boolean(
           settings.azureAnthropic?.deployment ||
-            settings.azureAnthropic?.deployments?.length,
+          settings.azureAnthropic?.deployments?.length,
         ));
 
     // Kimi installations created before the configured-model registry already
@@ -1668,14 +1674,13 @@ export class LLMProviderFactory {
     // authoritative registry entry below.
     if (!registry && !hasExplicitDeployments) {
       if (registryKey === "kimi" && rawStatus.currentModel) {
-        const currentModel =
-          rawStatus.models.find(
-            (model) => model.key === rawStatus.currentModel,
-          ) || {
-            key: rawStatus.currentModel,
-            displayName: rawStatus.currentModel,
-            description: "Configured model",
-          };
+        const currentModel = rawStatus.models.find(
+          (model) => model.key === rawStatus.currentModel,
+        ) || {
+          key: rawStatus.currentModel,
+          displayName: rawStatus.currentModel,
+          description: "Configured model",
+        };
         return {
           currentModel: rawStatus.currentModel,
           models: [currentModel],
@@ -1942,7 +1947,10 @@ export class LLMProviderFactory {
         defaultModel ||
         undefined,
       cheapModelKey:
-        this.normalizeProviderModelKey(providerType, configured?.cheapModelKey) ||
+        this.normalizeProviderModelKey(
+          providerType,
+          configured?.cheapModelKey,
+        ) ||
         defaultModel ||
         undefined,
       automatedTaskModelKey:
@@ -1960,7 +1968,10 @@ export class LLMProviderFactory {
     settings: LLMSettings,
     providerType: LLMProviderType,
   ): Required<
-    Pick<ProviderRoutingSettings, "fallbackProviders" | "failoverPrimaryRetryCooldownSeconds">
+    Pick<
+      ProviderRoutingSettings,
+      "fallbackProviders" | "failoverPrimaryRetryCooldownSeconds"
+    >
   > {
     const configured = this.getProviderRoutingSettingsNode(
       settings,
@@ -1971,7 +1982,9 @@ export class LLMProviderFactory {
     return {
       fallbackProviders:
         configured?.fallbackProviders ??
-        (shouldInheritGlobalFallbacks ? settings.fallbackProviders : undefined) ??
+        (shouldInheritGlobalFallbacks
+          ? settings.fallbackProviders
+          : undefined) ??
         [],
       failoverPrimaryRetryCooldownSeconds:
         configured?.failoverPrimaryRetryCooldownSeconds ??
@@ -2078,9 +2091,11 @@ export class LLMProviderFactory {
     const settings = this.loadSettings();
     const hasExplicitProviderOverride =
       options?.allowProviderOverride && Boolean(taskAgentConfig?.providerType);
-    const providerType = (hasExplicitProviderOverride
-      ? taskAgentConfig?.providerType
-      : this.getEffectiveProviderType(settings)) as LLMProviderType;
+    const providerType = (
+      hasExplicitProviderOverride
+        ? taskAgentConfig?.providerType
+        : this.getEffectiveProviderType(settings)
+    ) as LLMProviderType;
     const routing = this.getProviderRoutingSettings(settings, providerType);
     const warnings: string[] = [];
 
@@ -2117,7 +2132,10 @@ export class LLMProviderFactory {
     if (allowExplicitModelOverride && explicitModelOverride) {
       modelSource = "explicit_override";
       resolvedModelKey = explicitModelOverride;
-    } else if (options?.allowCapabilityRouting && taskAgentConfig?.capabilityHint) {
+    } else if (
+      options?.allowCapabilityRouting &&
+      taskAgentConfig?.capabilityHint
+    ) {
       const capabilityModelKey = resolveModelPreferenceToModelKey(
         ModelCapabilityRegistry.selectForCapability(
           taskAgentConfig.capabilityHint,
@@ -2276,17 +2294,25 @@ export class LLMProviderFactory {
       return chain;
     }
 
-    const imageCapableChain = chain.filter((selection) => this.selectionSupportsImageInput(selection));
-    return imageCapableChain.length > 0 ? imageCapableChain : [primarySelection];
+    const imageCapableChain = chain.filter((selection) =>
+      this.selectionSupportsImageInput(selection),
+    );
+    return imageCapableChain.length > 0
+      ? imageCapableChain
+      : [primarySelection];
   }
 
   private static selectionSupportsImageInput(
     selection: Pick<ResolvedTaskModelSelection, "providerType" | "modelId">,
   ): boolean {
-    if (selection.providerType !== "openrouter") {
-      return true;
+    if (
+      selection.providerType === "openrouter" &&
+      OpenRouterProvider.getImageSupportHint(selection.modelId) === false
+    ) {
+      return false;
     }
-    return OpenRouterProvider.getImageSupportHint(selection.modelId) !== false;
+    return getProviderImageCaps(selection.providerType, selection.modelId)
+      .supportsImages;
   }
 
   /**
@@ -2645,20 +2671,22 @@ export class LLMProviderFactory {
         settings.openai?.accessToken,
       openaiRefreshToken: settings.openai?.refreshToken,
       openaiTokenExpiresAt: settings.openai?.tokenExpiresAt,
-      openaiOAuthTokenUpdater: overrideConfig?.openaiOAuthTokenUpdater || (async (tokens) => {
-        const latestSettings = this.loadSettings();
-        latestSettings.openai = {
-          ...latestSettings.openai,
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          tokenExpiresAt: tokens.expires_at,
-          accountId: tokens.accountId,
-          email: tokens.email,
-          authMethod: "oauth",
-        };
-        this.saveSettings(latestSettings);
-        this.clearCache();
-      }),
+      openaiOAuthTokenUpdater:
+        overrideConfig?.openaiOAuthTokenUpdater ||
+        (async (tokens) => {
+          const latestSettings = this.loadSettings();
+          latestSettings.openai = {
+            ...latestSettings.openai,
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token,
+            tokenExpiresAt: tokens.expires_at,
+            accountId: tokens.accountId,
+            email: tokens.email,
+            authMethod: "oauth",
+          };
+          this.saveSettings(latestSettings);
+          this.clearCache();
+        }),
       // Azure OpenAI config - from settings only
       azureApiKey:
         normalizeSecret(overrideConfig?.azureApiKey) || settings.azure?.apiKey,
@@ -2696,20 +2724,22 @@ export class LLMProviderFactory {
         overrideConfig?.xaiTokenExpiresAt || settings.xai?.tokenExpiresAt,
       xaiTokenEndpoint:
         overrideConfig?.xaiTokenEndpoint || settings.xai?.tokenEndpoint,
-      xaiOAuthTokenUpdater: overrideConfig?.xaiOAuthTokenUpdater || (async (tokens) => {
-        const latestSettings = this.loadSettings();
-        latestSettings.xai = {
-          ...latestSettings.xai,
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          tokenExpiresAt: tokens.expires_at,
-          tokenEndpoint: tokens.token_endpoint,
-          idToken: tokens.id_token,
-          authMethod: "oauth",
-        };
-        this.saveSettings(latestSettings);
-        this.clearCache();
-      }),
+      xaiOAuthTokenUpdater:
+        overrideConfig?.xaiOAuthTokenUpdater ||
+        (async (tokens) => {
+          const latestSettings = this.loadSettings();
+          latestSettings.xai = {
+            ...latestSettings.xai,
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token,
+            tokenExpiresAt: tokens.expires_at,
+            tokenEndpoint: tokens.token_endpoint,
+            idToken: tokens.id_token,
+            authMethod: "oauth",
+          };
+          this.saveSettings(latestSettings);
+          this.clearCache();
+        }),
       xaiBaseUrl: overrideConfig?.xaiBaseUrl || settings.xai?.baseUrl,
       // Kimi config - from settings only
       kimiApiKey:
@@ -3372,7 +3402,8 @@ export class LLMProviderFactory {
       case "deepseek": {
         const currentModel = settings.deepseek?.model || "deepseek-chat";
         const modelList =
-          settings.cachedDeepSeekModels && settings.cachedDeepSeekModels.length > 0
+          settings.cachedDeepSeekModels &&
+          settings.cachedDeepSeekModels.length > 0
             ? settings.cachedDeepSeekModels
             : Object.values(DEEPSEEK_MODELS).map((value) => ({
                 key: value.id,
@@ -3417,17 +3448,20 @@ export class LLMProviderFactory {
                 {
                   key: "gpt-5.4",
                   displayName: "GPT-5.4",
-                  description: "Current Codex model for ChatGPT subscription access",
+                  description:
+                    "Current Codex model for ChatGPT subscription access",
                 },
                 {
                   key: "gpt-5.4-mini",
                   displayName: "GPT-5.4 Mini",
-                  description: "Fast GPT-5.4 model for ChatGPT subscription access",
+                  description:
+                    "Fast GPT-5.4 model for ChatGPT subscription access",
                 },
                 {
                   key: "gpt-5.4-nano",
                   displayName: "GPT-5.4 Nano",
-                  description: "Fastest GPT-5.4 model for ChatGPT subscription access",
+                  description:
+                    "Fastest GPT-5.4 model for ChatGPT subscription access",
                 },
                 {
                   key: "gpt-5.3-codex-spark",
@@ -3654,11 +3688,9 @@ export class LLMProviderFactory {
               ];
         return {
           currentModel,
-          models: attachMetadata(ensureCurrentModel(
-            modelList,
-            currentModel,
-            "Selected Pi model",
-          )),
+          models: attachMetadata(
+            ensureCurrentModel(modelList, currentModel, "Selected Pi model"),
+          ),
         };
       }
 
@@ -3677,12 +3709,11 @@ export class LLMProviderFactory {
                 // Cached entries from the old generic provider must not keep
                 // showing “OpenAI-Compatible model” after a user names the
                 // provider (for example, “积算平台”).
-                description:
-                  /^openai[-\s]?compatible model$/i.test(
-                    model.description?.trim() || "",
-                  )
-                    ? providerModelDescription
-                    : model.description || providerModelDescription,
+                description: /^openai[-\s]?compatible model$/i.test(
+                  model.description?.trim() || "",
+                )
+                  ? providerModelDescription
+                  : model.description || providerModelDescription,
               }))
             : currentModel
               ? [
@@ -3715,7 +3746,11 @@ export class LLMProviderFactory {
         return {
           currentModel,
           models: attachMetadata(
-            ensureCurrentModel(modelList, currentModel, "Mixture of Agents preset"),
+            ensureCurrentModel(
+              modelList,
+              currentModel,
+              "Mixture of Agents preset",
+            ),
           ),
         };
       }
@@ -4439,7 +4474,8 @@ export class LLMProviderFactory {
           const known = knownIds.get(normalizedId);
           return {
             id: known?.key || normalizedId,
-            displayName: known?.displayName || model.display_name || normalizedId,
+            displayName:
+              known?.displayName || model.display_name || normalizedId,
             description: normalizedId,
           };
         });
@@ -4619,7 +4655,8 @@ export class LLMProviderFactory {
           {
             id: "gpt-5.4-nano",
             name: "GPT-5.4 Nano",
-            description: "Fastest GPT-5.4 model for ChatGPT subscription access",
+            description:
+              "Fastest GPT-5.4 model for ChatGPT subscription access",
           },
           {
             id: "gpt-5.3-codex-spark",

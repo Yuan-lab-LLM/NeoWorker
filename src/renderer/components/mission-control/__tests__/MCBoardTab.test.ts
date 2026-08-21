@@ -262,7 +262,7 @@ describe("MCBoardTab", () => {
     expect(markup).toContain(">历史</span>");
     expect(markup).toContain('role="tabpanel"');
     expect(markup).toContain('aria-label="任务概况"');
-    expect(markup).toContain(">正在执行</strong>");
+    expect(markup).toContain(">执行中</strong>");
     expect(markup).toContain(">等待开始</strong>");
     expect(markup).toContain(">暂停 / 停滞</strong>");
     expect(markup).not.toContain(">待分配</strong>");

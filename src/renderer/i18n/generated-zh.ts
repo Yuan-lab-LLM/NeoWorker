@@ -129,6 +129,13 @@ export const GENERATED_ZH_TRANSLATIONS: Record<string, string> = {
     "有 {count} 项任务恢复失败，可能已超过 7 天恢复期限。",
   "missionControl.restore.withinDays": "{count} 天内可恢复",
   "missionControl.restore.withinHours": "{count} 小时内可恢复",
+  "missionControl.trash.permanentDelete": "永久删除",
+  "missionControl.trash.permanentDeleteDescription":
+    "任务、执行记录和本地工作树数据将立即删除。此操作无法撤销。",
+  "missionControl.trash.permanentDeleteFailed":
+    "无法永久删除该任务，请重试。",
+  "missionControl.trash.permanentDeleteTitle": "永久删除“{name}”？",
+  "missionControl.trash.permanentlyDeleting": "正在删除…",
   "missionControl.task.moveToDeletedNamed": "将“{name}”移到最近删除",
   "missionControl.task.selectNamed": "选择“{name}”",
   "missionControl.task.setPriorityNamed": "设置“{name}”的优先级",
@@ -1503,7 +1510,7 @@ export const GENERATED_ZH_TRANSLATIONS: Record<string, string> = {
   "generated.components.mission.control.mcboardtab.734.70": "任务筛选",
   "generated.components.mission.control.mcboardtab.738.71": "任务展示方式",
   "generated.components.mission.control.mcboardtab.742.72": "列表视图",
-  "generated.components.mission.control.mcboardtab.748.73": "个清单",
+  "generated.components.mission.control.mcboardtab.748.73": "列表",
   "generated.components.mission.control.mcboardtab.752.74": "日历视图",
   "generated.components.mission.control.mcboardtab.761.75": "日历",
   "generated.components.mission.control.mcboardtab.766.76": "按负责人筛选",

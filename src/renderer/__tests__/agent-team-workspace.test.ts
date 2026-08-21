@@ -1,9 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import type { Task, Workspace } from "../../shared/types";
+import type { Workspace } from "../../shared/types";
 import {
-  getRecentCollaborativeTasks,
   mergeTeamWorkspaceOptions,
 } from "../components/TeamWorkspacePanel";
 
@@ -28,7 +27,9 @@ describe("Agent team workspace", () => {
     expect(source).toContain("const TeamWorkspacePanel = lazy");
     expect(source).toContain('currentView === "agentTeam" ? (');
     expect(source).toContain("<TeamWorkspacePanel");
-    expect(source).toContain("tasks={tasks}");
+    const panelInvocation = source.match(/<TeamWorkspacePanel[\s\S]*?\/>/)?.[0];
+    expect(panelInvocation).toBeTruthy();
+    expect(panelInvocation).not.toContain("tasks={tasks}");
     expect(source).not.toMatch(
       /currentView === "home"\s*\|\|\s*currentView === "agentTeam"\s*\?\s*\(/,
     );
@@ -41,11 +42,11 @@ describe("Agent team workspace", () => {
     expect(source).toContain("isAgentTeamActive?: boolean");
     expect(source).toContain("onOpenAgentTeam?: () => void");
     expect(source).toContain('terminal-only">agent_team');
-    expect(source).toContain('translate("sidebar.agentTeam", "智能体团队")');
+    expect(source).toContain('translate("sidebar.agentTeam", "Agent team")');
     expect(collapsedSource).toContain("isAgentTeamActive?: boolean");
     expect(collapsedSource).toContain("onOpenAgentTeam: () => void");
     expect(collapsedSource).toContain(
-      'label={translate("sidebar.agentTeam", "智能体团队")}',
+      'label={translate("sidebar.agentTeam", "Agent team")}',
     );
   });
 
@@ -56,9 +57,9 @@ describe("Agent team workspace", () => {
     expect(source).toContain("await onStartTask(");
     expect(source).toContain("withRunOutputLanguage(normalizedGoal, language)");
     expect(source).not.toContain("window.electronAPI.createTask({");
-    expect(appSource).toContain(
-      "onStartTask={(title, prompt, selectedWorkspace, agentRoleId) =>",
-    );
+    expect(appSource).toContain("onStartTask={(");
+    expect(appSource).toContain("selectedWorkspace,");
+    expect(appSource).toContain("agentRoleId,");
     expect(appSource).toMatch(/handleCreateTask\(\s*title,\s*prompt,/);
     expect(appSource).toContain("collaborativeMode: true");
     expect(appSource).toContain('executionMode: "execute"');
@@ -82,7 +83,7 @@ describe("Agent team workspace", () => {
     const styles = readFileSync(workspaceStylesPath, "utf8");
 
     expect(styles).toMatch(
-      /\.team-workspace-start-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 306px;/s,
+      /\.team-workspace-start-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 2\.15fr\) minmax\(300px, 1fr\);/s,
     );
     expect(styles).not.toContain(".team-workspace-quick-start-simple::before");
     expect(styles).toMatch(
@@ -122,8 +123,12 @@ describe("Agent team workspace", () => {
 
     expect(source).toContain("selectedRole: AgentRole | null");
     expect(source).toContain("onSelectedRoleChange(role)");
-    expect(source).toContain("只有点击“开始任务”后专家才会执行");
-    expect(source).toContain("选择专家不会自动执行");
+    expect(source).toContain(
+      'Write down the specific tasks first, and the experts will only execute them after clicking "Start Task".',
+    );
+    expect(source).toContain(
+      "Selecting an expert does not start execution.",
+    );
     expect(source).toContain("disabled={!goal.trim() || isStarting}");
     expect(source).toContain("selectedRole?.id");
     expect(appSource).toContain("assignedAgentRoleId: agentRoleId");
@@ -141,13 +146,17 @@ describe("Agent team workspace", () => {
       'import { SimpleAgentBuilderPanel } from "./SimpleAgentBuilderPanel"',
     );
     expect(source).toContain("<SimpleAgentBuilderPanel");
-    expect(source).toContain('"创建智能体"');
-    expect(source).toContain('"用一句话说明需要它长期完成的工作"');
+    expect(source).toContain('"teamWorkspace.agents.open"');
+    expect(source).toContain('"Create an agent"');
+    expect(source).toContain('"teamWorkspace.agents.description"');
+    expect(source).toContain(
+      '"Describe in one sentence the work that requires it to be completed over a long period of time"',
+    );
     expect(source).toContain('className="team-workspace-expert-entry-action"');
     expect(source).toMatch(
       /className="team-workspace-expert-entry-icon">\s*<Bot size=\{18\}/,
     );
-    expect(source).toContain('"去创建"');
+    expect(source).toContain('"teamWorkspace.agents.createAction"');
     expect(styles).toMatch(
       /\.team-workspace-expert-entry-action\s*\{[^}]*background:\s*var\(--color-accent\)/s,
     );
@@ -218,46 +227,20 @@ describe("Agent team workspace", () => {
     expect(source).not.toContain("teamWorkspace.quick.viewAllRuns");
   });
 
-  it("fills the empty state with workspace context, workflow guidance, and real recent runs", () => {
+  it("fills the empty state with workspace context, workflow guidance, and persisted recent runs", () => {
     const source = readFileSync(workspacePath, "utf8");
 
     expect(source).toContain("team-workspace-current-context");
     expect(source).toContain("team-workspace-workflow");
     expect(source).toContain("team-workspace-recent");
-    expect(source).toContain(
-      "getRecentCollaborativeTasks(tasks, workspace?.id)",
-    );
+    expect(source).toContain("window.electronAPI.listRecentTeamTasks(4)");
+    expect(source).toContain("window.electronAPI.onTeamRunEvent");
   });
 
-  it("shows only recent root collaborative tasks from the current workspace", () => {
-    const makeTask = (overrides: Partial<Task>): Task =>
-      ({
-        id: "task",
-        title: "团队任务",
-        prompt: "完成任务",
-        status: "completed",
-        workspaceId: "workspace-a",
-        createdAt: 1,
-        updatedAt: 1,
-        agentConfig: { collaborativeMode: true },
-        ...overrides,
-      }) as Task;
+  it("does not derive team history from sidebar pagination or the current workspace", () => {
+    const source = readFileSync(workspacePath, "utf8");
 
-    const result = getRecentCollaborativeTasks(
-      [
-        makeTask({ id: "older", updatedAt: 10 }),
-        makeTask({ id: "newer", updatedAt: 30 }),
-        makeTask({ id: "child", updatedAt: 40, parentTaskId: "newer" }),
-        makeTask({ id: "other-workspace", workspaceId: "workspace-b" }),
-        makeTask({
-          id: "single-agent",
-          updatedAt: 50,
-          agentConfig: { collaborativeMode: false },
-        }),
-      ],
-      "workspace-a",
-    );
-
-    expect(result.map((task) => task.id)).toEqual(["newer", "older"]);
+    expect(source).not.toContain("getRecentCollaborativeTasks");
+    expect(source).not.toContain("task.workspaceId === workspaceId");
   });
 });

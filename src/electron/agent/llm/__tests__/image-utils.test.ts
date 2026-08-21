@@ -4,6 +4,7 @@ import * as os from "os";
 import * as path from "path";
 import {
   guessImageMimeType,
+  getProviderImageCaps,
   isSupportedImageFile,
   loadImageFromFile,
   validateImageForProvider,
@@ -22,8 +23,31 @@ describe("image-utils", () => {
 
   it("rejects unsupported providers", () => {
     const image = createImageContent("aGVsbG8=", "image/jpeg");
-    expect(validateImageForProvider(image, "groq")).toMatch(/does not support inline images/i);
-    expect(validateImageForProvider(image, "gemini")).toMatch(/does not support inline images/i);
+    expect(validateImageForProvider(image, "groq")).toMatch(
+      /does not support inline images/i,
+    );
+    expect(validateImageForProvider(image, "gemini")).toMatch(
+      /does not support inline images/i,
+    );
+  });
+
+  it("distinguishes DeepSeek visual models from text-only DeepSeek models", () => {
+    const image = createImageContent("aGVsbG8=", "image/png");
+
+    expect(
+      getProviderImageCaps("deepseek", "deepseek-chat").supportsImages,
+    ).toBe(false);
+    expect(
+      getProviderImageCaps("deepseek", "deepseek-v4-flash-vision-exp")
+        .supportsImages,
+    ).toBe(true);
+    expect(
+      validateImageForProvider(
+        image,
+        "deepseek",
+        "deepseek-v4-flash-vision-exp",
+      ),
+    ).toBeNull();
   });
 
   it("falls back unsupported image blocks to text", () => {
@@ -46,7 +70,10 @@ describe("image-utils", () => {
     expect(converted).toHaveLength(1);
     expect(converted[0].content).toMatchObject([
       { type: "text", text: "before" },
-      { type: "text", text: expect.stringContaining("[Image attached: image/png") },
+      {
+        type: "text",
+        text: expect.stringContaining("[Image attached: image/png"),
+      },
     ]);
   });
 
@@ -61,7 +88,9 @@ describe("image-utils", () => {
       os.tmpdir(),
       `neoworker-image-test-${Date.now()}-${Math.random().toString(16).slice(2)}.png`,
     );
-    const pngBytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13]);
+    const pngBytes = Buffer.from([
+      137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13,
+    ]);
     try {
       await fs.writeFile(tempPath, pngBytes);
       const image = await loadImageFromFile(tempPath);
@@ -82,7 +111,9 @@ describe("image-utils", () => {
     );
     try {
       await fs.writeFile(tempPath, "not an image");
-      await expect(loadImageFromFile(tempPath)).rejects.toThrow("Unsupported image format: .txt");
+      await expect(loadImageFromFile(tempPath)).rejects.toThrow(
+        "Unsupported image format: .txt",
+      );
     } finally {
       await fs.unlink(tempPath).catch(() => undefined);
     }

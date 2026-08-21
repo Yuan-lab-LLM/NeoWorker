@@ -92,6 +92,12 @@ export interface EverydayAgentPriorityItem {
     "settings" | "resume" | "memory" | "receipt" | "suggestion" | "preview";
 }
 
+const DAILY_FOCUS_ARTWORK = {
+  "focus-priority": "/everyday/focus-priority.webp",
+  "focus-suggestion": "/everyday/focus-organize.webp",
+  "focus-routine": "/everyday/focus-follow-up.webp",
+} as const;
+
 export function getApprovalTypeLabel(type: ApprovalRequest["type"]): string {
   const labels: Record<ApprovalRequest["type"], string> = {
     delete_file: translate(
@@ -2442,23 +2448,40 @@ export function EverydayAgentPanel({
           </div>
           <div className="ea-daily-layout">
             <section className="ea-focus-column">
-              <header>
-                <h2>
-                  {translate(
-                    "generated.components.everydayagentpanel.1749.95",
-                    "Today, let’s advance these three things first",
-                  )}
-                </h2>
-                <p>
-                  {translate(
-                    "generated.components.everydayagentpanel.1750.96",
-                    "Work is not more lists, but clear next steps.",
-                  )}
-                </p>
+              <header className="ea-focus-header">
+                <div>
+                  <h2>
+                    {translate(
+                      "generated.components.everydayagentpanel.1749.95",
+                      "Today, let’s advance these three things first",
+                    )}
+                  </h2>
+                  <p>
+                    {translate(
+                      "generated.components.everydayagentpanel.1750.96",
+                      "Work is not more lists, but clear next steps.",
+                    )}
+                  </p>
+                </div>
+                <figure className="ea-focus-hero" aria-hidden="true">
+                  <img
+                    src="/everyday/daily-assistant-hero.webp"
+                    alt=""
+                    decoding="async"
+                  />
+                </figure>
               </header>
               <div className="ea-focus-list">
                 {dailyFocusItems.map((item) => (
                   <article className="ea-focus-row" key={item.id}>
+                    <figure className="ea-focus-art" aria-hidden="true">
+                      <img
+                        src={DAILY_FOCUS_ARTWORK[item.id]}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    </figure>
                     <div className="ea-focus-copy">
                       <span>{item.label}</span>
                       <h3>{item.title}</h3>
@@ -2544,6 +2567,14 @@ export function EverydayAgentPanel({
                     </h2>
                     <span>{pendingApprovals.length}</span>
                   </header>
+                  <figure className="ea-approval-art" aria-hidden="true">
+                    <img
+                      src="/everyday/approval-review.webp"
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </figure>
                   <>
                     <small className="ea-approval-kind">
                       {getApprovalTypeLabel(approvalItem.type)}

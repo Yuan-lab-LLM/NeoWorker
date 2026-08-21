@@ -14,8 +14,6 @@ export interface AppearanceSettings {
   timelineVerbosity?: TimelineVerbosity;
   timelineVerbosityConfigured?: boolean;
   devRunLoggingEnabled?: boolean; // Persist npm run dev stdout/stderr to logs/
-  homeResearchVaultEnabled?: boolean;
-  homeNextActionsEnabled?: boolean;
   language?: string; // Persisted language preference (e.g. 'en', 'ja', 'zh')
   disclaimerAccepted?: boolean;
   onboardingCompleted?: boolean;
@@ -7640,6 +7638,7 @@ export const IPC_CHANNELS = {
   TASK_ARCHIVE: "task:archive",
   TASK_UNARCHIVE: "task:unarchive",
   TASK_LIST_ARCHIVED: "task:listArchived",
+  TASK_PURGE_ARCHIVED: "task:purgeArchived",
   TASK_DELETE: "task:delete",
   DIALOG_SELECT_FOLDER: "dialog:selectFolder",
   DIALOG_SELECT_FILES: "dialog:selectFiles",
@@ -7926,6 +7925,7 @@ export const IPC_CHANNELS = {
   TEAM_RUN_CREATE: "teamRun:create",
   TEAM_RUN_GET: "teamRun:get",
   TEAM_RUN_LIST: "teamRun:list",
+  TEAM_RUN_LIST_RECENT_TASKS: "teamRun:listRecentTasks",
   TEAM_RUN_CANCEL: "teamRun:cancel",
   TEAM_RUN_WRAP_UP: "teamRun:wrapUp",
   TEAM_RUN_PAUSE: "teamRun:pause",

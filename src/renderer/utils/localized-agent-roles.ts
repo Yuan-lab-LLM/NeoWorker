@@ -1,7 +1,8 @@
 import type { AgentCapability, AgentRole } from "../../shared/types";
 import { getCurrentLanguage } from "../i18n";
 
-export type AgentRoleDisplayLike = Pick<AgentRole, "name" | "displayName"> & {
+export type AgentRoleDisplayLike = Pick<AgentRole, "name" | "displayName"> &
+  Partial<Pick<AgentRole, "id" | "sourceTemplateId">> & {
   description?: string;
 };
 
@@ -121,9 +122,81 @@ const ZH_AGENT_ROLE_TEXT_BY_NAME: Record<string, LocalizedAgentRoleText> = {
       name: "营销专家",
       description: "创建营销活动、社媒内容和增长策略。",
     },
+    "Team Chat Q&A": {
+      name: "团队问答助手",
+      description: "使用经过批准的文档、文件和技能回答团队常见问题。",
+    },
+    "Morning Planner": {
+      name: "晨间规划助手",
+      description: "将日历、未完成任务和收件箱上下文整理为清晰的每日计划。",
+    },
+    "Bug Triage": {
+      name: "缺陷分诊助手",
+      description: "审查新缺陷、判断优先级并生成有依据的分诊摘要。",
+    },
+    "Chief of Staff": {
+      name: "幕僚长助手",
+      description: "汇总收件箱、日历、聊天和工作区信息，准备管理层简报。",
+    },
+    "Customer Reply Drafter": {
+      name: "客户回复助手",
+      description: "基于工单、账户、政策和已保存上下文起草可靠回复。",
+    },
+    "Research Analyst": {
+      name: "研究分析助手",
+      description: "调研主题、综合发现并保留简洁的结论依据。",
+    },
+    "Inbox Follow-up Assistant": {
+      name: "收件箱跟进助手",
+      description: "跟踪久未回复的会话、起草跟进内容并推动事项继续。",
+    },
+    "Pitch Agent": {
+      name: "推介材料助手",
+      description: "根据公司、市场、可比公司和交易背景制作推介材料。",
+    },
+    "Meeting Prep Agent": {
+      name: "会议准备助手",
+      description: "准备财务会议简报，列明来源、待确认问题和跟进风险。",
+    },
+    "Market Researcher": {
+      name: "市场研究助手",
+      description: "调研行业、公司、催化因素和市场信号，并保留来源记录。",
+    },
+    "Earnings Reviewer": {
+      name: "财报审阅助手",
+      description: "审阅财报、电话会、业绩指引、预测修订和行业联动影响。",
+    },
     "Model Builder": {
-      name: "模型构建员",
-      description: "构建可审核的财务工作簿，包含输入、计算、校验和来源链接。",
+      name: "财务模型构建助手",
+      description: "构建可审阅的 DCF、可比公司、LBO 和三表模型。",
+    },
+    "Valuation Reviewer": {
+      name: "估值审阅助手",
+      description: "审阅估值模型、可比公司组合、敏感性分析和来源支撑。",
+    },
+    "GL Reconciler": {
+      name: "总账对账助手",
+      description: "准备对账底稿、追踪差异并提交异常供审批。",
+    },
+    "Month-End Closer": {
+      name: "月末结账助手",
+      description: "准备应计项目、滚动表、差异说明和结账审阅包。",
+    },
+    "Statement Auditor": {
+      name: "报表审计助手",
+      description: "检查报表和底稿的证据支撑、异常情况与披露风险。",
+    },
+    "KYC Screener": {
+      name: "客户尽调审查助手",
+      description: "解析客户尽调材料、核对规则并提交准入异常。",
+    },
+    "PR Agent": {
+      name: "公关文案助手",
+      description: "撰写、润色并审核公关稿件。",
+    },
+    "Pr Agent": {
+      name: "公关文案助手",
+      description: "撰写、润色并审核公关稿件。",
     },
     "Product Manager": {
       name: "产品经理",
@@ -201,6 +274,9 @@ const ZH_AGENT_ROLE_TEXT_BY_ID: Record<string, LocalizedAgentRoleText> = {
     "finance-lead": ZH_AGENT_ROLE_TEXT_BY_NAME["Finance Lead"],
     "finance-model-builder": ZH_AGENT_ROLE_TEXT_BY_NAME["Model Builder"],
     "finance-reviewer": ZH_AGENT_ROLE_TEXT_BY_NAME["Reviewer/Critic"],
+    "managed-market-researcher": ZH_AGENT_ROLE_TEXT_BY_NAME["Market Researcher"],
+    "managed-pitch-agent": ZH_AGENT_ROLE_TEXT_BY_NAME["Pitch Agent"],
+    "managed-pr-agent": ZH_AGENT_ROLE_TEXT_BY_NAME["PR Agent"],
     "company-planner": ZH_AGENT_ROLE_TEXT_BY_NAME["Company Planner"],
     "customer-ops-lead": ZH_AGENT_ROLE_TEXT_BY_NAME["Customer Ops Lead"],
     "data-scientist": ZH_AGENT_ROLE_TEXT_BY_NAME["Data Scientist / Analyst"],
@@ -222,9 +298,84 @@ const ZH_AGENT_ROLE_TEXT_BY_ID: Record<string, LocalizedAgentRoleText> = {
     "technical-director": ZH_AGENT_ROLE_TEXT_BY_NAME["Technical Director"],
     "technical-writer": ZH_AGENT_ROLE_TEXT_BY_NAME["Technical Writer"],
     tester: ZH_AGENT_ROLE_TEXT_BY_NAME.Tester,
+    "twin-software-engineer": {
+      name: "软件工程师画像",
+      description: "面向软件工程师的数字分身，处理代码评审、PR 分流、测试和技术文档。",
+    },
     "vp-engineering": ZH_AGENT_ROLE_TEXT_BY_NAME["VP of Engineering"],
-    writer: ZH_AGENT_ROLE_TEXT_BY_NAME["Content Writer"],
-  };
+  writer: ZH_AGENT_ROLE_TEXT_BY_NAME["Content Writer"],
+};
+
+/**
+ * Some managed agents are persisted with the language that was active when
+ * they were created. Keep product-provided and known template-derived roles
+ * bilingual at render time instead of leaking that stored language into the
+ * other locale.
+ */
+const EN_AGENT_ROLE_TEXT_BY_NAME: Record<string, LocalizedAgentRoleText> = {
+  "软件工程师画像": {
+    name: "Software Engineer Twin",
+    description:
+      "Digital twin for software engineers. Handles code reviews, PR triage, testing, and technical documentation.",
+  },
+  "软件工程师 画像": {
+    name: "Software Engineer Twin",
+    description:
+      "Digital twin for software engineers. Handles code reviews, PR triage, testing, and technical documentation.",
+  },
+  "高水平设计师": {
+    name: "Senior Designer",
+    description: "A highly capable designer for polished product and visual work.",
+  },
+  "缺陷分诊智能体": {
+    name: "Bug Triage Agent",
+    description:
+      "Reviews incoming defects, determines priority, and produces evidence-based triage summaries.",
+  },
+  "团队问答智能体": {
+    name: "Team Q&A Agent",
+    description:
+      "Answers common team questions using approved documents and files in the workspace.",
+  },
+  "晨间规划智能体": {
+    name: "Morning Planning Agent",
+    description:
+      "Organizes calendars, tasks, and inbox context into a clear daily action plan.",
+  },
+  "叫醒闹钟智能体": {
+    name: "Wake-up Alarm Agent",
+    description: "Creates and manages wake-up alarms.",
+  },
+  "Pr Agent": {
+    name: "PR Agent",
+    description: "Writes, polishes, and reviews public relations copy.",
+  },
+};
+
+const EN_AGENT_ROLE_TEXT_BY_ID: Record<string, LocalizedAgentRoleText> = {
+  "managed-pitch-agent": {
+    name: "Pitch Agent",
+    description:
+      "Creates pitch materials from company, market, comparable-company, and deal context.",
+  },
+  "managed-market-researcher": {
+    name: "Market Researcher",
+    description:
+      "Researches sectors, companies, catalysts, and market signals with a source trail.",
+  },
+  "managed-pr-agent": EN_AGENT_ROLE_TEXT_BY_NAME["Pr Agent"],
+  "twin-software-engineer": EN_AGENT_ROLE_TEXT_BY_NAME["软件工程师画像"],
+};
+
+const EN_AGENT_ROLE_TEXT_BY_SOURCE_TEMPLATE_ID: Record<
+  string,
+  LocalizedAgentRoleText
+> = {
+  "finance-pitch-agent": EN_AGENT_ROLE_TEXT_BY_ID["managed-pitch-agent"],
+  "finance-market-researcher":
+    EN_AGENT_ROLE_TEXT_BY_ID["managed-market-researcher"],
+  "software-engineer": EN_AGENT_ROLE_TEXT_BY_ID["twin-software-engineer"],
+};
 
 const ZH_CAPABILITY_LABELS: Record<string, string> = {
     analyze: "分析",
@@ -275,7 +426,19 @@ export function getLocalizedAgentRoleText(
   const fallbackName = role.displayName || role.name;
   const fallbackDescription = role.description || "";
   if (language !== "zh-CN") {
-    return { name: fallbackName, description: fallbackDescription };
+    const localized =
+      EN_AGENT_ROLE_TEXT_BY_ID[role.name] ||
+      (role.id ? EN_AGENT_ROLE_TEXT_BY_ID[role.id] : undefined) ||
+      (role.sourceTemplateId
+        ? EN_AGENT_ROLE_TEXT_BY_SOURCE_TEMPLATE_ID[role.sourceTemplateId]
+        : undefined) ||
+      EN_AGENT_ROLE_TEXT_BY_NAME[role.displayName] ||
+      EN_AGENT_ROLE_TEXT_BY_NAME[role.name];
+
+    return {
+      name: localized?.name || fallbackName,
+      description: localized?.description || fallbackDescription,
+    };
   }
 
   const localized =

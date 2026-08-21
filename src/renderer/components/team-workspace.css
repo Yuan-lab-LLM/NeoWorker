@@ -155,7 +155,7 @@
 }
 
 .team-workspace-dashboard {
-  width: min(1120px, 100%);
+  width: min(1180px, 100%);
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -297,9 +297,9 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) 306px;
-  gap: 16px;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 2.15fr) minmax(300px, 1fr);
+  gap: 20px;
+  align-items: start;
 }
 
 .team-workspace-start-layout > * {
@@ -335,17 +335,18 @@
     var(--color-bg-secondary)
   );
   box-shadow:
-    0 1px 2px
-      color-mix(in srgb, var(--color-text-primary) 4%, transparent),
+    0 1px 2px color-mix(in srgb, var(--color-text-primary) 4%, transparent),
     0 18px 42px -32px
       color-mix(in srgb, var(--color-text-primary) 20%, transparent);
 }
 
 .team-workspace-workflow {
+  display: flex;
   box-sizing: border-box;
+  flex-direction: column;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--cw-radius-xl);
-  padding: 22px 20px 18px;
+  padding: 20px 18px 16px;
   background: color-mix(
     in srgb,
     var(--color-accent-subtle) 24%,
@@ -363,8 +364,8 @@
 
 .team-workspace-section-icon {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   flex: 0 0 auto;
   place-items: center;
   border-radius: var(--cw-radius-md);
@@ -377,7 +378,7 @@
 .team-workspace-recent-heading h2 {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 720;
   line-height: 1.35;
 }
@@ -386,14 +387,14 @@
 .team-workspace-recent-heading p {
   margin: 4px 0 0;
   color: var(--color-text-muted);
-  font-size: 11px;
-  line-height: 1.45;
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 .team-workspace-workflow ol {
   display: grid;
   gap: 0;
-  margin: 20px 0 0;
+  margin: 18px 0 0;
   padding: 0;
   list-style: none;
 }
@@ -401,22 +402,18 @@
 .team-workspace-workflow li {
   position: relative;
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  gap: 10px;
-  min-height: 62px;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 11px;
+  min-height: 64px;
 }
 
 .team-workspace-workflow li:not(:last-child)::after {
   position: absolute;
-  top: 30px;
+  top: 32px;
   bottom: 5px;
-  left: 14px;
+  left: 15px;
   width: 1px;
-  background: color-mix(
-    in srgb,
-    var(--color-accent) 20%,
-    var(--color-border)
-  );
+  background: color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
   content: "";
 }
 
@@ -424,8 +421,8 @@
   position: relative;
   z-index: 1;
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   place-items: center;
   border: 1px solid
     color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
@@ -438,15 +435,15 @@
   display: block;
   margin-top: 2px;
   color: var(--color-text-primary);
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
 }
 
 .team-workspace-workflow li p {
   margin: 4px 0 0;
   color: var(--color-text-secondary);
-  font-size: 11px;
-  line-height: 1.45;
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 .team-workspace-expert-entry {
@@ -456,7 +453,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  margin-top: 14px;
+  margin-top: 18px;
   padding: 10px 10px 10px 12px;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--cw-radius-lg);
@@ -477,8 +474,8 @@
 
 .team-workspace-expert-entry-icon {
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   place-items: center;
   border-radius: var(--cw-radius-md);
   background: var(--color-accent-subtle);
@@ -494,7 +491,7 @@
 
 .team-workspace-expert-entry strong {
   color: var(--color-text-primary);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 720;
   line-height: 1.35;
 }
@@ -503,7 +500,7 @@
   margin-top: 3px;
   overflow: hidden;
   color: var(--color-text-muted);
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -519,7 +516,7 @@
   padding: 0 10px;
   background: var(--color-accent);
   color: var(--color-text-on-accent, #fff);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -709,6 +706,24 @@
 .team-workspace-recent-empty p {
   margin: 3px 0 0;
   font-size: 11px;
+}
+
+.team-workspace-recent-empty > button {
+  margin-left: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--cw-radius-sm);
+  padding: 6px 10px;
+  background: var(--color-bg-elevated);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.team-workspace-recent-empty > button:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-subtle);
 }
 
 .team-workspace-quick-heading-simple {

@@ -87,7 +87,7 @@ NeoWorker focuses on turning AI from a conversational assistant into a personal 
 
 ## Current version
 
-The current source version is **<code>0.5.52</code>**. The first GitHub Release is expected to include:
+The current source version is **<code>v0.1</code>** (package version <code>0.1.0</code>). The first GitHub Release is expected to include:
 
 - macOS <code>.dmg</code> and <code>.zip</code> packages
 - a Windows <code>.exe</code> installer
@@ -103,10 +103,23 @@ After the first public release, download the installer from [GitHub Releases](ht
 
 | Platform | Package | Installation |
 | --- | --- | --- |
-| **macOS** | <code>.dmg</code> | Open the disk image and drag NeoWorker into Applications. |
+| **macOS** | <code>.dmg</code> | Open the disk image and drag NeoWorker into Applications. See the notes below for unsigned preview builds. |
 | **Windows** | <code>.exe</code> | Run the installer and follow the setup prompts. |
 
-If macOS blocks an unsigned preview build, open **System Settings → Privacy & Security**, verify the source, and choose **Open Anyway**.
+#### macOS installation notes
+
+<p align="center">
+  <img src="./screenshots/readme/macos-install-guide.svg" alt="Install NeoWorker on macOS: download the DMG, move NeoWorker to Applications, then use Open Anyway only if macOS blocks an unsigned preview build" width="900">
+</p>
+
+1. Download the macOS <code>.dmg</code> only from the official [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases) page.
+2. Open the disk image, drag **NeoWorker** into **Applications**, and launch it from Applications.
+3. A signed and notarized release should open normally. If macOS blocks an **unsigned preview build**, first try to open NeoWorker once, then go to **Apple menu → System Settings → Privacy & Security**. Scroll to **Security**, verify that the blocked app is NeoWorker, click **Open Anyway**, and authenticate when prompted. Apple notes that this button is available for about one hour after the blocked launch attempt.
+
+> [!WARNING]
+> Do **not** enable “Anywhere” or run <code>sudo spctl --master-disable</code>. Those actions disable Gatekeeper checks system-wide. The **Open Anyway** flow creates an exception only for the app you reviewed. See [Apple's guidance for opening an app from an unknown developer](https://support.apple.com/guide/mac-help/mh40616/mac).
+
+If macOS reports that the app **“is damaged”** or **“will damage your computer”**, do not bypass the warning. Delete that copy, download it again from the official Releases page, verify any published checksum, and report the affected release if the warning persists.
 
 ### Run from source
 

@@ -429,7 +429,10 @@ import {
   preflightValidateAndRepairToolInput as preflightValidateAndRepairToolInputUtil,
   recordToolFailureOutcome as recordToolFailureOutcomeUtil,
 } from "./executor-tool-execution-utils";
-import { SHARED_PROMPT_POLICY_CORE, buildModeDomainContract } from "./executor-prompt-sections";
+import {
+  SHARED_PROMPT_POLICY_CORE,
+  buildModeDomainContract,
+} from "./executor-prompt-sections";
 export { AwaitingUserInputError } from "./executor-helpers";
 export type { CompletionContract } from "./executor-helpers";
 
@@ -1190,7 +1193,12 @@ export class TaskExecutor {
     return this.budgetConstrainedFailedStepIds;
   }
 
-  private static clampInt(value: unknown, fallback: number, min: number, max: number): number {
+  private static clampInt(
+    value: unknown,
+    fallback: number,
+    min: number,
+    max: number,
+  ): number {
     if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
     const normalized = Math.floor(value);
     if (normalized < min) return fallback;
@@ -1487,7 +1495,10 @@ export class TaskExecutor {
     ) {
       fields.verificationReport = this.task.verificationReport.trim();
     }
-    return fields as Pick<Task, "semanticSummary" | "verificationVerdict" | "verificationReport">;
+    return fields as Pick<
+      Task,
+      "semanticSummary" | "verificationVerdict" | "verificationReport"
+    >;
   }
 
   private finalizeFollowUpCompletion(
@@ -1819,7 +1830,8 @@ export class TaskExecutor {
 
     this.task.status = safeRestoreStatus;
     this.task.completedAt = restoredCompletedAt;
-    this.task.error = safeRestoreStatus === "failed" ? technicalError : undefined;
+    this.task.error =
+      safeRestoreStatus === "failed" ? technicalError : undefined;
 
     // Terminal events must be emitted before any persistence work. A database or
     // snapshot failure must never leave the renderer believing this turn is active.
@@ -2004,11 +2016,15 @@ export class TaskExecutor {
         ).trim(),
       );
     return Array.from(
-      new Set([...createdFiles, ...eventFiles].filter((file) => file.length > 0)),
+      new Set(
+        [...createdFiles, ...eventFiles].filter((file) => file.length > 0),
+      ),
     );
   }
 
-  private resolveArtifactPathForInspection(candidatePath: string): string | null {
+  private resolveArtifactPathForInspection(
+    candidatePath: string,
+  ): string | null {
     const rawPath = String(candidatePath || "").trim();
     if (!rawPath) return null;
     const workspaceRoot = path.resolve(this.workspace.path);
@@ -2231,7 +2247,9 @@ export class TaskExecutor {
         actor: "tool",
         status,
         legacyType:
-          status === "failed" || status === "cancelled" ? "step_failed" : "step_completed",
+          status === "failed" || status === "cancelled"
+            ? "step_failed"
+            : "step_completed",
         message:
           message ||
           (status === "failed" || status === "cancelled"
@@ -2260,7 +2278,12 @@ export class TaskExecutor {
         params.correlation,
       ),
     );
-    this.emitToolLaneFinished(params.toolName, params.correlation, "cancelled", message);
+    this.emitToolLaneFinished(
+      params.toolName,
+      params.correlation,
+      "cancelled",
+      message,
+    );
     return {
       toolResult: buildCancellationToolResultUtil({
         toolUseId: params.toolUseId,
@@ -2350,8 +2373,12 @@ export class TaskExecutor {
       /\b(?:locate|find|list|discover|identify)\b/.test(normalized) ||
       /\b(?:bul|bulun|listele|keşfet|tespit et)\b/.test(normalized);
     const hasFileScope =
-      /\b(?:book|file|files|document|documents|workspace|folder|directory)\b/.test(normalized) ||
-      /\b(?:kitap|dosya|dosyalar|belge|belgeler|çalışma alanı|klasör|dizin)\b/.test(normalized);
+      /\b(?:book|file|files|document|documents|workspace|folder|directory)\b/.test(
+        normalized,
+      ) ||
+      /\b(?:kitap|dosya|dosyalar|belge|belgeler|çalışma alanı|klasör|dizin)\b/.test(
+        normalized,
+      );
     const hasContentWork =
       /\b(?:read|open|parse|extract|analy[sz]e|review|inspect|summari[sz]e|check|edit|write|create|delete|remove|rename|move|modify|replace|fix|update|refactor|run|execute)\b/.test(
         normalized,
@@ -2363,7 +2390,9 @@ export class TaskExecutor {
     return hasDiscoveryIntent && hasFileScope && !hasContentWork;
   }
 
-  private isReadOnlyDocumentAnalysisStepDescription(description: string): boolean {
+  private isReadOnlyDocumentAnalysisStepDescription(
+    description: string,
+  ): boolean {
     const normalized = String(description || "")
       .trim()
       .toLowerCase();
@@ -2371,8 +2400,12 @@ export class TaskExecutor {
 
     const hasDocumentScope =
       /\.(?:docx|pdf|epub|md|txt)\b/.test(normalized) ||
-      /\b(?:book|document|manuscript|text|chapter|heading|character)\b/.test(normalized) ||
-      /\b(?:kitap|belge|doküman|metin|bölüm|başlık|karakter)\b/.test(normalized);
+      /\b(?:book|document|manuscript|text|chapter|heading|character)\b/.test(
+        normalized,
+      ) ||
+      /\b(?:kitap|belge|doküman|metin|bölüm|başlık|karakter)\b/.test(
+        normalized,
+      );
     const hasReadOrAnalysisIntent =
       /\b(?:read|parse|extract|analy[sz]e|review|inspect|summari[sz]e|outline|identify|note|mark|check)\b/.test(
         normalized,
@@ -2394,9 +2427,14 @@ export class TaskExecutor {
   private isBoundedDocumentAnalysisTask(): boolean {
     const taskTitle = String(this.task?.title || "");
     const rawTaskPrompt = String(
-      this.task?.rawPrompt || this.task?.userPrompt || this.getContractPrompt() || "",
+      this.task?.rawPrompt ||
+        this.task?.userPrompt ||
+        this.getContractPrompt() ||
+        "",
     );
-    const normalized = normalizePromptForContractsUtil(`${taskTitle}\n${rawTaskPrompt}`)
+    const normalized = normalizePromptForContractsUtil(
+      `${taskTitle}\n${rawTaskPrompt}`,
+    )
       .trim()
       .toLowerCase();
     if (!normalized) return false;
@@ -2423,7 +2461,10 @@ export class TaskExecutor {
         normalized,
       );
     return (
-      hasDirectSourceReference && hasDocumentScope && hasAnalysisIntent && !requestsFileMutation
+      hasDirectSourceReference &&
+      hasDocumentScope &&
+      hasAnalysisIntent &&
+      !requestsFileMutation
     );
   }
 
@@ -2455,7 +2496,9 @@ export class TaskExecutor {
     };
   }
 
-  private hasSuccessfulFileDiscoveryTool(successfulToolNames?: Set<string>): boolean {
+  private hasSuccessfulFileDiscoveryTool(
+    successfulToolNames?: Set<string>,
+  ): boolean {
     if (!(successfulToolNames instanceof Set)) return false;
     const discoveryTools = new Set([
       "list_directory",
@@ -2477,11 +2520,19 @@ export class TaskExecutor {
     if (!input || typeof input !== "object" || Array.isArray(input)) return;
 
     const canonicalToolName = canonicalizeToolNameUtil(toolName);
-    if (canonicalToolName === "read_file" || canonicalToolName === "parse_document") {
-      const limitKey = canonicalToolName === "read_file" ? "maxChars" : "max_chars";
+    if (
+      canonicalToolName === "read_file" ||
+      canonicalToolName === "parse_document"
+    ) {
+      const limitKey =
+        canonicalToolName === "read_file" ? "maxChars" : "max_chars";
       const maxDocumentChars = 48_000;
       const requested = Number((input as Any)[limitKey]);
-      if (!Number.isFinite(requested) || requested <= 0 || requested > maxDocumentChars) {
+      if (
+        !Number.isFinite(requested) ||
+        requested <= 0 ||
+        requested > maxDocumentChars
+      ) {
         (input as Any)[limitKey] = maxDocumentChars;
         this.emitEvent("log", {
           metric: "local_model_document_window_clamped",
@@ -3407,7 +3458,11 @@ export class TaskExecutor {
               }
 
               if (rawOutcome.error) {
-                this.releaseBatchCreatedPathReservation(batchCreatedPaths, toolName, input);
+                this.releaseBatchCreatedPathReservation(
+                  batchCreatedPaths,
+                  toolName,
+                  input,
+                );
                 hadToolError = true;
                 params.toolErrors.add(toolName);
                 lastToolErrorReason = `Tool ${toolName} failed: ${failureMessage}`;
@@ -3515,9 +3570,13 @@ export class TaskExecutor {
                 if (params.requiredTools.has(canonicalToolName)) {
                   params.requiredToolsSucceeded.add(canonicalToolName);
                 }
-                const currentFailures = this.crossStepToolFailures.get(canonicalToolName) || 0;
+                const currentFailures =
+                  this.crossStepToolFailures.get(canonicalToolName) || 0;
                 if (currentFailures > 0) {
-                  this.crossStepToolFailures.set(canonicalToolName, currentFailures - 1);
+                  this.crossStepToolFailures.set(
+                    canonicalToolName,
+                    currentFailures - 1,
+                  );
                 }
               } else {
                 this.releaseBatchCreatedPathReservation(
@@ -3845,7 +3904,9 @@ export class TaskExecutor {
             this.currentStepId ||
             `turn:${this.task.id}`,
           description:
-            typeof payloadObj.stepDescription === "string" ? payloadObj.stepDescription : message,
+            typeof payloadObj.stepDescription === "string"
+              ? payloadObj.stepDescription
+              : message,
         },
         {
           actor: type === "assistant_message" ? "agent" : "user",
@@ -4917,7 +4978,11 @@ export class TaskExecutor {
   }): boolean {
     if (!this.shouldSuppressToolDisableOnRecoverablePathDrift()) return false;
     if (
-      !this.isRecoverableTaskRootPathDriftFailure(opts.toolName, opts.inputPath, opts.failureReason)
+      !this.isRecoverableTaskRootPathDriftFailure(
+        opts.toolName,
+        opts.inputPath,
+        opts.failureReason,
+      )
     ) {
       return false;
     }
@@ -5248,11 +5313,12 @@ export class TaskExecutor {
           "Confirm concrete output constraints (format, exact limits, filename) and execute the required tool actions.";
       }
 
-      const normalizedKind: PlanStep["kind"] = this.descriptionIndicatesVerification(description)
-        ? "verification"
-        : step?.kind === "recovery" || step?.kind === "primary"
-          ? step.kind
-          : "primary";
+      const normalizedKind: PlanStep["kind"] =
+        this.descriptionIndicatesVerification(description)
+          ? "verification"
+          : step?.kind === "recovery" || step?.kind === "primary"
+            ? step.kind
+            : "primary";
 
       description = this.rewriteNovelistPlanStepDescription(
         description,
@@ -5311,7 +5377,9 @@ export class TaskExecutor {
             {
               id: "1",
               description:
-                normalizePromptForContractsUtil(this.getContractPrompt()).trim() ||
+                normalizePromptForContractsUtil(
+                  this.getContractPrompt(),
+                ).trim() ||
                 "Complete the user's request and return the result directly.",
               kind: "primary" as const,
               status: "pending" as const,
@@ -5955,7 +6023,10 @@ export class TaskExecutor {
 
     messages[firstUserIndex] = {
       ...message,
-      content: [{ type: "text", text: `${trimmedPrefix}\n\n` }, ...message.content] as LLMContent[],
+      content: [
+        { type: "text", text: `${trimmedPrefix}\n\n` },
+        ...message.content,
+      ] as LLMContent[],
     };
   }
 
@@ -6855,10 +6926,13 @@ ${transcript}
 
   private buildToolRegistry(workspace: Workspace): ToolRegistry {
     const desc = this.task.title || "";
-    const isReadOnlyReview = descriptionHasReadOnlyIntent(desc) && !descriptionHasWriteIntent(desc);
+    const isReadOnlyReview =
+      descriptionHasReadOnlyIntent(desc) && !descriptionHasWriteIntent(desc);
     const toolRestrictions = [
       ...(this.task.agentConfig?.toolRestrictions || []),
-      ...(this.task.agentConfig?.chronicleMode === "disabled" ? ["screen_context_resolve"] : []),
+      ...(this.task.agentConfig?.chronicleMode === "disabled"
+        ? ["screen_context_resolve"]
+        : []),
       ...(isReadOnlyReview
         ? [
             "group:system",
@@ -6920,8 +6994,10 @@ ${transcript}
       },
       getContextManager: () => this.contextManager,
       getSystemPrompt: () => this.systemPrompt,
-      buildPromptCacheRequestExtras: (args: { systemPrompt: string; tools: LLMTool[] }) =>
-        this.buildPromptCacheRequestExtras(args),
+      buildPromptCacheRequestExtras: (args: {
+        systemPrompt: string;
+        tools: LLMTool[];
+      }) => this.buildPromptCacheRequestExtras(args),
       getModelMetadata: () => ({
         providerType: this.getProviderTypeForRuntime(),
         modelId: String(this.modelId || ""),
@@ -8711,7 +8787,11 @@ ${transcript}
         ctx.personalityPrompt,
         "session",
       ),
-      buildSystemBlock(`chat_rules:${hashPromptCacheValue(rules)}`, rules, "session"),
+      buildSystemBlock(
+        `chat_rules:${hashPromptCacheValue(rules)}`,
+        rules,
+        "session",
+      ),
     ].filter((block) => block.text.length > 0);
   }
 
@@ -8797,7 +8877,10 @@ ${transcript}
       ? await this.buildSupermemoryProfileBlock(message)
       : "";
     const roleContext = this.getRoleContextPrompt();
-    const profileContext = [this.buildUserProfileBlock(10), externalProfileContext]
+    const profileContext = [
+      this.buildUserProfileBlock(10),
+      externalProfileContext,
+    ]
       .filter(Boolean)
       .join("\n");
     const isExplicitChatMode = this.isExplicitChatExecutionMode();
@@ -9464,8 +9547,9 @@ ${transcript}
       : undefined;
 
     try {
-      const normalizedMessages = assertNormalizedTurnTranscript(request.messages, (message) =>
-        this.emitEvent("log", { message }),
+      const normalizedMessages = assertNormalizedTurnTranscript(
+        request.messages,
+        (message) => this.emitEvent("log", { message }),
       );
       return await withTimeout(
         effectiveProvider.createMessage({
@@ -12692,7 +12776,9 @@ ${transcript}
         "web_search",
         "web_fetch",
         "system_info",
-      ].map((toolName) => canonicalizeToolNameUtil(this.normalizeToolName(toolName).name)),
+      ].map((toolName) =>
+        canonicalizeToolNameUtil(this.normalizeToolName(toolName).name),
+      ),
     );
 
     const availableTools = new Set<string>();
@@ -13255,8 +13341,12 @@ ${transcript}
     const hasWriteIntent = descriptionHasWriteIntent(description);
     const directFileMutationIntent =
       hasWriteIntent &&
-      /\b(?:file|files|document|documents|workspace|folder|directory)\b/.test(description) &&
-      /\b(?:edit|update|delete|remove|rename|move|modify|replace|fix|refactor)\b/.test(description);
+      /\b(?:file|files|document|documents|workspace|folder|directory)\b/.test(
+        description,
+      ) &&
+      /\b(?:edit|update|delete|remove|rename|move|modify|replace|fix|refactor)\b/.test(
+        description,
+      );
     if (directFileMutationIntent) {
       if (/\b(?:delete|remove)\b/.test(description)) {
         requiredTools.add("delete_file");
@@ -14062,7 +14152,8 @@ ${transcript}
       steps: [
         {
           id: "1",
-          description: prompt || this.task.title || "Answer the current lookup request.",
+          description:
+            prompt || this.task.title || "Answer the current lookup request.",
           kind: "primary",
           status: "pending",
         },
@@ -14127,7 +14218,12 @@ ${transcript}
   private inferSimpleFileCreationTargets(): string[] | null {
     if (this.getEffectiveExecutionMode() !== "execute") return null;
 
-    const prompt = [this.task.rawPrompt, this.task.userPrompt, this.task.prompt, this.task.title]
+    const prompt = [
+      this.task.rawPrompt,
+      this.task.userPrompt,
+      this.task.prompt,
+      this.task.title,
+    ]
       .map((value) =>
         typeof value === "string"
           ? normalizePromptForContractsUtil(value).trim()
@@ -14530,7 +14626,9 @@ ${transcript}
       const franchisePhrase = context.franchiseLabel
         ? `${context.franchiseLabel} universe`
         : "requested franchise universe";
-      const artifactPhrase = context.artifactDir ? ` under \`${context.artifactDir}\`` : "";
+      const artifactPhrase = context.artifactDir
+        ? ` under \`${context.artifactDir}\``
+        : "";
       return `Create the canon continuity notes and world bible for the ${franchisePhrase}${artifactPhrase} without changing the setting to original IP.`;
     }
 
@@ -15199,7 +15297,8 @@ ${transcript}
     if (baseGuardError) {
       if (/Task missing artifact evidence/i.test(baseGuardError)) {
         this.emitEvent("log", {
-          message: "Completion guard blocked finalization due to artifact contract mismatch.",
+          message:
+            "Completion guard blocked finalization due to artifact contract mismatch.",
           requiredArtifactExtensions: contract.requiredArtifactExtensions,
           createdFilesSample: createdFiles.slice(0, 10),
           normalizedContractPromptSnippet: normalizePromptForContractsUtil(
@@ -16390,7 +16489,10 @@ ${transcript}
       return "analyze";
     }
     const agentConfig = this.task?.agentConfig;
-    return normalizeExecutionMode(agentConfig?.executionMode, agentConfig?.conversationMode);
+    return normalizeExecutionMode(
+      agentConfig?.executionMode,
+      agentConfig?.conversationMode,
+    );
   }
 
   /** Modes where command/canvas follow-up enforcement behaves like full execution. */
@@ -16968,7 +17070,10 @@ ${transcript}
           )
         : undefined;
     const codeFirstUiText = `${this.task.title || ""}\n${currentStep?.description || ""}\n${this.getExecutionTaskPrompt()}\n${this.lastUserMessage || ""}`;
-    if (this.isCodeFirstUiTask(codeFirstUiText) && this.isCodeFirstUiBlockedTool(opts.toolName)) {
+    if (
+      this.isCodeFirstUiTask(codeFirstUiText) &&
+      this.isCodeFirstUiBlockedTool(opts.toolName)
+    ) {
       return {
         blockedResult: {
           error:
@@ -17037,7 +17142,8 @@ ${transcript}
     if (decision.action === "block_with_feedback") {
       const feedback =
         this.sanitizeFallbackInstruction(
-          decision.feedback || `Tool "${opts.toolName}" blocked by on_pre_tool_use policy hook.`,
+          decision.feedback ||
+            `Tool "${opts.toolName}" blocked by on_pre_tool_use policy hook.`,
         ) || `Tool "${opts.toolName}" blocked by on_pre_tool_use policy hook.`;
       this.emitEvent("log", {
         metric: "agent_policy_hook_blocked",
@@ -18401,7 +18507,9 @@ ${transcript}
       return tools.filter((tool) => {
         const name = canonicalizeToolNameUtil(String(tool.name || ""));
         return (
-          name !== "analyze_image" && name !== "read_pdf_visual" && !name.startsWith("task_list_")
+          name !== "analyze_image" &&
+          name !== "read_pdf_visual" &&
+          !name.startsWith("task_list_")
         );
       });
     }
@@ -18504,7 +18612,9 @@ ${transcript}
       const toolName = String(tool.name || "").toLowerCase();
       const toolDesc = String(tool.description || "").toLowerCase();
       const toolTokens = new Set(
-        `${toolName} ${toolDesc}`.split(/[^a-z0-9]+/).filter((w) => w.length > 2),
+        `${toolName} ${toolDesc}`
+          .split(/[^a-z0-9]+/)
+          .filter((w) => w.length > 2),
       );
 
       let score = 0;
@@ -18872,7 +18982,9 @@ You are continuing a previous conversation. The context from the previous conver
       });
       const ok = missing.length === 0;
       const msg =
-        missing.length === 0 ? "All required files exist" : `Missing files: ${missing.join(", ")}`;
+        missing.length === 0
+          ? "All required files exist"
+          : `Missing files: ${missing.join(", ")}`;
       this.pushVerificationEvidence({
         kind: "file_exists",
         ok,
@@ -19420,7 +19532,8 @@ You are continuing a previous conversation. The context from the previous conver
         lower,
       );
     const looksInformational =
-      /^(?:what|how|why)\b/.test(lower) || /\b(?:explain|documentation|docs|what is)\b/.test(lower);
+      /^(?:what|how|why)\b/.test(lower) ||
+      /\b(?:explain|documentation|docs|what is)\b/.test(lower);
 
     if (looksInformational && !hasActionVerb) {
       return false;
@@ -19431,7 +19544,9 @@ You are continuing a previous conversation. The context from the previous conver
 
   private isCanvasPresentationTool(toolName: string): boolean {
     return (
-      toolName === "canvas_push" || toolName === "canvas_show" || toolName === "canvas_open_url"
+      toolName === "canvas_push" ||
+      toolName === "canvas_show" ||
+      toolName === "canvas_open_url"
     );
   }
 
@@ -19664,7 +19779,8 @@ You are continuing a previous conversation. The context from the previous conver
     const hasBlockingContext =
       /\b(required|must|cannot continue|can't continue|unable to continue|blocked|before i can|to continue|to proceed)\b/.test(
         lower,
-      ) || /\b(reply with|choose|select|pick|confirm|specify|provide)\b/.test(lower);
+      ) ||
+      /\b(reply with|choose|select|pick|confirm|specify|provide)\b/.test(lower);
 
     return hasDecisionVerb && hasRequiredInputTarget && hasBlockingContext;
   }
@@ -21476,7 +21592,8 @@ You are continuing a previous conversation. The context from the previous conver
     if (!result) return null;
 
     if (
-      (toolName === "list_directory" || toolName === "list_directory_with_sizes") &&
+      (toolName === "list_directory" ||
+        toolName === "list_directory_with_sizes") &&
       Array.isArray(result.files)
     ) {
       const entries = result.files
@@ -21487,7 +21604,10 @@ You are continuing a previous conversation. The context from the previous conver
           return name ? `${name}${type ? ` (${type})` : ""}` : "";
         })
         .filter(Boolean);
-      const total = typeof result.totalCount === "number" ? result.totalCount : result.files.length;
+      const total =
+        typeof result.totalCount === "number"
+          ? result.totalCount
+          : result.files.length;
       return entries.length > 0
         ? `${total} workspace entr${total === 1 ? "y" : "ies"}: ${entries.join(", ")}`
         : "workspace directory is empty";
@@ -21612,7 +21732,9 @@ You are continuing a previous conversation. The context from the previous conver
         if (/api\.github\.com\/repos\/.+\/releases/i.test(url)) {
           const releases = parsed
             .slice(0, 3)
-            .map((entry: Any) => [entry?.tag_name, entry?.published_at].filter(Boolean).join("@"))
+            .map((entry: Any) =>
+              [entry?.tag_name, entry?.published_at].filter(Boolean).join("@"),
+            )
             .filter(Boolean);
           return [
             `${url}: ${statusPrefix}`,
@@ -22315,7 +22437,11 @@ You are continuing a previous conversation. The context from the previous conver
     });
   }
 
-  private collectBrowserInspectionEvidenceText(toolName: string, input: Any, result: Any): string {
+  private collectBrowserInspectionEvidenceText(
+    toolName: string,
+    input: Any,
+    result: Any,
+  ): string {
     if (
       toolName !== "browser_get_content" &&
       toolName !== "browser_snapshot" &&
@@ -25640,7 +25766,10 @@ You are continuing a previous conversation. The context from the previous conver
       /\bcreate\s+a\s+child\s+task(?:\s+via\s+acpx)?\b[:,]?\s*/gi,
       "",
     );
-    normalized = normalized.replace(/\b(?:with|via|using)\s+claude(?:\s+code)?\b/gi, "");
+    normalized = normalized.replace(
+      /\b(?:with|via|using)\s+claude(?:\s+code)?\b/gi,
+      "",
+    );
     normalized = normalized.replace(/\bhave\s+it\b/gi, "");
     normalized = normalized.replace(/\s+/g, " ").trim();
     normalized = normalized.replace(/^[,.;:\-)\]]+\s*/g, "");
@@ -25874,7 +26003,9 @@ You are continuing a previous conversation. The context from the previous conver
           !note.includes("Visual Presentation is active."),
       );
     }
-    logger.info(`${this.logTag} Skill '${skillId}' applied as hidden context via ${trigger}`);
+    logger.info(
+      `${this.logTag} Skill '${skillId}' applied as hidden context via ${trigger}`,
+    );
     return "applied";
   }
 
@@ -26439,8 +26570,10 @@ You are continuing a previous conversation. The context from the previous conver
     phrase: string,
   ): boolean {
     const normalizedPhrase = this.normalizeSkillInvocationQuery(phrase);
-    return matchesExplicitSkillInvocationPhrase(normalizedQuery, normalizedPhrase, (segment) =>
-      this.escapeSkillInvocationPattern(segment),
+    return matchesExplicitSkillInvocationPhrase(
+      normalizedQuery,
+      normalizedPhrase,
+      (segment) => this.escapeSkillInvocationPattern(segment),
     );
   }
 
@@ -27079,10 +27212,7 @@ You are continuing a previous conversation. The context from the previous conver
       workflow === "ppt-master"
         ? resolvedArtifactRoot
         : path.resolve(resolvedArtifactRoot, workflow);
-    const workflowOutputDirectory = path.resolve(
-      workflowProjectRoot,
-      "output",
-    );
+    const workflowOutputDirectory = path.resolve(workflowProjectRoot, "output");
     const canonicalTargetPath = path.resolve(
       workflowOutputDirectory,
       "presentation.pptx",
@@ -27188,10 +27318,7 @@ You are continuing a previous conversation. The context from the previous conver
         workflowProjectRoot,
         "validation",
       );
-      const workflowLogPath = path.resolve(
-        validationDirectory,
-        "workflow.log",
-      );
+      const workflowLogPath = path.resolve(validationDirectory, "workflow.log");
       const deliveryReportPath = path.resolve(
         validationDirectory,
         "pptx-delivery-check.json",
@@ -28565,7 +28692,10 @@ You are continuing a previous conversation. The context from the previous conver
       }
 
       // Companion turns are text-only and should not enter native planning/tool execution.
-      if (this.shouldHandleInitialPromptAsCompanion(initialPrompt)) {
+      if (
+        !this.hasImageAttachments(this.initialImages) &&
+        this.shouldHandleInitialPromptAsCompanion(initialPrompt)
+      ) {
         this.emitEvent("log", {
           message:
             "Routing initial prompt through companion mode before planning.",
@@ -29186,7 +29316,11 @@ You are continuing a previous conversation. The context from the previous conver
             String(reason).toLowerCase(),
           );
         const delayMs = isRateLimit ? 60 * 1000 : undefined; // 60s for rate limit, else default
-        const scheduled = this.daemon.handleTransientTaskFailure(this.task.id, reason, delayMs);
+        const scheduled = this.daemon.handleTransientTaskFailure(
+          this.task.id,
+          reason,
+          delayMs,
+        );
         if (scheduled) {
           return;
         }
@@ -29648,7 +29782,9 @@ Return ONLY a JSON object:
             {
               id: "1",
               description:
-                normalizePromptForContractsUtil(this.getContractPrompt()).trim() ||
+                normalizePromptForContractsUtil(
+                  this.getContractPrompt(),
+                ).trim() ||
                 this.task.title ||
                 "Complete the user's request.",
               kind: "primary",
@@ -29751,7 +29887,8 @@ Return ONLY a JSON object:
           ).trim();
           const fallbackStepDescription =
             (sanitizedCombinedPlanText.hadToolCallText ||
-              (this.provider?.type === "ollama" && recoveredSteps.length === 0)) &&
+              (this.provider?.type === "ollama" &&
+                recoveredSteps.length === 0)) &&
             cleanUserTaskPrompt
               ? cleanUserTaskPrompt
               : planParsingText.slice(0, 500);
@@ -29789,7 +29926,9 @@ Return ONLY a JSON object:
             {
               id: "1",
               description:
-                normalizePromptForContractsUtil(this.getContractPrompt()).trim() ||
+                normalizePromptForContractsUtil(
+                  this.getContractPrompt(),
+                ).trim() ||
                 this.task.title ||
                 "Complete the user's request.",
               kind: "primary",
@@ -29807,7 +29946,9 @@ Return ONLY a JSON object:
           {
             id: "1",
             description:
-              normalizePromptForContractsUtil(this.getContractPrompt()).trim() ||
+              normalizePromptForContractsUtil(
+                this.getContractPrompt(),
+              ).trim() ||
               this.task.title ||
               "Complete the user's request.",
             kind: "primary",
@@ -30220,7 +30361,9 @@ Return ONLY a JSON object:
     ];
     const seen = new Set<string>();
     for (const candidate of candidates) {
-      const text = normalizePromptForContractsUtil(String(candidate || "")).trim();
+      const text = normalizePromptForContractsUtil(
+        String(candidate || ""),
+      ).trim();
       if (!text || seen.has(text)) continue;
       seen.add(text);
       const steps = this.extractPlanStepsFromText(text);
@@ -30236,7 +30379,9 @@ Return ONLY a JSON object:
     if (this.provider?.type !== "ollama") return false;
     const explicitStepLines = String(rawPlanText || "")
       .split(/\r?\n/)
-      .filter((line) => /^(?:[-*]\s*)?(?:step\s*)?\d+\s*[).:-]\s*\S/i.test(line.trim()));
+      .filter((line) =>
+        /^(?:[-*]\s*)?(?:step\s*)?\d+\s*[).:-]\s*\S/i.test(line.trim()),
+      );
     if (recoveredSteps.length > 1 && explicitStepLines.length === 0) {
       return true;
     }
@@ -30247,7 +30392,9 @@ Return ONLY a JSON object:
     return (
       description.includes("\n") ||
       wordCount >= 70 ||
-      /\b(?:i['’]?ll|i will|let'?s get started|searching for|first,\s*i['’]?ll)\b/i.test(combined)
+      /\b(?:i['’]?ll|i will|let'?s get started|searching for|first,\s*i['’]?ll)\b/i.test(
+        combined,
+      )
     );
   }
 
@@ -30271,7 +30418,10 @@ Return ONLY a JSON object:
       return promptSteps;
     }
 
-    return this.localModelRecoveredTextPlanLooksMalformed(recoveredSteps, planText)
+    return this.localModelRecoveredTextPlanLooksMalformed(
+      recoveredSteps,
+      planText,
+    )
       ? []
       : recoveredSteps;
   }
@@ -30385,8 +30535,13 @@ Return ONLY a JSON object:
     if (!text) {
       throw new Error(`${params.label} returned no usable analysis text.`);
     }
-    if (params.rejectMaxTokens === true && response?.stopReason === "max_tokens") {
-      const error = new Error(`${params.label} reached its output token limit before completion.`);
+    if (
+      params.rejectMaxTokens === true &&
+      response?.stopReason === "max_tokens"
+    ) {
+      const error = new Error(
+        `${params.label} reached its output token limit before completion.`,
+      );
       (error as Any).retryable = false;
       throw error;
     }
@@ -30452,8 +30607,12 @@ Return ONLY a JSON object:
       const midpoint = Math.floor(chunk.content.length / 2);
       const paragraphSplit = chunk.content.lastIndexOf("\n\n", midpoint);
       const splitAt = paragraphSplit > 0 ? paragraphSplit : midpoint;
-      const safeSplit = splitAt > 0 && splitAt < chunk.content.length ? splitAt : midpoint;
-      const parts = [chunk.content.slice(0, safeSplit), chunk.content.slice(safeSplit)];
+      const safeSplit =
+        splitAt > 0 && splitAt < chunk.content.length ? splitAt : midpoint;
+      const parts = [
+        chunk.content.slice(0, safeSplit),
+        chunk.content.slice(safeSplit),
+      ];
       const findings: string[] = [];
       let relativeStart = chunk.start;
       try {
@@ -30491,9 +30650,10 @@ Return ONLY a JSON object:
           "",
       ),
     ).trim();
-    const useTurkish = /[çğıöşü]|(?:kitap|incele|bölüm|karakter|çelişki|tutarlılık)/i.test(
-      userRequest,
-    );
+    const useTurkish =
+      /[çğıöşü]|(?:kitap|incele|bölüm|karakter|çelişki|tutarlılık)/i.test(
+        userRequest,
+      );
 
     const sourcePath = await discoverDocumentForAnalysis(
       this.workspace.path,
@@ -30506,7 +30666,10 @@ Return ONLY a JSON object:
     this.setBoundedDocumentStepState(0, "in_progress");
     let source;
     try {
-      source = await extractDocumentForAnalysis(this.workspace.path, sourcePath);
+      source = await extractDocumentForAnalysis(
+        this.workspace.path,
+        sourcePath,
+      );
     } catch (error) {
       const message = String((error as Error)?.message || error);
       this.setBoundedDocumentStepState(0, "failed", message);
@@ -30544,7 +30707,9 @@ Return ONLY a JSON object:
     try {
       for (const chunk of chunks) {
         if (this.cancelled || this.wrapUpRequested) {
-          throw new Error("Document analysis was interrupted before all ranges were covered.");
+          throw new Error(
+            "Document analysis was interrupted before all ranges were covered.",
+          );
         }
         this.emitEvent("progress_update", {
           phase: "document_analysis",
@@ -30576,9 +30741,13 @@ Return ONLY a JSON object:
 
     this.setBoundedDocumentStepState(2, "in_progress");
     let evidenceBlocks = findings.map(
-      (finding, index) => `## Segment ${index + 1}/${findings.length}\n${finding}`,
+      (finding, index) =>
+        `## Segment ${index + 1}/${findings.length}\n${finding}`,
     );
-    const combinedEvidenceChars = evidenceBlocks.reduce((sum, block) => sum + block.length, 0);
+    const combinedEvidenceChars = evidenceBlocks.reduce(
+      (sum, block) => sum + block.length,
+      0,
+    );
     if (combinedEvidenceChars > 40_000) {
       const reduced: string[] = [];
       try {
@@ -30667,7 +30836,8 @@ Return ONLY a JSON object:
       this.failureClass = "budget_exhausted";
     }
     if (finalReport.trim().length < 200) {
-      const message = "Document synthesis did not produce a substantive review.";
+      const message =
+        "Document synthesis did not produce a substantive review.";
       this.setBoundedDocumentStepState(2, "failed", message);
       throw new Error(message);
     }
@@ -30755,13 +30925,12 @@ Return ONLY a JSON object:
     let repeatedArtifactContractFailureStreak = 0;
     while (index < this.plan.steps.length) {
       const step = this.plan.steps[index];
-      const normalizedKind: PlanStep["kind"] = this.descriptionIndicatesVerification(
-        step.description,
-      )
-        ? "verification"
-        : step.kind === "recovery"
-          ? "recovery"
-          : "primary";
+      const normalizedKind: PlanStep["kind"] =
+        this.descriptionIndicatesVerification(step.description)
+          ? "verification"
+          : step.kind === "recovery"
+            ? "recovery"
+            : "primary";
       if (step.kind !== normalizedKind) {
         step.kind = normalizedKind;
       }
@@ -31148,7 +31317,8 @@ Return ONLY a JSON object:
                 "Skipped after repeated artifact-contract failures in prerequisite steps.";
               this.emitEvent("step_skipped", {
                 step: remainingStep,
-                reason: "Skipped after repeated artifact-contract failures in prerequisite steps.",
+                reason:
+                  "Skipped after repeated artifact-contract failures in prerequisite steps.",
               });
             }
           }
@@ -31675,7 +31845,8 @@ Return ONLY a JSON object:
     let synthesizedMemoryBlock = "";
     if (allowMemoryInjection) {
       try {
-        const includeWorkspaceKit = gatewayContext === "private" && contextPackInjectionEnabled;
+        const includeWorkspaceKit =
+          gatewayContext === "private" && contextPackInjectionEnabled;
         const synthesized = MemorySynthesizer.synthesize(
           this.workspace.id,
           this.workspace.path,
@@ -38567,7 +38738,9 @@ Return ONLY a JSON object:
       }
 
       video.videoFramePaths = framePaths;
-      video.videoContactSheetPath = fs.existsSync(contactSheetPath) ? contactSheetPath : undefined;
+      video.videoContactSheetPath = fs.existsSync(contactSheetPath)
+        ? contactSheetPath
+        : undefined;
       this.emitVideoPreviewArtifacts(video, label);
 
       const previewPaths = this.getVideoPreviewImagePaths(video);
@@ -38607,8 +38780,14 @@ Return ONLY a JSON object:
       return message;
     }
 
+    // Provider/profile routing can change between attachment intake and the
+    // actual LLM turn (for example, planning may select a strong profile).
+    // Re-assert the visual-input requirement at the last responsible moment so
+    // attachments are never silently handed to a newly selected text model.
+    this.ensureProviderFailoverSelectionsContext(true);
+
     const providerType = this.provider.type;
-    const providerCaps = getProviderImageCaps(providerType);
+    const providerCaps = getProviderImageCaps(providerType, this.modelId);
     if (!providerCaps.supportsImages) {
       const hasVideo = images.some((attachment) =>
         this.isVideoAttachment(attachment),
@@ -38629,7 +38808,7 @@ Return ONLY a JSON object:
       this.emitEvent("log", {
         message: `Visual attachment skipped: current provider "${providerType}" does not support image input.`,
       });
-      return warningMessage;
+      throw new Error(`User action required: ${warningMessage}`);
     }
 
     const validImages: LLMContent[] = [];
@@ -38677,7 +38856,11 @@ Return ONLY a JSON object:
       }
 
       for (const imageContent of imageContents) {
-        const error = validateImageForProvider(imageContent, providerType);
+        const error = validateImageForProvider(
+          imageContent,
+          providerType,
+          this.modelId,
+        );
         if (error) {
           logger.warn(`[TaskExecutor] Skipping image: ${error}`);
           this.emitEvent("log", { message: `Image skipped: ${error}` });
@@ -39391,7 +39574,9 @@ Return ONLY a JSON object:
     this.modelKey = selection.modelKey;
     this.llmProfileUsed = selection.llmProfileUsed;
     this.resolvedModelKey = selection.resolvedModelKey;
-    this.contextManager = new ContextManager(selection.contextModelKey || this.modelKey);
+    this.contextManager = new ContextManager(
+      selection.contextModelKey || this.modelKey,
+    );
   }
 
   private rebuildProviderFailoverSelections(
@@ -39436,6 +39621,48 @@ Return ONLY a JSON object:
       this.llmProfileUsed,
       { requiresImageInput },
     );
+
+    if (!requiresImageInput) return;
+
+    const imageSelection = this.providerFailoverSelections[0];
+    if (
+      !imageSelection ||
+      (imageSelection.providerType === this.provider.type &&
+        imageSelection.modelId === this.modelId)
+    ) {
+      return;
+    }
+
+    const previousProviderType = this.provider.type;
+    const previousModelId = this.modelId;
+    this.applyResolvedProviderSelection(imageSelection);
+    this.emitEvent("log", {
+      message:
+        `Visual input route selected: ${previousProviderType}/${previousModelId} ` +
+        `→ ${imageSelection.providerType}/${imageSelection.modelId}`,
+      routeReason: "model_capability",
+    });
+    this.emitRoutingState({
+      routeReason: "model_capability",
+      fallbackChain: [
+        {
+          providerType: previousProviderType,
+          modelKey: previousModelId,
+          reason: "Selected model cannot accept image input",
+          attemptedAt: Date.now(),
+          success: false,
+        },
+        {
+          providerType: imageSelection.providerType,
+          modelKey: imageSelection.modelKey,
+          reason: "Selected image-capable fallback before execution",
+          attemptedAt: Date.now(),
+          success: true,
+        },
+      ],
+      fallbackOccurred: true,
+      manualOverride: this.hasExplicitTaskRouteOverride(),
+    });
   }
 
   private getRetryRouteReason(error: Any): LLMRoutingReason {
@@ -39560,7 +39787,9 @@ Return ONLY a JSON object:
       settings,
       primaryProviderType,
     );
-    const cooldownSeconds = Number(failoverSettings.failoverPrimaryRetryCooldownSeconds);
+    const cooldownSeconds = Number(
+      failoverSettings.failoverPrimaryRetryCooldownSeconds,
+    );
     const cooldownMs = Number.isFinite(cooldownSeconds)
       ? Math.max(0, Math.min(3600, Math.floor(cooldownSeconds))) * 1000
       : DEFAULT_FAILOVER_PRIMARY_RETRY_COOLDOWN_MS;
@@ -39698,7 +39927,10 @@ Return ONLY a JSON object:
       return;
     }
 
-    if (newSelection.modelId !== this.modelId || newSelection.providerType !== this.provider.type) {
+    if (
+      newSelection.modelId !== this.modelId ||
+      newSelection.providerType !== this.provider.type
+    ) {
       logger.info(
         `${this.logTag} Provider/model changed mid-session: ${this.provider.type}/${this.modelId} → ${newSelection.providerType}/${newSelection.modelId}`,
       );
@@ -40065,9 +40297,7 @@ Return ONLY a JSON object:
 
     const followUpCompletionContract =
       this.buildFollowUpCompletionContract(executionMessage);
-    if (
-      recoveredFromInterruption?.requiredArtifactExtensions?.length
-    ) {
+    if (recoveredFromInterruption?.requiredArtifactExtensions?.length) {
       followUpCompletionContract.requiredArtifactExtensions = Array.from(
         new Set([
           ...followUpCompletionContract.requiredArtifactExtensions,
@@ -42535,9 +42765,7 @@ Return ONLY a JSON object:
       }
 
       const requiresPresentationArtifact =
-        followUpCompletionContract.requiredArtifactExtensions.includes(
-          ".pptx",
-        );
+        followUpCompletionContract.requiredArtifactExtensions.includes(".pptx");
 
       if (previousStatus === "failed") {
         this.finalizeFollowUpCompletion("Completed via follow-up", {
@@ -42628,7 +42856,9 @@ Return ONLY a JSON object:
           this.maxLifetimeTurns - this.lifetimeTurnCount,
         );
         const canRecover =
-          recoveryAttempt <= 1 && continuationBudgetRemaining > 0 && lifetimeBudgetRemaining > 0;
+          recoveryAttempt <= 1 &&
+          continuationBudgetRemaining > 0 &&
+          lifetimeBudgetRemaining > 0;
 
         this.emitEvent("follow_up_turn_recovery_started", {
           taskId: this.task.id,
@@ -42713,7 +42943,9 @@ Return ONLY a JSON object:
       if (resumeAttempted) {
         this.capturePlaybookOutcome("failure", error?.message || String(error));
         const userFacingMessage = this.finalizeFollowUpFailure(error);
-        const technicalError = String(error?.message || error || "Unknown error");
+        const technicalError = String(
+          error?.message || error || "Unknown error",
+        );
         const errorPayload: Record<string, unknown> = {
           message: userFacingMessage,
           technicalError,

@@ -29,6 +29,64 @@ afterEach(() => {
 });
 
 describe("OpenAICompatibleProvider error metadata", () => {
+  it("sends image_url content for a DeepSeek vision model", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn().mockResolvedValue({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: { content: "A city skyline." },
+          },
+        ],
+        usage: {
+          prompt_tokens: 12,
+          completion_tokens: 4,
+        },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createProvider().createMessage({
+      model: "deepseek-v4-flash-vision-exp",
+      maxTokens: 32,
+      system: "",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Where is this?" },
+            {
+              type: "image",
+              mimeType: "image/png",
+              data: "AA==",
+              originalSizeBytes: 2,
+            },
+          ],
+        },
+      ],
+    });
+
+    const requestBody = JSON.parse(
+      String((fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.body),
+    );
+    expect(requestBody.model).toBe("deepseek-v4-flash-vision-exp");
+    expect(requestBody.messages).toEqual([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Where is this?" },
+          {
+            type: "image_url",
+            image_url: { url: "data:image/png;base64,AA==" },
+          },
+        ],
+      },
+    ]);
+  });
+
   it("marks temporary HTTP failures as retryable", async () => {
     vi.stubGlobal(
       "fetch",

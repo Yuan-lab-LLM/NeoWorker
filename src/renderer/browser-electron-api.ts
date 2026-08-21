@@ -1695,6 +1695,14 @@ const browserApiBase = {
   archiveTask: () => Promise.resolve(true),
   unarchiveTask: () => Promise.resolve(true),
   listArchivedTasks: () => Promise.resolve([]),
+  purgeArchivedTask: (taskId: string) => {
+    saveTasks(readTasks().filter((task) => task.id !== taskId));
+    return Promise.resolve({
+      sessionId: taskId,
+      taskCount: 1,
+      deletedTaskIds: [taskId],
+    });
+  },
   listPendingApprovals: () => Promise.resolve([]),
   respondToApproval: () => Promise.resolve("handled" as const),
   respondToInputRequest: () => Promise.resolve({ success: true }),

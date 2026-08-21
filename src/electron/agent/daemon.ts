@@ -750,9 +750,42 @@ export class AgentDaemon extends EventEmitter {
       const pruned = repo.pruneOldEvents(90);
       if (pruned > 0) log.info(`DB maintenance: pruned ${pruned} old events`);
       repo.vacuumIfNeeded(500);
+      await this.runExpiredTaskTrashPrune(repo);
       await this.runSessionAutoPrune(repo);
     } catch (error) {
       log.error("DB maintenance failed:", error);
+    }
+  }
+
+  private async runExpiredTaskTrashPrune(
+    taskEventRepo: TaskEventRepository,
+  ): Promise<void> {
+    const db = this.dbManager.getDatabase();
+    const sessionRetention = new SessionRetentionService(
+      new TaskRepository(db),
+      taskEventRepo,
+      new TaskSessionMetadataRepository(db),
+      new WorkspaceRepository(db),
+    );
+    const result = await sessionRetention.pruneExpiredTrash(Date.now(), {
+      deleteTask: async (task) => {
+        await this.cancelTask(task.id);
+        if (!task.worktreePath && !task.worktreeBranch) return;
+        try {
+          await this.worktreeManager.cleanup(task.id, true);
+        } catch (error) {
+          log.warn(
+            `Expired trash worktree cleanup failed for ${task.id}:`,
+            error,
+          );
+        }
+      },
+    });
+    if (result.sessionCount > 0) {
+      log.info(
+        `Task trash maintenance permanently deleted ${result.sessionCount} expired session(s) ` +
+          `and ${result.taskCount} task row(s).`,
+      );
     }
   }
 

@@ -8,6 +8,9 @@ const skillHubPath = fileURLToPath(
 const capabilityCenterPath = fileURLToPath(
   new URL("../CapabilityCenter.tsx", import.meta.url),
 );
+const skillsSettingsPath = fileURLToPath(
+  new URL("../SkillsSettings.tsx", import.meta.url),
+);
 const mainContentPath = fileURLToPath(
   new URL("../MainContent/MainContent.tsx", import.meta.url),
 );
@@ -44,6 +47,20 @@ describe("skill inventory refresh flow", () => {
     expect(source.indexOf("window.electronAPI.reloadCustomSkills()")).toBeLessThan(
       source.indexOf("window.electronAPI.listTaskSkills()"),
     );
+  });
+
+  it("makes external skill scans observable and groups imports as custom", () => {
+    const settingsSource = readFileSync(skillsSettingsPath, "utf8");
+
+    expect(settingsSource).toContain('t("skills.scan", "Scan Skills")');
+    expect(settingsSource).toContain('role="status"');
+    expect(settingsSource).toContain('"skills.notice.scanAdded"');
+    expect(settingsSource).toContain('"skills.notice.directoryAdded"');
+    expect(settingsSource).toContain('? "__custom__"');
+    expect(settingsSource).toContain(
+      't("skills.category.custom", "Custom")',
+    );
+    expect(settingsSource).toContain("countSkillsInDirectory(skills, dir)");
   });
 
   it("opens the parameter form when a parameterized skill is chosen from Slash", () => {

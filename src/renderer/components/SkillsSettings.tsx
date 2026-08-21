@@ -1,5 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
-import { FolderOpen, RefreshCw, Plus } from "lucide-react";
+import {
+  ChevronDown,
+  CircleCheck,
+  FolderCheck,
+  FolderOpen,
+  LoaderCircle,
+  Plus,
+  RefreshCw,
+} from "lucide-react";
 import { CustomSkill, SkillParameter } from "../../shared/types";
 import { getEmojiIcon } from "../utils/emoji-icon-map";
 import { translate, useLanguage } from "../i18n";
@@ -18,6 +26,7 @@ interface SkillsSettingsProps {
 }
 
 const SKILL_CATEGORY_ORDER = [
+  "__custom__",
   "Guidelines",
   "Research",
   "Writing",
@@ -36,6 +45,34 @@ const SKILL_CATEGORY_ORDER = [
   "__uncategorized__",
 ];
 
+const isCustomSkill = (skill: Pick<CustomSkill, "source">) =>
+  skill.source !== "bundled";
+
+const normalizeDirectoryPath = (value: string) =>
+  value.replace(/\\/g, "/").replace(/\/+$/, "");
+
+const getDirectoryName = (value: string) => {
+  const normalized = normalizeDirectoryPath(value);
+  return normalized.split("/").filter(Boolean).at(-1) || normalized;
+};
+
+const countSkillsInDirectory = (skills: CustomSkill[], directory: string) => {
+  const normalizedDirectory = normalizeDirectoryPath(directory);
+  return skills.filter((skill) => {
+    if (skill.source !== "external" || !skill.filePath) return false;
+    const normalizedFilePath = normalizeDirectoryPath(skill.filePath);
+    return (
+      normalizedFilePath === normalizedDirectory ||
+      normalizedFilePath.startsWith(`${normalizedDirectory}/`)
+    );
+  }).length;
+};
+
+type SkillsNotice = {
+  kind: "success" | "info";
+  message: string;
+};
+
 export function SkillsSettings({ onSkillSelect }: SkillsSettingsProps) {
   useLanguage();
   const t = translate;
@@ -48,40 +85,83 @@ export function SkillsSettings({ onSkillSelect }: SkillsSettingsProps) {
   const [loading, setLoading] = useState(true);
   const [editingSkill, setEditingSkill] = useState<CustomSkill | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [busyDirectory, setBusyDirectory] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<SkillsNotice | null>(null);
   const [activeCategory, setActiveCategory] = useState("__all__");
+  const [areExternalDirectoriesExpanded, setAreExternalDirectoriesExpanded] =
+    useState(false);
 
   // Load skills on mount
   useEffect(() => {
     loadSkills();
   }, []);
 
-  const loadSkills = async () => {
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  const loadSkills = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const [loadedSkills, settings] = await Promise.all([
         window.electronAPI.listCustomSkills(),
         window.electronAPI.getCustomSkillSettings(),
       ]);
-      setSkills(loadedSkills.filter(isSkillVisibleForCurrentProductSupport));
+      const visibleSkills = loadedSkills.filter(
+        isSkillVisibleForCurrentProductSupport,
+      );
+      setSkills(visibleSkills);
       setExternalSkillDirectories(settings.externalSkillDirectories || []);
       setError(null);
+      return visibleSkills;
     } catch (err) {
       setError(t("skills.error.load", "Failed to load skills"));
       console.error("Failed to load skills:", err);
+      return null;
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   const handleReload = async () => {
+    if (isRefreshing) return;
+    const previousSkillIds = new Set(skills.map((skill) => skill.id));
     try {
+      setIsRefreshing(true);
+      setNotice(null);
       const reloadedSkills = await window.electronAPI.reloadCustomSkills();
-      setSkills(reloadedSkills.filter(isSkillVisibleForCurrentProductSupport));
+      const visibleSkills = reloadedSkills.filter(
+        isSkillVisibleForCurrentProductSupport,
+      );
+      const addedCount = visibleSkills.filter(
+        (skill) => !previousSkillIds.has(skill.id),
+      ).length;
+      setSkills(visibleSkills);
       setError(null);
+      setNotice({
+        kind: "success",
+        message:
+          addedCount > 0
+            ? t(
+                "skills.notice.scanAdded",
+                "Scan complete: {count} new skills found, {total} total.",
+                { count: addedCount, total: visibleSkills.length },
+              )
+            : t(
+                "skills.notice.scanCurrent",
+                "Scan complete. The skill list is up to date ({total} total).",
+                { total: visibleSkills.length },
+              ),
+      });
       notifySkillInventoryUpdated();
     } catch {
       setError(t("skills.error.reload", "Failed to reload skills"));
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -92,15 +172,39 @@ export function SkillsSettings({ onSkillSelect }: SkillsSettingsProps) {
   const handleAddExternalDirectory = async () => {
     const nextDir = externalSkillDirectoryInput.trim();
     if (!nextDir) return;
+    if (externalSkillDirectories.includes(nextDir)) {
+      setNotice({
+        kind: "info",
+        message: t(
+          "skills.notice.duplicateDirectory",
+          "This directory has already been added.",
+        ),
+      });
+      return;
+    }
 
     try {
+      setBusyDirectory(nextDir);
+      setNotice(null);
       const settings = await window.electronAPI.setExternalSkillDirectories([
         ...externalSkillDirectories,
         nextDir,
       ]);
       setExternalSkillDirectories(settings.externalSkillDirectories || []);
       setExternalSkillDirectoryInput("");
-      await loadSkills();
+      setAreExternalDirectoriesExpanded(false);
+      const loadedSkills = await loadSkills(false);
+      if (loadedSkills) {
+        const loadedCount = countSkillsInDirectory(loadedSkills, nextDir);
+        setNotice({
+          kind: "success",
+          message: t(
+            "skills.notice.directoryAdded",
+            "Directory added and scanned. {count} skills loaded.",
+            { count: loadedCount },
+          ),
+        });
+      }
       notifySkillInventoryUpdated();
     } catch (err: Any) {
       setError(
@@ -110,16 +214,27 @@ export function SkillsSettings({ onSkillSelect }: SkillsSettingsProps) {
             "Failed to add external skill directory",
           ),
       );
+    } finally {
+      setBusyDirectory(null);
     }
   };
 
   const handleRemoveExternalDirectory = async (dir: string) => {
     try {
+      setBusyDirectory(dir);
+      setNotice(null);
       const settings = await window.electronAPI.setExternalSkillDirectories(
         externalSkillDirectories.filter((entry) => entry !== dir),
       );
       setExternalSkillDirectories(settings.externalSkillDirectories || []);
-      await loadSkills();
+      await loadSkills(false);
+      setNotice({
+        kind: "success",
+        message: t(
+          "skills.notice.directoryRemoved",
+          "External skill directory removed.",
+        ),
+      });
       notifySkillInventoryUpdated();
     } catch (err: Any) {
       setError(
@@ -129,6 +244,8 @@ export function SkillsSettings({ onSkillSelect }: SkillsSettingsProps) {
             "Failed to remove external skill directory",
           ),
       );
+    } finally {
+      setBusyDirectory(null);
     }
   };
 
@@ -209,6 +326,12 @@ export function SkillsSettings({ onSkillSelect }: SkillsSettingsProps) {
       setEditingSkill(null);
       setIsCreating(false);
       setError(null);
+      setNotice({
+        kind: "success",
+        message: isCreating
+          ? t("skills.notice.created", "Skill created.")
+          : t("skills.notice.saved", "Skill saved."),
+      });
       notifySkillInventoryUpdated();
     } catch (err: Any) {
       setError(err.message || t("skills.error.save", "Failed to save skill"));
@@ -223,7 +346,9 @@ export function SkillsSettings({ onSkillSelect }: SkillsSettingsProps) {
   const skillCategories = useMemo(() => {
     const grouped = skills.reduce(
       (acc, skill) => {
-        const category = skill.category || "__uncategorized__";
+        const category = isCustomSkill(skill)
+          ? "__custom__"
+          : skill.category || "__uncategorized__";
         if (!acc[category]) acc[category] = [];
         acc[category].push(skill);
         return acc;
@@ -236,9 +361,11 @@ export function SkillsSettings({ onSkillSelect }: SkillsSettingsProps) {
         id,
         skills: categorySkills,
         label:
-          id === "__uncategorized__"
-            ? t("skills.uncategorized", "Uncategorized")
-            : getLocalizedSkillCategory(id) || id,
+          id === "__custom__"
+            ? t("skills.category.custom", "Custom")
+            : id === "__uncategorized__"
+              ? t("skills.uncategorized", "Uncategorized")
+              : getLocalizedSkillCategory(id) || id,
       }))
       .sort((a, b) => {
         const aIndex = SKILL_CATEGORY_ORDER.indexOf(a.id);
@@ -249,10 +376,28 @@ export function SkillsSettings({ onSkillSelect }: SkillsSettingsProps) {
       });
   }, [skills, t]);
 
+  useEffect(() => {
+    if (
+      activeCategory !== "__all__" &&
+      !skillCategories.some((category) => category.id === activeCategory)
+    ) {
+      setActiveCategory("__all__");
+    }
+  }, [activeCategory, skillCategories]);
+
   const visibleSkillCategories =
     activeCategory === "__all__"
       ? skillCategories
       : skillCategories.filter((category) => category.id === activeCategory);
+
+  const externalDirectorySkillCount = useMemo(
+    () =>
+      externalSkillDirectories.reduce(
+        (total, directory) => total + countSkillsInDirectory(skills, directory),
+        0,
+      ),
+    [externalSkillDirectories, skills],
+  );
 
   if (loading) {
     return (
@@ -294,9 +439,23 @@ export function SkillsSettings({ onSkillSelect }: SkillsSettingsProps) {
               <FolderOpen size={14} strokeWidth={2} />
               {t("skills.openFolder", "Open Folder")}
             </button>
-            <button className="btn-secondary btn-sm" onClick={handleReload}>
-              <RefreshCw size={14} strokeWidth={2} />
-              {t("skills.reload", "Reload")}
+            <button
+              className="btn-secondary btn-sm"
+              onClick={handleReload}
+              disabled={isRefreshing}
+            >
+              {isRefreshing ? (
+                <LoaderCircle
+                  className="skills-spinning-icon"
+                  size={14}
+                  strokeWidth={2}
+                />
+              ) : (
+                <RefreshCw size={14} strokeWidth={2} />
+              )}
+              {isRefreshing
+                ? t("skills.scanning", "Scanning…")
+                : t("skills.scan", "Scan Skills")}
             </button>
             <button className="btn-primary btn-sm" onClick={handleCreate}>
               <Plus size={14} strokeWidth={2} />
@@ -308,7 +467,13 @@ export function SkillsSettings({ onSkillSelect }: SkillsSettingsProps) {
           <label>
             {t("skills.externalDirectories", "External Skill Directories")}
           </label>
-          <div className="settings-section-actions skills-directory-actions">
+          <form
+            className="settings-section-actions skills-directory-actions"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleAddExternalDirectory();
+            }}
+          >
             <input
               type="text"
               value={externalSkillDirectoryInput}
@@ -317,11 +482,19 @@ export function SkillsSettings({ onSkillSelect }: SkillsSettingsProps) {
             />
             <button
               className="btn-secondary btn-sm"
-              onClick={handleAddExternalDirectory}
+              type="submit"
+              disabled={Boolean(busyDirectory)}
             >
-              {t("skills.addDirectory", "Add Directory")}
+              {busyDirectory === externalSkillDirectoryInput.trim() ? (
+                <LoaderCircle
+                  className="skills-spinning-icon"
+                  size={14}
+                  strokeWidth={2}
+                />
+              ) : null}
+              {t("skills.addDirectory", "Add and scan")}
             </button>
-          </div>
+          </form>
           <p className="form-hint">
             {t(
               "skills.externalDirectoriesHint",
@@ -329,36 +502,123 @@ export function SkillsSettings({ onSkillSelect }: SkillsSettingsProps) {
             )}
           </p>
           {externalSkillDirectories.length > 0 && (
-            <div className="parameters-list">
-              {externalSkillDirectories.map((dir) => (
-                <div key={dir} className="parameter-item">
-                  <div className="parameter-main">
-                    <div className="parameter-row">
-                      <input type="text" value={dir} readOnly />
-                    </div>
-                  </div>
-                  <div className="parameter-actions">
-                    <button
-                      className="btn-secondary btn-xs"
-                      onClick={() => handleOpenExternalDirectory(dir)}
-                    >
-                      {t("skills.open", "Open")}
-                    </button>
-                    <button
-                      className="btn-danger btn-xs"
-                      onClick={() => handleRemoveExternalDirectory(dir)}
-                    >
-                      {t("skills.remove", "Remove")}
-                    </button>
-                  </div>
+            <div className="skills-external-directory-disclosure">
+              <button
+                type="button"
+                className="skills-external-directory-summary"
+                aria-expanded={areExternalDirectoriesExpanded}
+                aria-controls="skills-external-directory-list"
+                onClick={() =>
+                  setAreExternalDirectoriesExpanded((expanded) => !expanded)
+                }
+              >
+                <span className="skills-external-directory-summary-icon">
+                  <FolderCheck size={16} strokeWidth={1.9} />
+                </span>
+                <span className="skills-external-directory-summary-copy">
+                  <strong>
+                    {t(
+                      "skills.directory.connectedDirectories",
+                      "Connected directories",
+                    )}
+                  </strong>
+                  <span>
+                    {t(
+                      "skills.directory.summary",
+                      "{directories} directories · {skills} skills",
+                      {
+                        directories: externalSkillDirectories.length,
+                        skills: externalDirectorySkillCount,
+                      },
+                    )}
+                  </span>
+                </span>
+                <ChevronDown
+                  className="skills-external-directory-summary-chevron"
+                  size={16}
+                  strokeWidth={1.9}
+                  aria-hidden="true"
+                />
+              </button>
+              {areExternalDirectoriesExpanded && (
+                <div
+                  id="skills-external-directory-list"
+                  className="skills-external-directory-list"
+                >
+                  {externalSkillDirectories.map((dir) => {
+                    const loadedCount = countSkillsInDirectory(skills, dir);
+                    const isBusy = busyDirectory === dir;
+                    return (
+                      <div key={dir} className="skills-external-directory-card">
+                        <span className="skills-external-directory-icon">
+                          <FolderCheck size={17} strokeWidth={1.8} />
+                        </span>
+                        <div className="skills-external-directory-copy">
+                          <div className="skills-external-directory-title-row">
+                            <strong>{getDirectoryName(dir)}</strong>
+                            <span>
+                              <CircleCheck size={13} strokeWidth={2.2} />
+                              {loadedCount > 0
+                                ? t(
+                                    "skills.directory.loadedCount",
+                                    "{count} skills loaded",
+                                    { count: loadedCount },
+                                  )
+                                : t(
+                                    "skills.directory.waiting",
+                                    "Connected · no skill found",
+                                  )}
+                            </span>
+                          </div>
+                          <code title={dir}>{dir}</code>
+                        </div>
+                        <div className="skills-external-directory-actions">
+                          <button
+                            type="button"
+                            className="btn-secondary btn-xs"
+                            onClick={() => handleOpenExternalDirectory(dir)}
+                            disabled={isBusy}
+                          >
+                            <FolderOpen size={13} strokeWidth={2} />
+                            {t("skills.openFolder", "Open Folder")}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-danger btn-xs"
+                            onClick={() => handleRemoveExternalDirectory(dir)}
+                            disabled={isBusy}
+                          >
+                            {isBusy ? (
+                              <LoaderCircle
+                                className="skills-spinning-icon"
+                                size={13}
+                                strokeWidth={2}
+                              />
+                            ) : null}
+                            {t("skills.remove", "Remove")}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
       </div>
 
       {error && <div className="settings-error">{error}</div>}
+      {notice && (
+        <div
+          className={`skills-notice is-${notice.kind}`}
+          role="status"
+          aria-live="polite"
+        >
+          <CircleCheck size={16} strokeWidth={2.1} />
+          <span>{notice.message}</span>
+        </div>
+      )}
 
       {skills.length === 0 ? (
         <div className="skills-empty">

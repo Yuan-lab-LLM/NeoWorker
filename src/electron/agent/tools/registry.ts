@@ -1753,6 +1753,23 @@ export class ToolRegistry {
     return (method === "GET" || method === "HEAD") && !hasBody && customHeaders.length === 0;
   }
 
+  private isUserUploadedVisualInput(toolName: string, input?: Any): boolean {
+    const canonicalToolName = canonicalizeToolNameUtil(toolName);
+    if (
+      canonicalToolName !== "analyze_image" &&
+      canonicalToolName !== "read_pdf_visual"
+    ) {
+      return false;
+    }
+    const rawPath = typeof input?.path === "string" ? input.path.trim() : "";
+    if (!rawPath) return false;
+
+    const workspaceRoot = path.resolve(this.workspace.path);
+    const uploadsRoot = path.join(workspaceRoot, ".neoworker", "uploads");
+    const candidate = path.resolve(workspaceRoot, rawPath);
+    return candidate.startsWith(`${uploadsRoot}${path.sep}`);
+  }
+
   private getApprovalTypeForTool(toolName: string, input?: Any): ApprovalType | null {
     const canonicalToolName = canonicalizeToolNameUtil(toolName);
     if (canonicalToolName === "Skill") return null;
@@ -1764,6 +1781,7 @@ export class ToolRegistry {
       return this.isReadOnlyHttpRequestInput(input) ? "network_access" : "data_export";
     }
     if (canonicalToolName === "analyze_image" || canonicalToolName === "read_pdf_visual") {
+      if (this.isUserUploadedVisualInput(canonicalToolName, input)) return null;
       return "data_export";
     }
     if (canonicalToolName.startsWith("mcp_")) return "external_service";
@@ -1852,9 +1870,15 @@ export class ToolRegistry {
         context.request.input,
       );
       const runtimeApprovalType = getApprovalTypeForRuntimeKind(runtime.approvalKind);
+      const isUserUploadedVisualInput = this.isUserUploadedVisualInput(
+        context.request.name,
+        context.request.input,
+      );
       // Prefer tool/input-derived approval types because they are more specific
       // than broad runtime metadata kinds for the same tool call.
-      const effectiveApprovalType = browserUseApproval
+      const effectiveApprovalType = isUserUploadedVisualInput
+        ? null
+        : browserUseApproval
         ? "network_access"
         : (approvalType ?? runtimeApprovalType);
       const permissionEvaluation = (this.daemon as Any)?.evaluateToolPermission;
@@ -1866,7 +1890,9 @@ export class ToolRegistry {
         ...browserUseApproval,
       };
       const runtimeApprovalRequired =
-        runtime.approvalKind !== "none" && runtime.approvalKind !== "workspace_policy";
+        !isUserUploadedVisualInput &&
+        runtime.approvalKind !== "none" &&
+        runtime.approvalKind !== "workspace_policy";
       const pipeline = await evaluateToolPolicyPipeline({
         workspace: this.workspace,
         toolName: context.request.name,
@@ -1877,7 +1903,7 @@ export class ToolRegistry {
         runtimeApprovalType: runtimeApprovalRequired ? runtimeApprovalType : null,
         permissionApprovalType: effectiveApprovalType,
         permissionEvaluation:
-          typeof permissionEvaluation === "function"
+          !isUserUploadedVisualInput && typeof permissionEvaluation === "function"
             ? (policy) => {
                 const approvalTypeForPermission = policy?.approvalType ?? effectiveApprovalType;
                 return permissionEvaluation.call(this.daemon, this.taskId, {
@@ -1898,9 +1924,10 @@ export class ToolRegistry {
                 toolName: context.request.name,
                 toolInput: context.request.input,
                 highRisk:
-                  runtime.sideEffectLevel === "high" ||
-                  runtime.approvalKind === "destructive" ||
-                  runtime.approvalKind === "shell_sensitive",
+                  !isUserUploadedVisualInput &&
+                  (runtime.sideEffectLevel === "high" ||
+                    runtime.approvalKind === "destructive" ||
+                    runtime.approvalKind === "shell_sensitive"),
               })
           : undefined,
       });
@@ -1968,9 +1995,10 @@ export class ToolRegistry {
           toolName: context.request.name,
           toolInput: context.request.input,
           highRisk:
-            runtime.sideEffectLevel === "high" ||
-            runtime.approvalKind === "destructive" ||
-            runtime.approvalKind === "shell_sensitive",
+            !isUserUploadedVisualInput &&
+            (runtime.sideEffectLevel === "high" ||
+              runtime.approvalKind === "destructive" ||
+              runtime.approvalKind === "shell_sensitive"),
           success: !(result && typeof result === "object" && result.success === false),
           durationMs: Date.now() - executionStartedAt,
           exitCode:
@@ -1993,9 +2021,10 @@ export class ToolRegistry {
           toolName: context.request.name,
           toolInput: context.request.input,
           highRisk:
-            runtime.sideEffectLevel === "high" ||
-            runtime.approvalKind === "destructive" ||
-            runtime.approvalKind === "shell_sensitive",
+            !isUserUploadedVisualInput &&
+            (runtime.sideEffectLevel === "high" ||
+              runtime.approvalKind === "destructive" ||
+              runtime.approvalKind === "shell_sensitive"),
           success: false,
           durationMs: Date.now() - executionStartedAt,
           errorType: error instanceof Error ? error.name : "Error",

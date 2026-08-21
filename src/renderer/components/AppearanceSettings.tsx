@@ -9,74 +9,16 @@ import {
 interface AppearanceSettingsProps {
   devRunLoggingEnabled: boolean;
   onDevRunLoggingEnabledChange: (enabled: boolean) => void;
-  homeResearchVaultEnabled: boolean;
-  homeNextActionsEnabled: boolean;
-  onHomeResearchVaultEnabledChange: (enabled: boolean) => void;
-  onHomeNextActionsEnabledChange: (enabled: boolean) => void;
 }
 
 export function AppearanceSettings({
   devRunLoggingEnabled,
   onDevRunLoggingEnabledChange,
-  homeResearchVaultEnabled,
-  homeNextActionsEnabled,
-  onHomeResearchVaultEnabledChange,
-  onHomeNextActionsEnabledChange,
 }: AppearanceSettingsProps) {
   const currentLanguage = useLanguage();
 
   return (
     <div className="appearance-settings">
-      <div className="appearance-section">
-        <div className="appearance-section-heading">
-          <h4>{translate("appearance.homeWidgets", "Home widgets")}</h4>
-          <p className="settings-description">
-            {translate(
-              "appearance.homeWidgets.description",
-              "Optional workspace widgets shown near the composer. Both are off by default.",
-            )}
-          </p>
-        </div>
-        <div className="appearance-setting-list">
-          <label className="appearance-setting-row">
-            <span className="appearance-setting-label">
-              {translate(
-                "appearance.homeWidgets.researchVault",
-                "Show research vault",
-              )}
-            </span>
-            <span className="settings-toggle appearance-setting-toggle">
-              <input
-                type="checkbox"
-                checked={homeResearchVaultEnabled}
-                onChange={(event) =>
-                  onHomeResearchVaultEnabledChange(event.target.checked)
-                }
-              />
-              <span className="toggle-slider" />
-            </span>
-          </label>
-          <label className="appearance-setting-row">
-            <span className="appearance-setting-label">
-              {translate(
-                "appearance.homeWidgets.nextActions",
-                "Show next actions",
-              )}
-            </span>
-            <span className="settings-toggle appearance-setting-toggle">
-              <input
-                type="checkbox"
-                checked={homeNextActionsEnabled}
-                onChange={(event) =>
-                  onHomeNextActionsEnabledChange(event.target.checked)
-                }
-              />
-              <span className="toggle-slider" />
-            </span>
-          </label>
-        </div>
-      </div>
-
       {/* Language */}
       <div className="appearance-section">
         <div className="appearance-section-heading">

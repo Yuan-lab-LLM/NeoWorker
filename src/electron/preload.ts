@@ -83,6 +83,7 @@ import type {
   CoreTrace,
   TaskTraceRunDetail,
   TaskTraceRunSummary,
+  Task,
   TaskProvenanceRecord,
   TaskAccessSummary,
   TaskAccessPolicy,
@@ -2925,6 +2926,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   unarchiveTask: (id: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.TASK_UNARCHIVE, id),
   listArchivedTasks: () => ipcRenderer.invoke(IPC_CHANNELS.TASK_LIST_ARCHIVED),
+  purgeArchivedTask: (id: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.TASK_PURGE_ARCHIVED, id),
   deleteTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_DELETE, id),
 
   // Task event streaming
@@ -5399,6 +5402,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     }),
   listTeamRuns: (teamId: string, limit?: number) =>
     ipcRenderer.invoke(IPC_CHANNELS.TEAM_RUN_LIST, { teamId, limit }),
+  listRecentTeamTasks: (limit = 4) =>
+    ipcRenderer.invoke(IPC_CHANNELS.TEAM_RUN_LIST_RECENT_TASKS, limit),
   createTeamRun: (request: CreateAgentTeamRunRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.TEAM_RUN_CREATE, request),
   resumeTeamRun: (runId: string) =>
@@ -6851,6 +6856,11 @@ export interface ElectronAPI {
   listArchivedTasks: () => Promise<
     import("../shared/types").ArchivedTaskRecord[]
   >;
+  purgeArchivedTask: (id: string) => Promise<{
+    sessionId: string;
+    taskCount: number;
+    deletedTaskIds: string[];
+  }>;
   deleteTask: (id: string) => Promise<void>;
   onTaskEvent: (callback: (event: Any) => void) => () => void;
   onTaskLearningEvent: (
@@ -7840,8 +7850,6 @@ export interface ElectronAPI {
     timelineVerbosityConfigured?: boolean;
     language?: string;
     devRunLoggingEnabled?: boolean;
-    homeResearchVaultEnabled?: boolean;
-    homeNextActionsEnabled?: boolean;
     disclaimerAccepted?: boolean;
     onboardingCompleted?: boolean;
     onboardingCompletedAt?: string;
@@ -7857,8 +7865,6 @@ export interface ElectronAPI {
     timelineVerbosityConfigured?: boolean;
     language?: string;
     devRunLoggingEnabled?: boolean;
-    homeResearchVaultEnabled?: boolean;
-    homeNextActionsEnabled?: boolean;
     disclaimerAccepted?: boolean;
     onboardingCompleted?: boolean;
     onboardingCompletedAt?: string;
@@ -9467,6 +9473,7 @@ export interface ElectronAPI {
     orderedMemberIds: string[],
   ) => Promise<AgentTeamMember[]>;
   listTeamRuns: (teamId: string, limit?: number) => Promise<AgentTeamRun[]>;
+  listRecentTeamTasks: (limit?: number) => Promise<Task[]>;
   createTeamRun: (request: CreateAgentTeamRunRequest) => Promise<AgentTeamRun>;
   resumeTeamRun: (runId: string) => Promise<{ success: boolean }>;
   pauseTeamRun: (runId: string) => Promise<{ success: boolean }>;

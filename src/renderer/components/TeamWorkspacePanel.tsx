@@ -39,7 +39,6 @@ import "./team-workspace.css";
 
 interface TeamWorkspacePanelProps {
   workspace: Workspace | null;
-  tasks: Task[];
   onStartTask: (
     title: string,
     prompt: string,
@@ -141,22 +140,6 @@ const ACTIVE_TEAM_TASK_STATUSES = new Set([
   "running",
 ]);
 
-export function getRecentCollaborativeTasks(
-  tasks: Task[],
-  workspaceId?: string,
-): Task[] {
-  if (!workspaceId) return [];
-  return tasks
-    .filter(
-      (task) =>
-        task.workspaceId === workspaceId &&
-        task.agentConfig?.collaborativeMode === true &&
-        !task.parentTaskId,
-    )
-    .sort((left, right) => right.updatedAt - left.updatedAt)
-    .slice(0, 4);
-}
-
 export function mergeTeamWorkspaceOptions(
   workspaces: Workspace[],
   currentWorkspace: Workspace | null,
@@ -229,7 +212,6 @@ function deriveQuickTeamTaskTitle(goal: string): string {
 
 export function TeamWorkspacePanel({
   workspace,
-  tasks,
   onStartTask,
   onOpenTask,
   onSelectWorkspace,
@@ -250,6 +232,8 @@ export function TeamWorkspacePanel({
   const [isSwitchingWorkspace, setIsSwitchingWorkspace] = useState(false);
   const [isAddingWorkspace, setIsAddingWorkspace] = useState(false);
   const [showAgentBuilder, setShowAgentBuilder] = useState(false);
+  const [recentTeamTasks, setRecentTeamTasks] = useState<Task[] | null>(null);
+  const [recentTeamTasksError, setRecentTeamTasksError] = useState(false);
   const pageRef = useRef<HTMLElement>(null);
   const goalInputRef = useRef<HTMLTextAreaElement>(null);
   const localizedSelectedRole = selectedRole
@@ -271,10 +255,6 @@ export function TeamWorkspacePanel({
       })
     : null;
   const SelectedRoleIcon = selectedRoleVisual?.Icon || Bot;
-  const recentTeamTasks = useMemo(
-    () => getRecentCollaborativeTasks(tasks, workspace?.id),
-    [tasks, workspace?.id],
-  );
   const workspaceOptions = useMemo(
     () =>
       availableWorkspaces.map((option) => ({
@@ -321,6 +301,31 @@ export function TeamWorkspacePanel({
   useEffect(() => {
     void loadWorkspaces();
   }, [loadWorkspaces]);
+
+  const loadRecentTeamTasks = useCallback(async () => {
+    setRecentTeamTasksError(false);
+    try {
+      const loaded = await window.electronAPI.listRecentTeamTasks(4);
+      setRecentTeamTasks(loaded);
+    } catch (loadError) {
+      console.error("Failed to load recent team tasks:", loadError);
+      setRecentTeamTasksError(true);
+      setRecentTeamTasks([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadRecentTeamTasks();
+    const unsubscribe = window.electronAPI.onTeamRunEvent?.((event) => {
+      if (
+        event?.type === "team_run_created" ||
+        event?.type === "team_run_updated"
+      ) {
+        void loadRecentTeamTasks();
+      }
+    });
+    return typeof unsubscribe === "function" ? unsubscribe : undefined;
+  }, [loadRecentTeamTasks]);
 
   useLayoutEffect(() => {
     if (showAgentBuilder) return;
@@ -765,9 +770,9 @@ export function TeamWorkspacePanel({
                       )}
                     </p>
                   </div>
-                  {recentTeamTasks.length > 0 && (
+                  {(recentTeamTasks?.length ?? 0) > 0 && (
                     <span>
-                      {recentTeamTasks.length}{" "}
+                      {recentTeamTasks?.length}{" "}
                       {translate(
                         "generated.components.teamworkspacepanel.641.24",
                         "recent tasks",
@@ -776,7 +781,43 @@ export function TeamWorkspacePanel({
                   )}
                 </div>
 
-                {recentTeamTasks.length > 0 ? (
+                {recentTeamTasks === null ? (
+                  <div className="team-workspace-recent-empty">
+                    <Clock3 size={18} aria-hidden="true" />
+                    <div>
+                      <strong>
+                        {t(
+                          "teamWorkspace.recent.loading",
+                          "Loading team tasks...",
+                        )}
+                      </strong>
+                    </div>
+                  </div>
+                ) : recentTeamTasksError ? (
+                  <div className="team-workspace-recent-empty">
+                    <UsersRound size={18} aria-hidden="true" />
+                    <div>
+                      <strong>
+                        {t(
+                          "teamWorkspace.recent.loadError",
+                          "Unable to load team tasks",
+                        )}
+                      </strong>
+                      <p>
+                        {t(
+                          "teamWorkspace.recent.loadErrorDescription",
+                          "The history is still saved. Please try loading it again.",
+                        )}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void loadRecentTeamTasks()}
+                    >
+                      {t("common.retry", "Retry")}
+                    </button>
+                  </div>
+                ) : recentTeamTasks.length > 0 ? (
                   <div className="team-workspace-recent-list">
                     {recentTeamTasks.map((task) => {
                       const status = getTeamTaskStatus(task);

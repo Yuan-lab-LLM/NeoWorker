@@ -286,7 +286,12 @@ export class CustomSkillLoader {
 
     try {
       const files = fs.readdirSync(dir);
-      const skillFiles = files.filter((f) => f.endsWith(SKILL_FILE_EXTENSION) && !this.isSecurityMetadataFile(f));
+      const skillFiles = files.filter(
+        (fileName) =>
+          fileName.endsWith(SKILL_FILE_EXTENSION) &&
+          !this.isSecurityMetadataFile(fileName) &&
+          !this.isBundleMetadataFile(fileName),
+      );
 
       for (const file of skillFiles) {
         try {
@@ -308,11 +313,70 @@ export class CustomSkillLoader {
           logger.error(`Failed to load skill file ${file}:`, error);
         }
       }
+
+      if (source === "external") {
+        for (const bundleDir of this.findExternalSkillBundleDirs(dir)) {
+          try {
+            const skill = _getSkillRegistry().loadExternalSkillBundle(bundleDir);
+            if (this.validateSkill(skill)) {
+              skills.push(skill);
+            } else {
+              logger.warn(`Invalid external SKILL.md bundle: ${bundleDir}`);
+            }
+          } catch (error) {
+            logger.error(`Failed to load external SKILL.md bundle ${bundleDir}:`, error);
+          }
+        }
+      }
     } catch (error) {
       logger.error(`Failed to read directory ${dir}:`, error);
     }
 
     return skills;
+  }
+
+  /**
+   * An external path may point either at one skill bundle (the directory
+   * itself contains SKILL.md) or at a collection whose immediate children are
+   * skill bundles. A repository-style root with skills/<name>/SKILL.md is also
+   * accepted when it has no direct child bundles.
+   */
+  private findExternalSkillBundleDirs(rootDir: string): string[] {
+    if (fs.existsSync(path.join(rootDir, "SKILL.md"))) {
+      return [rootDir];
+    }
+
+    const findImmediateBundles = (parentDir: string): string[] => {
+      if (!fs.existsSync(parentDir)) return [];
+
+      try {
+        return fs
+          .readdirSync(parentDir, { withFileTypes: true })
+          .filter((entry) => {
+            try {
+              return (
+                entry.isDirectory() ||
+                (entry.isSymbolicLink() &&
+                  fs.statSync(path.join(parentDir, entry.name)).isDirectory())
+              );
+            } catch {
+              return false;
+            }
+          })
+          .map((entry) => path.join(parentDir, entry.name))
+          .filter((candidateDir) => fs.existsSync(path.join(candidateDir, "SKILL.md")));
+      } catch (error) {
+        logger.warn(`Failed to inspect external skill directory ${parentDir}:`, error);
+        return [];
+      }
+    };
+
+    const directBundles = findImmediateBundles(rootDir);
+    if (directBundles.length > 0) {
+      return directBundles;
+    }
+
+    return findImmediateBundles(path.join(rootDir, "skills"));
   }
 
   /**
@@ -409,6 +473,11 @@ export class CustomSkillLoader {
   private isSecurityMetadataFile(fileName: string): boolean {
     const lower = fileName.toLowerCase();
     return lower === "build-mode.json" || lower.endsWith(".security.json");
+  }
+
+  private isBundleMetadataFile(fileName: string): boolean {
+    const lower = fileName.toLowerCase();
+    return lower === "metadata.json" || lower === "package.json";
   }
 
   private async verifyManagedSkills(): Promise<void> {

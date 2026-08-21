@@ -950,9 +950,6 @@ type SelectedTaskWorkspaceViewProps = {
   availableModels: LLMModelInfo[];
   availableProviders: LLMProviderInfo[];
   uiDensity: UiDensity;
-  homeResearchVaultEnabled: boolean;
-  onHomeResearchVaultEnabledChange: (enabled: boolean) => void;
-  homeNextActionsEnabled: boolean;
   rendererPerfLoggingEnabled: boolean;
   taskSwitchId: string | null;
   hasMoreTimelineHistory: boolean;
@@ -1120,9 +1117,6 @@ const SelectedTaskWorkspaceView = memo(
     availableModels,
     availableProviders,
     uiDensity,
-    homeResearchVaultEnabled,
-    onHomeResearchVaultEnabledChange,
-    homeNextActionsEnabled,
     rendererPerfLoggingEnabled,
     taskSwitchId,
     hasMoreTimelineHistory,
@@ -1969,11 +1963,6 @@ const SelectedTaskWorkspaceView = memo(
               onModelChange={onModelChange}
               availableProviders={availableProviders}
               uiDensity={uiDensity}
-              homeResearchVaultEnabled={homeResearchVaultEnabled}
-              onHomeResearchVaultEnabledChange={
-                onHomeResearchVaultEnabledChange
-              }
-              homeNextActionsEnabled={homeNextActionsEnabled}
               rendererPerfLoggingEnabled={rendererPerfLoggingEnabled}
               taskSwitchId={taskSwitchId}
               hasMoreTimelineHistory={hasMoreTimelineHistory}
@@ -2220,8 +2209,6 @@ const SelectedTaskWorkspaceView = memo(
     prev.availableModels === next.availableModels &&
     prev.availableProviders === next.availableProviders &&
     prev.uiDensity === next.uiDensity &&
-    prev.homeResearchVaultEnabled === next.homeResearchVaultEnabled &&
-    prev.homeNextActionsEnabled === next.homeNextActionsEnabled &&
     prev.rendererPerfLoggingEnabled === next.rendererPerfLoggingEnabled &&
     prev.effectiveRightCollapsed === next.effectiveRightCollapsed &&
     prev.terminalTabsOpen === next.terminalTabsOpen &&
@@ -2740,10 +2727,6 @@ export function App() {
       isLoadingMore: false,
       error: null,
     });
-  const [homeResearchVaultEnabled, setHomeResearchVaultEnabled] =
-    useState(false);
-  const [homeNextActionsEnabled, setHomeNextActionsEnabled] = useState(false);
-
   // Queue state
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
@@ -3386,8 +3369,6 @@ export function App() {
         }
         applyPersistedLanguage(settings.language);
         setDevRunLoggingEnabled(settings.devRunLoggingEnabled === true);
-        setHomeResearchVaultEnabled(settings.homeResearchVaultEnabled === true);
-        setHomeNextActionsEnabled(settings.homeNextActionsEnabled === true);
         setOnboardingCompleted(settings.onboardingCompleted ?? false);
       } catch (error) {
         console.error("Failed to load appearance settings:", error);
@@ -5092,7 +5073,8 @@ export function App() {
           },
         });
         timelinePage = result?.payload as TaskTimelinePageResult;
-        if (!timelinePage?.events) throw new Error("Remote timeline page was unavailable.");
+        if (!timelinePage?.events)
+          throw new Error("Remote timeline page was unavailable.");
       } else {
         timelinePage = await window.electronAPI.getTaskTimelinePage({
           taskId,
@@ -5114,11 +5096,17 @@ export function App() {
       }
       if (remoteTaskView) {
         setRemoteTaskView((current) =>
-          current && current.deviceId === remoteTaskView.deviceId && current.task.id === taskId
+          current &&
+          current.deviceId === remoteTaskView.deviceId &&
+          current.task.id === taskId
             ? {
                 ...current,
                 events: capTaskEventsPreservingIncoming(
-                  mergeSelectedTaskTimelineEvents(taskId, current.events, timelinePage.events),
+                  mergeSelectedTaskTimelineEvents(
+                    taskId,
+                    current.events,
+                    timelinePage.events,
+                  ),
                   timelinePage.events,
                 ),
                 cursor: timelinePage.nextCursor,
@@ -6389,8 +6377,7 @@ export function App() {
           taskResult?.payload as { task?: Task | null } | undefined
         )?.task;
         let timelinePage = timelineResult?.payload as
-          | TaskTimelinePageResult
-          | undefined;
+          TaskTimelinePageResult | undefined;
         if (!timelinePage?.events) {
           const eventsResult = await window.electronAPI?.deviceProxyRequest?.({
             deviceId: remote.deviceId,
@@ -6819,20 +6806,6 @@ export function App() {
     setDevRunLoggingEnabled(enabled);
     void window.electronAPI?.saveAppearanceSettings?.({
       devRunLoggingEnabled: enabled,
-    });
-  };
-
-  const handleHomeResearchVaultEnabledChange = (enabled: boolean) => {
-    setHomeResearchVaultEnabled(enabled);
-    void window.electronAPI?.saveAppearanceSettings?.({
-      homeResearchVaultEnabled: enabled,
-    });
-  };
-
-  const handleHomeNextActionsEnabledChange = (enabled: boolean) => {
-    setHomeNextActionsEnabled(enabled);
-    void window.electronAPI?.saveAppearanceSettings?.({
-      homeNextActionsEnabled: enabled,
     });
   };
 
@@ -7730,7 +7703,6 @@ export function App() {
               ) : currentView === "agentTeam" ? (
                 <TeamWorkspacePanel
                   workspace={currentWorkspace}
-                  tasks={tasks}
                   selectedRole={agentTeamSelectedRole}
                   onSelectedRoleChange={setAgentTeamSelectedRole}
                   onStartTask={(
@@ -7800,6 +7772,10 @@ export function App() {
                 <CapabilityCenter
                   initialTab="bundles"
                   onOpenExperts={() => setCurrentView("agentsManage")}
+                  onOpenSkillsSettings={() => {
+                    setSettingsTab("skills");
+                    setCurrentView("settings");
+                  }}
                   onCreateExpertTask={handleCreateTask}
                   onUseBundle={async (selection) => {
                     await handleOpenComposerDraft(selection.prompt);
@@ -7808,6 +7784,10 @@ export function App() {
               ) : currentView === "agents" ? (
                 <CapabilityCenter
                   onOpenExperts={() => setCurrentView("agentsManage")}
+                  onOpenSkillsSettings={() => {
+                    setSettingsTab("skills");
+                    setCurrentView("settings");
+                  }}
                   onCreateExpertTask={handleCreateTask}
                   onUseSkill={async (selection) => {
                     await handleOpenComposerDraft(selection.prompt, {
@@ -8047,11 +8027,6 @@ export function App() {
                   availableModels={availableModels}
                   availableProviders={availableProviders}
                   uiDensity={uiDensity}
-                  homeResearchVaultEnabled={homeResearchVaultEnabled}
-                  onHomeResearchVaultEnabledChange={
-                    handleHomeResearchVaultEnabledChange
-                  }
-                  homeNextActionsEnabled={homeNextActionsEnabled}
                   rendererPerfLoggingEnabled={rendererPerfLoggingEnabled}
                   taskSwitchId={selectedTaskSwitchId}
                   hasMoreTimelineHistory={
@@ -8220,12 +8195,6 @@ export function App() {
             onSettingsChanged={loadLLMConfig}
             devRunLoggingEnabled={devRunLoggingEnabled}
             onDevRunLoggingEnabledChange={handleDevRunLoggingEnabledChange}
-            homeResearchVaultEnabled={homeResearchVaultEnabled}
-            homeNextActionsEnabled={homeNextActionsEnabled}
-            onHomeResearchVaultEnabledChange={
-              handleHomeResearchVaultEnabledChange
-            }
-            onHomeNextActionsEnabledChange={handleHomeNextActionsEnabledChange}
             initialTab={settingsTab}
             workspaceId={currentWorkspace?.id}
             onCreateTask={(title, prompt) => {

@@ -100,6 +100,44 @@ export class AgentTeamRunRepository {
   }
 
   /**
+   * List distinct root tasks from the most recent team runs.
+   *
+   * This intentionally spans workspaces. Team history is a product-level
+   * activity feed, and scoped temporary workspace IDs change between desktop
+   * sessions. Joining tasks here also prevents orphaned run rows from being
+   * exposed to the renderer.
+   */
+  listRecentRootTaskIds(limit = 4): string[] {
+    const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
+    const stmt = this.db.prepare(`
+      SELECT recent_runs.root_task_id
+      FROM (
+        SELECT root_task_id, MAX(started_at) AS latest_started_at
+        FROM agent_team_runs
+        GROUP BY root_task_id
+      ) AS recent_runs
+      INNER JOIN tasks ON tasks.id = recent_runs.root_task_id
+      WHERE tasks.parent_task_id IS NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM task_session_metadata
+          WHERE task_session_metadata.session_id = COALESCE(
+            NULLIF(tasks.session_id, ''),
+            tasks.id
+          )
+            AND task_session_metadata.archived_at IS NOT NULL
+        )
+      ORDER BY
+        recent_runs.latest_started_at DESC,
+        COALESCE(tasks.updated_at, tasks.created_at) DESC,
+        tasks.id DESC
+      LIMIT ?
+    `);
+    const rows = stmt.all(safeLimit) as Array<{ root_task_id: string }>;
+    return rows.map((row) => row.root_task_id);
+  }
+
+  /**
    * Update a run's mutable fields (status, completedAt, error, summary).
    *
    * If status transitions into a terminal state (completed/failed/cancelled) and

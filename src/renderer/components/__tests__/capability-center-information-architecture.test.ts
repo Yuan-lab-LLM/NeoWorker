@@ -14,6 +14,10 @@ const appSource = readFileSync(
   fileURLToPath(new URL("../../App.tsx", import.meta.url)),
   "utf8",
 );
+const settingsSource = readFileSync(
+  fileURLToPath(new URL("../Settings.tsx", import.meta.url)),
+  "utf8",
+);
 const mcpSettingsSource = readFileSync(
   fileURLToPath(new URL("../MCPSettings.tsx", import.meta.url)),
   "utf8",
@@ -24,37 +28,64 @@ describe("Capability Center information architecture", () => {
     expect(source).toContain(
       'type CapabilityTab = "experts" | "skills" | "bundles" | "connectors" | "mcp"',
     );
-    expect(source).toContain(
-      'const TOOL_CAPABILITY_TABS: CapabilityTab[] = ["skills", "bundles", "connectors", "mcp"]',
+    expect(source).toMatch(
+      /const TOOL_CAPABILITY_TABS: CapabilityTab\[\] = \[\s*"skills",\s*"bundles",\s*"connectors",\s*"mcp",?\s*\];/s,
     );
     expect(source).toContain(
       'type CapabilityCenterMode = "tools" | "teamExperts"',
     );
+    expect(source).toContain("isTeamExpertLibrary");
     expect(source).toContain(
-      'title={isTeamExpertLibrary ? "专家库" : "工具与技能"}',
+      '"generated.components.capabilitycenter.1111.251"',
+    );
+    expect(source).toContain(
+      '"generated.components.capabilitycenter.1111.252"',
     );
     expect(source).toContain("{TOOL_CAPABILITY_TABS.map((tab) => {");
     expect(source).not.toContain(
       "(Object.keys(tabCopy) as CapabilityTab[]).map",
     );
-    expect(source).toContain('label: "技能"');
-    expect(source).toContain('label: "能力组合"');
-    expect(source).toContain('label: "连接器"');
+    expect(source).toContain(
+      'translate("generated.components.capabilitycenter.186.2", "Skills")',
+    );
+    expect(source).toContain('"Ability combination"');
+    expect(source).toContain('"connector"');
     expect(source).toContain('label: "MCP"');
   });
 
   it("opens MCP management inside the capability center", () => {
-    expect(source).toContain(
-      'activeTab === "connectors" || activeTab === "mcp"',
+    expect(source).toMatch(
+      /activeTab === "connectors"\s*\|\|\s*activeTab === "mcp"/s,
     );
     expect(source).toContain("<MCPSettings />");
-    expect(source).toContain('title: "查看 MCP 服务与可用工具"');
+    expect(source).toContain('"View MCP services and available tools"');
+  });
+
+  it("routes skill management to the canonical Settings page", () => {
+    expect(source).toContain("onOpenSkillsSettings: () => void");
+    expect(source).toContain('if (activeTab === "skills")');
+    expect(source).toContain("onOpenSkillsSettings();");
+    expect(source).not.toContain('setManagerMode("skills")');
+    expect(source).not.toContain("<SkillsSettings />");
+    expect(source).not.toContain("<SkillHubBrowser");
+    expect(appSource.match(/onOpenSkillsSettings=\{\(\) => \{/g)).toHaveLength(
+      2,
+    );
+    expect(appSource).toContain('setSettingsTab("skills")');
+    expect(appSource).toContain('setCurrentView("settings")');
+    expect(settingsSource).toContain(
+      'activeToolsIntegrationsSubTab === "skills"',
+    );
+    expect(settingsSource).toContain("<SkillsSettings />");
+    expect(settingsSource).toContain("<SkillHubBrowser />");
   });
 
   it("uses one shared page frame for tools and the nested expert library", () => {
-    expect(source).toContain("const capabilityIntroCopy: Record<CapabilityTab");
-    expect(source).toContain(
-      "<CapabilityPageIntro tab={activeTab} metrics={introMetrics[activeTab]} />",
+    expect(source).toMatch(
+      /const capabilityIntroCopy: Record<\s*CapabilityTab,/s,
+    );
+    expect(source).toMatch(
+      /<CapabilityPageIntro\s+tab=\{activeTab\}\s+metrics=\{introMetrics\[activeTab\]\}\s*\/>/s,
     );
     expect(source).not.toContain('className="connector-discovery-hero"');
     expect(source).not.toContain('className="capability-bundle-hero"');
@@ -128,12 +159,30 @@ describe("Capability Center information architecture", () => {
     expect(source).toContain("activeCatalogCategories.map((category)");
   });
 
+  it("keeps imported skills discoverable and makes the scene menu interactive", () => {
+    expect(source).toContain('| "custom"');
+    expect(source).toContain('id: "custom"');
+    expect(source).toContain("queryMatchedSkills.filter(isCustomSkillEntry)");
+    expect(source).toContain('className="capability-center-scene-menu"');
+    expect(source).toContain('aria-haspopup="menu"');
+    expect(source).toContain(
+      "onClick={() => setIsSceneMenuOpen((open) => !open)}",
+    );
+    expect(source).toContain('role="menuitemradio"');
+    expect(styles).toContain(".capability-center-scene-menu-popover");
+  });
+
   it("opens capability bundles as editable drafts instead of submitting them", () => {
     expect(source).toContain("onUseBundle?: (selection:");
-    expect(source).toContain("[请描述要解决的问题或希望达到的结果]");
-    expect(source).toContain("[请添加背景、文件、链接、适用范围或时间范围]");
-    expect(source).toContain("[请说明输出格式、重点、语言、篇幅和截止时间]");
-    expect(source).toContain("填写任务要求");
+    expect(source).toContain(
+      "[Please describe the problem you want to solve or the result you hope to achieve]",
+    );
+    expect(source).toContain(
+      "[Please add context, documents, links, scope or time range]",
+    );
+    expect(source).toContain(
+      "[Please specify output format, focus, language, length and deadline]",
+    );
     expect(source).not.toContain(
       "await onCreateExpertTask(`${text.name}：新任务`, prompt)",
     );
@@ -227,18 +276,6 @@ describe("Capability Center information architecture", () => {
     );
     expect(styles).toContain(
       ".capability-manager-content.is-connectors .mcp-config-form-grid",
-    );
-  });
-
-  it("keeps embedded custom-skill filters readable instead of squeezing them into narrow columns", () => {
-    expect(styles).toMatch(
-      /\.capability-manager-content \.skills-category-filter\s*\{[^}]*flex-wrap:\s*wrap;[^}]*overflow:\s*visible;/s,
-    );
-    expect(styles).toMatch(
-      /\.capability-manager-content \.skills-category-filter-item\s*\{[^}]*min-width:\s*max-content;[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap;[^}]*word-break:\s*keep-all;/s,
-    );
-    expect(styles).toMatch(
-      /\.capability-manager-content \.skills-directory-actions\s*\{[^}]*grid-template-columns:\s*minmax\(280px, 1fr\) auto;/s,
     );
   });
 });

@@ -26,8 +26,21 @@ describe("custom skills header design", () => {
     );
     expect(primaryRule).toContain("color: #ffffff !important;");
     expect(styles).toMatch(
-      /\.skills-settings \.skills-settings-header :is\(\.btn-primary, \.btn-secondary\)::before\s*\{[^}]*display:\s*none\s*!important;/s,
+      /\.skills-settings\s+\.skills-settings-header\s+:is\(\.btn-primary, \.btn-secondary\)::before\s*\{[^}]*display:\s*none\s*!important;/s,
     );
     expect(styles).not.toMatch(/linear-gradient/);
+  });
+
+  it("keeps connected directories compact and uses platform-neutral wording", () => {
+    const source = readSource("../SkillsSettings.tsx");
+    const styles = readSource("../skills-settings.css");
+
+    expect(source).toContain("skills-external-directory-summary");
+    expect(source).toContain("aria-expanded={areExternalDirectoriesExpanded}");
+    expect(source).toContain('t("skills.openFolder", "Open Folder")');
+    expect(source).not.toContain("Open in Finder");
+    expect(styles).toMatch(
+      /\.skills-settings \.skills-external-directory-summary\s*\{[^}]*min-height:\s*42px;/s,
+    );
   });
 });

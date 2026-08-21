@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="500" viewBox="0 0 1440 500" role="img" aria-labelledby="title desc">
+  <title id="title">在 macOS 上安装 NeoWorker</title>
+  <desc id="desc">三个步骤：下载 DMG、将 NeoWorker 拖入应用程序，以及未签名预览包被阻止时使用仍要打开。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7faff"/>
+      <stop offset="1" stop-color="#eef4ff"/>
+    </linearGradient>
+    <linearGradient id="app" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#635bff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#31507a" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <rect width="1440" height="500" rx="32" fill="url(#bg)"/>
+  <text x="72" y="68" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="30" font-weight="700" fill="#172033">在 macOS 上安装 NeoWorker</text>
+  <text x="72" y="102" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="17" fill="#60708a">只有未签名预览包被拦截时，才为已核对的应用创建单独例外。</text>
+
+  <g filter="url(#shadow)">
+    <rect x="64" y="140" width="400" height="300" rx="24" fill="#fff" stroke="#dbe5f3"/>
+    <rect x="520" y="140" width="400" height="300" rx="24" fill="#fff" stroke="#dbe5f3"/>
+    <rect x="976" y="140" width="400" height="300" rx="24" fill="#fff" stroke="#dbe5f3"/>
+  </g>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    <circle cx="112" cy="188" r="24" fill="#e8f1ff"/><text x="112" y="196" text-anchor="middle" font-size="22" font-weight="700" fill="#2563eb">1</text>
+    <text x="152" y="196" font-size="24" font-weight="700" fill="#172033">下载安装包</text>
+    <rect x="151" y="242" width="226" height="100" rx="16" fill="#f4f7fc" stroke="#cfdbeb"/>
+    <path d="M186 268h44l17 17v40h-61z" fill="#fff" stroke="#56708f" stroke-width="3"/>
+    <path d="M230 268v18h17" fill="none" stroke="#56708f" stroke-width="3"/>
+    <path d="M273 277v39m-14-14 14 14 14-14" fill="none" stroke="#2563eb" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="311" y="294" font-size="20" font-weight="650" fill="#26364d">NeoWorker.dmg</text>
+    <text x="311" y="321" font-size="15" fill="#718198">仅从官方 Releases 下载</text>
+    <text x="96" y="395" font-size="17" fill="#60708a">从项目 GitHub Releases 页面下载 macOS 版本。</text>
+
+    <circle cx="568" cy="188" r="24" fill="#e8f1ff"/><text x="568" y="196" text-anchor="middle" font-size="22" font-weight="700" fill="#2563eb">2</text>
+    <text x="608" y="196" font-size="24" font-weight="700" fill="#172033">拖入“应用程序”</text>
+    <rect x="612" y="242" width="82" height="82" rx="20" fill="url(#app)"/>
+    <text x="653" y="296" text-anchor="middle" font-size="34" font-weight="750" fill="#fff">N</text>
+    <path d="M721 283h62" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+    <path d="m768 267 17 16-17 16" fill="none" stroke="#2563eb" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M805 267h35l10 12h40v58h-85z" fill="#fff3c4" stroke="#c88a12" stroke-width="3" stroke-linejoin="round"/>
+    <text x="848" y="311" text-anchor="middle" font-size="14" font-weight="700" fill="#7b570c">应用程序</text>
+    <text x="552" y="395" font-size="17" fill="#60708a">打开磁盘映像，将 NeoWorker 拖到右侧文件夹。</text>
+
+    <circle cx="1024" cy="188" r="24" fill="#fff1e6"/><text x="1024" y="196" text-anchor="middle" font-size="22" font-weight="700" fill="#d65f14">3</text>
+    <text x="1064" y="196" font-size="24" font-weight="700" fill="#172033">预览包被拦截？</text>
+    <path d="M1055 247l47 18v37c0 34-20 57-47 70-27-13-47-36-47-70v-37z" fill="#fff5eb" stroke="#e9792b" stroke-width="3"/>
+    <path d="m1034 307 15 15 29-34" fill="none" stroke="#e9792b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="1124" y="247" width="205" height="116" rx="15" fill="#f6f8fb" stroke="#cfdbeb"/>
+    <text x="1144" y="278" font-size="15" font-weight="700" fill="#26364d">隐私与安全性</text>
+    <text x="1144" y="305" font-size="14" fill="#718198">确认应用是 NeoWorker</text>
+    <rect x="1144" y="320" width="148" height="28" rx="14" fill="#2563eb"/>
+    <text x="1218" y="339" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">仍要打开</text>
+    <text x="1008" y="395" font-size="17" fill="#60708a">核对应用后，只为这个应用创建例外。</text>
+  </g>
+</svg>
