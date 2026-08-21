@@ -15,11 +15,14 @@ const sourceManifestPath = path.join(resourceDir, "source-manifest.json");
 const runtimeManifestPath = path.join(outputResourceDir, "manifest.json");
 const manifest = JSON.parse(fs.readFileSync(sourceManifestPath, "utf8"));
 const requestedTarget =
-  process.argv.find((arg) => arg.startsWith("--target="))?.slice("--target=".length) ||
-  `${process.platform}-${process.arch}`;
+  process.argv
+    .find((arg) => arg.startsWith("--target="))
+    ?.slice("--target=".length) || `${process.platform}-${process.arch}`;
 const verifyOnly = process.argv.includes("--verify-only");
 if (fs.existsSync(runtimeManifestPath)) {
-  const existingRuntimeManifest = JSON.parse(fs.readFileSync(runtimeManifestPath, "utf8"));
+  const existingRuntimeManifest = JSON.parse(
+    fs.readFileSync(runtimeManifestPath, "utf8"),
+  );
   if (
     existingRuntimeManifest.commit === manifest.commit &&
     existingRuntimeManifest.adapterProtocol === manifest.adapterProtocol
@@ -70,13 +73,17 @@ function fail(message) {
 }
 
 function normalizeMacMachO(buffer) {
-  if (process.platform !== "darwin" || buffer.readUInt32LE(0) !== 0xfeedfacf) return;
+  if (process.platform !== "darwin" || buffer.readUInt32LE(0) !== 0xfeedfacf)
+    return;
   const commandCount = buffer.readUInt32LE(16);
   let offset = 32;
   for (let index = 0; index < commandCount; index += 1) {
     const command = buffer.readUInt32LE(offset);
     const commandSize = buffer.readUInt32LE(offset + 4);
-    if (command === 0x19 && buffer.toString("ascii", offset + 8, offset + 24).startsWith("__LINKEDIT")) {
+    if (
+      command === 0x19 &&
+      buffer.toString("ascii", offset + 8, offset + 24).startsWith("__LINKEDIT")
+    ) {
       buffer.fill(0, offset + 32, offset + 40);
       buffer.fill(0, offset + 48, offset + 56);
     }
@@ -89,7 +96,9 @@ function sha256(filePath, { stripMacSignature = false } = {}) {
   let hashPath = filePath;
   let temporaryDir;
   if (stripMacSignature && process.platform === "darwin") {
-    temporaryDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-numbat-hash-"));
+    temporaryDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "neoworker-numbat-hash-"),
+    );
     const unsignedCopy = path.join(temporaryDir, path.basename(filePath));
     fs.copyFileSync(filePath, unsignedCopy);
     const result = spawnSync("codesign", ["--remove-signature", unsignedCopy], {
@@ -139,26 +148,64 @@ function tarPath(filePath) {
   if (process.platform !== "win32") return filePath;
   const normalized = path.resolve(filePath).replaceAll("\\", "/");
   const driveMatch = normalized.match(/^([A-Za-z]):\/(.*)$/);
-  return driveMatch ? `/${driveMatch[1].toLowerCase()}/${driveMatch[2]}` : normalized;
+  return driveMatch
+    ? `/${driveMatch[1].toLowerCase()}/${driveMatch[2]}`
+    : normalized;
 }
 
 async function download(url, outputPath, expectedSha256, label) {
-  if (fs.existsSync(outputPath) && sha256(outputPath) === expectedSha256) return;
+  if (fs.existsSync(outputPath) && sha256(outputPath) === expectedSha256)
+    return;
   if (
     process.env.NEOWORKER_NUMBAT_OFFLINE === "1" ||
     process.env.COWORK_NUMBAT_OFFLINE === "1"
   ) {
     fail(`${label} is not cached and NEOWORKER_NUMBAT_OFFLINE=1`);
   }
-  console.log(`[numbat-runtime] Downloading ${label}`);
-  const response = await fetch(url, { redirect: "follow" });
-  if (!response.ok) fail(`${label} download failed with HTTP ${response.status}`);
-  const temporaryPath = `${outputPath}.${process.pid}.tmp`;
-  fs.writeFileSync(temporaryPath, Buffer.from(await response.arrayBuffer()), {
-    mode: 0o600,
-  });
-  verifyFile(temporaryPath, expectedSha256, label);
-  fs.renameSync(temporaryPath, outputPath);
+  const maxAttempts = 4;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const temporaryPath = `${outputPath}.${process.pid}.${attempt}.tmp`;
+    try {
+      console.log(
+        `[numbat-runtime] Downloading ${label} (attempt ${attempt}/${maxAttempts})`,
+      );
+      const response = await fetch(url, { redirect: "follow" });
+      if (!response.ok) {
+        throw new Error(`download failed with HTTP ${response.status}`);
+      }
+      fs.writeFileSync(
+        temporaryPath,
+        Buffer.from(await response.arrayBuffer()),
+        {
+          mode: 0o600,
+        },
+      );
+      const actualSha256 = sha256(temporaryPath);
+      if (actualSha256 !== expectedSha256) {
+        throw new Error(
+          `checksum mismatch: expected ${expectedSha256}, got ${actualSha256}`,
+        );
+      }
+      fs.renameSync(temporaryPath, outputPath);
+      return;
+    } catch (error) {
+      lastError = error;
+      fs.rmSync(temporaryPath, { force: true });
+      if (attempt < maxAttempts) {
+        const delayMs = attempt * 2_000;
+        console.warn(
+          `[numbat-runtime] ${label} download attempt ${attempt} failed; retrying in ${delayMs / 1_000}s`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  fail(
+    `${label} download failed after ${maxAttempts} attempts: ${lastError?.message || lastError}`,
+  );
 }
 
 function hostTarget() {
@@ -167,7 +214,8 @@ function hostTarget() {
 
 function findGo(cacheDir) {
   const explicit =
-    process.env.NEOWORKER_NUMBAT_GO?.trim() || process.env.COWORK_NUMBAT_GO?.trim();
+    process.env.NEOWORKER_NUMBAT_GO?.trim() ||
+    process.env.COWORK_NUMBAT_GO?.trim();
   if (explicit) return path.resolve(explicit);
   const cached = path.join(
     cacheDir,
@@ -181,7 +229,8 @@ function findGo(cacheDir) {
     encoding: "utf8",
     shell: false,
   });
-  if (system.status === 0 && /\bgo1\.26\.5\b/.test(system.stdout || "")) return "go";
+  if (system.status === 0 && /\bgo1\.26\.5\b/.test(system.stdout || ""))
+    return "go";
   return "";
 }
 
@@ -189,9 +238,15 @@ async function ensureGo(cacheDir) {
   const existing = findGo(cacheDir);
   if (existing) return existing;
   const sdk = goSDKs[hostTarget()];
-  if (!sdk) fail(`No pinned Go SDK is available for build host ${hostTarget()}`);
+  if (!sdk)
+    fail(`No pinned Go SDK is available for build host ${hostTarget()}`);
   const archivePath = path.join(cacheDir, sdk.file);
-  await download(`https://go.dev/dl/${sdk.file}`, archivePath, sdk.sha256, "Go SDK");
+  await download(
+    `https://go.dev/dl/${sdk.file}`,
+    archivePath,
+    sdk.sha256,
+    "Go SDK",
+  );
   const sdkRoot = path.join(cacheDir, "go-sdk");
   fs.rmSync(sdkRoot, { recursive: true, force: true });
   fs.mkdirSync(sdkRoot, { recursive: true, mode: 0o700 });
@@ -215,17 +270,23 @@ async function ensureGo(cacheDir) {
     run("tar", ["-xzf", tarPath(archivePath), "-C", tarPath(sdkRoot)]);
   }
   const resolved = findGo(cacheDir);
-  if (!resolved) fail("Pinned Go SDK extraction did not produce the go executable");
+  if (!resolved)
+    fail("Pinned Go SDK extraction did not produce the go executable");
   return resolved;
 }
 
 function recommendedRules(sourceRoot) {
-  const outputDir = path.join(outputResourceDir, "rules", "neoworker-recommended");
+  const outputDir = path.join(
+    outputResourceDir,
+    "rules",
+    "neoworker-recommended",
+  );
   fs.rmSync(outputDir, { recursive: true, force: true });
   fs.mkdirSync(outputDir, { recursive: true, mode: 0o755 });
   for (const relativePath of manifest.recommendedRules) {
     const sourcePath = path.join(sourceRoot, relativePath);
-    if (!fs.existsSync(sourcePath)) fail(`Pinned recommended rule is missing: ${relativePath}`);
+    if (!fs.existsSync(sourcePath))
+      fail(`Pinned recommended rule is missing: ${relativePath}`);
     const ruleId = path.basename(relativePath, ".yaml");
     const source = fs.readFileSync(sourcePath, "utf8");
     if (!/\nenabled: true\n/.test(`\n${source}`)) {
@@ -239,15 +300,20 @@ function recommendedRules(sourceRoot) {
         `deny_message: "Blocked by NeoWorker agent security rule ${ruleId}."`,
       ].join("\n"),
     );
-    fs.writeFileSync(path.join(outputDir, path.basename(relativePath)), hardened, {
-      mode: 0o644,
-    });
+    fs.writeFileSync(
+      path.join(outputDir, path.basename(relativePath)),
+      hardened,
+      {
+        mode: 0o644,
+      },
+    );
   }
 }
 
 function verifyGeneratedTarget(targetKey) {
   const target = manifest.targets?.[targetKey];
-  if (!target?.path || !target.sha256) fail(`Manifest has no built target ${targetKey}`);
+  if (!target?.path || !target.sha256)
+    fail(`Manifest has no built target ${targetKey}`);
   const binaryPath = path.resolve(outputResourceDir, target.path);
   verifyFile(binaryPath, target.sha256, `Numbat ${targetKey} runtime`, {
     stripMacSignature: true,
@@ -258,12 +324,18 @@ function verifyGeneratedTarget(targetKey) {
       fail(`Numbat ${targetKey} runtime has unsafe file permissions`);
     }
   }
-  const rulesDir = path.join(outputResourceDir, "rules", "neoworker-recommended");
+  const rulesDir = path.join(
+    outputResourceDir,
+    "rules",
+    "neoworker-recommended",
+  );
   for (const relativePath of manifest.recommendedRules) {
     const generated = path.join(rulesDir, path.basename(relativePath));
-    if (!fs.existsSync(generated)) fail(`Generated recommended rule is missing: ${generated}`);
+    if (!fs.existsSync(generated))
+      fail(`Generated recommended rule is missing: ${generated}`);
     const body = fs.readFileSync(generated, "utf8");
-    if (!/^enforce: true$/m.test(body)) fail(`Recommended rule is not enforceable: ${generated}`);
+    if (!/^enforce: true$/m.test(body))
+      fail(`Recommended rule is not enforceable: ${generated}`);
   }
   console.log(`[numbat-runtime] Verified ${targetKey} (${target.sha256})`);
 }
@@ -275,24 +347,39 @@ verifyFile(
   "NeoWorker Numbat adapter patch",
 );
 if (verifyOnly) {
-  if (!fs.existsSync(runtimeManifestPath)) fail("Generated Numbat manifest is missing");
+  if (!fs.existsSync(runtimeManifestPath))
+    fail("Generated Numbat manifest is missing");
   verifyGeneratedTarget(requestedTarget);
   process.exit(0);
 }
 
-const cacheDir = path.join(os.homedir(), ".cache", "neoworker", "numbat-build", manifest.commit);
+const cacheDir = path.join(
+  os.homedir(),
+  ".cache",
+  "neoworker",
+  "numbat-build",
+  manifest.commit,
+);
 fs.mkdirSync(cacheDir, { recursive: true, mode: 0o700 });
 const sourceArchive = path.join(cacheDir, "numbat-source.tar.gz");
-await download(manifest.source.url, sourceArchive, manifest.source.sha256, "Numbat source");
+await download(
+  manifest.source.url,
+  sourceArchive,
+  manifest.source.sha256,
+  "Numbat source",
+);
 const goBinary = await ensureGo(cacheDir);
-const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-numbat-build-"));
+const temporaryRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "neoworker-numbat-build-"),
+);
 
 try {
   run("tar", ["-xzf", tarPath(sourceArchive), "-C", tarPath(temporaryRoot)]);
   const sourceEntries = fs
     .readdirSync(temporaryRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory());
-  if (sourceEntries.length !== 1) fail("Numbat source archive has an unexpected layout");
+  if (sourceEntries.length !== 1)
+    fail("Numbat source archive has an unexpected layout");
   const sourceRoot = path.join(temporaryRoot, sourceEntries[0].name);
   const patchPath = path.join(resourceDir, manifest.patch.path);
   run("git", ["apply", "--check", patchPath], { cwd: sourceRoot });
@@ -350,24 +437,36 @@ try {
   const binarySha = sha256(outputPath, { stripMacSignature: true });
   manifest.targets ||= {};
   manifest.targets[requestedTarget] = {
-    path: path.relative(outputResourceDir, outputPath).split(path.sep).join("/"),
+    path: path
+      .relative(outputResourceDir, outputPath)
+      .split(path.sep)
+      .join("/"),
     sha256: binarySha,
   };
   fs.mkdirSync(outputResourceDir, { recursive: true, mode: 0o755 });
-  fs.copyFileSync(path.join(resourceDir, "NOTICE.md"), path.join(outputResourceDir, "NOTICE.md"));
+  fs.copyFileSync(
+    path.join(resourceDir, "NOTICE.md"),
+    path.join(outputResourceDir, "NOTICE.md"),
+  );
   fs.copyFileSync(
     path.join(sourceRoot, "LICENSE"),
     path.join(outputResourceDir, "LICENSE.Numbat.txt"),
   );
-  fs.writeFileSync(runtimeManifestPath, `${JSON.stringify(manifest, null, 2)}\n`, {
-    mode: 0o644,
-  });
+  fs.writeFileSync(
+    runtimeManifestPath,
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    {
+      mode: 0o644,
+    },
+  );
 
   if (requestedTarget === hostTarget()) {
     const version = run(outputPath, ["version"], { capture: true });
     const expected = `numbat ${manifest.version} (schema ${manifest.schemaVersion})`;
     if ((version.stdout || "").trim() !== expected) {
-      fail(`Unexpected Numbat version output: ${(version.stdout || "").trim()}`);
+      fail(
+        `Unexpected Numbat version output: ${(version.stdout || "").trim()}`,
+      );
     }
     run(outputPath, [
       "rules",
