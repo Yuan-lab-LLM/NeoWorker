@@ -114,7 +114,7 @@ NeoWorker v0.1 for macOS is an unsigned Apple Silicon build. The first launch ma
 1. Download <code>NeoWorker-0.1.0-arm64.dmg</code> from the official [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) page.
 2. Open the downloaded disk image, then drag **NeoWorker** into **Applications**.
 
-   <p align="center">
+   <p align="left">
      <img src="./screenshots/readme/macos-install/01-drag-neoworker-to-applications-v2.png" alt="NeoWorker macOS disk image: drag NeoWorker into Applications" width="760">
      <br>
      <sub>Real NeoWorker disk-image window: drag NeoWorker into Applications.</sub>
@@ -123,7 +123,7 @@ NeoWorker v0.1 for macOS is an unsigned Apple Silicon build. The first launch ma
 3. Open **Applications** in Finder and double-click **NeoWorker**. If it opens, installation is complete.
 4. If macOS displays **“NeoWorker” Not Opened**, click **Done**. Do not delete the app yet.
 
-   <p align="center">
+   <p align="left">
      <img src="./screenshots/readme/macos-install/02-neoworker-not-opened.png" alt="macOS warning saying NeoWorker was not opened because Apple could not verify it" width="300">
      <br>
      <sub>macOS interface example; wording may vary by system version.</sub>
@@ -131,7 +131,7 @@ NeoWorker v0.1 for macOS is an unsigned Apple Silicon build. The first launch ma
 
 5. Open **Apple menu → System Settings → Privacy & Security**, scroll to **Security**, confirm that the blocked app is **NeoWorker**, and click **Open Anyway**.
 
-   <p align="center">
+   <p align="left">
      <img src="./screenshots/readme/macos-install/03-neoworker-privacy-security-open-anyway.png" alt="macOS Privacy and Security settings with the NeoWorker Open Anyway button highlighted" width="760">
      <br>
      <sub>Open Anyway creates a one-app exception for NeoWorker.</sub>
@@ -139,7 +139,7 @@ NeoWorker v0.1 for macOS is an unsigned Apple Silicon build. The first launch ma
 
 6. In the confirmation dialog, click **Open Anyway** again. Enter your Mac login password or use Touch ID if requested.
 
-   <p align="center">
+   <p align="left">
      <img src="./screenshots/readme/macos-install/04-neoworker-confirm-open-anyway.png" alt="macOS confirmation dialog asking whether to open NeoWorker anyway" width="300">
      <br>
      <sub>Confirm only when the installer came from the official NeoWorker Release.</sub>

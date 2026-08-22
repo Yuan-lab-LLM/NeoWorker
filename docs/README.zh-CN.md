@@ -114,7 +114,7 @@ NeoWorker v0.1 的 macOS 安装包适用于 Apple Silicon，当前为未签名�
 1. 从官方 [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) 页面下载 `NeoWorker-0.1.0-arm64.dmg`。
 2. 双击打开下载的磁盘映像，将 **NeoWorker** 拖到 **应用程序（Applications）** 文件夹。
 
-   <p align="center">
+   <p align="left">
      <img src="../screenshots/readme/macos-install/01-drag-neoworker-to-applications-v2.png" alt="NeoWorker macOS 安装窗口：将 NeoWorker 拖到 Applications 文件夹" width="760">
      <br>
      <sub>NeoWorker 真实磁盘映像窗口：将 NeoWorker 拖入 Applications。</sub>
@@ -123,7 +123,7 @@ NeoWorker v0.1 的 macOS 安装包适用于 Apple Silicon，当前为未签名�
 3. 打开 Finder 的 **应用程序** 文件夹，双击 **NeoWorker**。如果能够直接启动，安装已经完成。
 4. 如果 macOS 显示 **“NeoWorker” 无法打开**，点击 **完成**，暂时不要删除应用。
 
-   <p align="center">
+   <p align="left">
      <img src="../screenshots/readme/macos-install/02-neoworker-not-opened.png" alt="macOS 提示无法打开 NeoWorker，因为 Apple 无法验证该应用" width="300">
      <br>
      <sub>macOS 界面示意；不同系统版本的文案可能略有差异。</sub>
@@ -131,7 +131,7 @@ NeoWorker v0.1 的 macOS 安装包适用于 Apple Silicon，当前为未签名�
 
 5. 打开 **Apple 菜单 → 系统设置 → 隐私与安全性**，下滑到 **安全性** 区域，确认被阻止的应用是 **NeoWorker**，点击 **仍要打开**。
 
-   <p align="center">
+   <p align="left">
      <img src="../screenshots/readme/macos-install/03-neoworker-privacy-security-open-anyway.png" alt="macOS 隐私与安全性设置中突出显示 NeoWorker 的仍要打开按钮" width="760">
      <br>
      <sub>“仍要打开”只会为 NeoWorker 创建单应用例外。</sub>
@@ -139,7 +139,7 @@ NeoWorker v0.1 的 macOS 安装包适用于 Apple Silicon，当前为未签名�
 
 6. 在二次确认窗口中再次点击 **仍要打开**；如系统要求，请输入 Mac 登录密码或使用 Touch ID。
 
-   <p align="center">
+   <p align="left">
      <img src="../screenshots/readme/macos-install/04-neoworker-confirm-open-anyway.png" alt="macOS 二次确认是否仍要打开 NeoWorker" width="300">
      <br>
      <sub>仅在安装包来自 NeoWorker 官方 Release 时确认打开。</sub>
