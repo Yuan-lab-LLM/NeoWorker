@@ -72,4 +72,18 @@ describe("Everyday agent typography", () => {
       /\.theme-light\.visual-oblivion\s+\.everyday-agent-main\s+\.ea-focus-row:not\(:first-child\)\s+button\s*\{[^}]*color:\s*var\(--cw-brand\);/s,
     );
   });
+
+  it("resolves artwork relative to the packaged renderer", () => {
+    const panel = readFileSync(panelPath, "utf8");
+
+    expect(panel).toContain("import.meta.env.BASE_URL");
+    expect(panel).toMatch(
+      /everydayArtworkUrl\(\s*"\/everyday\/daily-assistant-hero\.webp",?\s*\)/,
+    );
+    expect(panel).toMatch(
+      /everydayArtworkUrl\(\s*"\/everyday\/approval-review\.webp",?\s*\)/,
+    );
+    expect(panel).not.toMatch(/\bsrc="\/everyday\//);
+    expect(panel).not.toMatch(/:\s*"\/everyday\//);
+  });
 });

@@ -92,10 +92,20 @@ export interface EverydayAgentPriorityItem {
     "settings" | "resume" | "memory" | "receipt" | "suggestion" | "preview";
 }
 
+export function everydayArtworkUrl(path: string): string {
+  return `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`;
+}
+
+const DAILY_ASSISTANT_HERO_ARTWORK = everydayArtworkUrl(
+  "/everyday/daily-assistant-hero.webp",
+);
+const DAILY_APPROVAL_ARTWORK = everydayArtworkUrl(
+  "/everyday/approval-review.webp",
+);
 const DAILY_FOCUS_ARTWORK = {
-  "focus-priority": "/everyday/focus-priority.webp",
-  "focus-suggestion": "/everyday/focus-organize.webp",
-  "focus-routine": "/everyday/focus-follow-up.webp",
+  "focus-priority": everydayArtworkUrl("/everyday/focus-priority.webp"),
+  "focus-suggestion": everydayArtworkUrl("/everyday/focus-organize.webp"),
+  "focus-routine": everydayArtworkUrl("/everyday/focus-follow-up.webp"),
 } as const;
 
 export function getApprovalTypeLabel(type: ApprovalRequest["type"]): string {
@@ -2465,7 +2475,7 @@ export function EverydayAgentPanel({
                 </div>
                 <figure className="ea-focus-hero" aria-hidden="true">
                   <img
-                    src="/everyday/daily-assistant-hero.webp"
+                    src={DAILY_ASSISTANT_HERO_ARTWORK}
                     alt=""
                     decoding="async"
                   />
@@ -2569,7 +2579,7 @@ export function EverydayAgentPanel({
                   </header>
                   <figure className="ea-approval-art" aria-hidden="true">
                     <img
-                      src="/everyday/approval-review.webp"
+                      src={DAILY_APPROVAL_ARTWORK}
                       alt=""
                       loading="lazy"
                       decoding="async"
