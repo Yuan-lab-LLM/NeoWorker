@@ -87,9 +87,9 @@ NeoWorker focuses on turning AI from a conversational assistant into a personal 
 
 ## Current version
 
-The current source version is **<code>v0.1</code>** (package version <code>0.1.0</code>). The first GitHub Release is expected to include:
+The current public version is **<code>v0.1</code>** (package version <code>0.1.0</code>). The GitHub Release includes:
 
-- macOS <code>.dmg</code> and <code>.zip</code> packages
+- a macOS Apple Silicon <code>.dmg</code> package
 - a Windows <code>.exe</code> installer
 - release notes and checksums
 
@@ -99,27 +99,53 @@ See the [changelog](./docs/CHANGELOG.md) for version history.
 
 ### Download the desktop application
 
-After the first public release, download the installer from [GitHub Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest).
+Download NeoWorker only from the official [GitHub Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) page.
 
 | Platform | Package | Installation |
 | --- | --- | --- |
-| **macOS** | <code>.dmg</code> | Open the disk image and drag NeoWorker into Applications. See the notes below for unsigned preview builds. |
-| **Windows** | <code>.exe</code> | Run the installer and follow the setup prompts. |
+| **macOS (Apple Silicon)** | <code>NeoWorker-0.1.0-arm64.dmg</code> | Open the disk image and drag NeoWorker into Applications. |
+| **Windows (x64)** | <code>NeoWorker-0.1.0-windows-x64-setup.exe</code> | Run the installer and follow the setup prompts. |
+| **Checksums** | <code>NeoWorker-v0.1-SHA256SUMS.txt</code> | Verify the downloaded installer before opening it. |
 
 #### Install on macOS
 
-1. Download the macOS <code>.dmg</code> only from the official [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases) page.
-2. Open the downloaded <code>.dmg</code>, then drag **NeoWorker** into **Applications**.
+NeoWorker v0.1 for macOS is an unsigned Apple Silicon build. The first launch may therefore need a one-time Gatekeeper approval for this app.
+
+1. Download <code>NeoWorker-0.1.0-arm64.dmg</code> from the official [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) page.
+2. Open the downloaded disk image, then drag **NeoWorker** into **Applications**.
 
    <p align="center">
      <img src="./screenshots/readme/macos-install/01-drag-neoworker-to-applications-v2.png" alt="NeoWorker macOS disk image: drag NeoWorker into Applications" width="760">
      <br>
-     <sub>Drag NeoWorker into Applications to install it.</sub>
+     <sub>Real NeoWorker disk-image window: drag NeoWorker into Applications.</sub>
    </p>
 
 3. Open **Applications** in Finder and double-click **NeoWorker**. If it opens, installation is complete.
-4. If macOS blocks an unsigned preview build, click **Done**, then open **Apple menu → System Settings → Privacy & Security**. Scroll to **Security**, confirm that **NeoWorker** is the blocked app, and click **Open Anyway**.
-5. Click **Open Anyway** again in the confirmation dialog and authenticate with your Mac login password or Touch ID if requested. The wording varies slightly by macOS version. Apple notes that this button is normally available for about one hour after the blocked launch attempt. Once confirmed, NeoWorker is saved as an app-specific exception and can be opened normally.
+4. If macOS displays **“NeoWorker” Not Opened**, click **Done**. Do not delete the app yet.
+
+   <p align="center">
+     <img src="./screenshots/readme/macos-install/02-neoworker-not-opened.png" alt="macOS warning saying NeoWorker was not opened because Apple could not verify it" width="300">
+     <br>
+     <sub>macOS interface example; wording may vary by system version.</sub>
+   </p>
+
+5. Open **Apple menu → System Settings → Privacy & Security**, scroll to **Security**, confirm that the blocked app is **NeoWorker**, and click **Open Anyway**.
+
+   <p align="center">
+     <img src="./screenshots/readme/macos-install/03-neoworker-privacy-security-open-anyway.png" alt="macOS Privacy and Security settings with the NeoWorker Open Anyway button highlighted" width="760">
+     <br>
+     <sub>Open Anyway creates a one-app exception for NeoWorker.</sub>
+   </p>
+
+6. In the confirmation dialog, click **Open Anyway** again. Enter your Mac login password or use Touch ID if requested.
+
+   <p align="center">
+     <img src="./screenshots/readme/macos-install/04-neoworker-confirm-open-anyway.png" alt="macOS confirmation dialog asking whether to open NeoWorker anyway" width="300">
+     <br>
+     <sub>Confirm only when the installer came from the official NeoWorker Release.</sub>
+   </p>
+
+After this one-time confirmation, macOS saves NeoWorker as an app-specific exception and it can be opened normally. Apple notes that **Open Anyway** is normally available for about one hour after the blocked launch attempt.
 
 If **Open Anyway** does not appear, and you downloaded NeoWorker from the official Releases page and verified its checksum, use this app-specific fallback in Terminal:
 
@@ -128,9 +154,18 @@ sudo xattr -rd com.apple.quarantine "/Applications/NeoWorker.app"
 open "/Applications/NeoWorker.app"
 ~~~
 
-This command removes the download quarantine attribute only from the installed NeoWorker app. It does not disable Gatekeeper system-wide. You do not need to enable **Anywhere** or run <code>sudo spctl --master-disable</code> to complete the installation. See [Apple: Open apps safely on your Mac](https://support.apple.com/102445) for the official **Open Anyway** workflow.
+This command removes the download quarantine attribute only from the installed NeoWorker app. It does not disable Gatekeeper system-wide. See [Apple: Open apps safely on your Mac](https://support.apple.com/102445) for the official **Open Anyway** workflow.
 
 If macOS says NeoWorker **will damage your computer**, do not bypass that warning. Delete the package, download it again from the official Releases page, verify the published checksum, and file an Issue with the NeoWorker version, macOS version, and full alert text if the warning remains.
+
+#### Install on Windows
+
+1. Download <code>NeoWorker-0.1.0-windows-x64-setup.exe</code> from the official [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) page.
+2. Double-click the installer and follow the setup prompts.
+3. If Windows SmartScreen displays **Windows protected your PC**, confirm that the file name is the NeoWorker installer from this Release, click **More info**, then click **Run anyway**.
+4. Finish setup and launch **NeoWorker** from the Start menu or desktop shortcut.
+
+On first launch, open **Settings → AI & Models**, connect a model provider, test the connection, and select a default model. NeoWorker does not include an API Key in either installer.
 
 ### Run from source
 

@@ -87,9 +87,9 @@ NeoWorker 聚焦把 AI 从对话助手升级为能够持续理解上下文、执
 
 ## 当前版本
 
-当前源码版本为 **`v0.1`**（安装包语义版本为 `0.1.0`），与 NeoWorker 应用内显示一致。首次 GitHub Release 建议同时提供：
+当前公开版本为 **`v0.1`**（安装包语义版本为 `0.1.0`），与 NeoWorker 应用内显示一致。GitHub Release 提供：
 
-- macOS `.dmg` 与 `.zip`
+- macOS Apple Silicon `.dmg`
 - Windows `.exe` 安装程序
 - 对应版本的更新说明和校验信息
 
@@ -99,27 +99,53 @@ NeoWorker 聚焦把 AI 从对话助手升级为能够持续理解上下文、执
 
 ### 下载桌面应用
 
-正式 Release 发布后，可从 [GitHub Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) 下载对应安装包。
+请仅从官方 [GitHub Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) 页面下载 NeoWorker。
 
 | 平台 | 安装包 | 安装方式 |
 | --- | --- | --- |
-| **macOS** | `.dmg` | 打开镜像，将 NeoWorker 拖入“应用程序”；未签名预览包请参阅下方说明。 |
-| **Windows** | `.exe` | 运行安装程序并按提示完成安装。 |
+| **macOS（Apple Silicon）** | `NeoWorker-0.1.0-arm64.dmg` | 打开磁盘映像，将 NeoWorker 拖入“应用程序”。 |
+| **Windows（x64）** | `NeoWorker-0.1.0-windows-x64-setup.exe` | 运行安装程序并按提示完成安装。 |
+| **校验文件** | `NeoWorker-v0.1-SHA256SUMS.txt` | 打开安装包前核对下载文件。 |
 
 #### macOS 安装须知
 
-1. 仅从官方 [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases) 页面下载 macOS `.dmg` 安装包。
-2. 双击打开下载的 `.dmg`，将 **NeoWorker** 拖到 **应用程序（Applications）** 文件夹。
+NeoWorker v0.1 的 macOS 安装包适用于 Apple Silicon，当前为未签名构建，因此首次启动时可能需要针对 NeoWorker 完成一次 Gatekeeper 放行。
+
+1. 从官方 [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) 页面下载 `NeoWorker-0.1.0-arm64.dmg`。
+2. 双击打开下载的磁盘映像，将 **NeoWorker** 拖到 **应用程序（Applications）** 文件夹。
 
    <p align="center">
      <img src="../screenshots/readme/macos-install/01-drag-neoworker-to-applications-v2.png" alt="NeoWorker macOS 安装窗口：将 NeoWorker 拖到 Applications 文件夹" width="760">
      <br>
-     <sub>将 NeoWorker 拖入 Applications 即可完成安装。</sub>
+     <sub>NeoWorker 真实磁盘映像窗口：将 NeoWorker 拖入 Applications。</sub>
    </p>
 
 3. 打开 Finder 的 **应用程序** 文件夹，双击 **NeoWorker**。如果能够直接启动，安装已经完成。
-4. 如果 macOS 拦截的是**未签名预览包**，先点击 **完成** 关闭提示，再进入 **Apple 菜单 → 系统设置 → 隐私与安全性**。下滑到 **安全性** 区域，确认被阻止的应用是 **NeoWorker**，点击 **仍要打开**。
-5. 在二次确认窗口中再次点击 **仍要打开**；如系统要求，请输入 Mac 登录密码或使用 Touch ID。不同 macOS 版本的文案可能略有差异；Apple 说明该按钮通常会在尝试启动被拦截应用后的约一小时内显示。确认后，NeoWorker 会被保存为单应用例外，以后可以正常双击启动。
+4. 如果 macOS 显示 **“NeoWorker” 无法打开**，点击 **完成**，暂时不要删除应用。
+
+   <p align="center">
+     <img src="../screenshots/readme/macos-install/02-neoworker-not-opened.png" alt="macOS 提示无法打开 NeoWorker，因为 Apple 无法验证该应用" width="300">
+     <br>
+     <sub>macOS 界面示意；不同系统版本的文案可能略有差异。</sub>
+   </p>
+
+5. 打开 **Apple 菜单 → 系统设置 → 隐私与安全性**，下滑到 **安全性** 区域，确认被阻止的应用是 **NeoWorker**，点击 **仍要打开**。
+
+   <p align="center">
+     <img src="../screenshots/readme/macos-install/03-neoworker-privacy-security-open-anyway.png" alt="macOS 隐私与安全性设置中突出显示 NeoWorker 的仍要打开按钮" width="760">
+     <br>
+     <sub>“仍要打开”只会为 NeoWorker 创建单应用例外。</sub>
+   </p>
+
+6. 在二次确认窗口中再次点击 **仍要打开**；如系统要求，请输入 Mac 登录密码或使用 Touch ID。
+
+   <p align="center">
+     <img src="../screenshots/readme/macos-install/04-neoworker-confirm-open-anyway.png" alt="macOS 二次确认是否仍要打开 NeoWorker" width="300">
+     <br>
+     <sub>仅在安装包来自 NeoWorker 官方 Release 时确认打开。</sub>
+   </p>
+
+完成这次确认后，macOS 会将 NeoWorker 保存为单应用例外，以后可以正常双击启动。Apple 说明“仍要打开”按钮通常会在尝试启动被拦截应用后的约一小时内显示。
 
 如果没有看到 **仍要打开**，并且你确认安装包来自官方 Releases 页面且校验值正确，可在“终端”中执行下面的单应用兜底命令：
 
@@ -128,9 +154,18 @@ sudo xattr -rd com.apple.quarantine "/Applications/NeoWorker.app"
 open "/Applications/NeoWorker.app"
 ```
 
-该命令只会移除已安装 NeoWorker 的下载隔离属性，不会在整个系统范围内关闭 Gatekeeper。完成安装不需要开启**“任何来源”**，也不需要运行 `sudo spctl --master-disable`。Apple 官方的 **仍要打开** 操作说明请参阅：[安全地打开 Mac 上的 App](https://support.apple.com/zh-cn/102445)。
+该命令只会移除已安装 NeoWorker 的下载隔离属性，不会在整个系统范围内关闭 Gatekeeper。Apple 官方的 **仍要打开** 操作说明请参阅：[安全地打开 Mac 上的 App](https://support.apple.com/zh-cn/102445)。
 
 如果 macOS 明确提示 NeoWorker **“将对电脑造成伤害”**，请不要绕过该警告。删除当前安装包，从官方 Releases 页面重新下载并核对发布页提供的校验值；如果仍然出现，请提交 Issue，并附上 NeoWorker 版本、macOS 版本和完整提示内容。
+
+#### Windows 安装须知
+
+1. 从官方 [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) 页面下载 `NeoWorker-0.1.0-windows-x64-setup.exe`。
+2. 双击安装程序，按界面提示完成安装。
+3. 如果 Windows SmartScreen 显示**“Windows 已保护你的电脑”**，先确认文件名是本 Release 提供的 NeoWorker 安装程序，再点击**“更多信息” → “仍要运行”**。
+4. 安装完成后，从开始菜单或桌面快捷方式启动 **NeoWorker**。
+
+首次启动后，进入 **设置 → AI 与模型**，连接模型服务、测试连接并选择默认模型。macOS 与 Windows 安装包均不包含任何 API Key。
 
 ### 从源码运行
 
