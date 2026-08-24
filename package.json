@@ -107,7 +107,7 @@
     "highlight.js": "^11.11.1",
     "isomorphic-git": "^1.41.8",
     "jszip": "^3.10.1",
-    "lucide-react": "^0.577.0",
+    "lucide-react": "^1.33.0",
     "mammoth": "^1.11.0",
     "marked": "^16.4.2",
     "mermaid": "^11.13.0",
