@@ -1,0 +1,70 @@
+{
+  "id": "humanizer",
+  "name": "Humanizer",
+  "description": "Rewrite AI-generated text to sound natural and human-written. Removes LLM tells — cliché phrases, predictable structure, inflated language, and robotic patterns. Use when editing drafts, emails, articles, or any text that reads like it was written by AI.",
+  "icon": "✍️",
+  "category": "Creative",
+  "prompt": "# Humanizer\n\nUse this skill only when the request is in scope:\n- User asks to humanize text, make text sound less like AI, rewrite AI-generated content, remove AI tells, make writing more natural, or edit text to sound human-written\n\nDo not use this skill when:\n- User wants to generate new content from scratch, translate text, or summarize text\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Rewritten text that reads naturally without AI writing markers.\n5. Verify success criteria: The output text would not be flagged by AI detection tools and reads like natural human writing.",
+  "parameters": [
+    {
+      "name": "text",
+      "type": "string",
+      "description": "The text to humanize (or paste it directly in your message)",
+      "required": false
+    },
+    {
+      "name": "tone",
+      "type": "select",
+      "description": "Target tone for the rewrite",
+      "required": false,
+      "default": "professional",
+      "options": [
+        "casual",
+        "professional",
+        "academic",
+        "journalistic",
+        "technical",
+        "warm"
+      ]
+    }
+  ],
+  "enabled": true,
+  "invocation": {
+    "userInvocable": true
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "NeoWorker",
+    "tags": [
+      "writing",
+      "editing",
+      "humanize",
+      "ai-detection",
+      "rewriting",
+      "content"
+    ],
+    "routing": {
+      "useWhen": "User asks to humanize text, make text sound less like AI, rewrite AI-generated content, remove AI tells, make writing more natural, or edit text to sound human-written",
+      "dontUseWhen": "User wants to generate new content from scratch, translate text, or summarize text",
+      "outputs": "Rewritten text that reads naturally without AI writing markers",
+      "successCriteria": "The output text would not be flagged by AI detection tools and reads like natural human writing",
+      "examples": {
+        "positive": [
+          "Use the humanizer skill for this request.",
+          "Help me with humanizer.",
+          "User asks to humanize text, make text sound less like AI, rewrite AI-generated content, remove AI tells, make writing more natural, or edit text to sound human-written",
+          "Humanizer: provide an actionable result."
+        ],
+        "negative": [
+          "User wants to generate new content from scratch, translate text, or summarize text",
+          "Do not use humanizer for unrelated requests.",
+          "This request is outside humanizer scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

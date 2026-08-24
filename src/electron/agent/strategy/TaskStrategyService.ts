@@ -1,0 +1,858 @@
+import {
+  AgentConfig,
+  ConversationMode,
+  ExecutionMode,
+  LlmProfile,
+  TaskDomain,
+} from "../../../shared/types";
+import { IntentRoute } from "./IntentRouter";
+import type {
+  DirectResponseMode,
+  PreflightGate,
+  TaskStrategySnapshot,
+} from "./TaskStrategySnapshot";
+
+export interface DerivedTaskStrategy {
+  conversationMode: ConversationMode;
+  executionMode: ExecutionMode;
+  taskDomain: TaskDomain;
+  maxTurns?: number;
+  qualityPasses: 1 | 2 | 3;
+  answerFirst: boolean;
+  boundedResearch: boolean;
+  timeoutFinalizeBias: boolean;
+  preflightRequired: boolean;
+  /** Signals executor to enable deep work behaviors (research-retry, journaling, auto-report) */
+  deepWorkMode: boolean;
+  /** Generate a final markdown report on task completion */
+  autoReportEnabled: boolean;
+  /** Emit periodic progress journal entries for fire-and-forget visibility */
+  progressJournalEnabled: boolean;
+  /** Strategy-derived model routing hint */
+  llmProfileHint: LlmProfile;
+  /** Canonical strategy fields for downstream routing gates. */
+  snapshot: TaskStrategySnapshot;
+}
+
+export const STRATEGY_CONTEXT_OPEN = "[AGENT_STRATEGY_CONTEXT_V1]";
+export const STRATEGY_CONTEXT_CLOSE = "[/AGENT_STRATEGY_CONTEXT_V1]";
+const STRATEGY_CONTEXT_BLOCK_REGEX =
+  /\[AGENT_STRATEGY_CONTEXT_V1\][\s\S]*?\[\/AGENT_STRATEGY_CONTEXT_V1\]/g;
+
+export class TaskStrategyService {
+  private static hasTextToImageGenerationIntent(lower: string): boolean {
+    return (
+      /\b(draw|paint|illustrate|render|sketch)\b.*\b(in|of|with|a|an|the)\b/.test(lower) ||
+      /\b(create|generate|make)\s+(?:an?\s+)?(?:image|picture|photo|illustration)\s+(?:of|with|about|for|on|explaining?)\b/.test(
+        lower,
+      ) ||
+      /\b(create|generate|make)\s+(?:an?\s+)?(?:infographic|poster)(?:\s+image)?\b/.test(lower) ||
+      /\b(create|generate|make|produce|design|render)\s+(?:(?:a|an|the|some|me|us|one|two|three|four|five|several|new)\s+)?(?:(?!\b(?:with|using|containing|including|mentioning|that)\b)[\w-]+\s+){0,5}(?:image|picture|photo|photograph|illustration|render|rendering|artwork|drawing|painting|visual|graphic|poster|infographic|icon|logo|avatar|wallpaper|banner|portrait|thumbnail|mockup)s?\b/.test(
+        lower,
+      )
+    );
+  }
+
+  private static imageGenerationNeedsPromptGrounding(lower: string): boolean {
+    const asksForExplainerVisual =
+      /\b(infographic|visual guide|explainer|diagram|poster|one[-\s]?pager)\b/.test(lower);
+    if (!asksForExplainerVisual) return false;
+    return /\b(neoworker os|co-?work os|our app|this app|the app|our product|this product|company|brand|platform|service)\b/.test(
+      lower,
+    );
+  }
+
+  private static isTerminalImageGenerationTask(text: string): boolean {
+    const lower = String(text || "")
+      .replace(STRATEGY_CONTEXT_BLOCK_REGEX, "")
+      .toLowerCase();
+    if (!lower.trim()) return false;
+    if (!this.hasTextToImageGenerationIntent(lower)) return false;
+    return !/\b(edit|modify|change|update|retouch|inpaint|remove|replace|analy[sz]e|describe|review|compare|inspect|website|webapp|code|component|page|ui|screenshot)\b/.test(
+      lower,
+    );
+  }
+
+  private static isSimpleImageGenerationTask(text: string): boolean {
+    const lower = String(text || "")
+      .replace(STRATEGY_CONTEXT_BLOCK_REGEX, "")
+      .toLowerCase();
+    if (!lower.trim()) return false;
+    if (!this.hasTextToImageGenerationIntent(lower)) return false;
+    if (this.imageGenerationNeedsPromptGrounding(lower)) return false;
+
+    const hasAppAssetIntent =
+      /\b(?:avatar|icon|logo|mascot|badge|profile picture|profile image|brand mark|app asset)\b/.test(
+        lower,
+      );
+    const hasAppWorkIntent = /\b(?:app|application)\b/.test(lower) && !hasAppAssetIntent;
+    const hasNonImageWorkIntent =
+      /\b(edit|modify|change|update|retouch|inpaint|remove|replace|analy[sz]e|describe|review|compare|inspect|website|webapp|code|component|page|ui|screenshot)\b/.test(
+        lower,
+      );
+    return !hasAppWorkIntent && !hasNonImageWorkIntent;
+  }
+
+  private static inferArtifactKindFromTaskText(
+    text: string,
+  ): "none" | "canvas" | "document" | "file" {
+    if (!text) return "none";
+    if (/\b(canvas|artifact)\b/.test(text)) return "canvas";
+    if (
+      /\b(csv|docx|excel|pdf|spreadsheet|workbook|xlsx?|word(?:\s+(?:document|file))?|document|report|slide deck|presentation)\b|(?:文档|报告|电子表格|工作簿|数据表|表格文件|台账|演示文稿|幻灯片)/.test(
+        text,
+      )
+    ) {
+      return "document";
+    }
+    if (
+      /\b(file|files|project|widget|source|code|html|webpage|web\s+page)\b/.test(text) ||
+      /(?:网页|页面|文件)/.test(text) ||
+      /\.(xcodeproj|xcworkspace|xcscheme|pbxproj|entitlements|plist|html|swift|ts|tsx|js|jsx|css)\b/.test(
+        text,
+      )
+    ) {
+      return "file";
+    }
+    return "none";
+  }
+
+  private static inferRequiresMutationFromTaskText(text: string): boolean {
+    if (!text) return false;
+    return (
+      /\b(scaffold|bootstrap|initialize|set up|create|build|write|edit|fix|implement|modify|generate|render)\b/.test(
+        text,
+      ) || /(?:创建|生成|制作|导出|保存|输出|写入|编辑|修改|修复|实现)/.test(text)
+    );
+  }
+
+  private static isStrictConstraintArtifactTask(taskText: string): boolean {
+    const text = String(taskText || "").toLowerCase();
+    if (!text.trim()) return false;
+
+    const hasStrictLengthConstraint =
+      /\bexact(?:ly)?\s+\d+\s*(characters?|chars?|words?)\b/.test(text) ||
+      /\b\d+\s*(characters?|chars?|words?)\s*(long|length)\b/.test(text) ||
+      /\blen\s*\(\s*text\s*\)\s*==\s*\d+\b/.test(text) ||
+      /\bstrict(?:ly)?\s+\d+\s*(characters?|chars?|words?)\b/.test(text);
+
+    if (!hasStrictLengthConstraint) return false;
+
+    const hasArtifactTarget =
+      /\b(docx|word document|word file|pdf|canvas|interactive html|web app|artifact|document)\b/.test(
+        text,
+      );
+    if (!hasArtifactTarget) return false;
+
+    return true;
+  }
+
+  static deriveLlmProfile(
+    strategy: Pick<DerivedTaskStrategy, "executionMode" | "preflightRequired">,
+    taskContext: {
+      intent?: IntentRoute["intent"];
+      isVerificationTask?: boolean;
+      strictConstraintArtifactTask?: boolean;
+    } = {},
+  ): LlmProfile {
+    if (taskContext.isVerificationTask) {
+      return "strong";
+    }
+
+    if (taskContext.strictConstraintArtifactTask) {
+      return "strong";
+    }
+
+    if (strategy.preflightRequired) {
+      return "strong";
+    }
+
+    // Verified mode: planning phase uses strong (handled here via preflightRequired
+    // which is forced true for verified mode). Execution steps switch to cheap
+    // dynamically inside the executor, not here.
+    if (strategy.executionMode === "verified") {
+      return "strong";
+    }
+
+    if (strategy.executionMode === "debug") {
+      return "strong";
+    }
+
+    if (strategy.executionMode !== "execute") {
+      return "strong";
+    }
+
+    if (taskContext.intent === "planning") {
+      return "strong";
+    }
+
+    return "cheap";
+  }
+
+  static derive(
+    route: IntentRoute,
+    existing?: AgentConfig,
+    taskContext?: {
+      title?: string;
+      prompt?: string;
+      lastProgressScore?: number;
+    },
+  ): DerivedTaskStrategy {
+    const defaults: Record<
+      IntentRoute["intent"],
+      Omit<
+        DerivedTaskStrategy,
+        | "executionMode"
+        | "taskDomain"
+        | "deepWorkMode"
+        | "autoReportEnabled"
+        | "progressJournalEnabled"
+        | "llmProfileHint"
+        | "snapshot"
+      >
+    > = {
+      chat: {
+        conversationMode: "chat",
+        qualityPasses: 1,
+        answerFirst: false,
+        boundedResearch: true,
+        timeoutFinalizeBias: true,
+        preflightRequired: false,
+      },
+      advice: {
+        conversationMode: "hybrid",
+        qualityPasses: 1,
+        answerFirst: true,
+        boundedResearch: true,
+        timeoutFinalizeBias: true,
+        preflightRequired: false,
+      },
+      planning: {
+        conversationMode: "hybrid",
+        qualityPasses: 1,
+        answerFirst: true,
+        boundedResearch: true,
+        timeoutFinalizeBias: true,
+        preflightRequired: false,
+      },
+      execution: {
+        conversationMode: "task",
+        qualityPasses: 1,
+        answerFirst: false,
+        boundedResearch: true,
+        timeoutFinalizeBias: true,
+        preflightRequired: false,
+      },
+      mixed: {
+        conversationMode: "hybrid",
+        qualityPasses: 1,
+        answerFirst: true,
+        boundedResearch: true,
+        timeoutFinalizeBias: true,
+        preflightRequired: false,
+      },
+      thinking: {
+        conversationMode: "think",
+        qualityPasses: 1,
+        answerFirst: true,
+        boundedResearch: true,
+        timeoutFinalizeBias: true,
+        preflightRequired: false,
+      },
+      workflow: {
+        conversationMode: "task",
+        qualityPasses: 1,
+        answerFirst: false,
+        boundedResearch: false,
+        timeoutFinalizeBias: false,
+        preflightRequired: true,
+      },
+      deep_work: {
+        conversationMode: "task",
+        qualityPasses: 2,
+        answerFirst: false,
+        boundedResearch: false,
+        timeoutFinalizeBias: false,
+        preflightRequired: true,
+      },
+      redirect: {
+        conversationMode: "task",
+        qualityPasses: 1,
+        answerFirst: false,
+        boundedResearch: false,
+        timeoutFinalizeBias: false,
+        preflightRequired: false,
+      },
+    };
+
+    // Enable pre-flight framing for complex execution/mixed tasks, all workflows, and deep work
+    let preflightRequired =
+      route.intent === "workflow" ||
+      route.intent === "deep_work" ||
+      ((route.intent === "execution" || route.intent === "mixed") && route.complexity === "high");
+
+    const isDeepWork = route.intent === "deep_work";
+    const isWorkflowOrDeepWork = isDeepWork || route.intent === "workflow";
+
+    const base = defaults[route.intent];
+    const taskText = `${taskContext?.title || ""}\n${taskContext?.prompt || ""}`.toLowerCase();
+    const inferredArtifactKind = this.inferArtifactKindFromTaskText(taskText);
+    const explicitArtifactMutationSignal =
+      this.inferRequiresMutationFromTaskText(taskText) &&
+      inferredArtifactKind !== "none";
+    const simpleImageGenerationTask = this.isSimpleImageGenerationTask(taskText);
+    const terminalImageGenerationTask = this.isTerminalImageGenerationTask(taskText);
+    const artifactCreationSignal =
+      /\b(create|build|make|implement|scaffold|generate|start building|start build)\b/.test(
+        taskText,
+      ) &&
+      /\b(website|web page|webapp|frontend|landing page|app|application|project|repo|repository|codebase|distro|distribution|iso|image|artifact|file|files|workspace|requirements\.md|config)\b/.test(
+        taskText,
+      );
+    const buildVerifyRenderArtifactRequested =
+      /\b(build|create|implement|scaffold|generate)\b/.test(taskText) &&
+      /\b(verify|validate|test|check)\b/.test(taskText) &&
+      /\b(render|show|preview|display)\b/.test(taskText) &&
+      /\b(canvas|artifact|widget|project|html|file|document)\b/.test(taskText);
+    const buildRenderArtifactRequested =
+      /\b(build|create|implement|scaffold|generate)\b/.test(taskText) &&
+      /\b(render|show|preview|display)\b/.test(taskText) &&
+      /\b(canvas|artifact|widget|project|html|file|document)\b/.test(taskText);
+    const hasHardExecutionSignal = route.signals.some((signal) =>
+      [
+        "path-or-command",
+        "needs-tool-inspection",
+        "cloud-storage-file-access",
+        "cloud-storage-query",
+        "shell-troubleshooting",
+        "terminal-transcript",
+      ].includes(signal),
+    );
+
+    // Strict execute gate:
+    // - Always execute for explicit execution/workflow/deep-work intents
+    // - For mixed intent, require hard execution cues; otherwise keep plan mode
+    const inferredExecutionMode: ExecutionMode =
+      route.intent === "execution" ||
+      route.intent === "workflow" ||
+      route.intent === "deep_work" ||
+      (route.intent === "mixed" && (hasHardExecutionSignal || artifactCreationSignal)) ||
+      explicitArtifactMutationSignal ||
+      buildVerifyRenderArtifactRequested ||
+      buildRenderArtifactRequested
+        ? "execute"
+        : route.intent === "chat" || route.intent === "thinking"
+          ? "execute"
+          : "plan";
+    const existingExecutionMode = existing?.executionMode;
+    // Verified mode is always user-selected; preserve it and force planning.
+    if (existingExecutionMode === "verified") {
+      preflightRequired = true;
+    }
+    // Keep explicit non-execute overrides (plan/analyze/verified), but do not let a
+    // stale default `execute` force non-execution intents into full task mode.
+    const executionMode =
+      existingExecutionMode &&
+      (existingExecutionMode !== "execute" || inferredExecutionMode === "execute")
+        ? existingExecutionMode
+        : inferredExecutionMode;
+    const taskDomain =
+      existing?.taskDomain && existing.taskDomain !== "auto" ? existing.taskDomain : route.domain;
+    const strictConstraintArtifactTask = this.isStrictConstraintArtifactTask(
+      `${taskContext?.title || ""}\n${taskContext?.prompt || ""}`,
+    );
+    const inferredRequiresMutation =
+      explicitArtifactMutationSignal;
+    const explicitArtifactCreationTask = inferredRequiresMutation;
+    const effectiveTaskIntent =
+      explicitArtifactCreationTask &&
+      (route.intent === "chat" || route.intent === "thinking")
+        ? "execution"
+        : route.intent;
+    const previousWindowLowProgress =
+      typeof taskContext?.lastProgressScore === "number" && taskContext.lastProgressScore < 0.15;
+
+    const baseLlmProfileHint = this.deriveLlmProfile(
+      {
+        executionMode,
+        preflightRequired,
+      },
+      {
+        intent: effectiveTaskIntent,
+        strictConstraintArtifactTask,
+      },
+    );
+    const llmProfileHint =
+      buildVerifyRenderArtifactRequested ||
+      buildRenderArtifactRequested ||
+      (baseLlmProfileHint === "cheap" &&
+        inferredRequiresMutation &&
+        ["canvas", "document", "file"].includes(inferredArtifactKind) &&
+        previousWindowLowProgress)
+        ? "strong"
+        : baseLlmProfileHint;
+    // A request that explicitly asks us to create a file is task work even when
+    // the language router calls the surrounding sentence "chat" (this used to
+    // happen frequently for Chinese prompts such as "以 HTML 形式制作").  Do
+    // not carry chat semantics into an artifact-producing executor run.
+    const conversationMode = explicitArtifactCreationTask
+      ? "task"
+      : existing?.conversationMode && existing.conversationMode !== "hybrid"
+        ? existing.conversationMode
+        : base.conversationMode;
+    const snapshot: TaskStrategySnapshot = {
+      taskIntent: effectiveTaskIntent,
+      conversationMode,
+      executionMode,
+      taskDomain,
+      directResponseMode: this.deriveDirectResponseMode({
+        intent: effectiveTaskIntent,
+        answerFirst: base.answerFirst,
+        executionMode,
+      }),
+      preflightGates: preflightRequired ? ["preflight_framing"] : [],
+      workflowMode:
+        route.intent === "workflow" || route.intent === "deep_work" ? route.intent : "none",
+      llmProfileHint,
+      confidence: route.confidence,
+      overrides: [],
+    };
+    return {
+      // Preserve explicit user-set modes (chat/task/think) but let intent-derived
+      // strategy override the default "hybrid" so the daemon's IntentRouter decision
+      // actually takes effect at execution time.
+      conversationMode,
+      executionMode,
+      taskDomain,
+      qualityPasses:
+        existing?.qualityPasses ?? (terminalImageGenerationTask ? 1 : base.qualityPasses),
+      answerFirst: base.answerFirst,
+      boundedResearch: base.boundedResearch,
+      timeoutFinalizeBias: base.timeoutFinalizeBias,
+      preflightRequired,
+      deepWorkMode: isDeepWork,
+      autoReportEnabled: isWorkflowOrDeepWork,
+      progressJournalEnabled: isDeepWork,
+      llmProfileHint,
+      snapshot,
+    };
+  }
+
+  private static deriveDirectResponseMode(params: {
+    intent: IntentRoute["intent"];
+    answerFirst: boolean;
+    executionMode: ExecutionMode;
+  }): DirectResponseMode {
+    if (params.intent === "chat" || params.intent === "thinking") {
+      return "companion";
+    }
+    if (!params.answerFirst) return "none";
+    return params.executionMode === "execute" || params.executionMode === "debug"
+      ? "brief_status_then_execute"
+      : "terminal_quick_answer";
+  }
+
+  static applyToAgentConfig(
+    existing: AgentConfig | undefined,
+    strategy: DerivedTaskStrategy,
+  ): AgentConfig {
+    const next: AgentConfig = existing ? { ...existing } : {};
+    next.taskStrategySnapshot = strategy.snapshot;
+    const existingExecutionMode = existing?.executionMode;
+    const inferredExistingExecutionModeSource =
+      existing?.executionModeSource ||
+      (existingExecutionMode
+        ? existingExecutionMode === "execute"
+          ? "strategy"
+          : "user"
+        : undefined);
+    if (!next.conversationMode || next.conversationMode === "hybrid") {
+      next.conversationMode = strategy.conversationMode;
+    }
+    if (!next.executionMode) {
+      next.executionMode = strategy.executionMode;
+      next.executionModeSource = "strategy";
+    } else if (next.executionMode === "execute" && strategy.executionMode !== "execute") {
+      // Downshift stale execute defaults for non-execution intents (advice/chat/planning/thinking).
+      next.executionMode = strategy.executionMode;
+      next.executionModeSource = "strategy";
+    } else if (!next.executionModeSource && inferredExistingExecutionModeSource) {
+      next.executionModeSource = inferredExistingExecutionModeSource;
+    }
+    if (!next.taskDomain || next.taskDomain === "auto") {
+      next.taskDomain = strategy.taskDomain;
+    }
+    if (typeof strategy.maxTurns === "number" && typeof next.maxTurns !== "number") {
+      next.maxTurns = strategy.maxTurns;
+    }
+    if (!next.turnBudgetPolicy && typeof next.maxTurns === "number") {
+      next.turnBudgetPolicy =
+        strategy.executionMode === "execute" ||
+        strategy.executionMode === "verified" ||
+        strategy.executionMode === "debug"
+          ? "adaptive_unbounded"
+          : "hard_window";
+    }
+    if (!next.workspacePathAliasPolicy) {
+      next.workspacePathAliasPolicy = "rewrite_and_retry";
+    }
+    if (!next.taskPathRootPolicy) {
+      next.taskPathRootPolicy = "pin_and_rewrite";
+    }
+    if (typeof next.pathDriftRetryBudget !== "number") {
+      next.pathDriftRetryBudget = 3;
+    }
+    if (typeof next.suppressToolDisableOnRecoverablePathDrift !== "boolean") {
+      next.suppressToolDisableOnRecoverablePathDrift = true;
+    }
+    if (typeof next.mutationCheckpointRetryBudget !== "number") {
+      next.mutationCheckpointRetryBudget = 1;
+    }
+    if (typeof next.followUpAutoRecovery !== "boolean") {
+      next.followUpAutoRecovery = true;
+    }
+    if (!next.qualityPasses) {
+      next.qualityPasses = strategy.qualityPasses;
+    }
+    if (strategy.preflightRequired) {
+      next.preflightRequired = true;
+    }
+    if (strategy.deepWorkMode) {
+      next.deepWorkMode = true;
+      if (typeof next.autonomousMode !== "boolean") {
+        next.autonomousMode = true;
+      }
+      if (!Array.isArray(next.autoApproveTypes)) {
+        next.autoApproveTypes = ["run_command"];
+      }
+    }
+    if (strategy.autoReportEnabled) {
+      next.autoReportEnabled = true;
+    }
+    if (strategy.progressJournalEnabled) {
+      next.progressJournalEnabled = true;
+    }
+    if (!next.modelKey) {
+      next.llmProfileHint = strategy.llmProfileHint;
+    } else {
+      delete next.llmProfileHint;
+    }
+    TaskStrategyService.applyResearchWorkflowDefaults(next);
+    return next;
+  }
+
+  /**
+   * When `researchWorkflow.enabled` is set, merge MVP defaults: critique loop, deep work,
+   * auto-report, journaling, and optional verification.
+   */
+  static applyResearchWorkflowDefaults(config: AgentConfig): void {
+    if (!config.researchWorkflow?.enabled) return;
+    const rw = config.researchWorkflow;
+    config.researchWorkflow = {
+      ...rw,
+      emitSemanticProgress: rw.emitSemanticProgress !== false,
+    };
+    if (!config.qualityPasses || config.qualityPasses < 3) {
+      config.qualityPasses = 3;
+    }
+    config.deepWorkMode = true;
+    config.autoReportEnabled = true;
+    config.progressJournalEnabled = true;
+    if (config.verificationAgent === undefined) {
+      config.verificationAgent = true;
+    }
+    config.taskDomain = "research";
+    if (!config.capabilityHint) {
+      config.capabilityHint = "research";
+    }
+    const researcher = rw.researcher;
+    if (researcher && !config.modelKey && researcher.modelKey) {
+      config.modelKey = researcher.modelKey;
+    }
+    if (researcher && !config.providerType && researcher.providerType) {
+      config.providerType = researcher.providerType;
+    }
+  }
+
+  static decoratePrompt(
+    prompt: string,
+    route: IntentRoute,
+    strategy: DerivedTaskStrategy,
+    relationshipContext: string,
+  ): string {
+    const text = String(prompt || "").trim();
+    if (!text) return text;
+    if (text.includes(STRATEGY_CONTEXT_OPEN)) return text;
+
+    const lines = [
+      STRATEGY_CONTEXT_OPEN,
+      `intent=${route.intent}`,
+      `confidence=${route.confidence.toFixed(2)}`,
+      `complexity=${route.complexity}`,
+      `conversation_mode=${strategy.conversationMode}`,
+      `execution_mode=${strategy.executionMode}`,
+      `task_domain=${strategy.taskDomain}`,
+      `answer_first=${strategy.answerFirst ? "true" : "false"}`,
+      `bounded_research=${strategy.boundedResearch ? "true" : "false"}`,
+      `timeout_finalize_bias=${strategy.timeoutFinalizeBias ? "true" : "false"}`,
+    ];
+
+    if (route.intent === "thinking") {
+      // Behavioural rules live in the system prompt (buildChatOrThinkSystemPrompt).
+      // The decorated prompt only marks the contract type so the executor
+      // can detect think-mode from the prompt metadata.
+      lines.push("thinking_contract: active");
+    } else if (route.intent === "deep_work") {
+      const deepWorkHeader = ["deep_work_contract:"];
+      const universal = [
+        "- This is a long-running autonomous task. You have a large turn budget (250 turns).",
+        "- When you encounter errors, research alternatives using available tools before retrying.",
+        "- Use scratchpad_write to record progress, blockers, and decisions.",
+        "- Use scratchpad_read to preserve continuity across long runs.",
+        "- Decompose work into sub-tasks and parallelize only when it improves delivery.",
+        "- Emit clear progress messages so status is visible during the run.",
+        "- At completion, include a concrete outcome summary and explicit blockers.",
+      ];
+      const technical =
+        strategy.taskDomain === "code" || strategy.taskDomain === "operations"
+          ? [
+              "- VERIFY YOUR WORK: run tests/lint/build checks before claiming completion.",
+              "  If checks fail, diagnose root cause, fix, and re-run until resolved.",
+            ]
+          : [
+              "- Validate deliverables against the request before finishing.",
+              "- Prefer concise user-facing outputs over implementation detail unless requested.",
+            ];
+      lines.push(...deepWorkHeader, ...universal, ...technical);
+    } else if (route.intent === "workflow") {
+      lines.push(
+        "workflow_contract:",
+        "- This is a multi-phase workflow. Decompose into sequential phases.",
+        "- Execute each phase completely before moving to the next.",
+        "- Pass output from each phase as context to the next phase.",
+        "- Report progress at each phase boundary.",
+      );
+    } else {
+      lines.push(
+        "execution_contract:",
+        "- Directly answer the user question before any deep expansion.",
+        "- Keep research/tool loops bounded; stop once the answer is supportable.",
+        "- Never end silently. Always return a complete best-effort answer.",
+      );
+    }
+
+    if (this.hasDeferredRequiredInput(text)) {
+      lines.push(
+        "required_input_contract:",
+        "- The request explicitly defers one or more required inputs to a later user message.",
+        "- If the current user message does not provide those inputs, ask exactly one focused question and stop before research or execution.",
+        "- Missing required inputs are not safe defaults. Never infer them from user profile, relationship memory, historical projects, or unrelated prior tasks.",
+        "- Once a later user message explicitly provides the missing inputs, use those values and proceed without retaining an earlier inferred assumption.",
+      );
+    }
+
+    if (["execution", "mixed", "workflow", "deep_work"].includes(route.intent)) {
+      lines.push(
+        "checklist_contract:",
+        "- These checklist rules are internal runtime policy, not execution-plan steps or user-visible work items.",
+        "- Create a session checklist only for non-trivial execution that changes artifacts/state or spans a long workflow.",
+        "- Do not create a checklist for basic questions, read-only research, advice, or plan-only responses.",
+        "- When a checklist is warranted, create it with task_list_create.",
+        "- Maintain the checklist during execution with task_list_update and keep at most one item in_progress.",
+        "- Mark checklist progress immediately when work starts or completes.",
+        "- Before final completion, add and run a verification checklist item when verification is appropriate.",
+      );
+    }
+
+    if (route.signals.includes("local-errand-location")) {
+      lines.push(
+        "location_maps_contract:",
+        "- This request depends on the user's current location and nearby places.",
+        "- First get one-time desktop location permission with get_current_location.",
+        "- Then use the Maps MCP nearby ranking/search tools, preferably maps.rank_nearby_options via the configured MCP prefix.",
+        "- If location access is denied, unavailable, or times out, do not retry get_current_location in the same task; ask for a typed venue/address or landmark.",
+        "- Answer with the top walkable option, walking time, fit, open-status confidence, and a map/source link when available.",
+      );
+    }
+
+    const imageTaskText = `${text}\n${route.signals.join(" ")}`;
+    if (this.isSimpleImageGenerationTask(imageTaskText)) {
+      lines.push(
+        "image_generation_contract:",
+        "- For a simple text-to-image request, call generate_image once, share the generated output, and finish.",
+        "- Do not search files, use scratchpad, ask for art direction, or run analyze_image unless the user explicitly asks for those extra steps.",
+        "- Do not add subjective review/verification steps after a successful image file is created.",
+      );
+    } else if (this.isTerminalImageGenerationTask(imageTaskText)) {
+      lines.push(
+        "image_generation_contract:",
+        "- For a grounded image or infographic request, gather only the information needed to write the image prompt.",
+        "- Then call generate_image once with a concrete prompt for the image model, share the generated output, and finish.",
+        "- Do not run analyze_image or subjective quality checks after a successful image file is created unless the user explicitly asked for image review.",
+      );
+    }
+
+    if (
+      strategy.executionMode === "chat" ||
+      strategy.executionMode === "plan" ||
+      strategy.executionMode === "analyze"
+    ) {
+      lines.push(
+        "mode_contract:",
+        strategy.executionMode === "chat"
+          ? "- You are in chat mode: answer directly. Use read-only lookup tools when current or external facts are required; never mutate state."
+          : strategy.executionMode === "plan"
+            ? "- You are in plan mode: inspect evidence with read-only tools when useful, then provide plans/options without mutating state."
+            : "- You are in analyze mode: use read-only search, read, and query tools as needed, then provide evidence-backed analysis without mutating state.",
+      );
+    } else if (strategy.executionMode === "debug") {
+      lines.push(
+        "debug_contract:",
+        "- You are in debug mode: form hypotheses, add minimal instrumentation, collect runtime evidence before large speculative fixes.",
+        "- Put temporary repro scripts, logs, diagnostics, screenshots, and intermediate files under `.neoworker/tmp/`; keep real source/test changes at their intended project paths.",
+        "- Prefer targeted edits; use request_user_input for structured reproduce/confirm checkpoints when needed.",
+        "- Remove temporary debug instrumentation (markers containing neoworker-debug) before finishing.",
+      );
+    }
+
+    if (strategy.taskDomain === "code" && strategy.executionMode !== "debug") {
+      lines.push(
+        "coding_workspace_hygiene:",
+        "- Put temporary scratch files, repro scripts, generated diagnostics, and intermediate outputs under `.neoworker/tmp/` so they stay local to this checkout.",
+        "- Keep actual implementation, tests, and requested project artifacts at their intended repository paths.",
+      );
+    }
+
+    if (relationshipContext) {
+      lines.push("relationship_memory:");
+      lines.push(relationshipContext);
+    }
+
+    lines.push(STRATEGY_CONTEXT_CLOSE);
+
+    return `${text}\n\n${lines.join("\n")}`;
+  }
+
+  private static hasDeferredRequiredInput(prompt: string): boolean {
+    const text = String(prompt || "");
+    return (
+      /\b(?:i(?:'ll|’ll| will)|let me)\s+(?:describe|provide|share|specify|paste|give|tell|define|name)\b/i.test(
+        text,
+      ) || /我(?:会|将)(?:描述|提供|分享|指定|粘贴|给出|告诉|定义|提出|说明)/.test(text)
+    );
+  }
+
+  /**
+   * Returns the set of tool names relevant for a given intent.
+   * If the set contains "*", all tools should be offered.
+   * For lighter intents (chat, advice, planning, thinking), a reduced set is returned
+   * to cut input tokens and reduce latency.
+   */
+  static getRelevantToolSet(intent: string, domain: TaskDomain = "auto"): Set<string> {
+    // Core tools always available regardless of intent
+    const CORE_TOOLS = [
+      // File operations
+      "read_file",
+      "read_files",
+      "write_file",
+      "edit_file",
+      "copy_file",
+      "list_directory",
+      "list_directory_with_sizes",
+      "get_file_info",
+      "search_files",
+      "create_directory",
+      "rename_file",
+      "delete_file",
+      // Code search
+      "glob",
+      "grep",
+      "count_text",
+      "text_metrics",
+      // Scratchpad
+      "scratchpad_write",
+      "scratchpad_read",
+      // Meta tools
+      "revise_plan",
+      "request_user_input",
+      "task_history",
+      "tool_search",
+      "set_personality",
+      "set_agent_name",
+      "set_user_name",
+      "set_persona",
+      "set_response_style",
+      "set_quirks",
+      "set_vibes",
+      "update_lore",
+      // Memory
+      "search_memories",
+      "search_sessions",
+      "memory_topics_load",
+      "memory_save",
+      "memory_curate",
+      "memory_curated_read",
+      "supermemory_profile",
+      "supermemory_search",
+      "supermemory_remember",
+      "supermemory_forget",
+      // System
+      "system_info",
+      // Diagrams (lightweight UI-only, no side effects)
+      "create_diagram",
+    ];
+
+    // Action-heavy intents get all tools
+    if (
+      intent === "execution" ||
+      intent === "mixed" ||
+      intent === "workflow" ||
+      intent === "deep_work"
+    ) {
+      return new Set(["*"]);
+    }
+
+    // Chat: direct answers stay lightweight, while current/external facts and
+    // explicitly attached files use a deliberately narrow read-only surface.
+    if (intent === "chat") {
+      return new Set([
+        "read_file",
+        "read_files",
+        "get_file_info",
+        "parse_document",
+        "analyze_image",
+        "read_pdf_visual",
+        "web_search",
+        "web_fetch",
+        "http_request",
+      ]);
+    }
+
+    if (intent === "thinking") {
+      return new Set(["tool_search"]);
+    }
+
+    // Advice and planning: core + web + documents
+    if (intent === "advice" || intent === "planning") {
+      const tools = [
+        ...CORE_TOOLS,
+        "web_search",
+        "web_fetch",
+        "generate_document",
+        "compile_latex",
+        "generate_spreadsheet",
+        "generate_presentation",
+        "Skill",
+      ];
+      if (domain === "writing") {
+        tools.push("create_document");
+        tools.push("create_presentation");
+        tools.push("create_spreadsheet");
+      }
+      return new Set(tools);
+    }
+
+    // Unknown intent — return all tools as safe default
+    return new Set(["*"]);
+  }
+}

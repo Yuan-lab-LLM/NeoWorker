@@ -1,0 +1,83 @@
+{
+  "id": "dcf-valuation",
+  "name": "DCF Valuation",
+  "description": "Discounted cash flow valuation with WACC calculation, free cash flow projection, terminal value estimation, sensitivity analysis, and enterprise-to-equity value bridge.",
+  "icon": "🧮",
+  "category": "Finance",
+  "prompt": "# DCF Valuation\n\nUse this skill only when the request is in scope:\n- Use when the user asks about discounted cash flow valuation, intrinsic value estimation, WACC calculation, terminal value, enterprise value, equity value bridge, or company valuation using projected cash flows.\n\nDo not use this skill when:\n- Do not use when the request is about relative valuation only (comparable companies/transactions), portfolio optimization, or non-valuation financial analysis.\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Outcome from DCF Valuation: complete DCF model with FCF projections, WACC derivation, terminal value, sensitivity tables, and per-share equity value..\n5. Verify success criteria: Returns a fully built DCF with all intermediate calculations, clearly stated assumptions, sensitivity analysis, and an enterprise-to-equity bridge with per-share value..",
+  "parameters": [
+    {
+      "name": "company",
+      "type": "string",
+      "description": "Company name or ticker symbol",
+      "required": true
+    },
+    {
+      "name": "projectionYears",
+      "type": "select",
+      "description": "Number of projection years",
+      "required": true,
+      "options": [
+        "5",
+        "7",
+        "10"
+      ]
+    },
+    {
+      "name": "question",
+      "type": "string",
+      "description": "Your specific valuation question",
+      "required": true
+    },
+    {
+      "name": "revenueGrowth",
+      "type": "string",
+      "description": "Expected revenue growth rate (e.g., 15%)",
+      "required": false
+    },
+    {
+      "name": "ebitdaMargin",
+      "type": "string",
+      "description": "Target EBITDA margin (e.g., 25%)",
+      "required": false
+    },
+    {
+      "name": "wacc",
+      "type": "string",
+      "description": "Weighted average cost of capital (e.g., 9.5%)",
+      "required": false
+    },
+    {
+      "name": "terminalGrowthRate",
+      "type": "string",
+      "description": "Perpetual growth rate for terminal value (e.g., 2.5%)",
+      "required": false
+    }
+  ],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks about discounted cash flow valuation, intrinsic value estimation, WACC calculation, terminal value, enterprise value, equity value bridge, or company valuation using projected cash flows.",
+      "dontUseWhen": "Do not use when the request is about relative valuation only (comparable companies/transactions), portfolio optimization, or non-valuation financial analysis.",
+      "outputs": "Outcome from DCF Valuation: complete DCF model with FCF projections, WACC derivation, terminal value, sensitivity tables, and per-share equity value.",
+      "successCriteria": "Returns a fully built DCF with all intermediate calculations, clearly stated assumptions, sensitivity analysis, and an enterprise-to-equity bridge with per-share value.",
+      "examples": {
+        "positive": [
+          "Use the dcf-valuation skill for this request.",
+          "Help me with dcf valuation.",
+          "Use when the user asks about discounted cash flow valuation, intrinsic value estimation, WACC calculation, terminal value, enterprise value, equity value bridge, or company valuation using projected cash flows.",
+          "DCF Valuation: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use when the request is about relative valuation only (comparable companies/transactions), portfolio optimization, or non-valuation financial analysis.",
+          "Do not use dcf-valuation for unrelated requests.",
+          "This request is outside dcf valuation scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

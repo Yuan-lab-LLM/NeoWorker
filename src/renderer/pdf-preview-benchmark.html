@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF Preview Benchmark</title>
+    <style>
+      html, body, #root { width: 100%; min-height: 100%; margin: 0; }
+      body { background: #f5f7fa; font-family: system-ui, sans-serif; }
+      #root { width: 920px; margin: 0 auto; }
+      .pdf-page-card { padding: 8px; }
+      .pdf-page-layer { position: relative; }
+      .pdf-page-canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import React from "react";
+      import { createRoot } from "react-dom/client";
+      import { PDFDocumentSurface, PDF_FIRST_PAINT_TARGET_MS } from "/components/PDFDocumentSurface.tsx";
+
+      window.__pdfPreviewBenchmark = { status: "loading" };
+      const params = new URLSearchParams(window.location.search);
+      const sampleUrl = params.get("sample");
+      const startedAt = performance.now();
+
+      function bytesToBase64(bytes) {
+        const chunkSize = 32 * 1024;
+        let binary = "";
+        for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+          binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+        }
+        return btoa(binary);
+      }
+
+      try {
+        if (!sampleUrl) throw new Error("Missing sample URL");
+        const response = await fetch(sampleUrl, { cache: "no-store" });
+        if (!response.ok) throw new Error(`Sample request failed: ${response.status}`);
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        const pdfDataBase64 = bytesToBase64(bytes);
+        createRoot(document.getElementById("root")).render(
+          React.createElement(PDFDocumentSurface, {
+            fileName: sampleUrl.split("/").pop() || "benchmark.pdf",
+            pdfDataBase64,
+            selection: null,
+            onSelectionChange: () => undefined,
+            readOnly: true,
+            visiblePageIndex: 0,
+            maxScale: 1,
+          }),
+        );
+
+        const deadline = performance.now() + 15_000;
+        const waitForPaint = () => {
+          const canvas = document.querySelector("canvas.pdf-page-canvas");
+          if (canvas && canvas.width > 0 && canvas.height > 0) {
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+              window.__pdfPreviewBenchmark = {
+                status: "complete",
+                durationMs: performance.now() - startedAt,
+                bytes: bytes.length,
+                targetMs: PDF_FIRST_PAINT_TARGET_MS,
+                canvasWidth: canvas.width,
+                canvasHeight: canvas.height,
+              };
+            }));
+            return;
+          }
+          if (performance.now() >= deadline) {
+            window.__pdfPreviewBenchmark = { status: "error", error: "Timed out waiting for first PDF canvas" };
+            return;
+          }
+          requestAnimationFrame(waitForPaint);
+        };
+        requestAnimationFrame(waitForPaint);
+      } catch (error) {
+        window.__pdfPreviewBenchmark = {
+          status: "error",
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    </script>
+  </body>
+</html>

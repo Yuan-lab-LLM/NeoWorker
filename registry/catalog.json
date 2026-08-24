@@ -1,0 +1,2169 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-06T16:05:27.893Z",
+  "skills": [
+    {
+      "id": "1password",
+      "name": "1password",
+      "description": "Set up and use 1Password CLI (op). Use when installing the CLI, enabling desktop app integration, signing in (single or multi-account), or reading/injecting/running secrets via op.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🔐",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/1password.json"
+    },
+    {
+      "id": "add-documentation",
+      "name": "Add Documentation",
+      "description": "Generate JSDoc/docstrings for functions",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Development"
+      ],
+      "icon": "📚",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/add-documentation.json"
+    },
+    {
+      "id": "agentic-image-loop",
+      "name": "Agentic Image Loop",
+      "description": "Generate -> annotate -> refine -> repeat using generate_image + Visual Annotator (Live Canvas).",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🧩",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/agentic-image-loop.json"
+    },
+    {
+      "id": "analyze-csv",
+      "name": "Analyze CSV",
+      "description": "Load a CSV and provide insights",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Data"
+      ],
+      "icon": "📊",
+      "category": "Data",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/analyze-csv.json"
+    },
+    {
+      "id": "android-development",
+      "name": "Android Development",
+      "description": "Android/Kotlin development: Jetpack Compose, Room database, Gradle builds, emulator management, and Play Store submission.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Engineering"
+      ],
+      "icon": "🤖",
+      "category": "Engineering",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/android-development.json"
+    },
+    {
+      "id": "apple-notes",
+      "name": "Apple-notes",
+      "description": "Manage Apple Notes via the `memo` CLI on macOS (create, view, edit, delete, search, move, and export notes). Use when a user asks NeoWorker to add a note, list notes, search notes, or manage note folders.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📝",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/apple-notes.json"
+    },
+    {
+      "id": "apple-reminders",
+      "name": "Apple-reminders",
+      "description": "Manage Apple Reminders via the `remindctl` CLI on macOS (list, add, edit, complete, delete). Supports lists, date filters, and JSON/plain output.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "⏰",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/apple-reminders.json"
+    },
+    {
+      "id": "architecture-diagram",
+      "name": "Architecture Diagram",
+      "description": "Generate polished dark-themed architecture diagrams as standalone HTML files with inline SVG, semantic system grouping, and readable connection flows.",
+      "version": "1.0.0",
+      "author": "Cocoon AI, ported by NeoWorker",
+      "tags": [
+        "architecture",
+        "diagram",
+        "infrastructure",
+        "cloud",
+        "svg",
+        "html",
+        "system-design",
+        "visualization"
+      ],
+      "icon": "🏗️",
+      "category": "Engineering",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/architecture-diagram.json"
+    },
+    {
+      "id": "aurl",
+      "name": "aurl",
+      "description": "Turn any API into a CLI command. Register OpenAPI or GraphQL endpoints by name, then explore and invoke them. Built for AI agents to use APIs like tool calls.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "api",
+        "openapi",
+        "graphql",
+        "rest",
+        "curl"
+      ],
+      "icon": "🔗",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/aurl.json"
+    },
+    {
+      "id": "autobrowse",
+      "name": "Autobrowse",
+      "description": "Learn a reliable browser workflow by iterating on a real web task, recording strategy, and proposing a reusable skill.",
+      "version": "1.0.0",
+      "author": "neoworker",
+      "tags": [
+        "browser",
+        "automation",
+        "skills",
+        "learning"
+      ],
+      "icon": "🌐",
+      "category": "Automation",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/autobrowse.json"
+    },
+    {
+      "id": "autoresearch-report",
+      "name": "AutoResearch Report",
+      "description": "Run an autonomous scientific research pipeline that scopes a question, retrieves evidence, constructs a source ledger, and produces a cited report.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "research",
+        "science",
+        "literature-review",
+        "evidence-synthesis",
+        "papers",
+        "citations",
+        "reports",
+        "multi-agent"
+      ],
+      "icon": "🔬",
+      "category": "Research",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/autoresearch-report.json"
+    },
+    {
+      "id": "batch",
+      "name": "Batch",
+      "description": "Plan and execute parallel, repeatable migrations across code, docs, research artifacts, ops configs, or mixed task sets.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "workflow",
+        "parallel",
+        "migration",
+        "cross-domain"
+      ],
+      "icon": "🧺",
+      "category": "Use Cases",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/batch.json"
+    },
+    {
+      "id": "bird",
+      "name": "Bird",
+      "description": "X/Twitter CLI for reading, searching, posting, and engagement via cookies.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "x",
+        "twitter",
+        "cli"
+      ],
+      "icon": "🐦",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/bird.json"
+    },
+    {
+      "id": "blogwatcher",
+      "name": "Blogwatcher",
+      "description": "Monitor blogs and RSS/Atom feeds for updates using the blogwatcher CLI.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📰",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/blogwatcher.json"
+    },
+    {
+      "id": "usecase-booking-options",
+      "name": "Booking Options",
+      "description": "Find booking openings in a time window, cross-check calendar, propose 3 options. Stops before booking.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Use Cases"
+      ],
+      "icon": "📅",
+      "category": "Use Cases",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/usecase-booking-options.json"
+    },
+    {
+      "id": "build-mode",
+      "name": "Build Mode",
+      "description": "Turn an idea into a working prototype through guided phases: concept → plan → scaffold → iterate. Uses Canvas for live preview with checkpoints at each phase.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "development"
+      ],
+      "category": "development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/build-mode.json"
+    },
+    {
+      "id": "calendly",
+      "name": "Calendly",
+      "description": "Manage Calendly scheduling via the v2 API. List event types, view scheduled events, check invitee details, manage availability schedules, cancel/reschedule events, create one-off links, and configure webhooks. Use when the user asks about their calendar, upcoming meetings, scheduling links, or availability.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "calendly",
+        "scheduling",
+        "calendar",
+        "meetings",
+        "booking",
+        "availability"
+      ],
+      "icon": "📅",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/calendly.json"
+    },
+    {
+      "id": "usecase-chief-of-staff-briefing",
+      "name": "Chief of Staff Briefing",
+      "description": "Build a morning/evening executive brief from calendar, inbox, tasks, and optional ops signals.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Use Cases"
+      ],
+      "icon": "🧭",
+      "category": "Use Cases",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/usecase-chief-of-staff-briefing.json"
+    },
+    {
+      "id": "clean-imports",
+      "name": "Clean Imports",
+      "description": "Remove unused imports from files",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Utilities"
+      ],
+      "icon": "🧹",
+      "category": "Utilities",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/clean-imports.json"
+    },
+    {
+      "id": "cloud-migration",
+      "name": "Cloud Migration",
+      "description": "Cloud migration strategy and execution: assessment frameworks, migration patterns, database migration, network cutover, and multi-cloud planning.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "DevOps"
+      ],
+      "icon": "☁️",
+      "category": "DevOps",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/cloud-migration.json"
+    },
+    {
+      "id": "code-review",
+      "name": "Code Review",
+      "description": "Review code for best practices and potential issues",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Development"
+      ],
+      "icon": "🔍",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/code-review.json"
+    },
+    {
+      "id": "code-reviewer",
+      "name": "code-reviewer",
+      "description": "Perform professional code review for local changes or GitHub pull requests.",
+      "version": "1.0.0",
+      "author": "google-gemini",
+      "tags": [
+        "Development"
+      ],
+      "icon": "🧪",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/code-reviewer.json"
+    },
+    {
+      "id": "codex-cli",
+      "name": "Codex CLI Agent",
+      "description": "Run OpenAI Codex CLI as a background agent — detect, install, configure, and execute coding tasks via codex exec.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Development"
+      ],
+      "icon": "⚡",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/codex-cli.json"
+    },
+    {
+      "id": "coding-agent",
+      "name": "Coding-agent",
+      "description": "Run Codex CLI, OpenCode, or Pi Coding Agent via background process for programmatic control.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🧩",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/coding-agent.json"
+    },
+    {
+      "id": "compare-files",
+      "name": "Compare Files",
+      "description": "Compare two files and show differences",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Data"
+      ],
+      "icon": "⚖️",
+      "category": "Data",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/compare-files.json"
+    },
+    {
+      "id": "competitive-research",
+      "name": "Competitive Research",
+      "description": "Research competitors for a product, market, or idea and identify opportunities to differentiate",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Research"
+      ],
+      "icon": "🔍",
+      "category": "Research",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/competitive-research.json"
+    },
+    {
+      "id": "content-monitor",
+      "name": "Content Monitor",
+      "description": "Monitor web pages for changes and extract updated content with scheduling support.",
+      "version": "1.0.0",
+      "author": "neoworker",
+      "tags": [
+        "Data"
+      ],
+      "icon": "👁️",
+      "category": "Data",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/content-monitor.json"
+    },
+    {
+      "id": "convert-code",
+      "name": "Convert Code",
+      "description": "Convert code from one language to another",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Development"
+      ],
+      "icon": "🔄",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/convert-code.json"
+    },
+    {
+      "id": "neoworker-multi-agent-research",
+      "name": "NeoWorker Multi-Agent Research",
+      "description": "Multi-agent system research agent for NeoWorker. Use when: researching multi-agent papers, frameworks, production case studies; maintaining a research queue; producing NeoWorker applicability analysis and implementation recommendations. Triggers: 'multi-agent research', 'research multi-agent systems', 'multi-agent papers', 'agent orchestration research', 'NeoWorker research'.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Research"
+      ],
+      "icon": "🔬",
+      "category": "Research",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/neoworker-multi-agent-research.json"
+    },
+    {
+      "id": "crypto-trading",
+      "name": "Crypto Trading",
+      "description": "Use ccxt (Python) for crypto prices, balances, and order actions across 100+ exchanges.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Finance"
+      ],
+      "icon": "📈",
+      "category": "Finance",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/crypto-trading.json"
+    },
+    {
+      "id": "dcf-valuation",
+      "name": "DCF Valuation",
+      "description": "Discounted cash flow valuation with WACC calculation, free cash flow projection, terminal value estimation, sensitivity analysis, and enterprise-to-equity value bridge.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Finance"
+      ],
+      "icon": "🧮",
+      "category": "Finance",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/dcf-valuation.json"
+    },
+    {
+      "id": "debug-error",
+      "name": "Debug Error",
+      "description": "Analyze an error message and suggest fixes",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Development"
+      ],
+      "icon": "🐛",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/debug-error.json"
+    },
+    {
+      "id": "twin-decision-prep",
+      "name": "Decision Preparation Package",
+      "description": "Assemble data, options, and analysis for a pending decision. Presents trade-offs and recommendations without making the decision. Used by digital twin personas to reduce decision fatigue.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "digital-twin",
+        "decision",
+        "analysis",
+        "trade-off"
+      ],
+      "icon": "⚖️",
+      "category": "Digital Twin",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/twin-decision-prep.json"
+    },
+    {
+      "id": "dependency-check",
+      "name": "Dependency Check",
+      "description": "Audit dependencies for updates and vulnerabilities",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Project"
+      ],
+      "icon": "📦",
+      "category": "Project",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/dependency-check.json"
+    },
+    {
+      "id": "usecase-dev-task-queue",
+      "name": "Dev Task Queue",
+      "description": "Create and run an agent-ready development queue from issues/PRs with progress checkpoints.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Use Cases"
+      ],
+      "icon": "🛠️",
+      "category": "Use Cases",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/usecase-dev-task-queue.json"
+    },
+    {
+      "id": "developer-growth-analysis",
+      "name": "developer-growth-analysis",
+      "description": "Analyze recent coding patterns and generate a personalized developer growth report.",
+      "version": "1.0.0",
+      "author": "ComposioHQ",
+      "tags": [
+        "Development"
+      ],
+      "icon": "📈",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/developer-growth-analysis.json"
+    },
+    {
+      "id": "docker-compose-ops",
+      "name": "Docker Compose Operations",
+      "description": "Docker Compose operations: service orchestration, compose file authoring, multi-stage builds, networking, volumes, and production configurations.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "DevOps"
+      ],
+      "icon": "🐳",
+      "category": "DevOps",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/docker-compose-ops.json"
+    },
+    {
+      "id": "usecase-draft-reply",
+      "name": "Draft Reply",
+      "description": "Summarize a chat and draft 2 reply options. Stops before sending.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Use Cases"
+      ],
+      "icon": "💬",
+      "category": "Use Cases",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/usecase-draft-reply.json"
+    },
+    {
+      "id": "earnings-analyzer",
+      "name": "Earnings Analyzer",
+      "description": "Analyze quarterly and annual earnings reports including EPS beat/miss analysis, revenue trends, margin expansion, forward guidance parsing, and management commentary extraction.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Finance"
+      ],
+      "icon": "📋",
+      "category": "Finance",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/earnings-analyzer.json"
+    },
+    {
+      "id": "email-marketing-bible",
+      "name": "Email Marketing Bible",
+      "description": "Comprehensive, data-backed email marketing consultant for audits, win-back/re-engagement flows, copy, deliverability, compliance, and campaign/platform strategy.",
+      "version": "0.4",
+      "author": "George Hartley",
+      "tags": [
+        "email marketing",
+        "deliverability",
+        "campaign strategy",
+        "copywriting",
+        "automation",
+        "compliance",
+        "benchmarks",
+        "playbooks"
+      ],
+      "icon": "📧",
+      "category": "Marketing",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/email-marketing-bible.json"
+    },
+    {
+      "id": "esg-scorer",
+      "name": "ESG Scorer",
+      "description": "Environmental, Social, and Governance scoring with SASB materiality mapping, TCFD climate risk alignment, carbon footprint analysis, and sustainability benchmarking.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Finance"
+      ],
+      "icon": "🌱",
+      "category": "Finance",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/esg-scorer.json"
+    },
+    {
+      "id": "explain-code",
+      "name": "Explain Code",
+      "description": "Get a detailed explanation of how code works",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Learning"
+      ],
+      "icon": "📖",
+      "category": "Learning",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/explain-code.json"
+    },
+    {
+      "id": "extract-todos",
+      "name": "Extract TODOs",
+      "description": "Find all TODO/FIXME comments in codebase",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Utilities"
+      ],
+      "icon": "📌",
+      "category": "Utilities",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/extract-todos.json"
+    },
+    {
+      "id": "usecase-family-digest",
+      "name": "Family Digest",
+      "description": "Draft a daily digest based on calendar + tasks. Stops before sending.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Use Cases"
+      ],
+      "icon": "👨‍👩‍👧‍👦",
+      "category": "Use Cases",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/usecase-family-digest.json"
+    },
+    {
+      "id": "usecase-figure-it-out-agent",
+      "name": "Figure It Out Agent",
+      "description": "Run resilient multi-tool problem solving with explicit fallback strategy and auditable execution notes.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Use Cases"
+      ],
+      "icon": "🧩",
+      "category": "Use Cases",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/usecase-figure-it-out-agent.json"
+    },
+    {
+      "id": "financial-modeling",
+      "name": "Financial Modeling",
+      "description": "Build and analyze three-statement financial models with integrated income statement, balance sheet, and cash flow projections, scenario analysis, and key driver assumptions.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Finance"
+      ],
+      "icon": "📐",
+      "category": "Finance",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/financial-modeling.json"
+    },
+    {
+      "id": "frontend",
+      "name": "Frontend",
+      "description": "Design and build premium frontend interfaces when art direction, hierarchy, restraint, imagery, and motion matter more than component count.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Development"
+      ],
+      "icon": "🖥️",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/frontend.json"
+    },
+    {
+      "id": "frontend-design",
+      "name": "frontend-design",
+      "description": "Design and build production-grade frontends with bold, distinctive aesthetics.",
+      "version": "1.0.0",
+      "author": "Anthropic",
+      "tags": [
+        "Development"
+      ],
+      "icon": "🎨",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/frontend-design.json"
+    },
+    {
+      "id": "game-performance",
+      "name": "Game Performance Optimization",
+      "description": "Cross-engine game performance: draw call optimization, LOD, object pooling, GPU profiling, memory management, and platform-specific tuning.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Engineering"
+      ],
+      "icon": "⚡",
+      "category": "Engineering",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/game-performance.json"
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini",
+      "description": "Gemini CLI for one-shot Q&A, summaries, and generation.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "♊️",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/gemini.json"
+    },
+    {
+      "id": "generate-readme",
+      "name": "Generate README",
+      "description": "Create a README.md for a project",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Project"
+      ],
+      "icon": "📄",
+      "category": "Project",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/generate-readme.json"
+    },
+    {
+      "id": "git-commit",
+      "name": "Git Commit",
+      "description": "Create a well-formatted commit message from staged changes",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Development"
+      ],
+      "icon": "📝",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/git-commit.json"
+    },
+    {
+      "id": "github",
+      "name": "Github",
+      "description": "Interact with GitHub using the `gh` CLI. Use `gh issue`, `gh pr`, `gh run`, and `gh api` for issues, PRs, CI runs, and advanced queries.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🐙",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/github.json"
+    },
+    {
+      "id": "gog",
+      "name": "Gog",
+      "description": "Google Workspace CLI for Gmail, Calendar, Drive, Contacts, Tasks, Sheets, Docs, and Slides.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🎮",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/gog.json"
+    },
+    {
+      "id": "goplaces",
+      "name": "Goplaces",
+      "description": "Query Google Places API (New) via the goplaces CLI for text search, place details, resolve, and reviews. Use for human-friendly place lookup or JSON output for scripts.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📍",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/goplaces.json"
+    },
+    {
+      "id": "himalaya",
+      "name": "Himalaya",
+      "description": "CLI to manage emails via IMAP/SMTP. Use `himalaya` to list, read, write, reply, forward, search, and organize emails from the terminal. Supports multiple accounts and message composition with MML (MIME Meta Language).",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📧",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/himalaya.json"
+    },
+    {
+      "id": "usecase-household-capture",
+      "name": "Household Capture",
+      "description": "Turn a messy household message into Notion tasks + optional reminders.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Use Cases"
+      ],
+      "icon": "🏠",
+      "category": "Use Cases",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/usecase-household-capture.json"
+    },
+    {
+      "id": "humanizer",
+      "name": "Humanizer",
+      "description": "Rewrite AI-generated text to sound natural and human-written. Removes LLM tells — cliché phrases, predictable structure, inflated language, and robotic patterns. Use when editing drafts, emails, articles, or any text that reads like it was written by AI.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "writing",
+        "editing",
+        "humanize",
+        "ai-detection",
+        "rewriting",
+        "content"
+      ],
+      "icon": "✍️",
+      "category": "Creative",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/humanizer.json"
+    },
+    {
+      "id": "idea-validation",
+      "name": "Idea Validation",
+      "description": "Validate a business or product idea with market research, competitor analysis, and a go/no-go recommendation",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Research"
+      ],
+      "icon": "💡",
+      "category": "Research",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/idea-validation.json"
+    },
+    {
+      "id": "imagegen-frontend-web",
+      "name": "Imagegen Frontend Web",
+      "description": "Generate premium, conversion-aware frontend website design reference images with one separate horizontal image per section. Use for landing pages, marketing sites, product comps, and Awwwards-level web section art direction.",
+      "version": "1.0.0",
+      "author": "Leonxlnx",
+      "tags": [
+        "image-generation",
+        "frontend",
+        "web-design",
+        "landing-pages",
+        "art-direction"
+      ],
+      "icon": "IMG",
+      "category": "Creative",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/imagegen-frontend-web.json"
+    },
+    {
+      "id": "imsg",
+      "name": "Imsg",
+      "description": "iMessage/SMS CLI for listing chats, history, watch, and sending.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📨",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/imsg.json"
+    },
+    {
+      "id": "usecase-inbox-manager",
+      "name": "Inbox Manager",
+      "description": "Triage Inbox Agent Today lanes, search mailbox evidence, prepare manual or AI-assisted replies, and suggest cleanup automations with strict confirmation gates.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Use Cases"
+      ],
+      "icon": "📥",
+      "category": "Use Cases",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/usecase-inbox-manager.json"
+    },
+    {
+      "id": "ios-development",
+      "name": "iOS Development",
+      "description": "iOS/Swift development: SwiftUI, UIKit, Core Data, Xcode builds, simulator management, code signing, and App Store submission.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Engineering"
+      ],
+      "icon": "🍎",
+      "category": "Engineering",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/ios-development.json"
+    },
+    {
+      "id": "kami",
+      "name": "Kami",
+      "description": "Typeset documents with the Kami editorial design system only when the user explicitly asks for Kami.",
+      "version": "1.0.0",
+      "author": "Tw93, ported by NeoWorker",
+      "tags": [
+        "kami",
+        "kami-skill",
+        "kami-editorial-design"
+      ],
+      "icon": "📄",
+      "category": "Writing",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/kami.json"
+    },
+    {
+      "id": "kubernetes-ops",
+      "name": "Kubernetes Operations",
+      "description": "Kubernetes cluster operations: kubectl commands, manifest generation, Helm charts, RBAC, debugging, and deployment strategies.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "DevOps"
+      ],
+      "icon": "☸️",
+      "category": "DevOps",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/kubernetes-ops.json"
+    },
+    {
+      "id": "research-last-days",
+      "name": "Last X Days Research",
+      "description": "Research a topic from the past X days using web search. Specify the number of days or let it be inferred from your prompt.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Research"
+      ],
+      "icon": "🔬",
+      "category": "Research",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/research-last-days.json"
+    },
+    {
+      "id": "lead-scraper",
+      "name": "Lead Scraper",
+      "description": "Extract business and contact information from directory pages and company websites.",
+      "version": "1.0.0",
+      "author": "neoworker",
+      "tags": [
+        "Data"
+      ],
+      "icon": "📇",
+      "category": "Data",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/lead-scraper.json"
+    },
+    {
+      "id": "learn",
+      "name": "Learn",
+      "description": "Manually record an insight, correction, preference, or rule that the agent should remember for future tasks.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Productivity"
+      ],
+      "icon": "🧠",
+      "category": "Productivity",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/learn.json"
+    },
+    {
+      "id": "legal-contract-negotiation-review",
+      "name": "Legal Contract Negotiation Review",
+      "description": "Analyze counterparty contract changes against agreement/schedules, flag conflicts, and produce severity-rated counterpositions.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Legal"
+      ],
+      "icon": "⚖️",
+      "category": "Legal",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/legal-contract-negotiation-review.json"
+    },
+    {
+      "id": "legal-demand-letter-response-draft",
+      "name": "Legal Demand Letter Response Draft",
+      "description": "Map allegations to contract language and draft a response letter with no unintended admissions.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Legal"
+      ],
+      "icon": "✉️",
+      "category": "Legal",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/legal-demand-letter-response-draft.json"
+    },
+    {
+      "id": "legal-verified-research-memo",
+      "name": "Legal Verified Research Memo",
+      "description": "Generate a legal research memo with claim-level source verification, confidence flags, and primary-authority priority.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Legal"
+      ],
+      "icon": "📚",
+      "category": "Legal",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/legal-verified-research-memo.json"
+    },
+    {
+      "id": "link-research",
+      "name": "Link Research",
+      "description": "Process links from a message, fetch each URL, and build a structured findings report with classification. Optimized for downstream agents.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Research"
+      ],
+      "icon": "🔬",
+      "category": "Research",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/link-research.json"
+    },
+    {
+      "id": "llm-wiki",
+      "name": "LLM Wiki",
+      "description": "Build and maintain a workspace-local, Obsidian-friendly research vault using Karpathy's LLM Wiki pattern. Creates a persistent markdown knowledge base with raw-source capture, linked notes, vault search, filed-back outputs, and maintenance logs.",
+      "version": "1.1.0",
+      "author": "NeoWorker",
+      "tags": [
+        "llm-wiki",
+        "knowledge-base",
+        "obsidian",
+        "research-vault",
+        "markdown",
+        "wiki",
+        "knowledge-management"
+      ],
+      "icon": "🧠",
+      "category": "Research",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/llm-wiki.json"
+    },
+    {
+      "id": "local-places",
+      "name": "Local-places",
+      "description": "Search for places (restaurants, cafes, etc.) via Google Places API proxy on localhost.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📍",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/local-places.json"
+    },
+    {
+      "id": "local-websearch",
+      "name": "local-websearch",
+      "description": "Search the web privately via a self-hosted SearXNG metasearch engine.",
+      "version": "1.0.0",
+      "author": "stperic",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🔍",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/local-websearch.json"
+    },
+    {
+      "id": "market-screener",
+      "name": "Market Screener",
+      "description": "Screen equities, ETFs, and bonds using fundamental, technical, and quantitative criteria with multi-factor ranking and sector filtering.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Finance"
+      ],
+      "icon": "🔎",
+      "category": "Finance",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/market-screener.json"
+    },
+    {
+      "id": "marketing-strategist",
+      "name": "Marketing Strategist",
+      "description": "Comprehensive marketing strategy across 25 disciplines — positioning, copywriting frameworks, buyer psychology, SEO, CRO, paid ads, funnel architecture, content strategy, growth loops, analytics, pricing, product launches, and competitive intelligence. Use when the user needs marketing strategy, campaign planning, copy review, landing page audits, ad creation, GTM plans, or growth advice.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "marketing",
+        "strategy",
+        "copywriting",
+        "seo",
+        "cro",
+        "ads",
+        "growth",
+        "funnel",
+        "positioning",
+        "analytics"
+      ],
+      "icon": "📣",
+      "category": "Marketing",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/marketing-strategist.json"
+    },
+    {
+      "id": "mcporter",
+      "name": "Mcporter",
+      "description": "Use the mcporter CLI to list, configure, auth, and call MCP servers/tools directly (HTTP or stdio), including ad-hoc servers, config edits, and CLI/type generation.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📦",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/mcporter.json"
+    },
+    {
+      "id": "twin-meeting-prep",
+      "name": "Meeting Preparation Brief",
+      "description": "Prepare a structured brief for an upcoming meeting with relevant context, open items, data points, and talking points. Used by digital twin personas to reduce meeting preparation overhead.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "digital-twin",
+        "meeting",
+        "preparation",
+        "brief"
+      ],
+      "icon": "📅",
+      "category": "Digital Twin",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/twin-meeting-prep.json"
+    },
+    {
+      "id": "memory-kit",
+      "name": "Memory Kit",
+      "description": "Create a workspace-local .neoworker/ memory kit (rules, identity, long-term notes, daily logs, heartbeat templates).",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🧠",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/memory-kit.json"
+    },
+    {
+      "id": "model-usage",
+      "name": "Model-usage",
+      "description": "Use CodexBar CLI local cost usage to summarize per-model usage for Codex or Claude, including the current (most recent) model or a full model breakdown. Trigger when asked for model-level usage/cost data from codexbar, or when you need a scriptable per-model summary from codexbar cost JSON.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📊",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/model-usage.json"
+    },
+    {
+      "id": "moltbook",
+      "name": "Moltbook",
+      "description": "Interact with Moltbook — the social network for AI agents. Post content, reply to discussions, browse feeds, upvote/downvote, join submolt communities, follow agents, search semantically, and track engagement. Use when the user wants to engage with Moltbook, check their feed, post, reply, or manage their agent presence.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "moltbook",
+        "social",
+        "agents",
+        "community",
+        "posting",
+        "feed"
+      ],
+      "icon": "🤖",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/moltbook.json"
+    },
+    {
+      "id": "multi-pr-review",
+      "name": "multi-pr-review",
+      "description": "Run a consensus-style multi-agent review of a PR with severity-based findings.",
+      "version": "1.0.0",
+      "author": "dyad-sh",
+      "tags": [
+        "Development"
+      ],
+      "icon": "🔎",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/multi-pr-review.json"
+    },
+    {
+      "id": "nano-pdf",
+      "name": "Nano-pdf",
+      "description": "Edit PDFs with natural-language instructions using the nano-pdf CLI.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📄",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/nano-pdf.json"
+    },
+    {
+      "id": "usecase-newsletter-digest",
+      "name": "Newsletter Digest",
+      "description": "Summarize newsletter/email feed messages from the last N hours and propose follow-ups.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Use Cases"
+      ],
+      "icon": "📰",
+      "category": "Use Cases",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/usecase-newsletter-digest.json"
+    },
+    {
+      "id": "notion",
+      "name": "Notion",
+      "description": "Notion API for creating and managing pages, databases, and blocks.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📝",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/notion.json"
+    },
+    {
+      "id": "novelist",
+      "name": "Novelist",
+      "description": "Draft, revise, and package a novel with a mostly autonomous workflow and durable artifacts.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Writing"
+      ],
+      "icon": "📚",
+      "category": "Writing",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/novelist.json"
+    },
+    {
+      "id": "openai-image-gen",
+      "name": "Openai-image-gen",
+      "description": "Batch-generate images via OpenAI Images API. Random prompt sampler + `index.html` gallery.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🖼️",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/openai-image-gen.json"
+    },
+    {
+      "id": "openai-whisper",
+      "name": "Openai-whisper",
+      "description": "Local speech-to-text with the Whisper CLI (no API key).",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🎙️",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/openai-whisper.json"
+    },
+    {
+      "id": "openai-whisper-api",
+      "name": "Openai-whisper-api",
+      "description": "Transcribe audio via OpenAI Audio Transcriptions API (Whisper).",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "☁️",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/openai-whisper-api.json"
+    },
+    {
+      "id": "ordercli",
+      "name": "Ordercli",
+      "description": "Foodora-only CLI for checking past orders and active order status (Deliveroo WIP).",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🛵",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/ordercli.json"
+    },
+    {
+      "id": "peekaboo",
+      "name": "Peekaboo",
+      "description": "Capture and automate macOS UI with the Peekaboo CLI.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "👀",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/peekaboo.json"
+    },
+    {
+      "id": "pi-context-pipeline",
+      "name": "Pi-context-pipeline",
+      "description": "Orchestrate pi-finder and optional pi-librarian to produce a compact context pack and Codex kickoff prompt before coding.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "pi",
+        "context",
+        "subagent",
+        "codex"
+      ],
+      "icon": "🧵",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/pi-context-pipeline.json"
+    },
+    {
+      "id": "pi-finder-subagent",
+      "name": "Pi-finder-subagent",
+      "description": "Read-only local workspace scout subagent for Pi. Use it to narrow context to relevant files/snippets before implementation.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "pi",
+        "subagent",
+        "context",
+        "code-search"
+      ],
+      "icon": "🧭",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/pi-finder-subagent.json"
+    },
+    {
+      "id": "pi-librarian",
+      "name": "Pi-librarian",
+      "description": "GitHub research subagent for Pi that uses gh workflows to find and cite relevant repo files before implementation.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "pi",
+        "subagent",
+        "github",
+        "research"
+      ],
+      "icon": "📚",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/pi-librarian.json"
+    },
+    {
+      "id": "playwright-qa",
+      "name": "Playwright QA",
+      "description": "Automated visual QA testing using Playwright — navigate web apps like a real user, capture screenshots, find bugs, and fix them.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Development"
+      ],
+      "icon": "🎭",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/playwright-qa.json"
+    },
+    {
+      "id": "polymarket",
+      "name": "Polymarket",
+      "description": "Query Polymarket prediction markets — search events, check odds and prices, view trending markets, track price momentum, get orderbook depth, analyze volume, and monitor market resolution timelines. Use when the user asks about prediction markets, betting odds, event probabilities, or Polymarket data.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "prediction-markets",
+        "odds",
+        "polymarket",
+        "betting",
+        "probabilities",
+        "events"
+      ],
+      "icon": "📊",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/polymarket.json"
+    },
+    {
+      "id": "portfolio-optimizer",
+      "name": "Portfolio Optimizer",
+      "description": "Modern portfolio theory optimization including Markowitz mean-variance, Black-Litterman, risk parity, and efficient frontier construction with constraints.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Finance"
+      ],
+      "icon": "⚖️",
+      "category": "Finance",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/portfolio-optimizer.json"
+    },
+    {
+      "id": "presentation-studio",
+      "name": "Presentation Studio",
+      "description": "Create, edit, and visually verify polished native PowerPoint decks with editable source files.",
+      "version": "1.0.0",
+      "author": "NeoWorker; design references adapted from MiniMax AI",
+      "tags": [
+        "presentation",
+        "powerpoint",
+        "ppt",
+        "pptx",
+        "slides",
+        "deck",
+        "演示文稿",
+        "幻灯片"
+      ],
+      "icon": "📊",
+      "category": "Content Creation",
+      "updatedAt": "2026-08-13",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/presentation-studio.json"
+    },
+    {
+      "id": "twin-pr-triage",
+      "name": "PR Triage & Review Queue",
+      "description": "Scan open pull requests, assess risk and complexity, and build a prioritized review queue. Used by digital twin personas to reduce PR review cognitive load.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "digital-twin",
+        "code-review",
+        "PR",
+        "triage",
+        "github"
+      ],
+      "icon": "🔍",
+      "category": "Digital Twin",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/twin-pr-triage.json"
+    },
+    {
+      "id": "prd",
+      "name": "prd",
+      "description": "Generate a structured Product Requirements Document from a feature request.",
+      "version": "1.0.0",
+      "author": "snarktank/ralph",
+      "tags": [
+        "Product"
+      ],
+      "icon": "📋",
+      "category": "Product",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/prd.json"
+    },
+    {
+      "id": "price-tracker",
+      "name": "Price Tracker",
+      "description": "Track and compare prices across e-commerce websites using stealth scraping.",
+      "version": "1.0.0",
+      "author": "neoworker",
+      "tags": [
+        "Data"
+      ],
+      "icon": "💰",
+      "category": "Data",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/price-tracker.json"
+    },
+    {
+      "id": "project-structure",
+      "name": "Project Structure",
+      "description": "Analyze and explain project architecture",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Project"
+      ],
+      "icon": "🏗️",
+      "category": "Project",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/project-structure.json"
+    },
+    {
+      "id": "proofread",
+      "name": "Proofread",
+      "description": "Check document for grammar and clarity",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Writing"
+      ],
+      "icon": "✏️",
+      "category": "Writing",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/proofread.json"
+    },
+    {
+      "id": "react-best-practices",
+      "name": "React Best Practices",
+      "description": "React and Next.js performance guidance for code changes, enhancements, feature work, reviews, and refactors.",
+      "version": "1.0.0",
+      "author": "Vercel",
+      "tags": [
+        "react",
+        "nextjs",
+        "performance",
+        "frontend",
+        "vercel"
+      ],
+      "icon": "⚛️",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/react-best-practices.json"
+    },
+    {
+      "id": "react-native-skills",
+      "name": "react-native-skills",
+      "description": "React Native and Expo best practices for performance, UI patterns, and native integrations.",
+      "version": "1.0.0",
+      "author": "Vercel",
+      "tags": [
+        "Development"
+      ],
+      "icon": "📱",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/react-native-skills.json"
+    },
+    {
+      "id": "refactor-code",
+      "name": "Refactor Code",
+      "description": "Improve code structure and readability",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Development"
+      ],
+      "icon": "🔧",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/refactor-code.json"
+    },
+    {
+      "id": "rename-symbol",
+      "name": "Rename Symbol",
+      "description": "Rename a variable/function across files",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Utilities"
+      ],
+      "icon": "🏷️",
+      "category": "Utilities",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/rename-symbol.json"
+    },
+    {
+      "id": "risk-analyzer",
+      "name": "Risk Analyzer",
+      "description": "Portfolio risk analysis including Value at Risk (parametric, historical, Monte Carlo), Conditional VaR, stress testing, drawdown analysis, and factor exposure assessment.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Finance"
+      ],
+      "icon": "🛡️",
+      "category": "Finance",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/risk-analyzer.json"
+    },
+    {
+      "id": "sag",
+      "name": "Sag",
+      "description": "ElevenLabs text-to-speech with mac-style say UX.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🗣️",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/sag.json"
+    },
+    {
+      "id": "screenshot-capture",
+      "name": "Screenshot Capture",
+      "description": "Capture desktop screenshots with OS-aware save-location rules, app/window/region support, and bundled helpers.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📸",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/screenshot-capture.json"
+    },
+    {
+      "id": "security-audit",
+      "name": "Security Audit",
+      "description": "Check code for common security vulnerabilities",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Development"
+      ],
+      "icon": "🔒",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/security-audit.json"
+    },
+    {
+      "id": "session-logs",
+      "name": "Session Logs (Deprecated)",
+      "description": "Query prior conversations/tasks via the task_history tool (replaces filesystem JSONL session logs).",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📜",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/session-logs.json"
+    },
+    {
+      "id": "simplify",
+      "name": "Simplify",
+      "description": "Improve existing work with focused simplification passes across code, writing, research, operations, or general tasks.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "workflow",
+        "quality",
+        "optimization",
+        "cross-domain"
+      ],
+      "icon": "🧹",
+      "category": "Use Cases",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/simplify.json"
+    },
+    {
+      "id": "site-mapper",
+      "name": "Site Mapper",
+      "description": "Crawl a website and build a structured content map with page summaries.",
+      "version": "1.0.0",
+      "author": "neoworker",
+      "tags": [
+        "Data"
+      ],
+      "icon": "🗺️",
+      "category": "Data",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/site-mapper.json"
+    },
+    {
+      "id": "skill-creator",
+      "name": "Skill-creator",
+      "description": "Create or update AgentSkills for NeoWorker. Use when designing, structuring, or packaging skills. Supports JSON format with requirements, installation specs, and metadata.",
+      "version": "2.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "development",
+        "skills",
+        "authoring"
+      ],
+      "icon": "✨",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/skill-creator.json"
+    },
+    {
+      "id": "skill-hub",
+      "name": "skill-hub",
+      "description": "Use the skill-hub CLI to search, install, update, and publish agent skills from skill-hub.com. Use when you need to fetch new skills on the fly, sync installed skills to latest or a specific version, or publish new/updated skill folders with the npm-installed skill-hub CLI.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "cli",
+        "registry",
+        "skills"
+      ],
+      "icon": "🔧",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/skill-hub.json"
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "description": "Use when you need to control Slack from NeoWorker via the slack tool, including reacting to messages or pinning/unpinning items in Slack channels or DMs.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "💬",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/slack.json"
+    },
+    {
+      "id": "usecase-smart-home-brain",
+      "name": "Smart Home Brain",
+      "description": "Coordinate smart-home actions across existing integrations with clear dry-run and safety confirmation.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Use Cases"
+      ],
+      "icon": "🏠",
+      "category": "Use Cases",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/usecase-smart-home-brain.json"
+    },
+    {
+      "id": "spotify-player",
+      "name": "Spotify-player",
+      "description": "Terminal Spotify playback/search via spogo (preferred) or spotify_player.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🎵",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/spotify-player.json"
+    },
+    {
+      "id": "startup-cfo",
+      "name": "Startup CFO",
+      "description": "AI CFO for bootstrapped startups. Provides financial frameworks for cash management, runway calculations, unit economics (LTV:CAC), capital allocation, hiring ROI, burn rate analysis, working capital optimization, and forecasting.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Finance"
+      ],
+      "icon": "💰",
+      "category": "Finance",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/startup-cfo.json"
+    },
+    {
+      "id": "twin-status-report",
+      "name": "Status Report Generator",
+      "description": "Generate a concise status report from recent activity, tasks, commits, and conversations. Used by digital twin personas to prepare standup updates and progress summaries.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "digital-twin",
+        "status",
+        "reporting",
+        "standup"
+      ],
+      "icon": "📋",
+      "category": "Digital Twin",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/twin-status-report.json"
+    },
+    {
+      "id": "stock-analysis",
+      "name": "Stock Analysis",
+      "description": "Analyze stocks, ETFs, and crypto using Yahoo Finance and Alpha Vantage. Get real-time quotes, fundamentals (P/E, EPS, margins, balance sheet), technical indicators (RSI, MACD, Bollinger), dividends, earnings, options chains, analyst ratings, institutional holders, sector comparisons, and screening. Use when the user asks about stock prices, company financials, market trends, portfolio analysis, or any investment research.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "stocks",
+        "finance",
+        "investing",
+        "trading",
+        "crypto",
+        "market",
+        "analysis",
+        "portfolio"
+      ],
+      "icon": "📈",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/stock-analysis.json"
+    },
+    {
+      "id": "summarize",
+      "name": "Summarize",
+      "description": "Summarize or extract text from articles, webpages, podcasts, and local files.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🧾",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/summarize.json"
+    },
+    {
+      "id": "summarize-folder",
+      "name": "Summarize Folder",
+      "description": "Create a summary of all files in a folder",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Documentation"
+      ],
+      "icon": "📋",
+      "category": "Documentation",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/summarize-folder.json"
+    },
+    {
+      "id": "supabase-sdk-patterns",
+      "name": "supabase-sdk-patterns",
+      "description": "Apply production-ready Supabase SDK patterns for TypeScript and Python projects.",
+      "version": "1.0.0",
+      "author": "Jeremy Longshore",
+      "tags": [
+        "Development"
+      ],
+      "icon": "🗄️",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/supabase-sdk-patterns.json"
+    },
+    {
+      "id": "karpathy-guidelines",
+      "name": "Task Guidelines",
+      "description": "Surgical execution guardrails for coding, debugging, review, and refactor tasks",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Guidelines"
+      ],
+      "icon": "🧠",
+      "category": "Guidelines",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/karpathy-guidelines.json"
+    },
+    {
+      "id": "taste-skill",
+      "name": "Taste Skill",
+      "description": "Apply the Taste Skill methodology for high-agency frontend work with stricter anti-slop layout, typography, motion, and implementation rules.",
+      "version": "1.0.0",
+      "author": "Leonxlnx",
+      "tags": [
+        "frontend",
+        "design",
+        "react",
+        "nextjs",
+        "tailwind",
+        "motion",
+        "ui"
+      ],
+      "icon": "🎚️",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/taste-skill.json"
+    },
+    {
+      "id": "tax-optimizer",
+      "name": "Tax Optimizer",
+      "description": "Tax optimization strategies including tax-loss harvesting, wash sale rule navigation, asset location optimization, Roth conversion analysis, and charitable giving strategies.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Finance"
+      ],
+      "icon": "🏛️",
+      "category": "Finance",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/tax-optimizer.json"
+    },
+    {
+      "id": "terraform-ops",
+      "name": "Terraform Operations",
+      "description": "Infrastructure-as-Code operations: plan, apply, import, state management, module development, and drift detection using Terraform CLI.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "DevOps"
+      ],
+      "icon": "🏗️",
+      "category": "DevOps",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/terraform-ops.json"
+    },
+    {
+      "id": "things-mac",
+      "name": "Things-mac",
+      "description": "Manage Things 3 via the `things` CLI on macOS (add/update projects+todos via URL scheme; read/search/list from the local Things database). Use when a user asks NeoWorker to add a task to Things, list inbox/today/upcoming, search tasks, or inspect projects/areas/tags.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "✅",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/things-mac.json"
+    },
+    {
+      "id": "tmux",
+      "name": "Tmux",
+      "description": "Remote-control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🧵",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/tmux.json"
+    },
+    {
+      "id": "usecase-transaction-scan",
+      "name": "Transaction Scan",
+      "description": "Scan recent messages/emails for card transactions and flag suspicious charges.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Use Cases"
+      ],
+      "icon": "💳",
+      "category": "Use Cases",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/usecase-transaction-scan.json"
+    },
+    {
+      "id": "translate",
+      "name": "Translate",
+      "description": "Translate content to another language",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Writing"
+      ],
+      "icon": "🌐",
+      "category": "Writing",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/translate.json"
+    },
+    {
+      "id": "trello",
+      "name": "Trello",
+      "description": "Manage Trello boards, lists, and cards via the Trello REST API.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📋",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/trello.json"
+    },
+    {
+      "id": "twitter",
+      "name": "Twitter / X Writer",
+      "description": "Write viral, persuasive tweets and threads optimized for X's algorithm. Research viral examples in your niche, then craft content using proven hook formulas and copywriting frameworks.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Marketing"
+      ],
+      "icon": "𝕏",
+      "category": "Marketing",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/twitter.json"
+    },
+    {
+      "id": "unbroker",
+      "name": "unbroker",
+      "description": "Find and remove authorized personal information exposures from data brokers and people-search sites with a consent-gated local workflow.",
+      "version": "1.0.0",
+      "author": "SHL0MS / Nous Research, ported by NeoWorker",
+      "tags": [
+        "privacy",
+        "security",
+        "data-broker",
+        "opt-out",
+        "ccpa",
+        "cpra",
+        "gdpr",
+        "doxxing"
+      ],
+      "icon": "🛡️",
+      "category": "Security",
+      "updatedAt": "2026-07-06",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/unbroker.json"
+    },
+    {
+      "id": "unity-development",
+      "name": "Unity Development",
+      "description": "Unity/C# development: MonoBehaviour lifecycle, ScriptableObjects, Addressables, URP/HDRP, physics, UI, editor scripting, and CLI builds.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Engineering"
+      ],
+      "icon": "🔲",
+      "category": "Engineering",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/unity-development.json"
+    },
+    {
+      "id": "unreal-development",
+      "name": "Unreal Engine Development",
+      "description": "Unreal Engine development: C++/Blueprint patterns, Gameplay Framework, Niagara, Lumen/Nanite, multiplayer, and packaging.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Engineering"
+      ],
+      "icon": "🔷",
+      "category": "Engineering",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/unreal-development.json"
+    },
+    {
+      "id": "voice-call",
+      "name": "Voice Call",
+      "description": "Initiate outbound phone calls via ElevenLabs Agents.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📞",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/voice-call.json"
+    },
+    {
+      "id": "wacli",
+      "name": "Wacli",
+      "description": "Send WhatsApp messages to other people or search/sync WhatsApp history via the wacli CLI (not for normal user chats).",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "📱",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/wacli.json"
+    },
+    {
+      "id": "weather",
+      "name": "Weather",
+      "description": "Get current weather and forecasts (no API key required).",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🌤️",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/weather.json"
+    },
+    {
+      "id": "web-scraper",
+      "name": "Web Scraper",
+      "description": "Scrape web pages with anti-bot bypass and structured data extraction using Scrapling.",
+      "version": "1.0.0",
+      "author": "neoworker",
+      "tags": [
+        "Data"
+      ],
+      "icon": "🕸️",
+      "category": "Data",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/web-scraper.json"
+    },
+    {
+      "id": "webmcp",
+      "name": "WebMCP",
+      "description": "Interact with WebMCP-enabled web pages — discover and invoke tools declared in the page's JavaScript/DOM using Chrome automation. Triggers: webmcp, call page tools, browser tools, web tools, interact with page, webmcp-starter.",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Tools"
+      ],
+      "icon": "🌐",
+      "category": "Tools",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/webmcp.json"
+    },
+    {
+      "id": "write-tests",
+      "name": "Write Tests",
+      "description": "Generate unit tests for existing code",
+      "version": "1.0.0",
+      "author": "NeoWorker",
+      "tags": [
+        "Development"
+      ],
+      "icon": "🧪",
+      "category": "Development",
+      "updatedAt": "2026-05-11",
+      "homepage": "https://github.com/NeoWorker/NeoWorker/blob/main/resources/skills/write-tests.json"
+    }
+  ]
+}

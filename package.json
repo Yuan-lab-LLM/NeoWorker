@@ -1,0 +1,366 @@
+{
+  "name": "neoworker",
+  "version": "0.1.0",
+  "description": "NeoWorker - GUI-first, CLI-capable local AI super app and everything app for coding, email, agents, documents, spreadsheets, presentations, web design, automations, and agentic work",
+  "main": "dist/electron/electron/main.js",
+  "author": "Yuan-lab-LLM",
+  "license": "MIT",
+  "homepage": "https://github.com/Yuan-lab-LLM/NeoWorker#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yuan-lab-LLM/NeoWorker.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Yuan-lab-LLM/NeoWorker/issues"
+  },
+  "files": [
+    "dist",
+    "src",
+    "scripts",
+    "resources",
+    "connectors",
+    "build",
+    "deploy",
+    "bin",
+    "docs",
+    ".npmrc",
+    ".env.example",
+    "README.md",
+    "docs/CHANGELOG.md",
+    "LICENSE",
+    "tsconfig.json",
+    "config/typescript",
+    "config/vite.config.ts",
+    "config/agent-policy.example.toml"
+  ],
+  "bin": {
+    "neoworker": "bin/neoworker-cli.js",
+    "neoworker-desktop": "bin/neoworker.js",
+    "neoworkerctl": "bin/neoworkerctl.js",
+    "neoworkerd": "bin/neoworkerd.js",
+    "neoworkerd-node": "bin/neoworkerd-node.js"
+  },
+  "private": false,
+  "scripts": {
+    "postinstall": "node scripts/codesign_electron_dev.mjs",
+    "dev": "node scripts/dev_with_logs.mjs",
+    "dev:start": "node scripts/dev_start.mjs",
+    "dev:react": "vite --config config/vite.config.ts",
+    "dev:electron": "tsc -p config/typescript/tsconfig.electron.json && cross-env ELECTRON_RUN_AS_NODE= NODE_ENV=development electron .",
+    "clean:dist": "node scripts/clean_dist.mjs",
+    "build:react": "vite build --config config/vite.config.ts",
+    "build:electron": "tsc -p config/typescript/tsconfig.electron.json",
+    "build:daemon": "tsc -p config/typescript/tsconfig.daemon.json",
+    "build:cli": "tsc -p config/typescript/tsconfig.cli.json",
+    "build:healthkit-bridge": "node scripts/build_healthkit_bridge.mjs",
+    "build:location-helper-macos": "node scripts/build_location_helper_macos.mjs",
+    "build:location-helpers": "node scripts/copy_location_helpers.mjs",
+    "build": "npm run clean:dist && npm run build:react && npm run build:healthkit-bridge && npm run build:location-helper-macos && npm run build:location-helpers && concurrently -n electron,daemon,cli \"npm run build:electron\" \"npm run build:daemon\" \"npm run build:cli\"",
+    "build:with-numbat": "npm run numbat:build && npm run build",
+    "numbat:build": "node scripts/build_numbat_runtime.mjs",
+    "numbat:verify": "node scripts/build_numbat_runtime.mjs --verify-only",
+    "package": "npm run build:with-numbat && node scripts/run_electron_builder.mjs --publish never && node scripts/release-artifact-names.mjs && node scripts/release-artifact-names.mjs --check",
+    "package:win:x64": "npm run numbat:build -- --target=win32-x64 && npm run build && node scripts/run_electron_builder.mjs --win --x64 --publish never && node scripts/release-artifact-names.mjs && node scripts/release-artifact-names.mjs --check",
+    "package:mac": "node scripts/package-mac-with-env.mjs",
+    "package:mac:unsigned": "cross-env NEOWORKER_MAC_UNSIGNED=1 node scripts/package-mac-with-env.mjs",
+    "package:desktop:smoke": "node scripts/smoke-desktop-artifacts.mjs",
+    "package:secrets:verify": "node scripts/verify-packaged-secrets.mjs",
+    "package:mac:smoke": "node scripts/smoke-desktop-artifacts.mjs --platform=mac",
+    "package:win:smoke": "node scripts/smoke-desktop-artifacts.mjs --platform=win",
+    "office:release-gate": "npm run build:electron && node scripts/qa/office-artifact-release-gate.cjs",
+    "skills:validate-routing": "node scripts/qa/validate-skills-routing.mjs",
+    "skills:validate-content": "node scripts/qa/validate-skills-content.mjs",
+    "lint": "oxlint --config config/oxlint.json src tests",
+    "type-check": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest --config config/vitest.config.ts run",
+    "test:watch": "vitest --config config/vitest.config.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@aws-sdk/client-bedrock": "^3.1009.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1009.0",
+    "@chenglou/pretext": "^0.0.3",
+    "@earendil-works/pi-ai": "^0.74.2",
+    "@fontsource/dm-sans": "^5.3.0",
+    "@google/generative-ai": "^0.24.1",
+    "@grammyjs/runner": "^2.0.3",
+    "@grammyjs/transformer-throttler": "^1.2.1",
+    "@icons-pack/react-simple-icons": "^13.13.0",
+    "@mariozechner/pi-ai": "^0.56.1",
+    "@phosphor-icons/react": "^2.1.10",
+    "@pydantic/monty": "^0.0.4",
+    "@slack/bolt": "^4.6.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
+    "baileys": "6.7.24",
+    "border-beam": "^1.3.0",
+    "botbuilder": "^4.23.3",
+    "chokidar": "^5.0.0",
+    "dingtalk-stream": "^2.1.4",
+    "discord.js": "^14.25.1",
+    "docx": "^9.5.2",
+    "electron-updater": "^6.3.9",
+    "eventsource": "^4.1.0",
+    "exceljs": "npm:devextreme-exceljs-fork@4.4.13",
+    "grammy": "^1.39.3",
+    "highlight.js": "^11.11.1",
+    "isomorphic-git": "^1.41.8",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.577.0",
+    "mammoth": "^1.11.0",
+    "marked": "^16.4.2",
+    "mermaid": "^11.13.0",
+    "mime-types": "^3.0.2",
+    "node-fetch": "npm:node-fetch-native@1.6.7",
+    "node-pty": "^1.1.0",
+    "openai": "^6.22.0",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^2.4.5",
+    "pdfjs-dist": "^5.4.296",
+    "pdfkit": "^0.18.0",
+    "playwright": "npm:playwright-core@^1.58.2",
+    "pptxgenjs": "^4.0.1",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-markdown": "^10.1.0",
+    "recharts": "^3.10.1",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
+    "uuid": "^13.0.0",
+    "ws": "^8.18.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/mime-types": "^3.0.1",
+    "@types/node": "^25.2.0",
+    "@types/pdf-parse": "^1.1.5",
+    "@types/pdfkit": "^0.17.5",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.5.13",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.53.1",
+    "@vitejs/plugin-react": "^5.1.2",
+    "@vitest/coverage-v8": "^4.0.18",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^40.4.1",
+    "electron-builder": "^26.15.3",
+    "eslint": "^9.39.2",
+    "globals": "^17.3.0",
+    "oxfmt": "^0.40.0",
+    "oxlint": "^1.47.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.3.1",
+    "vite-plugin-electron": "^0.29.0",
+    "vitest": "^4.0.18"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "13.0.3"
+  },
+  "bundleDependencies": [
+    "@earendil-works/pi-ai",
+    "@mariozechner/pi-ai",
+    "baileys"
+  ],
+  "overrides": {
+    "node-fetch@2": {
+      "whatwg-url": "^14.2.0"
+    },
+    "node-fetch@3": "$node-fetch",
+    "baileys": {
+      "libsignal": "https://codeload.github.com/WhiskeySockets/libsignal-node/tar.gz/1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67",
+      "@whiskeysockets/eslint-config": "1.0.0"
+    },
+    "@whiskeysockets/baileys": {
+      "libsignal": "https://codeload.github.com/WhiskeySockets/libsignal-node/tar.gz/1c30d7d7e76a3b0aa120b04dc6a26f5a12dccf67",
+      "@whiskeysockets/eslint-config": "1.0.0"
+    },
+    "electron-updater": {
+      "lodash.isequal": "npm:@lodash-modularized/isequal@1.0.1"
+    },
+    "gaxios": "7.3.1",
+    "@azure/msal-node": {
+      "uuid": "11.1.0"
+    },
+    "botbuilder": {
+      "uuid": "11.1.0"
+    },
+    "botbuilder-core": {
+      "uuid": "11.1.0"
+    },
+    "botframework-schema": {
+      "uuid": "11.1.0"
+    },
+    "botframework-streaming": {
+      "uuid": "11.1.0"
+    }
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "build": {
+    "appId": "com.neoworker.app",
+    "productName": "NeoWorker",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/skills",
+        "to": "skills",
+        "filter": [
+          "**/*.json",
+          "**/SKILL.md",
+          "**/LICENSE.txt",
+          "**/references/**",
+          "**/assets/**",
+          "**/scripts/**"
+        ]
+      },
+      {
+        "from": "resources/plugin-packs",
+        "to": "plugin-packs",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "connectors",
+        "to": "connectors",
+        "filter": [
+          "**/dist/**",
+          "**/README.md",
+          "**/package.json"
+        ]
+      },
+      {
+        "from": "assets/tray",
+        "to": "assets/tray",
+        "filter": [
+          "*.png"
+        ]
+      },
+      {
+        "from": "build",
+        "to": "build",
+        "filter": [
+          "icon.png",
+          "icon.icns"
+        ]
+      },
+      {
+        "from": "resources/computer-use",
+        "to": "computer-use"
+      },
+      {
+        "from": "build/numbat",
+        "to": "numbat",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "build/healthkit-bridge",
+        "to": "healthkit-bridge"
+      },
+      {
+        "from": "build/location-helper-macos",
+        "to": "location-helper-macos"
+      },
+      {
+        "from": "build/location-helper-windows",
+        "to": "location-helper-windows"
+      },
+      {
+        "from": "build/location-helper-linux",
+        "to": "location-helper-linux"
+      },
+      {
+        "from": "build/officecli/${os}-${arch}",
+        "to": "officecli",
+        "filter": [
+          "officecli",
+          "officecli.exe",
+          "LICENSE",
+          "NOTICE",
+          "manifest.json"
+        ]
+      }
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "protocols": [
+        {
+          "name": "NeoWorker Task Link",
+          "schemes": [
+            "neoworker"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "icon": "build/icon.icns",
+      "extendInfo": {
+        "NSLocationWhenInUseUsageDescription": "NeoWorker uses your current location once to answer nearby places and walking route requests.",
+        "NSLocationUsageDescription": "NeoWorker uses your current location once to answer nearby places and walking route requests.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "NeoWorker uses your current location once to answer nearby places and walking route requests."
+      },
+      "notarize": true
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "protocols": [
+        {
+          "name": "NeoWorker Task Link",
+          "schemes": [
+            "neoworker"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp",
+      "installerHeader": "build/installerHeader.bmp",
+      "include": "build/installer.nsh",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "NeoWorker",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "NeoWorker-${version}-windows-${arch}-setup.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "NeoWorker",
+      "repo": "NeoWorker",
+      "releaseType": "draft"
+    }
+  }
+}

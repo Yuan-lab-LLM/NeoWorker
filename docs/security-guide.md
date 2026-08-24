@@ -1,0 +1,776 @@
+# Security Guide for End Users
+
+This document explains the security model, permissions, and considerations for users who clone and run NeoWorker on their machines.
+
+## Overview
+
+NeoWorker is an AI-powered task automation tool that can execute actions on your behalf. By design, it has capabilities that require careful consideration:
+
+- Execute shell commands
+- Read and write files
+- Browse the web
+- Connect to external APIs
+
+All of these capabilities are **consent-based** and **sandboxed** where possible.
+
+NeoWorker can also expose **Chronicle**, an opt-in desktop recent-screen context feature. Chronicle keeps a short local passive screen buffer to resolve vague on-screen references, but it does not send those passive screenshots to external providers by itself. Chronicle is configured from **Settings > Memory Hub > Chronicle**, with pause/resume controls and explicit consent gating. See [Chronicle](chronicle.md).
+
+---
+
+## Permissions Model
+
+### Workspace Permissions
+
+Each workspace you create has configurable permissions. These are coarse capability gates; the
+permission engine still decides whether a specific action should be allowed, denied, or prompted.
+
+| Permission | Description | Default |
+|------------|-------------|---------|
+| **Read** | Read files within the workspace | Enabled |
+| **Write** | Create and modify files | Enabled |
+| **Delete** | Remove files; still subject to explicit permission rules and approval | Disabled |
+| **Shell** | Execute shell commands; still subject to explicit permission rules and approval | Disabled |
+
+**Recommendation**: Only enable shell and delete permissions for workspaces where you trust the AI
+to perform those operations.
+
+### Approval System
+
+Approval prompts are now part of a layered permission engine:
+
+- **Safe reads** may auto-allow when a matching mode or rule exists
+- **Writes, deletes, shell commands, and external side effects** may prompt based on mode or rule
+- **Hard guardrails** still block obviously dangerous commands before prompting
+- **Exact reasons** are shown so you know whether the decision came from a rule, mode, or guardrail
+
+You can still approve or deny each request individually, and you can persist some approvals as
+session, workspace, or profile rules.
+
+For the full evaluation order, rule precedence, and persistence model, see
+[Permission System](permission-system.md).
+
+### Agent Security with Numbat
+
+NeoWorker can add a Numbat-backed agent-security decision before the ordinary permission and approval layers. The integration is disabled by default and receives a bounded projection of the pending tool call rather than the full task transcript. In **Monitor** mode it records findings without blocking; in **Enforce** mode a Numbat denial can block the action, but an allow result cannot grant permission, suppress an approval, or weaken sandbox and network controls.
+
+Configure the runtime under **Settings > System & Security > Agent Security** or through `runtime.agentSecurity` in the admin policy. Keep enforcement off until binary provenance, health, and rules have been checked. See [Agent Security with Numbat](agent-security-numbat.md) for defaults, failure policy, rule sources, CLI operations, retention, and incident case bundles.
+
+### Automation Studio Approvals
+
+Main-sidebar Automation Studio classifies each step as read, local write, external write, or data export. New flows default to confirming external work; data exports always pause in a live run. A step's **Skip for safe actions** option applies only to read/local work and cannot suppress external-write or export approval.
+
+Before turning on a flow:
+
+1. run a dry test and inspect the previewed destinations and payload shape;
+2. review every required Google scope and the selected account;
+3. keep connector allowlists narrow when a flow can call MCP tools;
+4. use a dedicated signing secret for each webhook receiver and rotate it by turning off affected flows first;
+5. verify any interrupted remote action before approving a post-restart retry;
+6. remember that stored-payload redaction is key-based defense in depth, not permission to place secrets in ordinary free-text fields.
+
+See [Automation Studio](automation-studio.md#approval-policy) for the policy matrix, signed webhook controls, cancellation boundaries, recovery rules, and retention behavior.
+
+### Workspace Rule Management
+
+Workspace-local permission rules are visible in **Settings > System & Security** for the active
+workspace. From there you can:
+
+- browse workspace-local rules
+- remove a rule directly
+- persist new workspace rules from approval prompts
+
+Workspace-local rule removal updates both the local SQLite row and the workspace policy manifest.
+If the manifest write fails, the database removal still succeeds and the app reports the partial
+result.
+
+### Configurable Guardrails
+
+NeoWorker includes configurable guardrails in **Settings > Guardrails** to limit what the agent can do:
+
+| Guardrail | Description | Default |
+|-----------|-------------|---------|
+| **Token Budget** | Max tokens (input + output) per task | 100,000 (enabled) |
+| **Cost Budget** | Max estimated cost (USD) per task | $1.00 (disabled) |
+| **Iteration Limit** | Max LLM calls per task | 50 (enabled) |
+| **Dangerous Commands** | Block shell commands matching patterns | Enabled |
+| **File Size Limit** | Max file size the agent can write | 50 MB (enabled) |
+| **Domain Allowlist** | Restrict browser to approved domains | Disabled |
+
+#### Dangerous Command Blocking
+
+The following command patterns are blocked by default:
+
+| Pattern | Risk |
+|---------|------|
+| `sudo` | Elevated privileges |
+| `rm -rf /` or `rm -rf ~` | Mass deletion |
+| `mkfs` | Filesystem formatting |
+| `dd if=` | Direct disk writes |
+| Fork bombs | Process exhaustion |
+| `curl\|bash`, `wget\|sh` | Remote code execution |
+| `chmod 777` | Overly permissive |
+| `> /dev/sd` | Direct device writes |
+| `:(){ :|:& };:` | Fork bomb syntax |
+
+Commands are blocked **before** reaching the approval dialog. You can add custom patterns in Settings.
+
+Trusted-command patterns now feed the permission engine as compatibility rules instead of acting as
+the final approval system.
+
+#### Domain Allowlist
+
+When enabled, browser automation is restricted to specified domains:
+
+- Exact match: `github.com`
+- Wildcard: `*.google.com` (matches subdomains)
+- If enabled with no domains: all navigation blocked
+
+This prevents unintended browsing during automation tasks.
+
+---
+
+## What the App Can Access
+
+### File System Access
+
+| Scope | Access Level |
+|-------|--------------|
+| Workspace directories | Read/Write (based on permissions) |
+| Outside workspace | **No access** - path traversal is blocked |
+| System files | **No access** |
+
+**Technical details**:
+- Path traversal protection prevents accessing files outside the workspace
+- Symlink attacks are mitigated through path normalization
+- Implementation: `src/electron/agent/tools/file-tools.ts`
+
+### Workspace Kit Project Access Rules
+
+If a workspace contains a `.neoworker/projects/<projectId>/ACCESS.md` file, built-in tools enforce per-project access based on the task's assigned agent role:
+
+- `## Allow` and `## Deny` sections accept agent role IDs (one per line prefixed with `-`).
+- Use `all` to match every agent role.
+- Deny wins over allow.
+
+Enforcement applies to:
+- File/edit/grep/search tools when the path is inside `.neoworker/projects/<projectId>/...`
+- Workspace-kit context injection (denied projects are excluded from injected context)
+
+Important: shell commands are not subject to these per-project access rules. Keep shell permission disabled unless you explicitly need it, and review shell approvals carefully.
+
+### Shell Command Execution
+
+When you enable shell permissions:
+
+| Aspect | Implementation |
+|--------|----------------|
+| Working directory | Restricted to workspace folder |
+| Environment variables | Minimal set (PATH, HOME, USER, SHELL, LANG, TERM, TMPDIR) |
+| API keys | **Never passed** to subprocesses |
+| Timeout | Maximum 5 minutes |
+| Output limit | 100KB (truncated if exceeded) |
+
+**Security note**: Your API keys and secrets are never exposed to shell commands. The app creates a minimal, safe environment for each command.
+
+### Browser Automation
+
+The app includes Playwright for web automation:
+
+| Capability | Details |
+|------------|---------|
+| Navigate to URLs | Any URL (user-controlled tasks) |
+| Fill forms | As directed by task |
+| Take screenshots | Saved to workspace |
+| Execute JavaScript | Within page context only |
+| Mode | Headless by default |
+
+**User agent**: `NeoWorker Browser Automation`
+
+### Chronicle Screen Context
+
+Chronicle is separate from browser automation and from dedicated computer-use mouse/keyboard control.
+
+| Capability | Details |
+|------------|---------|
+| Passive capture | Opt-in only; local recent-screen buffer in the desktop app |
+| Consent / controls | Explicit consent before first enable; pause/resume from Settings or the tray menu when available |
+| Storage model | Raw passive frames stay in app-local storage and are pruned aggressively |
+| Workspace persistence | Only task-used observations are copied into `.neoworker/chronicle/`; linked `screen_context` memory generation can follow when enabled |
+| Network behavior | No automatic provider export; later vision analysis still follows normal approval rules |
+| Availability | Desktop app only; not offered in headless or channel runtimes |
+
+Chronicle also introduces a **prompt-injection risk from visible screen content**. A malicious page, document, or chat window can place instructions on screen that the agent may later treat as relevant context. NeoWorker marks Chronicle text as untrusted screen text, but you should still keep Chronicle paused or off when viewing sensitive or untrusted material, and prefer direct source tools over screen-derived context when a file, URL, PR, or thread can be read directly.
+
+---
+
+## Network Connections
+
+### LLM API Providers
+
+The app connects to these services based on your configuration:
+
+| Provider | Endpoint | When Used |
+|----------|----------|-----------|
+| Anthropic | `api.anthropic.com` | Claude models |
+| AWS Bedrock | `bedrock-runtime.*.amazonaws.com` | Bedrock models |
+| Google AI | `generativelanguage.googleapis.com` | Gemini models |
+| OpenRouter | `openrouter.ai` | OpenRouter models |
+| Ollama | `localhost:11434` (default) | Local models |
+
+### Search Providers (DuckDuckGo built-in; others optional)
+
+| Provider | Endpoint | When Used |
+|----------|----------|-----------|
+| DuckDuckGo | `html.duckduckgo.com` | Free built-in web search (no API key) |
+| Tavily | `api.tavily.com` | Web search (API key required) |
+| Exa | `api.exa.ai` | Web/news search (API key required) |
+| Brave Search | `api.search.brave.com` | Web search (API key required) |
+| SerpAPI | `serpapi.com` | Web search (API key required) |
+| Google Custom Search | `customsearch.googleapis.com` | Web search (API key required) |
+
+### Other Connections
+
+| Destination | Purpose |
+|-------------|---------|
+| `api.github.com` | Update checks |
+| `api.telegram.org` | Telegram bot (if configured) |
+| Discord API | Discord bot (if configured) |
+| Signal (via signal-cli) | Signal bot (if configured, local process) |
+| Feishu / Lark APIs | Enterprise messaging gateway traffic (if configured) |
+| WeCom APIs | Enterprise messaging gateway traffic (if configured) |
+| Remote ACP/A2A endpoints | Federated remote-agent invocation (if configured) |
+
+### ACP Remote Agents
+
+Remote ACP delegation is constrained more tightly than ordinary outbound automation:
+
+- registration is scope-gated
+- non-operator clients are limited to their own ACP tasks and inbox reads by default
+- remote endpoints are validated before invocation
+- `https` is preferred, while plain `http` is intended only for loopback development
+- private and link-local IP targets are rejected by the remote invoker validation layer
+- remote requests use bounded timeouts so bad endpoints cannot hang the main process indefinitely
+
+### Control Plane Exposure
+
+The Control Plane binds to loopback by default. Headless/managed deployments fail closed on `0.0.0.0`/`::` binds unless Tailscale exposure is enabled, the process is running in a privately published container with `NEOWORKER_CONTROL_PLANE_BIND_CONTEXT=container`, or `NEOWORKER_CONTROL_PLANE_ALLOW_INSECURE_PUBLIC_BIND=1` is set as a break-glass override.
+
+Reverse-proxied dashboards should set `NEOWORKER_CONTROL_PLANE_ALLOWED_ORIGINS` to the public HTTPS origin. Only enable `NEOWORKER_CONTROL_PLANE_TRUST_PROXY=1` behind a proxy that controls forwarded headers.
+
+### No Telemetry
+
+NeoWorker does **not**:
+- Send usage analytics
+- Track user behavior
+- Phone home to any server
+- Share your data with third parties
+
+Your data stays on your machine and only goes to the LLM provider you explicitly configure.
+
+---
+
+## Data Storage
+
+### Encrypted Settings Storage (SecureSettingsRepository)
+
+Settings stored through `SecureSettingsRepository` are encrypted inside the local SQLite database. The SQLite file itself is a normal `better-sqlite3` database, not a whole-file SQLCipher database:
+
+| Data | Location | Encryption |
+|------|----------|------------|
+| All Settings | `app.getPath('userData')/neoworker.db` | OS Keychain + AES-256 |
+| Database file | `app.getPath('userData')/neoworker.db` | Plain SQLite file; selected settings and sensitive fields are encrypted per category/feature |
+| Machine ID | `app.getPath('userData')/.neoworker-machine-id` | Stable identifier for encryption |
+
+Typical `userData` locations:
+- macOS: `~/Library/Application Support/neoworker/`
+- Linux: `~/.config/neoworker/`
+- Windows: `%APPDATA%\\neoworker\\`
+
+### Encryption Layers
+
+**Primary: OS Keychain (when available)**
+- macOS: Keychain Services
+- Windows: DPAPI (Data Protection API)
+- Linux: libsecret
+
+**Fallback: App-Level Encryption**
+- AES-256-GCM encryption
+- Key derived via PBKDF2 (100,000 iterations, SHA-512)
+- Stable machine ID prevents key changes on hostname updates
+
+### Settings Categories
+
+All these are stored encrypted in the database:
+
+| Category | Contents |
+|----------|----------|
+| `voice` | Voice settings, TTS/STT API keys |
+| `llm` | LLM provider settings, API keys |
+| `search` | Search provider settings, API keys |
+| `appearance` | Theme, accent color preferences |
+| `personality` | Agent personality settings |
+| `skills` | Managed-skill settings and external skill directory pointers |
+| `guardrails` | Safety limits and blocked patterns |
+| `hooks` | Automation hooks configuration |
+| `mcp` | MCP server configurations |
+| `secure-mcp-tunnels` | Secure MCP tunnel definitions and tunnel tokens |
+| `acp` | ACP-related persisted settings and lifecycle metadata |
+| `controlplane` | Control plane settings, tokens, allowed browser origins, and proxy trust settings |
+| `channels` | Channel/gateway configurations |
+| `builtintools` | Built-in tool settings |
+| `tailscale` | Tailscale integration settings |
+| `queue` | Task queue settings |
+| `tray` | Menu bar/tray settings |
+
+### Memory Write Governance
+
+Memory Write Approval is configured in **Settings → Memory Hub**. It can stage durable memory writes before commit:
+
+- `off`: writes commit immediately
+- `curated_only`: curated hot-memory edits wait for review
+- `external_only`: Supermemory/external-provider writes wait for review
+- `background_only`: automatic capture, Dreaming, distillation, and external mirroring wait for review
+- `all`: every durable memory write waits for review
+
+Pending rows live in `pending_memory_writes` inside the normal SQLite database. Since that table is not whole-file encrypted, NeoWorker blocks sensitive external-memory payloads before queueing them. Approvals first claim rows as `applying`, then replay the write with the gate bypassed and mark it `applied`; duplicate or stale approve attempts fail instead of replaying again.
+
+### Data Integrity
+
+Each stored setting includes:
+- SHA-256 checksum for integrity verification
+- Creation and update timestamps
+- Automatic corruption detection on load
+
+### What's Stored in the Database
+
+- Workspace configurations
+- Task history, events, and logs (including task prompts and timeline messages)
+- Channel/gateway configurations
+- Channel message history (incoming/outgoing message content for configured channels)
+- **All encrypted settings** (API keys, preferences, configurations)
+
+Everything is stored **locally** on your machine. NeoWorker does not upload your database or message history to any NeoWorker servers.
+
+### API Key Security
+
+Your API keys are:
+1. Encrypted using OS Keychain when available (macOS Keychain, Windows DPAPI, Linux libsecret)
+2. Fallback to AES-256 app-level encryption with stable machine-derived key
+3. Decrypted only when needed for API calls
+4. Never logged or displayed in full
+5. Never passed to shell commands or subprocesses
+6. Checksummed for integrity verification
+
+### Media and File Validation
+
+NeoWorker also applies guardrails before certain file and media operations reach external providers:
+
+- large text writes are blocked by the configured file-size guardrail
+- binary files are rejected from text-only write paths
+- video-generation reference images/videos must be absolute paths, real files, and within supported size/type limits
+- external skill directories must be explicit existing absolute paths and are treated as read-only by the app
+
+---
+
+## Electron Security Configuration
+
+### Security Settings
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `nodeIntegration` | `false` | Prevents renderer from accessing Node.js |
+| `contextIsolation` | `true` | Isolates preload scripts from page context |
+| `sandbox` | Default | Uses Chromium sandbox |
+
+### Content Security Policy (Production)
+
+```
+default-src 'self';
+script-src 'self';
+style-src 'self' 'unsafe-inline';
+img-src 'self' data: https:;
+font-src 'self' data:;
+connect-src 'self' https:;
+frame-ancestors 'none';
+form-action 'self';
+```
+
+### macOS Entitlements
+
+| Entitlement | Purpose |
+|-------------|---------|
+| `allow-jit` | Required for V8 JavaScript engine |
+| `allow-unsigned-executable-memory` | Required for Electron |
+| `allow-dyld-environment-variables` | Loading native modules |
+| `files.user-selected.read-write` | Access to user-selected folders |
+| `network.client` | Connect to LLM APIs |
+
+**Not requested**: Camera, microphone, or contacts.
+
+**Opt-in location access**: `get_current_location` requests one-time location permission through the operating system's native dialog (macOS Core Location, Windows Location Services, or Linux GeoClue2). Each invocation requires explicit user consent — the permission is never auto-approved or persisted across tasks. Coordinates are not logged; only accuracy and source are recorded in task events.
+
+---
+
+## Messaging Channel Security
+
+If you use the gateway feature to connect messaging bots (Telegram, Discord, Slack, WhatsApp, iMessage, Signal):
+
+### Security Modes
+
+| Mode | Description | Recommendation |
+|------|-------------|----------------|
+| **Open** | Anyone can use the bot | Not recommended for production |
+| **Allowlist** | Only pre-approved user IDs | Good for known users |
+| **Pairing** | Users must enter a code from the app | Best for security |
+
+### Best Practices
+
+1. **Use pairing mode** for bots accessible to others
+2. **Generate new pairing codes** for each user
+3. **Revoke access** for users who no longer need it
+4. **Don't share bot tokens** publicly
+
+---
+
+## Auto-Update Mechanism
+
+### How Updates Work
+
+For **git clones** (development):
+1. Checks GitHub API for new releases/commits
+2. User initiates update manually
+3. Runs: `git pull`, `npm run setup`, `npm run build`
+4. Requires app restart
+
+For **packaged builds**:
+1. Uses electron-updater with GitHub releases
+2. Downloads signed releases from official repo
+3. Verifies integrity before installing
+
+### Supply Chain Considerations
+
+| Risk | Mitigation |
+|------|------------|
+| Malicious code in update | Updates are user-initiated, not automatic |
+| Compromised dependencies | Dependencies from reputable sources only |
+| npm install risks | Third-party lifecycle scripts disabled via `.npmrc`; `npm run setup` handles native rebuilds explicitly |
+
+**Note**: If you're security-conscious, review changes before updating:
+```bash
+git fetch origin
+git diff HEAD..origin/main
+```
+
+---
+
+## Security Best Practices
+
+### For General Use
+
+1. **Review shell commands** before approving - read what will execute
+2. **Use dedicated workspaces** - don't point at sensitive directories
+3. **Enable minimal permissions** - only enable what you need
+4. **Keep updated** - security fixes come through updates
+5. **Protect your API keys** - don't share configuration files
+
+### For Messaging Bots (Telegram/Discord/Slack/WhatsApp/iMessage/Signal)
+
+1. **Never use "open" mode** for public bots
+2. **Use pairing codes** for secure user onboarding
+3. **Regularly audit** connected users
+4. **Revoke access** when no longer needed
+5. **For Signal**: Use a dedicated phone number (registration deactivates other Signal instances)
+
+### For Secure MCP Tunnels
+
+1. **Require relay admin auth** before creating tunnel credentials.
+2. **Use HTTPS/WSS** for non-loopback relays.
+3. **Prefer explicit tool allowlists** over broad access.
+4. **Enable read-only mode** for remote inspection workflows.
+5. **Rotate caller/client tokens** when a device or remote caller is decommissioned.
+6. **Review audit logs** for blocked or unexpected tool calls.
+
+See [Secure MCP Tunnels](secure-mcp-tunnels.md) for the tunnel-specific security model.
+
+### For Development
+
+1. **Review code changes** before pulling updates
+2. **Audit dependencies** periodically with `npm audit`
+3. **Don't commit** `.env` or settings files
+4. **Use separate workspaces** for testing
+
+---
+
+## Threat Model
+
+### What NeoWorker Protects Against
+
+| Threat | Protection |
+|--------|------------|
+| Path traversal | Path normalization and validation |
+| Command injection | User approval required |
+| API key leakage | Encrypted storage, minimal env |
+| XSS attacks | Content Security Policy |
+| Unauthorized bot access | Multiple auth modes |
+| Malicious skill IDs | Input validation and sanitization |
+| Binary name injection | Shell metacharacter filtering |
+
+### What Requires User Vigilance
+
+| Risk | User Responsibility |
+|------|---------------------|
+| Approving malicious commands | Review before approving |
+| Workspace selection | Don't add sensitive directories |
+| Bot token security | Keep tokens private |
+| Update verification | Review changes if concerned |
+
+### Out of Scope
+
+- Protection against malicious LLM responses (AI safety)
+- Physical access to your machine
+- Compromised macOS system
+- Malicious code you add to workspaces
+
+---
+
+## Verifying Security
+
+### Check Workspace Permissions
+
+In the app, navigate to your workspace settings to review:
+- Read/Write/Delete/Shell permissions
+- Workspace path scope
+
+### Audit Connected Users (Bots)
+
+In the Gateway settings, you can:
+- View all connected users
+- Revoke access for specific users
+- Generate new pairing codes
+
+### Review Pending Approvals
+
+The app shows a notification badge when approvals are pending. Always review:
+- The exact command to be executed
+- The file to be deleted
+- Any other sensitive operation
+
+---
+
+## Reporting Security Issues
+
+If you discover a security vulnerability:
+
+1. **Do NOT** create a public GitHub issue
+2. Use GitHub Security Advisories (Security tab > Report a vulnerability)
+3. Include reproduction steps and impact assessment
+
+See [SECURITY.md](./SECURITY.md) for full details.
+
+---
+
+## Advanced Security Framework (v0.3.8.7+)
+
+NeoWorker includes a comprehensive security framework inspired by formal verification techniques.
+
+### Tool Groups & Risk Levels
+
+Tools are categorized by risk level for policy-based access control:
+
+| Risk Level | Tools | Description |
+|------------|-------|-------------|
+| **Read** | `read_file`, `list_directory`, `search_files` | Low risk, read-only operations |
+| **Write** | `write_file`, `copy_file`, `create_directory` | Medium risk, creates/modifies files |
+| **Destructive** | `delete_file`, `run_command` | High risk, usually approval-gated unless an explicit allow rule or mode applies |
+| **System** | `read_clipboard`, `take_screenshot`, `open_application` | System-level access |
+| **Network** | `web_search`, `browser_*` | External network operations |
+| **Export / Egress** | mutating `http_request`, `analyze_image`, `read_pdf_visual` | Outbound transfer of local bytes or payloads; reviewed separately from ordinary network reads |
+
+Ordinary uploaded-PDF reading uses the local `parse_document` extraction path. The extracted text is still treated as untrusted document data, but it is not an export/egress operation unless the task uses `read_pdf_visual` or another tool that sends local bytes to an external provider.
+
+High-autonomy modes and session "Approve all" do not silently bypass this export/egress lane.
+
+The computer-use family (`screenshot`, `click`, `type_text`, `keypress`, and related tools on macOS and Windows) is **not** low-risk read-only automation: it can drive arbitrary UI the operator can reach. Treat it as **high trust** and keep the `computer_use` built-in category disabled unless you need it. See [Computer use](computer-use.md).
+
+### Computer use security
+
+- **Helper-targeted macOS permissions**: Accessibility and Screen Recording are granted to the bundled helper runtime, with inline bootstrap at task time and settings shortcuts for recovery.
+- **Windows visible-window constraint**: Windows v1 only targets visible, non-minimized windows and may require comparable privilege for elevated apps.
+- **Safety UX**: Active sessions use a single-session lock, **Esc** abort, and shortcut guarding to reduce accidental cross-window effects and disruptive global hotkeys during automation.
+- **Tool gating**: Policy defers the computer-use lane unless the task signals **native desktop GUI intent**, so gateway and general tasks default to safer tool lanes.
+- **Key chord blocklist**: Certain OS-level shortcuts are rejected at the tool layer to avoid session or system disruption.
+
+Full operator and troubleshooting guidance: [Computer use](computer-use.md).
+
+### Monotonic Policy Precedence (Deny-Wins)
+
+Security policies are evaluated across multiple layers in order:
+
+1. **Global Guardrails** - Blocked commands, patterns
+2. **Workspace Permissions** - Read, write, delete, shell, network flags
+3. **Context Restrictions** - Gateway context (private/group/public)
+4. **Tool-Specific Rules** - Per-tool overrides
+
+**Key invariant**: Once denied by any layer, a tool cannot be re-enabled by later layers. This prevents policy bypasses.
+
+### Context-Aware Tool Isolation
+
+When tasks originate from gateway bots (WhatsApp/Telegram/Discord/Slack/iMessage/Signal), tools are restricted based on context:
+
+| Context | Restrictions |
+|---------|-------------|
+| **Private** | Full access (with approvals) |
+| **Group** | Memory tools blocked (clipboard), destructive tools blocked |
+| **Public** | System tools blocked, all destructive operations blocked |
+
+This prevents accidental exposure of sensitive data in shared contexts.
+
+### Concurrent Access Safety
+
+Critical operations use mutex locks and idempotency guarantees to prevent race conditions:
+
+| Operation | Protection |
+|-----------|------------|
+| Pairing code verification | Mutex per channel + idempotency check |
+| Approval responses | Idempotency prevents double-approval |
+| Task creation | Deduplication via idempotency keys |
+
+### Brute-Force Protection
+
+Pairing code verification includes protection against brute-force attacks:
+
+| Feature | Value | Description |
+|---------|-------|-------------|
+| Max attempts | 5 | Failed attempts before lockout |
+| Lockout duration | 15 minutes | Time before retry allowed |
+| Code charset | 32 characters | Excludes ambiguous chars (I, O, 1, 0) |
+| Code length | 6 characters | ~1 billion combinations |
+| Estimated crack time | >1000 years | With lockout enabled |
+
+When a user exceeds the maximum attempts:
+1. Account is locked for 15 minutes
+2. User sees remaining lockout time
+3. Attempts counter resets after lockout expires
+
+**Implementation**: `src/electron/gateway/security.ts`
+
+### Shell Command Sandboxing
+
+On macOS, shell commands execute within a `sandbox-exec` profile that:
+
+- Restricts filesystem access to workspace + temp directories
+- Blocks network access unless workspace has `network` permission
+- Limits write access based on workspace permissions
+- Uses minimal, safe environment variables
+
+**Implementation**: `src/electron/agent/sandbox/runner.ts`
+
+### Imported Capability Security
+
+Imported skills and imported plugin packs now pass through the same install-time security gate before activation.
+
+| Protection | Description |
+|------------|-------------|
+| **Skill ID Validation** | IDs must match `^[a-z0-9_-]+$` pattern (lowercase alphanumeric, hyphens, underscores) |
+| **Path Traversal Prevention** | IDs containing `..`, `/`, or `\` are rejected |
+| **Binary Name Sanitization** | Binary names in `requires.bins` must match `^[a-zA-Z0-9._-]+$` |
+| **Command Injection Prevention** | Shell metacharacters in binary names are blocked before `which` execution |
+| **Debounced Reloading** | Rapid skill reloads are debounced (100ms) to prevent race conditions |
+| **Staged Imports** | Imported skills and plugin packs are scanned before they are moved into active managed storage |
+| **Bundle Heuristics** | Imported `SKILL.md`, bundled scripts, plugin manifests, declarative connectors, and suspicious URLs are inspected for high-confidence malicious patterns |
+| **Package Malware Checks** | Detected `npx` / `uvx` package references can be checked against live package-malware intelligence |
+| **Quarantine Instead of Activate** | Imports with blocking findings are preserved in quarantine rather than registered into the active runtime |
+| **Persisted Scan Reports** | Managed imports store a security report for warning UX, review, and later integrity checks |
+| **Digest Enforcement** | If a managed imported bundle changes after install, NeoWorker can quarantine it again on the next load |
+
+**Rejected inputs (skill IDs)**:
+- `../../../etc/passwd` - Path traversal
+- `foo/bar` - Contains path separator
+- `skill;rm -rf /` - Special characters
+
+**Rejected inputs (binary names)**:
+- `node; rm -rf /` - Shell metacharacters
+- `$(whoami)` - Command substitution
+- `` `whoami` `` - Backtick execution
+
+Imported bundles that cannot be fully checked against network-backed intelligence are allowed to install only when the local scan is otherwise clean, and the UI surfaces that reduced-confidence state as a warning.
+
+**Implementation**:
+- `src/electron/agent/skill-registry.ts` (skill ID validation)
+- `src/electron/agent/skill-eligibility.ts` (binary name sanitization)
+- `src/electron/security/capability-bundle-security.ts` (bundle scanning, reports, digest verification, and quarantine)
+- `src/electron/extensions/pack-installer.ts` (pack install staging and scan gate)
+- `src/electron/extensions/loader.ts` (discovery-time integrity checks and quarantine enforcement)
+
+### Codex Security Scan Containment
+
+The bundled Codex Security pack runs repository, diff, and deep multi-pass security scans through first-party plugin-pack skills. The old `security_scan_*` built-in helpers are no longer exposed; scan workflows use the normal workspace-scoped task tools plus bundled skill instructions, references, and scripts.
+
+| Protection | Description |
+|------------|-------------|
+| **First-party pack loading** | The bundled Codex Security pack is discovered from `resources/plugin-packs/codex-security/` in development and `plugin-packs/codex-security/` in packaged builds. |
+| **Normal workspace policy** | Scan tasks use the same workspace path, shell, network, and approval controls as other NeoWorker tasks. |
+| **Artifact containment** | Scan artifacts should be written under the active workspace, normally `.neoworker/security-scans/<repo-name>/<scan-id>/`. |
+| **Scoped-path discipline** | Scoped scans should use relative repository paths; absolute paths and `..` segments should be rejected by the workflow before scanning. |
+| **Deep worker completeness** | Deep-scan reconciliation expects six usable workers, with all required files present and valid JSONL in worker ledgers/candidates. |
+| **Report rendering through bundled scripts** | Report validation and HTML rendering should use bundled Codex Security scripts from the packaged plugin pack, not user-provided renderer paths. |
+
+These controls keep the scan workflow auditable and keep scan activity within the same policy boundary as normal NeoWorker task execution.
+
+**Implementation**:
+- `src/electron/agent/tools/registry.ts` (normal workspace-scoped tool catalog used by scan skills)
+- `resources/plugin-packs/codex-security/` (bundled scan skills, references, scripts, and assets)
+- `src/electron/extensions/loader.ts` and `src/electron/extensions/registry.ts` (directory-backed plugin-pack discovery and skill loading)
+
+See [Codex Security Scans](codex-security-scans.md) for scan modes and artifact contracts.
+
+### Running Security Tests
+
+```bash
+npm run test                # Full suite (4,932 tests total: 4,854 passed, 78 skipped; includes security)
+npx vitest --config config/vitest.config.ts run tests/security   # Security-focused tests only (135 tests)
+npm run test:coverage       # With coverage report
+```
+
+Test files:
+- `tests/security/tool-groups.test.ts` - Tool categorization tests
+- `tests/security/policy-manager.test.ts` - Policy evaluation tests
+- `tests/security/concurrency.test.ts` - Mutex and idempotency tests
+- `tests/security/sandbox-runner.test.ts` - Sandbox execution tests
+- `tests/security/gateway-security.test.ts` - Brute-force protection tests
+
+---
+
+## Summary
+
+NeoWorker is designed with security in mind:
+
+| Aspect | Status |
+|--------|--------|
+| API key storage | Encrypted (OS keychain) |
+| File access | Sandboxed to workspace |
+| Shell execution | Requires approval + sandbox |
+| Network access | Only configured providers |
+| Telemetry | None |
+| Electron security | Best practices followed |
+| Guardrails | Configurable limits on tokens, cost, iterations, commands, file size, and domains |
+| Policy system | Monotonic deny-wins precedence |
+| Gateway security | Context-aware tool isolation |
+| Concurrency | Mutex locks + idempotency guarantees |
+| Imported capability security | Input validation, staged scanning, quarantine, persisted reports, and digest verification |
+
+**The security model is transparent and consent-based.** You remain in control of what the AI can do on your machine.
+
+### Guardrails Settings Location
+
+All guardrail settings can be configured at:
+- **Database**: stored as an encrypted `guardrails` category inside `app.getPath('userData')/neoworker.db`
+- **UI**: Settings (gear icon) → Guardrails tab
+
+### Settings Migration
+
+Legacy JSON settings files are automatically migrated into encrypted `SecureSettingsRepository` categories:
+- Migration creates a `.migration-backup` file before proceeding
+- On successful migration, both backup and original are deleted
+- On failed migration, backup is preserved for recovery
+- Migration logs are available in the app console

@@ -1,0 +1,339 @@
+import * as path from "path";
+
+export type StepContractMode = "mutation_required" | "artifact_presence_required" | "analysis_only";
+export type StepContractEnforcementLevel = "strict" | "standard" | "advisory";
+
+const CANONICAL_ARTIFACT_EXTENSION_LIST = [
+  "pdf",
+  "docx",
+  "md",
+  "csv",
+  "xlsx",
+  "json",
+  "jsonl",
+  "txt",
+  "pptx",
+  "mp4",
+  "mov",
+  "webm",
+  "html",
+  "css",
+  "js",
+  "jsx",
+  "ts",
+  "tsx",
+  "py",
+  "go",
+  "rs",
+  "java",
+  "kt",
+  "swift",
+  "rb",
+  "php",
+  "sh",
+  "sql",
+  "yaml",
+  "yml",
+  "toml",
+  "xml",
+  "xcodeproj",
+  "xcworkspace",
+  "xcscheme",
+  "pbxproj",
+  "entitlements",
+  "plist",
+] as const;
+
+const CANONICAL_ARTIFACT_EXTENSION_SET = new Set<string>(CANONICAL_ARTIFACT_EXTENSION_LIST);
+export { CANONICAL_ARTIFACT_EXTENSION_SET as CANONICAL_ARTIFACT_EXTENSION_SET_EXPORT };
+const CANONICAL_EXTENSIONS_WITH_DOT = CANONICAL_ARTIFACT_EXTENSION_LIST.map(
+  (extension) => `.${extension}`,
+);
+const CANONICAL_EXTENSION_PATTERN = CANONICAL_ARTIFACT_EXTENSION_LIST.map((extension) =>
+  extension.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+).join("|");
+
+export const CANONICAL_ARTIFACT_EXTENSION_REGEX = new RegExp(
+  `\\.(${CANONICAL_EXTENSION_PATTERN})\\b`,
+  "i",
+);
+const CANONICAL_ARTIFACT_EXTENSION_REGEX_GLOBAL = new RegExp(
+  `\\.(${CANONICAL_EXTENSION_PATTERN})\\b`,
+  "gi",
+);
+
+export const CANONICAL_ARTIFACT_PATH_REGEX = new RegExp(
+  `(?:\\/|\\.{1,2}\\/)?[A-Za-z0-9_./-]+\\.(${CANONICAL_EXTENSION_PATTERN})\\b`,
+  "gi",
+);
+
+const COMMAND_PREFIX_REGEX =
+  /(^|\s)(python3?|node|npm|npx|pnpm|yarn|bash|sh|zsh|git|curl|wget|make|cmake|xcodebuild|uv|pip3?|go|cargo|java|ruby|php|ssh|scp|sftp|ping|traceroute|mtr|nc|netcat|telnet|dig|nslookup|nmap)\b/i;
+const SHELL_OPERATOR_REGEX = /(?:\|\||&&|[|;<>])/;
+const URL_LIKE_REGEX = /^[a-z][a-z0-9+.-]*:\/\//i;
+const STRONG_WRITE_VERB_REGEX =
+  /\b(write|create|draft|generate|produce|compose|build|save|author|scaffold|bootstrap|initialize|implement|configure|add|edit|update|append|rewrite)\b/;
+const COPY_WRITE_INTENT_REGEX =
+  /\b(?:copy|duplicate|clone)\b(?=[\s\S]{0,80}\b(?:file|document|workbook|spreadsheet|artifact|source|version|to|into|as)\b)|\b(?:save|export)\b(?=[\s\S]{0,80}\b(?:file|document|workbook|spreadsheet|artifact|version)\b)[\s\S]{0,80}\bas\b|\b(?:make|create)\s+(?:a\s+)?copy\b/;
+const PASSIVE_ARTIFACT_WRITE_CUE_REGEX =
+  /\b(saved|written|created|generated|produced|updated|edited|rewritten|appended|stored|placed)\s+(?:as|to|at|in|under)\b/;
+const CJK_STRONG_WRITE_VERB_REGEX =
+  /(?:生成|创建|制作|编写|撰写|写入|保存|导出|产出|交付|构建|实现|新增|修改|编辑|更新|追加|重写|落盘)/;
+const CJK_COPY_WRITE_INTENT_REGEX =
+  /(?:复制|拷贝|另存为|另存|创建副本|生成副本|保存副本)/;
+const CJK_READ_ONLY_INTENT_REGEX =
+  /(?:读取|搜索|检索|查找|浏览|访问|抓取|获取|分析|审查|审核|检查|解析|提取|总结|研究|调研|调查|查看|核实)/;
+const CJK_DISCOVERY_INTENT_REGEX =
+  /(?:搜索|检索|查找|寻找|发现|识别|盘点|扫描|探测|调查)/;
+const CJK_ARTIFACT_CUE_REGEX =
+  /(?:文件|文档|报告|网页|页面|白皮书|演示文稿|幻灯片|表格|视频|代码|源码|脚本|项目|工作区)/;
+
+function normalizeWithLeadingDot(extension: string): string {
+  const raw = String(extension || "")
+    .trim()
+    .toLowerCase();
+  if (!raw) return "";
+  return raw.startsWith(".") ? raw : `.${raw}`;
+}
+
+export function getCanonicalArtifactExtensions(): string[] {
+  return [...CANONICAL_EXTENSIONS_WITH_DOT];
+}
+
+export function hasArtifactExtensionMention(text: string): boolean {
+  return CANONICAL_ARTIFACT_EXTENSION_REGEX.test(String(text || ""));
+}
+
+export function extractArtifactExtensionsFromText(text: string): string[] {
+  const normalized = String(text || "").toLowerCase();
+  if (!normalized.trim()) return [];
+
+  const extensions = new Set<string>();
+  const matches = normalized.match(CANONICAL_ARTIFACT_EXTENSION_REGEX_GLOBAL);
+  if (matches) {
+    for (const token of matches) {
+      const extension = normalizeWithLeadingDot(path.extname(token));
+      if (extension && CANONICAL_ARTIFACT_EXTENSION_SET.has(extension.slice(1))) {
+        extensions.add(extension);
+      }
+    }
+  }
+
+  if (/\bmarkdown\b|\bmd file\b/.test(normalized)) extensions.add(".md");
+  if (/\bmd\b/.test(normalized)) extensions.add(".md");
+  if (/\bdocx\b|\bword document\b/.test(normalized)) extensions.add(".docx");
+  if (/\bcsv\b/.test(normalized)) extensions.add(".csv");
+  if (/\bjsonl\b/.test(normalized)) extensions.add(".jsonl");
+  if (/\bjson\b/.test(normalized)) extensions.add(".json");
+  if (/\bxlsx\b|\bexcel\b|\bspreadsheet\b/.test(normalized)) extensions.add(".xlsx");
+  if (/\bpptx\b|\bslides?\b|\bpowerpoint\b/.test(normalized)) extensions.add(".pptx");
+  if (/\bpdf\b/.test(normalized)) extensions.add(".pdf");
+  if (/\btxt\b|\btext file\b|\bplain text\b/.test(normalized)) extensions.add(".txt");
+  return Array.from(extensions.values());
+}
+
+export function isLikelyCommandSnippet(text: string): boolean {
+  const value = String(text || "").trim();
+  if (!value) return false;
+  if (SHELL_OPERATOR_REGEX.test(value)) return true;
+  if (COMMAND_PREFIX_REGEX.test(value)) return true;
+  if (/\s-[A-Za-z]/.test(value)) return true;
+  return false;
+}
+
+export function isArtifactPathLikeToken(text: string): boolean {
+  const value = String(text || "")
+    .trim()
+    .replace(/^['"]+|['"]+$/g, "");
+  if (!value) return false;
+  if (URL_LIKE_REGEX.test(value)) return false;
+  if (isLikelyCommandSnippet(value)) return false;
+  if (path.isAbsolute(value)) return true;
+  if (CANONICAL_ARTIFACT_EXTENSION_REGEX.test(value)) return true;
+  const hasSeparator = value.includes("/") || value.includes("\\");
+  const hasWhitespace = /\s/.test(value);
+  return hasSeparator && !hasWhitespace;
+}
+
+export function extractArtifactPathCandidates(text: string): string[] {
+  const source = String(text || "");
+  if (!source.trim()) return [];
+
+  const candidates = new Set<string>();
+  const commandSnippetRanges: Array<{ start: number; end: number }> = [];
+  const backtickPattern = /`([^`]+)`/g;
+  let backtickMatch = backtickPattern.exec(source);
+  while (backtickMatch) {
+    const token = String(backtickMatch[0] || "");
+    const value = token.replace(/`/g, "").trim();
+    if (!value) {
+      backtickMatch = backtickPattern.exec(source);
+      continue;
+    }
+    const start = backtickMatch.index;
+    if (isLikelyCommandSnippet(value)) {
+      commandSnippetRanges.push({ start, end: start + token.length });
+    }
+    if (isArtifactPathLikeToken(value)) {
+      candidates.add(value);
+    }
+    backtickMatch = backtickPattern.exec(source);
+  }
+
+  const barePattern = new RegExp(CANONICAL_ARTIFACT_PATH_REGEX.source, "gi");
+  let bareMatch = barePattern.exec(source);
+  while (bareMatch) {
+    const token = String(bareMatch[0] || "").trim();
+    const start = bareMatch.index;
+    const inCommandSnippet = commandSnippetRanges.some(
+      (range) => start >= range.start && start < range.end,
+    );
+    if (!inCommandSnippet && token) {
+      candidates.add(token);
+    }
+    bareMatch = barePattern.exec(source);
+  }
+
+  return Array.from(candidates.values());
+}
+
+export function descriptionHasWriteIntent(text: string): boolean {
+  const desc = String(text || "").toLowerCase();
+  if (descriptionHasStrongWriteIntent(desc)) return true;
+
+  const structuredWriteVerb = /\b(lock|define|specify|establish|set)\b/.test(desc);
+  if (structuredWriteVerb) {
+    const hasArtifactCue = descriptionHasArtifactCue(desc) || hasArtifactExtensionMention(desc);
+    const hasArtifactPath = extractArtifactPathCandidates(desc).length > 0;
+    const namingOnlyCue =
+      /\b(output|artifact|file)\s+name\b/.test(desc) ||
+      /\bname\s+(?:the\s+)?(?:output|artifact|file)\b/.test(desc) ||
+      /\bdefine\s+(?:the\s+)?(?:output|artifact|file)\s+name\b/.test(desc) ||
+      /\bset\s+(?:the\s+)?(?:output|artifact|file)\s+name\b/.test(desc);
+    if (!namingOnlyCue && (hasArtifactCue || hasArtifactPath)) {
+      return true;
+    }
+  }
+
+  // "prepare" is ambiguous (often setup/planning only). Treat it as write-intent
+  // only when paired with a concrete artifact/output cue.
+  const prepareArtifactCue =
+    /\bprepare(?:\s+[\w./-]+){0,6}\s+(?:a\s+|an\s+|the\s+)?(file|document|artifact|report|summary|proposal|plan|markdown|md|docx|pdf|csv|json|xlsx|pptx|slides?|presentation|code|script|output)\b/.test(
+      desc,
+    );
+  return prepareArtifactCue;
+}
+
+export function descriptionHasCopyIntent(text: string): boolean {
+  const desc = String(text || "").toLowerCase();
+  return (
+    COPY_WRITE_INTENT_REGEX.test(desc) || CJK_COPY_WRITE_INTENT_REGEX.test(desc)
+  );
+}
+
+export function descriptionHasStrongWriteIntent(text: string): boolean {
+  const desc = String(text || "").toLowerCase();
+  return (
+    STRONG_WRITE_VERB_REGEX.test(desc) ||
+    descriptionHasCopyIntent(desc) ||
+    PASSIVE_ARTIFACT_WRITE_CUE_REGEX.test(desc) ||
+    CJK_STRONG_WRITE_VERB_REGEX.test(desc)
+  );
+}
+
+export function descriptionHasReadOnlyIntent(text: string): boolean {
+  const desc = String(text || "").toLowerCase();
+  return (
+    /\b(read|search|fetch|retrieve|browse|visit|analy[sz]e|review|understand|examine|inspect|check|parse|extract|summarize|study|explore|investigate|look)\b/.test(
+      desc,
+    ) || CJK_READ_ONLY_INTENT_REGEX.test(desc)
+  );
+}
+
+export function descriptionHasDiscoveryIntent(text: string): boolean {
+  const desc = String(text || "").toLowerCase();
+  return (
+    /\b(search|locate|find|discover|identify|inventory|catalog|survey|enumerate|scan|detect)\b/.test(desc) ||
+    /\bclarify\s+scope\b/.test(desc) ||
+    CJK_DISCOVERY_INTENT_REGEX.test(desc)
+  ) && !descriptionHasWriteIntent(desc);
+}
+
+export function descriptionHasSummaryCue(text: string): boolean {
+  const desc = String(text || "").toLowerCase();
+  return /\b(compile|finalize|package|bundle|deliver|report|summary|summarize)\b/.test(desc);
+}
+
+export function descriptionHasScaffoldIntent(text: string): boolean {
+  const desc = String(text || "").toLowerCase();
+  return /\b(scaffold|bootstrap|initialize|set up project|setup project|create widget|create project)\b/.test(
+    desc,
+  );
+}
+
+export function descriptionHasArtifactCue(text: string): boolean {
+  const desc = String(text || "").toLowerCase();
+  return (
+    /\b(file|document|docx?|pdf|html|webpage|web page|website|whitepaper|markdown|csv|xlsx|json|jsonl|txt|pptx|mp4|mov|webm|presentation|slides?|video|clip|footage|spec(?:ification)?|proposal|project|workspace|widget|xcode|scheme|entitlements?|plist|source code|code file)\b/.test(
+      desc,
+    ) || CJK_ARTIFACT_CUE_REGEX.test(desc)
+  );
+}
+
+export function descriptionHasChecklistReportCue(text: string): boolean {
+  const desc = String(text || "").toLowerCase();
+  if (!desc.trim()) return false;
+  return /\b(checklist|scorecard|qa|audit|report)\b/.test(desc);
+}
+
+export function deriveStepContractMode(opts: {
+  description: string;
+  requiresMutation: boolean;
+  requiresArtifactEvidence: boolean;
+  requiresWriteByArtifactMode: boolean;
+  hasReadOnlyConstraint?: boolean;
+}): {
+  mode: StepContractMode;
+  enforcementLevel: StepContractEnforcementLevel;
+  contractReason: string;
+} {
+  const desc = String(opts.description || "");
+
+  // When the task has an explicit read-only constraint (e.g. "do not edit files"),
+  // downgrade all enforcement to advisory — the step should not fail for missing mutations.
+  // Note: we only check the task-level flag, NOT descriptionHasReadOnlyIntent() —
+  // a step like "research trends" describes read-only activities but the task may still
+  // need file output.
+  if (opts.hasReadOnlyConstraint) {
+    return {
+      mode: "analysis_only",
+      enforcementLevel: "advisory",
+      contractReason: "readonly_constraint_detected",
+    };
+  }
+
+  if (opts.requiresMutation || opts.requiresWriteByArtifactMode) {
+    return {
+      mode: "mutation_required",
+      enforcementLevel: "strict",
+      contractReason: "step_requires_artifact_mutation",
+    };
+  }
+
+  if (opts.requiresArtifactEvidence) {
+    const summaryLike = descriptionHasSummaryCue(desc);
+    return {
+      mode: "artifact_presence_required",
+      enforcementLevel: summaryLike ? "standard" : "strict",
+      contractReason: summaryLike
+        ? "step_requires_artifact_presence_for_summary"
+        : "step_requires_artifact_presence",
+    };
+  }
+
+  return {
+    mode: "analysis_only",
+    enforcementLevel: "standard",
+    contractReason: "analysis_or_readonly_step",
+  };
+}

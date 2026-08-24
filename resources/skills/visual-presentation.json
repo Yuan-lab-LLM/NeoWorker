@@ -1,0 +1,137 @@
+{
+  "id": "visual-presentation",
+  "name": "Visual Presentation",
+  "description": "Create image-led, visually distinctive PowerPoint decks with editable native text and reliable Chinese typography.",
+  "icon": "🎬",
+  "category": "Content Creation",
+  "priority": 19,
+  "prompt": "# Visual Presentation\n\nUse this workflow only for a new PPT/PPTX where the user explicitly requests a beautiful, premium, keynote, pitch, launch, marketing, roadshow, editorial, cinematic, or highly visual result. Do not use it to edit an existing PPTX or for a data-heavy editable deck.\n\nInputs:\n- Language: {{language}}\n- Style: {{style}}\n- Audience: {{audience}}\n- Slide count: {{slide_count}}\n- Output directory: {{output_dir}}\n\nRequired workflow:\n1. Resolve the project directory. If {{output_dir}} is empty, use `{artifactDir}/visual-presentation`. The first final file is `{artifactDir}/visual-presentation/output/presentation.pptx`; later builds must preserve it and use presentation-v2.pptx, presentation-v3.pptx, and so on. Editable content is `{artifactDir}/visual-presentation/deck.json`; QA is `{artifactDir}/visual-presentation/qa-report.json`.\n2. Run `node {baseDir}/scripts/preflight.mjs`.\n3. Read `{baseDir}/SKILL.md` completely and follow its hybrid artwork-plus-native-text workflow.\n4. Scaffold with `node {baseDir}/scripts/bootstrap_project.mjs --project-dir \"<project dir>\" --title \"<deck title>\" --language \"<resolved language>\" --style \"<resolved style>\"`.\n5. Write the complete deck narrative to `<project dir>/deck.json` and all final image prompts to `<project dir>/prompts/` before generating artwork.\n6. Generate text-free slide artwork with `generate_image`, `aspectRatio: \"16:9\"`, and normally `imageSize: \"2K\"`. Reserve the quiet region declared by each slide's textPlacement.\n7. Keep every title, paragraph, number, label, and citation out of the bitmap and in deck.json so it remains editable.\n8. Compile once with `node {baseDir}/scripts/merge_to_pptx.mjs --project-dir \"<project dir>\"`.\n9. Inspect `<project dir>/qa-report.json` and the rendered deck. Fix the same source project and rebuild.\n10. Deliver exactly one newly generated PPTX using the path reported by the compiler; never call create_presentation or generate_presentation.\n\nSuccess criteria:\n- The result is visually image-led rather than a repeated card template.\n- Chinese and English copy remains readable and editable as native text.\n- The output is exactly one new PPTX plus its source project and QA report.\n- Important claims and numeric data are not invented by image generation.",
+  "parameters": [
+    {
+      "name": "language",
+      "type": "select",
+      "description": "Primary deck language",
+      "required": false,
+      "default": "auto",
+      "options": ["auto", "chinese", "english", "mixed"]
+    },
+    {
+      "name": "style",
+      "type": "select",
+      "description": "Visual direction adapted from Baoyu's style system",
+      "required": false,
+      "default": "auto",
+      "options": [
+        "auto",
+        "bold-editorial",
+        "corporate",
+        "editorial-infographic",
+        "dark-atmospheric",
+        "minimal",
+        "notion",
+        "blueprint",
+        "scientific",
+        "watercolor",
+        "vector-illustration"
+      ]
+    },
+    {
+      "name": "audience",
+      "type": "string",
+      "description": "Primary audience",
+      "required": false
+    },
+    {
+      "name": "slide_count",
+      "type": "number",
+      "description": "Target slide count; normally 6 to 12",
+      "required": false,
+      "default": 8
+    },
+    {
+      "name": "output_dir",
+      "type": "string",
+      "input": "folder",
+      "description": "Workspace-local project directory",
+      "required": false
+    }
+  ],
+  "enabled": true,
+  "requires": {
+    "tools": ["generate_image", "run_command"]
+  },
+  "invocation": {
+    "userInvocable": true
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "NeoWorker; visual references adapted from Jim Liu's Baoyu Skills",
+    "license": "MIT",
+    "homepage": "https://github.com/jimliu/baoyu-skills/tree/main/skills/baoyu-slide-deck",
+    "repository": "https://github.com/jimliu/baoyu-skills",
+    "tags": [
+      "presentation",
+      "powerpoint",
+      "ppt",
+      "pptx",
+      "visual deck",
+      "keynote",
+      "pitch deck",
+      "路演",
+      "发布会",
+      "好看的PPT"
+    ],
+    "routing": {
+      "useWhen": "Use for creating a new PowerPoint when the user explicitly wants a beautiful, premium, visual, keynote, pitch, product-launch, marketing, roadshow, editorial, cinematic, or showcase-style deck.",
+      "dontUseWhen": "Do not use for editing an existing PPTX, data-heavy native chart work, fully editable visual geometry, Word/Excel work, or a request that does not value visual impact.",
+      "outputs": "One image-led PPTX with editable native text, source deck.json, saved image prompts, generated artwork, and a QA report.",
+      "successCriteria": "The deck has a distinctive visual narrative, readable native Chinese/English text, no fake text baked into images, and exactly one final PPTX.",
+      "expectedArtifacts": [
+        "visual-presentation/output/presentation.pptx",
+        "visual-presentation/deck.json",
+        "visual-presentation/qa-report.json"
+      ],
+      "keywords": [
+        "好看",
+        "漂亮",
+        "发布会",
+        "路演",
+        "高级感",
+        "视觉",
+        "好看的ppt",
+        "漂亮的ppt",
+        "高级感ppt",
+        "视觉型ppt",
+        "发布会ppt",
+        "路演ppt",
+        "营销ppt",
+        "宣传ppt",
+        "产品发布会",
+        "pitch deck",
+        "keynote",
+        "beautiful presentation",
+        "visual presentation",
+        "premium deck",
+        "cinematic deck",
+        "editorial deck"
+      ],
+      "examples": {
+        "positive": [
+          "帮我做一份好看、有发布会质感的产品介绍 PPT。",
+          "把这份方案做成高级感的路演 PPT，不要有 AI 模板味。",
+          "Create a cinematic product launch presentation.",
+          "Make a polished visual pitch deck for investors."
+        ],
+        "negative": [
+          "修改这个现有 PPTX 的第三页。",
+          "做一份包含大量可编辑财务图表的季度分析 PPT。",
+          "帮我写一份 Word 报告。",
+          "分析这份演示文稿，但不要生成文件。"
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "high"
+    }
+  }
+}

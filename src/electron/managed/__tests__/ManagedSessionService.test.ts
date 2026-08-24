@@ -1,0 +1,1148 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { AgentRoleRepository } from "../../agents/AgentRoleRepository";
+import { ChannelRepository, TaskEventRepository, TaskRepository } from "../../database/repositories";
+import { DatabaseManager } from "../../database/schema";
+import { MCPSettingsManager } from "../../mcp/settings";
+import { RoutineService } from "../../routines/service";
+import { ManagedSessionService } from "../ManagedSessionService";
+
+const nativeSqliteAvailable = await import("better-sqlite3")
+  .then((module) => {
+    try {
+      const Database = module.default;
+      const probe = new Database(":memory:");
+      probe.close();
+      return true;
+    } catch {
+      return false;
+    }
+  })
+  .catch(() => false);
+
+const describeWithSqlite = nativeSqliteAvailable ? describe : describe.skip;
+
+describeWithSqlite("ManagedSessionService", () => {
+  let tmpDir: string;
+  let previousUserDataDir: string | undefined;
+  let manager: DatabaseManager;
+  let db: ReturnType<DatabaseManager["getDatabase"]>;
+  let taskRepo: TaskRepository;
+  let taskEventRepo: TaskEventRepository;
+  let channelRepo: ChannelRepository;
+  let roleRepo: AgentRoleRepository;
+  let service: ManagedSessionService;
+  let daemon: Any;
+
+  const insertWorkspace = (name = "managed-test") => {
+    const workspace = {
+      id: `ws-${Math.random().toString(36).slice(2, 10)}`,
+      name,
+      path: path.join(tmpDir, name),
+      createdAt: Date.now(),
+      permissions: JSON.stringify({
+        read: true,
+        write: true,
+        delete: true,
+        network: true,
+        shell: true,
+      }),
+    };
+    fs.mkdirSync(workspace.path, { recursive: true });
+    db.prepare(
+      `
+        INSERT INTO workspaces (id, name, path, created_at, permissions)
+        VALUES (?, ?, ?, ?, ?)
+      `,
+    ).run(workspace.id, workspace.name, workspace.path, workspace.createdAt, workspace.permissions);
+    return workspace;
+  };
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-managed-session-"));
+    previousUserDataDir = process.env.NEOWORKER_USER_DATA_DIR;
+    process.env.NEOWORKER_USER_DATA_DIR = tmpDir;
+
+    manager = new DatabaseManager();
+    db = manager.getDatabase();
+    taskRepo = new TaskRepository(db);
+    taskEventRepo = new TaskEventRepository(db);
+    channelRepo = new ChannelRepository(db);
+    roleRepo = new AgentRoleRepository(db);
+
+    daemon = {
+      startTask: vi.fn(async (task: Any) => {
+        taskRepo.update(task.id, { status: "executing" });
+        task.status = "executing";
+      }),
+      cancelTask: vi.fn(async (taskId: string) => {
+        taskRepo.update(taskId, {
+          status: "cancelled",
+          terminalStatus: "cancelled",
+          completedAt: Date.now(),
+        });
+      }),
+      resumeTask: vi.fn(async (taskId: string) => {
+        taskRepo.update(taskId, { status: "executing" });
+        return true;
+      }),
+      sendMessage: vi.fn(async () => {}),
+      respondToInputRequest: vi.fn(async () => {}),
+      failTask: vi.fn((taskId: string, message: string) => {
+        taskRepo.update(taskId, { status: "failed", error: message, completedAt: Date.now() });
+      }),
+      teamOrchestrator: {
+        tickRun: vi.fn(async () => {}),
+        cancelRun: vi.fn(async () => {}),
+      },
+    };
+
+    service = new ManagedSessionService(db, daemon);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    manager?.close();
+    if (previousUserDataDir === undefined) {
+      delete process.env.NEOWORKER_USER_DATA_DIR;
+    } else {
+      process.env.NEOWORKER_USER_DATA_DIR = previousUserDataDir;
+    }
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("repairs legacy generic agent names from their saved task description", () => {
+    const created = service.createAgent({
+      name: "Personal Agent",
+      description: "创建一个团队问答智能体，使用工作区里的文档回答问题。",
+      systemPrompt: "Answer questions from workspace files.",
+      executionMode: "solo",
+    });
+
+    expect(service.listAgents().find((agent) => agent.id === created.agent.id)?.name).toBe(
+      "团队问答智能体",
+    );
+    expect(service.getAgent(created.agent.id)?.agent.name).toBe("团队问答智能体");
+  });
+
+  it("pins managed sessions to the agent version used at creation time", async () => {
+    const workspace = insertWorkspace();
+    const environment = service.createEnvironment({
+      name: "Local env",
+      config: {
+        workspaceId: workspace.id,
+        enableShell: true,
+      },
+    });
+    const created = service.createAgent({
+      name: "Pinned agent",
+      systemPrompt: "You are version one.",
+      executionMode: "solo",
+    });
+
+    const firstSession = await service.createSession({
+      agentId: created.agent.id,
+      environmentId: environment.id,
+      title: "First run",
+      initialEvent: {
+        type: "user.message",
+        content: [{ type: "text", text: "First request" }],
+      },
+    });
+
+    const updated = service.updateAgent(created.agent.id, {
+      name: "Pinned agent v2",
+      systemPrompt: "You are version two.",
+      executionMode: "solo",
+    });
+
+    const secondSession = await service.createSession({
+      agentId: created.agent.id,
+      environmentId: environment.id,
+      title: "Second run",
+      initialEvent: {
+        type: "user.message",
+        content: [{ type: "text", text: "Second request" }],
+      },
+    });
+
+    expect(daemon.startTask).toHaveBeenCalledTimes(2);
+    expect(firstSession.agentVersion).toBe(1);
+    expect(service.getSession(firstSession.id)?.agentVersion).toBe(1);
+    expect(updated.agent.currentVersion).toBe(2);
+    expect(secondSession.agentVersion).toBe(2);
+  });
+
+  it("creates agent-panel sessions with isolated backing tasks and follow-up messages", async () => {
+    const workspace = insertWorkspace("agent-panel-session");
+    const environment = service.createEnvironment({
+      name: "Panel env",
+      config: { workspaceId: workspace.id },
+    });
+    const created = service.createAgent({
+      name: "Panel tester",
+      systemPrompt: "Answer panel tests.",
+      executionMode: "solo",
+    });
+
+    const panelSession = await service.createSession({
+      agentId: created.agent.id,
+      environmentId: environment.id,
+      title: "Panel tester agent test",
+      surface: "agent_panel",
+      initialEvent: {
+        type: "user.message",
+        content: [{ type: "text", text: "Run a local panel test" }],
+      },
+    });
+    await service.createSession({
+      agentId: created.agent.id,
+      environmentId: environment.id,
+      title: "Normal runtime run",
+      initialEvent: {
+        type: "user.message",
+        content: [{ type: "text", text: "Run normally" }],
+      },
+    });
+
+    expect(panelSession.surface).toBe("agent_panel");
+    expect(service.getSession(panelSession.id)?.surface).toBe("agent_panel");
+    expect(taskRepo.findById(panelSession.backingTaskId!)?.source).toBe("managed_agent_panel");
+    expect(
+      service
+        .listSessions({ agentId: created.agent.id, surface: "agent_panel" })
+        .map((session) => session.id),
+    ).toEqual([panelSession.id]);
+
+    await service.sendUserMessage(panelSession.id, [
+      { type: "text", text: "Follow up from the panel" },
+    ]);
+
+    expect(daemon.sendMessage).toHaveBeenCalledWith(
+      panelSession.backingTaskId,
+      "Follow up from the panel",
+    );
+    expect(
+      service
+        .listSessionEvents(panelSession.id)
+        .filter((event) => event.type === "user.message")
+        .map((event) => event.payload),
+    ).toEqual([
+      { content: [{ type: "text", text: "Run a local panel test" }] },
+      { content: [{ type: "text", text: "Follow up from the panel" }] },
+    ]);
+  });
+
+  it("creates sessions and reports missing MCP requirements when environment MCP refs are stale", async () => {
+    const workspace = insertWorkspace("missing-mcp-session");
+    const environment = service.createEnvironment({
+      name: "Missing MCP env",
+      config: {
+        workspaceId: workspace.id,
+        allowedMcpServerIds: ["missing-finance-server"],
+      },
+    });
+    const created = service.createAgent({
+      name: "Missing MCP tester",
+      systemPrompt: "Use configured tools when they are available.",
+      executionMode: "solo",
+      metadata: {
+        studio: {
+          defaultEnvironmentId: environment.id,
+        },
+      },
+    });
+
+    vi.spyOn(MCPSettingsManager, "loadSettings").mockReturnValue({ toolNamePrefix: "mcp_" } as Any);
+    vi.spyOn(MCPSettingsManager, "getServer").mockReturnValue(undefined);
+
+    const catalog = service.getRuntimeToolCatalog(created.agent.id);
+    expect(catalog.missingConnections).toMatchObject([
+      {
+        id: "missing-finance-server",
+        kind: "mcp_server",
+        status: "missing",
+      },
+    ]);
+
+    const session = await service.createSession({
+      agentId: created.agent.id,
+      environmentId: environment.id,
+      title: "Run with stale MCP ref",
+      initialEvent: {
+        type: "user.message",
+        content: [{ type: "text", text: "Continue without the missing finance server" }],
+      },
+    });
+
+    const task = taskRepo.findById(session.backingTaskId!);
+    expect(task?.agentConfig?.allowedTools).toEqual([]);
+    expect(task?.prompt).toContain("Unavailable integrations:");
+    expect(task?.prompt).toContain("Missing Finance Server");
+    expect(daemon.startTask).toHaveBeenCalledWith(expect.objectContaining({ id: session.backingTaskId }));
+  });
+
+  it("creates an active managed agent from a builder plan with metadata, mirror role, and safe routines", async () => {
+    const workspace = insertWorkspace();
+    vi.spyOn(MCPSettingsManager, "getSettingsForDisplay").mockReturnValue({
+      servers: [
+        { id: "slack", name: "Slack", enabled: true, transport: "stdio" },
+        { id: "gmail", name: "Gmail", enabled: false, transport: "stdio" },
+      ],
+      autoConnect: true,
+      toolNamePrefix: "mcp_",
+      maxReconnectAttempts: 5,
+      reconnectDelayMs: 1000,
+      registryEnabled: false,
+      registryUrl: "",
+      hostEnabled: false,
+    } as Any);
+    const routineService = new RoutineService({
+      db,
+      getCronService: () => null,
+      getEventTriggerService: () => null,
+      loadHooksSettings: () => ({ enabled: false } as Any),
+      saveHooksSettings: () => {},
+    });
+    const builderService = new ManagedSessionService(db, daemon, {
+      getRoutineService: () => routineService,
+    });
+
+    const created = await builderService.createAgentFromBuilderPlan({
+      workspaceId: workspace.id,
+      activate: true,
+      plan: {
+        id: "plan-1",
+        sourcePrompt: "Summarize Slack and draft follow-ups",
+        name: "Follow Up Agent",
+        subtitle: "Private in NeoWorker",
+        description: "Summarize Slack and draft follow-ups.",
+        icon: "Bot",
+        color: "#1570ef",
+        workflowBrief: "Summarize Slack and draft follow-ups.",
+        capabilities: ["Summarize context"],
+        selectedToolFamilies: ["communication", "search"],
+        selectedMcpServers: ["slack", "gmail"],
+        connectedMcpServers: ["slack"],
+        recommendedMissingIntegrations: [
+          {
+            id: "gmail",
+            kind: "connector",
+            label: "Gmail",
+            status: "needs_auth",
+            reason: "Connect Gmail before sending follow-ups.",
+          },
+        ],
+        missingConnections: [
+          {
+            id: "gmail",
+            kind: "connector",
+            label: "Gmail",
+            status: "needs_auth",
+            reason: "Connect Gmail before sending follow-ups.",
+          },
+        ],
+        selectedSkills: ["briefing"],
+        selectionRequirements: [],
+        instructions: "You are a private follow-up agent.",
+        operatingNotes: "Ask before sending anything.",
+        starterPrompts: [
+          {
+            id: "run-now",
+            title: "Run this now",
+            prompt: "Run the follow-up workflow.",
+          },
+        ],
+        scheduleConfig: { enabled: false, mode: "manual" },
+        routines: [
+          {
+            name: "Manual follow-up",
+            enabled: true,
+            trigger: { type: "manual", enabled: true },
+          },
+          {
+            name: "Vague morning run",
+            enabled: true,
+            trigger: { type: "schedule", enabled: true, cadenceMinutes: 1440 },
+          },
+        ],
+        memoryConfig: { mode: "default", sources: ["workspace"] },
+        approvalPolicy: { autoApproveReadOnly: true, requireApprovalFor: ["send email"] },
+        sharing: { visibility: "private", ownerLabel: "You" },
+        deployment: { surfaces: ["chatgpt"] },
+        enableShell: false,
+        enableBrowser: true,
+        enableComputerUse: false,
+        rationale: ["Matched communication workflow."],
+        checklist: ["Connect Gmail"],
+        generatedAt: 123,
+      },
+    });
+
+    expect(created.agent.status).toBe("active");
+    expect(created.environment.config.allowedMcpServerIds).toEqual(["slack"]);
+    expect(created.routines).toHaveLength(1);
+    expect(created.routines[0]?.trigger.type).toBe("manual");
+
+    const studio = (created.version.metadata?.studio || {}) as Any;
+    expect(studio.subtitle).toBe("Private in NeoWorker");
+    expect(studio.appearance).toEqual({
+      icon: "Bot",
+      color: "#1570ef",
+      cardVisual: "background",
+    });
+    expect(studio.starterPrompts[0]?.title).toBe("Run this now");
+    expect(studio.missingConnections[0]?.label).toBe("Gmail");
+    expect(studio.sharing).toEqual({ visibility: "private", ownerLabel: "You" });
+    expect(studio.defaultEnvironmentId).toBe(created.environment.id);
+
+    const mirror = roleRepo.findAll(true).find((role) => {
+      if (!role.soul) return false;
+      return JSON.parse(role.soul).managedAgentId === created.agent.id;
+    });
+    expect(mirror?.displayName).toBe("Follow Up Agent");
+    expect(JSON.parse(mirror?.soul || "{}").studio?.appearance?.cardVisual).toBe("background");
+  });
+
+  it("rejects create-from-plan while required builder choices are unresolved", async () => {
+    const workspace = insertWorkspace("unresolved-builder-choice");
+
+    await expect(
+      service.createAgentFromBuilderPlan({
+        workspaceId: workspace.id,
+        activate: true,
+        plan: {
+          id: "plan-unresolved",
+          sourcePrompt: "Summarize my emails",
+          name: "Email Agent",
+          subtitle: "Private in NeoWorker",
+          description: "Summarize emails.",
+          icon: "Bot",
+          color: "#1570ef",
+          workflowBrief: "Summarize emails.",
+          capabilities: ["Summarize context"],
+          selectedToolFamilies: ["search"],
+          selectedMcpServers: [],
+          connectedMcpServers: [],
+          recommendedMissingIntegrations: [],
+          missingConnections: [],
+          selectedSkills: [],
+          selectionRequirements: [
+            {
+              id: "email-choice",
+              kind: "integration",
+              title: "Choose email source",
+              reason: "More than one email source is available.",
+              required: true,
+              options: [
+                {
+                  id: "gmail",
+                  label: "Gmail",
+                  status: "available",
+                  selectedMcpServers: ["gmail"],
+                },
+              ],
+            },
+          ],
+          instructions: "You are a private email agent.",
+          operatingNotes: "Ask before sending anything.",
+          starterPrompts: [],
+          scheduleConfig: { enabled: false, mode: "manual" },
+          routines: [],
+          memoryConfig: { mode: "default", sources: ["workspace"] },
+          approvalPolicy: { autoApproveReadOnly: true, requireApprovalFor: ["send email"] },
+          sharing: { visibility: "private", ownerLabel: "You" },
+          deployment: { surfaces: ["chatgpt"] },
+          enableShell: false,
+          enableBrowser: true,
+          enableComputerUse: false,
+          rationale: [],
+          checklist: [],
+          generatedAt: 123,
+        },
+      }),
+    ).rejects.toThrow("Choose email source");
+  });
+
+  it("applies managed shell access to the task without persisting workspace permissions", async () => {
+    const workspace = insertWorkspace("shell-session");
+    db.prepare("UPDATE workspaces SET permissions = ? WHERE id = ?").run(
+      JSON.stringify({
+        read: true,
+        write: true,
+        delete: true,
+        network: true,
+        shell: false,
+      }),
+      workspace.id,
+    );
+
+    const environment = service.createEnvironment({
+      name: "Scoped shell env",
+      config: {
+        workspaceId: workspace.id,
+        enableShell: true,
+      },
+    });
+    const created = service.createAgent({
+      name: "Scoped shell agent",
+      systemPrompt: "Use shell only for this session.",
+      executionMode: "solo",
+    });
+
+    const session = await service.createSession({
+      agentId: created.agent.id,
+      environmentId: environment.id,
+      title: "Scoped shell run",
+    });
+
+    const backingTask = taskRepo.findById(session.backingTaskId!);
+    const storedWorkspace = db
+      .prepare("SELECT permissions FROM workspaces WHERE id = ?")
+      .get(workspace.id) as { permissions: string };
+
+    expect(backingTask?.agentConfig?.shellAccess).toBe(true);
+    expect(JSON.parse(storedWorkspace.permissions).shell).toBe(false);
+  });
+
+  it("supports partial managed agent updates by carrying forward unspecified version fields", () => {
+    const created = service.createAgent({
+      name: "Partial update agent",
+      systemPrompt: "Version one system prompt.",
+      executionMode: "solo",
+      runtimeDefaults: {
+        allowUserInput: false,
+        maxTurns: 5,
+      },
+    });
+
+    const updated = service.updateAgent(created.agent.id, {
+      name: "Renamed partial agent",
+    });
+
+    expect(updated.agent.name).toBe("Renamed partial agent");
+    expect(updated.version.systemPrompt).toBe("Version one system prompt.");
+    expect(updated.version.executionMode).toBe("solo");
+    expect(updated.version.runtimeDefaults).toMatchObject({
+      allowUserInput: false,
+      maxTurns: 5,
+    });
+  });
+
+  it("reuses the managed agent mirror when saved metadata omits the mirror link", () => {
+    const workspace = insertWorkspace("mirror-link-save");
+    const environment = service.createEnvironment({
+      name: "Mirror link env",
+      config: { workspaceId: workspace.id },
+    });
+    const created = service.createAgent({
+      name: "Mirror Link Agent",
+      systemPrompt: "Version one.",
+      executionMode: "solo",
+      metadata: {
+        studio: {
+          defaultEnvironmentId: environment.id,
+          workflowBrief: "Handle mirrored work.",
+        },
+      },
+    });
+    const originalStudio = created.version.metadata?.studio as Any;
+    const { legacyMirror: _legacyMirror, ...studioWithoutLegacyMirror } = originalStudio;
+
+    const updated = service.updateAgent(created.agent.id, {
+      systemPrompt: "Version two.",
+      metadata: {
+        studio: {
+          ...studioWithoutLegacyMirror,
+          workflowBrief: "Handle updated mirrored work.",
+        },
+      },
+    });
+    const updatedStudio = updated.version.metadata?.studio as Any;
+    const mirroredRoles = roleRepo.findAll(true).filter((role) => {
+      const soul = JSON.parse(role.soul || "{}");
+      return soul.managedAgentId === created.agent.id;
+    });
+
+    expect(updatedStudio?.legacyMirror?.agentRoleId).toBe(originalStudio?.legacyMirror?.agentRoleId);
+    expect(mirroredRoles).toHaveLength(1);
+    expect(mirroredRoles[0]?.systemPrompt).toBe("Version two.");
+  });
+
+  it("allocates a unique legacy mirror role name when a non-managed role already uses the slug", () => {
+    const workspace = insertWorkspace("mirror-name-collision");
+    const environment = service.createEnvironment({
+      name: "Mirror collision env",
+      config: { workspaceId: workspace.id },
+    });
+    const existingRole = roleRepo.create({
+      name: "managed-collision-agent",
+      displayName: "Existing collision role",
+      roleKind: "custom",
+      systemPrompt: "I already use this name.",
+    });
+
+    const created = service.createAgent({
+      name: "Collision Agent",
+      systemPrompt: "Create a managed mirror.",
+      executionMode: "solo",
+      metadata: {
+        studio: {
+          defaultEnvironmentId: environment.id,
+          workflowBrief: "Mirror without conflicting with existing roles.",
+        },
+      },
+    });
+    const studio = created.version.metadata?.studio as Any;
+    const mirroredRole = roleRepo.findById(studio?.legacyMirror?.agentRoleId);
+    const soul = JSON.parse(mirroredRole?.soul || "{}");
+
+    expect(existingRole.name).toBe("managed-collision-agent");
+    expect(mirroredRole?.id).not.toBe(existingRole.id);
+    expect(mirroredRole?.name).toMatch(/^managed-collision-agent-[a-zA-Z0-9]+/);
+    expect(soul.managedAgentId).toBe(created.agent.id);
+  });
+
+  it("reuses a concurrently created legacy mirror role after a role-name constraint race", () => {
+    const workspace = insertWorkspace("mirror-role-race");
+    const environment = service.createEnvironment({
+      name: "Mirror race env",
+      config: { workspaceId: workspace.id },
+    });
+    const originalCreate = AgentRoleRepository.prototype.create;
+    let injectedConstraint = false;
+    vi.spyOn(AgentRoleRepository.prototype, "create").mockImplementation(function (
+      this: AgentRoleRepository,
+      request,
+    ) {
+      if (!injectedConstraint && request.name === "managed-race-agent") {
+        injectedConstraint = true;
+        originalCreate.call(this, request);
+        const error = new Error("UNIQUE constraint failed: agent_roles.name") as Error & {
+          code: string;
+        };
+        error.code = "SQLITE_CONSTRAINT_UNIQUE";
+        throw error;
+      }
+      return originalCreate.call(this, request);
+    });
+
+    const created = service.createAgent({
+      name: "Race Agent",
+      systemPrompt: "Create a managed mirror without hard failing.",
+      executionMode: "solo",
+      metadata: {
+        studio: {
+          defaultEnvironmentId: environment.id,
+          workflowBrief: "Recover from concurrent mirror creation.",
+        },
+      },
+    });
+    const studio = created.version.metadata?.studio as Any;
+    const mirroredRole = roleRepo.findById(studio?.legacyMirror?.agentRoleId);
+    const mirroredRoles = roleRepo.findAll(true).filter((role) => {
+      const soul = JSON.parse(role.soul || "{}");
+      return soul.managedAgentId === created.agent.id;
+    });
+
+    expect(injectedConstraint).toBe(true);
+    expect(mirroredRole?.name).toBe("managed-race-agent");
+    expect(mirroredRoles).toHaveLength(1);
+  });
+
+  it("sanitizes bridged task event payloads before persisting managed session events", async () => {
+    const workspace = insertWorkspace();
+    const environment = service.createEnvironment({
+      name: "Local env",
+      config: { workspaceId: workspace.id },
+    });
+    const created = service.createAgent({
+      name: "Sanitizer",
+      systemPrompt: "Keep things safe.",
+      executionMode: "solo",
+    });
+    const session = await service.createSession({
+      agentId: created.agent.id,
+      environmentId: environment.id,
+      title: "Sanitized run",
+    });
+
+    taskEventRepo.create({
+      taskId: session.backingTaskId!,
+      timestamp: Date.now(),
+      type: "tool_call",
+      payload: {
+        prompt: "raw prompt should not leave storage",
+        apiKey: "super-secret",
+        nested: {
+          authorization: "Bearer hidden",
+        },
+        message: "x".repeat(13_000),
+      },
+    });
+
+    const events = service.listSessionEvents(session.id);
+    const bridged = events.find((event) => event.type === "tool.call");
+
+    expect(bridged?.payload.prompt).toBe("[REDACTED]");
+    expect(bridged?.payload.apiKey).toBe("[REDACTED]");
+    expect((bridged?.payload.nested as Any)?.authorization).toBe("[REDACTED]");
+    expect(typeof bridged?.payload.message).toBe("string");
+    expect(String(bridged?.payload.message)).toContain("[... truncated");
+  });
+
+  it("fails closed when an environment MCP allowlist cannot resolve tool metadata", async () => {
+    const workspace = insertWorkspace();
+    const loadSettingsSpy = vi
+      .spyOn(MCPSettingsManager, "loadSettings")
+      .mockReturnValue({ toolNamePrefix: "mcp_" } as Any);
+    const getServerSpy = vi.spyOn(MCPSettingsManager, "getServer").mockReturnValue({
+      id: "server-1",
+      name: "Broken server",
+      tools: [],
+    } as Any);
+
+    const environment = service.createEnvironment({
+      name: "Locked env",
+      config: {
+        workspaceId: workspace.id,
+        allowedMcpServerIds: ["server-1"],
+      },
+    });
+    const created = service.createAgent({
+      name: "Fail closed agent",
+      systemPrompt: "Only use approved tools.",
+      executionMode: "solo",
+    });
+
+    await expect(
+      service.createSession({
+        agentId: created.agent.id,
+        environmentId: environment.id,
+        title: "Should fail",
+      }),
+    ).rejects.toThrow(/tool metadata/i);
+
+    expect(loadSettingsSpy).toHaveBeenCalled();
+    expect(getServerSpy).toHaveBeenCalledWith("server-1");
+    expect(daemon.startTask).not.toHaveBeenCalled();
+    expect(db.prepare("SELECT COUNT(1) AS count FROM tasks").get() as Any).toMatchObject({ count: 0 });
+  });
+
+  it("starts team-mode sessions through the daemon path and blocks direct follow-up user messages", async () => {
+    const workspace = insertWorkspace();
+    const roleRepo = new AgentRoleRepository(db);
+    const lead = roleRepo.create({
+      name: "managed-team-lead",
+      displayName: "Managed Team Lead",
+      capabilities: [],
+    });
+    const environment = service.createEnvironment({
+      name: "Team env",
+      config: { workspaceId: workspace.id },
+    });
+    const created = service.createAgent({
+      name: "Team agent",
+      systemPrompt: "Coordinate the team.",
+      executionMode: "team",
+      teamTemplate: {
+        leadAgentRoleId: lead.id,
+        memberAgentRoleIds: [lead.id],
+        maxParallelAgents: 1,
+        collaborativeMode: true,
+      },
+    });
+
+    const session = await service.createSession({
+      agentId: created.agent.id,
+      environmentId: environment.id,
+      title: "Team run",
+      initialEvent: {
+        type: "user.message",
+        content: [{ type: "text", text: "Investigate the repo." }],
+      },
+    });
+
+    expect(daemon.startTask).toHaveBeenCalledTimes(1);
+    expect(session.backingTaskId).toBeTruthy();
+    expect(session.backingTeamRunId).toBeTruthy();
+    expect(service.getSession(session.id)?.status).toBe("running");
+
+    await expect(
+      service.sendEvent(session.id, {
+        type: "user.message",
+        content: [{ type: "text", text: "One more thing" }],
+      }),
+    ).rejects.toThrow(/team-mode managed sessions/i);
+    expect(daemon.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("enforces managed approval policy on direct sessions and mirrored agent roles", async () => {
+    const workspace = insertWorkspace("approval-session");
+    const environment = service.createEnvironment({
+      name: "Approval env",
+      config: { workspaceId: workspace.id },
+    });
+    const created = service.createAgent({
+      name: "Approval agent",
+      systemPrompt: "Handle approvals carefully.",
+      executionMode: "solo",
+      metadata: {
+        studio: {
+          approvalPolicy: {
+            autoApproveReadOnly: true,
+            requireApprovalFor: ["send email", "edit spreadsheet"],
+            escalationChannel: "#ops-approvals",
+          },
+        },
+      },
+    });
+
+    const session = await service.createSession({
+      agentId: created.agent.id,
+      environmentId: environment.id,
+      title: "Approval run",
+      initialEvent: {
+        type: "user.message",
+        content: [{ type: "text", text: "Run the workflow." }],
+      },
+    });
+
+    const backingTask = taskRepo.findById(session.backingTaskId!);
+    expect(backingTask?.agentConfig?.allowUserInput).toBe(true);
+    expect(backingTask?.agentConfig?.pauseForRequiredDecision).toBe(true);
+    expect(backingTask?.agentConfig?.autoApproveTypes).toEqual(["network_access"]);
+
+    const roleRepo = new AgentRoleRepository(db);
+    const mirroredRole = roleRepo.findAll(false).find((role) => role.displayName === "Approval agent");
+    expect(mirroredRole).toBeTruthy();
+    const soul = JSON.parse(mirroredRole!.soul || "{}");
+    expect(soul.autonomyPolicy).toMatchObject({
+      preset: "manual",
+      allowUserInput: true,
+      pauseForRequiredDecision: true,
+      autoApproveTypes: ["network_access"],
+    });
+  });
+
+  it("does not mint admin access for arbitrary principals when reading workspace permissions", () => {
+    const workspace = insertWorkspace("rbac");
+
+    const snapshot = service.getMyWorkspacePermissions(workspace.id, "attacker-user");
+    const attackerMembership = db
+      .prepare(
+        `SELECT role
+         FROM agent_workspace_memberships
+         WHERE workspace_id = ? AND principal_id = ?`,
+      )
+      .get(workspace.id, "attacker-user") as { role?: string } | undefined;
+
+    expect(snapshot.principalId).toBe("local-user");
+    expect(snapshot.role).toBe("admin");
+    expect(snapshot.canManageMemberships).toBe(true);
+    expect(attackerMembership).toBeUndefined();
+  });
+
+  it("preserves authored Slack targets when suspending an agent while removing live routing", async () => {
+    const workspace = insertWorkspace("suspend-slack");
+    const environment = service.createEnvironment({
+      name: "Slack env",
+      config: { workspaceId: workspace.id },
+    });
+    const channel = channelRepo.create({
+      type: "slack",
+      name: "Support Slack",
+      enabled: true,
+      status: "connected",
+      config: {},
+      securityConfig: { mode: "pairing" },
+    });
+    const created = service.createAgent({
+      name: "Slacky",
+      systemPrompt: "Handle Slack work.",
+      executionMode: "solo",
+      metadata: {
+        studio: {
+          deployment: { surfaces: ["slack"] },
+          defaultEnvironmentId: environment.id,
+          channelTargets: [
+            {
+              channelType: "slack",
+              channelId: channel.id,
+              channelName: channel.name,
+              enabled: true,
+              progressRelayMode: "curated",
+              securityMode: "allowlist",
+            },
+          ],
+        },
+      },
+    });
+
+    await service.publishAgent(created.agent.id);
+    await service.suspendAgent(created.agent.id);
+
+    const suspended = service.getAgent(created.agent.id);
+    const studio = suspended?.currentVersion?.metadata?.studio as Any;
+    const updatedChannel = channelRepo.findById(channel.id);
+
+    expect(studio?.channelTargets).toHaveLength(1);
+    expect(studio?.channelTargets?.[0]?.channelId).toBe(channel.id);
+    expect(updatedChannel?.config?.defaultAgentRoleId).toBeUndefined();
+    expect(updatedChannel?.config?.allowedAgentRoleIds || []).not.toContain(
+      studio?.legacyMirror?.agentRoleId,
+    );
+  });
+
+  it("uses the routine service when suspending managed agent routines", async () => {
+    const workspace = insertWorkspace("suspend-routine-sync");
+    const environment = service.createEnvironment({
+      name: "Routine env",
+      config: { workspaceId: workspace.id },
+    });
+    const created = service.createAgent({
+      name: "Routine agent",
+      systemPrompt: "Run scheduled work.",
+      executionMode: "solo",
+      metadata: {
+        studio: {
+          defaultEnvironmentId: environment.id,
+        },
+      },
+    });
+    const routineId = "routine-sync-test";
+    const now = Date.now();
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS automation_routines (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        workspace_id TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        connectors_json TEXT NOT NULL,
+        triggers_json TEXT NOT NULL,
+        definition_json TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `);
+    const definition = {
+      id: routineId,
+      name: "Daily routine",
+      enabled: true,
+      workspaceId: workspace.id,
+      instructions: "Run scheduled work.",
+      prompt: "Run scheduled work.",
+      executionTarget: {
+        kind: "managed_environment",
+        managedEnvironmentId: environment.id,
+      },
+      contextBindings: {
+        metadata: { managedAgentId: created.agent.id },
+      },
+      triggers: [{ id: "manual-trigger", type: "manual", enabled: true }],
+      outputs: [{ kind: "task_only" }],
+      approvalPolicy: { mode: "inherit" },
+      connectorPolicy: { mode: "prefer", connectorIds: [] },
+      connectors: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    db.prepare(
+      `INSERT INTO automation_routines
+       (id, name, enabled, workspace_id, prompt, connectors_json, triggers_json, definition_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      routineId,
+      definition.name,
+      1,
+      workspace.id,
+      definition.prompt,
+      "[]",
+      JSON.stringify(definition.triggers),
+      JSON.stringify(definition),
+      now,
+      now,
+    );
+    const updateRoutine = vi.fn(async (_routineId: string, patch: { enabled?: boolean }) => {
+      db.prepare("UPDATE automation_routines SET enabled = ?, updated_at = ? WHERE id = ?").run(
+        patch.enabled ? 1 : 0,
+        Date.now(),
+        _routineId,
+      );
+      return { ...definition, enabled: patch.enabled ?? definition.enabled };
+    });
+    const serviceWithRoutineSync = new ManagedSessionService(db, daemon, {
+      getRoutineService: () => ({ update: updateRoutine }) as Any,
+    });
+
+    await serviceWithRoutineSync.suspendAgent(created.agent.id);
+
+    expect(updateRoutine).toHaveBeenCalledWith(routineId, { enabled: false });
+  });
+
+  it("returns workpapers to viewers without requiring audit permission", async () => {
+    const workspace = insertWorkspace("viewer-workpaper");
+    const environment = service.createEnvironment({
+      name: "Viewer env",
+      config: { workspaceId: workspace.id },
+    });
+    const created = service.createAgent({
+      name: "Viewer agent",
+      systemPrompt: "Generate a workpaper.",
+      executionMode: "solo",
+      metadata: {
+        studio: {
+          defaultEnvironmentId: environment.id,
+        },
+      },
+    });
+    const session = await service.createSession({
+      agentId: created.agent.id,
+      environmentId: environment.id,
+      title: "Viewer session",
+    });
+
+    service.updateWorkspaceMembership({
+      workspaceId: workspace.id,
+      principalId: "local-user",
+      role: "viewer",
+    });
+
+    const workpaper = service.getSessionWorkpaper(session.id);
+
+    expect(workpaper.sessionId).toBe(session.id);
+    expect(workpaper.auditTrail).toEqual([]);
+  });
+
+  it("reuses the source agent role when converting personas into managed agents", () => {
+    const workspace = insertWorkspace("convert-role");
+    const role = roleRepo.create({
+      name: "support-pilot",
+      displayName: "Support Pilot",
+      description: "Answer support questions.",
+      roleKind: "custom",
+      capabilities: ["research", "communicate"],
+      systemPrompt: "Help customers.",
+    });
+
+    const converted = service.convertAgentRoleToManagedAgent({
+      agentRoleId: role.id,
+      workspaceId: workspace.id,
+    });
+    const detail = service.getAgent(converted.agent.id);
+    const studio = detail?.currentVersion?.metadata?.studio as Any;
+    const managedRoles = roleRepo.findAll(true).filter((candidate) => {
+      const soul = JSON.parse(candidate.soul || "{}");
+      return soul.managedAgentId === converted.agent.id;
+    });
+
+    expect(studio?.legacyMirror?.agentRoleId).toBe(role.id);
+    expect(managedRoles).toHaveLength(1);
+    expect(managedRoles[0]?.id).toBe(role.id);
+  });
+
+  it("only reports Slack deployment run health from Slack-backed routine runs", async () => {
+    const workspace = insertWorkspace("slack-health");
+    const environment = service.createEnvironment({
+      name: "Slack health env",
+      config: { workspaceId: workspace.id },
+    });
+    const channel = channelRepo.create({
+      type: "slack",
+      name: "Ops Slack",
+      enabled: true,
+      status: "connected",
+      config: {},
+      securityConfig: { mode: "pairing" },
+    });
+    const created = service.createAgent({
+      name: "Health agent",
+      systemPrompt: "Do health checks.",
+      executionMode: "solo",
+      metadata: {
+        studio: {
+          deployment: { surfaces: ["slack"] },
+          defaultEnvironmentId: environment.id,
+          channelTargets: [
+            {
+              channelType: "slack",
+              channelId: channel.id,
+              channelName: channel.name,
+              enabled: true,
+            },
+          ],
+        },
+      },
+    });
+    await service.publishAgent(created.agent.id);
+
+    const manualSession = await service.createSession({
+      agentId: created.agent.id,
+      environmentId: environment.id,
+      title: "Manual run",
+    });
+    db.prepare("UPDATE managed_sessions SET status = ?, completed_at = ?, updated_at = ? WHERE id = ?").run(
+      "completed",
+      Date.now(),
+      Date.now(),
+      manualSession.id,
+    );
+
+    const health = service.getSlackDeploymentHealth(created.agent.id);
+
+    expect(health.lastSuccessfulRoutedRunId).toBeUndefined();
+    expect(health.lastSuccessfulRoutedRunAt).toBeUndefined();
+    expect(health.lastDeploymentError).toBeUndefined();
+  });
+
+  it("derives unique agent users from recorded requester identities instead of hard-coding one", async () => {
+    const workspace = insertWorkspace("agent-insights");
+    const environment = service.createEnvironment({
+      name: "Insights env",
+      config: { workspaceId: workspace.id },
+    });
+    const created = service.createAgent({
+      name: "Insights agent",
+      systemPrompt: "Track usage.",
+      executionMode: "solo",
+      metadata: {
+        studio: {
+          defaultEnvironmentId: environment.id,
+        },
+      },
+    });
+
+    const first = await service.createSession({
+      agentId: created.agent.id,
+      environmentId: environment.id,
+      title: "First run",
+    });
+    taskEventRepo.create({
+      taskId: first.backingTaskId!,
+      timestamp: Date.now(),
+      type: "task_status",
+      payload: { requestingUserId: "alice" },
+    });
+
+    const second = await service.createSession({
+      agentId: created.agent.id,
+      environmentId: environment.id,
+      title: "Second run",
+    });
+    taskEventRepo.create({
+      taskId: second.backingTaskId!,
+      timestamp: Date.now(),
+      type: "task_status",
+      payload: { requestingUserId: "bob" },
+    });
+
+    const insights = service.getAgentInsights(created.agent.id);
+
+    expect(insights.uniqueUsers).toBe(2);
+  });
+});

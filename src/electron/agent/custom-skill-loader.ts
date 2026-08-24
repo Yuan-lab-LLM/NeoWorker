@@ -1,0 +1,1570 @@
+/**
+ * Custom Skill Loader
+ *
+ * Loads skills from multiple sources with precedence:
+ * - Bundled skills (resources/skills/) - lowest precedence
+ * - Optional external skill directories - medium precedence
+ * - Managed skills (~/Library/Application Support/neoworker/skills/) - medium-high precedence
+ * - Workspace skills (workspace/skills/) - highest precedence
+ *
+ * Skills with the same ID from higher precedence sources override lower ones.
+ */
+
+import * as fs from "fs";
+import * as path from "path";
+import {
+  CapabilitySecurityReport,
+  CustomSkill,
+  SkillSource,
+  SkillStatusEntry,
+  SkillStatusReport,
+  SkillsConfig,
+} from "../../shared/types";
+import { SkillEligibilityChecker, getSkillEligibilityChecker } from "./skill-eligibility";
+import { getSkillRegistry as _getSkillRegistry } from "./skill-registry";
+import { InputSanitizer } from "./security";
+import { getUserDataDir } from "../utils/user-data-dir";
+import { createLogger } from "../utils/logger";
+import { matchesExplicitSkillInvocationPhrase } from "./skill-invocation-utils";
+
+const SKILLS_FOLDER_NAME = "skills";
+const SKILL_FILE_EXTENSION = ".json";
+const RELOAD_DEBOUNCE_MS = 100; // Debounce rapid reload calls
+const logger = createLogger("CustomSkillLoader");
+const DEFAULT_MODEL_SKILL_SHORTLIST_SIZE = 20;
+const DEFAULT_ROUTING_CONFIDENCE_THRESHOLD = 0.55;
+const DEFAULT_SKILL_TEXT_BUDGET_CHARS = 12_000;
+
+export interface SkillLoaderConfig {
+  bundledSkillsDir?: string;
+  managedSkillsDir?: string;
+  workspaceSkillsDir?: string;
+  skillsConfig?: SkillsConfig;
+}
+
+function normalizeExternalSkillDirectories(input: string[] | undefined): string[] {
+  if (!Array.isArray(input)) return [];
+  const normalized = new Set<string>();
+  for (const value of input) {
+    if (typeof value !== "string" || value.trim().length === 0) continue;
+    const resolved = path.resolve(value.trim());
+    if (!path.isAbsolute(resolved)) continue;
+    if (!fs.existsSync(resolved)) continue;
+    try {
+      if (!fs.statSync(resolved).isDirectory()) continue;
+      normalized.add(resolved);
+    } catch {
+      // Ignore unreadable paths.
+    }
+  }
+  return Array.from(normalized.values());
+}
+
+function validateExternalSkillDirectories(input: string[]): void {
+  for (const value of input) {
+    if (typeof value !== "string" || value.trim().length === 0) {
+      throw new Error("External skill directories must be non-empty absolute paths");
+    }
+    const resolved = path.resolve(value.trim());
+    if (!path.isAbsolute(resolved)) {
+      throw new Error(`External skill directory must be absolute: ${value}`);
+    }
+    if (!fs.existsSync(resolved)) {
+      throw new Error(`External skill directory does not exist: ${resolved}`);
+    }
+    if (!fs.statSync(resolved).isDirectory()) {
+      throw new Error(`External skill directory must be a directory: ${resolved}`);
+    }
+  }
+}
+
+interface ModelSkillDescriptionOptions {
+  availableToolNames?: Set<string>;
+  routingQuery?: string;
+  shortlistSize?: number;
+  lowConfidenceThreshold?: number;
+  textBudgetChars?: number;
+  includePrereqBlockedSkills?: boolean;
+}
+
+export interface RuntimeSkillDescriptor {
+  name: string;
+  description: string;
+  whenToUse: string;
+  allowedTools?: string[];
+  disableModelInvocation: boolean;
+  userInvocable: boolean;
+  skill: CustomSkill;
+}
+
+interface RankedSkillMatch {
+  skill: CustomSkill;
+  score: number;
+}
+
+interface RankSkillsForQueryOptions {
+  availableToolNames?: Set<string>;
+  limit?: number;
+  includePrereqBlockedSkills?: boolean;
+}
+
+type RoutingIntentCue = "review" | "fix";
+
+function isPackagedElectronApp(): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const electron = require("electron") as Any;
+    return Boolean(electron?.app?.isPackaged);
+  } catch {
+    return false;
+  }
+}
+
+export class CustomSkillLoader {
+  private static readonly LOW_SIGNAL_ROUTING_HINT_PATTERNS = {
+    dontUseWhen: [/planning documents,\s*high-level strategy,\s*or non-executable discussion/i],
+    outputs: [/^Outcome from .*task-specific result plus concrete action notes\.?$/i],
+    successCriteria: [
+      /returns concrete actions and decisions matching the requested task/i,
+      /no fabricated tool-side behavior/i,
+    ],
+  } as const;
+
+  private static readonly ROUTING_INTENT_CUE_PATTERNS: Record<RoutingIntentCue, RegExp[]> = {
+    review: [
+      /\bpull request\b/i,
+      /\bpr\b/i,
+      /\breview\b/i,
+      /\bfeedback\b/i,
+      /\bmerge\b/i,
+    ],
+    fix: [
+      /\bfix(?:ing)?\b/i,
+      /\bbug\b/i,
+      // "issue" is intentionally narrowed to require a technical co-signal to avoid
+      // false positives on "issue an invoice", "issue tracking", etc.
+      /\b(?:bug\s+issue|issue\s+(?:with|in|on)|known\s+issue)\b/i,
+      /\berror\b/i,
+      /\bbroken\b/i,
+      /\brepair\b/i,
+    ],
+  };
+
+  private bundledSkillsDir: string;
+  private managedSkillsDir: string;
+  private externalSkillDirs: string[] = [];
+  private workspaceSkillsDir: string | null = null;
+  private skills: Map<string, CustomSkill> = new Map();
+  private initialized: boolean = false;
+  private initializationPromise: Promise<void> | null = null;
+  private skillsConfig?: SkillsConfig;
+  private eligibilityChecker: SkillEligibilityChecker;
+  private securityReports: Map<string, CapabilitySecurityReport> = new Map();
+
+  // Debounce state for reloadSkills
+  private reloadDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private reloadPromise: Promise<CustomSkill[]> | null = null;
+  private isReloading: boolean = false;
+  private lastLoadStats: {
+    bundled: number;
+    external: number;
+    managed: number;
+    workspace: number;
+    total: number;
+    overridden: number;
+  } = {
+    bundled: 0,
+    external: 0,
+    managed: 0,
+    workspace: 0,
+    total: 0,
+    overridden: 0,
+  };
+
+  constructor(config?: SkillLoaderConfig) {
+    // Bundled skills directory
+    if (config?.bundledSkillsDir) {
+      this.bundledSkillsDir = config.bundledSkillsDir;
+    } else {
+      this.bundledSkillsDir = isPackagedElectronApp()
+        ? path.join(process.resourcesPath || "", SKILLS_FOLDER_NAME)
+        : path.join(process.cwd(), "resources", SKILLS_FOLDER_NAME);
+    }
+
+    // Managed skills directory (from registry)
+    this.managedSkillsDir =
+      config?.managedSkillsDir || path.join(getUserDataDir(), SKILLS_FOLDER_NAME);
+
+    // Workspace skills directory (set later when workspace is loaded)
+    this.workspaceSkillsDir = config?.workspaceSkillsDir || null;
+
+    // Skills config
+    this.skillsConfig = config?.skillsConfig;
+    this.externalSkillDirs = normalizeExternalSkillDirectories(
+      config?.skillsConfig?.externalSkillDirectories,
+    );
+
+    // Initialize eligibility checker
+    this.eligibilityChecker = getSkillEligibilityChecker(this.skillsConfig);
+  }
+
+  /**
+   * Initialize the skill loader - loads all skills from all sources
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+    if (this.initializationPromise) return this.initializationPromise;
+
+    this.initializationPromise = (async () => {
+      // Ensure managed skills directory exists
+      if (!fs.existsSync(this.managedSkillsDir)) {
+        fs.mkdirSync(this.managedSkillsDir, { recursive: true });
+      }
+
+      // Load all skills
+      await this.reloadSkills();
+
+      this.initialized = true;
+      logger.info(`Initialized with ${this.skills.size} skills`);
+      logger.debug(`Bundled: ${this.bundledSkillsDir}`);
+      logger.debug(`Managed: ${this.managedSkillsDir}`);
+      for (const externalDir of this.externalSkillDirs) {
+        logger.debug(`External: ${externalDir}`);
+      }
+      if (this.workspaceSkillsDir) {
+        logger.debug(`Workspace: ${this.workspaceSkillsDir}`);
+      }
+    })().finally(() => {
+      this.initializationPromise = null;
+    });
+
+    return this.initializationPromise;
+  }
+
+  /**
+   * Set the workspace skills directory
+   */
+  setWorkspaceSkillsDir(workspacePath: string): void {
+    this.workspaceSkillsDir = path.join(workspacePath, SKILLS_FOLDER_NAME);
+  }
+
+  /**
+   * Get directory paths
+   */
+  getBundledSkillsDir(): string {
+    return this.bundledSkillsDir;
+  }
+
+  getManagedSkillsDir(): string {
+    return this.managedSkillsDir;
+  }
+
+  getExternalSkillDirs(): string[] {
+    return [...this.externalSkillDirs];
+  }
+
+  getWorkspaceSkillsDir(): string | null {
+    return this.workspaceSkillsDir;
+  }
+
+  /**
+   * Get the skills directory path (for backward compatibility)
+   */
+  getSkillsDirectory(): string {
+    return this.bundledSkillsDir;
+  }
+
+  /**
+   * Load skills from a directory
+   */
+  private loadSkillsFromDir(dir: string, source: SkillSource): CustomSkill[] {
+    const skills: CustomSkill[] = [];
+
+    if (!fs.existsSync(dir)) {
+      return skills;
+    }
+
+    try {
+      const files = fs.readdirSync(dir);
+      const skillFiles = files.filter(
+        (fileName) =>
+          fileName.endsWith(SKILL_FILE_EXTENSION) &&
+          !this.isSecurityMetadataFile(fileName) &&
+          !this.isBundleMetadataFile(fileName),
+      );
+
+      for (const file of skillFiles) {
+        try {
+          const filePath = path.join(dir, file);
+          const content = fs.readFileSync(filePath, "utf-8");
+          const skill = JSON.parse(content) as CustomSkill;
+
+          // Add metadata
+          skill.filePath = filePath;
+          skill.source = source;
+
+          // Validate skill has required fields
+          if (this.validateSkill(skill)) {
+            skills.push(skill);
+          } else {
+            logger.warn(`Invalid skill file: ${file}`);
+          }
+        } catch (error) {
+          logger.error(`Failed to load skill file ${file}:`, error);
+        }
+      }
+
+      if (source === "external") {
+        for (const bundleDir of this.findExternalSkillBundleDirs(dir)) {
+          try {
+            const skill = _getSkillRegistry().loadExternalSkillBundle(bundleDir);
+            if (this.validateSkill(skill)) {
+              skills.push(skill);
+            } else {
+              logger.warn(`Invalid external SKILL.md bundle: ${bundleDir}`);
+            }
+          } catch (error) {
+            logger.error(`Failed to load external SKILL.md bundle ${bundleDir}:`, error);
+          }
+        }
+      }
+    } catch (error) {
+      logger.error(`Failed to read directory ${dir}:`, error);
+    }
+
+    return skills;
+  }
+
+  /**
+   * An external path may point either at one skill bundle (the directory
+   * itself contains SKILL.md) or at a collection whose immediate children are
+   * skill bundles. A repository-style root with skills/<name>/SKILL.md is also
+   * accepted when it has no direct child bundles.
+   */
+  private findExternalSkillBundleDirs(rootDir: string): string[] {
+    if (fs.existsSync(path.join(rootDir, "SKILL.md"))) {
+      return [rootDir];
+    }
+
+    const findImmediateBundles = (parentDir: string): string[] => {
+      if (!fs.existsSync(parentDir)) return [];
+
+      try {
+        return fs
+          .readdirSync(parentDir, { withFileTypes: true })
+          .filter((entry) => {
+            try {
+              return (
+                entry.isDirectory() ||
+                (entry.isSymbolicLink() &&
+                  fs.statSync(path.join(parentDir, entry.name)).isDirectory())
+              );
+            } catch {
+              return false;
+            }
+          })
+          .map((entry) => path.join(parentDir, entry.name))
+          .filter((candidateDir) => fs.existsSync(path.join(candidateDir, "SKILL.md")));
+      } catch (error) {
+        logger.warn(`Failed to inspect external skill directory ${parentDir}:`, error);
+        return [];
+      }
+    };
+
+    const directBundles = findImmediateBundles(rootDir);
+    if (directBundles.length > 0) {
+      return directBundles;
+    }
+
+    return findImmediateBundles(path.join(rootDir, "skills"));
+  }
+
+  /**
+   * Reload all skills from all sources
+   * Precedence: workspace > managed > bundled
+   * Uses debouncing to prevent rapid consecutive calls
+   */
+  async reloadSkills(): Promise<CustomSkill[]> {
+    // If already reloading, return the existing promise
+    if (this.isReloading && this.reloadPromise) {
+      return this.reloadPromise;
+    }
+
+    // Clear any pending debounce timer
+    if (this.reloadDebounceTimer) {
+      clearTimeout(this.reloadDebounceTimer);
+      this.reloadDebounceTimer = null;
+    }
+
+    // Create a debounced reload promise
+    this.reloadPromise = new Promise((resolve) => {
+      this.reloadDebounceTimer = setTimeout(async () => {
+        this.isReloading = true;
+        try {
+          const result = await this.doReloadSkills();
+          resolve(result);
+        } finally {
+          this.isReloading = false;
+          this.reloadPromise = null;
+          this.reloadDebounceTimer = null;
+        }
+      }, RELOAD_DEBOUNCE_MS);
+    });
+
+    return this.reloadPromise;
+  }
+
+  /**
+   * Internal method to actually reload skills
+   */
+  private async doReloadSkills(): Promise<CustomSkill[]> {
+    this.skills.clear();
+    this.securityReports.clear();
+
+    await this.verifyManagedSkills();
+
+    // Load from all sources
+    const bundledSkills = this.loadSkillsFromDir(this.bundledSkillsDir, "bundled");
+    const externalSkills = this.externalSkillDirs.flatMap((dir) =>
+      this.loadSkillsFromDir(dir, "external"),
+    );
+    const managedSkills = this.loadSkillsFromDir(this.managedSkillsDir, "managed");
+    const workspaceSkills = this.workspaceSkillsDir
+      ? this.loadSkillsFromDir(this.workspaceSkillsDir, "workspace")
+      : [];
+
+    // Merge with precedence: bundled < external < managed < workspace
+    for (const skill of bundledSkills) {
+      this.skills.set(skill.id, skill);
+    }
+    for (const skill of externalSkills) {
+      this.skills.set(skill.id, skill);
+    }
+    for (const skill of managedSkills) {
+      this.skills.set(skill.id, skill);
+    }
+    for (const skill of workspaceSkills) {
+      this.skills.set(skill.id, skill);
+    }
+
+    const counts = {
+      bundled: bundledSkills.length,
+      external: externalSkills.length,
+      managed: managedSkills.length,
+      workspace: workspaceSkills.length,
+      total: this.skills.size,
+    };
+
+    const rawTotal = counts.bundled + counts.external + counts.managed + counts.workspace;
+    const overridden = rawTotal - counts.total;
+    this.lastLoadStats = {
+      ...counts,
+      overridden,
+    };
+    logger.info(
+      `Loaded ${counts.total} skills (bundled: ${counts.bundled}, external: ${counts.external}, managed: ${counts.managed}, workspace: ${counts.workspace}, overridden: ${overridden})`,
+    );
+
+    await this.populateSecurityReports(externalSkills, managedSkills);
+
+    return this.listSkills();
+  }
+
+  private isSecurityMetadataFile(fileName: string): boolean {
+    const lower = fileName.toLowerCase();
+    return lower === "build-mode.json" || lower.endsWith(".security.json");
+  }
+
+  private isBundleMetadataFile(fileName: string): boolean {
+    const lower = fileName.toLowerCase();
+    return lower === "metadata.json" || lower === "package.json";
+  }
+
+  private async verifyManagedSkills(): Promise<void> {
+    const skillRegistry = _getSkillRegistry();
+    for (const skill of skillRegistry.listManagedSkills()) {
+      try {
+        const report = await skillRegistry.verifyManagedSkillIntegrity(skill.id);
+        if (report) {
+          this.securityReports.set(skill.id, report);
+        }
+      } catch (error) {
+        logger.warn(`Managed skill verification failed for ${skill.id}`, error);
+      }
+    }
+  }
+
+  private async populateSecurityReports(
+    externalSkills: CustomSkill[],
+    managedSkills: CustomSkill[],
+  ): Promise<void> {
+    for (const skill of managedSkills) {
+      if (this.securityReports.has(skill.id)) {
+        continue;
+      }
+      const report = _getSkillRegistry().getImportSecurityReport({
+        bundleKind: "skill",
+        bundleId: skill.id,
+      });
+      if (report) {
+        this.securityReports.set(skill.id, report);
+      }
+    }
+
+    for (const skill of externalSkills) {
+      try {
+        const report = await _getSkillRegistry().inspectExternalSkill(skill);
+        if (report) {
+          this.securityReports.set(skill.id, report);
+        }
+      } catch (error) {
+        logger.warn(`External skill security inspection failed for ${skill.id}`, error);
+      }
+    }
+  }
+
+  /**
+   * Validate a skill has all required fields
+   */
+  private validateSkill(skill: CustomSkill): boolean {
+    return !!(
+      skill.id &&
+      skill.name &&
+      skill.description &&
+      skill.prompt &&
+      typeof skill.id === "string" &&
+      typeof skill.name === "string" &&
+      typeof skill.description === "string" &&
+      typeof skill.prompt === "string"
+    );
+  }
+
+  /**
+   * Register a skill from a plugin (not from a file on disk).
+   * Plugin skills have "managed" source and are stored only in memory.
+   * Workspace skills take precedence and will not be overridden.
+   */
+  registerPluginSkill(skill: CustomSkill): void {
+    if (!this.validateSkill(skill)) {
+      logger.warn(`Invalid plugin skill: ${skill.id}`);
+      return;
+    }
+    // Plugin skills don't override workspace skills
+    const existing = this.skills.get(skill.id);
+    if (existing && existing.source === "workspace") {
+      logger.debug(`Skipping plugin skill ${skill.id} (workspace override exists)`);
+      return;
+    }
+    this.skills.set(skill.id, skill);
+    logger.debug(`Plugin skill registered: ${skill.id}`);
+  }
+
+  /**
+   * Remove in-memory skills registered by a plugin pack.
+   * Workspace skills with the same IDs are preserved because they are user-owned.
+   */
+  unregisterPluginSkills(pluginName: string): number {
+    let removed = 0;
+    for (const [skillId, skill] of this.skills) {
+      if (skill.source === "workspace") continue;
+      if (skill.metadata?.pluginSource !== pluginName) continue;
+      this.skills.delete(skillId);
+      removed++;
+    }
+    if (removed > 0) {
+      logger.debug(`Plugin skills unregistered for ${pluginName}: ${removed}`);
+    }
+    return removed;
+  }
+
+  getLoadStats(): {
+    bundled: number;
+    external: number;
+    managed: number;
+    workspace: number;
+    total: number;
+    overridden: number;
+  } {
+    return { ...this.lastLoadStats };
+  }
+
+  /**
+   * List all loaded skills
+   */
+  listSkills(): CustomSkill[] {
+    return Array.from(this.skills.values()).sort((a, b) => {
+      // Sort by priority first (lower = higher priority, default 100)
+      const priorityA = a.priority ?? 100;
+      const priorityB = b.priority ?? 100;
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      // Then by category
+      if (a.category && b.category && a.category !== b.category) {
+        return a.category.localeCompare(b.category);
+      }
+      // Finally by name
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  /**
+   * List skills by source
+   */
+  listSkillsBySource(source: SkillSource): CustomSkill[] {
+    return this.listSkills().filter((skill) => skill.source === source);
+  }
+
+  /**
+   * List only task skills (excludes guideline skills)
+   * Used for the skill dropdown in UI
+   */
+  listTaskSkills(): CustomSkill[] {
+    return this.listSkills().filter((skill) => skill.type !== "guideline");
+  }
+
+  /**
+   * List only guideline skills
+   */
+  listGuidelineSkills(): CustomSkill[] {
+    return this.listSkills().filter((skill) => skill.type === "guideline");
+  }
+
+  /**
+   * Get enabled guideline skills for system prompt injection
+   * Returns the combined prompt content of all enabled guideline skills
+   * Guidelines are validated and sanitized to prevent injection attacks
+   */
+  getEnabledGuidelinesPrompt(): string {
+    const enabledGuidelines = this.listGuidelineSkills().filter((skill) => skill.enabled !== false);
+    if (enabledGuidelines.length === 0) {
+      return "";
+    }
+    // Validate and sanitize each guideline before injection
+    return enabledGuidelines
+      .map((skill) => {
+          const validation = InputSanitizer.validateSkillGuidelines(skill.prompt);
+          if (!validation.valid) {
+          logger.warn(
+            `Security: Skill "${skill.id}" guidelines contain suspicious patterns:`,
+            validation.issues,
+          );
+          return validation.sanitized;
+        }
+        return skill.prompt;
+      })
+      .join("\n\n");
+  }
+
+  /**
+   * List skills that can be automatically invoked by the model
+   * Excludes guidelines and skills with disableModelInvocation set
+   */
+  listModelInvocableSkills(
+    options: {
+      availableToolNames?: Set<string>;
+      includePrereqBlockedSkills?: boolean;
+    } = {},
+  ): CustomSkill[] {
+    const availableToolNames = options.availableToolNames;
+    const includePrereqBlockedSkills = options.includePrereqBlockedSkills === true;
+    return this.listSkills().filter((skill) => {
+      // Exclude guideline skills
+      if (skill.type === "guideline") return false;
+      // Exclude disabled skills
+      if (skill.enabled === false) return false;
+      // Exclude skills that explicitly disable model invocation
+      if (skill.invocation?.disableModelInvocation === true) return false;
+
+      // If tool availability is provided, filter out skills that cannot run in this context.
+      if (availableToolNames) {
+        const skillRequires = (skill.requires || {}) as Any;
+        const requiredTools: string[] = Array.isArray(skillRequires.tools)
+          ? skillRequires.tools.filter(
+              (tool: unknown): tool is string => typeof tool === "string" && tool.trim().length > 0,
+            )
+          : [];
+
+        if (requiredTools.some((tool) => !availableToolNames.has(tool))) {
+          return false;
+        }
+
+        // Skills requiring external binaries generally need run_command access.
+        const hasBinaryRequirements =
+          (Array.isArray(skill.requires?.bins) && skill.requires.bins.length > 0) ||
+          (Array.isArray(skill.requires?.anyBins) && skill.requires.anyBins.length > 0);
+        if (
+          hasBinaryRequirements &&
+          !includePrereqBlockedSkills &&
+          !availableToolNames.has("run_command")
+        ) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }
+
+  private tokenizeForRouting(text: string): Set<string> {
+    const tokens = String(text || "")
+      .toLowerCase()
+      .split(/[^a-z0-9_]+/g)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 3);
+    return new Set(tokens);
+  }
+
+  private buildRoutingHaystack(texts: string[]): string {
+    return texts
+      .filter((text) => typeof text === "string" && text.trim().length > 0)
+      .join(" ")
+      .toLowerCase()
+      .trim();
+  }
+
+  private normalizeRoutingPhrase(text: string): string {
+    return String(text || "")
+      .toLowerCase()
+      .replace(/[-_\s]+/g, " ")
+      .trim();
+  }
+
+  private sanitizeRoutingQuery(query: string): string {
+    return String(query || "")
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/`[^`\n]*`/g, " ")
+      .replace(/https?:\/\/\S+/gi, " ")
+      .replace(/(^|\n)\s*>\s.*$/gm, " ")
+      .replace(
+        /\b(?:[A-Za-z]:)?(?:\/|\.\/|\.\.\/)?[\w.-]+(?:\/[\w.-]+)+\b/g,
+        " ",
+      )
+      .replace(
+        /\b[\w.-]+\.(?:ts|tsx|js|jsx|json|md|txt|html|css|scss|py|rb|go|rs|java|c|cpp|h|hpp|docx?|pdf|xlsx?|pptx?|ya?ml)\b/gi,
+        " ",
+      )
+      .replace(/["“”'‘’][^"“”'‘’]{1,160}["“”'‘’]/g, " ");
+  }
+
+  private escapeRegExp(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  private queryContainsRoutingPhrase(query: string, phrase: string): boolean {
+    const normalizedQuery = this.normalizeRoutingPhrase(query);
+    const normalizedPhrase = this.normalizeRoutingPhrase(phrase);
+    if (!normalizedQuery || !normalizedPhrase) return false;
+
+    const escapedPhrasePattern = normalizedPhrase
+      .split(" ")
+      .filter(Boolean)
+      .map((segment) => this.escapeRegExp(segment))
+      .join("\\s+");
+
+    if (!escapedPhrasePattern) return false;
+
+    return new RegExp(`(?:^|[^a-z0-9])${escapedPhrasePattern}(?:$|[^a-z0-9])`, "i").test(
+      normalizedQuery,
+    );
+  }
+
+  private requiresExplicitSkillInvocation(skill: CustomSkill): boolean {
+    return skill.id === "codex-cli" || skill.id === "gemini";
+  }
+
+  private matchesExplicitSkillInvocationTarget(query: string, phrase: string): boolean {
+    const normalizedQuery = this.normalizeRoutingPhrase(this.sanitizeRoutingQuery(query));
+    const normalizedPhrase = this.normalizeRoutingPhrase(phrase);
+    return matchesExplicitSkillInvocationPhrase(
+      normalizedQuery,
+      normalizedPhrase,
+      (segment) => this.escapeRegExp(segment),
+    );
+  }
+
+  private matchesExplicitSkillInvocation(skill: CustomSkill, query: string): boolean {
+    const skillId = String(skill.id || "").trim();
+    const skillName = String(skill.name || "").trim();
+
+    return (
+      (skillId.length > 0 && this.matchesExplicitSkillInvocationTarget(query, skillId)) ||
+      (skillName.length > 0 && this.matchesExplicitSkillInvocationTarget(query, skillName))
+    );
+  }
+
+  matchesSkillRoutingQuery(skill: CustomSkill, query: string): boolean {
+    const explicitMatch = this.matchesExplicitSkillInvocation(skill, query);
+    if (this.requiresExplicitSkillInvocation(skill)) {
+      if (!explicitMatch) {
+        logger.debug(
+          `Explicit invocation gate BLOCKED skill "${skill.id}" for query "${query.slice(0, 80)}"`,
+        );
+      }
+      return explicitMatch;
+    }
+
+    if (explicitMatch) {
+      return true;
+    }
+
+    const routing = skill.metadata?.routing;
+    const hasRoutingMetadata =
+      Boolean(routing?.useWhen) ||
+      Boolean(routing?.dontUseWhen) ||
+      Boolean(routing?.outputs) ||
+      Boolean(routing?.successCriteria) ||
+      (Array.isArray(routing?.expectedArtifacts) && routing.expectedArtifacts.length > 0) ||
+      (Array.isArray(routing?.keywords) && routing.keywords.length > 0) ||
+      (Array.isArray(routing?.examples?.positive) && routing.examples.positive.length > 0) ||
+      (Array.isArray(routing?.examples?.negative) && routing.examples.negative.length > 0);
+    if (!hasRoutingMetadata) {
+      return true;
+    }
+
+    const keywords = routing?.keywords;
+    if (!Array.isArray(keywords) || keywords.length === 0) return true;
+
+    const normalizedQuery = this.normalizeRoutingPhrase(this.sanitizeRoutingQuery(query));
+    if (!normalizedQuery) return false;
+
+    const matched = keywords.some(
+      (keyword) => typeof keyword === "string" && this.queryContainsRoutingPhrase(normalizedQuery, keyword),
+    );
+    if (!matched) {
+      logger.debug(`Keyword gate BLOCKED skill "${skill.id}" for query "${query.slice(0, 80)}" (keywords: ${JSON.stringify(keywords)})`);
+    }
+    return matched;
+  }
+
+  private scoreTextOverlap(queryTokens: Set<string>, texts: string[]): number {
+    const haystack = this.buildRoutingHaystack(texts);
+    if (!haystack || queryTokens.size === 0) return 0;
+
+    let overlap = 0;
+    for (const token of queryTokens) {
+      if (haystack.includes(token)) overlap += 1;
+    }
+    return overlap / Math.max(queryTokens.size, 1);
+  }
+
+  private getIntentCueCount(texts: string[], cue: RoutingIntentCue): number {
+    const haystack = this.buildRoutingHaystack(texts);
+    if (!haystack) return 0;
+    return CustomSkillLoader.ROUTING_INTENT_CUE_PATTERNS[cue].reduce((count, pattern) => {
+      const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+      const globalPattern = new RegExp(pattern.source, flags);
+      const matches = Array.from(haystack.matchAll(globalPattern)).length;
+      return count + matches;
+    }, 0);
+  }
+
+  private inferDominantIntentCue(texts: string[]): RoutingIntentCue | null {
+    const reviewCount = this.getIntentCueCount(texts, "review");
+    const fixCount = this.getIntentCueCount(texts, "fix");
+    if (reviewCount === 0 && fixCount === 0) return null;
+    if (reviewCount === fixCount) return null;
+    return reviewCount > fixCount ? "review" : "fix";
+  }
+
+  private getRoutingExamples(skill: CustomSkill, polarity: "positive" | "negative"): string[] {
+    const examples = skill.metadata?.routing?.examples;
+    const raw = polarity === "positive" ? examples?.positive : examples?.negative;
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((example): example is string => typeof example === "string" && example.trim().length > 0);
+  }
+
+  private getBestExampleOverlap(queryTokens: Set<string>, examples: string[]): number {
+    let best = 0;
+    for (const example of examples) {
+      best = Math.max(best, this.scoreTextOverlap(queryTokens, [example]));
+    }
+    return best;
+  }
+
+  private rankSkillsForQuery(skills: CustomSkill[], query: string): RankedSkillMatch[] {
+    const normalizedQuery = this.sanitizeRoutingQuery(String(query || "")).trim();
+    if (!normalizedQuery) {
+      return skills.map((skill) => ({ skill, score: 1 }));
+    }
+
+    const queryTokens = this.tokenizeForRouting(normalizedQuery);
+    if (queryTokens.size === 0) {
+      return skills.map((skill) => ({ skill, score: 0 }));
+    }
+
+    return skills
+      .map((skill) => ({ skill, score: this.scoreSkillForQuery(skill, normalizedQuery, queryTokens) }))
+      .sort((a, b) => b.score - a.score || a.skill.id.localeCompare(b.skill.id));
+  }
+
+  rankModelInvocableSkillsForQuery(
+    query: string,
+    options: RankSkillsForQueryOptions = {},
+  ): RankedSkillMatch[] {
+    const eligibleSkills = this.listModelInvocableSkills({
+      availableToolNames: options.availableToolNames,
+      includePrereqBlockedSkills: options.includePrereqBlockedSkills,
+    }).filter((skill) => this.matchesSkillRoutingQuery(skill, query));
+
+    const ranked = this.rankSkillsForQuery(eligibleSkills, query);
+    const limit =
+      typeof options.limit === "number" && Number.isFinite(options.limit)
+        ? Math.max(Math.floor(options.limit), 0)
+        : ranked.length;
+    return ranked.slice(0, limit);
+  }
+
+  private scoreSkillForQuery(skill: CustomSkill, query: string, queryTokens: Set<string>): number {
+    if (!query || queryTokens.size === 0) return 0;
+
+    const positiveExamples = this.getRoutingExamples(skill, "positive");
+    const negativeExamples = this.getRoutingExamples(skill, "negative");
+    const positiveTexts = [
+      skill.id || "",
+      skill.name || "",
+      skill.description || "",
+      skill.category || "",
+      skill.metadata?.routing?.useWhen || "",
+      skill.metadata?.routing?.outputs || "",
+      skill.metadata?.routing?.successCriteria || "",
+      ...positiveExamples,
+    ]
+      .filter((text) => typeof text === "string" && text.trim().length > 0);
+    if (positiveTexts.length === 0) return 0;
+
+    const overlapScore = this.scoreTextOverlap(queryTokens, positiveTexts);
+    const positiveExampleBoost = Math.min(
+      0.45,
+      this.getBestExampleOverlap(queryTokens, positiveExamples) * 0.6,
+    );
+    const negativeOverlap = this.getBestExampleOverlap(queryTokens, [
+      skill.metadata?.routing?.dontUseWhen || "",
+      ...negativeExamples,
+    ]);
+    const negativePenalty = Math.min(0.65, negativeOverlap * 0.85);
+
+    const dominantQueryIntent = this.inferDominantIntentCue([query]);
+    const dominantSkillIntent = this.inferDominantIntentCue(positiveTexts);
+    let intentAlignmentBoost = 0;
+    let intentMismatchPenalty = 0;
+    if (dominantQueryIntent && dominantSkillIntent) {
+      if (dominantQueryIntent === dominantSkillIntent) {
+        intentAlignmentBoost = 0.2;
+      } else {
+        intentMismatchPenalty = 0.3;
+      }
+    } else if (dominantQueryIntent && this.getIntentCueCount(positiveTexts, dominantQueryIntent) > 0) {
+      intentAlignmentBoost = 0.1;
+    }
+
+    const exactIdHit = query.toLowerCase().includes((skill.id || "").toLowerCase()) ? 0.35 : 0;
+    const exactNameHit = query.toLowerCase().includes((skill.name || "").toLowerCase()) ? 0.2 : 0;
+    const routingBoost = skill.metadata?.routing?.useWhen ? 0.05 : 0;
+
+    // Explicit keyword triggers: any keyword match gives a guaranteed strong routing signal
+    const routingKeywords = skill.metadata?.routing?.keywords ?? [];
+    const keywordHit =
+      routingKeywords.length > 0 &&
+      routingKeywords.some((kw) => kw && query.toLowerCase().includes(kw.toLowerCase()))
+        ? 0.5
+        : 0;
+
+    return Math.max(
+      0,
+      Math.min(
+        1,
+        overlapScore +
+          positiveExampleBoost +
+          intentAlignmentBoost +
+          exactIdHit +
+          exactNameHit +
+          routingBoost +
+          keywordHit -
+          negativePenalty -
+          intentMismatchPenalty,
+      ),
+    );
+  }
+
+  private shortlistSkillsForQuery(
+    skills: CustomSkill[],
+    query: string,
+    shortlistSize: number,
+  ): {
+    skills: CustomSkill[];
+    confidence: number;
+    totalEligible: number;
+  } {
+    const normalizedQuery = this.sanitizeRoutingQuery(String(query || "")).trim();
+
+    if (!normalizedQuery) {
+      return {
+        skills,
+        confidence: 1,
+        totalEligible: skills.length,
+      };
+    }
+
+    // Hard gate: skills with routing keywords are hidden from the model unless a keyword matches.
+    // This prevents keyword-gated skills (e.g. codex-cli) from appearing in the
+    // model's skill list for unrelated tasks.
+    const eligibleSkills = skills.filter((skill) => this.matchesSkillRoutingQuery(skill, normalizedQuery));
+    logger.info(`shortlistSkillsForQuery: ${skills.length} skills → ${eligibleSkills.length} after keyword gate (query="${normalizedQuery.slice(0, 80)}")`);
+
+    const ranked = this.rankSkillsForQuery(eligibleSkills, normalizedQuery);
+
+    return {
+      skills: ranked.slice(0, shortlistSize).map((entry) => entry.skill),
+      confidence: ranked[0]?.score ?? 0,
+      totalEligible: eligibleSkills.length,
+    };
+  }
+
+  /**
+   * Get formatted skill descriptions for the model's system prompt
+   * Groups skills by category and includes parameter info
+   */
+  getSkillDescriptionsForModel(options: ModelSkillDescriptionOptions = {}): string {
+    const descriptors = this.listRuntimeSkillDescriptors({
+      availableToolNames: options.availableToolNames,
+      includePrereqBlockedSkills: options.includePrereqBlockedSkills,
+    });
+    if (descriptors.length === 0) {
+      return "";
+    }
+
+    const shortlistSize =
+      typeof options.shortlistSize === "number" && Number.isFinite(options.shortlistSize)
+        ? Math.min(Math.max(Math.floor(options.shortlistSize), 1), 200)
+        : DEFAULT_MODEL_SKILL_SHORTLIST_SIZE;
+    const lowConfidenceThreshold =
+      typeof options.lowConfidenceThreshold === "number" &&
+      Number.isFinite(options.lowConfidenceThreshold)
+        ? Math.min(Math.max(options.lowConfidenceThreshold, 0), 1)
+        : DEFAULT_ROUTING_CONFIDENCE_THRESHOLD;
+    const textBudgetChars =
+      typeof options.textBudgetChars === "number" && Number.isFinite(options.textBudgetChars)
+        ? Math.max(Math.floor(options.textBudgetChars), 1_500)
+        : DEFAULT_SKILL_TEXT_BUDGET_CHARS;
+
+    const routed = this.shortlistSkillsForQuery(
+      descriptors.map((descriptor) => descriptor.skill),
+      options.routingQuery || "",
+      shortlistSize,
+    );
+    const selectedDescriptors = routed.skills
+      .map((skill) => descriptors.find((descriptor) => descriptor.skill.id === skill.id))
+      .filter((descriptor): descriptor is RuntimeSkillDescriptor => Boolean(descriptor));
+
+    // Group skills by category
+    const byCategory: Record<string, RuntimeSkillDescriptor[]> = {};
+    for (const descriptor of selectedDescriptors) {
+      const category = descriptor.skill.category || "General";
+      if (!byCategory[category]) {
+        byCategory[category] = [];
+      }
+      byCategory[category].push(descriptor);
+    }
+
+    // Format descriptions
+    const lines: string[] = [];
+    if (selectedDescriptors.length < routed.totalEligible) {
+      lines.push(
+        `Routing shortlist: showing ${selectedDescriptors.length} of ${routed.totalEligible} skills for this task.`,
+      );
+    }
+    if (routed.confidence < lowConfidenceThreshold) {
+      lines.push("Routing confidence is low. Review the listed skills carefully before choosing one.");
+    }
+    for (const [category, categoryDescriptors] of Object.entries(byCategory).sort()) {
+      lines.push(`\n${category}:`);
+      for (const descriptor of categoryDescriptors) {
+        const { skill } = descriptor;
+        const paramInfo = skill.parameters?.length
+          ? ` (args: ${skill.parameters.map((p) => p.name + (p.required ? "*" : "")).join(", ")})`
+          : "";
+        const userMarker = descriptor.userInvocable ? " [user-invocable]" : "";
+        lines.push(`- ${descriptor.name}: ${descriptor.description}${paramInfo}${userMarker}`);
+
+        const routingHints = this.getSkillRoutingHints(descriptor);
+        for (const hint of routingHints) {
+          lines.push(`  ${hint}`);
+        }
+      }
+    }
+    let rendered = lines.join("\n");
+    if (rendered.length > textBudgetChars) {
+      rendered = `${rendered.slice(0, textBudgetChars)}\n[Skill descriptions truncated for prompt budget.]`;
+    }
+    return rendered;
+  }
+
+  getRuntimeSkillDescriptor(skill: CustomSkill): RuntimeSkillDescriptor {
+    const allowedTools = Array.isArray((skill.requires as Any)?.tools)
+      ? ((skill.requires as Any).tools as unknown[]).filter(
+          (tool): tool is string => typeof tool === "string" && tool.trim().length > 0,
+        )
+      : undefined;
+    return {
+      name: skill.id,
+      description: String(skill.description || "").trim(),
+      whenToUse:
+        String(skill.metadata?.routing?.useWhen || "").trim() ||
+        String(skill.description || "").trim() ||
+        `Use when the ${skill.name || skill.id} skill clearly matches the task.`,
+      allowedTools,
+      disableModelInvocation: skill.invocation?.disableModelInvocation === true,
+      userInvocable: skill.invocation?.userInvocable !== false,
+      skill,
+    };
+  }
+
+  listRuntimeSkillDescriptors(options: {
+    availableToolNames?: Set<string>;
+    includePrereqBlockedSkills?: boolean;
+  } = {}): RuntimeSkillDescriptor[] {
+    return this.listModelInvocableSkills(options).map((skill) => this.getRuntimeSkillDescriptor(skill));
+  }
+
+  /**
+   * Build compact routing and success hints for model prompt listing.
+   * These are intentionally short and should act like decision boundaries.
+   */
+  private getSkillRoutingHints(descriptor: RuntimeSkillDescriptor): string[] {
+    const { skill } = descriptor;
+    const routing = skill.metadata?.routing;
+    if (!routing) {
+      return descriptor.whenToUse ? [`Use when: ${descriptor.whenToUse}`] : [];
+    }
+
+    const hints: string[] = [];
+    if (descriptor.whenToUse) {
+      hints.push(`Use when: ${descriptor.whenToUse}`);
+    }
+    if (routing.dontUseWhen && !this.isLowSignalRoutingHint("dontUseWhen", routing.dontUseWhen)) {
+      hints.push(`Don't use when: ${routing.dontUseWhen}`);
+    }
+    if (routing.outputs && !this.isLowSignalRoutingHint("outputs", routing.outputs)) {
+      hints.push(`Outputs: ${routing.outputs}`);
+    }
+    if (
+      routing.successCriteria &&
+      !this.isLowSignalRoutingHint("successCriteria", routing.successCriteria)
+    ) {
+      hints.push(`Success criteria: ${routing.successCriteria}`);
+    }
+    if (routing.expectedArtifacts?.length) {
+      hints.push(`Artifacts: ${routing.expectedArtifacts.join(", ")}`);
+    }
+
+    return hints;
+  }
+
+  private isLowSignalRoutingHint(
+    kind: "dontUseWhen" | "outputs" | "successCriteria",
+    value: string,
+  ): boolean {
+    const normalized = value.trim();
+    if (!normalized) return true;
+    return CustomSkillLoader.LOW_SIGNAL_ROUTING_HINT_PATTERNS[kind].some((pattern) =>
+      pattern.test(normalized),
+    );
+  }
+
+  /**
+   * Get a specific skill by ID
+   */
+  getSkill(id: string): CustomSkill | undefined {
+    return this.skills.get(id);
+  }
+
+  /**
+   * Expand a skill's prompt template with parameter values
+   */
+  expandPrompt(
+    skill: CustomSkill,
+    parameterValues: Record<string, string | number | boolean>,
+    context: { artifactDir?: string; workspaceArtifactDir?: string } = {},
+  ): string {
+    let prompt = this.expandSkillPromptPlaceholders(skill.prompt, skill, context);
+
+    // Replace {{param}} placeholders with values
+    if (skill.parameters) {
+      for (const param of skill.parameters) {
+        const value = parameterValues[param.name] ?? param.default ?? "";
+        const placeholder = new RegExp(`\\{\\{${param.name}\\}\\}`, "g");
+        prompt = prompt.replace(placeholder, String(value));
+      }
+    }
+
+    // Remove any remaining unreplaced placeholders
+    prompt = prompt.replace(/\{\{[^}]+\}\}/g, "");
+
+    return prompt.trim();
+  }
+
+  /**
+   * Expand {baseDir} placeholders to the resolved skill base directory.
+   */
+  expandBaseDir(prompt: string, skill: CustomSkill): string {
+    if (!prompt.includes("{baseDir}")) {
+      return prompt;
+    }
+    const baseDir = this.resolveBaseDir(skill);
+    return prompt.replace(/\{baseDir\}/g, baseDir);
+  }
+
+  private expandSkillPromptPlaceholders(
+    prompt: string,
+    skill: CustomSkill,
+    context: { artifactDir?: string; workspaceArtifactDir?: string },
+  ): string {
+    let output = this.expandBaseDir(prompt, skill);
+    if (context.artifactDir) {
+      output = output.replace(/\{artifactDir\}/g, context.artifactDir);
+    }
+    if (context.workspaceArtifactDir) {
+      output = output.replace(/\{workspaceArtifactDir\}/g, context.workspaceArtifactDir);
+    }
+    return output;
+  }
+
+  private resolveBaseDir(skill: CustomSkill): string {
+    const fileDir = skill.filePath ? path.dirname(skill.filePath) : this.bundledSkillsDir;
+    const skillScopedDir = this.resolveSkillScopedBaseDir(skill, fileDir);
+    const prompt = String(skill.prompt || "");
+    const requiresScopedDir =
+      prompt.includes("{baseDir}/SKILL.md") || prompt.includes("{baseDir}/references/");
+    const scopedHasScripts =
+      skillScopedDir && fs.existsSync(path.join(skillScopedDir, "scripts"));
+    const referencedRelativePaths = Array.from(
+      prompt.matchAll(/\{baseDir\}\/([A-Za-z0-9._\-/]+)/g),
+      (match) => match[1],
+    );
+
+    if (skillScopedDir && (requiresScopedDir || scopedHasScripts)) {
+      return skillScopedDir;
+    }
+    if (skillScopedDir && referencedRelativePaths.length > 0) {
+      const scopedHits = referencedRelativePaths.filter((relPath) =>
+        fs.existsSync(path.join(skillScopedDir, relPath)),
+      ).length;
+      const fileDirHits = referencedRelativePaths.filter((relPath) =>
+        fs.existsSync(path.join(fileDir, relPath)),
+      ).length;
+      if (scopedHits > fileDirHits) {
+        return skillScopedDir;
+      }
+    }
+
+    const candidates = [
+      fileDir,
+      this.bundledSkillsDir,
+      ...this.externalSkillDirs,
+      this.managedSkillsDir,
+      this.workspaceSkillsDir || "",
+    ].filter(Boolean) as string[];
+
+    for (const dir of candidates) {
+      try {
+        if (fs.existsSync(path.join(dir, "scripts"))) {
+          return dir;
+        }
+      } catch {
+        // ignore and continue
+      }
+    }
+
+    return fileDir;
+  }
+
+  /**
+   * Resolve a skill-specific folder next to the skill manifest when present.
+   * This makes {baseDir} point to resources/skills/<skill-id>/ for bundled skills
+   * while preserving compatibility for managed/workspace skills.
+   */
+  private resolveSkillScopedBaseDir(skill: CustomSkill, fileDir: string): string | null {
+    const baseNames = new Set<string>();
+    if (skill.id && typeof skill.id === "string") {
+      baseNames.add(skill.id);
+    }
+    if (skill.filePath) {
+      baseNames.add(path.basename(skill.filePath, path.extname(skill.filePath)));
+    }
+
+    for (const baseName of baseNames) {
+      const candidate = path.join(fileDir, baseName);
+      try {
+        if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+          return candidate;
+        }
+      } catch {
+        // ignore and continue
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Get eligible skills (those that meet all requirements)
+   */
+  async getEligibleSkills(): Promise<CustomSkill[]> {
+    const statusEntries = await this.getSkillStatus();
+    return statusEntries.skills
+      .filter((entry) => entry.eligible)
+      .map((entry) => this.getSkill(entry.id)!)
+      .filter(Boolean);
+  }
+
+  /**
+   * Get skill status with eligibility information
+   */
+  async getSkillStatus(): Promise<SkillStatusReport> {
+    const skills = this.listSkills();
+    const statusEntries = (await this.eligibilityChecker.buildStatusEntries(skills)).map((entry) => ({
+      ...entry,
+      securityReport: this.securityReports.get(entry.id),
+    }));
+
+    const summary = {
+      total: statusEntries.length,
+      eligible: statusEntries.filter((s) => s.eligible).length,
+      disabled: statusEntries.filter((s) => s.disabled).length,
+      missingRequirements: statusEntries.filter(
+        (s) => !s.eligible && !s.disabled && !s.blockedByAllowlist,
+      ).length,
+    };
+
+    return {
+      workspaceDir: this.workspaceSkillsDir || "",
+      managedSkillsDir: this.managedSkillsDir,
+      bundledSkillsDir: this.bundledSkillsDir,
+      externalSkillDirs: [...this.externalSkillDirs],
+      skills: statusEntries,
+      summary,
+    };
+  }
+
+  /**
+   * Get status for a single skill
+   */
+  async getSkillStatusEntry(skillId: string): Promise<SkillStatusEntry | null> {
+    const skill = this.getSkill(skillId);
+    if (!skill) return null;
+
+    const entry = await this.eligibilityChecker.buildStatusEntry(skill);
+    return {
+      ...entry,
+      securityReport: this.securityReports.get(skillId),
+    };
+  }
+
+  /**
+   * Update skills config
+   */
+  updateConfig(config: SkillsConfig): void {
+    this.skillsConfig = config;
+    this.externalSkillDirs = normalizeExternalSkillDirectories(config.externalSkillDirectories);
+    this.eligibilityChecker.updateConfig(config);
+  }
+
+  setExternalSkillDirs(directories: string[]): string[] {
+    validateExternalSkillDirectories(directories);
+    this.externalSkillDirs = normalizeExternalSkillDirectories(directories);
+    this.skillsConfig = {
+      skillsDirectory: this.managedSkillsDir,
+      enabledSkillIds: this.skillsConfig?.enabledSkillIds || [],
+      ...this.skillsConfig,
+      externalSkillDirectories: [...this.externalSkillDirs],
+    };
+    return this.getExternalSkillDirs();
+  }
+
+  /**
+   * Clear eligibility cache (useful after installing dependencies)
+   */
+  clearEligibilityCache(): void {
+    this.eligibilityChecker.clearCache();
+  }
+
+  /**
+   * Create a skill in the workspace directory
+   */
+  async createWorkspaceSkill(
+    skill: Omit<CustomSkill, "filePath" | "source">,
+  ): Promise<CustomSkill> {
+    if (!this.workspaceSkillsDir) {
+      throw new Error("Workspace skills directory not set");
+    }
+
+    // Ensure workspace skills directory exists
+    if (!fs.existsSync(this.workspaceSkillsDir)) {
+      fs.mkdirSync(this.workspaceSkillsDir, { recursive: true });
+    }
+
+    const filePath = path.join(this.workspaceSkillsDir, `${skill.id}.json`);
+    const fullSkill: CustomSkill = {
+      ...skill,
+      source: "workspace",
+      filePath,
+    };
+
+    fs.writeFileSync(filePath, JSON.stringify(fullSkill, null, 2), "utf-8");
+
+    // Reload skills to pick up the new one
+    await this.reloadSkills();
+
+    return fullSkill;
+  }
+
+  /**
+   * Update a skill
+   */
+  async updateSkill(
+    skillId: string,
+    updates: Partial<Omit<CustomSkill, "id" | "filePath" | "source">>,
+  ): Promise<CustomSkill | null> {
+    const skill = this.getSkill(skillId);
+    if (!skill || !skill.filePath) {
+      return null;
+    }
+
+    // Only allow updating workspace and managed skills
+    if (skill.source === "bundled") {
+      throw new Error("Cannot update bundled skills");
+    }
+    if (skill.source === "external") {
+      throw new Error("Cannot update external read-only skills");
+    }
+
+    const updatedSkill: CustomSkill = {
+      ...skill,
+      ...updates,
+    };
+
+    fs.writeFileSync(skill.filePath, JSON.stringify(updatedSkill, null, 2), "utf-8");
+
+    // Reload skills to pick up the update
+    await this.reloadSkills();
+
+    return updatedSkill;
+  }
+
+  /**
+   * Delete a workspace skill
+   */
+  async deleteWorkspaceSkill(skillId: string): Promise<boolean> {
+    const skill = this.getSkill(skillId);
+    if (!skill || !skill.filePath || skill.source !== "workspace") {
+      return false;
+    }
+
+    try {
+      fs.unlinkSync(skill.filePath);
+      await this.reloadSkills();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Delete a managed skill (from registry)
+   */
+  async deleteManagedSkill(skillId: string): Promise<boolean> {
+    const skill = this.getSkill(skillId);
+    if (!skill || !skill.filePath || skill.source !== "managed") {
+      return false;
+    }
+
+    try {
+      fs.unlinkSync(skill.filePath);
+      await this.reloadSkills();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Open the managed skills folder in the system file browser
+   */
+  async openSkillsFolder(): Promise<void> {
+    const { shell } = await import("electron");
+
+    // Ensure directory exists
+    if (!fs.existsSync(this.managedSkillsDir)) {
+      fs.mkdirSync(this.managedSkillsDir, { recursive: true });
+    }
+
+    await shell.openPath(this.managedSkillsDir);
+  }
+
+  async openExternalSkillsFolder(dir: string): Promise<void> {
+    const { shell } = await import("electron");
+    validateExternalSkillDirectories([dir]);
+    const normalized = normalizeExternalSkillDirectories([dir])[0];
+    if (!normalized) {
+      throw new Error("External skill directory must exist and be a readable absolute path");
+    }
+    await shell.openPath(normalized);
+  }
+
+  // === Backward compatibility aliases ===
+
+  /**
+   * Create a skill (alias for createWorkspaceSkill)
+   * @deprecated Use createWorkspaceSkill instead
+   */
+  async createSkill(skill: Omit<CustomSkill, "filePath" | "source">): Promise<CustomSkill> {
+    // For backward compatibility, if no workspace is set, create in managed dir
+    if (!this.workspaceSkillsDir) {
+      const filePath = path.join(this.managedSkillsDir, `${skill.id}.json`);
+      const fullSkill: CustomSkill = {
+        ...skill,
+        source: "managed",
+        filePath,
+      };
+      fs.writeFileSync(filePath, JSON.stringify(fullSkill, null, 2), "utf-8");
+      await this.reloadSkills();
+      return fullSkill;
+    }
+    return this.createWorkspaceSkill(skill);
+  }
+
+  /**
+   * Delete a skill (checks both workspace and managed)
+   * @deprecated Use deleteWorkspaceSkill or deleteManagedSkill instead
+   */
+  async deleteSkill(skillId: string): Promise<boolean> {
+    const skill = this.getSkill(skillId);
+    if (!skill) return false;
+
+    if (skill.source === "workspace") {
+      return this.deleteWorkspaceSkill(skillId);
+    }
+    if (skill.source === "managed") {
+      return this.deleteManagedSkill(skillId);
+    }
+    return false;
+  }
+}
+
+// Singleton instance
+let instance: CustomSkillLoader | null = null;
+
+export function getCustomSkillLoader(config?: SkillLoaderConfig): CustomSkillLoader {
+  if (!instance) {
+    instance = new CustomSkillLoader(config);
+  }
+  return instance;
+}
+
+/**
+ * Reset the singleton instance (useful for testing)
+ */
+export function resetCustomSkillLoader(): void {
+  instance = null;
+}

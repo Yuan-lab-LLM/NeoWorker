@@ -1,0 +1,71 @@
+name: Windows Installer Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: "Expected package version"
+        required: true
+        default: "0.1.0"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Build and smoke Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Force HTTPS for GitHub git dependencies
+        shell: bash
+        run: |
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Cache pinned Numbat toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/neoworker/numbat-build
+          key: ${{ runner.os }}-numbat-${{ hashFiles('resources/numbat/source-manifest.json') }}
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify release version
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          if ($version -ne "${{ inputs.expected_version }}") {
+            throw "Expected version ${{ inputs.expected_version }}, found $version"
+          }
+
+      - name: Package Windows installer
+        run: npm run package:win:x64
+
+      - name: Verify packaged app contains no API keys
+        run: npm run package:secrets:verify
+
+      - name: Smoke Windows installer
+        run: npm run package:win:smoke -- --expected-version=${{ inputs.expected_version }}
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v6
+        with:
+          name: NeoWorker-${{ inputs.expected_version }}-windows-x64
+          path: |
+            release/*.exe
+            release/*.blockmap
+            release/*.yml
+            release/*.sha256
+          if-no-files-found: error

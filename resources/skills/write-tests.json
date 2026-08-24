@@ -1,0 +1,59 @@
+{
+  "id": "write-tests",
+  "name": "Write Tests",
+  "description": "Generate unit tests for existing code",
+  "icon": "🧪",
+  "category": "Development",
+  "prompt": "Please analyze the code in {{path}} and write comprehensive unit tests for it.\n\nRequirements:\n- Use {{framework}} testing framework\n- Cover edge cases and error handling\n- Include both positive and negative test cases\n- Add clear test descriptions\n\nSave the tests in a file with appropriate naming convention at:\n- `{artifactDir}/tests.md`",
+  "parameters": [
+    {
+      "name": "path",
+      "type": "string",
+      "description": "Path to the file to test",
+      "required": true
+    },
+    {
+      "name": "framework",
+      "type": "select",
+      "description": "Testing framework to use",
+      "required": true,
+      "default": "jest",
+      "options": [
+        "jest",
+        "mocha",
+        "vitest",
+        "pytest",
+        "unittest"
+      ]
+    }
+  ],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user requests missing test coverage for a specific file or module.",
+      "dontUseWhen": "Don't use for snapshot tests or manual QA-only validation.",
+      "outputs": "Prioritized test plan and test cases with clear coverage mapping.",
+      "successCriteria": "Includes positive/negative cases and test setup assumptions.",
+      "expectedArtifacts": [
+        "tests.md"
+      ],
+      "examples": {
+        "positive": [
+          "Use the write-tests skill for this request.",
+          "Help me with write tests.",
+          "Use when the user requests missing test coverage for a specific file or module.",
+          "Write Tests: provide an actionable result."
+        ],
+        "negative": [
+          "Don't use for snapshot tests or manual QA-only validation.",
+          "Do not use write-tests for unrelated requests.",
+          "This request is outside write tests scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

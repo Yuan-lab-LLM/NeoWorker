@@ -1,0 +1,763 @@
+/**
+ * LLM Provider abstraction types
+ * Allows switching between Anthropic API and AWS Bedrock
+ */
+
+import type {
+  LLMProviderType,
+  AzureReasoningEffort,
+  OpenAIReasoningEffort,
+  LLMTextVerbosity,
+  RuntimeToolMetadata,
+  ExecutionMode,
+  TaskDomain,
+  WebSearchMode,
+  WorkerRoleKind,
+  HumanInputPolicy,
+  MoaPreset,
+} from "../../../shared/types";
+
+export type {
+  LLMProviderType,
+  AzureReasoningEffort,
+  OpenAIReasoningEffort,
+  LLMTextVerbosity,
+};
+
+export interface LLMProviderConfig {
+  type: LLMProviderType;
+  model: string;
+  // Anthropic-specific
+  anthropicApiKey?: string;
+  // Bedrock-specific
+  awsRegion?: string;
+  awsAccessKeyId?: string;
+  awsSecretAccessKey?: string;
+  awsSessionToken?: string;
+  // Use AWS profile instead of explicit credentials
+  awsProfile?: string;
+  // Ollama-specific
+  ollamaBaseUrl?: string;
+  ollamaApiKey?: string; // Optional API key for remote Ollama servers
+  // Gemini-specific
+  geminiApiKey?: string;
+  // OpenRouter-specific
+  openrouterApiKey?: string;
+  openrouterBaseUrl?: string;
+  openrouterParetoMinCodingScore?: number;
+  // DeepSeek-specific
+  deepseekApiKey?: string;
+  deepseekBaseUrl?: string;
+  // OpenAI-specific
+  openaiApiKey?: string;
+  openaiReasoningEffort?: OpenAIReasoningEffort;
+  openaiTextVerbosity?: LLMTextVerbosity;
+  openaiAccessToken?: string; // OAuth access token
+  openaiRefreshToken?: string; // OAuth refresh token
+  openaiTokenExpiresAt?: number; // OAuth token expiry timestamp
+  openaiOAuthTokenUpdater?: (tokens: {
+    access_token: string;
+    refresh_token: string;
+    expires_at: number;
+    email?: string;
+    accountId?: string;
+  }) => void | Promise<void>;
+  // Azure OpenAI-specific
+  azureApiKey?: string;
+  azureEndpoint?: string;
+  azureDeployment?: string;
+  azureApiVersion?: string;
+  azureReasoningEffort?: AzureReasoningEffort;
+  // Azure Anthropic-specific
+  azureAnthropicApiKey?: string;
+  azureAnthropicEndpoint?: string;
+  azureAnthropicDeployment?: string;
+  azureAnthropicApiVersion?: string;
+  // Groq-specific
+  groqApiKey?: string;
+  groqBaseUrl?: string;
+  // xAI-specific
+  xaiApiKey?: string;
+  xaiAccessToken?: string;
+  xaiRefreshToken?: string;
+  xaiTokenExpiresAt?: number;
+  xaiTokenEndpoint?: string;
+  xaiOAuthTokenUpdater?: (tokens: {
+    access_token: string;
+    refresh_token: string;
+    expires_at?: number;
+    token_endpoint?: string;
+    id_token?: string;
+  }) => void | Promise<void>;
+  xaiBaseUrl?: string;
+  // Kimi-specific
+  kimiApiKey?: string;
+  kimiBaseUrl?: string;
+  // Pi-specific (uses pi-ai unified LLM API)
+  piProvider?: string; // pi-ai KnownProvider (e.g. 'anthropic', 'openai', 'google')
+  piApiKey?: string;
+  // OpenAI-compatible endpoint
+  openaiCompatibleDisplayName?: string;
+  openaiCompatibleApiKey?: string;
+  openaiCompatibleBaseUrl?: string;
+  openaiCompatibleSupportsImages?: boolean;
+  // Mixture-of-Agents virtual provider
+  moaDefaultPreset?: string;
+  moaPresets?: Record<string, MoaPreset>;
+  // Generic provider support
+  providerApiKey?: string;
+  providerBaseUrl?: string;
+  /** Explicit image-input capability override for a custom provider. */
+  providerSupportsImages?: boolean;
+}
+
+export interface LLMTool {
+  name: string;
+  description: string;
+  input_schema: {
+    type: "object";
+    properties: Record<string, Any>;
+    required?: string[];
+    [key: string]: Any;
+  };
+  runtime?: RuntimeToolMetadata;
+  prompting?: LLMToolPromptMetadata;
+}
+
+export interface LLMToolPromptRenderContext {
+  executionMode: ExecutionMode;
+  taskDomain: TaskDomain;
+  webSearchMode: WebSearchMode;
+  shellEnabled: boolean;
+  agentType?: string | null;
+  workerRole?: WorkerRoleKind | null;
+  allowUserInput?: boolean;
+  humanInputPolicy?: HumanInputPolicy;
+}
+
+export interface LLMToolPromptRenderResult {
+  description?: string;
+  compactDescription?: string;
+  appendDescription?: string;
+  appendCompactDescription?: string;
+}
+
+export interface LLMToolPromptMetadata {
+  version?: string;
+  render?: (
+    context: LLMToolPromptRenderContext,
+    tool: Pick<LLMTool, "name" | "description" | "input_schema" | "runtime">,
+  ) => LLMToolPromptRenderResult | void;
+}
+
+export interface LLMToolUse {
+  type: "tool_use";
+  id: string;
+  name: string;
+  input: Record<string, Any>;
+  /** OpenAI-compatible reasoning state that must be replayed on tool turns. */
+  reasoning_content?: string;
+  reasoning_details?: Any[];
+}
+
+export interface LLMTextContent {
+  type: "text";
+  text: string;
+  /** OpenAI-compatible reasoning state that must be replayed on tool turns. */
+  reasoning_content?: string;
+  reasoning_details?: Any[];
+}
+
+/** Supported image MIME types across providers */
+export type LLMImageMimeType =
+  "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
+export interface LLMImageContent {
+  type: "image";
+  /** Base64-encoded image data (no data URL prefix) */
+  data: string;
+  /** MIME type of the image */
+  mimeType: LLMImageMimeType;
+  /** Original byte size before any processing (for limit enforcement) */
+  originalSizeBytes?: number;
+}
+
+export type LLMContent = LLMToolUse | LLMTextContent | LLMImageContent;
+export type LLMToolResultCompanionContent = LLMTextContent | LLMImageContent;
+
+/** Per-provider image capability limits */
+export interface LLMProviderImageCaps {
+  supportsImages: boolean;
+  maxImageBytes: number;
+  supportedMimeTypes: LLMImageMimeType[];
+}
+
+export const PROVIDER_IMAGE_CAPS: Record<string, LLMProviderImageCaps> = {
+  anthropic: {
+    supportsImages: true,
+    maxImageBytes: 5 * 1024 * 1024,
+    supportedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+  },
+  bedrock: {
+    supportsImages: true,
+    maxImageBytes: 5 * 1024 * 1024,
+    supportedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+  },
+  openai: {
+    supportsImages: true,
+    maxImageBytes: 20 * 1024 * 1024,
+    supportedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+  },
+  gemini: {
+    supportsImages: false,
+    maxImageBytes: 0,
+    supportedMimeTypes: [],
+  },
+  azure: {
+    supportsImages: true,
+    maxImageBytes: 20 * 1024 * 1024,
+    supportedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+  },
+  ollama: {
+    supportsImages: true,
+    maxImageBytes: 10 * 1024 * 1024,
+    supportedMimeTypes: ["image/jpeg", "image/png"],
+  },
+  openrouter: {
+    supportsImages: true,
+    maxImageBytes: 20 * 1024 * 1024,
+    supportedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+  },
+  deepseek: { supportsImages: false, maxImageBytes: 0, supportedMimeTypes: [] },
+  xai: {
+    supportsImages: true,
+    maxImageBytes: 20 * 1024 * 1024,
+    supportedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+  },
+  "xai-oauth": {
+    supportsImages: true,
+    maxImageBytes: 20 * 1024 * 1024,
+    supportedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+  },
+  "openai-compatible": {
+    supportsImages: true,
+    maxImageBytes: 20 * 1024 * 1024,
+    supportedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+  },
+  moa: {
+    supportsImages: true,
+    maxImageBytes: 20 * 1024 * 1024,
+    supportedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+  },
+  "nano-gpt": {
+    supportsImages: true,
+    maxImageBytes: 20 * 1024 * 1024,
+    supportedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+  },
+  "anthropic-compatible": {
+    supportsImages: true,
+    maxImageBytes: 5 * 1024 * 1024,
+    supportedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+  },
+  groq: { supportsImages: false, maxImageBytes: 0, supportedMimeTypes: [] },
+  kimi: { supportsImages: false, maxImageBytes: 0, supportedMimeTypes: [] },
+  pi: { supportsImages: false, maxImageBytes: 0, supportedMimeTypes: [] },
+};
+
+export interface LLMToolResult {
+  type: "tool_result";
+  tool_use_id: string;
+  content: string;
+  is_error?: boolean;
+  companion_user_content?: LLMToolResultCompanionContent[];
+}
+
+export interface LLMMessage {
+  role: "user" | "assistant";
+  content: string | LLMContent[] | LLMToolResult[];
+  /** Responses API assistant item phase used when replaying assistant state. */
+  phase?: "commentary" | "final_answer";
+}
+
+export type LLMSystemBlockScope = "session" | "turn" | "none";
+
+export interface LLMSystemBlock {
+  text: string;
+  scope: LLMSystemBlockScope;
+  cacheable: boolean;
+  stableKey: string;
+}
+
+export type LLMPromptCacheMode =
+  | "disabled"
+  | "anthropic_auto"
+  | "anthropic_explicit"
+  | "openai_key"
+  | "openrouter_implicit";
+
+export type PromptCacheProviderFamily =
+  | "unsupported"
+  | "anthropic"
+  | "azure-anthropic"
+  | "anthropic-compatible"
+  | "openrouter-claude"
+  | "openai"
+  | "azure-openai"
+  | "openrouter-openai";
+
+export interface LLMPromptCacheConfig {
+  mode: LLMPromptCacheMode;
+  ttl: "5m" | "1h";
+  explicitRecentMessages: number;
+  cacheKey?: string;
+  retention?: "24h";
+}
+
+export type LLMToolChoiceMode = "auto" | "none";
+
+/** Progress info emitted periodically during streaming LLM responses. */
+export interface StreamProgress {
+  inputTokens: number;
+  outputTokens: number;
+  outputChars: number;
+  elapsedMs: number;
+  /** `true` while still streaming; `false` on the final event. */
+  streaming: boolean;
+  text?: string;
+}
+
+export type StreamProgressCallback = (progress: StreamProgress) => void;
+
+export interface LLMRequest {
+  model: string;
+  maxTokens: number;
+  system: string;
+  systemBlocks?: LLMSystemBlock[];
+  promptCache?: LLMPromptCacheConfig;
+  reasoningEffort?: OpenAIReasoningEffort;
+  textVerbosity?: LLMTextVerbosity;
+  messages: LLMMessage[];
+  tools?: LLMTool[];
+  toolChoice?: LLMToolChoiceMode;
+  /** Optional abort signal to cancel the request */
+  signal?: AbortSignal;
+  /** Optional callback for streaming progress (token counts, elapsed time). */
+  onStreamProgress?: StreamProgressCallback;
+  /** Opaque call ID injected by the logging wrapper for log correlation. */
+  _callId?: number;
+}
+
+export interface LLMResponse {
+  content: LLMContent[];
+  stopReason: "end_turn" | "tool_use" | "max_tokens" | "stop_sequence";
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    /** Tokens served from the provider's prompt cache (subset of inputTokens). */
+    cachedTokens?: number;
+    /** Tokens used to create or extend a provider-side prompt cache entry. */
+    cacheWriteTokens?: number;
+  };
+}
+
+export interface LLMProviderError extends Error {
+  code?: string;
+  retryable?: boolean;
+  phase?: string;
+  status?: number;
+  requestId?: string;
+  providerMessage?: string;
+  providerCode?: string;
+  errorData?: unknown;
+  cause?: unknown;
+}
+
+/**
+ * Abstract LLM Provider interface
+ */
+export interface LLMProvider {
+  readonly type: LLMProviderType;
+
+  /**
+   * Send a message to the LLM and get a response
+   */
+  createMessage(request: LLMRequest): Promise<LLMResponse>;
+
+  /**
+   * Test the provider connection
+   */
+  testConnection(): Promise<{ success: boolean; error?: string }>;
+}
+
+/**
+ * Available AI models with their IDs for each provider
+ * Note: Bedrock models are kept in provider ID form first, then resolved via Bedrock provider mapping when needed.
+ * Note: Ollama models are dynamic and fetched from the server
+ */
+export const ANTHROPIC_HEALTHCHECK_MODEL_ID = "claude-haiku-4-5-20251001";
+
+export const MODELS = {
+  "opus-4-6": {
+    anthropic: "claude-opus-4-6",
+    bedrock: "anthropic.claude-opus-4-6",
+    displayName: "Opus 4.6",
+  },
+  "opus-4-5": {
+    anthropic: "claude-opus-4-5-20251101",
+    bedrock: "anthropic.claude-opus-4-5-20251101",
+    displayName: "Opus 4.5",
+  },
+  "sonnet-4-6": {
+    anthropic: "claude-sonnet-4-6",
+    bedrock: "anthropic.claude-sonnet-4-6",
+    displayName: "Sonnet 4.6",
+  },
+  "sonnet-4-5": {
+    anthropic: "claude-sonnet-4-5",
+    bedrock: "anthropic.claude-sonnet-4-5-20250514",
+    displayName: "Sonnet 4.5",
+  },
+  "haiku-4-5": {
+    anthropic: ANTHROPIC_HEALTHCHECK_MODEL_ID,
+    bedrock: "anthropic.claude-haiku-4-5-20250514",
+    displayName: "Haiku 4.5",
+  },
+  "sonnet-4": {
+    anthropic: "claude-sonnet-4-20250514",
+    bedrock: "us.anthropic.claude-sonnet-4-20250514-v1:0",
+    displayName: "Sonnet 4",
+  },
+  "sonnet-3-5": {
+    anthropic: "claude-3-5-sonnet-20241022",
+    bedrock: "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+    displayName: "Sonnet 3.5",
+  },
+  "haiku-3-5": {
+    anthropic: "claude-3-5-haiku-20241022",
+    bedrock: "us.anthropic.claude-3-5-haiku-20241022-v1:0",
+    displayName: "Haiku 3.5",
+  },
+} as const;
+
+const RETIRED_ANTHROPIC_MODEL_IDS: Record<string, string> = {
+  "claude-3-5-sonnet-20241022": "claude-sonnet-4-5",
+  "claude-3-5-haiku-20241022": ANTHROPIC_HEALTHCHECK_MODEL_ID,
+};
+
+const RETIRED_ANTHROPIC_MODEL_KEYS: Record<string, string> = {
+  "sonnet-3-5": "sonnet-4-5",
+  "haiku-3-5": "haiku-4-5",
+};
+
+const LEGACY_ANTHROPIC_MODEL_IDS: Record<string, string> = {
+  "claude-opus-4-5-20250514": "claude-opus-4-5-20251101",
+  "claude-sonnet-4-5-20250514": "claude-sonnet-4-5",
+  "claude-haiku-4-5": ANTHROPIC_HEALTHCHECK_MODEL_ID,
+  "claude-haiku-4-5-20250514": ANTHROPIC_HEALTHCHECK_MODEL_ID,
+  ...RETIRED_ANTHROPIC_MODEL_IDS,
+};
+
+export function normalizeAnthropicModelId(modelId: string): string {
+  const normalized = modelId.trim();
+  return LEGACY_ANTHROPIC_MODEL_IDS[normalized] || normalized;
+}
+
+export function normalizeAnthropicModelKey(modelKey: string): string {
+  const normalized = modelKey.trim();
+  return RETIRED_ANTHROPIC_MODEL_KEYS[normalized] || normalized;
+}
+
+export function isRetiredAnthropicModelReference(model: string): boolean {
+  const normalized = model.trim();
+  return (
+    Object.prototype.hasOwnProperty.call(
+      RETIRED_ANTHROPIC_MODEL_KEYS,
+      normalized,
+    ) ||
+    Object.prototype.hasOwnProperty.call(
+      RETIRED_ANTHROPIC_MODEL_IDS,
+      normalized,
+    )
+  );
+}
+
+/**
+ * Available Gemini models from Google AI Studio
+ */
+export const GEMINI_MODELS = {
+  "gemini-2.5-pro": {
+    id: "gemini-2.5-pro-preview-05-06",
+    displayName: "Gemini 2.5 Pro",
+    description: "Most capable model for complex tasks",
+  },
+  "gemini-2.5-flash": {
+    id: "gemini-2.5-flash-preview-05-20",
+    displayName: "Gemini 2.5 Flash",
+    description: "Fast and efficient for most tasks",
+  },
+  "gemini-2.0-flash": {
+    id: "gemini-2.0-flash",
+    displayName: "Gemini 2.0 Flash",
+    description: "Balanced speed and capability",
+  },
+  "gemini-2.0-flash-lite": {
+    id: "gemini-2.0-flash-lite",
+    displayName: "Gemini 2.0 Flash Lite",
+    description: "Fastest and most cost-effective",
+  },
+  "gemini-1.5-pro": {
+    id: "gemini-1.5-pro",
+    displayName: "Gemini 1.5 Pro",
+    description: "Previous generation pro model",
+  },
+  "gemini-1.5-flash": {
+    id: "gemini-1.5-flash",
+    displayName: "Gemini 1.5 Flash",
+    description: "Previous generation flash model",
+  },
+} as const;
+
+export type GeminiModelKey = keyof typeof GEMINI_MODELS;
+
+/**
+ * Popular OpenRouter models
+ * OpenRouter provides access to many models from different providers
+ */
+export const OPENROUTER_MODELS = {
+  "openrouter/pareto-code": {
+    id: "openrouter/pareto-code",
+    displayName: "Pareto Code Router",
+    description: "OpenRouter coding router selected by minimum coding score",
+  },
+  "openrouter/pareto-code:nitro": {
+    id: "openrouter/pareto-code:nitro",
+    displayName: "Pareto Code Router (Nitro)",
+    description: "Pareto coding router optimized for OpenRouter throughput",
+  },
+  "anthropic/claude-3.5-sonnet": {
+    id: "anthropic/claude-3.5-sonnet",
+    displayName: "Claude 3.5 Sonnet",
+    description: "Anthropic's balanced model",
+  },
+  "anthropic/claude-3-opus": {
+    id: "anthropic/claude-3-opus",
+    displayName: "Claude 3 Opus",
+    description: "Anthropic's most capable model",
+  },
+  "openai/gpt-4o": {
+    id: "openai/gpt-4o",
+    displayName: "GPT-4o",
+    description: "OpenAI's flagship model",
+  },
+  "openai/gpt-4o-mini": {
+    id: "openai/gpt-4o-mini",
+    displayName: "GPT-4o Mini",
+    description: "OpenAI's fast and affordable model",
+  },
+  "google/gemini-pro-1.5": {
+    id: "google/gemini-pro-1.5",
+    displayName: "Gemini Pro 1.5",
+    description: "Google's advanced model",
+  },
+  "meta-llama/llama-3.1-405b-instruct": {
+    id: "meta-llama/llama-3.1-405b-instruct",
+    displayName: "Llama 3.1 405B",
+    description: "Meta's largest open model",
+  },
+  "mistralai/mistral-large": {
+    id: "mistralai/mistral-large",
+    displayName: "Mistral Large",
+    description: "Mistral's flagship model",
+  },
+  "deepseek/deepseek-chat": {
+    id: "deepseek/deepseek-chat",
+    displayName: "DeepSeek Chat",
+    description: "DeepSeek's conversational model",
+  },
+} as const;
+
+export type OpenRouterModelKey = keyof typeof OPENROUTER_MODELS;
+
+/**
+ * Available OpenAI models
+ * Users with ChatGPT Plus/Team/Enterprise subscriptions can use these models
+ */
+export const OPENAI_MODELS = {
+  "gpt-4o": {
+    id: "gpt-4o",
+    displayName: "GPT-4o",
+    description: "Most capable model for complex tasks",
+  },
+  "gpt-4o-mini": {
+    id: "gpt-4o-mini",
+    displayName: "GPT-4o Mini",
+    description: "Fast and affordable for most tasks",
+  },
+  "gpt-4-turbo": {
+    id: "gpt-4-turbo",
+    displayName: "GPT-4 Turbo",
+    description: "Previous generation flagship",
+  },
+  "gpt-3.5-turbo": {
+    id: "gpt-3.5-turbo",
+    displayName: "GPT-3.5 Turbo",
+    description: "Fast and cost-effective",
+  },
+  o1: {
+    id: "o1",
+    displayName: "o1",
+    description: "Advanced reasoning model",
+  },
+  "o1-mini": {
+    id: "o1-mini",
+    displayName: "o1 Mini",
+    description: "Fast reasoning model",
+  },
+} as const;
+
+export type OpenAIModelKey = keyof typeof OPENAI_MODELS;
+
+/**
+ * Popular Groq models
+ */
+export const GROQ_MODELS = {
+  "llama-3.1-8b-instant": {
+    id: "llama-3.1-8b-instant",
+    displayName: "Llama 3.1 8B Instant",
+    description: "Fast, cost-efficient Groq model",
+  },
+  "llama-3.3-70b-versatile": {
+    id: "llama-3.3-70b-versatile",
+    displayName: "Llama 3.3 70B Versatile",
+    description: "Higher capability Groq model",
+  },
+} as const;
+
+export type GroqModelKey = keyof typeof GROQ_MODELS;
+
+/**
+ * Popular xAI (Grok) models
+ */
+export const XAI_MODELS = {
+  "grok-4.3": {
+    id: "grok-4.3",
+    displayName: "Grok 4.3",
+    description: "Default Grok subscription model",
+  },
+  "grok-4.20-0309-reasoning": {
+    id: "grok-4.20-0309-reasoning",
+    displayName: "Grok 4.20 Reasoning",
+    description: "Reasoning variant",
+  },
+  "grok-4.20-0309-non-reasoning": {
+    id: "grok-4.20-0309-non-reasoning",
+    displayName: "Grok 4.20 Non-Reasoning",
+    description: "Non-reasoning variant",
+  },
+  "grok-4.20-multi-agent-0309": {
+    id: "grok-4.20-multi-agent-0309",
+    displayName: "Grok 4.20 Multi-Agent",
+    description: "Multi-agent variant",
+  },
+} as const;
+
+export type XAIModelKey = keyof typeof XAI_MODELS;
+
+/**
+ * Kimi (Moonshot) models
+ */
+export const KIMI_MODELS = {
+  "kimi-k3": {
+    id: "kimi-k3",
+    displayName: "Kimi K3",
+    description: "Latest Kimi model",
+  },
+  "kimi-k2.5": {
+    id: "kimi-k2.5",
+    displayName: "Kimi K2.5",
+    description: "Latest Kimi K2.5 model",
+  },
+  "kimi-k2-0905-preview": {
+    id: "kimi-k2-0905-preview",
+    displayName: "Kimi K2.5 Preview",
+    description: "Preview K2.5 model",
+  },
+  "kimi-k2-turbo-preview": {
+    id: "kimi-k2-turbo-preview",
+    displayName: "Kimi K2 Turbo (Preview)",
+    description: "Faster K2 preview model",
+  },
+  "kimi-k2-thinking": {
+    id: "kimi-k2-thinking",
+    displayName: "Kimi K2 Thinking",
+    description: "Reasoning-focused K2 model",
+  },
+  "kimi-k2-thinking-turbo": {
+    id: "kimi-k2-thinking-turbo",
+    displayName: "Kimi K2 Thinking Turbo",
+    description: "Faster reasoning K2 model",
+  },
+} as const;
+
+export type KimiModelKey = keyof typeof KIMI_MODELS;
+
+export const DEEPSEEK_MODELS = {
+  "deepseek-chat": {
+    id: "deepseek-chat",
+    displayName: "DeepSeek Chat",
+    description: "DeepSeek's OpenAI-compatible non-thinking chat model",
+  },
+} as const;
+
+export type DeepSeekModelKey = keyof typeof DEEPSEEK_MODELS;
+
+/**
+ * Pi provider backends
+ * These map to pi-ai KnownProvider types
+ */
+export const PI_PROVIDERS = {
+  anthropic: { displayName: "Anthropic" },
+  openai: { displayName: "OpenAI" },
+  google: { displayName: "Google" },
+  xai: { displayName: "xAI" },
+  "xai-oauth": { displayName: "xAI Grok OAuth" },
+  groq: { displayName: "Groq" },
+  cerebras: { displayName: "Cerebras" },
+  openrouter: { displayName: "OpenRouter" },
+  mistral: { displayName: "Mistral" },
+  "amazon-bedrock": { displayName: "Amazon Bedrock" },
+  "openai-codex": { displayName: "OpenAI Codex (OAuth)" },
+  "github-copilot": { displayName: "GitHub Copilot" },
+  "azure-openai-responses": { displayName: "Azure OpenAI" },
+  minimax: { displayName: "MiniMax" },
+  huggingface: { displayName: "HuggingFace" },
+  "kimi-coding": { displayName: "Kimi Coding" },
+} as const;
+
+export type PiProviderKey = keyof typeof PI_PROVIDERS;
+
+/** Default model used when no Pi model is explicitly configured */
+export const DEFAULT_PI_MODEL = "claude-sonnet-4-5-20250514";
+
+/**
+ * Popular Ollama models with their details
+ * Users can use any model available on their Ollama server
+ */
+export const OLLAMA_MODELS = {
+  "llama3.2": { displayName: "Llama 3.2", size: "3B" },
+  "llama3.1": { displayName: "Llama 3.1", size: "8B" },
+  "llama3.1:70b": { displayName: "Llama 3.1 70B", size: "70B" },
+  mistral: { displayName: "Mistral", size: "7B" },
+  mixtral: { displayName: "Mixtral", size: "47B" },
+  codellama: { displayName: "Code Llama", size: "7B" },
+  "deepseek-coder": { displayName: "DeepSeek Coder", size: "6.7B" },
+  "qwen2.5": { displayName: "Qwen 2.5", size: "7B" },
+  phi3: { displayName: "Phi-3", size: "3.8B" },
+  gemma2: { displayName: "Gemma 2", size: "9B" },
+} as const;
+
+export type OllamaModelKey = keyof typeof OLLAMA_MODELS;
+
+export type ModelKey = keyof typeof MODELS;
+
+export const DEFAULT_MODEL: ModelKey = "opus-4-5";

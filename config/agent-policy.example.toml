@@ -1,0 +1,49 @@
+# Optional executor policy controls for contract hardening.
+# Keep entries commented to preserve default behavior.
+
+[required_tool_families]
+# mutation_required = ["write_file", "canvas_push"]
+# artifact_presence_required = []
+# analysis_only = []
+
+[tool_filters]
+# allow = ["read_file", "write_file", "search_files", "glob", "run_command"]
+# deny = ["web_search"]
+
+[fallback]
+# Phrases here are sanitized from loop/fallback nudges.
+# disallowed_texts = ["stop using this tool and respond directly"]
+
+[loop_thresholds.default]
+# stop_reason_tool_use_streak = 6
+# stop_reason_max_token_streak = 2
+# low_progress_window_size = 8
+# low_progress_same_target_min_calls = 6
+# follow_up_lock_min_streak = 10
+# follow_up_lock_min_tool_calls = 10
+# skipped_tool_only_turn_threshold = 2
+
+[loop_thresholds.mode.mutation_required]
+# stop_reason_tool_use_streak = 8
+# low_progress_same_target_min_calls = 8
+
+[loop_thresholds.domain.code]
+# follow_up_lock_min_streak = 12
+
+[[hooks.on_pre_tool_use]]
+# when_tool = "search_files"
+# when_mode = "mutation_required"
+# action = "force_action"
+# force_tool = "write_file"
+# force_input_template_json = '{"path":"results/stub.txt","content":"placeholder"}'
+
+[[hooks.on_stop_attempt]]
+# when_mode = "mutation_required"
+# action = "block_with_feedback"
+# feedback = "Mutation is still required. Do not finalize yet."
+
+[[hooks.on_recovery_plan]]
+# when_mode = "mutation_required"
+# action = "force_action"
+# force_tool = "write_file"
+# force_input_template_json = '{"path":"results/stub.txt","content":"placeholder"}'

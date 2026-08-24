@@ -1,0 +1,58 @@
+{
+  "id": "aurl",
+  "name": "aurl",
+  "description": "Turn any API into a CLI command. Register OpenAPI or GraphQL endpoints by name, then explore and invoke them. Built for AI agents to use APIs like tool calls.",
+  "icon": "🔗",
+  "category": "Tools",
+  "prompt": "# aurl\n\nTurn any API spec into a CLI command. Register APIs by name, explore their endpoints, and make requests.\n\n## Commands\n\n```bash\naurl add [name] [openapi.json URL or path]       # register an API\naurl add [name] [spec] --base-url [URL]           # override base URL\naurl add [name] [spec] --header \"Key: Value\"      # manual auth header\naurl add --graphql [name] [endpoint]              # register a GraphQL API\naurl list                                          # list registered APIs\naurl remove [name]                                 # unregister\naurl auth [name]                                   # reconfigure auth\n```\n\n## Using a Registered API\n\n```bash\naurl [name] --help                                # see all endpoints, params, enums, response codes\naurl [name] describe METHOD /path                 # detailed docs for one endpoint\naurl [name] describe [field]                      # detailed docs for a GraphQL field/type\naurl [name] docs                                  # open external docs in browser\naurl [name] METHOD /path                          # make a REST request\naurl [name] METHOD /path '{\"key\":\"value\"}'        # make a REST request with JSON body\naurl [name] '{ graphql query }'                   # run a GraphQL query\naurl [name] '{ query }' '{\"var\":\"val\"}'           # GraphQL with variables\n```\n\n## Discovery Workflow\n\nWhen working with an unfamiliar registered API:\n\n1. `aurl [name] --help` — scan all endpoints grouped by tag\n2. `aurl [name] describe METHOD /path` — read full docs for an endpoint before calling it\n3. Make the request — enum params are validated before sending, missing required body fields trigger a warning\n\n## Notes\n\n- Auth is auto-detected from the spec's `securitySchemes` during `aurl add`\n- Query params go inline in the path: `aurl [name] GET '/path?key=value'`\n- Quote paths with `?` to prevent shell globbing\n- On 4xx errors, the CLI suggests the expected request body from the spec",
+  "parameters": [],
+  "enabled": true,
+  "requires": {
+    "bins": ["aurl"]
+  },
+  "install": [
+    {
+      "id": "brew",
+      "kind": "brew",
+      "formula": "shawnpana/tap/aurl",
+      "bins": ["aurl"],
+      "label": "Install aurl (Homebrew)",
+      "os": ["darwin", "linux"]
+    },
+    {
+      "id": "go",
+      "kind": "go",
+      "package": "github.com/shawnpana/aurl@latest",
+      "bins": ["aurl"],
+      "label": "Install aurl (go install)"
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "homepage": "https://github.com/ShawnPana/aurl",
+    "tags": ["api", "openapi", "graphql", "rest", "curl"],
+    "routing": {
+      "useWhen": "Use when the user wants to call an external API, explore API endpoints, register an OpenAPI/GraphQL spec, or make validated API requests. Triggers on: 'call this API', 'use the API', 'register API', 'explore endpoints', 'OpenAPI', 'GraphQL API', 'aurl'.",
+      "dontUseWhen": "Do not use when the task is about http_request for a one-off URL fetch, or when no API spec/registration is involved.",
+      "outputs": "API response or endpoint documentation from aurl.",
+      "successCriteria": "aurl executes the requested API call or returns endpoint docs; requests are validated against the spec.",
+      "examples": {
+        "positive": [
+          "Register the Petstore API and list pets",
+          "Call the Linear API to get my issues",
+          "Use aurl to explore this OpenAPI spec",
+          "Add the Stripe API and make a request",
+          "aurl: register this GraphQL endpoint and run a query"
+        ],
+        "negative": [
+          "Fetch this URL (use http_request)",
+          "Make a simple GET request to example.com",
+          "Open this webpage in the browser and click around"
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

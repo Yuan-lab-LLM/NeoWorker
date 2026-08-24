@@ -1,0 +1,79 @@
+{
+  "id": "esg-scorer",
+  "name": "ESG Scorer",
+  "description": "Environmental, Social, and Governance scoring with SASB materiality mapping, TCFD climate risk alignment, carbon footprint analysis, and sustainability benchmarking.",
+  "icon": "🌱",
+  "category": "Finance",
+  "prompt": "# ESG Scorer\n\nUse this skill only when the request is in scope:\n- Use when the user asks about ESG scores, sustainability assessment, SASB materiality, TCFD climate risk, carbon emissions, corporate governance quality, social impact, or responsible investing criteria.\n\nDo not use this skill when:\n- Do not use when the request is about financial performance metrics only, stock screening on non-ESG criteria (use Market Screener), or portfolio construction (use Portfolio Optimizer).\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Outcome from ESG Scorer: comprehensive ESG assessment with pillar scores, materiality mapping, TCFD alignment check, benchmarks against sector peers, and improvement recommendations..\n5. Verify success criteria: Returns a structured ESG score with E, S, and G pillar ratings, sector-specific materiality assessment, quantified metrics where available, peer comparison, and actionable improvement areas..",
+  "parameters": [
+    {
+      "name": "company",
+      "type": "string",
+      "description": "Company name or ticker symbol",
+      "required": true
+    },
+    {
+      "name": "framework",
+      "type": "select",
+      "description": "ESG framework to apply",
+      "required": true,
+      "options": [
+        "Comprehensive",
+        "SASB Materiality",
+        "TCFD Alignment",
+        "Carbon Analysis",
+        "Social Impact"
+      ]
+    },
+    {
+      "name": "question",
+      "type": "string",
+      "description": "Your specific ESG analysis question",
+      "required": true
+    },
+    {
+      "name": "sector",
+      "type": "string",
+      "description": "Company sector for materiality mapping (e.g., Technology, Healthcare, Energy)",
+      "required": false
+    },
+    {
+      "name": "focusArea",
+      "type": "select",
+      "description": "Primary ESG pillar to focus on",
+      "required": true,
+      "options": [
+        "Environmental",
+        "Social",
+        "Governance",
+        "All"
+      ]
+    }
+  ],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks about ESG scores, sustainability assessment, SASB materiality, TCFD climate risk, carbon emissions, corporate governance quality, social impact, or responsible investing criteria.",
+      "dontUseWhen": "Do not use when the request is about financial performance metrics only, stock screening on non-ESG criteria (use Market Screener), or portfolio construction (use Portfolio Optimizer).",
+      "outputs": "Outcome from ESG Scorer: comprehensive ESG assessment with pillar scores, materiality mapping, TCFD alignment check, benchmarks against sector peers, and improvement recommendations.",
+      "successCriteria": "Returns a structured ESG score with E, S, and G pillar ratings, sector-specific materiality assessment, quantified metrics where available, peer comparison, and actionable improvement areas.",
+      "examples": {
+        "positive": [
+          "Use the esg-scorer skill for this request.",
+          "Help me with esg scorer.",
+          "Use when the user asks about ESG scores, sustainability assessment, SASB materiality, TCFD climate risk, carbon emissions, corporate governance quality, social impact, or responsible investing criteria.",
+          "ESG Scorer: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use when the request is about financial performance metrics only, stock screening on non-ESG criteria (use Market Screener), or portfolio construction (use Portfolio Optimizer).",
+          "Do not use esg-scorer for unrelated requests.",
+          "This request is outside esg scorer scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

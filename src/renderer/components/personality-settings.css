@@ -1,0 +1,1176 @@
+.personality-settings {
+  width: 100%;
+  max-width: 900px;
+  margin: 0;
+  color: var(--color-text);
+}
+
+/* Match the quiet underline navigation used by other nested settings pages. */
+.personality-settings .personality-nav {
+  display: flex;
+  min-height: 40px;
+  align-items: stretch;
+  gap: 0;
+  margin: 0 0 22px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border-subtle);
+  scrollbar-width: none;
+}
+
+.personality-settings .personality-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.personality-settings .personality-nav-btn {
+  position: relative;
+  display: inline-flex;
+  min-height: 40px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+.personality-settings .personality-nav-btn::after {
+  position: absolute;
+  right: 12px;
+  bottom: -1px;
+  left: 12px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: transparent;
+  content: "";
+}
+
+.personality-settings .personality-nav-btn:hover {
+  background: color-mix(in srgb, var(--color-bg-secondary) 74%, transparent);
+  color: var(--color-text);
+}
+
+.personality-settings .personality-nav-btn.active {
+  background: transparent;
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.personality-settings .personality-nav-btn.active::after {
+  background: var(--color-accent);
+}
+
+.personality-settings .personality-nav-btn svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  color: var(--color-text-tertiary);
+}
+
+.personality-settings .personality-nav-btn.active svg {
+  color: var(--color-accent);
+}
+
+.settings-page
+  .settings-tabbed-workspace
+  .more-channels-content
+  .personality-settings
+  > .settings-section,
+.personality-settings > .settings-section {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.personality-settings > .settings-section + .settings-section {
+  margin-top: 32px;
+}
+
+.personality-settings .personality-tab-header {
+  display: flex;
+  min-height: 54px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 0 0 16px;
+  padding: var(--settings-section-intro-inset, 14px) 2px 14px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.personality-settings .personality-tab-heading {
+  min-width: 0;
+}
+
+.personality-settings .personality-tab-header h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 17px;
+  font-weight: 660;
+  letter-spacing: -0.02em;
+  line-height: 22px;
+}
+
+.personality-settings .personality-tab-header .settings-description {
+  max-width: 650px;
+  margin: 4px 0 0;
+}
+
+.personality-settings .personality-tab-meta {
+  flex: 0 0 auto;
+  padding-bottom: 1px;
+}
+
+.personality-settings .profile-memory-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.personality-settings .profile-memory-meta span + span {
+  position: relative;
+  padding-left: 12px;
+}
+
+.personality-settings .profile-memory-meta span + span::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--color-text-tertiary);
+  content: "";
+  transform: translateY(-50%);
+}
+
+.personality-settings .settings-description,
+.personality-settings .style-hint,
+.personality-settings .personality-setting-copy p {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Memory uses the same card and row rhythm as identity instead of a loose report. */
+.personality-settings .profile-memory-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+}
+
+.personality-settings .profile-memory-section,
+.personality-settings .profile-memory-composer,
+.personality-settings .profile-memory-empty {
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+
+.personality-settings .profile-memory-section h4 {
+  margin: 0;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 18px;
+}
+
+.personality-settings .profile-memory-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.personality-settings .profile-memory-fact {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 12px 14px;
+  border: 0;
+}
+
+.personality-settings .profile-memory-fact + .profile-memory-fact {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.personality-settings .profile-memory-fact-body {
+  min-width: 0;
+}
+
+.personality-settings .profile-memory-fact-body p {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.personality-settings .profile-memory-fact-body span {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.personality-settings .profile-memory-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.personality-settings .profile-memory-actions button,
+.personality-settings .profile-memory-editing button {
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 550;
+}
+
+.personality-settings .profile-memory-actions button:hover,
+.personality-settings .profile-memory-editing button:hover {
+  border-color: var(--color-border-subtle);
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.personality-settings .profile-memory-actions button.danger {
+  color: var(--color-error);
+}
+
+.personality-settings .profile-memory-composer {
+  position: static;
+  margin-top: 12px;
+  padding: 12px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.personality-settings .profile-memory-status {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 11px;
+}
+
+.personality-settings .profile-memory-editing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.personality-settings .profile-memory-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.personality-settings .profile-memory-input-row .settings-input {
+  min-width: 0;
+  height: 36px;
+}
+
+.personality-settings .profile-memory-input-row .button-primary {
+  min-width: 64px;
+  min-height: 36px;
+}
+
+.personality-settings .profile-memory-char-count {
+  margin-top: 5px;
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  text-align: right;
+}
+
+.personality-settings .profile-memory-empty {
+  padding: 28px 20px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Identity fields use the same bordered row pattern as profiles and safety settings. */
+.personality-settings .personality-settings-list {
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+
+.personality-settings .personality-setting-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(320px, 440px);
+  align-items: center;
+  gap: 24px;
+  min-height: 70px;
+  padding: 12px 14px;
+}
+
+.personality-settings .personality-setting-row + .personality-setting-row {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.personality-settings .personality-setting-copy {
+  min-width: 0;
+}
+
+.personality-settings .personality-setting-copy label {
+  display: block;
+  margin: 0;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.personality-settings .personality-setting-copy p {
+  margin: 3px 0 0;
+}
+
+.personality-settings .agent-name-input-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.personality-settings .agent-name-input-row .settings-input {
+  min-width: 0;
+  width: 100%;
+  height: 38px;
+  flex: 1 1 auto;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 9px;
+  background: var(--color-bg);
+  box-shadow: none;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    background-color 120ms ease;
+}
+
+.personality-settings .agent-name-input-row .settings-input:hover {
+  border-color: var(--color-border);
+}
+
+.personality-settings .agent-name-input-row .settings-input:focus {
+  border-color: var(--color-accent);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
+.personality-settings .agent-name-input-row .settings-input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.personality-settings .personality-save-button {
+  min-width: 68px;
+  height: 38px;
+  flex: 0 0 auto;
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-bg);
+  box-shadow: none;
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.personality-settings .personality-save-button:hover:not(:disabled) {
+  border-color: var(--color-border-active);
+  background: var(--color-bg-hover);
+  transform: none;
+}
+
+.personality-settings .personality-save-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.personality-settings .personality-save-button:disabled {
+  border-color: var(--color-border-subtle);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-tertiary);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+/* Keep relationship data in one compact surface instead of cards nested in cards. */
+.personality-settings .relationship-stats {
+  margin: 14px 0 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+
+.personality-settings .relationship-stats h4 {
+  margin: 0;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.personality-settings .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+}
+
+.personality-settings .stat-card {
+  min-height: 72px;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.personality-settings .stat-card + .stat-card {
+  border-left: 1px solid var(--color-border-subtle);
+}
+
+.personality-settings .stat-value {
+  color: var(--color-text);
+  font-size: 20px;
+  font-weight: 680;
+  line-height: 26px;
+  letter-spacing: -0.02em;
+}
+
+.personality-settings .stat-label {
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.personality-settings .milestone-progress {
+  margin: 0;
+  padding: 9px 16px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.personality-settings .progress-text {
+  display: block;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: left;
+}
+
+/* Commands read as a compact reference list, not a promotional callout. */
+.personality-settings .settings-tip {
+  margin: 14px 0 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+
+.personality-settings .settings-tip h4 {
+  margin: 0;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.personality-settings .command-examples {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.personality-settings .command-examples li {
+  display: grid;
+  grid-template-columns: minmax(110px, auto) 1fr;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+  margin: 0;
+  padding: 7px 16px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.personality-settings .command-examples li + li {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.personality-settings .command-examples code {
+  width: fit-content;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-accent);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+/* Shared treatment for the remaining personality tabs. */
+.personality-settings .form-group {
+  min-width: 0;
+  margin: 0;
+}
+
+.personality-settings .form-group label,
+.personality-settings .style-control > label {
+  margin-bottom: 6px;
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.personality-settings .settings-textarea,
+.personality-settings .form-group .settings-input,
+.personality-settings .add-rule-row select,
+.personality-settings .add-expertise-row select,
+.personality-settings .preview-controls select {
+  border-color: var(--color-border-subtle);
+  border-radius: 9px;
+  background: var(--color-bg);
+  box-shadow: none;
+}
+
+.personality-settings .settings-textarea {
+  min-height: 108px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.personality-settings .personality-instructions-card {
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+
+.personality-settings .personality-instructions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+.personality-settings .personality-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 16px;
+  border-top: 1px solid var(--color-border-subtle);
+  background: color-mix(in srgb, var(--color-bg-secondary) 54%, transparent);
+}
+
+.personality-settings .personality-card-actions .button-primary {
+  min-height: 32px;
+  padding: 5px 12px;
+}
+
+.personality-settings .settings-textarea:focus,
+.personality-settings .form-group .settings-input:focus,
+.personality-settings .add-rule-row select:focus,
+.personality-settings .add-expertise-row select:focus,
+.personality-settings .preview-controls select:focus {
+  border-color: var(--color-accent);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
+.personality-settings .behavioral-rules,
+.personality-settings .expertise-tags,
+.personality-settings .style-controls,
+.personality-settings .soul-editor,
+.personality-settings .personality-preview-test,
+.personality-settings .import-export {
+  margin: 0 0 14px;
+  padding: 14px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+
+.personality-settings .preset-quick-start,
+.personality-settings .trait-sliders {
+  margin: 0 0 22px;
+}
+
+.personality-settings .preset-quick-start h4,
+.personality-settings .trait-sliders h4,
+.personality-settings .behavioral-rules h4,
+.personality-settings .expertise-tags h4,
+.personality-settings .soul-editor h4,
+.personality-settings .personality-preview-test h4,
+.personality-settings .import-export h4 {
+  margin: 0 0 12px;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.personality-settings .preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.personality-settings .preset-btn {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 66px;
+  grid-template-columns: 34px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 11px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--color-bg-secondary) 58%, transparent);
+  box-shadow: none;
+  color: var(--color-text-secondary);
+  text-align: left;
+}
+
+.personality-settings .preset-btn-icon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+}
+
+.personality-settings .preset-btn-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.personality-settings .preset-btn-name {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personality-settings .preset-btn-description {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  line-height: 15px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.personality-settings .preset-btn-check {
+  color: var(--color-accent);
+}
+
+.personality-settings .style-option,
+.personality-settings .analogy-option {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-bg-secondary) 58%, transparent);
+  box-shadow: none;
+  color: var(--color-text-secondary);
+}
+
+.personality-settings .preset-btn:hover,
+.personality-settings .style-option:hover,
+.personality-settings .analogy-option:hover {
+  border-color: var(--color-border);
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.personality-settings .preset-btn.active {
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 52%,
+    var(--color-border)
+  );
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+}
+
+.personality-settings .preset-btn.active .preset-btn-icon {
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 28%,
+    var(--color-border-subtle)
+  );
+  background: color-mix(in srgb, var(--color-accent) 9%, var(--color-bg));
+  color: var(--color-accent);
+}
+
+.personality-settings .trait-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.personality-settings .style-option.selected,
+.personality-settings .analogy-option.selected,
+.personality-settings .persona-card.selected {
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent) 45%,
+    var(--color-border)
+  );
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+}
+
+.personality-settings .trait-row {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 13px 14px 11px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--color-bg-secondary) 42%, transparent);
+}
+
+.personality-settings .trait-row-header,
+.personality-settings .trait-row-value,
+.personality-settings .trait-range-labels {
+  display: flex;
+  align-items: center;
+}
+
+.personality-settings .trait-row-header {
+  min-width: 0;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.personality-settings .trait-row-title {
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.personality-settings .trait-row-value {
+  min-width: 0;
+  gap: 6px;
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.personality-settings .trait-row-value strong {
+  min-width: 24px;
+  color: var(--color-accent);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.personality-settings .trait-row input[type="range"] {
+  height: 4px;
+  width: 100%;
+  max-width: none;
+  margin: 2px 0 0;
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--color-accent) 0,
+    var(--color-accent) var(--trait-value),
+    var(--color-border) var(--trait-value),
+    var(--color-border) 100%
+  );
+  outline: none;
+}
+
+.personality-settings .trait-row input[type="range"]::-webkit-slider-thumb {
+  width: 15px;
+  height: 15px;
+  appearance: none;
+  border: 2px solid var(--color-bg);
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 34%, transparent);
+  cursor: grab;
+}
+
+.personality-settings .trait-row input[type="range"]::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--color-bg);
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 34%, transparent);
+  cursor: grab;
+}
+
+.personality-settings .trait-row input[type="range"]:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+
+.personality-settings .trait-range-labels {
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-text-tertiary);
+  font-size: 9px;
+  line-height: 14px;
+}
+
+.personality-settings .trait-range-labels span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personality-settings .rules-list {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background: var(--color-bg);
+}
+
+.personality-settings .rule-item {
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.personality-settings .rule-item + .rule-item {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.personality-settings .rule-type {
+  color: var(--color-text-secondary);
+}
+
+.personality-settings .add-rule-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.personality-settings .add-expertise-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px auto;
+  gap: 8px;
+}
+
+.personality-settings .add-rule-row select,
+.personality-settings .add-expertise-row select,
+.personality-settings .add-rule-row input,
+.personality-settings .add-expertise-row input {
+  min-width: 0;
+  width: 100%;
+}
+
+.personality-settings .persona-overlay-collapse,
+.personality-settings .quirks-collapse,
+.personality-settings .persona-collapse {
+  margin-top: 10px;
+  padding: 11px 14px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+
+.personality-settings .persona-overlay-collapse summary,
+.personality-settings .quirks-collapse summary,
+.personality-settings .persona-collapse summary {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.personality-settings .style-controls {
+  gap: 0;
+}
+
+.personality-settings .style-control {
+  display: grid;
+  grid-template-columns: minmax(150px, 190px) 1fr;
+  align-items: center;
+  gap: 18px;
+  padding: 11px 0;
+}
+
+.personality-settings .style-control + .style-control {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.personality-settings .style-control > label {
+  margin: 0;
+}
+
+.personality-settings .style-option {
+  min-height: 30px;
+  padding: 5px 11px;
+}
+
+.personality-settings .persona-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.personality-settings .persona-card {
+  padding: 13px 14px;
+  border-color: var(--color-border-subtle);
+  border-radius: 9px;
+  background: var(--color-bg);
+  box-shadow: none;
+}
+
+.personality-settings .persona-card-icon {
+  margin-bottom: 6px;
+  font-size: 20px;
+}
+
+.personality-settings .soul-preview-block,
+.personality-settings .preview-output {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-bg-secondary) 52%, transparent);
+}
+
+.personality-settings .soul-preview-block {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 10px 0 0;
+  padding: 8px 10px 8px 12px;
+}
+
+.personality-settings .soul-preview {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personality-settings .soul-preview-block .button-small {
+  flex: 0 0 auto;
+  border-color: var(--color-border);
+  border-radius: 7px;
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+}
+
+.personality-settings .preview-controls select {
+  width: min(220px, 100%);
+}
+
+.personality-settings .import-export-buttons .button-primary,
+.personality-settings .soul-actions .button-primary,
+.personality-settings .preview-controls .button-primary,
+.personality-settings .form-group > .button-primary,
+.personality-settings .add-rule-row .button-primary,
+.personality-settings .add-expertise-row .button-primary {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  box-shadow: none;
+  color: var(--color-text);
+}
+
+.personality-settings
+  .import-export-buttons
+  .button-primary:hover:not(:disabled),
+.personality-settings .soul-actions .button-primary:hover:not(:disabled),
+.personality-settings .preview-controls .button-primary:hover:not(:disabled),
+.personality-settings .form-group > .button-primary:hover:not(:disabled),
+.personality-settings .add-rule-row .button-primary:hover:not(:disabled),
+.personality-settings .add-expertise-row .button-primary:hover:not(:disabled) {
+  border-color: var(--color-border-active);
+  background: var(--color-bg-hover);
+  box-shadow: none;
+  transform: none;
+}
+
+.personality-settings .personality-toast {
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text);
+}
+
+.theme-light .personality-settings .personality-settings-list,
+.theme-light .personality-settings .relationship-stats,
+.theme-light .personality-settings .settings-tip,
+.theme-light .personality-settings .personality-instructions-card,
+.theme-light .personality-settings .profile-memory-section,
+.theme-light .personality-settings .profile-memory-composer,
+.theme-light .personality-settings .profile-memory-empty,
+.theme-light .personality-settings .behavioral-rules,
+.theme-light .personality-settings .expertise-tags,
+.theme-light .personality-settings .style-controls,
+.theme-light .personality-settings .soul-editor,
+.theme-light .personality-settings .personality-preview-test,
+.theme-light .personality-settings .import-export {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+}
+
+.theme-dark .personality-settings .personality-settings-list,
+.theme-dark .personality-settings .relationship-stats,
+.theme-dark .personality-settings .settings-tip,
+.theme-dark .personality-settings .personality-instructions-card,
+.theme-dark .personality-settings .profile-memory-section,
+.theme-dark .personality-settings .profile-memory-composer,
+.theme-dark .personality-settings .profile-memory-empty,
+.theme-dark .personality-settings .behavioral-rules,
+.theme-dark .personality-settings .expertise-tags,
+.theme-dark .personality-settings .style-controls,
+.theme-dark .personality-settings .soul-editor,
+.theme-dark .personality-settings .personality-preview-test,
+.theme-dark .personality-settings .import-export {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+@media (max-width: 780px) {
+  .personality-settings .preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .personality-settings .trait-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personality-settings .personality-instructions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personality-settings .personality-setting-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .personality-settings .style-control {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .personality-settings .persona-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personality-settings .add-rule-row,
+  .personality-settings .add-expertise-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .personality-settings .preset-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personality-settings .personality-tab-header {
+    min-height: 0;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .personality-settings .profile-memory-meta {
+    white-space: normal;
+  }
+
+  .personality-settings .profile-memory-fact,
+  .personality-settings .profile-memory-input-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .personality-settings .profile-memory-actions {
+    justify-content: flex-start;
+  }
+
+  .personality-settings .agent-name-input-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .personality-settings .personality-save-button {
+    width: 100%;
+  }
+
+  .personality-settings .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personality-settings .stat-card + .stat-card {
+    border-top: 1px solid var(--color-border-subtle);
+    border-left: 0;
+  }
+
+  .personality-settings .command-examples li {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+}

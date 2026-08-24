@@ -1,0 +1,71 @@
+.document-zoom-controls {
+  display: inline-flex;
+  height: 32px;
+  flex: 0 0 auto;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03);
+}
+
+.document-zoom-controls.is-compact {
+  height: 30px;
+}
+
+.document-zoom-button,
+.document-zoom-value {
+  display: inline-flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.document-zoom-button {
+  width: 30px;
+  padding: 0;
+}
+
+.document-zoom-value {
+  min-width: 50px;
+  padding: 0 7px;
+  border-right: 1px solid #edf0f2;
+  border-left: 1px solid #edf0f2;
+  color: #273142;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.document-zoom-button:hover:not(:disabled),
+.document-zoom-value:hover {
+  background: #f4f6f8;
+  color: #111827;
+}
+
+.document-zoom-button:focus-visible,
+.document-zoom-value:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid rgba(37, 99, 235, 0.28);
+  outline-offset: -2px;
+}
+
+.document-zoom-button:active:not(:disabled),
+.document-zoom-value:active {
+  transform: translateY(1px);
+}
+
+.document-zoom-button:disabled {
+  cursor: default;
+  opacity: 0.34;
+}
+
+.file-viewer-actions .document-zoom-controls {
+  margin-right: 2px;
+}

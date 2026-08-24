@@ -1,0 +1,38 @@
+{
+  "id": "developer-growth-analysis",
+  "name": "developer-growth-analysis",
+  "description": "Analyze recent coding patterns and generate a personalized developer growth report.",
+  "icon": "📈",
+  "category": "Development",
+  "prompt": "# developer-growth-analysis\n\nUse this skill only when the request is in scope:\n- Use when the user asks to analyze recent coding patterns and generate a personalized developer growth report.\n\nDo not use this skill when:\n- Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Outcome from developer-growth-analysis: task-specific result plus concrete action notes..\n5. Verify success criteria: Returns concrete actions and decisions matching the requested task, with no fabricated tool-side behavior..",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "version": "1.0.0",
+    "author": "ComposioHQ",
+    "repository": "https://github.com/ComposioHQ/awesome-claude-skills/tree/master/developer-growth-analysis",
+    "routing": {
+      "useWhen": "Use when the user asks to analyze recent coding patterns and generate a personalized developer growth report.",
+      "dontUseWhen": "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.",
+      "outputs": "Outcome from developer-growth-analysis: task-specific result plus concrete action notes.",
+      "successCriteria": "Returns concrete actions and decisions matching the requested task, with no fabricated tool-side behavior.",
+      "examples": {
+        "positive": [
+          "Use the developer-growth-analysis skill for this request.",
+          "Help me with developer-growth-analysis.",
+          "Use when the user asks to analyze recent coding patterns and generate a personalized developer growth report.",
+          "developer-growth-analysis: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.",
+          "Do not use developer-growth-analysis for unrelated requests.",
+          "This request is outside developer-growth-analysis scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

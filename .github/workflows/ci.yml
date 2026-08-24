@@ -1,0 +1,235 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          version="8.30.1"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${version}/gitleaks_${version}_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          sudo install /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Resolve commit range
+        id: range
+        shell: bash
+        run: |
+          set -euo pipefail
+          event_name="${{ github.event_name }}"
+
+          if [ "$event_name" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+            echo "log_opts=${base}..${head}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          before="${{ github.event.before }}"
+          head="${{ github.sha }}"
+
+          if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+            if git rev-parse "${head}~1" >/dev/null 2>&1; then
+              echo "log_opts=${head}~1..${head}" >> "$GITHUB_OUTPUT"
+            else
+              echo "log_opts=${head}" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+
+          echo "log_opts=${before}..${head}" >> "$GITHUB_OUTPUT"
+
+      - name: Run gitleaks on new commits
+        run: gitleaks git --config=config/gitleaks.toml --no-banner --redact --log-opts="${{ steps.range.outputs.log_opts }}"
+
+  regression-policy:
+    name: Regression Policy Gate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Enforce production-failure eval regression policy
+        run: npm run qa:eval:enforce-regressions
+
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run lint
+        continue-on-error: true
+        run: npm run lint
+
+      - name: Run TypeScript type check
+        run: npm run type-check
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install Electron binary
+        run: node node_modules/electron/install.js
+
+      - name: Run tests
+        run: npm test
+
+  targeted-eval:
+    name: Targeted Eval (Agent Changes)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Detect agent-path changes
+        id: changes
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            agent:
+              - 'src/electron/agent/**'
+              - 'src/electron/agent/tools/**'
+
+      - name: Setup Node.js
+        if: steps.changes.outputs.agent == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        if: steps.changes.outputs.agent == 'true'
+        run: npm ci
+
+      - name: Install sqlite3 CLI
+        if: steps.changes.outputs.agent == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sqlite3
+
+      - name: Run targeted deterministic eval suite
+        if: steps.changes.outputs.agent == 'true'
+        run: npm run qa:eval:run -- --suite reliability-regressions --mode deterministic
+        env:
+          NEOWORKER_DB_PATH: ${{ runner.temp }}/neoworker-eval.db
+          NEOWORKER_EVAL_ALLOW_EMPTY: '1'
+
+      - name: Enforce timeline reliability thresholds
+        if: steps.changes.outputs.agent == 'true'
+        run: npm run qa:timeline:enforce
+        env:
+          NEOWORKER_DB_PATH: ${{ runner.temp }}/neoworker-eval.db
+          NEOWORKER_EVAL_ALLOW_EMPTY: '1'
+
+      - name: Skip notice
+        if: steps.changes.outputs.agent != 'true'
+        run: echo "No agent-path changes detected. Skipping targeted eval gate."
+
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [secret-scan, lint-and-typecheck, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Prepare package.json for electron-builder
+        shell: bash
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.dependencies = pkg.dependencies || {};
+            pkg.devDependencies = pkg.devDependencies || {};
+            for (const dep of ['electron', '@electron/rebuild']) {
+              if (pkg.dependencies[dep]) {
+                pkg.devDependencies[dep] = pkg.dependencies[dep];
+                delete pkg.dependencies[dep];
+              }
+            }
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Package application
+        run: npm run package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: NeoWorker-${{ matrix.os }}
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.exe
+          if-no-files-found: warn

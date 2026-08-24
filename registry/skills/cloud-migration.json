@@ -1,0 +1,35 @@
+{
+  "id": "cloud-migration",
+  "name": "Cloud Migration",
+  "description": "Cloud migration strategy and execution: assessment frameworks, migration patterns, database migration, network cutover, and multi-cloud planning.",
+  "icon": "☁️",
+  "category": "DevOps",
+  "prompt": "# Cloud Migration\n\nUse this skill only when the request is in scope:\n- Use when the user asks about cloud migration, moving from on-prem to cloud, AWS to GCP, cloud to cloud migration, migration assessment, the 6 Rs, lift and shift, or cloud modernization strategy.\n\nDo not use this skill when:\n- Do not use for day-to-day Terraform operations (use terraform-ops), Kubernetes management (use kubernetes-ops), or Docker Compose (use docker-compose-ops).\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Migration plans, assessment frameworks, cutover checklists, and cost analysis guidance..\n5. Verify success criteria: Returns a structured migration plan with phases, wave groupings, and actionable steps..",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks about cloud migration, moving from on-prem to cloud, AWS to GCP, cloud to cloud migration, migration assessment, the 6 Rs, lift and shift, or cloud modernization strategy.",
+      "dontUseWhen": "Do not use for day-to-day Terraform operations (use terraform-ops), Kubernetes management (use kubernetes-ops), or Docker Compose (use docker-compose-ops).",
+      "outputs": "Migration plans, assessment frameworks, cutover checklists, and cost analysis guidance.",
+      "successCriteria": "Returns a structured migration plan with phases, wave groupings, and actionable steps.",
+      "examples": {
+        "positive": [
+          "Use the cloud-migration skill for this request.",
+          "Help me with cloud migration.",
+          "Use when the user asks about cloud migration, moving from on-prem to cloud, AWS to GCP, cloud to cloud migration, migration assessment, the 6 Rs, lift and shift, or cloud modernization strategy.",
+          "Cloud Migration: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use for day-to-day Terraform operations (use terraform-ops), Kubernetes management (use kubernetes-ops), or Docker Compose (use docker-compose-ops).",
+          "Do not use cloud-migration for unrelated requests.",
+          "This request is outside cloud migration scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

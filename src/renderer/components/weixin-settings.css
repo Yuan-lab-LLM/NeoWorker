@@ -1,0 +1,1421 @@
+.weixin-settings {
+  --weixin-green: #179b50;
+  --weixin-green-strong: #128443;
+  --weixin-green-soft: color-mix(
+    in srgb,
+    var(--weixin-green) 8%,
+    var(--color-bg-elevated, #ffffff)
+  );
+  --weixin-green-border: color-mix(
+    in srgb,
+    var(--weixin-green) 24%,
+    var(--color-border, #dce2eb)
+  );
+  width: 100%;
+  max-width: 1080px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--color-text-primary, var(--text-primary));
+}
+
+.weixin-settings *,
+.weixin-settings *::before,
+.weixin-settings *::after {
+  box-sizing: border-box;
+}
+
+.weixin-settings .spin {
+  animation: weixin-component-spin 0.9s linear infinite;
+}
+
+@keyframes weixin-component-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.weixin-loading {
+  min-height: 220px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: row;
+  gap: 12px;
+  color: var(--color-text-secondary, var(--text-secondary));
+}
+
+.weixin-loading-mark {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--weixin-green);
+  background: var(--weixin-green-soft);
+}
+
+.weixin-loading > div:last-child {
+  display: grid;
+  gap: 3px;
+}
+
+.weixin-loading strong {
+  color: var(--color-text-primary, var(--text-primary));
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.weixin-loading span {
+  font-size: 12px;
+}
+
+.weixin-connect-shell {
+  min-height: 430px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(330px, 0.85fr);
+  overflow: hidden;
+  border: 1px solid var(--color-border, var(--border-color));
+  border-radius: 18px;
+  background: var(--color-bg-elevated, var(--background-primary));
+  box-shadow: 0 18px 48px color-mix(in srgb, #23324a 7%, transparent);
+}
+
+.weixin-connect-copy {
+  min-width: 0;
+  padding: 34px 38px 32px;
+  display: flex;
+  flex-direction: column;
+}
+
+.weixin-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.weixin-brand-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--weixin-green-border);
+  border-radius: 13px;
+  color: var(--weixin-green);
+  background: var(--weixin-green-soft);
+}
+
+.weixin-brand-row > div:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.weixin-brand-row span {
+  color: var(--weixin-green-strong);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.weixin-brand-row strong {
+  overflow: hidden;
+  color: var(--color-text-primary, var(--text-primary));
+  font-size: 13px;
+  font-weight: 620;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weixin-connect-intro {
+  margin-top: 30px;
+}
+
+.weixin-connect-intro h3 {
+  margin: 0;
+  color: var(--color-text-primary, var(--text-primary));
+  font-size: clamp(23px, 2.4vw, 30px);
+  font-weight: 680;
+  letter-spacing: -0.035em;
+  line-height: 1.22;
+}
+
+.weixin-connect-intro p {
+  max-width: 54ch;
+  margin: 10px 0 0;
+  color: var(--color-text-secondary, var(--text-secondary));
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.weixin-connect-steps {
+  margin: 28px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  list-style: none;
+}
+
+.weixin-connect-steps li {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.weixin-connect-steps li > span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--color-border, var(--border-color));
+  border-radius: 9px;
+  color: var(--weixin-green);
+  background: var(--color-bg-secondary, var(--background-secondary));
+}
+
+.weixin-connect-steps li > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.weixin-connect-steps strong {
+  color: var(--color-text-primary, var(--text-primary));
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.weixin-connect-steps small {
+  color: var(--color-text-muted, var(--text-secondary));
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.weixin-safety-note {
+  margin-top: auto;
+  padding-top: 28px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--color-text-muted, var(--text-secondary));
+}
+
+.weixin-safety-note > svg {
+  margin-top: 1px;
+  flex: none;
+  color: var(--weixin-green);
+}
+
+.weixin-safety-note > div {
+  display: grid;
+  gap: 3px;
+}
+
+.weixin-safety-note strong {
+  color: var(--color-text-primary, var(--text-primary));
+  font-size: 11.5px;
+  font-weight: 620;
+}
+
+.weixin-safety-note span {
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.weixin-qr-stage {
+  min-width: 0;
+  min-height: 430px;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid var(--color-border-subtle, var(--border-color));
+  background:
+    radial-gradient(
+      circle at 50% 20%,
+      color-mix(in srgb, var(--weixin-green) 8%, transparent),
+      transparent 52%
+    ),
+    var(--color-bg-secondary, var(--background-secondary));
+}
+
+.weixin-qr-placeholder {
+  width: min(100%, 270px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.weixin-qr-placeholder-mark {
+  width: 88px;
+  height: 88px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--weixin-green-border);
+  border-radius: 22px;
+  color: var(--weixin-green);
+  background: color-mix(
+    in srgb,
+    var(--weixin-green) 7%,
+    var(--color-bg-elevated, #ffffff)
+  );
+}
+
+.weixin-qr-placeholder > strong {
+  margin-top: 20px;
+  color: var(--color-text-primary, var(--text-primary));
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.weixin-qr-placeholder > span {
+  max-width: 29ch;
+  margin-top: 7px;
+  color: var(--color-text-muted, var(--text-secondary));
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.weixin-start-button,
+.weixin-text-button,
+.weixin-action-secondary,
+.weixin-action-danger,
+.weixin-generate-code,
+.weixin-pairing-code,
+.weixin-user-row button,
+.weixin-error button {
+  border: 1px solid var(--color-border, var(--border-color));
+  border-radius: 9px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 100ms ease;
+}
+
+.weixin-start-button {
+  min-height: 39px;
+  margin-top: 20px;
+  padding: 0 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-color: var(--weixin-green);
+  color: #ffffff;
+  background: var(--weixin-green);
+  font-size: 12px;
+  font-weight: 650;
+  box-shadow: 0 8px 18px
+    color-mix(in srgb, var(--weixin-green) 20%, transparent);
+}
+
+.weixin-start-button:hover:not(:disabled) {
+  border-color: var(--weixin-green-strong);
+  background: var(--weixin-green-strong);
+}
+
+.weixin-start-button:active:not(:disabled),
+.weixin-text-button:active:not(:disabled),
+.weixin-action-secondary:active:not(:disabled),
+.weixin-action-danger:active:not(:disabled),
+.weixin-generate-code:active:not(:disabled),
+.weixin-pairing-code:active:not(:disabled),
+.weixin-user-row button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.weixin-start-button:disabled,
+.weixin-text-button:disabled,
+.weixin-action-secondary:disabled,
+.weixin-action-danger:disabled,
+.weixin-generate-code:disabled,
+.weixin-user-row button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.weixin-text-button {
+  min-height: 30px;
+  margin-top: 2px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-color: transparent;
+  color: var(--color-text-secondary, var(--text-secondary));
+  background: transparent;
+  font-size: 11px;
+}
+
+.weixin-text-button:hover {
+  color: var(--weixin-green-strong);
+  background: var(--weixin-green-soft);
+}
+
+.weixin-qr-frame {
+  position: relative;
+  width: 224px;
+  height: 224px;
+  padding: 11px;
+  border: 1px solid var(--weixin-green-border);
+  border-radius: 17px;
+  background: #ffffff;
+  box-shadow: 0 16px 36px color-mix(in srgb, #23324a 10%, transparent);
+}
+
+.weixin-qr-frame img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.weixin-qr-frame.scanned img {
+  opacity: 0.16;
+}
+
+.weixin-qr-confirmed {
+  position: absolute;
+  inset: 0;
+  width: 56px;
+  height: 56px;
+  margin: auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #ffffff;
+  background: var(--weixin-green);
+  box-shadow: 0 8px 20px
+    color-mix(in srgb, var(--weixin-green) 26%, transparent);
+}
+
+.weixin-qr-status {
+  min-height: 23px;
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-text-secondary, var(--text-secondary));
+  font-size: 11px;
+}
+
+.weixin-qr-status > svg {
+  color: var(--weixin-green);
+}
+
+.weixin-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--weixin-green);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--weixin-green) 12%, transparent);
+}
+
+.weixin-error {
+  min-height: 42px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid
+    color-mix(in srgb, #c2413b 24%, var(--color-border, #dce2eb));
+  border-radius: 10px;
+  color: #b73a35;
+  background: color-mix(in srgb, #c2413b 6%, var(--color-bg-elevated, #ffffff));
+  font-size: 11.5px;
+}
+
+.weixin-error > svg {
+  flex: none;
+}
+
+.weixin-error > span {
+  min-width: 0;
+  flex: 1;
+}
+
+.weixin-error button {
+  min-height: 28px;
+  padding: 0 9px;
+  color: #a9322e;
+  border-color: color-mix(in srgb, #c2413b 22%, var(--color-border, #dce2eb));
+  background: transparent;
+  font-size: 11px;
+}
+
+.weixin-status-panel {
+  min-height: 94px;
+  padding: 20px 22px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--color-border, var(--border-color));
+  border-radius: 16px;
+  background: var(--color-bg-elevated, var(--background-primary));
+}
+
+.weixin-connection-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--color-border, var(--border-color));
+  border-radius: 14px;
+  color: var(--color-text-muted, var(--text-secondary));
+  background: var(--color-bg-secondary, var(--background-secondary));
+}
+
+.weixin-connection-icon.online {
+  border-color: var(--weixin-green-border);
+  color: var(--weixin-green);
+  background: var(--weixin-green-soft);
+}
+
+.weixin-connection-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.weixin-connection-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.weixin-connection-title h3 {
+  margin: 0;
+  color: var(--color-text-primary, var(--text-primary));
+  font-size: 16px;
+  font-weight: 660;
+  letter-spacing: -0.012em;
+}
+
+.weixin-connection-title > span {
+  padding: 3px 7px;
+  border-radius: 6px;
+  color: var(--color-text-muted, var(--text-secondary));
+  background: var(--color-bg-secondary, var(--background-secondary));
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.weixin-connection-title > span.online {
+  color: var(--weixin-green-strong);
+  background: var(--weixin-green-soft);
+}
+
+.weixin-connection-copy p {
+  margin: 5px 0 0;
+  color: var(--color-text-secondary, var(--text-secondary));
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.weixin-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.weixin-action-secondary,
+.weixin-action-danger,
+.weixin-generate-code,
+.weixin-user-row button {
+  min-height: 32px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--color-text-secondary, var(--text-secondary));
+  background: var(--color-bg-elevated, var(--background-primary));
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.weixin-action-secondary:hover:not(:disabled),
+.weixin-generate-code:hover:not(:disabled),
+.weixin-user-row button:hover:not(:disabled) {
+  border-color: var(--weixin-green-border);
+  color: var(--weixin-green-strong);
+  background: var(--weixin-green-soft);
+}
+
+.weixin-action-danger {
+  border-color: transparent;
+  color: #b83a35;
+  background: transparent;
+}
+
+.weixin-action-danger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, #c2413b 20%, var(--color-border, #dce2eb));
+  background: color-mix(in srgb, #c2413b 6%, transparent);
+}
+
+.weixin-control-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.weixin-control-panel {
+  min-width: 0;
+  min-height: 152px;
+  padding: 20px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  grid-template-rows: auto 40px;
+  align-items: start;
+  gap: 17px 13px;
+  border: 1px solid var(--color-border, var(--border-color));
+  border-radius: 16px;
+  background: var(--color-bg-elevated, var(--background-primary));
+}
+
+.weixin-control-panel.muted {
+  background: color-mix(
+    in srgb,
+    var(--color-bg-secondary, var(--background-secondary)) 55%,
+    var(--color-bg-elevated, var(--background-primary))
+  );
+}
+
+.weixin-control-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-border, var(--border-color));
+  border-radius: 11px;
+  color: var(--weixin-green);
+  background: var(--weixin-green-soft);
+}
+
+.weixin-control-copy {
+  min-width: 0;
+}
+
+.weixin-control-copy h4,
+.weixin-contacts-heading h4 {
+  margin: 0;
+  color: var(--color-text-primary, var(--text-primary));
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.weixin-control-copy p,
+.weixin-contacts-heading p {
+  margin: 4px 0 0;
+  color: var(--color-text-muted, var(--text-secondary));
+  font-size: 10.8px;
+  line-height: 1.5;
+}
+
+.weixin-security-select,
+.weixin-generate-code,
+.weixin-pairing-code,
+.weixin-control-disabled {
+  grid-column: 1 / -1;
+  align-self: end;
+}
+
+.weixin-security-select .neoworker-select-trigger {
+  min-height: 40px;
+  border-radius: 10px;
+  color: var(--color-text-primary, var(--text-primary));
+  background: var(--color-bg-secondary, var(--background-secondary));
+}
+
+.weixin-generate-code {
+  width: 100%;
+  min-height: 40px;
+  color: var(--weixin-green-strong);
+  border-color: var(--weixin-green-border);
+  background: var(--weixin-green-soft);
+}
+
+.weixin-pairing-code {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-color: var(--weixin-green-border);
+  color: var(--weixin-green-strong);
+  background: var(--weixin-green-soft);
+}
+
+.weixin-pairing-code > span {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weixin-control-disabled {
+  min-height: 40px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  border: 1px dashed var(--color-border, var(--border-color));
+  border-radius: 10px;
+  color: var(--color-text-muted, var(--text-secondary));
+  font-size: 11px;
+}
+
+.weixin-contacts-panel {
+  overflow: hidden;
+  border: 1px solid var(--color-border, var(--border-color));
+  border-radius: 16px;
+  background: var(--color-bg-elevated, var(--background-primary));
+}
+
+.weixin-contacts-heading {
+  min-height: 68px;
+  padding: 15px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--color-border-subtle, var(--border-color));
+}
+
+.weixin-contacts-heading > span {
+  flex: none;
+  color: var(--color-text-muted, var(--text-secondary));
+  font-size: 11px;
+}
+
+.weixin-empty-users {
+  min-height: 104px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.weixin-empty-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--color-border, var(--border-color));
+  border-radius: 12px;
+  color: var(--color-text-muted, var(--text-secondary));
+  background: var(--color-bg-secondary, var(--background-secondary));
+}
+
+.weixin-empty-users > div:last-child {
+  display: grid;
+  gap: 4px;
+}
+
+.weixin-empty-users strong,
+.weixin-user-row strong {
+  color: var(--color-text-primary, var(--text-primary));
+  font-size: 11.5px;
+  font-weight: 620;
+}
+
+.weixin-empty-users span,
+.weixin-user-row span {
+  color: var(--color-text-muted, var(--text-secondary));
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.weixin-user-list {
+  display: grid;
+}
+
+.weixin-user-row {
+  min-height: 58px;
+  padding: 10px 20px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  border-bottom: 1px solid var(--color-border-subtle, var(--border-color));
+}
+
+.weixin-user-row:last-child {
+  border-bottom: 0;
+}
+
+.weixin-user-row > div:nth-child(2) {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.weixin-user-avatar {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--weixin-green-strong);
+  background: var(--weixin-green-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+/* Personal WeChat follows the same guided connector frame as WeCom. */
+.weixin-guided {
+  --guided-channel-accent: var(--weixin-green);
+  max-width: none;
+  gap: 0;
+}
+
+.weixin-guided .guided-channel-shell {
+  min-height: 570px;
+}
+
+.weixin-guided .guided-channel-guide {
+  min-height: 100%;
+}
+
+.weixin-guided-brand-icon img {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.weixin-guide-note,
+.weixin-guide-status {
+  width: 100%;
+  min-height: 48px;
+  margin-top: auto;
+  padding: 10px 11px;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  color: var(--color-text-muted);
+  background: color-mix(
+    in srgb,
+    var(--weixin-green) 4%,
+    var(--color-bg-elevated)
+  );
+}
+
+.weixin-guide-note > svg,
+.weixin-guide-status > svg {
+  margin-top: 1px;
+  flex: none;
+  color: var(--weixin-green);
+}
+
+.weixin-guide-note > span,
+.weixin-guide-status > span {
+  display: grid;
+  gap: 2px;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.weixin-guide-note strong,
+.weixin-guide-status strong {
+  color: var(--color-text-primary);
+  font-size: 10.8px;
+  font-weight: 650;
+}
+
+.weixin-guide-status.online {
+  border-color: var(--weixin-green-border);
+  color: var(--weixin-green-strong);
+  background: var(--weixin-green-soft);
+}
+
+.weixin-guided-form {
+  min-height: 570px;
+}
+
+.weixin-qr-workspace {
+  min-height: 300px;
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: minmax(235px, 0.82fr) minmax(0, 1.18fr);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-bg-secondary);
+}
+
+.weixin-guided .weixin-qr-stage {
+  min-height: 300px;
+  padding: 22px;
+  border: 0;
+  border-right: 1px solid var(--color-border-subtle);
+  background:
+    radial-gradient(
+      circle at 50% 28%,
+      color-mix(in srgb, var(--weixin-green) 8%, transparent),
+      transparent 54%
+    ),
+    var(--color-bg-elevated);
+}
+
+.weixin-guided .weixin-qr-placeholder {
+  width: min(100%, 230px);
+}
+
+.weixin-guided .weixin-qr-placeholder-mark {
+  width: 82px;
+  height: 82px;
+  border-radius: 19px;
+}
+
+.weixin-guided .weixin-qr-placeholder > strong {
+  margin-top: 16px;
+}
+
+.weixin-scan-help {
+  min-width: 0;
+  padding: 26px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.weixin-scan-help-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--weixin-green-border);
+  border-radius: 11px;
+  color: var(--weixin-green);
+  background: var(--weixin-green-soft);
+}
+
+.weixin-scan-help > div:nth-child(2) {
+  margin: 14px 0 18px;
+}
+
+.weixin-scan-help strong {
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 670;
+}
+
+.weixin-scan-help p {
+  max-width: 37ch;
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 10.8px;
+  line-height: 1.55;
+}
+
+.weixin-scan-benefit {
+  min-height: 34px;
+  padding: 8px 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  font-size: 10.5px;
+  line-height: 1.48;
+}
+
+.weixin-scan-benefit + .weixin-scan-benefit {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.weixin-scan-benefit > svg {
+  margin-top: 1px;
+  flex: none;
+  color: var(--weixin-green);
+}
+
+.weixin-guided .guided-channel-security {
+  margin-top: 18px;
+}
+
+.weixin-guided .guided-channel-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.weixin-heading-status-online {
+  color: var(--weixin-green-strong) !important;
+  background: var(--weixin-green-soft) !important;
+}
+
+.weixin-guided-connected-form {
+  gap: 0;
+}
+
+.weixin-management-surface {
+  margin-top: 19px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-bg-elevated);
+  box-shadow: 0 10px 28px color-mix(in srgb, #22304a 5%, transparent);
+}
+
+.weixin-connected-summary {
+  min-height: 98px;
+  padding: 17px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background:
+    linear-gradient(
+      108deg,
+      color-mix(in srgb, var(--weixin-green) 7%, var(--color-bg-elevated)),
+      var(--color-bg-elevated) 64%
+    );
+}
+
+.weixin-connected-summary .weixin-connection-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--weixin-green) 8%, transparent);
+}
+
+.weixin-connected-summary .weixin-connection-title h3 {
+  font-size: 14px;
+}
+
+.weixin-section-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--weixin-green-strong);
+  font-size: 9.5px;
+  font-weight: 680;
+  letter-spacing: 0.08em;
+}
+
+.weixin-connected-summary .weixin-connection-title > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px 3px 6px;
+  border: 1px solid var(--color-border-subtle);
+  background: color-mix(
+    in srgb,
+    var(--color-bg-secondary) 78%,
+    transparent
+  );
+}
+
+.weixin-connected-summary .weixin-connection-title > span.online {
+  border-color: var(--weixin-green-border);
+}
+
+.weixin-connected-summary .weixin-connection-title > span > i {
+  width: 6px;
+  height: 6px;
+  display: block;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.weixin-connected-summary .weixin-connection-title > span.online > i {
+  background: var(--weixin-green);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--weixin-green) 12%, transparent);
+}
+
+.weixin-connected-summary .weixin-connection-copy p {
+  max-width: 56ch;
+  margin-top: 4px;
+  font-size: 10.8px;
+}
+
+.weixin-management-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.weixin-management-block {
+  min-width: 0;
+  min-height: 142px;
+  padding: 17px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 17px;
+  background: var(--color-bg-elevated);
+}
+
+.weixin-management-grid > .weixin-management-block + .weixin-management-block {
+  border-left: 1px solid var(--color-border-subtle);
+}
+
+.weixin-management-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.weixin-management-surface .guided-channel-security {
+  margin: 0;
+  padding: 17px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 17px;
+  grid-template-columns: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.weixin-management-surface .guided-channel-security-icon,
+.weixin-management-surface .weixin-invite-icon,
+.weixin-contacts-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--weixin-green-border);
+  border-radius: 10px;
+  color: var(--weixin-green);
+  background: var(--weixin-green-soft);
+}
+
+.weixin-management-surface .guided-channel-security-copy strong,
+.weixin-management-surface .weixin-invite-heading strong {
+  font-size: 11.5px;
+}
+
+.weixin-management-surface .guided-channel-security-copy small,
+.weixin-management-surface .weixin-invite-heading small {
+  margin-top: 1px;
+  font-size: 9.8px;
+}
+
+.weixin-management-surface .guided-channel-security-menu .neoworker-select-trigger,
+.weixin-management-surface .weixin-generate-code,
+.weixin-management-surface .weixin-pairing-code,
+.weixin-management-surface .weixin-control-disabled {
+  min-height: 38px;
+  border-radius: 9px;
+}
+
+.weixin-invite-panel {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-bg-elevated);
+}
+
+.weixin-invite-panel.muted {
+  background: color-mix(in srgb, var(--color-bg-secondary) 48%, var(--color-bg-elevated));
+}
+
+.weixin-invite-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.weixin-invite-icon {
+  flex: none;
+}
+
+.weixin-invite-heading > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.weixin-invite-heading strong {
+  color: var(--color-text-primary);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.weixin-invite-heading small {
+  color: var(--color-text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.weixin-invite-panel .weixin-generate-code,
+.weixin-invite-panel .weixin-pairing-code,
+.weixin-invite-panel .weixin-control-disabled {
+  width: 100%;
+  align-self: stretch;
+}
+
+.weixin-pairing-copy-label {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 620;
+  letter-spacing: 0;
+}
+
+.weixin-guided .weixin-contacts-panel {
+  max-height: 234px;
+  margin: 0;
+  overflow: auto;
+  border: 0;
+  border-top: 1px solid var(--color-border-subtle);
+  border-radius: 0;
+}
+
+.weixin-guided .weixin-contacts-heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-height: 64px;
+  padding: 12px 18px;
+  background: var(--color-bg-elevated);
+}
+
+.weixin-contacts-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.weixin-contacts-title > div:last-child {
+  min-width: 0;
+}
+
+.weixin-contacts-icon {
+  width: 34px;
+  height: 34px;
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-secondary);
+}
+
+.weixin-guided .weixin-contacts-heading > span {
+  padding: 4px 8px;
+  border-radius: 7px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-secondary);
+  font-weight: 620;
+}
+
+.weixin-guided .weixin-empty-users {
+  min-height: 96px;
+  justify-content: flex-start;
+  padding: 18px;
+  background: color-mix(in srgb, var(--color-bg-secondary) 36%, transparent);
+}
+
+.weixin-guided .weixin-empty-icon {
+  border-color: transparent;
+  color: var(--color-text-secondary);
+}
+
+.weixin-connected-actions > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.weixin-connected-actions .weixin-action-secondary,
+.weixin-connected-actions .weixin-action-danger,
+.weixin-connected-actions .guided-channel-submit {
+  min-height: 34px;
+  margin: 0;
+}
+
+.theme-dark .weixin-settings {
+  --weixin-green: #37b66d;
+  --weixin-green-strong: #6ed598;
+}
+
+.theme-dark .weixin-connect-shell,
+.theme-dark .weixin-status-panel,
+.theme-dark .weixin-control-panel,
+.theme-dark .weixin-contacts-panel,
+.theme-dark .weixin-management-surface {
+  box-shadow: none;
+}
+
+/* Keep the dedicated WeChat layout intact inside the expanded connector row.
+   Legacy settings.css rules intentionally compact older WeChat markup. */
+.channel-config-expanded-content .weixin-settings {
+  max-width: 1080px;
+  gap: 14px;
+}
+
+.channel-config-expanded-content .weixin-settings .weixin-connection-icon {
+  width: 46px;
+  height: 46px;
+  flex-basis: auto;
+  border-radius: 14px;
+}
+
+.channel-config-expanded-content .weixin-settings .weixin-qr-frame {
+  width: 224px;
+  height: 224px;
+  border-radius: 17px;
+}
+
+@media (max-width: 900px) {
+  .weixin-connect-shell {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+
+  .weixin-connect-copy {
+    padding: 30px;
+  }
+
+  .weixin-connect-steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .weixin-guide-note,
+  .weixin-guide-status {
+    margin-top: 22px;
+  }
+}
+
+@media (max-width: 760px) {
+  .weixin-connect-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .weixin-connect-copy {
+    padding: 24px;
+  }
+
+  .weixin-qr-stage {
+    min-height: 340px;
+    border-top: 1px solid var(--color-border-subtle, var(--border-color));
+    border-left: 0;
+  }
+
+  .weixin-status-panel {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .weixin-card-actions {
+    width: 100%;
+    padding-left: 60px;
+  }
+
+  .weixin-control-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .weixin-qr-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .weixin-guided .weixin-qr-stage {
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .weixin-invite-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .weixin-invite-panel .weixin-generate-code,
+  .weixin-invite-panel .weixin-pairing-code,
+  .weixin-invite-panel .weixin-control-disabled {
+    width: 100%;
+  }
+
+  .weixin-management-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .weixin-management-grid > .weixin-management-block + .weixin-management-block {
+    border-top: 1px solid var(--color-border-subtle);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .weixin-connect-copy,
+  .weixin-qr-stage {
+    padding: 20px;
+  }
+
+  .weixin-brand-row strong {
+    white-space: normal;
+  }
+
+  .weixin-connect-intro h3 {
+    font-size: 23px;
+  }
+
+  .weixin-card-actions {
+    padding-left: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weixin-card-actions .weixin-action-danger {
+    grid-column: 1 / -1;
+  }
+
+  .weixin-action-secondary,
+  .weixin-action-danger {
+    width: 100%;
+  }
+
+  .weixin-contacts-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .weixin-connected-actions > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weixin-connected-actions .guided-channel-submit {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .weixin-start-button,
+  .weixin-text-button,
+  .weixin-action-secondary,
+  .weixin-action-danger,
+  .weixin-generate-code,
+  .weixin-pairing-code,
+  .weixin-user-row button {
+    transition: none;
+  }
+}

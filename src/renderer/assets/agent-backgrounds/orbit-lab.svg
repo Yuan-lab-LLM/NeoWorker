@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="800" y2="320" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBFAFF"/>
+      <stop offset=".55" stop-color="#F0EDFF"/>
+      <stop offset="1" stop-color="#D7CCFF"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="453" y1="65" x2="748" y2="247" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7C61FF"/>
+      <stop offset="1" stop-color="#40B7E8"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="320" rx="30" fill="url(#bg)"/>
+  <circle cx="625" cy="152" r="122" fill="#8B72FF" fill-opacity=".07"/>
+  <ellipse cx="625" cy="152" rx="174" ry="70" transform="rotate(-18 625 152)" stroke="url(#ring)" stroke-width="3" opacity=".55"/>
+  <ellipse cx="625" cy="152" rx="132" ry="46" transform="rotate(28 625 152)" stroke="#8266E9" stroke-width="2" stroke-dasharray="6 12" opacity=".35"/>
+  <circle cx="625" cy="152" r="34" fill="#fff" fill-opacity=".8" stroke="#8067EE" stroke-width="3"/>
+  <circle cx="625" cy="152" r="10" fill="#8067EE"/>
+  <circle cx="492" cy="118" r="8" fill="#44C2D6"/>
+  <circle cx="744" cy="211" r="6" fill="#FF9AC3"/>
+</svg>

@@ -1,0 +1,2876 @@
+/**
+ * Channel Gateway
+ *
+ * Main entry point for multi-channel messaging support.
+ * Manages channel adapters, routing, and sessions.
+ */
+
+import type { BrowserWindow } from "electron";
+import Database from "better-sqlite3";
+import * as fs from "fs";
+import * as path from "path";
+import { MessageRouter, RouterConfig } from "./router";
+import { SecurityManager } from "./security";
+import { SessionManager } from "./session";
+import { getUserDataDir } from "../utils/user-data-dir";
+import {
+  ChannelAdapter,
+  ChannelType,
+  ChannelConfig,
+  TelegramConfig as _TelegramConfig,
+  DiscordConfig as _DiscordConfig,
+  SlackConfig as _SlackConfig,
+  WhatsAppConfig as _WhatsAppConfig,
+  ImessageConfig as _ImessageConfig,
+  SignalConfig as _SignalConfig,
+  FeishuConfig as _FeishuConfig,
+  DingTalkConfig as _DingTalkConfig,
+  WeixinConfig as _WeixinConfig,
+  WeComConfig as _WeComConfig,
+  MattermostConfig as _MattermostConfig,
+  MatrixConfig as _MatrixConfig,
+  TwitchConfig as _TwitchConfig,
+  LineConfig as _LineConfig,
+  BlueBubblesConfig as _BlueBubblesConfig,
+  GoogleChatConfig as _GoogleChatConfig,
+  EmailConfig as _EmailConfig,
+  GatewayEventHandler,
+} from "./channels/types";
+import { TelegramAdapter, createTelegramAdapter } from "./channels/telegram";
+import { DiscordAdapter, createDiscordAdapter } from "./channels/discord";
+import { SlackAdapter, createSlackAdapter } from "./channels/slack";
+import { WhatsAppAdapter, createWhatsAppAdapter } from "./channels/whatsapp";
+import { ImessageAdapter, createImessageAdapter } from "./channels/imessage";
+import { SignalAdapter, createSignalAdapter } from "./channels/signal";
+import { createFeishuAdapter } from "./channels/feishu";
+import { createDingTalkAdapter } from "./channels/dingtalk";
+import { createWeixinAdapter } from "./channels/weixin";
+import { createWeComAdapter } from "./channels/wecom";
+import {
+  MattermostAdapter,
+  createMattermostAdapter,
+} from "./channels/mattermost";
+import { MatrixAdapter, createMatrixAdapter } from "./channels/matrix";
+import { TwitchAdapter, createTwitchAdapter } from "./channels/twitch";
+import { LineAdapter, createLineAdapter } from "./channels/line";
+import {
+  BlueBubblesAdapter,
+  createBlueBubblesAdapter,
+} from "./channels/bluebubbles";
+import { createGoogleChatAdapter } from "./channels/google-chat";
+import { EmailAdapter, createEmailAdapter } from "./channels/email";
+import { XAdapter, createXAdapter, type XAdapterConfig } from "./channels/x";
+import {
+  ChannelRepository,
+  ChannelUserRepository,
+  ChannelSessionRepository,
+  ChannelMessageRepository,
+  Channel,
+} from "../database/repositories";
+import { AgentDaemon } from "../agent/daemon";
+import {
+  HookAgentIngress,
+  initializeHookAgentIngress,
+} from "../hooks/agent-ingress";
+import { PersonalityManager } from "../settings/personality-manager";
+import {
+  buildMentionTaskPrompt,
+  type ParsedMentionCommand,
+} from "../x-mentions/parser";
+import {
+  getChannelMessage,
+  DEFAULT_CHANNEL_CONTEXT,
+  type ChannelMessageContext,
+} from "../../shared/channelMessages";
+import {
+  DEFAULT_ASSISTANT_NAME,
+  DEFAULT_QUIRKS,
+  IPC_CHANNELS,
+} from "../../shared/types";
+import { getUnsupportedManualEmailSetupMessage } from "../../shared/email-provider-support";
+import {
+  MICROSOFT_EMAIL_DEFAULT_TENANT,
+  MICROSOFT_EMAIL_GRAPH_READWRITE_SCOPES,
+  normalizeMicrosoftEmailReadScopes,
+} from "../../shared/microsoft-email";
+import { createLogger } from "../utils/logger";
+import { refreshMicrosoftEmailAccessToken } from "../utils/microsoft-email-oauth";
+import {
+  registerChannelLiveFetchProvider,
+  unregisterChannelLiveFetchProvider,
+  type DiscordMessage,
+  type DiscordDownloadedAttachment,
+} from "./channel-live-fetch";
+import { DiscordSupervisorService } from "../supervisor/DiscordSupervisorService";
+
+export interface GatewayConfig {
+  /** Router configuration */
+  router?: RouterConfig;
+  /** Auto-connect enabled channels on startup */
+  autoConnect?: boolean;
+  /** Agent daemon for task execution */
+  agentDaemon?: AgentDaemon;
+}
+
+const DEFAULT_CONFIG: GatewayConfig = {
+  autoConnect: true,
+};
+const IDLE_SESSION_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const logger = createLogger("ChannelGateway");
+
+export interface ChannelConnectOptions {
+  timeoutMs?: number;
+}
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number | undefined,
+  message: string,
+): Promise<T> {
+  if (!timeoutMs || timeoutMs <= 0) return promise;
+  let timer: NodeJS.Timeout | undefined;
+  return new Promise<T>((resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(message));
+    }, timeoutMs);
+    timer.unref?.();
+    promise.then(resolve, reject).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  });
+}
+
+/**
+ * Channel Gateway - Main class for managing multi-channel messaging
+ */
+export class ChannelGateway {
+  private db: Database.Database;
+  private router: MessageRouter;
+  private securityManager: SecurityManager;
+  private sessionManager: SessionManager;
+  private channelRepo: ChannelRepository;
+  private userRepo: ChannelUserRepository;
+  private sessionRepo: ChannelSessionRepository;
+  private messageRepo: ChannelMessageRepository;
+  private config: GatewayConfig;
+  private initialized = false;
+  private agentDaemon?: AgentDaemon;
+  private hookIngress: HookAgentIngress | null = null;
+  private daemonListeners: Array<{
+    event: string;
+    handler: (...args: Any[]) => void;
+  }> = [];
+  private pendingCleanupInterval: ReturnType<typeof setInterval> | null = null;
+  private discordSupervisorService?: DiscordSupervisorService;
+
+  constructor(db: Database.Database, config: GatewayConfig = {}) {
+    this.db = db;
+    this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Initialize components
+    this.router = new MessageRouter(db, config.router, config.agentDaemon);
+    this.securityManager = new SecurityManager(db);
+    this.sessionManager = new SessionManager(db);
+    this.channelRepo = new ChannelRepository(db);
+    this.userRepo = new ChannelUserRepository(db);
+    this.sessionRepo = new ChannelSessionRepository(db);
+    this.messageRepo = new ChannelMessageRepository(db);
+
+    // Listen for agent daemon events to send responses back to channels
+    if (config.agentDaemon) {
+      this.agentDaemon = config.agentDaemon;
+      this.setupAgentDaemonListeners(config.agentDaemon);
+      // discordSupervisorService is lazy-initialized on first access via getDiscordSupervisorService()
+    }
+  }
+
+  /**
+   * Get the channel message context from personality settings
+   */
+  private getMessageContext(): ChannelMessageContext {
+    try {
+      if (PersonalityManager.isInitialized()) {
+        const settings = PersonalityManager.loadSettings();
+        return {
+          agentName: settings.agentName || DEFAULT_ASSISTANT_NAME,
+          userName: settings.relationship?.userName,
+          personality: settings.activePersonality || "professional",
+          persona: settings.activePersona,
+          emojiUsage: settings.responseStyle?.emojiUsage || "minimal",
+          quirks: settings.quirks || DEFAULT_QUIRKS,
+        };
+      }
+    } catch (error) {
+      logger.error("Failed to load personality settings:", error);
+    }
+    return DEFAULT_CHANNEL_CONTEXT;
+  }
+
+  /**
+   * Set up listeners for agent daemon events
+   */
+  private setupAgentDaemonListeners(agentDaemon: AgentDaemon): void {
+    // Track the last assistant message for each task to send as completion result
+    const lastMessages = new Map<string, string>();
+    // Track whether any user-visible assistant messages were sent during a follow-up window.
+    const followUpMessagesSent = new Map<string, boolean>();
+    // Track the most recent assistant text emitted during a follow-up window.
+    // This should reflect what the user saw last during the follow-up, even if it is shorter than prior outputs.
+    const followUpLatestAssistantText = new Map<string, string>();
+    // Follow-ups log a user_message event at the start of processing. Use it to
+    // reset per-task follow-up tracking so we don't incorrectly carry state from
+    // the original task execution.
+    const onUserMessage = (data: { taskId: string; message?: string }) => {
+      followUpMessagesSent.set(data.taskId, false);
+      followUpLatestAssistantText.set(data.taskId, "");
+    };
+
+    // Listen for assistant messages (streaming responses)
+    // Note: daemon emits { taskId, message } not { taskId, content }
+    const onAssistantMessage = (data: { taskId: string; message?: string }) => {
+      const message = typeof data.message === "string" ? data.message : "";
+      const trimmed = message.trim();
+      if (trimmed) {
+        // Mirror the latest assistant-visible text so completion fallbacks match
+        // what the user most recently saw in the GUI/channel transcript.
+        lastMessages.set(data.taskId, trimmed);
+
+        // Stream updates to channel (router will debounce for channels that can't edit messages).
+        this.router.sendTaskUpdate(data.taskId, trimmed, true);
+
+        // Mark follow-up as having produced user-visible output, but only after a
+        // follow-up has actually started (see onUserMessage above).
+        if (followUpMessagesSent.has(data.taskId)) {
+          followUpMessagesSent.set(data.taskId, true);
+          followUpLatestAssistantText.set(data.taskId, trimmed);
+        }
+      }
+    };
+
+    const onTaskQueued = (data: {
+      taskId: string;
+      message?: string;
+      position?: number;
+      reason?: string;
+    }) => {
+      const explicit =
+        typeof data.message === "string" ? data.message.trim() : "";
+      const position =
+        typeof data.position === "number" && data.position > 0
+          ? data.position
+          : undefined;
+      const fallback = position
+        ? `⏳ Queued (position ${position}). I’ll start as soon as a slot is free.`
+        : "⏳ Queued. I’ll start as soon as a slot is free.";
+      this.router.sendTaskUpdate(data.taskId, explicit || fallback);
+    };
+
+    const onTaskDequeued = (data: { taskId: string; message?: string }) => {
+      const explicit =
+        typeof data.message === "string" ? data.message.trim() : "";
+      this.router.sendTaskUpdate(data.taskId, explicit || "▶️ Starting now.");
+    };
+
+    // Listen for task completion
+    const onTaskCompleted = (data: {
+      taskId: string;
+      resultSummary?: string;
+      semanticSummary?: string;
+      verificationVerdict?: string;
+      verificationReport?: string;
+      message?: string;
+    }) => {
+      const messageResult =
+        typeof data.message === "string" &&
+        data.message.trim() !== "Task completed successfully"
+          ? data.message.trim()
+          : undefined;
+      const resultSummary =
+        typeof data.resultSummary === "string" ? data.resultSummary.trim() : "";
+      const semanticSummary =
+        typeof data.semanticSummary === "string"
+          ? data.semanticSummary.trim()
+          : "";
+      const verificationVerdict =
+        typeof data.verificationVerdict === "string"
+          ? data.verificationVerdict.trim()
+          : "";
+      const verificationReport =
+        typeof data.verificationReport === "string"
+          ? data.verificationReport.trim()
+          : "";
+      const lastAssistantMessage = (lastMessages.get(data.taskId) || "").trim();
+      const fallbackMessage = lastAssistantMessage || messageResult || "";
+      const isTextOnlyChannel = this.router.isPendingTaskTextOnlyChannel(
+        data.taskId,
+      );
+      const summaryPieces = [resultSummary, semanticSummary].filter(
+        (value): value is string => Boolean(value && value.length > 0),
+      );
+      let result = "";
+
+      if (isTextOnlyChannel) {
+        // Simple chat channels should show the actual assistant reply, not internal
+        // semantic run summaries that can look like planning debris.
+        result = fallbackMessage || resultSummary;
+      } else {
+        result = summaryPieces.join("\n\n").trim();
+        if (!result) {
+          result = fallbackMessage;
+        }
+      }
+
+      if (!isTextOnlyChannel && (verificationVerdict || verificationReport)) {
+        const verificationLines = [
+          verificationVerdict ? `Verification: ${verificationVerdict}` : "",
+          verificationReport ? verificationReport : "",
+        ]
+          .filter((value) => value.length > 0)
+          .join("\n");
+        result = [result, verificationLines]
+          .filter((value) => value.length > 0)
+          .join("\n\n")
+          .trim();
+      }
+      if (!result) {
+        result = fallbackMessage;
+      }
+      this.router.handleTaskCompletion(data.taskId, result);
+      lastMessages.delete(data.taskId);
+      followUpMessagesSent.delete(data.taskId);
+    };
+
+    // Listen for task cancellation
+    const onTaskCancelled = (data: { taskId: string; message?: string }) => {
+      const reason =
+        typeof data.message === "string" ? data.message.trim() : undefined;
+      this.router.handleTaskCancelled(data.taskId, reason);
+      lastMessages.delete(data.taskId);
+      followUpMessagesSent.delete(data.taskId);
+    };
+
+    // Listen for task errors
+    // Note: daemon emits { taskId, error } or { taskId, message }
+    const onError = (data: {
+      taskId: string;
+      error?: string;
+      message?: string;
+    }) => {
+      const errorMsg = data.error || data.message || "Unknown error";
+      this.router.handleTaskFailure(data.taskId, errorMsg);
+      lastMessages.delete(data.taskId);
+      followUpMessagesSent.delete(data.taskId);
+    };
+
+    // Listen for tool errors (individual tool execution failures)
+    const onToolError = (data: {
+      taskId: string;
+      tool?: string;
+      error?: string;
+    }) => {
+      const toolName = data.tool || "Unknown tool";
+      const errorMsg = data.error || "Unknown error";
+      const normalizedTool = String(toolName).toLowerCase();
+      const isCanvasTool = normalizedTool.startsWith("canvas_");
+      const noisyCanvasError =
+        isCanvasTool &&
+        /content parameter is required|no non-placeholder HTML|placeholder|session_id|required session|no active canvas|session .*not found|canvas session|could not locate|not available in current context|not available|tool unavailable|temporarily unavailable|tool disabled/i.test(
+          errorMsg,
+        );
+      if (noisyCanvasError) {
+        logger.debug(
+          `Suppressed non-user-facing canvas tool error for task ${data.taskId}`,
+        );
+        return;
+      }
+      const message = getChannelMessage("toolError", this.getMessageContext(), {
+        tool: toolName,
+        error: errorMsg,
+      });
+      this.router.sendTaskUpdate(data.taskId, message);
+    };
+
+    // Listen for follow-up message completion
+    const onFollowUpCompleted = async (data: { taskId: string }) => {
+      const followUpText = (
+        followUpLatestAssistantText.get(data.taskId) || ""
+      ).trim();
+      const sentAnyAssistant = followUpMessagesSent.get(data.taskId) === true;
+
+      // Ensure any debounced buffers are flushed and Telegram draft streams are finalized
+      // so transcripts/digests don't miss assistant output from follow-ups.
+      if (sentAnyAssistant && followUpText) {
+        await this.router.flushStreamingUpdateForTask(
+          data.taskId,
+          followUpText,
+        );
+        await this.router.finalizeDraftStreamForTask(data.taskId, followUpText);
+      }
+
+      // If no assistant messages were sent during the follow-up, send a confirmation
+      if (!sentAnyAssistant) {
+        const message = getChannelMessage(
+          "followUpProcessed",
+          this.getMessageContext(),
+        );
+        this.router.sendTaskUpdate(data.taskId, message);
+      }
+      followUpMessagesSent.delete(data.taskId);
+      followUpLatestAssistantText.delete(data.taskId);
+
+      // Send any artifacts (images, screenshots) created during the follow-up
+      await this.router.sendArtifacts(data.taskId, followUpText || undefined);
+    };
+
+    // Listen for follow-up failures
+    const onFollowUpFailed = async (data: {
+      taskId: string;
+      error?: string;
+    }) => {
+      const errorMsg = data.error || "Unknown error";
+      const message = getChannelMessage(
+        "followUpFailed",
+        this.getMessageContext(),
+        {
+          error: errorMsg,
+        },
+      );
+      const followUpText = (
+        followUpLatestAssistantText.get(data.taskId) || ""
+      ).trim();
+      const sentAnyAssistant = followUpMessagesSent.get(data.taskId) === true;
+
+      if (sentAnyAssistant && followUpText) {
+        try {
+          await this.router.flushStreamingUpdateForTask(data.taskId);
+          await this.router.finalizeDraftStreamForTask(
+            data.taskId,
+            followUpText,
+          );
+        } catch {
+          // Best-effort; still send the failure message below.
+        }
+      }
+
+      await this.router.sendTaskUpdate(data.taskId, message);
+      followUpMessagesSent.delete(data.taskId);
+      followUpLatestAssistantText.delete(data.taskId);
+    };
+
+    // Listen for task pauses (usually when the assistant asks a question).
+    // This is important for Telegram draft streaming: without a task_completed event,
+    // the draft can remain with the typing cursor and the final question may not be persisted.
+    const onTaskPaused = async (data: {
+      taskId: string;
+      message?: string;
+      reason?: string;
+    }) => {
+      const explicit =
+        typeof data.message === "string" ? data.message.trim() : "";
+      try {
+        await this.router.clearTransientTaskProgress(data.taskId);
+        if (explicit) {
+          await this.router.flushStreamingUpdateForTask(data.taskId);
+          await this.router.finalizeDraftStreamForTask(data.taskId, explicit);
+        }
+      } catch {
+        // Best-effort only.
+      }
+    };
+
+    // Listen for approval requests - forward to Discord/Telegram
+    const onApprovalRequested = (data: { taskId: string; approval: Any }) => {
+      if (data?.approval?.autoApproved) {
+        return;
+      }
+      this.router.sendApprovalRequest(data.taskId, data.approval);
+    };
+
+    const onArtifactCreated = (data: {
+      taskId: string;
+      path?: string;
+      label?: string;
+    }) => {
+      const path = typeof data.path === "string" ? data.path.trim() : "";
+      if (!path) return;
+      const label =
+        typeof data.label === "string" && data.label.trim().length > 0
+          ? data.label
+          : path;
+      this.router.sendTaskUpdate(data.taskId, `📎 Artifact: ${label}\n${path}`);
+    };
+
+    const onKeyClaimEvidenceAttached = (data: {
+      taskId: string;
+      keyClaims?: string[];
+      evidenceRefs?: Array<{ sourceUrlOrPath?: string; snippet?: string }>;
+    }) => {
+      const keyClaims = Array.isArray(data.keyClaims)
+        ? data.keyClaims
+            .map((claim) => (typeof claim === "string" ? claim.trim() : ""))
+            .filter((claim) => claim.length > 0)
+        : [];
+      const evidenceRefs = Array.isArray(data.evidenceRefs)
+        ? data.evidenceRefs
+            .map((ref) => ({
+              sourceUrlOrPath:
+                typeof ref?.sourceUrlOrPath === "string"
+                  ? ref.sourceUrlOrPath.trim()
+                  : "",
+              snippet:
+                typeof ref?.snippet === "string" ? ref.snippet.trim() : "",
+            }))
+            .filter((ref) => ref.sourceUrlOrPath.length > 0)
+        : [];
+      if (evidenceRefs.length === 0) return;
+
+      const claimLines =
+        keyClaims.length > 0
+          ? `Key claims:\n${keyClaims
+              .slice(0, 3)
+              .map((claim) => `- ${claim}`)
+              .join("\n")}\n\n`
+          : "";
+      const sourceLines = evidenceRefs
+        .slice(0, 5)
+        .map((ref, index) => {
+          const snippet =
+            ref.snippet.length > 0 ? ` — ${ref.snippet.slice(0, 120)}` : "";
+          return `${index + 1}. ${ref.sourceUrlOrPath}${snippet}`;
+        })
+        .join("\n");
+
+      this.router.sendTaskUpdate(
+        data.taskId,
+        `🔎 Evidence links for key claims\n\n${claimLines}Sources:\n${sourceLines}`,
+      );
+    };
+
+    const timelineBridgeHandler = (timelineType: string) => (evt: Any) => {
+      const taskId = typeof evt?.taskId === "string" ? evt.taskId : "";
+      if (!taskId) return;
+      const payload =
+        evt?.payload &&
+        typeof evt.payload === "object" &&
+        !Array.isArray(evt.payload)
+          ? (evt.payload as Any)
+          : {};
+
+      const legacyTypeRaw =
+        typeof evt?.legacyType === "string"
+          ? evt.legacyType
+          : typeof payload?.legacyType === "string"
+            ? payload.legacyType
+            : undefined;
+
+      const effectiveType =
+        legacyTypeRaw && !String(legacyTypeRaw).startsWith("timeline_")
+          ? legacyTypeRaw
+          : undefined;
+
+      switch (effectiveType) {
+        case "assistant_message":
+          onAssistantMessage({ taskId, message: payload.message as string });
+          return;
+        case "user_message":
+          onUserMessage({ taskId, message: payload.message as string });
+          return;
+        case "task_queued":
+          onTaskQueued({
+            taskId,
+            message: payload.message as string,
+            position: payload.position as number,
+            reason: payload.reason as string,
+          });
+          return;
+        case "task_dequeued":
+          onTaskDequeued({ taskId, message: payload.message as string });
+          return;
+        case "task_completed":
+          onTaskCompleted({
+            taskId,
+            resultSummary: payload.resultSummary as string,
+            semanticSummary: payload.semanticSummary as string,
+            verificationVerdict: payload.verificationVerdict as string,
+            verificationReport: payload.verificationReport as string,
+            message: payload.message as string,
+          });
+          return;
+        case "task_cancelled":
+          onTaskCancelled({ taskId, message: payload.message as string });
+          return;
+        case "error":
+          onError({
+            taskId,
+            error: payload.error as string,
+            message: payload.message as string,
+          });
+          return;
+        case "tool_error":
+          onToolError({
+            taskId,
+            tool: payload.tool as string,
+            error: payload.error as string,
+          });
+          return;
+        case "follow_up_completed":
+          void onFollowUpCompleted({ taskId });
+          return;
+        case "follow_up_failed":
+          void onFollowUpFailed({ taskId, error: payload.error as string });
+          return;
+        case "task_paused":
+          void onTaskPaused({
+            taskId,
+            message: payload.message as string,
+            reason: payload.reason as string,
+          });
+          return;
+        case "approval_requested":
+          onApprovalRequested({ taskId, approval: payload.approval });
+          return;
+        case "approval_granted":
+        case "approval_denied":
+          if (
+            typeof payload.approvalId === "string" &&
+            payload.approvalId.trim().length > 0
+          ) {
+            this.router.clearPendingApproval(payload.approvalId);
+          }
+          return;
+        case "artifact_created":
+        case "file_created":
+          onArtifactCreated({
+            taskId,
+            path: payload.path as string,
+            label: payload.label as string,
+          });
+          return;
+        default:
+          break;
+      }
+
+      // Summary-safe fallback when legacy alias metadata is not present.
+      if (timelineType === "timeline_artifact_emitted") {
+        onArtifactCreated({
+          taskId,
+          path: typeof payload.path === "string" ? payload.path : "",
+          label: typeof payload.label === "string" ? payload.label : undefined,
+        });
+        return;
+      }
+
+      if (timelineType === "timeline_evidence_attached") {
+        const isKeyClaimEvidence =
+          payload?.gate === "key_claim_evidence_gate" ||
+          (Array.isArray(payload?.keyClaims) && payload.keyClaims.length > 0);
+        if (isKeyClaimEvidence) {
+          onKeyClaimEvidenceAttached({
+            taskId,
+            keyClaims: payload.keyClaims as string[] | undefined,
+            evidenceRefs: payload.evidenceRefs as
+              Array<{ sourceUrlOrPath?: string; snippet?: string }> | undefined,
+          });
+        }
+        return;
+      }
+
+      if (timelineType === "timeline_error") {
+        onError({
+          taskId,
+          message:
+            typeof payload.message === "string"
+              ? payload.message
+              : "Task failed",
+        });
+        return;
+      }
+
+      if (
+        timelineType === "timeline_step_updated" &&
+        typeof payload.message === "string"
+      ) {
+        const message = payload.message.trim();
+        if (message.length > 0) {
+          this.router.sendTaskUpdate(taskId, message);
+        }
+      }
+    };
+
+    const timelineEvents = [
+      "timeline_group_started",
+      "timeline_group_finished",
+      "timeline_step_started",
+      "timeline_step_updated",
+      "timeline_step_finished",
+      "timeline_evidence_attached",
+      "timeline_artifact_emitted",
+      "timeline_command_output",
+      "timeline_error",
+    ] as const;
+
+    for (const timelineEvent of timelineEvents) {
+      const handler = timelineBridgeHandler(timelineEvent);
+      agentDaemon.on(timelineEvent, handler);
+      this.daemonListeners.push({ event: timelineEvent, handler });
+    }
+  }
+
+  /**
+   * Initialize the gateway
+   */
+  async initialize(mainWindow?: BrowserWindow): Promise<void> {
+    if (this.initialized) return;
+
+    if (mainWindow) {
+      this.router.setMainWindow(mainWindow);
+    }
+
+    // Load and register enabled channels
+    await this.loadChannels();
+
+    // Auto-connect if configured
+    if (this.config.autoConnect) {
+      await this.connectMicrosoftEmailGraphChannels();
+      await this.router.connectAll();
+    }
+
+    this.startPendingCleanup();
+
+    registerChannelLiveFetchProvider(this);
+
+    this.initialized = true;
+    logger.debug("Initialized");
+  }
+
+  /**
+   * Connect enabled channel adapters after the gateway has loaded them.
+   * Used by desktop startup to keep network handshakes off the first-window path.
+   */
+  async connectEnabledChannels(
+    options: ChannelConnectOptions = {},
+  ): Promise<void> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    await this.connectMicrosoftEmailGraphChannels(options);
+    await this.router.connectAll(options);
+  }
+
+  /**
+   * Set the main window for IPC communication
+   */
+  setMainWindow(window: BrowserWindow): void {
+    this.router.setMainWindow(window);
+  }
+
+  getDiscordSupervisorService(): DiscordSupervisorService | undefined {
+    if (!this.discordSupervisorService && this.agentDaemon) {
+      this.discordSupervisorService = new DiscordSupervisorService(
+        this.db,
+        this.agentDaemon,
+        () => this.router.getMainWindow(),
+        () => this.router.getAdapter("discord") as DiscordAdapter | undefined,
+      );
+    }
+    return this.discordSupervisorService;
+  }
+
+  /**
+   * Shutdown the gateway
+   */
+  async shutdown(): Promise<void> {
+    // Clean up daemon event listeners
+    if (this.agentDaemon) {
+      for (const { event, handler } of this.daemonListeners) {
+        this.agentDaemon.off(event, handler);
+      }
+      this.daemonListeners = [];
+    }
+
+    await this.router.disconnectAll();
+    unregisterChannelLiveFetchProvider();
+    this.stopPendingCleanup();
+    this.initialized = false;
+    logger.debug("Shutdown complete");
+  }
+
+  /**
+   * Fetch recent messages from a Discord channel via live API (not local log).
+   * For agent tools; requires Discord channel to be configured and connected.
+   */
+  async fetchDiscordMessages(
+    chatId: string,
+    limit = 100,
+  ): Promise<DiscordMessage[]> {
+    const adapter = this.router.getAdapter("discord") as
+      DiscordAdapter | undefined;
+    if (!adapter || adapter.status !== "connected") {
+      throw new Error("Discord channel is not configured or not connected");
+    }
+    return adapter.fetchMessages(chatId, limit);
+  }
+
+  /**
+   * Download attachments from a Discord message to the inbox directory.
+   * Returns local file paths for the agent to read.
+   */
+  async downloadDiscordAttachment(
+    chatId: string,
+    messageId: string,
+  ): Promise<DiscordDownloadedAttachment[]> {
+    const adapter = this.router.getAdapter("discord") as
+      DiscordAdapter | undefined;
+    if (!adapter || adapter.status !== "connected") {
+      throw new Error("Discord channel is not configured or not connected");
+    }
+    const inboxDir = path.join(
+      getUserDataDir(),
+      "channels",
+      "discord",
+      "inbox",
+    );
+    return adapter.downloadAttachment(chatId, messageId, inboxDir);
+  }
+
+  getStartupStats(): { loaded: number; enabled: number; connected: number } {
+    const channels = this.channelRepo.findAll();
+    const enabled = channels.filter((channel) => channel.enabled).length;
+    const connected = channels.filter(
+      (channel) => channel.status === "connected",
+    ).length;
+    return {
+      loaded: channels.length,
+      enabled,
+      connected,
+    };
+  }
+
+  private startPendingCleanup(): void {
+    if (this.pendingCleanupInterval) return;
+    // Run once at startup to clear any stale entries.
+    this.cleanupPendingUsers();
+    this.cleanupIdleSessions();
+    // Then run every 10 minutes.
+    this.pendingCleanupInterval = setInterval(
+      () => {
+        this.cleanupPendingUsers();
+        this.cleanupIdleSessions();
+      },
+      10 * 60 * 1000,
+    );
+  }
+
+  private stopPendingCleanup(): void {
+    if (this.pendingCleanupInterval) {
+      clearInterval(this.pendingCleanupInterval);
+      this.pendingCleanupInterval = null;
+    }
+  }
+
+  private cleanupPendingUsers(): void {
+    const channels = this.channelRepo.findAll();
+    for (const channel of channels) {
+      const removed = this.userRepo.deleteExpiredPending(channel.id);
+      if (removed > 0) {
+        this.emitUsersUpdated(channel);
+      }
+    }
+  }
+
+  private cleanupIdleSessions(): void {
+    this.sessionManager.cleanupOldSessions(IDLE_SESSION_RETENTION_MS);
+  }
+
+  private emitUsersUpdated(channel: Channel): void {
+    const mainWindow = this.router.getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IPC_CHANNELS.GATEWAY_USERS_UPDATED, {
+        channelId: channel.id,
+        channelType: channel.type,
+      });
+    }
+  }
+
+  // Channel Management
+
+  /**
+   * Add a new Telegram channel
+   */
+  async addTelegramChannel(
+    name: string,
+    botToken: string,
+    options?: {
+      groupRoutingMode?:
+        "all" | "mentionsOnly" | "mentionsOrCommands" | "commandsOnly";
+      allowedGroupChatIds?: string[];
+    },
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    // Check if Telegram channel already exists
+    const existing = this.channelRepo.findByType("telegram");
+    if (existing) {
+      throw new Error(
+        "Telegram channel already configured. Update or remove it first.",
+      );
+    }
+
+    // Create channel record
+    const channel = this.channelRepo.create({
+      type: "telegram",
+      name,
+      enabled: false, // Don't enable until tested
+      config: {
+        botToken,
+        groupRoutingMode: options?.groupRoutingMode,
+        allowedGroupChatIds: options?.allowedGroupChatIds,
+      },
+      securityConfig: {
+        mode: securityMode,
+        pairingCodeTTL: 300, // 5 minutes
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a new Discord channel
+   */
+  async addDiscordChannel(
+    name: string,
+    botToken: string,
+    applicationId: string,
+    guildIds?: string[],
+    supervisor?: _DiscordConfig["supervisor"],
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    // Check if Discord channel already exists
+    const existing = this.channelRepo.findByType("discord");
+    if (existing) {
+      throw new Error(
+        "Discord channel already configured. Update or remove it first.",
+      );
+    }
+
+    // Create channel record
+    const channel = this.channelRepo.create({
+      type: "discord",
+      name,
+      enabled: false, // Don't enable until tested
+      config: { botToken, applicationId, guildIds, supervisor },
+      securityConfig: {
+        mode: securityMode,
+        pairingCodeTTL: 300, // 5 minutes
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a new Slack channel
+   */
+  async addSlackChannel(
+    name: string,
+    botToken: string,
+    appToken: string,
+    signingSecret?: string,
+    progressRelayMode: "minimal" | "curated" = "minimal",
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    // Create channel record
+    const channel = this.channelRepo.create({
+      type: "slack",
+      name,
+      enabled: false, // Don't enable until tested
+      config: { botToken, appToken, signingSecret, progressRelayMode },
+      securityConfig: {
+        mode: securityMode,
+        pairingCodeTTL: 300, // 5 minutes
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a new WhatsApp channel
+   */
+  async addWhatsAppChannel(
+    name: string,
+    allowedNumbers?: string[],
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+    selfChatMode: boolean = true,
+    responsePrefix: string = "🤖",
+    opts?: {
+      ambientMode?: boolean;
+      silentUnauthorized?: boolean;
+      ingestNonSelfChatsInSelfChatMode?: boolean;
+      trustedGroupMemoryOptIn?: boolean;
+      sendReadReceipts?: boolean;
+      deduplicationEnabled?: boolean;
+      groupRoutingMode?:
+        "all" | "mentionsOnly" | "mentionsOrCommands" | "commandsOnly";
+    },
+  ): Promise<Channel> {
+    // Check if WhatsApp channel already exists
+    const existing = this.channelRepo.findByType("whatsapp");
+    if (existing) {
+      throw new Error(
+        "WhatsApp channel already configured. Update or remove it first.",
+      );
+    }
+
+    // Always clear any stale auth so a new QR is required for a new number.
+    this.clearWhatsAppAuthDir();
+
+    // Create channel record
+    const channel = this.channelRepo.create({
+      type: "whatsapp",
+      name,
+      enabled: false, // Don't enable until QR code is scanned
+      config: {
+        allowedNumbers,
+        selfChatMode,
+        responsePrefix,
+        ...(opts?.sendReadReceipts !== undefined
+          ? { sendReadReceipts: opts.sendReadReceipts }
+          : {}),
+        ...(opts?.deduplicationEnabled !== undefined
+          ? { deduplicationEnabled: opts.deduplicationEnabled }
+          : {}),
+        ...(opts?.groupRoutingMode
+          ? { groupRoutingMode: opts.groupRoutingMode }
+          : {}),
+        ...(opts?.trustedGroupMemoryOptIn !== undefined
+          ? { trustedGroupMemoryOptIn: opts.trustedGroupMemoryOptIn }
+          : {}),
+        ...(opts?.ambientMode ? { ambientMode: true } : {}),
+        ...(opts?.silentUnauthorized ? { silentUnauthorized: true } : {}),
+        ...(opts?.ingestNonSelfChatsInSelfChatMode
+          ? { ingestNonSelfChatsInSelfChatMode: true }
+          : {}),
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: allowedNumbers,
+        pairingCodeTTL: 300, // 5 minutes
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a new iMessage channel
+   */
+  async addImessageChannel(
+    name: string,
+    cliPath?: string,
+    dbPath?: string,
+    allowedContacts?: string[],
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+    dmPolicy: "open" | "allowlist" | "pairing" | "disabled" = "pairing",
+    groupPolicy: "open" | "allowlist" | "disabled" = "allowlist",
+    opts?: {
+      ambientMode?: boolean;
+      silentUnauthorized?: boolean;
+      captureSelfMessages?: boolean;
+    },
+  ): Promise<Channel> {
+    // Check if iMessage channel already exists
+    const existing = this.channelRepo.findByType("imessage");
+    if (existing) {
+      throw new Error(
+        "iMessage channel already configured. Update or remove it first.",
+      );
+    }
+
+    // Create channel record
+    const channel = this.channelRepo.create({
+      type: "imessage",
+      name,
+      enabled: false, // Don't enable until connected
+      config: {
+        cliPath,
+        dbPath,
+        allowedContacts,
+        dmPolicy,
+        groupPolicy,
+        ...(opts?.ambientMode ? { ambientMode: true } : {}),
+        ...(opts?.silentUnauthorized ? { silentUnauthorized: true } : {}),
+        ...(opts?.captureSelfMessages ? { captureSelfMessages: true } : {}),
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: allowedContacts,
+        pairingCodeTTL: 300, // 5 minutes
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a new Signal channel
+   */
+  async addSignalChannel(
+    name: string,
+    phoneNumber: string,
+    dataDir?: string,
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+    mode: "native" | "daemon" = "native",
+    trustMode: "tofu" | "always" | "manual" = "tofu",
+    dmPolicy: "open" | "allowlist" | "pairing" | "disabled" = "pairing",
+    groupPolicy: "open" | "allowlist" | "disabled" = "allowlist",
+    allowedNumbers?: string[],
+    sendReadReceipts: boolean = true,
+    sendTypingIndicators: boolean = true,
+  ): Promise<Channel> {
+    // Check if Signal channel already exists
+    const existing = this.channelRepo.findByType("signal");
+    if (existing) {
+      throw new Error(
+        "Signal channel already configured. Update or remove it first.",
+      );
+    }
+
+    // Create channel record
+    const channel = this.channelRepo.create({
+      type: "signal",
+      name,
+      enabled: false, // Don't enable until connected
+      config: {
+        phoneNumber,
+        dataDir,
+        mode,
+        trustMode,
+        dmPolicy,
+        groupPolicy,
+        allowedNumbers,
+        sendReadReceipts,
+        sendTypingIndicators,
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: [],
+        pairingCodeTTL: 300, // 5 minutes
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a new Mattermost channel
+   */
+  async addMattermostChannel(
+    name: string,
+    serverUrl: string,
+    token: string,
+    teamId?: string,
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    // Check if Mattermost channel already exists
+    const existing = this.channelRepo.findByType("mattermost");
+    if (existing) {
+      throw new Error(
+        "Mattermost channel already configured. Update or remove it first.",
+      );
+    }
+
+    // Create channel record
+    const channel = this.channelRepo.create({
+      type: "mattermost",
+      name,
+      enabled: false, // Don't enable until connected
+      config: {
+        serverUrl,
+        token,
+        teamId,
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: [],
+        pairingCodeTTL: 300, // 5 minutes
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a new Matrix channel
+   */
+  async addMatrixChannel(
+    name: string,
+    homeserver: string,
+    userId: string,
+    accessToken: string,
+    deviceId?: string,
+    roomIds?: string[],
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    // Check if Matrix channel already exists
+    const existing = this.channelRepo.findByType("matrix");
+    if (existing) {
+      throw new Error(
+        "Matrix channel already configured. Update or remove it first.",
+      );
+    }
+
+    // Create channel record
+    const channel = this.channelRepo.create({
+      type: "matrix",
+      name,
+      enabled: false, // Don't enable until connected
+      config: {
+        homeserver,
+        userId,
+        accessToken,
+        deviceId,
+        roomIds,
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: [],
+        pairingCodeTTL: 300, // 5 minutes
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a new Twitch channel
+   */
+  async addTwitchChannel(
+    name: string,
+    username: string,
+    oauthToken: string,
+    channels: string[],
+    allowWhispers: boolean = false,
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    // Check if Twitch channel already exists
+    const existing = this.channelRepo.findByType("twitch");
+    if (existing) {
+      throw new Error(
+        "Twitch channel already configured. Update or remove it first.",
+      );
+    }
+
+    // Create channel record
+    const channel = this.channelRepo.create({
+      type: "twitch",
+      name,
+      enabled: false, // Don't enable until connected
+      config: {
+        username,
+        oauthToken,
+        channels,
+        allowWhispers,
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: [],
+        pairingCodeTTL: 300, // 5 minutes
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a new LINE channel
+   */
+  async addLineChannel(
+    name: string,
+    channelAccessToken: string,
+    channelSecret: string,
+    webhookPort: number = 3100,
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    // Check if LINE channel already exists
+    const existing = this.channelRepo.findByType("line");
+    if (existing) {
+      throw new Error(
+        "LINE channel already configured. Update or remove it first.",
+      );
+    }
+
+    // Create channel record
+    const channel = this.channelRepo.create({
+      type: "line",
+      name,
+      enabled: false, // Don't enable until connected
+      config: {
+        channelAccessToken,
+        channelSecret,
+        webhookPort,
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: [],
+        pairingCodeTTL: 300,
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a new BlueBubbles channel
+   */
+  async addBlueBubblesChannel(
+    name: string,
+    serverUrl: string,
+    password: string,
+    webhookPort: number = 3101,
+    allowedContacts?: string[],
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+    opts?: {
+      ambientMode?: boolean;
+      silentUnauthorized?: boolean;
+      captureSelfMessages?: boolean;
+      webhookSecret?: string;
+    },
+  ): Promise<Channel> {
+    // Check if BlueBubbles channel already exists
+    const existing = this.channelRepo.findByType("bluebubbles");
+    if (existing) {
+      throw new Error(
+        "BlueBubbles channel already configured. Update or remove it first.",
+      );
+    }
+
+    // Create channel record
+    const channel = this.channelRepo.create({
+      type: "bluebubbles",
+      name,
+      enabled: false, // Don't enable until connected
+      config: {
+        serverUrl,
+        password,
+        webhookPort,
+        webhookSecret: opts?.webhookSecret || password,
+        allowedContacts,
+        ...(opts?.ambientMode ? { ambientMode: true } : {}),
+        ...(opts?.silentUnauthorized ? { silentUnauthorized: true } : {}),
+        ...(opts?.captureSelfMessages ? { captureSelfMessages: true } : {}),
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: allowedContacts || [],
+        pairingCodeTTL: 300,
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a new Google Chat channel
+   */
+  async addGoogleChatChannel(
+    name: string,
+    serviceAccountKeyPath: string,
+    projectId?: string,
+    webhookPort: number = 3979,
+    webhookPath: string = "/googlechat/webhook",
+    webhookSecret?: string,
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    const existing = this.channelRepo.findByType("googlechat");
+    if (existing) {
+      throw new Error(
+        "Google Chat channel already configured. Update or remove it first.",
+      );
+    }
+
+    const channel = this.channelRepo.create({
+      type: "googlechat",
+      name,
+      enabled: false,
+      config: {
+        serviceAccountKeyPath,
+        projectId,
+        webhookPort,
+        webhookPath,
+        webhookSecret,
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: [],
+        pairingCodeTTL: 300,
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a new Email channel
+   */
+  async addEmailChannel(
+    name: string,
+    email: string | undefined,
+    password: string | undefined,
+    imapHost: string | undefined,
+    smtpHost: string | undefined,
+    displayName?: string,
+    allowedSenders?: string[],
+    subjectFilter?: string,
+    _securityMode: "open" | "allowlist" | "pairing" = "open",
+    options?: {
+      protocol?: "imap-smtp" | "loom";
+      authMethod?: "password" | "oauth";
+      oauthProvider?: "microsoft";
+      oauthClientId?: string;
+      oauthClientSecret?: string;
+      oauthTenant?: string;
+      accessToken?: string;
+      refreshToken?: string;
+      tokenExpiresAt?: number;
+      scopes?: string[];
+      imapPort?: number;
+      smtpPort?: number;
+      loomBaseUrl?: string;
+      loomAccessToken?: string;
+      loomIdentity?: string;
+      loomMailboxFolder?: string;
+      loomPollInterval?: number;
+    },
+  ): Promise<Channel> {
+    // Check if Email channel already exists
+    const existing = this.channelRepo.findByType("email");
+    if (existing) {
+      throw new Error(
+        "Email channel already configured. Update or remove it first.",
+      );
+    }
+
+    const protocol = options?.protocol === "loom" ? "loom" : "imap-smtp";
+    const authMethod = options?.authMethod === "oauth" ? "oauth" : "password";
+
+    if (protocol === "imap-smtp" && authMethod === "password") {
+      const unsupportedSetupMessage = getUnsupportedManualEmailSetupMessage({
+        email,
+        imapHost,
+        smtpHost,
+      });
+      if (unsupportedSetupMessage) {
+        throw new Error(unsupportedSetupMessage);
+      }
+    }
+
+    const config =
+      protocol === "loom"
+        ? {
+            protocol: "loom",
+            loomBaseUrl: options?.loomBaseUrl,
+            loomAccessToken: options?.loomAccessToken,
+            loomIdentity: options?.loomIdentity,
+            loomMailboxFolder: options?.loomMailboxFolder ?? "INBOX",
+            loomPollInterval: options?.loomPollInterval ?? 30000,
+            displayName,
+            silentUnauthorized: true,
+          }
+        : {
+            protocol: "imap-smtp",
+            authMethod,
+            oauthProvider: options?.oauthProvider,
+            oauthClientId: options?.oauthClientId,
+            oauthClientSecret: options?.oauthClientSecret,
+            oauthTenant: options?.oauthTenant,
+            accessToken: options?.accessToken,
+            refreshToken: options?.refreshToken,
+            tokenExpiresAt: options?.tokenExpiresAt,
+            scopes: options?.scopes,
+            email,
+            password,
+            imapHost,
+            imapPort: options?.imapPort ?? 993,
+            imapSecure: true,
+            smtpHost,
+            smtpPort: options?.smtpPort ?? 587,
+            smtpSecure: false,
+            displayName,
+            allowedSenders,
+            subjectFilter,
+            silentUnauthorized: true,
+          };
+
+    // Create channel record
+    const channel = this.channelRepo.create({
+      type: "email",
+      name,
+      enabled: false, // Don't enable until connected
+      config,
+      securityConfig: {
+        mode: "open",
+        allowedUsers: [],
+        pairingCodeTTL: 300,
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a new Feishu / Lark channel
+   */
+  async addFeishuChannel(
+    name: string,
+    appId: string,
+    appSecret: string,
+    verificationToken?: string,
+    encryptKey?: string,
+    webhookPort: number = 3980,
+    webhookPath: string = "/feishu/webhook",
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    const existing = this.channelRepo.findByType("feishu");
+    if (existing) {
+      throw new Error(
+        "Feishu / Lark channel already configured. Update or remove it first.",
+      );
+    }
+
+    const channel = this.channelRepo.create({
+      type: "feishu",
+      name,
+      enabled: false,
+      config: {
+        appId,
+        appSecret,
+        verificationToken,
+        encryptKey,
+        webhookPort,
+        webhookPath,
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: [],
+        pairingCodeTTL: 300,
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a DingTalk Stream-mode channel.
+   */
+  async addDingTalkChannel(
+    name: string,
+    clientId: string,
+    clientSecret: string,
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    const existing = this.channelRepo.findByType("dingtalk");
+    if (existing) {
+      throw new Error(
+        "DingTalk channel already configured. Update or remove it first.",
+      );
+    }
+
+    return this.channelRepo.create({
+      type: "dingtalk",
+      name,
+      enabled: false,
+      config: {
+        clientId,
+        clientSecret,
+        displayName: name,
+        deduplicationEnabled: true,
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: [],
+        pairingCodeTTL: 300,
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+  }
+
+  /**
+   * Add a new WeCom channel
+   */
+  async addWeComChannel(
+    name: string,
+    corpId: string,
+    agentId: number,
+    secret: string,
+    token: string,
+    encodingAESKey?: string,
+    webhookPort: number = 3981,
+    webhookPath: string = "/wecom/webhook",
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    const existing = this.channelRepo.findByType("wecom");
+    if (existing) {
+      throw new Error(
+        "WeCom channel already configured. Update or remove it first.",
+      );
+    }
+
+    const channel = this.channelRepo.create({
+      type: "wecom",
+      name,
+      enabled: false,
+      config: {
+        corpId,
+        agentId,
+        secret,
+        token,
+        encodingAESKey,
+        webhookPort,
+        webhookPath,
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: [],
+        pairingCodeTTL: 300,
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Add a personal WeChat channel authenticated through iLink QR login.
+   */
+  async addWeixinChannel(
+    name: string,
+    accountId: string,
+    botToken: string,
+    baseUrl: string,
+    userId?: string,
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    const existing = this.channelRepo.findByType("weixin");
+    if (existing) {
+      throw new Error(
+        "A WeChat channel is already configured. Disconnect or remove the existing connection first.",
+      );
+    }
+
+    return this.channelRepo.create({
+      type: "weixin",
+      name,
+      enabled: false,
+      config: {
+        accountId,
+        botToken,
+        baseUrl,
+        userId,
+        deduplicationEnabled: true,
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: [],
+        pairingCodeTTL: 300,
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+  }
+
+  /**
+   * Add a new X channel
+   */
+  async addXChannel(
+    name: string,
+    options?: {
+      commandPrefix?: string;
+      allowedAuthors?: string[];
+      pollIntervalSec?: number;
+      fetchCount?: number;
+      outboundEnabled?: boolean;
+    },
+    securityMode: "open" | "allowlist" | "pairing" = "pairing",
+  ): Promise<Channel> {
+    const existing = this.channelRepo.findByType("x");
+    if (existing) {
+      throw new Error(
+        "X channel already configured. Update or remove it first.",
+      );
+    }
+
+    const channel = this.channelRepo.create({
+      type: "x",
+      name,
+      enabled: false,
+      config: {
+        commandPrefix: options?.commandPrefix || "do:",
+        allowedAuthors: options?.allowedAuthors || [],
+        pollIntervalSec: options?.pollIntervalSec ?? 120,
+        fetchCount: options?.fetchCount ?? 25,
+        outboundEnabled: options?.outboundEnabled === true,
+      },
+      securityConfig: {
+        mode: securityMode,
+        allowedUsers: options?.allowedAuthors || [],
+        pairingCodeTTL: 300,
+        maxPairingAttempts: 5,
+        rateLimitPerMinute: 30,
+      },
+      status: "disconnected",
+    });
+
+    return channel;
+  }
+
+  /**
+   * Update a channel configuration
+   */
+  updateChannel(channelId: string, updates: Partial<Channel>): void {
+    this.channelRepo.update(channelId, updates);
+
+    if (updates.config === undefined) return;
+
+    const channel = this.channelRepo.findById(channelId);
+    if (!channel) return;
+    this.assertChannelConfigAvailable(channel);
+
+    const adapter =
+      this.router.getAdapterByChannelId(channelId) ||
+      (this.channelRepo.findAllByType(channel.type).length === 1
+        ? this.router.getAdapter(channel.type as ChannelType)
+        : undefined);
+    if (this.isMicrosoftEmailOAuthChannel(channel)) {
+      if (adapter) {
+        void adapter.disconnect().catch(() => undefined);
+      }
+      this.router.unregisterAdapter(channelId);
+      return;
+    }
+    if (adapter?.updateConfig) {
+      adapter.updateConfig(channel.config as ChannelConfig);
+    }
+  }
+
+  /**
+   * Enable a channel and connect
+   */
+  async enableChannel(channelId: string): Promise<void> {
+    const channel = this.channelRepo.findById(channelId);
+    if (!channel) {
+      throw new Error("Channel not found");
+    }
+
+    if (this.isMicrosoftEmailOAuthChannel(channel)) {
+      await this.connectMicrosoftEmailGraphChannel(channel);
+      return;
+    }
+
+    // Create and register adapter if not already done
+    let adapter =
+      this.router.getAdapterByChannelId(channelId) ||
+      (this.channelRepo.findAllByType(channel.type).length === 1
+        ? this.router.getAdapter(channel.type as ChannelType)
+        : undefined);
+    if (!adapter) {
+      adapter = this.createAdapterForChannel(channel);
+      this.attachDiscordSupervisorHandler(adapter);
+      this.router.registerAdapter(adapter, channel.id);
+    }
+
+    // Update channel state
+    this.channelRepo.update(channelId, { enabled: true });
+
+    // Connect
+    await adapter.connect();
+  }
+
+  /**
+   * Disable a channel and disconnect
+   */
+  async disableChannel(channelId: string): Promise<void> {
+    const channel = this.channelRepo.findById(channelId);
+    if (!channel) {
+      throw new Error("Channel not found");
+    }
+
+    const adapter =
+      this.router.getAdapterByChannelId(channelId) ||
+      (this.channelRepo.findAllByType(channel.type).length === 1
+        ? this.router.getAdapter(channel.type as ChannelType)
+        : undefined);
+    if (adapter) {
+      await adapter.disconnect();
+    }
+
+    this.channelRepo.update(channelId, {
+      enabled: false,
+      status: "disconnected",
+    });
+  }
+
+  /**
+   * Enable WhatsApp channel and set up QR code forwarding
+   * This method connects the WhatsApp adapter and forwards QR codes to the renderer
+   */
+  async enableWhatsAppWithQRForwarding(channelId: string): Promise<void> {
+    const channel = this.channelRepo.findById(channelId);
+    if (!channel || channel.type !== "whatsapp") {
+      throw new Error("WhatsApp channel not found");
+    }
+
+    // Create and register adapter if not already done
+    let adapter = this.router.getAdapter("whatsapp") as
+      WhatsAppAdapter | undefined;
+    if (!adapter) {
+      adapter = this.createAdapterForChannel(channel) as WhatsAppAdapter;
+      this.attachDiscordSupervisorHandler(adapter);
+      this.router.registerAdapter(adapter);
+    }
+
+    // Set up QR code forwarding to renderer
+    const mainWindow = this.router.getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      adapter.onQrCode((qr: string) => {
+        console.log("WhatsApp QR code received, forwarding to renderer");
+        if (!mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(IPC_CHANNELS.WHATSAPP_QR_CODE, qr);
+        }
+      });
+
+      adapter.onStatusChange((status, error) => {
+        console.log(`WhatsApp status changed to: ${status}`);
+        if (!mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(IPC_CHANNELS.WHATSAPP_STATUS, {
+            status,
+            error: error?.message,
+          });
+          if (status === "connected") {
+            mainWindow.webContents.send(IPC_CHANNELS.WHATSAPP_CONNECTED);
+            // Update channel status in database
+            this.channelRepo.update(channelId, {
+              enabled: true,
+              status: "connected",
+              botUsername: adapter?.botUsername,
+            });
+          } else if (status === "error") {
+            this.channelRepo.update(channelId, { status: "error" });
+          } else if (status === "disconnected") {
+            this.channelRepo.update(channelId, { status: "disconnected" });
+          }
+        }
+      });
+    }
+
+    // Update channel state to connecting
+    this.channelRepo.update(channelId, { enabled: true, status: "connecting" });
+
+    // Connect (this will trigger QR code generation)
+    await adapter.connect();
+  }
+
+  /**
+   * Get WhatsApp channel info including QR code
+   */
+  async getWhatsAppInfo(): Promise<{
+    qrCode?: string;
+    phoneNumber?: string;
+    status?: string;
+  }> {
+    const channel = this.channelRepo.findByType("whatsapp");
+    if (!channel) {
+      return {};
+    }
+
+    const adapter = this.router.getAdapter("whatsapp") as
+      WhatsAppAdapter | undefined;
+    if (!adapter) {
+      return { status: channel.status };
+    }
+
+    return {
+      qrCode: adapter.qrCode,
+      phoneNumber: adapter.botUsername,
+      status: adapter.status,
+    };
+  }
+
+  /**
+   * Logout from WhatsApp and clear credentials
+   */
+  async whatsAppLogout(): Promise<void> {
+    const adapter = this.router.getAdapter("whatsapp") as
+      WhatsAppAdapter | undefined;
+    if (adapter) {
+      await adapter.logout();
+    } else {
+      this.clearWhatsAppAuthDir();
+    }
+
+    const channel = this.channelRepo.findByType("whatsapp");
+    if (channel) {
+      this.channelRepo.update(channel.id, {
+        enabled: false,
+        status: "disconnected",
+        botUsername: undefined,
+      });
+    }
+  }
+
+  /**
+   * Remove a channel
+   */
+  async removeChannel(channelId: string): Promise<void> {
+    const channel = this.channelRepo.findById(channelId);
+    if (!channel) return;
+
+    if (channel.type === "whatsapp") {
+      const adapter = this.router.getAdapter("whatsapp") as
+        WhatsAppAdapter | undefined;
+      if (adapter) {
+        await adapter.logout();
+      } else {
+        const tempAdapter = this.createAdapterForChannel(
+          channel,
+        ) as WhatsAppAdapter;
+        await tempAdapter.logout();
+      }
+      this.clearWhatsAppAuthDir(channel);
+    } else {
+      await this.disableChannel(channelId);
+    }
+
+    // Delete associated data first (to avoid foreign key constraint errors)
+    this.messageRepo.deleteByChannelId(channelId);
+    this.sessionRepo.deleteByChannelId(channelId);
+    this.userRepo.deleteByChannelId(channelId);
+
+    // Now delete the channel
+    this.channelRepo.delete(channelId);
+    this.router.unregisterAdapter(channelId);
+  }
+
+  /**
+   * Test a channel connection without enabling it
+   */
+  async testChannel(
+    channelId: string,
+  ): Promise<{ success: boolean; error?: string; botUsername?: string }> {
+    const channel = this.channelRepo.findById(channelId);
+    if (!channel) {
+      return { success: false, error: "Channel not found" };
+    }
+
+    try {
+      if (
+        channel.type === "email" &&
+        this.isMicrosoftEmailOAuthChannel(channel)
+      ) {
+        await this.validateMicrosoftEmailGraphReadAccess(channel);
+        return {
+          success: true,
+          botUsername: this.getMicrosoftEmailIdentity(channel),
+        };
+      }
+
+      const adapter = this.createAdapterForChannel(channel);
+      let info: Awaited<ReturnType<ChannelAdapter["getInfo"]>>;
+      try {
+        await adapter.connect();
+        info = await adapter.getInfo();
+      } finally {
+        await adapter.disconnect().catch(() => undefined);
+      }
+
+      return {
+        success: true,
+        botUsername: info.botUsername,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Get all channels
+   */
+  getChannels(): Channel[] {
+    return this.channelRepo.findAll();
+  }
+
+  /**
+   * Get a channel by ID
+   */
+  getChannel(channelId: string): Channel | undefined {
+    return this.channelRepo.findById(channelId);
+  }
+
+  /**
+   * Get channel by type
+   */
+  getChannelByType(type: string): Channel | undefined {
+    return this.channelRepo.findByType(type);
+  }
+
+  // User Management
+
+  /**
+   * Generate a pairing code for a user
+   */
+  generatePairingCode(
+    channelId: string,
+    userId?: string,
+    displayName?: string,
+  ): string {
+    const channel = this.channelRepo.findById(channelId);
+    if (!channel) {
+      throw new Error("Channel not found");
+    }
+    return this.securityManager.generatePairingCode(
+      channel,
+      userId,
+      displayName,
+    );
+  }
+
+  /**
+   * Grant access to a user
+   */
+  grantUserAccess(
+    channelId: string,
+    userId: string,
+    displayName?: string,
+  ): void {
+    this.securityManager.grantAccess(channelId, userId, displayName);
+  }
+
+  /**
+   * Revoke user access
+   */
+  revokeUserAccess(channelId: string, userId: string): void {
+    this.securityManager.revokeAccess(channelId, userId);
+  }
+
+  /**
+   * Get users for a channel
+   * Automatically cleans up expired pending pairing entries
+   */
+  getChannelUsers(
+    channelId: string,
+  ): ReturnType<typeof this.userRepo.findByChannelId> {
+    // Use securityManager to trigger cleanup of expired pending entries
+    return this.securityManager.getChannelUsers(channelId);
+  }
+
+  // Messaging
+
+  /**
+   * Send a message to a channel chat
+   */
+  async sendMessage(
+    channelType: ChannelType,
+    chatId: string,
+    text: string,
+    options?: {
+      channelDbId?: string;
+      replyTo?: string;
+      parseMode?: "text" | "markdown" | "html";
+      idempotencyKey?: string;
+    },
+  ): Promise<string> {
+    return this.router.sendMessage(
+      channelType,
+      {
+        chatId,
+        text,
+        idempotencyKey: options?.idempotencyKey,
+        replyTo: options?.replyTo,
+        parseMode: options?.parseMode,
+      },
+      options?.channelDbId,
+    );
+  }
+
+  /**
+   * Send a message to a session's chat
+   */
+  async sendMessageToSession(
+    sessionId: string,
+    text: string,
+    options?: { replyTo?: string; parseMode?: "text" | "markdown" | "html" },
+  ): Promise<string | null> {
+    const session = this.sessionManager.getSession(sessionId);
+    if (!session) {
+      console.error("Session not found:", sessionId);
+      return null;
+    }
+
+    const channel = this.channelRepo.findById(session.channelId);
+    if (!channel) {
+      console.error("Channel not found:", session.channelId);
+      return null;
+    }
+
+    return this.router.sendMessage(
+      channel.type as ChannelType,
+      {
+        chatId: session.chatId,
+        text,
+        replyTo: options?.replyTo,
+        parseMode: options?.parseMode,
+      },
+      channel.id,
+    );
+  }
+
+  /**
+   * Get distinct chat IDs for a channel, ordered by most recent message.
+   */
+  getDistinctChatIds(
+    channelId: string,
+    limit = 50,
+  ): Array<{ chatId: string; lastTimestamp: number }> {
+    return this.messageRepo.getDistinctChatIds(channelId, limit);
+  }
+
+  // Events
+
+  /**
+   * Register an event handler
+   */
+  onEvent(handler: GatewayEventHandler): void {
+    this.router.onEvent(handler);
+  }
+
+  // Task response methods
+
+  /**
+   * Send a task update to the channel
+   */
+  async sendTaskUpdate(taskId: string, text: string): Promise<void> {
+    return this.router.sendTaskUpdate(taskId, text);
+  }
+
+  /**
+   * Handle task completion
+   */
+  async handleTaskCompletion(taskId: string, result?: string): Promise<void> {
+    return this.router.handleTaskCompletion(taskId, result);
+  }
+
+  /**
+   * Handle task failure
+   */
+  async handleTaskFailure(taskId: string, error: string): Promise<void> {
+    return this.router.handleTaskFailure(taskId, error);
+  }
+
+  // Private methods
+
+  private getHookIngress(): HookAgentIngress | null {
+    if (!this.agentDaemon) {
+      return null;
+    }
+    if (!this.hookIngress) {
+      this.hookIngress = initializeHookAgentIngress(this.agentDaemon, {
+        scope: "hooks",
+        defaultTempWorkspaceKey: "x-mentions",
+        logger: (...args) => console.warn(...args),
+      });
+    }
+    return this.hookIngress;
+  }
+
+  private resolveWhatsAppAuthDir(channel?: Channel): string {
+    const configured = (channel?.config as { authDir?: string } | undefined)
+      ?.authDir;
+    if (configured && configured.trim()) {
+      return configured;
+    }
+    return path.join(getUserDataDir(), "whatsapp-auth");
+  }
+
+  private clearWhatsAppAuthDir(channel?: Channel): void {
+    try {
+      const authDir = this.resolveWhatsAppAuthDir(channel);
+      if (fs.existsSync(authDir)) {
+        fs.rmSync(authDir, { recursive: true, force: true });
+      }
+    } catch (error) {
+      console.error("Failed to clear WhatsApp auth directory:", error);
+    }
+  }
+
+  /**
+   * Load and register channel adapters
+   */
+  private async loadChannels(): Promise<void> {
+    const channels = this.channelRepo.findAll();
+
+    for (const channel of channels) {
+      try {
+        if (this.isMicrosoftEmailOAuthChannel(channel)) {
+          continue;
+        }
+        const adapter = this.createAdapterForChannel(channel);
+        this.attachDiscordSupervisorHandler(adapter);
+        this.router.registerAdapter(adapter, channel.id);
+      } catch (error) {
+        console.error(
+          `Failed to create adapter for channel ${channel.type}:`,
+          error,
+        );
+      }
+    }
+  }
+
+  private attachDiscordSupervisorHandler(adapter: ChannelAdapter): void {
+    if (
+      !(adapter instanceof DiscordAdapter) ||
+      !this.discordSupervisorService
+    ) {
+      return;
+    }
+    adapter.onMessage(async (message) => {
+      await this.discordSupervisorService?.handleIncomingDiscordMessage(
+        adapter,
+        message,
+      );
+    });
+  }
+
+  private isMicrosoftEmailOAuthChannel(channel: Channel): boolean {
+    if (channel.type !== "email") return false;
+    return (
+      (channel.config.authMethod as string | undefined) === "oauth" &&
+      (channel.config.oauthProvider as string | undefined) === "microsoft"
+    );
+  }
+
+  private getMicrosoftEmailIdentity(channel: Channel): string | undefined {
+    const email = channel.config.email as string | undefined;
+    return email?.trim() || undefined;
+  }
+
+  private async connectMicrosoftEmailGraphChannels(
+    options: ChannelConnectOptions = {},
+  ): Promise<void> {
+    const channels = this.channelRepo
+      .findEnabled()
+      .filter((channel) => this.isMicrosoftEmailOAuthChannel(channel));
+
+    for (const channel of channels) {
+      try {
+        await withTimeout(
+          this.connectMicrosoftEmailGraphChannel(channel, options),
+          options.timeoutMs,
+          `Timed out connecting Microsoft Outlook email channel ${channel.id}`,
+        );
+      } catch (error) {
+        console.error(
+          "Failed to connect Microsoft Outlook email channel:",
+          error,
+        );
+      }
+    }
+  }
+
+  private async connectMicrosoftEmailGraphChannel(
+    channel: Channel,
+    options: ChannelConnectOptions = {},
+  ): Promise<void> {
+    this.router.unregisterAdapter(channel.id);
+    this.channelRepo.update(channel.id, {
+      enabled: true,
+      status: "connecting",
+    });
+
+    try {
+      await this.validateMicrosoftEmailGraphReadAccess(channel, options);
+      this.channelRepo.update(channel.id, {
+        enabled: true,
+        status: "connected",
+        botUsername: this.getMicrosoftEmailIdentity(channel),
+      });
+    } catch (error) {
+      this.channelRepo.update(channel.id, { status: "error" });
+      throw error;
+    }
+  }
+
+  private async validateMicrosoftEmailGraphReadAccess(
+    channel: Channel,
+    options: ChannelConnectOptions = {},
+  ): Promise<void> {
+    const oauthClientId = channel.config.oauthClientId as string | undefined;
+    const refreshToken = channel.config.refreshToken as string | undefined;
+    const accessToken =
+      (channel.config.microsoftGraphAccessToken as string | undefined) ||
+      (channel.config.accessToken as string | undefined);
+    const tokenExpiresAt =
+      (channel.config.microsoftGraphTokenExpiresAt as number | undefined) ||
+      (channel.config.tokenExpiresAt as number | undefined);
+    const tokenScopes = Array.isArray(channel.config.microsoftGraphTokenScopes)
+      ? (channel.config.microsoftGraphTokenScopes as string[])
+      : Array.isArray(channel.config.scopes)
+        ? (channel.config.scopes as string[])
+        : undefined;
+    if (
+      accessToken &&
+      (!tokenExpiresAt || Date.now() < tokenExpiresAt - 2 * 60 * 1000) &&
+      tokenScopes?.includes("https://graph.microsoft.com/Mail.ReadWrite")
+    ) {
+      await this.probeMicrosoftGraphReadAccess(accessToken, options);
+      return;
+    }
+
+    if (!oauthClientId || !refreshToken) {
+      if (
+        accessToken &&
+        (!tokenExpiresAt || Date.now() < tokenExpiresAt - 2 * 60 * 1000)
+      ) {
+        await this.probeMicrosoftGraphReadAccess(accessToken, options);
+        return;
+      }
+      throw new Error(
+        "Outlook sync test failed: reconnect the Outlook email channel so NeoWorker can request Microsoft Graph Mail.ReadWrite access.",
+      );
+    }
+
+    const refreshed = await refreshMicrosoftEmailAccessToken({
+      clientId: oauthClientId,
+      clientSecret: channel.config.oauthClientSecret as string | undefined,
+      refreshToken,
+      tenant:
+        (channel.config.oauthTenant as string | undefined) ||
+        MICROSOFT_EMAIL_DEFAULT_TENANT,
+      scopes: [...MICROSOFT_EMAIL_GRAPH_READWRITE_SCOPES],
+    });
+    await this.probeMicrosoftGraphReadAccess(refreshed.accessToken, options);
+
+    this.channelRepo.update(channel.id, {
+      config: {
+        ...channel.config,
+        microsoftGraphAccessToken: refreshed.accessToken,
+        microsoftGraphTokenExpiresAt: refreshed.expiresIn
+          ? Date.now() + refreshed.expiresIn * 1000
+          : (channel.config.microsoftGraphTokenExpiresAt as number | undefined),
+        microsoftGraphTokenScopes: normalizeMicrosoftEmailReadScopes(
+          refreshed.scopes || MICROSOFT_EMAIL_GRAPH_READWRITE_SCOPES,
+        ),
+        refreshToken: refreshed.refreshToken || refreshToken,
+        scopes: normalizeMicrosoftEmailReadScopes(
+          refreshed.scopes || (channel.config.scopes as string[] | undefined),
+        ),
+      },
+    });
+  }
+
+  private async probeMicrosoftGraphReadAccess(
+    accessToken: string,
+    options: ChannelConnectOptions = {},
+  ): Promise<void> {
+    const url = new URL(
+      "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages",
+    );
+    url.searchParams.set("$top", "1");
+    url.searchParams.set("$select", "id");
+    const controller = new AbortController();
+    const timeout =
+      options.timeoutMs && options.timeoutMs > 0
+        ? setTimeout(() => controller.abort(), options.timeoutMs)
+        : undefined;
+    timeout?.unref?.();
+    let response: Response;
+    try {
+      response = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: controller.signal,
+      });
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
+    if (response.ok) return;
+
+    const rawText =
+      typeof response.text === "function" ? await response.text() : "";
+    let graphMessage = response.statusText || "Microsoft Graph request failed";
+    if (rawText) {
+      try {
+        const data = JSON.parse(rawText) as {
+          error?: { message?: string };
+          message?: string;
+        };
+        graphMessage = data.error?.message || data.message || graphMessage;
+      } catch {
+        graphMessage = rawText;
+      }
+    }
+    throw new Error(
+      `Outlook sync test failed (${response.status}): ${graphMessage}. Reconnect with Microsoft Graph Mail.ReadWrite access.`,
+    );
+  }
+
+  private async getEmailOAuthAccessToken(channelId: string): Promise<string> {
+    const channel = this.channelRepo.findById(channelId);
+    if (!channel || channel.type !== "email") {
+      throw new Error("Email channel not found");
+    }
+
+    if ((channel.config.authMethod as string | undefined) !== "oauth") {
+      throw new Error("Email channel is not configured for OAuth");
+    }
+
+    const accessToken = channel.config.accessToken as string | undefined;
+    const tokenExpiresAt = channel.config.tokenExpiresAt as number | undefined;
+    const now = Date.now();
+    if (
+      accessToken &&
+      (!tokenExpiresAt || now < tokenExpiresAt - 2 * 60 * 1000)
+    ) {
+      return accessToken;
+    }
+
+    if ((channel.config.oauthProvider as string | undefined) !== "microsoft") {
+      throw new Error("Unsupported email OAuth provider");
+    }
+
+    const oauthClientId = channel.config.oauthClientId as string | undefined;
+    const refreshToken = channel.config.refreshToken as string | undefined;
+    if (!oauthClientId || !refreshToken) {
+      if (accessToken) {
+        return accessToken;
+      }
+      throw new Error("Email OAuth refresh token is required");
+    }
+
+    const refreshed = await refreshMicrosoftEmailAccessToken({
+      clientId: oauthClientId,
+      clientSecret: channel.config.oauthClientSecret as string | undefined,
+      refreshToken,
+      tenant:
+        (channel.config.oauthTenant as string | undefined) ||
+        MICROSOFT_EMAIL_DEFAULT_TENANT,
+    });
+
+    const nextConfig = {
+      ...channel.config,
+      accessToken: refreshed.accessToken,
+      refreshToken: refreshed.refreshToken || refreshToken,
+      tokenExpiresAt: refreshed.expiresIn
+        ? Date.now() + refreshed.expiresIn * 1000
+        : tokenExpiresAt,
+      scopes: normalizeMicrosoftEmailReadScopes(
+        refreshed.scopes || (channel.config.scopes as string[] | undefined),
+      ),
+    };
+
+    this.channelRepo.update(channelId, { config: nextConfig });
+    return refreshed.accessToken;
+  }
+
+  /**
+   * Create an adapter for a channel
+   */
+  private createAdapterForChannel(channel: Channel): ChannelAdapter {
+    this.assertChannelConfigAvailable(channel);
+
+    switch (channel.type) {
+      case "telegram":
+        return createTelegramAdapter({
+          enabled: channel.enabled,
+          botToken: channel.config.botToken as string,
+          webhookUrl: channel.config.webhookUrl as string | undefined,
+        });
+
+      case "discord":
+        return createDiscordAdapter({
+          enabled: channel.enabled,
+          botToken: channel.config.botToken as string,
+          applicationId: channel.config.applicationId as string,
+          guildIds: channel.config.guildIds as string[] | undefined,
+          supervisor: channel.config.supervisor as _DiscordConfig["supervisor"],
+        });
+
+      case "slack":
+        return createSlackAdapter({
+          enabled: channel.enabled,
+          botToken: channel.config.botToken as string,
+          appToken: channel.config.appToken as string,
+          signingSecret: channel.config.signingSecret as string | undefined,
+        });
+
+      case "whatsapp":
+        return createWhatsAppAdapter({
+          enabled: channel.enabled,
+          allowedNumbers: channel.config.allowedNumbers as string[] | undefined,
+          printQrToTerminal: true, // For debugging
+          selfChatMode:
+            (channel.config.selfChatMode as boolean | undefined) ?? true,
+          sendReadReceipts: channel.config.sendReadReceipts as
+            boolean | undefined,
+          deduplicationEnabled: channel.config.deduplicationEnabled as
+            boolean | undefined,
+          groupRoutingMode: channel.config.groupRoutingMode as
+            | "all"
+            | "mentionsOnly"
+            | "mentionsOrCommands"
+            | "commandsOnly"
+            | undefined,
+          responsePrefix:
+            (channel.config.responsePrefix as string | undefined) ?? "🤖",
+        });
+
+      case "imessage":
+        return createImessageAdapter({
+          enabled: channel.enabled,
+          cliPath: channel.config.cliPath as string | undefined,
+          dbPath: channel.config.dbPath as string | undefined,
+          dmPolicy: channel.config.dmPolicy as
+            "open" | "allowlist" | "pairing" | "disabled" | undefined,
+          groupPolicy: channel.config.groupPolicy as
+            "open" | "allowlist" | "disabled" | undefined,
+          allowedContacts: channel.config.allowedContacts as
+            string[] | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+        });
+
+      case "signal":
+        return createSignalAdapter({
+          enabled: channel.enabled,
+          phoneNumber: channel.config.phoneNumber as string,
+          cliPath: channel.config.cliPath as string | undefined,
+          dataDir: channel.config.dataDir as string | undefined,
+          mode: channel.config.mode as "native" | "daemon" | undefined,
+          socketPath: channel.config.socketPath as string | undefined,
+          trustMode: channel.config.trustMode as
+            "tofu" | "always" | "manual" | undefined,
+          dmPolicy: channel.config.dmPolicy as
+            "open" | "allowlist" | "pairing" | "disabled" | undefined,
+          groupPolicy: channel.config.groupPolicy as
+            "open" | "allowlist" | "disabled" | undefined,
+          allowedNumbers: channel.config.allowedNumbers as string[] | undefined,
+          sendReadReceipts: channel.config.sendReadReceipts as
+            boolean | undefined,
+          sendTypingIndicators: channel.config.sendTypingIndicators as
+            boolean | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+        });
+
+      case "mattermost":
+        return createMattermostAdapter({
+          enabled: channel.enabled,
+          serverUrl: channel.config.serverUrl as string,
+          token: channel.config.token as string,
+          teamId: channel.config.teamId as string | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+        });
+
+      case "matrix":
+        return createMatrixAdapter({
+          enabled: channel.enabled,
+          homeserver: channel.config.homeserver as string,
+          userId: channel.config.userId as string,
+          accessToken: channel.config.accessToken as string,
+          deviceId: channel.config.deviceId as string | undefined,
+          roomIds: channel.config.roomIds as string[] | undefined,
+          sendTypingIndicators: channel.config.sendTypingIndicators as
+            boolean | undefined,
+          sendReadReceipts: channel.config.sendReadReceipts as
+            boolean | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+        });
+
+      case "twitch":
+        return createTwitchAdapter({
+          enabled: channel.enabled,
+          username: channel.config.username as string,
+          oauthToken: channel.config.oauthToken as string,
+          channels: channel.config.channels as string[],
+          allowWhispers: channel.config.allowWhispers as boolean | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+        });
+
+      case "line":
+        return createLineAdapter({
+          enabled: channel.enabled,
+          channelAccessToken: channel.config.channelAccessToken as string,
+          channelSecret: channel.config.channelSecret as string,
+          webhookPort: channel.config.webhookPort as number | undefined,
+          webhookPath: channel.config.webhookPath as string | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+        });
+
+      case "bluebubbles":
+        return createBlueBubblesAdapter({
+          enabled: channel.enabled,
+          serverUrl: channel.config.serverUrl as string,
+          password: channel.config.password as string,
+          webhookPort: channel.config.webhookPort as number | undefined,
+          webhookPath: channel.config.webhookPath as string | undefined,
+          webhookSecret:
+            (channel.config.webhookSecret as string | undefined) ||
+            (channel.config.password as string),
+          pollInterval: channel.config.pollInterval as number | undefined,
+          allowedContacts: channel.config.allowedContacts as
+            string[] | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+        });
+
+      case "googlechat":
+        return createGoogleChatAdapter({
+          enabled: channel.enabled,
+          serviceAccountKeyPath: channel.config.serviceAccountKeyPath as
+            string | undefined,
+          serviceAccountKey: channel.config.serviceAccountKey as
+            _GoogleChatConfig["serviceAccountKey"] | undefined,
+          projectId: channel.config.projectId as string | undefined,
+          webhookPort: channel.config.webhookPort as number | undefined,
+          webhookPath: channel.config.webhookPath as string | undefined,
+          webhookSecret: channel.config.webhookSecret as string | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+          deduplicationEnabled: channel.config.deduplicationEnabled as
+            boolean | undefined,
+          autoReconnect: channel.config.autoReconnect as boolean | undefined,
+          maxReconnectAttempts: channel.config.maxReconnectAttempts as
+            number | undefined,
+          pubsubSubscription: channel.config.pubsubSubscription as
+            string | undefined,
+        } as _GoogleChatConfig);
+
+      case "email":
+        const loomStatePath =
+          channel.type === "email"
+            ? this.getLoomStatePath(channel.id)
+            : undefined;
+        return createEmailAdapter({
+          enabled: channel.enabled,
+          protocol: channel.config.protocol as "imap-smtp" | "loom" | undefined,
+          authMethod: channel.config.authMethod as
+            "password" | "oauth" | undefined,
+          oauthProvider: channel.config.oauthProvider as
+            "microsoft" | undefined,
+          oauthClientId: channel.config.oauthClientId as string | undefined,
+          oauthClientSecret: channel.config.oauthClientSecret as
+            string | undefined,
+          oauthTenant: channel.config.oauthTenant as string | undefined,
+          accessToken: channel.config.accessToken as string | undefined,
+          refreshToken: channel.config.refreshToken as string | undefined,
+          tokenExpiresAt: channel.config.tokenExpiresAt as number | undefined,
+          scopes: channel.config.scopes as string[] | undefined,
+          oauthAccessTokenProvider: async () =>
+            this.getEmailOAuthAccessToken(channel.id),
+          imapHost: channel.config.imapHost as string,
+          imapPort: channel.config.imapPort as number | undefined,
+          imapSecure: channel.config.imapSecure as boolean | undefined,
+          smtpHost: channel.config.smtpHost as string,
+          smtpPort: channel.config.smtpPort as number | undefined,
+          smtpSecure: channel.config.smtpSecure as boolean | undefined,
+          email: channel.config.email as string,
+          password: channel.config.password as string,
+          displayName: channel.config.displayName as string | undefined,
+          mailbox: channel.config.mailbox as string | undefined,
+          pollInterval: channel.config.pollInterval as number | undefined,
+          markAsRead: channel.config.markAsRead as boolean | undefined,
+          allowedSenders: channel.config.allowedSenders as string[] | undefined,
+          subjectFilter: channel.config.subjectFilter as string | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+          loomBaseUrl: channel.config.loomBaseUrl as string | undefined,
+          loomAccessToken: channel.config.loomAccessToken as string | undefined,
+          loomIdentity: channel.config.loomIdentity as string | undefined,
+          loomMailboxFolder: channel.config.loomMailboxFolder as
+            string | undefined,
+          loomPollInterval: channel.config.loomPollInterval as
+            number | undefined,
+          loomStatePath,
+        });
+
+      case "feishu":
+        return createFeishuAdapter({
+          enabled: channel.enabled,
+          appId: channel.config.appId as string,
+          appSecret: channel.config.appSecret as string,
+          verificationToken: channel.config.verificationToken as
+            string | undefined,
+          encryptKey: channel.config.encryptKey as string | undefined,
+          webhookPort: channel.config.webhookPort as number | undefined,
+          webhookPath: channel.config.webhookPath as string | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+        } as _FeishuConfig);
+
+      case "dingtalk":
+        return createDingTalkAdapter({
+          enabled: channel.enabled,
+          clientId: channel.config.clientId as string,
+          clientSecret: channel.config.clientSecret as string,
+          displayName: channel.config.displayName as string | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+          deduplicationEnabled: channel.config.deduplicationEnabled as
+            boolean | undefined,
+          debug: channel.config.debug as boolean | undefined,
+        } as _DingTalkConfig);
+
+      case "weixin":
+        return createWeixinAdapter({
+          enabled: channel.enabled,
+          accountId: channel.config.accountId as string,
+          botToken: channel.config.botToken as string,
+          baseUrl: channel.config.baseUrl as string,
+          userId: channel.config.userId as string | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+          deduplicationEnabled: channel.config.deduplicationEnabled as
+            boolean | undefined,
+        } as _WeixinConfig);
+
+      case "wecom":
+        return createWeComAdapter({
+          enabled: channel.enabled,
+          corpId: channel.config.corpId as string,
+          agentId: channel.config.agentId as number,
+          secret: channel.config.secret as string,
+          token: channel.config.token as string,
+          encodingAESKey: channel.config.encodingAESKey as string | undefined,
+          webhookPort: channel.config.webhookPort as number | undefined,
+          webhookPath: channel.config.webhookPath as string | undefined,
+          responsePrefix: channel.config.responsePrefix as string | undefined,
+        } as _WeComConfig);
+
+      case "x":
+        return createXAdapter({
+          enabled: channel.enabled,
+          commandPrefix: channel.config.commandPrefix as string | undefined,
+          allowedAuthors: channel.config.allowedAuthors as string[] | undefined,
+          pollIntervalSec: channel.config.pollIntervalSec as number | undefined,
+          fetchCount: channel.config.fetchCount as number | undefined,
+          outboundEnabled: channel.config.outboundEnabled as
+            boolean | undefined,
+          onMentionCommand: async (mention: ParsedMentionCommand) => {
+            const ingress = this.getHookIngress();
+            if (!ingress) return;
+            const created = await ingress.createTaskFromAgentAction(
+              {
+                name: `X mention from @${mention.author}`,
+                message: buildMentionTaskPrompt(mention),
+                sessionKey: `xmention:${mention.tweetId}`,
+              },
+              {
+                tempWorkspaceKey: `x-${mention.author}`,
+              },
+            );
+            return { taskId: created.taskId };
+          },
+        } as XAdapterConfig);
+
+      default:
+        throw new Error(`Unsupported channel type: ${channel.type}`);
+    }
+  }
+
+  private assertChannelConfigAvailable(channel: Channel): void {
+    if (channel.configReadError) {
+      throw new Error(channel.configReadError);
+    }
+  }
+
+  private getLoomStatePath(channelId: string): string {
+    return path.join(getUserDataDir(), "loom", `${channelId}.json`);
+  }
+}
+
+// Re-export types and components
+export * from "./channels/types";
+export * from "./router";
+export * from "./session";
+export * from "./security";
+export * from "./channel-registry";
+export { TelegramAdapter, createTelegramAdapter } from "./channels/telegram";
+export { DiscordAdapter, createDiscordAdapter } from "./channels/discord";
+export { SlackAdapter, createSlackAdapter } from "./channels/slack";
+export { WhatsAppAdapter, createWhatsAppAdapter } from "./channels/whatsapp";
+export { ImessageAdapter, createImessageAdapter } from "./channels/imessage";
+export { SignalAdapter, createSignalAdapter } from "./channels/signal";
+export { SignalClient } from "./channels/signal-client";
+export { FeishuAdapter, createFeishuAdapter } from "./channels/feishu";
+export { WeComAdapter, createWeComAdapter } from "./channels/wecom";
+export {
+  MattermostAdapter,
+  createMattermostAdapter,
+} from "./channels/mattermost";
+export { MattermostClient } from "./channels/mattermost-client";
+export { MatrixAdapter, createMatrixAdapter } from "./channels/matrix";
+export { MatrixClient } from "./channels/matrix-client";
+export { TwitchAdapter, createTwitchAdapter } from "./channels/twitch";
+export { TwitchClient } from "./channels/twitch-client";
+export { LineAdapter, createLineAdapter } from "./channels/line";
+export { LineClient } from "./channels/line-client";
+export {
+  BlueBubblesAdapter,
+  createBlueBubblesAdapter,
+} from "./channels/bluebubbles";
+export { BlueBubblesClient } from "./channels/bluebubbles-client";
+export { EmailAdapter, createEmailAdapter } from "./channels/email";
+export { EmailClient } from "./channels/email-client";
+export { XAdapter, createXAdapter } from "./channels/x";
+export { LoomEmailClient } from "./channels/loom-client";
+export {
+  TunnelManager,
+  getAvailableTunnelProviders,
+  createAutoTunnel,
+} from "./tunnel";
+export type {
+  TunnelProvider,
+  TunnelStatus,
+  TunnelConfig,
+  TunnelInfo,
+} from "./tunnel";

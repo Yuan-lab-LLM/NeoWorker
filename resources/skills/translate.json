@@ -1,0 +1,64 @@
+{
+  "id": "translate",
+  "name": "Translate",
+  "description": "Translate content to another language",
+  "icon": "🌐",
+  "category": "Writing",
+  "prompt": "Please translate the content in {{path}} to {{language}}.\n\nRequirements:\n- Maintain the original meaning and tone\n- Preserve formatting (markdown, code blocks, etc.)\n- Keep technical terms consistent\n- Adapt idioms appropriately for the target language\n- Preserve any code snippets unchanged\n\nSave the translated content to:\n- `{artifactDir}/{{language}}.md` (or a language-suffixed filename under `{artifactDir}`).",
+  "parameters": [
+    {
+      "name": "path",
+      "type": "string",
+      "description": "Path to the file to translate",
+      "required": true
+    },
+    {
+      "name": "language",
+      "type": "select",
+      "description": "Target language",
+      "required": true,
+      "default": "Spanish",
+      "options": [
+        "Spanish",
+        "French",
+        "German",
+        "Chinese",
+        "Japanese",
+        "Korean",
+        "Portuguese",
+        "Italian",
+        "Russian",
+        "Arabic"
+      ]
+    }
+  ],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when user asks for language localization of user-visible content.",
+      "dontUseWhen": "Don't use for translating source code identifiers or binary formats.",
+      "outputs": "Locale-specific content file(s).",
+      "successCriteria": "Preserves meaning and structure with style-appropriate phrasing.",
+      "expectedArtifacts": [
+        "{{language}}.md"
+      ],
+      "examples": {
+        "positive": [
+          "Use the translate skill for this request.",
+          "Help me with translate.",
+          "Use when user asks for language localization of user-visible content.",
+          "Translate: provide an actionable result."
+        ],
+        "negative": [
+          "Don't use for translating source code identifiers or binary formats.",
+          "Do not use translate for unrelated requests.",
+          "This request is outside translate scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

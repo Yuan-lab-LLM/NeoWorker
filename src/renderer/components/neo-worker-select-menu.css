@@ -1,0 +1,279 @@
+.neoworker-select-menu {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+}
+
+.neoworker-select-trigger {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--color-border, #dce2eb);
+  border-radius: 10px;
+  color: var(--color-text-primary, #293349);
+  background: var(--color-bg-primary, #fbfcfe);
+  box-shadow: 0 1px 2px rgba(31, 42, 61, 0.03);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.neoworker-select-trigger:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent, #2563eb) 34%,
+    var(--color-border, #dce2eb)
+  );
+  background: var(--color-bg-primary, #fff);
+}
+
+.neoworker-select-trigger:focus-visible,
+.neoworker-select-trigger[aria-expanded="true"] {
+  outline: 0;
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent, #2563eb) 62%,
+    var(--color-border, #dce2eb)
+  );
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--color-accent, #2563eb) 12%, transparent);
+}
+
+.neoworker-select-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.neoworker-select-icon {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--color-accent, #1677ff);
+  background: color-mix(
+    in srgb,
+    var(--color-accent, #1677ff) 8%,
+    transparent
+  );
+}
+
+.neoworker-select-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.neoworker-select-value {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.neoworker-select-chevron {
+  flex: none;
+  color: var(--color-text-muted, #8b96a8);
+  transition: transform 140ms ease;
+}
+
+.neoworker-select-trigger[aria-expanded="true"] .neoworker-select-chevron {
+  transform: rotate(180deg);
+}
+
+.neoworker-select-popover {
+  position: fixed;
+  /* The menu is portaled to document.body. Keep it above the app's settings,
+     workbench and modal layers so expanded channel cards cannot cover it. */
+  z-index: 10050;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 7px;
+  border: 1px solid color-mix(
+    in srgb,
+    var(--color-border, #dce2eb) 92%,
+    transparent
+  );
+  border-radius: 13px;
+  color: var(--color-text-primary, #293349);
+  background: color-mix(
+    in srgb,
+    var(--color-bg-primary, #fff) 98%,
+    transparent
+  );
+  box-shadow:
+    0 22px 52px rgba(35, 49, 72, 0.16),
+    0 4px 14px rgba(35, 49, 72, 0.08);
+  backdrop-filter: blur(18px);
+  animation: neoworker-select-appear 110ms ease-out;
+}
+
+.neoworker-select-popover[data-placement="top"] {
+  transform: translateY(-100%);
+}
+
+.neoworker-select-options {
+  min-height: 0;
+  max-height: inherit;
+  overflow: auto;
+  display: grid;
+  gap: 2px;
+  overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--color-text-muted) 28%, transparent)
+    transparent;
+  scrollbar-width: thin;
+}
+
+.neoworker-select-option {
+  position: relative;
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--color-text-primary, #293349);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.neoworker-select-option:hover,
+.neoworker-select-option:focus-visible {
+  outline: 0;
+  background: color-mix(
+    in srgb,
+    var(--color-bg-tertiary, #f3f6fa) 86%,
+    var(--color-accent, #1677ff) 3%
+  );
+}
+
+.neoworker-select-option.selected {
+  color: var(--color-accent, #1f6feb);
+  background: var(--color-accent-subtle, #edf4ff);
+}
+
+.neoworker-select-option.selected::before {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--color-accent, #1677ff);
+  content: "";
+}
+
+.neoworker-select-option-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.neoworker-select-option-copy > span {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.neoworker-select-option-copy strong {
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.neoworker-select-option-copy em {
+  padding: 2px 5px;
+  flex: none;
+  border-radius: 5px;
+  color: var(--color-accent, #1f6feb);
+  background: color-mix(
+    in srgb,
+    var(--color-accent, #1f6feb) 10%,
+    transparent
+  );
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.neoworker-select-option-copy small {
+  overflow: hidden;
+  color: var(--color-text-muted, #7a8496);
+  font-size: 11px;
+  font-weight: 450;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.neoworker-select-check {
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--color-accent, #1677ff);
+  background: color-mix(
+    in srgb,
+    var(--color-accent, #1677ff) 10%,
+    transparent
+  );
+}
+
+.neoworker-select-option:not(.selected) .neoworker-select-check {
+  background: transparent;
+}
+
+@keyframes neoworker-select-appear {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.theme-dark .neoworker-select-trigger,
+:root:not(.theme-light) .neoworker-select-trigger {
+  background: color-mix(
+    in srgb,
+    var(--color-bg-primary, #1d222c) 96%,
+    transparent
+  );
+}
+
+.theme-dark .neoworker-select-popover,
+:root:not(.theme-light) .neoworker-select-popover {
+  box-shadow:
+    0 20px 44px rgba(4, 8, 15, 0.34),
+    0 3px 10px rgba(4, 8, 15, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neoworker-select-chevron,
+  .neoworker-select-popover {
+    animation: none;
+    transition: none;
+  }
+}

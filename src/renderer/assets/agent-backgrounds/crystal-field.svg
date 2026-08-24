@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="36" y1="22" x2="760" y2="300" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FFFF"/>
+      <stop offset=".55" stop-color="#E8FBF7"/>
+      <stop offset="1" stop-color="#BCEBE3"/>
+    </linearGradient>
+    <linearGradient id="gem" x1="514" y1="54" x2="721" y2="272" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6AE1D1"/>
+      <stop offset="1" stop-color="#2C88C9"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="320" rx="30" fill="url(#bg)"/>
+  <path d="M617 42L749 129L702 274L526 263L473 116L617 42Z" fill="url(#gem)" fill-opacity=".13" stroke="#37AFA3" stroke-opacity=".38" stroke-width="2"/>
+  <path d="M617 42L630 174L749 129M630 174L702 274M630 174L526 263M630 174L473 116M473 116L749 129M526 263L617 42" stroke="#258F9E" stroke-opacity=".27"/>
+  <circle cx="630" cy="174" r="14" fill="#fff" fill-opacity=".75" stroke="#3BB7AD" stroke-width="3"/>
+  <circle cx="504" cy="73" r="7" fill="#5BDCC7"/>
+  <circle cx="756" cy="247" r="5" fill="#3D8FC7"/>
+</svg>

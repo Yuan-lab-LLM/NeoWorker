@@ -1,0 +1,31 @@
+[Unit]
+Description=NeoWorker (Headless)
+After=network.target
+
+[Service]
+Type=simple
+
+# Path where you cloned/built NeoWorker on the VPS.
+WorkingDirectory=/opt/neoworker
+
+# Optional env file (LLM keys, data dir, control plane host/port, etc).
+EnvironmentFile=-/etc/neoworker.env
+
+# Headless Electron can fail on some servers without a DISPLAY. Xvfb provides a virtual display.
+ExecStart=/usr/bin/xvfb-run -a /usr/bin/node /opt/neoworker/bin/neoworkerd.js
+
+Restart=on-failure
+RestartSec=5
+
+# Run as an unprivileged user (recommended).
+User=neoworker
+Group=neoworker
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/neoworker /srv/neoworker/workspace
+
+[Install]
+WantedBy=multi-user.target

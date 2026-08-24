@@ -1,0 +1,55 @@
+{
+  "id": "calendly",
+  "name": "Calendly",
+  "description": "Manage Calendly scheduling via the v2 API. List event types, view scheduled events, check invitee details, manage availability schedules, cancel/reschedule events, create one-off links, and configure webhooks. Use when the user asks about their calendar, upcoming meetings, scheduling links, or availability.",
+  "icon": "📅",
+  "category": "Tools",
+  "prompt": "# Calendly\n\nUse this skill only when the request is in scope:\n- User asks about Calendly meetings, scheduling links, availability, booking, upcoming events, or wants to manage their Calendly calendar\n\nDo not use this skill when:\n- User asks about Google Calendar, Apple Calendar, Outlook calendar, or general time management without Calendly\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Meeting agendas, invitee details, availability windows, scheduling links, webhook configurations.\n5. Verify success criteria: User receives accurate calendar data formatted as a clear agenda with times in their timezone.",
+  "parameters": [
+    {
+      "name": "query",
+      "type": "string",
+      "description": "What to check or manage (e.g., 'upcoming meetings', 'cancel 3pm tomorrow', 'my scheduling links')",
+      "required": false
+    }
+  ],
+  "enabled": true,
+  "invocation": {
+    "userInvocable": true
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "NeoWorker",
+    "tags": [
+      "calendly",
+      "scheduling",
+      "calendar",
+      "meetings",
+      "booking",
+      "availability"
+    ],
+    "routing": {
+      "useWhen": "User asks about Calendly meetings, scheduling links, availability, booking, upcoming events, or wants to manage their Calendly calendar",
+      "dontUseWhen": "User asks about Google Calendar, Apple Calendar, Outlook calendar, or general time management without Calendly",
+      "outputs": "Meeting agendas, invitee details, availability windows, scheduling links, webhook configurations",
+      "successCriteria": "User receives accurate calendar data formatted as a clear agenda with times in their timezone",
+      "examples": {
+        "positive": [
+          "Use the calendly skill for this request.",
+          "Help me with calendly.",
+          "User asks about Calendly meetings, scheduling links, availability, booking, upcoming events, or wants to manage their Calendly calendar",
+          "Calendly: provide an actionable result."
+        ],
+        "negative": [
+          "User asks about Google Calendar, Apple Calendar, Outlook calendar, or general time management without Calendly",
+          "Do not use calendly for unrelated requests.",
+          "This request is outside calendly scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

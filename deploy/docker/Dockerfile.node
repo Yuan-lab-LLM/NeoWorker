@@ -1,0 +1,63 @@
+# Node-only daemon image (no Electron/Xvfb). Multi-stage to keep runtime small.
+
+FROM node:24-bookworm-slim AS build
+
+WORKDIR /app
+
+# Native build deps (better-sqlite3) + minimal runtime deps for common tools.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY package.json package-lock.json ./
+
+# Install all deps to build TypeScript, then prune dev deps for runtime.
+RUN npm ci
+
+COPY . .
+
+RUN npm run build:daemon && npm run build:connectors
+
+# Ensure better-sqlite3 is built for the current Node ABI (postinstall may have rebuilt for Electron on some setups).
+RUN npm rebuild better-sqlite3
+
+# Remove dev deps (Electron, build tooling) from the final node_modules.
+RUN npm prune --omit=dev
+
+
+FROM node:24-bookworm-slim AS runtime
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    tini \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY --chown=node:node --from=build /app/package.json ./package.json
+COPY --chown=node:node --from=build /app/node_modules ./node_modules
+COPY --chown=node:node --from=build /app/dist ./dist
+COPY --chown=node:node --from=build /app/bin ./bin
+COPY --chown=node:node --from=build /app/connectors ./connectors
+COPY --chown=node:node --from=build /app/resources ./resources
+COPY --chown=node:node --from=build /app/docs ./docs
+
+# Optional: NEOWORKER_TZ sets TZ for the process (IANA timezone, e.g. America/New_York).
+COPY deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
+
+# Persistent dirs (named volumes will inherit these perms on first run).
+RUN mkdir -p /data /workspace && chown -R node:node /data /workspace
+
+# Non-root (recommended)
+USER node
+
+EXPOSE 18789
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=25s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:18789/health || exit 1
+
+CMD ["node", "bin/neoworkerd-node.js"]

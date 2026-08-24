@@ -1,0 +1,1078 @@
+.settings-content {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 36px clamp(28px, 4vw, 52px) 72px;
+}
+
+.more-channels-panel,
+.integrations-panel,
+.llm-provider-panel {
+  gap: 22px;
+}
+
+/* 一级设置页存在多个子页时，使用内容区内的二级侧栏，保持全局设置导航不变。 */
+.settings-tabbed-workspace {
+  display: grid;
+  grid-template-columns: 176px minmax(0, 1fr);
+  column-gap: 36px;
+  row-gap: 28px;
+  align-items: start;
+}
+
+.settings-tabbed-workspace > .more-channels-header {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  padding-bottom: 2px;
+  border-bottom: 0;
+}
+
+.settings-tabbed-workspace > .more-channels-tabs {
+  min-height: 0;
+  grid-column: 1;
+  grid-row: 2;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: visible;
+  border: 0 !important;
+  border-right: 1px solid #e8e8ea !important;
+  border-radius: 0;
+  background: transparent !important;
+  padding: 0 16px 0 0 !important;
+  box-shadow: none !important;
+}
+
+.settings-tabbed-workspace > .more-channels-tabs .more-channels-tab {
+  width: 100%;
+  min-height: 34px;
+  justify-content: flex-start;
+  padding: 0 9px;
+  border-radius: 8px;
+}
+
+.settings-tabbed-workspace > .more-channels-tabs .more-channels-tab::after {
+  display: none;
+}
+
+.settings-tabbed-workspace > .more-channels-tabs .more-channels-tab.active {
+  background: #ececee;
+  color: #242529;
+}
+
+/* Primary and secondary settings navigation share one type scale and rhythm. */
+.settings-page {
+  --settings-nav-font-size: 13px;
+  --settings-nav-line-height: 20px;
+  --settings-nav-weight: 500;
+  --settings-nav-active-weight: 600;
+  --settings-section-intro-inset: 14px;
+}
+
+.settings-nav-item,
+.settings-tabbed-workspace > .more-channels-tabs .more-channels-tab,
+.settings-tabbed-workspace > .integrations-tabs .integrations-tab,
+.settings-tabbed-workspace > .llm-provider-tabs .llm-provider-tab {
+  font-family: var(--font-ui);
+  font-size: var(--settings-nav-font-size);
+  font-weight: var(--settings-nav-weight);
+  line-height: var(--settings-nav-line-height);
+  letter-spacing: 0;
+}
+
+.settings-nav-item.active,
+.settings-tabbed-workspace > .more-channels-tabs .more-channels-tab.active,
+.settings-tabbed-workspace > .integrations-tabs .integrations-tab.active,
+.settings-tabbed-workspace > .llm-provider-tabs .llm-provider-tab.active {
+  font-weight: var(--settings-nav-active-weight);
+}
+
+.settings-nav-item svg,
+.settings-tabbed-workspace > .more-channels-tabs .more-channels-tab svg,
+.settings-tabbed-workspace > .integrations-tabs .integrations-tab svg,
+.settings-tabbed-workspace > .llm-provider-tabs .llm-provider-tab svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+.settings-tabbed-workspace > .more-channels-content {
+  min-width: 0;
+  grid-column: 2;
+  grid-row: 2;
+  width: 100%;
+  max-width: 900px;
+}
+
+/* Usage is part of configuring a model: keep the entry point beside the
+   configuration instead of creating another item in the settings sidebar. */
+.model-usage-insights {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 22px;
+  padding: 18px 20px;
+  border: 1px solid #dce8fb;
+  border-radius: 14px;
+  background: linear-gradient(100deg, #f7fbff 0%, #fff 72%);
+}
+
+.model-usage-insights-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.model-usage-insights-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  border-radius: 11px;
+  color: #2478f6;
+  background: #eaf3ff;
+}
+
+.model-usage-insights h3 {
+  margin: 0;
+  color: #202939;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.model-usage-insights p {
+  margin: 3px 0 0;
+  color: #738096;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.model-usage-insights-toggle {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.model-usage-insights-detail {
+  margin-top: 16px;
+}
+
+@media (max-width: 720px) {
+  .model-usage-insights {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* Nested tabs stay subordinate to the vertical page navigation. */
+.settings-tabbed-workspace .settings-nested-tab-panel {
+  gap: 14px;
+}
+
+.settings-tabbed-workspace .settings-nested-tab-panel > .more-channels-tabs {
+  min-height: 40px;
+  gap: 0;
+  overflow-x: auto;
+  border: 0;
+  border-bottom: 1px solid #e6e9ee;
+  border-radius: 0;
+  background: transparent !important;
+  padding: 0;
+}
+
+.settings-tabbed-workspace .settings-nested-tab-panel > .more-channels-tabs .more-channels-tab {
+  min-height: 40px;
+  padding: 0 13px;
+}
+
+.more-channels-header h2,
+.integrations-header h2,
+.llm-provider-header h2 {
+  margin: 0 0 7px;
+  color: #1f2937;
+  font-size: 24px;
+  font-weight: 620;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.more-channels-header .settings-description,
+.integrations-header .settings-description,
+.llm-provider-header .settings-description,
+.settings-nested-header .settings-description {
+  margin: 0;
+  color: #797d84;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* Settings sub-navigation: a quiet underline, not a rounded segmented control. */
+.more-channels-tabs,
+.integrations-tabs,
+.llm-provider-tabs {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow-x: auto;
+  border: 0;
+  border-bottom: 1px solid #e6e9ee;
+  border-radius: 0;
+  background: transparent;
+  scrollbar-width: none;
+}
+
+.more-channels-tabs::-webkit-scrollbar,
+.integrations-tabs::-webkit-scrollbar,
+.llm-provider-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.more-channels-tab,
+.integrations-tab,
+.llm-provider-tab {
+  position: relative;
+  display: inline-flex;
+  min-height: 42px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #6e7785;
+  font-size: 13px;
+  font-weight: 540;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.more-channels-tab::after,
+.integrations-tab::after,
+.llm-provider-tab::after {
+  position: absolute;
+  right: 14px;
+  bottom: -1px;
+  left: 14px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: transparent;
+  content: "";
+}
+
+.more-channels-tab svg,
+.integrations-tab svg,
+.llm-provider-tab svg {
+  width: 15px;
+  height: 15px;
+  color: #9aa4b2;
+  stroke-width: 1.75;
+}
+
+.more-channels-tab:hover,
+.integrations-tab:hover,
+.llm-provider-tab:hover {
+  background: #f6f8fa;
+  color: #394150;
+}
+
+.more-channels-tab.active,
+.integrations-tab.active,
+.llm-provider-tab.active,
+.theme-light .more-channels-tab.active,
+.theme-light .integrations-tab.active,
+.theme-light .llm-provider-tab.active {
+  background: transparent;
+  box-shadow: none;
+  color: #2276df;
+  font-weight: 620;
+}
+
+.more-channels-tab.active::after,
+.integrations-tab.active::after,
+.llm-provider-tab.active::after {
+  background: #2784f6;
+}
+
+.more-channels-tab.active svg,
+.integrations-tab.active svg,
+.llm-provider-tab.active svg {
+  color: #2784f6;
+}
+
+/* Readable type scale for the broad settings workspace. */
+.settings-content {
+  font-size: 14px;
+}
+
+.more-channels-header .settings-description,
+.integrations-header .settings-description,
+.llm-provider-header .settings-description,
+.settings-nested-header .settings-description,
+.settings-content .settings-description {
+  color: #717b8d;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.settings-content .settings-section h3,
+.system-security-panel .settings-section h3,
+.system-security-panel .settings-section h4,
+.system-security-panel .settings-subsection h4 {
+  color: #263142;
+  font-size: 14px;
+  font-weight: 620;
+  line-height: 1.4;
+}
+
+/* Top-level settings intros need breathing room above the first baseline.
+   Keep this scoped to page intros so compact rows and nested card headings do
+   not become unnecessarily tall. */
+.settings-content .mcp-settings > .settings-section,
+.settings-content .skills-settings > .skills-settings-intro,
+.settings-content
+  .settings-nested-tab-content
+  > .contact-identity-settings
+  > .more-channels-header,
+.settings-content
+  .settings-tools-stack
+  > .computer-use-settings
+  > .computer-use-settings-heading {
+  padding-top: var(--settings-section-intro-inset);
+}
+
+.settings-content .settings-label,
+.settings-content .settings-inline-input label,
+.settings-content .ap-label {
+  font-size: 13px;
+}
+
+.settings-content .settings-hint,
+.settings-content .tray-settings-option-desc,
+.settings-content .ap-hint {
+  color: #8a94a3;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.settings-content .settings-input,
+.settings-content textarea,
+.settings-content select {
+  font-size: 14px;
+}
+
+/* Organization & Security: section titles first, controls in compact rows. */
+.system-security-panel {
+  gap: 30px;
+}
+
+.system-security-panel .settings-combined-section {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.system-security-panel .settings-combined-section-header {
+  align-items: center;
+  gap: 11px;
+  padding: var(--settings-section-intro-inset) 0 13px;
+  border-bottom: 1px solid #e7eaf0;
+  background: transparent;
+}
+
+.system-security-panel .settings-combined-section-icon {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+  border-color: #e5e9ef;
+  border-radius: 50%;
+  background: #fff;
+  color: #2784f6;
+}
+
+.system-security-panel .settings-combined-section-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.system-security-panel .settings-combined-heading {
+  color: #253041;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.system-security-panel .settings-combined-section-copy .settings-description {
+  margin-top: 2px;
+  color: #8590a0;
+  font-size: 13px;
+}
+
+.system-security-panel .settings-combined-body {
+  padding: 16px 0 0;
+}
+
+/* Profiles mirror the selected design: one current-profile row, then a compact
+   action list and unboxed create/import fields. */
+.profile-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.profile-settings-intro {
+  margin: 0;
+}
+
+.system-security-panel .profile-settings-active-card,
+.system-security-panel .profile-settings-list .settings-card {
+  overflow: hidden;
+  padding: 0;
+}
+
+.profile-settings-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+}
+
+.profile-settings-card-title,
+.profile-settings-form-title {
+  color: #2d3746;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.profile-settings-card-path {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: #8993a2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-settings-actions {
+  border-top: 1px solid #edf0f4;
+}
+
+.profile-settings-action-row {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 16px;
+}
+
+.profile-settings-action-row + .profile-settings-action-row {
+  border-top: 1px solid #edf0f4;
+}
+
+.profile-settings-action-label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  color: #596574;
+  font-size: 13px;
+}
+
+.profile-settings-action-label svg {
+  flex: 0 0 auto;
+  color: #5c6675;
+  stroke-width: 1.65;
+}
+
+.profile-settings-action-row .button-primary,
+.profile-settings-action-row .button-secondary {
+  min-width: 86px;
+  min-height: 30px;
+  padding: 0 12px;
+}
+
+.profile-settings-form {
+  padding: 2px 0 0;
+}
+
+.profile-settings-form .settings-description {
+  margin: 4px 0 10px;
+}
+
+.profile-settings-form-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profile-settings-form-controls input {
+  min-width: 0;
+  flex: 1 1 240px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #dfe3e8;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: none;
+  color: #273142;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+.profile-settings-form-controls input:hover:not(:disabled) {
+  border-color: #cbd2da;
+  background: #fff;
+}
+
+.profile-settings-form-controls input:focus {
+  border-color: #2383f4;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(35, 131, 244, 0.12);
+}
+
+.profile-settings-form-controls input::placeholder {
+  color: #a0a7b1;
+}
+
+.profile-settings-form-controls input:disabled {
+  border-color: #e4e7eb;
+  background: #f5f6f7;
+  color: #9aa1aa;
+  cursor: not-allowed;
+}
+
+.profile-settings-form-controls .button-primary,
+.profile-settings-form-controls .button-secondary {
+  flex: 0 0 auto;
+  min-width: 64px;
+  min-height: 38px;
+  padding: 0 14px;
+}
+
+.profile-settings-form-controls .button-primary {
+  border: 1px solid #2383f4;
+  background: #2383f4;
+  box-shadow: none;
+  color: #fff;
+}
+
+.profile-settings-form-controls .button-primary::before {
+  display: none;
+}
+
+.profile-settings-form-controls .button-primary:hover:not(:disabled) {
+  border-color: #1473df;
+  background: #1473df;
+  box-shadow: 0 2px 6px rgba(35, 131, 244, 0.2);
+  transform: none;
+}
+
+.profile-settings-form-controls .button-primary:disabled {
+  border-color: #e1e5e9;
+  background: #f1f3f5;
+  box-shadow: none;
+  color: #9ca3ad;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.profile-settings-feedback {
+  margin: 10px 0 0 !important;
+}
+
+.profile-settings-feedback-error {
+  color: var(--color-danger) !important;
+}
+
+.system-security-section--profiles .settings-description:first-child,
+.system-security-section--permissions .settings-combined-body > .settings-section > .settings-description:first-of-type,
+.system-security-section--admin .settings-panel > .settings-description:first-of-type {
+  margin: 0 0 14px;
+}
+
+.system-security-section--profiles .settings-card,
+.system-security-panel .settings-card,
+.system-security-section--tray .tray-settings > .settings-section,
+.system-security-section--safety .settings-combined-body > .settings-section,
+.system-security-section--permissions .settings-subsection,
+.system-security-section--admin .settings-panel > .settings-section {
+  border-color: #e4e8ee;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.system-security-section--profiles .settings-card {
+  padding: 14px 16px;
+}
+
+.system-security-section--tray .tray-settings > .settings-section {
+  padding: 0;
+  overflow: hidden;
+}
+
+.system-security-section--tray .tray-settings-options {
+  gap: 0;
+  margin: 0;
+}
+
+.system-security-section--tray .tray-settings-option {
+  min-height: 68px;
+  padding: 14px 16px;
+}
+
+.system-security-section--tray .tray-settings-option + .tray-settings-option {
+  border-top: 1px solid #edf0f4;
+}
+
+.system-security-section--tray .tray-settings-option-inner {
+  align-items: center;
+}
+
+.system-security-section--tray .tray-settings-option-title {
+  color: #303947;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.system-security-section--tray .tray-settings-option-desc {
+  margin-top: 3px;
+  color: #8a94a3;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-content .button-primary,
+.settings-content .button-secondary {
+  min-height: 32px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+
+/* Appearance uses the same calm row language as the rest of the settings app. */
+.appearance-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  font-family: var(--font-ui);
+}
+
+.appearance-settings button {
+  font-family: var(--font-ui);
+}
+
+.appearance-settings .appearance-section {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.42fr) minmax(300px, 0.58fr);
+  align-items: start;
+  gap: 28px;
+  margin: 0;
+}
+
+.appearance-section-heading {
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.appearance-settings .appearance-section h4 {
+  margin: 0 0 5px;
+  color: #273142;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0;
+}
+
+.appearance-settings .appearance-section-heading .settings-description {
+  max-width: 340px;
+  margin: 0;
+  color: #8791a0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.appearance-setting-list {
+  overflow: hidden;
+  border: 1px solid #e3e7ec;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.appearance-setting-row,
+.appearance-language-row {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 10px 14px;
+}
+
+.appearance-setting-row {
+  cursor: pointer;
+}
+
+.appearance-setting-row + .appearance-setting-row {
+  border-top: 1px solid #edf0f3;
+}
+
+.appearance-setting-row:hover {
+  background: #fafbfc;
+}
+
+.appearance-setting-label {
+  min-width: 0;
+  color: #394353;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0;
+}
+
+.appearance-setting-toggle {
+  flex: 0 0 auto;
+}
+
+.appearance-language-row .theme-switcher {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid #e1e5ea;
+  border-radius: 8px;
+  background: #f5f6f8;
+}
+
+.appearance-language-row .theme-option {
+  width: auto;
+  min-width: 76px;
+  max-width: none;
+  min-height: 28px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: #667180;
+  transform: none;
+}
+
+.appearance-language-row .theme-option:hover {
+  border: 0;
+  background: #eceff3;
+  box-shadow: none;
+  color: #303947;
+  transform: none;
+}
+
+.appearance-language-row .theme-option.selected {
+  border: 0;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1);
+  color: #2479df;
+}
+
+.appearance-language-row .theme-option-label,
+.appearance-language-row .theme-option.selected .theme-option-label {
+  color: inherit;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0;
+}
+
+.appearance-language-row .theme-option.selected .theme-option-label {
+  font-weight: 600;
+}
+
+.theme-dark .more-channels-header h2,
+.theme-dark .integrations-header h2,
+.theme-dark .llm-provider-header h2,
+.theme-dark .system-security-panel .settings-combined-heading {
+  color: #f5f7fa;
+}
+
+.theme-dark .system-security-panel .settings-combined-section-header {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.theme-dark .system-security-panel .settings-combined-section-icon,
+.theme-dark .system-security-section--profiles .settings-card,
+.theme-dark .system-security-panel .settings-card,
+.theme-dark .system-security-section--tray .tray-settings > .settings-section,
+.theme-dark .system-security-section--safety .settings-combined-body > .settings-section,
+.theme-dark .system-security-section--permissions .settings-subsection,
+.theme-dark .system-security-section--admin .settings-panel > .settings-section {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.theme-dark .system-security-section--tray .tray-settings-option + .tray-settings-option {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.theme-dark .profile-settings-actions,
+.theme-dark .profile-settings-action-row + .profile-settings-action-row {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.theme-dark .profile-settings-card-title,
+.theme-dark .profile-settings-form-title {
+  color: #edf1f6;
+}
+
+.theme-dark .profile-settings-form-controls input {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.055);
+  color: #eef2f6;
+}
+
+.theme-dark .profile-settings-form-controls input:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.075);
+}
+
+.theme-dark .profile-settings-form-controls input:focus {
+  border-color: #48a0ff;
+  background: rgba(255, 255, 255, 0.075);
+  box-shadow: 0 0 0 2px rgba(72, 160, 255, 0.18);
+}
+
+.theme-dark .profile-settings-form-controls input::placeholder {
+  color: rgba(238, 242, 246, 0.42);
+}
+
+.theme-dark .profile-settings-form-controls input:disabled {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(238, 242, 246, 0.34);
+}
+
+.theme-dark .profile-settings-form-controls .button-primary:disabled {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(238, 242, 246, 0.38);
+}
+
+.theme-dark .appearance-settings .appearance-section h4,
+.theme-dark .appearance-setting-label {
+  color: #edf1f6;
+}
+
+.theme-dark .appearance-setting-list {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.theme-dark .appearance-setting-row + .appearance-setting-row {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.theme-dark .appearance-setting-row:hover {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.theme-dark .appearance-language-row .theme-switcher {
+  border-color: rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.theme-dark .appearance-language-row .theme-option {
+  color: rgba(255, 255, 255, 0.66);
+}
+
+.theme-dark .appearance-language-row .theme-option:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+
+.theme-dark .appearance-language-row .theme-option.selected {
+  background: rgba(255, 255, 255, 0.12);
+  color: #8fc1ff;
+}
+
+.theme-dark .more-channels-tabs,
+.theme-dark .integrations-tabs,
+.theme-dark .llm-provider-tabs {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: transparent;
+}
+
+.theme-dark .settings-tabbed-workspace > .more-channels-tabs {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.theme-dark .settings-tabbed-workspace > .more-channels-tabs .more-channels-tab.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f4f4f5;
+}
+
+.theme-dark .more-channels-tab,
+.theme-dark .integrations-tab,
+.theme-dark .llm-provider-tab {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.theme-dark .more-channels-tab:hover,
+.theme-dark .integrations-tab:hover,
+.theme-dark .llm-provider-tab:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #f3f4f6;
+}
+
+.theme-dark .more-channels-tab.active,
+.theme-dark .integrations-tab.active,
+.theme-dark .llm-provider-tab.active {
+  background: transparent;
+  color: #f8fafc;
+}
+
+.theme-dark .more-channels-tab.active::after,
+.theme-dark .integrations-tab.active::after,
+.theme-dark .llm-provider-tab.active::after {
+  background: #73adff;
+}
+
+.theme-dark .settings-content .settings-section h3,
+.theme-dark .system-security-panel .settings-section h3,
+.theme-dark .system-security-panel .settings-section h4,
+.theme-dark .system-security-panel .settings-subsection h4 {
+  color: #f3f4f6;
+}
+
+@media (max-width: 920px) {
+  .settings-tabbed-workspace {
+    grid-template-columns: 142px minmax(0, 1fr);
+    column-gap: 24px;
+  }
+
+  .appearance-settings .appearance-section {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .appearance-settings .appearance-section-heading .settings-description {
+    max-width: 640px;
+  }
+}
+
+@media (max-width: 620px) {
+  .settings-content {
+    padding: 26px 18px 48px;
+  }
+
+  .settings-tabbed-workspace {
+    display: flex;
+    gap: 18px;
+  }
+
+  .settings-tabbed-workspace > .more-channels-tabs {
+    min-height: 42px;
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid #e6e9ee;
+    padding: 0;
+  }
+
+  .settings-tabbed-workspace > .more-channels-header {
+    padding-bottom: 16px;
+  }
+
+  .settings-tabbed-workspace > .more-channels-tabs .more-channels-tab {
+    width: auto;
+    min-height: 42px;
+  }
+
+  .settings-tabbed-workspace > .more-channels-tabs .more-channels-tab::after {
+    top: auto;
+    right: 12px;
+    bottom: -1px;
+    left: 12px;
+    width: auto;
+    height: 2px;
+  }
+
+  .more-channels-header h2,
+  .integrations-header h2,
+  .llm-provider-header h2 {
+    font-size: 23px;
+  }
+
+  .more-channels-tab,
+  .integrations-tab,
+  .llm-provider-tab {
+    padding: 0 10px;
+  }
+
+  .profile-settings-card-header,
+  .profile-settings-action-row {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .profile-settings-form-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .profile-settings-form-controls .button-primary,
+  .profile-settings-form-controls .button-secondary {
+    width: 100%;
+  }
+
+  .appearance-settings {
+    gap: 24px;
+  }
+
+  .appearance-setting-row,
+  .appearance-language-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .appearance-setting-row {
+    min-height: 64px;
+  }
+
+  .appearance-setting-toggle {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+  }
+
+  .appearance-language-row .theme-switcher {
+    width: 100%;
+  }
+
+  .appearance-language-row .theme-option {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+}

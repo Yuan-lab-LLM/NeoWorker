@@ -1,0 +1,69 @@
+{
+  "id": "autoresearch-report",
+  "name": "AutoResearch Report",
+  "description": "Run an autonomous scientific research pipeline that scopes a question, retrieves evidence, constructs a source ledger, and produces a cited report.",
+  "icon": "🔬",
+  "category": "Research",
+  "prompt": "# AutoResearch Report\n\nUse this skill when the user wants a scientific literature review, evidence synthesis, or research report grounded in sources.\n\nDo not use this skill for casual summaries, brainstorming, or broad business-market research.\n\nWorkflow:\n1. If the research question is underspecified, ask only for the missing target, scope, or constraints.\n2. Write `{artifactDir}/research/question.md` with the final question, scope, assumptions, and exclusions.\n3. Write `{artifactDir}/research/plan.md` with the section outline, search plan, and agent roles.\n4. Run a multi-agent workflow with `orchestrate_agents`:\n   - planner/scoper: refine the scope and structure\n   - retrieval agent(s): collect papers, sources, datasets, and key claims\n   - evidence agent: build `{artifactDir}/research/evidence.md` and `{artifactDir}/research/sources.json`\n   - synthesis agent: write `{artifactDir}/report.md` and an uncertainty section\n5. Keep every claim tied to traceable sources. Do not fabricate citations or imply evidence that was not found.\n6. Write final deliverables under `{artifactDir}`:\n   - `{artifactDir}/research/question.md`\n   - `{artifactDir}/research/plan.md`\n   - `{artifactDir}/research/evidence.md`\n   - `{artifactDir}/research/sources.json`\n   - `{artifactDir}/report.md`\n   - optional `{artifactDir}/report.pdf` and `{artifactDir}/report.html` when the topic supports export\n7. Use existing NeoWorker tools for retrieval, parallel agent work, and document export. Prefer web search / web fetch for sources and document generation for the final export.\n8. End with a short manifest of artifacts, key findings, and unresolved uncertainties.\n\nSuccess criteria:\n- The report is structured, cited, and reproducible.\n- Evidence is separated from synthesis.\n- The user receives a practical report with a clear uncertainty section and no fabricated sources.",
+  "parameters": [],
+  "enabled": true,
+  "invocation": {
+    "userInvocable": true
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "NeoWorker",
+    "tags": [
+      "research",
+      "science",
+      "literature-review",
+      "evidence-synthesis",
+      "papers",
+      "citations",
+      "reports",
+      "multi-agent"
+    ],
+    "routing": {
+      "useWhen": "User wants a scientific literature review, evidence synthesis, or a research report grounded in sources.",
+      "dontUseWhen": "User only wants a casual summary, brainstorming, or broad business-market research.",
+      "outputs": "A structured research report with a question brief, plan, evidence ledger, source list, cited synthesis, and optional PDF/HTML export.",
+      "successCriteria": "The report is structured, cited, reproducible, and separates evidence from synthesis with a clear uncertainty section.",
+      "expectedArtifacts": [
+        "research/question.md",
+        "research/plan.md",
+        "research/evidence.md",
+        "research/sources.json",
+        "report.md"
+      ],
+      "keywords": [
+        "autoresearch report",
+        "autoresearch-report",
+        "scientific research",
+        "literature review",
+        "evidence synthesis",
+        "research report",
+        "paper review",
+        "study analysis",
+        "scientific paper",
+        "citations"
+      ],
+      "examples": {
+        "positive": [
+          "Use the autoresearch-report skill for this request.",
+          "Help me with autoresearch report.",
+          "User wants a scientific literature review, evidence synthesis, or research report grounded in sources.",
+          "AutoResearch Report: provide an actionable result."
+        ],
+        "negative": [
+          "User only wants a casual summary, brainstorming, or broad business-market research.",
+          "Do not use autoresearch-report for unrelated requests.",
+          "This request is outside scientific research report scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "medium"
+    }
+  }
+}

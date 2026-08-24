@@ -1,0 +1,35 @@
+{
+  "id": "docker-compose-ops",
+  "name": "Docker Compose Operations",
+  "description": "Docker Compose operations: service orchestration, compose file authoring, multi-stage builds, networking, volumes, and production configurations.",
+  "icon": "🐳",
+  "category": "DevOps",
+  "prompt": "# Docker Compose Operations\n\nUse this skill only when the request is in scope:\n- Use when the user asks about Docker Compose, docker-compose.yml, multi-container applications, service orchestration with Docker, or container networking with Compose.\n\nDo not use this skill when:\n- Do not use for Kubernetes (use kubernetes-ops), Terraform (use terraform-ops), or standalone Docker commands not related to Compose.\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Docker Compose files, Dockerfiles, docker compose commands, and container orchestration guidance..\n5. Verify success criteria: Returns valid docker-compose.yml configurations or docker compose commands..",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks about Docker Compose, docker-compose.yml, multi-container applications, service orchestration with Docker, or container networking with Compose.",
+      "dontUseWhen": "Do not use for Kubernetes (use kubernetes-ops), Terraform (use terraform-ops), or standalone Docker commands not related to Compose.",
+      "outputs": "Docker Compose files, Dockerfiles, docker compose commands, and container orchestration guidance.",
+      "successCriteria": "Returns valid docker-compose.yml configurations or docker compose commands.",
+      "examples": {
+        "positive": [
+          "Use the docker-compose-ops skill for this request.",
+          "Help me with docker compose operations.",
+          "Use when the user asks about Docker Compose, docker-compose.yml, multi-container applications, service orchestration with Docker, or container networking with Compose.",
+          "Docker Compose Operations: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use for Kubernetes (use kubernetes-ops), Terraform (use terraform-ops), or standalone Docker commands not related to Compose.",
+          "Do not use docker-compose-ops for unrelated requests.",
+          "This request is outside docker compose operations scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

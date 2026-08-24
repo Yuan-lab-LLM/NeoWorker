@@ -1,0 +1,1609 @@
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Play } from "lucide-react";
+import { RemoteDeviceControlVisual } from "./RemoteDeviceControlVisual";
+import { translate, useLanguage } from "../i18n";
+import type {
+  ControlPlaneSettingsData,
+  ControlPlaneStatus,
+  TailscaleAvailability,
+  RemoteGatewayStatus,
+  ControlPlaneConnectionMode,
+  SSHTunnelStatus,
+  SSHTunnelConfig,
+} from "../../shared/types";
+
+export function ControlPlaneSettings() {
+  useLanguage();
+  const t = translate;
+  const [settings, setSettings] = useState<ControlPlaneSettingsData | null>(
+    null,
+  );
+  const [status, setStatus] = useState<ControlPlaneStatus | null>(null);
+  const [remoteStatus, setRemoteStatus] = useState<RemoteGatewayStatus | null>(
+    null,
+  );
+  const [tailscaleAvailability, setTailscaleAvailability] =
+    useState<TailscaleAvailability | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    message: string;
+    latencyMs?: number;
+  } | null>(null);
+  const [connectionMode, setConnectionMode] =
+    useState<ControlPlaneConnectionMode>("local");
+  const [showToken, setShowToken] = useState(false);
+  const [localToken, setLocalToken] = useState("");
+  const [showNodeToken, setShowNodeToken] = useState(false);
+  const [localNodeToken, setLocalNodeToken] = useState("");
+  const [showRemoteToken, setShowRemoteToken] = useState(false);
+  const [allowLAN, setAllowLAN] = useState(false);
+  const remoteConfigDirtyRef = useRef(false);
+
+  // Reset dirty ref when switching away so next load can overwrite
+  useEffect(() => {
+    return () => {
+      remoteConfigDirtyRef.current = false;
+    };
+  }, []);
+
+  // Remote config form state
+  const [remoteUrl, setRemoteUrl] = useState("ws://127.0.0.1:18789");
+  const [remoteToken, setRemoteToken] = useState("");
+  const [remoteDeviceName, setRemoteDeviceName] = useState(
+    "NeoWorker Remote Client",
+  );
+
+  // SSH Tunnel state
+  const [sshTunnelStatus, setSshTunnelStatus] =
+    useState<SSHTunnelStatus | null>(null);
+  const [sshTunnelEnabled, setSshTunnelEnabled] = useState(false);
+  const [sshHost, setSshHost] = useState("");
+  const [sshUsername, setSshUsername] = useState("");
+  const [sshPort, setSshPort] = useState(22);
+  const [sshKeyPath, setSshKeyPath] = useState("");
+  const [sshLocalPort, setSshLocalPort] = useState(18789);
+  const [sshRemotePort, setSshRemotePort] = useState(18789);
+  const [testingSshTunnel, setTestingSshTunnel] = useState(false);
+  const [sshTestResult, setSshTestResult] = useState<{
+    success: boolean;
+    message: string;
+    latencyMs?: number;
+  } | null>(null);
+
+  // Helper to build SSH tunnel config
+  const getSshTunnelConfig = useCallback(
+    (): SSHTunnelConfig => ({
+      enabled: sshTunnelEnabled,
+      host: sshHost,
+      username: sshUsername,
+      sshPort: sshPort,
+      keyPath: sshKeyPath || undefined,
+      localPort: sshLocalPort,
+      remotePort: sshRemotePort,
+      autoReconnect: true,
+      reconnectDelayMs: 5000,
+      maxReconnectAttempts: 10,
+    }),
+    [
+      sshTunnelEnabled,
+      sshHost,
+      sshUsername,
+      sshPort,
+      sshKeyPath,
+      sshLocalPort,
+      sshRemotePort,
+    ],
+  );
+
+  const loadData = useCallback(
+    async (options: { includeStatic?: boolean } = {}) => {
+      const includeStatic = options.includeStatic ?? true;
+      try {
+        const [
+          settingsData,
+          statusData,
+          tailscale,
+          remoteStatusData,
+          sshStatus,
+        ] = await Promise.all([
+          includeStatic
+            ? window.electronAPI?.getControlPlaneSettings?.() || null
+            : null,
+          window.electronAPI?.getControlPlaneStatus?.() || null,
+          includeStatic
+            ? window.electronAPI?.checkTailscaleAvailability?.() || null
+            : null,
+          window.electronAPI?.getRemoteGatewayStatus?.() || null,
+          window.electronAPI?.getSSHTunnelStatus?.() || null,
+        ]);
+
+        setStatus(statusData);
+        setRemoteStatus(remoteStatusData);
+        setSshTunnelStatus(sshStatus);
+
+        if (!includeStatic) {
+          return;
+        }
+
+        setSettings(settingsData);
+        setTailscaleAvailability(tailscale);
+
+        // Set connection mode from settings
+        if (settingsData?.connectionMode) {
+          setConnectionMode(settingsData.connectionMode);
+        }
+
+        // Set LAN access from settings (host = 0.0.0.0 means LAN is enabled)
+        if (settingsData?.host) {
+          setAllowLAN(settingsData.host === "0.0.0.0");
+        }
+
+        // Avoid clobbering in-progress edits during background status polling.
+        if (settingsData?.remote) {
+          if (!remoteConfigDirtyRef.current) {
+            setRemoteUrl(settingsData.remote.url || "ws://127.0.0.1:18789");
+            setRemoteToken(settingsData.remote.token || "");
+            setRemoteDeviceName(
+              settingsData.remote.deviceName || "NeoWorker Remote Client",
+            );
+          }
+
+          // Set SSH tunnel config from settings
+          const remoteSshTunnel = (
+            settingsData.remote as { sshTunnel?: SSHTunnelConfig }
+          ).sshTunnel;
+          if (remoteSshTunnel) {
+            const tunnel = remoteSshTunnel;
+            setSshTunnelEnabled(tunnel.enabled || false);
+            setSshHost(tunnel.host || "");
+            setSshUsername(tunnel.username || "");
+            setSshPort(tunnel.sshPort || 22);
+            setSshKeyPath(tunnel.keyPath || "");
+            setSshLocalPort(tunnel.localPort || 18789);
+            setSshRemotePort(tunnel.remotePort || 18789);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load control plane data:", error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    loadData({ includeStatic: true });
+
+    // Poll only live status. Settings and Tailscale discovery are static enough
+    // to refresh after explicit actions instead of every interval tick.
+    const interval = setInterval(() => {
+      loadData({ includeStatic: false });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [loadData]);
+
+  const handleToggleEnabled = async () => {
+    if (!settings) return;
+
+    setSaving(true);
+    try {
+      if (settings.enabled) {
+        await window.electronAPI?.disableControlPlane?.();
+      } else {
+        await window.electronAPI?.enableControlPlane?.();
+      }
+      await loadData();
+    } catch (error) {
+      console.error("Failed to toggle control plane:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleStartStop = async () => {
+    setSaving(true);
+    try {
+      if (status?.running) {
+        await window.electronAPI?.stopControlPlane?.();
+      } else {
+        await window.electronAPI?.startControlPlane?.();
+      }
+      await loadData();
+    } catch (error) {
+      console.error("Failed to start/stop control plane:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRegenerateToken = async () => {
+    setSaving(true);
+    try {
+      const result = await window.electronAPI?.regenerateControlPlaneToken?.();
+      if (result?.ok && result.token) {
+        setLocalToken(result.token);
+      }
+      if (result?.ok && result.nodeToken) {
+        setLocalNodeToken(result.nodeToken);
+      }
+      await loadData();
+    } catch (error) {
+      console.error("Failed to regenerate token:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const ensureLocalToken = useCallback(async (): Promise<string> => {
+    if (localToken) return localToken;
+    const result = await window.electronAPI?.getControlPlaneToken?.();
+    const token = result?.ok ? result.token || "" : "";
+    if (token) {
+      setLocalToken(token);
+    }
+    return token;
+  }, [localToken]);
+
+  const ensureLocalNodeToken = useCallback(async (): Promise<string> => {
+    if (localNodeToken) return localNodeToken;
+    const result = await window.electronAPI?.getControlPlaneToken?.();
+    const token = result?.ok ? result.nodeToken || "" : "";
+    if (token) {
+      setLocalNodeToken(token);
+    }
+    return token;
+  }, [localNodeToken]);
+
+  const handleToggleTokenVisibility = async () => {
+    if (!showToken) {
+      await ensureLocalToken();
+    }
+    setShowToken((value) => !value);
+  };
+
+  const handleCopyLocalToken = async () => {
+    const token = await ensureLocalToken();
+    copyToClipboard(token);
+  };
+
+  const handleToggleNodeTokenVisibility = async () => {
+    if (!showNodeToken) {
+      await ensureLocalNodeToken();
+    }
+    setShowNodeToken((value) => !value);
+  };
+
+  const handleCopyNodeToken = async () => {
+    const token = await ensureLocalNodeToken();
+    copyToClipboard(token);
+  };
+
+  const handleToggleRemoteTokenVisibility = async () => {
+    setShowRemoteToken((value) => !value);
+  };
+
+  const handleToggleLAN = async () => {
+    setSaving(true);
+    try {
+      const newAllowLAN = !allowLAN;
+      await window.electronAPI?.saveControlPlaneSettings?.({
+        host: newAllowLAN ? "0.0.0.0" : "127.0.0.1",
+      });
+      setAllowLAN(newAllowLAN);
+      // Need to restart server for host change to take effect
+      if (status?.running) {
+        await window.electronAPI?.stopControlPlane?.();
+        await window.electronAPI?.startControlPlane?.();
+      }
+      await loadData();
+    } catch (error) {
+      console.error("Failed to toggle LAN access:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTailscaleModeChange = async (
+    mode: "off" | "serve" | "funnel",
+  ) => {
+    setSaving(true);
+    try {
+      await window.electronAPI?.setTailscaleMode?.(mode);
+      await loadData();
+    } catch (error) {
+      console.error("Failed to set Tailscale mode:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConnectionModeChange = async (
+    mode: ControlPlaneConnectionMode,
+  ) => {
+    setSaving(true);
+    try {
+      setConnectionMode(mode);
+      await window.electronAPI?.saveControlPlaneSettings?.({
+        connectionMode: mode,
+      });
+
+      if (mode === "local") {
+        // Disconnect from remote if connected
+        if (remoteStatus?.state === "connected") {
+          await window.electronAPI?.disconnectRemoteGateway?.();
+        }
+      }
+
+      await loadData();
+    } catch (error) {
+      console.error("Failed to change connection mode:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveRemoteConfig = async () => {
+    setSaving(true);
+    try {
+      await window.electronAPI?.saveRemoteGatewayConfig?.({
+        url: remoteUrl,
+        token: remoteToken,
+        deviceName: remoteDeviceName,
+      });
+      remoteConfigDirtyRef.current = false;
+      await loadData();
+    } catch (error) {
+      console.error("Failed to save remote config:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTestRemoteConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await window.electronAPI?.testRemoteGatewayConnection?.({
+        url: remoteUrl,
+        token: remoteToken,
+        deviceName: remoteDeviceName,
+      });
+
+      if (result?.ok) {
+        setTestResult({
+          success: true,
+          message: t(
+            "controlPlane.connectionSuccessful",
+            "Connection successful",
+          ),
+          latencyMs: result.latencyMs,
+        });
+      } else {
+        setTestResult({
+          success: false,
+          message:
+            result?.error ||
+            t("controlPlane.connectionFailed", "Connection failed"),
+        });
+      }
+    } catch (error: Any) {
+      setTestResult({
+        success: false,
+        message:
+          error.message ||
+          t("controlPlane.connectionFailed", "Connection failed"),
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleConnectRemote = async () => {
+    setSaving(true);
+    try {
+      const result = await window.electronAPI?.connectRemoteGateway?.({
+        url: remoteUrl,
+        token: remoteToken,
+        deviceName: remoteDeviceName,
+      });
+
+      if (!result?.ok) {
+        setTestResult({
+          success: false,
+          message:
+            result?.error ||
+            t("controlPlane.connectionFailed", "Connection failed"),
+        });
+      }
+      await loadData();
+    } catch (error: Any) {
+      setTestResult({
+        success: false,
+        message:
+          error.message ||
+          t("controlPlane.connectionFailed", "Connection failed"),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDisconnectRemote = async () => {
+    setSaving(true);
+    try {
+      await window.electronAPI?.disconnectRemoteGateway?.();
+      await loadData();
+    } catch (error) {
+      console.error("Failed to disconnect:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // SSH Tunnel Handlers
+  const handleTestSshTunnel = async () => {
+    setTestingSshTunnel(true);
+    setSshTestResult(null);
+    try {
+      const result =
+        await window.electronAPI?.testSSHTunnelConnection?.(
+          getSshTunnelConfig(),
+        );
+      if (result?.ok) {
+        setSshTestResult({
+          success: true,
+          message: t(
+            "controlPlane.ssh.connectionSuccessful",
+            "SSH connection successful",
+          ),
+          latencyMs: result.latencyMs,
+        });
+      } else {
+        setSshTestResult({
+          success: false,
+          message:
+            result?.error ||
+            t("controlPlane.ssh.connectionFailed", "SSH connection failed"),
+        });
+      }
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : t("controlPlane.ssh.connectionFailed", "SSH connection failed");
+      setSshTestResult({
+        success: false,
+        message: errorMessage,
+      });
+    } finally {
+      setTestingSshTunnel(false);
+    }
+  };
+
+  const handleConnectSshTunnel = async () => {
+    setSaving(true);
+    setSshTestResult(null);
+    try {
+      const config = getSshTunnelConfig();
+      config.enabled = true;
+
+      const result = await window.electronAPI?.connectSSHTunnel?.(config);
+      if (!result?.ok) {
+        setSshTestResult({
+          success: false,
+          message:
+            result?.error ||
+            t("controlPlane.ssh.createFailed", "Failed to create SSH tunnel"),
+        });
+      } else {
+        // Update the remote URL to use the local tunnel endpoint
+        setRemoteUrl(`ws://127.0.0.1:${sshLocalPort}`);
+        setSshTunnelEnabled(true);
+      }
+      await loadData();
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : t("controlPlane.ssh.createFailed", "Failed to create SSH tunnel");
+      setSshTestResult({
+        success: false,
+        message: errorMessage,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDisconnectSshTunnel = async () => {
+    setSaving(true);
+    try {
+      await window.electronAPI?.disconnectSSHTunnel?.();
+      setSshTunnelEnabled(false);
+      await loadData();
+    } catch (error) {
+      console.error("Failed to disconnect SSH tunnel:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  if (loading) {
+    return (
+      <div className="settings-loading">
+        {t("controlPlane.loading", "Loading control plane settings...")}
+      </div>
+    );
+  }
+
+  return (
+    <div className="settings-section">
+      <h2>{t("controlPlane.title", "Control Plane")}</h2>
+      <p className="settings-description">
+        {t(
+          "controlPlane.description",
+          "WebSocket gateway for remote management. Connect via SSH tunnel, Tailscale, or direct network.",
+        )}
+      </p>
+
+      {/* Connection Mode Selector */}
+      <div className="settings-subsection">
+        <h3>{t("controlPlane.connectionMode.title", "Connection Mode")}</h3>
+        <div className="connection-mode-selector">
+          <label
+            className={`mode-option ${connectionMode === "local" ? "selected" : ""}`}
+          >
+            <input
+              type="radio"
+              name="connectionMode"
+              value="local"
+              checked={connectionMode === "local"}
+              onChange={() => handleConnectionModeChange("local")}
+            />
+            <div className="mode-content">
+              <span className="mode-title">
+                {t("controlPlane.connectionMode.local", "Local Server")}
+              </span>
+              <span className="mode-description">
+                {t(
+                  "controlPlane.connectionMode.localDesc",
+                  "Host the Control Plane on this machine",
+                )}
+              </span>
+            </div>
+          </label>
+          <label
+            className={`mode-option ${connectionMode === "remote" ? "selected" : ""}`}
+          >
+            <input
+              type="radio"
+              name="connectionMode"
+              value="remote"
+              checked={connectionMode === "remote"}
+              onChange={() => handleConnectionModeChange("remote")}
+            />
+            <div className="mode-content">
+              <span className="mode-title">
+                {t("controlPlane.connectionMode.remote", "Remote Gateway")}
+              </span>
+              <span className="mode-description">
+                {t(
+                  "controlPlane.connectionMode.remoteDesc",
+                  "Connect to a Control Plane on another machine",
+                )}
+              </span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      {connectionMode === "local" ? (
+        <>
+          {/* Local Server Settings */}
+          <div className="settings-subsection">
+            <h3>{t("controlPlane.serverStatus", "Server Status")}</h3>
+            <div className="settings-row">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={settings?.enabled || false}
+                  onChange={handleToggleEnabled}
+                  disabled={saving}
+                />
+                {t("controlPlane.enable", "Enable Control Plane")}
+              </label>
+            </div>
+
+            {settings?.enabled && (
+              <div className="settings-row">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={allowLAN}
+                    onChange={handleToggleLAN}
+                    disabled={saving}
+                  />
+                  {t(
+                    "controlPlane.allowLan",
+                    "Allow LAN Connections (Mobile Companions)",
+                  )}
+                </label>
+                <p
+                  className="hint"
+                  style={{ marginLeft: "1.5rem", marginTop: "0.25rem" }}
+                >
+                  {t(
+                    "controlPlane.allowLanHint",
+                    "Enable this to allow connections from other devices on your local network (required for iOS/Android companion apps)",
+                  )}
+                </p>
+              </div>
+            )}
+
+            {settings?.enabled && (
+              <>
+                <div className="status-card">
+                  <div className="status-indicator">
+                    <span
+                      className={`status-dot ${status?.running ? "running" : "stopped"}`}
+                    />
+                    <span>
+                      {status?.running
+                        ? t("controlPlane.status.running", "Running")
+                        : t("controlPlane.status.stopped", "Stopped")}
+                    </span>
+                  </div>
+                  {status?.running && status.address && (
+                    <div className="status-details">
+                      <div className="detail-row">
+                        <span className="label">
+                          {t("controlPlane.localUrl", "Local URL:")}
+                        </span>
+                        <code>{status.address.wsUrl}</code>
+                        <button
+                          className="copy-btn"
+                          onClick={() => copyToClipboard(status.address!.wsUrl)}
+                          title={t("controlPlane.copy", "Copy")}
+                        >
+                          {t("controlPlane.copy", "Copy")}
+                        </button>
+                      </div>
+                      <div className="detail-row">
+                        <span className="label">
+                          {t("controlPlane.clients", "Clients:")}
+                        </span>
+                        <span>
+                          {t(
+                            "controlPlane.clientsValue",
+                            "{authenticated} authenticated, {pending} pending",
+                            {
+                              authenticated: status.clients.authenticated,
+                              pending: status.clients.pending,
+                            },
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {!status?.running && (
+                    <div className="status-details">
+                      <p className="hint" style={{ margin: 0 }}>
+                        {t(
+                          "controlPlane.notRunningHint",
+                          "Server is not running. Click the button below to start it.",
+                        )}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="button-row" style={{ marginTop: "1rem" }}>
+                  <button
+                    onClick={handleStartStop}
+                    disabled={saving}
+                    className={
+                      status?.running
+                        ? "btn-secondary"
+                        : "btn-primary btn-large"
+                    }
+                    style={
+                      !status?.running
+                        ? {
+                            padding: "0.75rem 1.5rem",
+                            fontSize: "1rem",
+                            fontWeight: 500,
+                          }
+                        : {}
+                    }
+                  >
+                    {saving ? (
+                      t("controlPlane.pleaseWait", "Please wait...")
+                    ) : status?.running ? (
+                      t("controlPlane.stopServer", "Stop Server")
+                    ) : (
+                      <>
+                        <Play size={14} strokeWidth={2} />{" "}
+                        {t("controlPlane.startServer", "Start Server")}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Token Management */}
+          {settings?.enabled && (
+            <div className="settings-subsection">
+              <h3>{t("controlPlane.operatorToken", "Operator Token")}</h3>
+              <div className="token-display">
+                <input
+                  type={showToken ? "text" : "password"}
+                  value={showToken ? localToken : settings.token || ""}
+                  readOnly
+                  className="token-input"
+                />
+                <button
+                  className="btn-icon"
+                  onClick={handleToggleTokenVisibility}
+                  title={
+                    showToken
+                      ? t("controlPlane.hide", "Hide")
+                      : t("controlPlane.show", "Show")
+                  }
+                >
+                  {showToken
+                    ? t("controlPlane.hide", "Hide")
+                    : t("controlPlane.show", "Show")}
+                </button>
+                <button
+                  className="btn-icon"
+                  onClick={handleCopyLocalToken}
+                  title={t("controlPlane.copy", "Copy")}
+                >
+                  {t("controlPlane.copy", "Copy")}
+                </button>
+              </div>
+              <h3>{t("controlPlane.mobileToken", "Mobile Companion Token")}</h3>
+              <div className="token-display">
+                <input
+                  type={showNodeToken ? "text" : "password"}
+                  value={
+                    showNodeToken ? localNodeToken : settings.nodeToken || ""
+                  }
+                  readOnly
+                  className="token-input"
+                />
+                <button
+                  className="btn-icon"
+                  onClick={handleToggleNodeTokenVisibility}
+                  title={
+                    showNodeToken
+                      ? t("controlPlane.hide", "Hide")
+                      : t("controlPlane.show", "Show")
+                  }
+                >
+                  {showNodeToken
+                    ? t("controlPlane.hide", "Hide")
+                    : t("controlPlane.show", "Show")}
+                </button>
+                <button
+                  className="btn-icon"
+                  onClick={handleCopyNodeToken}
+                  title={t("controlPlane.copy", "Copy")}
+                >
+                  {t("controlPlane.copy", "Copy")}
+                </button>
+              </div>
+              <button
+                onClick={handleRegenerateToken}
+                disabled={saving}
+                className="btn-secondary"
+              >
+                {t("controlPlane.regenerateTokens", "Regenerate Tokens")}
+              </button>
+              <p className="hint">
+                {t(
+                  "controlPlane.regenerateWarning",
+                  "Warning: Regenerating tokens will disconnect all existing clients.",
+                )}
+              </p>
+            </div>
+          )}
+
+          {/* Tailscale Integration */}
+          {settings?.enabled && (
+            <div className="settings-subsection">
+              <h3>
+                {t("controlPlane.tailscale.title", "Remote Access (Tailscale)")}
+              </h3>
+              {!tailscaleAvailability?.installed ? (
+                <p className="hint">
+                  {t(
+                    "controlPlane.tailscale.notInstalled",
+                    "Tailscale is not installed. Install from",
+                  )}{" "}
+                  <a
+                    href="https://tailscale.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    tailscale.com
+                  </a>{" "}
+                  {t(
+                    "controlPlane.tailscale.forRemoteAccess",
+                    "for remote access.",
+                  )}
+                </p>
+              ) : (
+                <>
+                  <div className="settings-row">
+                    <label>
+                      {t(
+                        "controlPlane.tailscale.exposureMode",
+                        "Exposure Mode:",
+                      )}
+                    </label>
+                    <select
+                      value={settings.tailscale?.mode || "off"}
+                      onChange={(e) =>
+                        handleTailscaleModeChange(e.target.value as Any)
+                      }
+                      disabled={saving}
+                    >
+                      <option value="off">
+                        {t("controlPlane.tailscale.off", "Off (Local only)")}
+                      </option>
+                      <option value="serve">
+                        {t(
+                          "controlPlane.tailscale.serve",
+                          "Serve (Tailnet only)",
+                        )}
+                      </option>
+                      <option
+                        value="funnel"
+                        disabled={!tailscaleAvailability.funnelAvailable}
+                      >
+                        {t(
+                          "controlPlane.tailscale.funnel",
+                          "Funnel (Public Internet)",
+                        )}
+                        {!tailscaleAvailability.funnelAvailable &&
+                          t(
+                            "controlPlane.tailscale.notAvailableSuffix",
+                            " - Not available",
+                          )}
+                      </option>
+                    </select>
+                  </div>
+
+                  {status?.tailscale?.active && status.tailscale.wssUrl && (
+                    <div className="status-card">
+                      <div className="detail-row">
+                        <span className="label">
+                          {t("controlPlane.remoteUrl", "Remote URL:")}
+                        </span>
+                        <code>{status.tailscale.wssUrl}</code>
+                        <button
+                          className="copy-btn"
+                          onClick={() =>
+                            copyToClipboard(status.tailscale.wssUrl!)
+                          }
+                          title={t("controlPlane.copy", "Copy")}
+                        >
+                          {t("controlPlane.copy", "Copy")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* SSH Tunnel Instructions */}
+          {settings?.enabled && (
+            <div className="settings-subsection">
+              <h3>
+                {t("controlPlane.sshAlternative", "SSH Tunnel (Alternative)")}
+              </h3>
+              <p className="hint">
+                {t(
+                  "controlPlane.sshAlternativeHint",
+                  "Use SSH port forwarding to access the Control Plane remotely:",
+                )}
+              </p>
+              <div className="code-block">
+                <code>
+                  ssh -N -L 18789:127.0.0.1:{settings.port || 18789}{" "}
+                  user@remote-host
+                </code>
+                <button
+                  className="copy-btn"
+                  onClick={() =>
+                    copyToClipboard(
+                      `ssh -N -L 18789:127.0.0.1:${settings.port || 18789} user@remote-host`,
+                    )
+                  }
+                >
+                  {t("controlPlane.copy", "Copy")}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Remote Gateway Settings */}
+          <div className="settings-subsection">
+            <h3>
+              {t(
+                "controlPlane.remoteConfig.title",
+                "Remote Gateway Configuration",
+              )}
+            </h3>
+            <p className="hint">
+              {t(
+                "controlPlane.remoteConfig.description",
+                "Connect to a Control Plane server running on another machine via SSH tunnel or Tailscale.",
+              )}
+            </p>
+
+            <RemoteDeviceControlVisual />
+
+            <div className="settings-row">
+              <label>{t("controlPlane.gatewayUrl", "Gateway URL:")}</label>
+              <input
+                type="text"
+                value={remoteUrl}
+                onChange={(e) => {
+                  remoteConfigDirtyRef.current = true;
+                  setRemoteUrl(e.target.value);
+                }}
+                placeholder="ws://127.0.0.1:18789"
+                className="settings-input"
+              />
+            </div>
+
+            <div className="settings-row">
+              <label>{t("controlPlane.token", "Token:")}</label>
+              <div className="token-display">
+                <input
+                  type={showRemoteToken ? "text" : "password"}
+                  value={remoteToken}
+                  onChange={(e) => {
+                    remoteConfigDirtyRef.current = true;
+                    setRemoteToken(e.target.value);
+                  }}
+                  placeholder={t(
+                    "controlPlane.token.placeholder",
+                    "Enter authentication token",
+                  )}
+                  className="token-input"
+                />
+                <button
+                  className="btn-icon"
+                  onClick={handleToggleRemoteTokenVisibility}
+                  title={
+                    showRemoteToken
+                      ? t("controlPlane.hide", "Hide")
+                      : t("controlPlane.show", "Show")
+                  }
+                >
+                  {showRemoteToken
+                    ? t("controlPlane.hide", "Hide")
+                    : t("controlPlane.show", "Show")}
+                </button>
+              </div>
+            </div>
+
+            <div className="settings-row">
+              <label>{t("controlPlane.deviceName", "Device Name:")}</label>
+              <input
+                type="text"
+                value={remoteDeviceName}
+                onChange={(e) => {
+                  remoteConfigDirtyRef.current = true;
+                  setRemoteDeviceName(e.target.value);
+                }}
+                placeholder="NeoWorker Remote Client"
+                className="settings-input"
+              />
+            </div>
+
+            {testResult && (
+              <div
+                className={`test-result ${testResult.success ? "success" : "error"}`}
+              >
+                {testResult.success ? (
+                  <>
+                    {t(
+                      "controlPlane.connectionSuccessful",
+                      "Connection successful",
+                    )}
+                    {testResult.latencyMs && ` (${testResult.latencyMs}ms)`}
+                  </>
+                ) : (
+                  testResult.message
+                )}
+              </div>
+            )}
+
+            <div className="button-row">
+              <button
+                onClick={handleTestRemoteConnection}
+                disabled={testing || !remoteUrl || !remoteToken}
+                className="btn-secondary"
+              >
+                {testing
+                  ? t("controlPlane.testing", "Testing...")
+                  : t("controlPlane.testConnection", "Test Connection")}
+              </button>
+              <button
+                onClick={handleSaveRemoteConfig}
+                disabled={saving}
+                className="btn-secondary"
+              >
+                {t("controlPlane.saveConfig", "Save Config")}
+              </button>
+            </div>
+          </div>
+
+          {/* Remote Connection Status */}
+          <div className="settings-subsection">
+            <h3>{t("controlPlane.connectionStatus", "Connection Status")}</h3>
+            <div className="status-card">
+              <div className="status-indicator">
+                <span
+                  className={`status-dot ${remoteStatus?.state === "connected" ? "running" : remoteStatus?.state === "connecting" || remoteStatus?.state === "authenticating" ? "connecting" : "stopped"}`}
+                />
+                <span className="status-text">
+                  {remoteStatus?.state === "connected" &&
+                    t("controlPlane.status.connected", "Connected")}
+                  {remoteStatus?.state === "connecting" &&
+                    t("controlPlane.status.connecting", "Connecting...")}
+                  {remoteStatus?.state === "authenticating" &&
+                    t(
+                      "controlPlane.status.authenticating",
+                      "Authenticating...",
+                    )}
+                  {remoteStatus?.state === "reconnecting" &&
+                    t(
+                      "controlPlane.status.reconnecting",
+                      "Reconnecting (attempt {count})...",
+                      {
+                        count: remoteStatus.reconnectAttempts,
+                      },
+                    )}
+                  {remoteStatus?.state === "error" &&
+                    t("controlPlane.status.error", "Error: {error}", {
+                      error: remoteStatus.error,
+                    })}
+                  {remoteStatus?.state === "disconnected" &&
+                    t("controlPlane.status.disconnected", "Disconnected")}
+                </span>
+              </div>
+              {remoteStatus?.state === "connected" && (
+                <div className="status-details">
+                  <div className="detail-row">
+                    <span className="label">
+                      {t("controlPlane.clientId", "Client ID:")}
+                    </span>
+                    <code>{remoteStatus.clientId}</code>
+                  </div>
+                  <div className="detail-row">
+                    <span className="label">
+                      {t("controlPlane.connectedAt", "Connected:")}
+                    </span>
+                    <span>
+                      {remoteStatus.connectedAt
+                        ? new Date(
+                            remoteStatus.connectedAt,
+                          ).toLocaleTimeString()
+                        : t("controlPlane.unknown", "Unknown")}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div
+              className="button-row"
+              style={{ marginTop: "0.5rem", marginBottom: "1.5rem" }}
+            >
+              {remoteStatus?.state === "connected" ? (
+                <button
+                  onClick={handleDisconnectRemote}
+                  disabled={saving}
+                  className="btn-secondary"
+                >
+                  {t("controlPlane.disconnect", "Disconnect")}
+                </button>
+              ) : (
+                <button
+                  onClick={handleConnectRemote}
+                  disabled={saving || !remoteUrl || !remoteToken}
+                  className="btn-primary"
+                >
+                  {saving
+                    ? t("controlPlane.status.connecting", "Connecting...")
+                    : t("controlPlane.connect", "Connect")}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* SSH Tunnel Configuration */}
+          <div className="settings-subsection">
+            <h3>{t("controlPlane.ssh.title", "SSH Tunnel")}</h3>
+            <p className="hint">
+              {t(
+                "controlPlane.ssh.description",
+                "Automatically create an SSH tunnel to connect to the remote gateway securely.",
+              )}
+            </p>
+
+            {/* SSH Tunnel Status */}
+            {sshTunnelStatus && sshTunnelStatus.state !== "disconnected" && (
+              <div className="status-card">
+                <div className="status-indicator">
+                  <span
+                    className={`status-dot ${sshTunnelStatus.state === "connected" ? "running" : sshTunnelStatus.state === "connecting" || sshTunnelStatus.state === "reconnecting" ? "connecting" : "stopped"}`}
+                  />
+                  <span className="status-text">
+                    {sshTunnelStatus.state === "connected" &&
+                      t(
+                        "controlPlane.ssh.status.connected",
+                        "Tunnel Connected",
+                      )}
+                    {sshTunnelStatus.state === "connecting" &&
+                      t(
+                        "controlPlane.ssh.status.connecting",
+                        "Creating Tunnel...",
+                      )}
+                    {sshTunnelStatus.state === "reconnecting" &&
+                      t(
+                        "controlPlane.ssh.status.reconnecting",
+                        "Reconnecting (attempt {count})...",
+                        {
+                          count: sshTunnelStatus.reconnectAttempts || 0,
+                        },
+                      )}
+                    {sshTunnelStatus.state === "error" &&
+                      t("controlPlane.status.error", "Error: {error}", {
+                        error:
+                          sshTunnelStatus.error ||
+                          t("controlPlane.unknown", "Unknown"),
+                      })}
+                  </span>
+                </div>
+                {sshTunnelStatus.state === "connected" &&
+                  sshTunnelStatus.localEndpoint && (
+                    <div className="status-details">
+                      <div className="detail-row">
+                        <span className="label">
+                          {t(
+                            "controlPlane.ssh.localEndpoint",
+                            "Local Endpoint:",
+                          )}
+                        </span>
+                        <code>{sshTunnelStatus.localEndpoint}</code>
+                      </div>
+                      {sshTunnelStatus.pid && (
+                        <div className="detail-row">
+                          <span className="label">
+                            {t("controlPlane.ssh.processId", "Process ID:")}
+                          </span>
+                          <span>{sshTunnelStatus.pid}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+              </div>
+            )}
+
+            <div className="settings-row">
+              <label>{t("controlPlane.ssh.host", "SSH Host:")}</label>
+              <input
+                type="text"
+                value={sshHost}
+                onChange={(e) => setSshHost(e.target.value)}
+                placeholder="remote-server.com"
+                className="settings-input"
+                disabled={sshTunnelStatus?.state === "connected"}
+              />
+            </div>
+
+            <div className="settings-row-group">
+              <div className="settings-row half">
+                <label>{t("controlPlane.ssh.username", "Username:")}</label>
+                <input
+                  type="text"
+                  value={sshUsername}
+                  onChange={(e) => setSshUsername(e.target.value)}
+                  placeholder="username"
+                  className="settings-input"
+                  disabled={sshTunnelStatus?.state === "connected"}
+                />
+              </div>
+              <div className="settings-row half">
+                <label>{t("controlPlane.ssh.port", "SSH Port:")}</label>
+                <input
+                  type="number"
+                  value={sshPort}
+                  onChange={(e) => setSshPort(parseInt(e.target.value) || 22)}
+                  className="settings-input"
+                  disabled={sshTunnelStatus?.state === "connected"}
+                />
+              </div>
+            </div>
+
+            <div className="settings-row">
+              <label>
+                {t("controlPlane.ssh.keyPath", "SSH Key Path (optional):")}
+              </label>
+              <input
+                type="text"
+                value={sshKeyPath}
+                onChange={(e) => setSshKeyPath(e.target.value)}
+                placeholder="~/.ssh/id_rsa"
+                className="settings-input"
+                disabled={sshTunnelStatus?.state === "connected"}
+              />
+            </div>
+
+            <div className="settings-row-group">
+              <div className="settings-row half">
+                <label>{t("controlPlane.ssh.localPort", "Local Port:")}</label>
+                <input
+                  type="number"
+                  value={sshLocalPort}
+                  onChange={(e) =>
+                    setSshLocalPort(parseInt(e.target.value) || 18789)
+                  }
+                  className="settings-input"
+                  disabled={sshTunnelStatus?.state === "connected"}
+                />
+              </div>
+              <div className="settings-row half">
+                <label>
+                  {t("controlPlane.ssh.remotePort", "Remote Port:")}
+                </label>
+                <input
+                  type="number"
+                  value={sshRemotePort}
+                  onChange={(e) =>
+                    setSshRemotePort(parseInt(e.target.value) || 18789)
+                  }
+                  className="settings-input"
+                  disabled={sshTunnelStatus?.state === "connected"}
+                />
+              </div>
+            </div>
+
+            {sshTestResult && (
+              <div
+                className={`test-result ${sshTestResult.success ? "success" : "error"}`}
+              >
+                {sshTestResult.success ? (
+                  <>
+                    {t(
+                      "controlPlane.ssh.connectionSuccessful",
+                      "SSH connection successful",
+                    )}
+                    {sshTestResult.latencyMs &&
+                      ` (${sshTestResult.latencyMs}ms)`}
+                  </>
+                ) : (
+                  sshTestResult.message
+                )}
+              </div>
+            )}
+
+            <div className="button-row">
+              {sshTunnelStatus?.state === "connected" ? (
+                <button
+                  onClick={handleDisconnectSshTunnel}
+                  disabled={saving}
+                  className="btn-secondary"
+                >
+                  {t("controlPlane.ssh.disconnect", "Disconnect Tunnel")}
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handleTestSshTunnel}
+                    disabled={testingSshTunnel || !sshHost || !sshUsername}
+                    className="btn-secondary"
+                  >
+                    {testingSshTunnel
+                      ? t("controlPlane.testing", "Testing...")
+                      : t("controlPlane.ssh.test", "Test SSH")}
+                  </button>
+                  <button
+                    onClick={handleConnectSshTunnel}
+                    disabled={saving || !sshHost || !sshUsername}
+                    className="btn-primary"
+                  >
+                    {saving
+                      ? t("controlPlane.ssh.creating", "Creating Tunnel...")
+                      : t("controlPlane.ssh.create", "Create Tunnel")}
+                  </button>
+                </>
+              )}
+            </div>
+
+            {sshTunnelStatus?.state !== "connected" && (
+              <p className="hint" style={{ marginTop: "0.75rem" }}>
+                <strong>
+                  {t(
+                    "controlPlane.ssh.manualAlternative",
+                    "Manual alternative:",
+                  )}
+                </strong>{" "}
+                {t("controlPlane.ssh.run", "Run")}{" "}
+                <code>
+                  ssh -N -L {sshLocalPort}:127.0.0.1:{sshRemotePort}{" "}
+                  {sshUsername || "user"}@{sshHost || "remote-host"}
+                </code>
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      <style>{`
+        .connection-mode-selector {
+          display: flex;
+          gap: 1rem;
+          margin-bottom: 1rem;
+        }
+
+        .mode-option {
+          flex: 1;
+          display: flex;
+          align-items: flex-start;
+          gap: 0.75rem;
+          padding: 1rem;
+          border: 1px solid var(--color-border);
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .mode-option:hover {
+          border-color: var(--color-accent);
+        }
+
+        .mode-option.selected {
+          border-color: var(--color-accent);
+          background: var(--accent-color-light, rgba(var(--accent-rgb), 0.1));
+        }
+
+        .mode-option input {
+          margin-top: 4px;
+        }
+
+        .mode-content {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .mode-title {
+          font-weight: 500;
+        }
+
+        .mode-description {
+          font-size: 0.85rem;
+          color: var(--color-text-secondary);
+        }
+
+        .status-card {
+          background: var(--color-bg-secondary);
+          border-radius: 8px;
+          padding: 1rem;
+          margin: 0.5rem 0;
+        }
+
+        .status-indicator {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .status-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: var(--color-text-secondary);
+        }
+
+        .status-dot.running {
+          background: #22c55e;
+        }
+
+        .status-dot.stopped {
+          background: #6b7280;
+        }
+
+        .status-dot.connecting {
+          background: #f59e0b;
+          animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+
+        .status-details {
+          margin-top: 0.5rem;
+          font-size: 0.9rem;
+        }
+
+        .detail-row {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-bottom: 0.25rem;
+        }
+
+        .detail-row .label {
+          color: var(--color-text-secondary);
+          min-width: 100px;
+        }
+
+        .detail-row code {
+          background: var(--color-bg-tertiary);
+          padding: 0.25rem 0.5rem;
+          border-radius: 4px;
+          font-size: 0.85rem;
+        }
+
+        .token-display {
+          display: flex;
+          gap: 0.5rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .token-input {
+          flex: 1;
+          font-family: var(--font-mono);
+        }
+
+        .code-block {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          background: var(--color-bg-secondary);
+          padding: 0.75rem 1rem;
+          border-radius: 6px;
+          margin: 0.5rem 0;
+        }
+
+        .code-block code {
+          flex: 1;
+          font-size: 0.85rem;
+          word-break: break-all;
+        }
+
+        .copy-btn {
+          padding: 0.25rem 0.5rem;
+          font-size: 0.75rem;
+          background: var(--color-bg-tertiary);
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          color: var(--color-text-secondary);
+        }
+
+        .copy-btn:hover {
+          background: var(--color-accent);
+          color: white;
+        }
+
+        .button-row {
+          display: flex;
+          gap: 0.5rem;
+          margin-top: 1rem;
+        }
+
+        .btn-primary {
+          background: var(--color-accent);
+          color: white;
+          border: none;
+          padding: 0.5rem 1rem;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+          opacity: 0.9;
+        }
+
+        .btn-secondary {
+          background: var(--color-bg-secondary);
+          color: var(--color-text-primary);
+          border: 1px solid var(--color-border);
+          padding: 0.5rem 1rem;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+          background: var(--color-bg-tertiary);
+        }
+
+        .btn-icon {
+          padding: 0.5rem;
+          background: var(--color-bg-secondary);
+          border: 1px solid var(--color-border);
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 0.75rem;
+        }
+
+        .test-result {
+          padding: 0.75rem 1rem;
+          border-radius: 6px;
+          margin: 0.5rem 0;
+          overflow-wrap: break-word;
+          word-break: break-word;
+        }
+
+        .test-result.success {
+          background: rgba(34, 197, 94, 0.1);
+          color: #22c55e;
+          border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .test-result.error {
+          background: rgba(239, 68, 68, 0.1);
+          color: #ef4444;
+          border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .hint {
+          font-size: 0.85rem;
+          color: var(--color-text-secondary);
+          margin: 0.5rem 0;
+        }
+
+        .settings-input {
+          width: 100%;
+          padding: 0.5rem;
+          border: 1px solid var(--color-border);
+          border-radius: 4px;
+          background: var(--color-bg-primary);
+          color: var(--color-text-primary);
+        }
+
+        .settings-input:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .settings-row-group {
+          display: flex;
+          gap: 1rem;
+          margin-bottom: 0.75rem;
+        }
+
+        .settings-row.half {
+          flex: 1;
+        }
+      `}</style>
+    </div>
+  );
+}

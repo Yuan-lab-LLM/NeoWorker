@@ -1,0 +1,334 @@
+/* Final activity chart override: a quiet, compact Codex-style usage signal. */
+.llm-agentflow-activity-header {
+  align-items: center;
+  gap: 14px;
+  padding: 14px 4px 10px;
+}
+
+.llm-agentflow-activity-header strong {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.llm-agentflow-activity-header span {
+  color: #7b8494;
+  font-size: 12px;
+}
+
+.llm-agentflow-usage-card .llm-activity-tabs {
+  min-height: 28px;
+  padding: 2px;
+  border: 1px solid #e6e9ee;
+  border-radius: 8px;
+  background: #f5f6f8;
+  box-shadow: inset 0 1px 1px rgba(16, 24, 40, 0.02);
+}
+
+.llm-agentflow-usage-card .llm-activity-tabs button {
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: #697386;
+  font-size: 11px;
+  font-weight: 550;
+}
+
+.llm-agentflow-usage-card .llm-activity-tabs button.active {
+  background: #ffffff;
+  color: #2f7de1;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+
+.llm-agentflow-usage-card .llm-activity-heatmap,
+.llm-model-activity-heatmap {
+  display: grid;
+  grid-template-columns: repeat(28, minmax(0, 1fr));
+  align-items: end;
+  gap: 3px;
+  min-height: 52px;
+  margin: 0;
+  padding: 10px 14px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fbfcfd 0%, #f7f9fb 100%);
+}
+
+.llm-agentflow-usage-card .llm-activity-heatmap.weekly,
+.llm-model-activity-heatmap.weekly {
+  grid-template-columns: repeat(20, minmax(0, 1fr));
+}
+
+.llm-agentflow-usage-card .llm-activity-heatmap span,
+.llm-model-activity-heatmap span {
+  width: 100%;
+  min-height: 4px;
+  border: 0;
+  border-radius: 2px;
+  background: #e7ebf0;
+  opacity: 1;
+  transition: background 140ms ease;
+}
+
+.llm-agentflow-usage-card .llm-activity-heatmap span.active,
+.llm-model-activity-heatmap span.active {
+  background: #9fc2f6;
+}
+
+.llm-agentflow-usage-card .llm-activity-heatmap span.hot,
+.llm-model-activity-heatmap span.hot {
+  background: #2f7de1;
+}
+
+.llm-agentflow-usage-card .llm-activity-heatmap span:hover,
+.llm-model-activity-heatmap span:hover {
+  background: #1f6ed4;
+}
+
+.theme-dark .llm-agentflow-usage-card .llm-activity-tabs {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.theme-dark .llm-agentflow-usage-card .llm-activity-tabs button.active {
+  background: #252b35;
+  color: #78b0ff;
+}
+
+.theme-dark .llm-agentflow-usage-card .llm-activity-heatmap,
+.theme-dark .llm-model-activity-heatmap {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.theme-dark .llm-agentflow-usage-card .llm-activity-heatmap span,
+.theme-dark .llm-model-activity-heatmap span {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.theme-dark .llm-agentflow-usage-card .llm-activity-heatmap span.active,
+.theme-dark .llm-model-activity-heatmap span.active {
+  background: #528bd6;
+}
+
+@media (max-width: 620px) {
+  .llm-agentflow-usage-card .llm-activity-heatmap,
+  .llm-model-activity-heatmap {
+    grid-template-columns: repeat(14, minmax(0, 1fr));
+  }
+
+  .llm-agentflow-usage-card .llm-activity-heatmap.weekly,
+  .llm-model-activity-heatmap.weekly {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+  }
+}
+
+/* Confirmation menus must sit above the provider card, never inside its crop. */
+.llm-agentflow-provider-card:has(.llm-provider-popconfirm),
+.llm-provider-list-card:has(.llm-provider-popconfirm),
+.llm-provider-list-card .llm-provider-block:has(.llm-provider-popconfirm) {
+  overflow: visible;
+}
+
+.llm-provider-list-card .llm-provider-block:has(.llm-provider-popconfirm) {
+  position: relative;
+  z-index: 8;
+}
+
+.llm-provider-action-wrap {
+  z-index: 9;
+}
+
+.llm-provider-popconfirm,
+.llm-provider-popconfirm.model-popconfirm {
+  top: calc(100% + 8px);
+  right: -44px;
+  z-index: 30;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+}
+
+.llm-provider-popconfirm.model-popconfirm {
+  right: -8px;
+}
+
+.llm-provider-popconfirm::after {
+  top: -6px;
+  bottom: auto;
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+  border-left: 1px solid #e5e7eb;
+}
+
+.theme-dark .llm-provider-popconfirm::after {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+@media (max-width: 620px) {
+  .llm-provider-popconfirm,
+  .llm-provider-popconfirm.model-popconfirm {
+    right: 0;
+  }
+}
+
+/* Deletion confirmation is inline now, so it cannot be clipped by the usage card. */
+.llm-provider-list-card .llm-provider-row-actions,
+.llm-provider-list-card .llm-model-row-actions {
+  flex-wrap: wrap;
+  row-gap: 6px;
+  overflow: visible;
+}
+
+.llm-provider-inline-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 4px 5px 4px 9px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fffaf3;
+  color: #344054;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.llm-provider-inline-confirm-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #344054;
+  font-weight: 600;
+}
+
+.llm-provider-inline-confirm-title::before {
+  content: "!";
+  display: inline-grid;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  border-radius: 999px;
+  background: #ff8a00;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.llm-provider-inline-confirm button {
+  min-width: 44px;
+  height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 5px;
+  background: #f2f4f7;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.llm-provider-inline-confirm button:hover {
+  background: #e4e7ec;
+  color: #344054;
+}
+
+.llm-provider-inline-confirm button.primary {
+  background: #1677ff;
+  color: #ffffff;
+}
+
+.llm-provider-inline-confirm button.primary:hover {
+  background: #0f6bdd;
+}
+
+.llm-provider-inline-confirm.model-inline-confirm {
+  margin-left: 2px;
+}
+
+.theme-dark .llm-provider-inline-confirm {
+  border-color: rgba(255, 138, 0, 0.28);
+  background: rgba(255, 138, 0, 0.09);
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.theme-dark .llm-provider-inline-confirm-title {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.theme-dark .llm-provider-inline-confirm button {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.theme-dark .llm-provider-inline-confirm button:hover {
+  background: rgba(255, 255, 255, 0.13);
+  color: #ffffff;
+}
+
+/* Model actions: compact ghost icons, with the accessible label in the tooltip. */
+.llm-provider-list-card .llm-model-row-actions {
+  gap: 4px;
+}
+
+.llm-provider-list-card .llm-model-row-actions > span:first-child {
+  min-width: 0;
+  margin-right: 3px;
+  color: #697386;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.llm-provider-list-card .llm-model-action-button,
+.llm-provider-list-card .llm-provider-icon-button.llm-model-action-button {
+  display: inline-flex;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #697386;
+  box-shadow: none;
+}
+
+.llm-provider-list-card .llm-model-action-button svg {
+  display: block;
+  width: 15px;
+  height: 15px;
+}
+
+.llm-provider-list-card .llm-model-action-button:hover:not(:disabled) {
+  background: #edf1f5;
+  color: #334155;
+}
+
+.llm-provider-list-card .llm-model-action-button.action-delete {
+  background: transparent;
+  color: #8a94a3;
+}
+
+.llm-provider-list-card .llm-model-action-button.action-delete:hover:not(:disabled) {
+  background: #fff1f1;
+  color: #c0362c;
+}
+
+.theme-dark .llm-provider-list-card .llm-model-action-button,
+.theme-dark .llm-provider-list-card .llm-model-action-button.action-delete {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.theme-dark .llm-provider-list-card .llm-model-action-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.theme-dark .llm-provider-list-card .llm-model-action-button.action-delete:hover:not(:disabled) {
+  background: rgba(232, 93, 87, 0.16);
+  color: #ffaba5;
+}

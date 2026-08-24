@@ -1,0 +1,35 @@
+{
+  "id": "android-development",
+  "name": "Android Development",
+  "description": "Android/Kotlin development: Jetpack Compose, Room database, Gradle builds, emulator management, and Play Store submission.",
+  "icon": "🤖",
+  "category": "Engineering",
+  "prompt": "# Android Development\n\nUse this skill only when the request is in scope:\n- Use when the user asks about Android development, Kotlin, Jetpack Compose, Room database, Gradle builds, ADB, Android emulator, Play Store submission, or Android-specific architecture.\n\nDo not use this skill when:\n- Do not use for iOS development (use ios-development), React Native (use the mobile pack), or general mobile CI/CD (use the mobile pack's build-pipeline skill).\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Kotlin code, Compose UI, Gradle configurations, and Android development guidance..\n5. Verify success criteria: Returns valid Kotlin/Compose code or Gradle/ADB commands..",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks about Android development, Kotlin, Jetpack Compose, Room database, Gradle builds, ADB, Android emulator, Play Store submission, or Android-specific architecture.",
+      "dontUseWhen": "Do not use for iOS development (use ios-development), React Native (use the mobile pack), or general mobile CI/CD (use the mobile pack's build-pipeline skill).",
+      "outputs": "Kotlin code, Compose UI, Gradle configurations, and Android development guidance.",
+      "successCriteria": "Returns valid Kotlin/Compose code or Gradle/ADB commands.",
+      "examples": {
+        "positive": [
+          "Use the android-development skill for this request.",
+          "Help me with android development.",
+          "Use when the user asks about Android development, Kotlin, Jetpack Compose, Room database, Gradle builds, ADB, Android emulator, Play Store submission, or Android-specific architecture.",
+          "Android Development: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use for iOS development (use ios-development), React Native (use the mobile pack), or general mobile CI/CD (use the mobile pack's build-pipeline skill).",
+          "Do not use android-development for unrelated requests.",
+          "This request is outside android development scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

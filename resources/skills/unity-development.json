@@ -1,0 +1,35 @@
+{
+  "id": "unity-development",
+  "name": "Unity Development",
+  "description": "Unity/C# development: MonoBehaviour lifecycle, ScriptableObjects, Addressables, URP/HDRP, physics, UI, editor scripting, and CLI builds.",
+  "icon": "🔲",
+  "category": "Engineering",
+  "prompt": "# Unity Development\n\nUse this skill only when the request is in scope:\n- Use when the user asks about Unity, C# game scripting, MonoBehaviour, ScriptableObjects, Addressables, URP, HDRP, Unity CLI builds, or Unity Editor scripting.\n\nDo not use this skill when:\n- Do not use for Unreal Engine (use unreal-development), Godot (use the game pack's godot skill), or cross-engine performance (use game-performance).\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: C# scripts, Unity configurations, CLI commands, and Unity development guidance..\n5. Verify success criteria: Returns valid C# code or Unity CLI commands..",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks about Unity, C# game scripting, MonoBehaviour, ScriptableObjects, Addressables, URP, HDRP, Unity CLI builds, or Unity Editor scripting.",
+      "dontUseWhen": "Do not use for Unreal Engine (use unreal-development), Godot (use the game pack's godot skill), or cross-engine performance (use game-performance).",
+      "outputs": "C# scripts, Unity configurations, CLI commands, and Unity development guidance.",
+      "successCriteria": "Returns valid C# code or Unity CLI commands.",
+      "examples": {
+        "positive": [
+          "Use the unity-development skill for this request.",
+          "Help me with unity development.",
+          "Use when the user asks about Unity, C# game scripting, MonoBehaviour, ScriptableObjects, Addressables, URP, HDRP, Unity CLI builds, or Unity Editor scripting.",
+          "Unity Development: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use for Unreal Engine (use unreal-development), Godot (use the game pack's godot skill), or cross-engine performance (use game-performance).",
+          "Do not use unity-development for unrelated requests.",
+          "This request is outside unity development scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

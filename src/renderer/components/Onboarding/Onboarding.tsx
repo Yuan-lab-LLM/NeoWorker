@@ -1,0 +1,2738 @@
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useOnboardingFlow, SCRIPT } from "../../hooks/useOnboardingFlow";
+import { useVoiceInput } from "../../hooks/useVoiceInput";
+import { AwakeningOrb } from "./AwakeningOrb";
+import { TypewriterText } from "./TypewriterText";
+import {
+  DEFAULT_ASSISTANT_NAME,
+  type LLMProviderType,
+} from "../../../shared/types";
+import { STARTER_MISSIONS } from "../../../shared/starter-missions";
+import {
+  ONBOARDING_ASSISTANT_TRAITS,
+  ONBOARDING_PRIORITIES,
+  ONBOARDING_RESPONSE_STYLES,
+  ONBOARDING_TIME_DRAINS,
+  type OnboardingAssistantTraitId,
+  type OnboardingPriorityId,
+  type OnboardingResponseStyleId,
+  type OnboardingTimeDrainId,
+} from "../../../shared/onboarding";
+import { translate, useLanguage } from "../../i18n";
+
+interface OnboardingProps {
+  onComplete: (dontShowAgain: boolean) => void;
+  workspaceId?: string | null;
+}
+
+type OnboardingOptionNamespace =
+  "assistantTrait" | "timeDrain" | "priority" | "responseStyle";
+
+interface OnboardingAmbientAudio {
+  context: AudioContext;
+  padOscillators: OscillatorNode[];
+  padGains: GainNode[];
+  padFilter: BiquadFilterNode;
+  padMix: GainNode;
+  droneOscillator: OscillatorNode;
+  droneGain: GainNode;
+  droneFilter: BiquadFilterNode;
+  noiseSource: AudioBufferSourceNode;
+  noiseFilter: BiquadFilterNode;
+  noiseGain: GainNode;
+  masterGain: GainNode;
+  highPass: BiquadFilterNode;
+  compressor: DynamicsCompressorNode;
+  reverb: ConvolverNode;
+  reverbGain: GainNode;
+  delay: DelayNode;
+  delayFeedback: GainNode;
+  delayGain: GainNode;
+  lfo: OscillatorNode;
+  lfoGain: GainNode;
+  chordTimer: number;
+  shimmerTimer: number;
+  currentChordIndex: number;
+}
+
+// Provider display info
+const PROVIDERS: {
+  id: LLMProviderType;
+  name: string;
+  requiresKey: boolean;
+  badge?: string;
+}[] = [
+  { id: "openrouter", name: "OpenRouter", requiresKey: true, badge: "Free" },
+  { id: "anthropic", name: "Claude", requiresKey: true },
+  { id: "openai", name: "OpenAI", requiresKey: true },
+  { id: "gemini", name: "Gemini", requiresKey: true, badge: "Free" },
+  { id: "groq", name: "Groq", requiresKey: true, badge: "Free" },
+  { id: "xai", name: "Grok", requiresKey: true },
+  { id: "deepseek", name: "DeepSeek", requiresKey: true },
+  { id: "kimi", name: "Kimi", requiresKey: true },
+  { id: "nano-gpt", name: "NanoGPT", requiresKey: true },
+  { id: "bedrock", name: "AWS Bedrock", requiresKey: false },
+];
+
+// API key URLs for providers
+const PROVIDER_URLS: Record<string, string> = {
+  anthropic: "https://console.anthropic.com/settings/keys",
+  openai: "https://platform.openai.com/api-keys",
+  gemini: "https://aistudio.google.com/app/apikey",
+  openrouter: "https://openrouter.ai/keys",
+  groq: "https://console.groq.com/keys",
+  xai: "https://console.x.ai/",
+  deepseek: "https://platform.deepseek.com/api_keys",
+  kimi: "https://platform.kimi.com/console/api-keys",
+  "nano-gpt": "https://nano-gpt.com/api",
+};
+
+const CAPABILITY_PILLARS = [
+  {
+    key: "onboarding.capability.conversation",
+    fallback: "Natural conversation",
+  },
+  { key: "onboarding.capability.execution", fallback: "Real task execution" },
+  { key: "onboarding.capability.memory", fallback: "Shared memory over time" },
+];
+
+const AMBIENT_CHORDS: number[][] = [
+  [57, 60, 64, 69], // Am add9
+  [53, 57, 60, 65], // F add9
+  [55, 59, 62, 67], // G add9
+  [50, 53, 57, 62], // Dm add9
+];
+
+const FILTER_TARGETS = [1250, 980, 1420, 1080];
+
+const midiToFrequency = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
+
+const createReverbImpulse = (
+  context: AudioContext,
+  duration = 4.2,
+  decay = 2.8,
+): AudioBuffer => {
+  const length = Math.floor(context.sampleRate * duration);
+  const impulse = context.createBuffer(2, length, context.sampleRate);
+
+  for (let channel = 0; channel < impulse.numberOfChannels; channel++) {
+    const data = impulse.getChannelData(channel);
+    for (let i = 0; i < length; i++) {
+      const t = i / length;
+      const envelope = Math.pow(1 - t, decay);
+      data[i] = (Math.random() * 2 - 1) * envelope;
+    }
+  }
+
+  return impulse;
+};
+
+const createNoiseBuffer = (
+  context: AudioContext,
+  duration = 3.5,
+): AudioBuffer => {
+  const length = Math.floor(context.sampleRate * duration);
+  const buffer = context.createBuffer(1, length, context.sampleRate);
+  const data = buffer.getChannelData(0);
+
+  let last = 0;
+  for (let i = 0; i < length; i++) {
+    const white = Math.random() * 2 - 1;
+    // Simple low-passed noise for smoother texture.
+    last = 0.985 * last + 0.015 * white;
+    data[i] = last;
+  }
+
+  return buffer;
+};
+
+interface OnboardingUiDraft {
+  version: number;
+  savedAt: number;
+  inputValue: string;
+  inputMode: "voice" | "keyboard";
+  musicEnabled: boolean;
+  showControlHints: boolean;
+  confidencePrompt: string;
+  confidenceResponse: string;
+}
+
+const ONBOARDING_UI_DRAFT_KEY = "neoworker:onboarding:ui:v1";
+
+const clearOnboardingUiDraft = (): void => {
+  if (typeof window === "undefined") return;
+
+  try {
+    localStorage.removeItem(ONBOARDING_UI_DRAFT_KEY);
+  } catch {
+    // Ignore cleanup failures
+  }
+};
+
+// Use shared starter missions — pick a subset for the onboarding final step
+const FINAL_TRY_SUGGESTIONS = STARTER_MISSIONS.slice(0, 8);
+
+const buildConfidenceResponse = (
+  prompt: string,
+  data: {
+    assistantName: string;
+    workStyle: "planner" | "flexible" | null;
+    memoryEnabled: boolean;
+  },
+): string => {
+  const name = data.assistantName || DEFAULT_ASSISTANT_NAME;
+  const styleLine =
+    data.workStyle === "planner"
+      ? translate(
+          "onboarding.confidence.structured",
+          "I will break it into clear steps and keep progress visible.",
+        )
+      : translate(
+          "onboarding.confidence.adaptive",
+          "I will move quickly and adapt as context changes.",
+        );
+  const memoryLine = data.memoryEnabled
+    ? translate(
+        "onboarding.confidence.memoryOn",
+        "I will remember useful preferences and context for next time.",
+      )
+    : translate(
+        "onboarding.confidence.memoryOff",
+        "I will keep memory off until you enable it in Settings > Memory.",
+      );
+
+  return translate(
+    "onboarding.confidence.response",
+    '{name}: Great prompt: "{prompt}". {style} {memory}',
+    {
+      name,
+      prompt,
+      style: styleLine,
+      memory: memoryLine,
+    },
+  );
+};
+
+export function Onboarding({ onComplete, workspaceId }: OnboardingProps) {
+  const language = useLanguage();
+  const t = translate;
+  const uiDraftRef = useRef<OnboardingUiDraft | null>(null);
+  const [inputValue, setInputValue] = useState(
+    uiDraftRef.current?.inputValue ?? "",
+  );
+  const [inputMode, setInputMode] = useState<"voice" | "keyboard">(
+    uiDraftRef.current?.inputMode ?? "keyboard",
+  );
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [musicEnabled, setMusicEnabled] = useState(
+    uiDraftRef.current?.musicEnabled ?? true,
+  );
+  const [showControlHints, setShowControlHints] = useState(
+    uiDraftRef.current?.showControlHints ?? true,
+  );
+  const [confidencePrompt, setConfidencePrompt] = useState(
+    uiDraftRef.current?.confidencePrompt ?? "",
+  );
+  const [confidenceResponse, setConfidenceResponse] = useState(
+    uiDraftRef.current?.confidenceResponse ?? "",
+  );
+  const [themeMode, setThemeMode] = useState<"light" | "dark">(() =>
+    document.documentElement.classList.contains("theme-light")
+      ? "light"
+      : "dark",
+  );
+  const [profileNameDraft, setProfileNameDraft] = useState("");
+  const [profileContextDraft, setProfileContextDraft] = useState("");
+  const [timeDrainsOtherDraft, setTimeDrainsOtherDraft] = useState("");
+  const [prioritiesOtherDraft, setPrioritiesOtherDraft] = useState("");
+  const [workflowToolsDraft, setWorkflowToolsDraft] = useState("");
+  const [responseStyleCustomDraft, setResponseStyleCustomDraft] = useState("");
+  const [additionalGuidanceDraft, setAdditionalGuidanceDraft] = useState("");
+  const ambientAudioRef = useRef<OnboardingAmbientAudio | null>(null);
+
+  const onboarding = useOnboardingFlow({ onComplete, workspaceId });
+  const isSensitiveInputState =
+    onboarding.state === "llm_api_key" || onboarding.state === "llm_testing";
+  const isCompactRecapStep =
+    onboarding.state === "recap" || onboarding.state === "final_try";
+
+  // Voice input integration
+  const voiceInput = useVoiceInput({
+    onTranscript: (text) => {
+      setVoiceError(null);
+      setInputValue((prev) => (prev ? `${prev} ${text}` : text));
+    },
+    onError: (error) => {
+      // Keep voice mode active and show a recoverable error instead of forcing keyboard mode.
+      setVoiceError(
+        error ||
+          t(
+            "onboarding.voice.transcribeError",
+            "Could not transcribe audio. Please try again.",
+          ),
+      );
+    },
+    onNotConfigured: () => {
+      setVoiceError(
+        t(
+          "onboarding.voice.notConfigured",
+          "Voice transcription is not configured on this device.",
+        ),
+      );
+      setInputMode("keyboard");
+    },
+    transcriptionMode: "local_preferred",
+  });
+
+  // Check if voice is available on mount
+  useEffect(() => {
+    if (voiceInput.isConfigured) {
+      setInputMode("voice");
+    }
+  }, [voiceInput.isConfigured]);
+
+  // Start the onboarding when component mounts
+  useEffect(() => {
+    onboarding.start();
+  }, []);
+
+  useEffect(() => {
+    if (onboarding.state === "dormant") {
+      return;
+    }
+
+    clearOnboardingUiDraft();
+  }, [onboarding.state]);
+
+  useEffect(() => {
+    if (isSensitiveInputState) {
+      setInputValue("");
+    }
+  }, [isSensitiveInputState]);
+
+  useEffect(() => {
+    if (onboarding.state === "ask_user_profile") {
+      setProfileNameDraft(onboarding.data.userName || "");
+      setProfileContextDraft(onboarding.data.userContext || "");
+      return;
+    }
+    if (onboarding.state === "ask_time_drains") {
+      setTimeDrainsOtherDraft(onboarding.data.timeDrainsOther || "");
+      return;
+    }
+    if (onboarding.state === "ask_priorities") {
+      setPrioritiesOtherDraft(onboarding.data.prioritiesOther || "");
+      return;
+    }
+    if (onboarding.state === "ask_tools") {
+      setWorkflowToolsDraft(onboarding.data.workflowTools || "");
+      return;
+    }
+    if (onboarding.state === "ask_response_style") {
+      setResponseStyleCustomDraft(onboarding.data.responseStyleCustom || "");
+      return;
+    }
+    if (onboarding.state === "ask_additional_guidance") {
+      setAdditionalGuidanceDraft(onboarding.data.additionalGuidance || "");
+    }
+  }, [
+    onboarding.state,
+    onboarding.data.userName,
+    onboarding.data.userContext,
+    onboarding.data.timeDrainsOther,
+    onboarding.data.prioritiesOther,
+    onboarding.data.workflowTools,
+    onboarding.data.responseStyleCustom,
+    onboarding.data.additionalGuidance,
+  ]);
+
+  useEffect(() => {
+    if (!showControlHints) return;
+    if (onboarding.state !== "greeting") {
+      setShowControlHints(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setShowControlHints(false);
+    }, 6000);
+
+    return () => window.clearTimeout(timer);
+  }, [showControlHints, onboarding.state]);
+
+  const stopAmbientMusic = useCallback(() => {
+    const ambient = ambientAudioRef.current;
+    if (!ambient) return;
+
+    window.clearInterval(ambient.chordTimer);
+    window.clearInterval(ambient.shimmerTimer);
+
+    ambient.padOscillators.forEach((oscillator, index) => {
+      try {
+        oscillator.stop();
+      } catch {
+        // Already stopped
+      }
+      oscillator.disconnect();
+      ambient.padGains[index]?.disconnect();
+    });
+
+    try {
+      ambient.droneOscillator.stop();
+    } catch {
+      // Already stopped
+    }
+    ambient.droneOscillator.disconnect();
+
+    try {
+      ambient.noiseSource.stop();
+    } catch {
+      // Already stopped
+    }
+    ambient.noiseSource.disconnect();
+
+    try {
+      ambient.lfo.stop();
+    } catch {
+      // Already stopped
+    }
+    ambient.lfo.disconnect();
+    ambient.lfoGain.disconnect();
+
+    ambient.padMix.disconnect();
+    ambient.padFilter.disconnect();
+    ambient.droneFilter.disconnect();
+    ambient.droneGain.disconnect();
+    ambient.noiseFilter.disconnect();
+    ambient.noiseGain.disconnect();
+    ambient.reverb.disconnect();
+    ambient.reverbGain.disconnect();
+    ambient.delay.disconnect();
+    ambient.delayFeedback.disconnect();
+    ambient.delayGain.disconnect();
+    ambient.masterGain.disconnect();
+    ambient.highPass.disconnect();
+    ambient.compressor.disconnect();
+
+    void ambient.context.close().catch(() => {});
+    ambientAudioRef.current = null;
+  }, []);
+
+  const startAmbientMusic = useCallback(async () => {
+    if (!musicEnabled || ambientAudioRef.current) return;
+
+    const AudioContextCtor =
+      window.AudioContext ||
+      (window as Window & { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!AudioContextCtor) return;
+
+    const context = new AudioContextCtor();
+    const masterGain = context.createGain();
+    const highPass = context.createBiquadFilter();
+    const compressor = context.createDynamicsCompressor();
+
+    highPass.type = "highpass";
+    highPass.frequency.value = 30;
+    highPass.Q.value = 0.7;
+
+    compressor.threshold.value = -24;
+    compressor.knee.value = 28;
+    compressor.ratio.value = 2.2;
+    compressor.attack.value = 0.03;
+    compressor.release.value = 0.35;
+
+    masterGain.gain.value = 0;
+    masterGain.connect(highPass);
+    highPass.connect(compressor);
+    compressor.connect(context.destination);
+
+    const reverb = context.createConvolver();
+    const reverbGain = context.createGain();
+    reverb.buffer = createReverbImpulse(context);
+    reverbGain.gain.value = 0.42;
+    masterGain.connect(reverb);
+    reverb.connect(reverbGain);
+    reverbGain.connect(highPass);
+
+    const delay = context.createDelay(4);
+    const delayFeedback = context.createGain();
+    const delayGain = context.createGain();
+    delay.delayTime.value = 0.42;
+    delayFeedback.gain.value = 0.24;
+    delayGain.gain.value = 0.16;
+    masterGain.connect(delay);
+    delay.connect(delayFeedback);
+    delayFeedback.connect(delay);
+    delay.connect(delayGain);
+    delayGain.connect(highPass);
+
+    const padMix = context.createGain();
+    const padFilter = context.createBiquadFilter();
+    padMix.gain.value = 0.34;
+    padFilter.type = "lowpass";
+    padFilter.frequency.value = FILTER_TARGETS[0];
+    padFilter.Q.value = 0.8;
+    padMix.connect(padFilter);
+    padFilter.connect(masterGain);
+
+    const padOscillators: OscillatorNode[] = [];
+    const padGains: GainNode[] = [];
+    for (let noteIndex = 0; noteIndex < 4; noteIndex++) {
+      const primary = context.createOscillator();
+      const primaryGain = context.createGain();
+      primary.type = "sawtooth";
+      primary.detune.value = -6;
+      primaryGain.gain.value = 0.018;
+      primary.connect(primaryGain);
+      primaryGain.connect(padMix);
+      padOscillators.push(primary);
+      padGains.push(primaryGain);
+
+      const secondary = context.createOscillator();
+      const secondaryGain = context.createGain();
+      secondary.type = "triangle";
+      secondary.detune.value = 5;
+      secondaryGain.gain.value = 0.014;
+      secondary.connect(secondaryGain);
+      secondaryGain.connect(padMix);
+      padOscillators.push(secondary);
+      padGains.push(secondaryGain);
+    }
+
+    const droneOscillator = context.createOscillator();
+    const droneFilter = context.createBiquadFilter();
+    const droneGain = context.createGain();
+    droneOscillator.type = "sine";
+    droneFilter.type = "lowpass";
+    droneFilter.frequency.value = 210;
+    droneFilter.Q.value = 0.6;
+    droneGain.gain.value = 0.055;
+    droneOscillator.connect(droneFilter);
+    droneFilter.connect(droneGain);
+    droneGain.connect(masterGain);
+
+    const noiseSource = context.createBufferSource();
+    const noiseFilter = context.createBiquadFilter();
+    const noiseGain = context.createGain();
+    noiseSource.buffer = createNoiseBuffer(context);
+    noiseSource.loop = true;
+    noiseFilter.type = "bandpass";
+    noiseFilter.frequency.value = 1750;
+    noiseFilter.Q.value = 0.45;
+    noiseGain.gain.value = 0.008;
+    noiseSource.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(reverb);
+
+    const lfo = context.createOscillator();
+    const lfoGain = context.createGain();
+    lfo.type = "sine";
+    lfo.frequency.value = 0.018;
+    lfoGain.gain.value = 190;
+    lfo.connect(lfoGain);
+    lfoGain.connect(padFilter.frequency);
+
+    const applyChord = (index: number) => {
+      const chord = AMBIENT_CHORDS[index];
+      const now = context.currentTime;
+
+      chord.forEach((midi, noteIndex) => {
+        const baseFrequency = midiToFrequency(midi);
+        const primary = padOscillators[noteIndex * 2];
+        const secondary = padOscillators[noteIndex * 2 + 1];
+
+        primary.frequency.cancelScheduledValues(now);
+        primary.frequency.setTargetAtTime(baseFrequency, now, 3.4);
+        secondary.frequency.cancelScheduledValues(now);
+        secondary.frequency.setTargetAtTime(baseFrequency * 2, now, 3.8);
+      });
+
+      const root = chord[0] - 24;
+      droneOscillator.frequency.cancelScheduledValues(now);
+      droneOscillator.frequency.setTargetAtTime(
+        midiToFrequency(root),
+        now,
+        5.2,
+      );
+
+      padFilter.frequency.cancelScheduledValues(now);
+      padFilter.frequency.setTargetAtTime(FILTER_TARGETS[index], now, 4.2);
+    };
+
+    let currentChordIndex = 0;
+    applyChord(currentChordIndex);
+
+    padOscillators.forEach((oscillator) => oscillator.start());
+    droneOscillator.start();
+    noiseSource.start();
+    lfo.start();
+
+    const chordTimer = window.setInterval(() => {
+      currentChordIndex = (currentChordIndex + 1) % AMBIENT_CHORDS.length;
+      applyChord(currentChordIndex);
+      if (ambientAudioRef.current) {
+        ambientAudioRef.current.currentChordIndex = currentChordIndex;
+      }
+    }, 14000);
+
+    const shimmerTimer = window.setInterval(() => {
+      const active = ambientAudioRef.current;
+      if (!active) return;
+
+      const chord = AMBIENT_CHORDS[active.currentChordIndex];
+      const shimmerMidi =
+        chord[1 + Math.floor(Math.random() * (chord.length - 1))] + 12;
+      const now = active.context.currentTime;
+
+      const shimmerOsc = active.context.createOscillator();
+      const shimmerGain = active.context.createGain();
+      shimmerOsc.type = "sine";
+      shimmerOsc.frequency.value = midiToFrequency(shimmerMidi);
+
+      shimmerGain.gain.setValueAtTime(0.0001, now);
+      shimmerGain.gain.linearRampToValueAtTime(0.03, now + 0.45);
+      shimmerGain.gain.exponentialRampToValueAtTime(0.0001, now + 3.3);
+
+      shimmerOsc.connect(shimmerGain);
+      shimmerGain.connect(active.reverb);
+      shimmerGain.connect(active.delay);
+
+      shimmerOsc.start(now);
+      shimmerOsc.stop(now + 3.4);
+      shimmerOsc.onended = () => {
+        shimmerOsc.disconnect();
+        shimmerGain.disconnect();
+      };
+    }, 6800);
+
+    if (context.state === "suspended") {
+      try {
+        await context.resume();
+      } catch {
+        // Browser may require user gesture; unlock handler below will retry
+      }
+    }
+
+    masterGain.gain.setTargetAtTime(0.12, context.currentTime + 0.1, 2.4);
+
+    ambientAudioRef.current = {
+      context,
+      padOscillators,
+      padGains,
+      padFilter,
+      padMix,
+      droneOscillator,
+      droneGain,
+      droneFilter,
+      noiseSource,
+      noiseFilter,
+      noiseGain,
+      masterGain,
+      highPass,
+      compressor,
+      reverb,
+      reverbGain,
+      delay,
+      delayFeedback,
+      delayGain,
+      lfo,
+      lfoGain,
+      chordTimer,
+      shimmerTimer,
+      currentChordIndex,
+    };
+  }, [musicEnabled]);
+
+  const ensureAmbientMusicPlaying = useCallback(async () => {
+    if (!musicEnabled) return;
+
+    if (!ambientAudioRef.current) {
+      await startAmbientMusic();
+    }
+
+    const ambient = ambientAudioRef.current;
+    if (ambient && ambient.context.state === "suspended") {
+      await ambient.context.resume().catch(() => {});
+    }
+  }, [musicEnabled, startAmbientMusic]);
+
+  // Start ambient soundtrack during onboarding and stop it when exiting.
+  useEffect(() => {
+    const shouldPlayMusic =
+      musicEnabled &&
+      onboarding.state !== "dormant" &&
+      onboarding.state !== "transitioning";
+
+    if (shouldPlayMusic) {
+      void ensureAmbientMusicPlaying();
+    } else {
+      stopAmbientMusic();
+    }
+  }, [
+    musicEnabled,
+    onboarding.state,
+    ensureAmbientMusicPlaying,
+    stopAmbientMusic,
+  ]);
+
+  // Ensure audio starts once user interacts (for autoplay-restricted environments).
+  useEffect(() => {
+    if (!musicEnabled) return;
+
+    const unlockAudio = () => {
+      void ensureAmbientMusicPlaying();
+    };
+
+    const resumeOnFocus = () => {
+      void ensureAmbientMusicPlaying();
+    };
+
+    window.addEventListener("pointerdown", unlockAudio);
+    window.addEventListener("mousedown", unlockAudio);
+    window.addEventListener("keydown", unlockAudio);
+    window.addEventListener("focus", resumeOnFocus);
+
+    const retryTimer = window.setInterval(() => {
+      const ambient = ambientAudioRef.current;
+      if (!ambient || ambient.context.state !== "running") {
+        void ensureAmbientMusicPlaying();
+      }
+    }, 2000);
+
+    return () => {
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("mousedown", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+      window.removeEventListener("focus", resumeOnFocus);
+      window.clearInterval(retryTimer);
+    };
+  }, [musicEnabled, ensureAmbientMusicPlaying]);
+
+  // Cleanup audio resources on unmount.
+  useEffect(() => {
+    return () => {
+      stopAmbientMusic();
+    };
+  }, [stopAmbientMusic]);
+
+  const toggleThemeMode = useCallback(() => {
+    setThemeMode((currentMode) => {
+      const nextMode = currentMode === "light" ? "dark" : "light";
+      const root = document.documentElement;
+      root.classList.remove("theme-light", "theme-dark");
+      if (nextMode === "light") {
+        root.classList.add("theme-light");
+      }
+
+      if (window.electronAPI?.saveAppearanceSettings) {
+        void window.electronAPI
+          .saveAppearanceSettings({ themeMode: nextMode })
+          .catch((error) =>
+            console.error("Failed to save onboarding theme preference:", error),
+          );
+      }
+
+      return nextMode;
+    });
+  }, []);
+
+  const toggleMusicEnabled = useCallback(() => {
+    setMusicEnabled((enabled) => {
+      const nextEnabled = !enabled;
+      if (!nextEnabled) {
+        stopAmbientMusic();
+      }
+      return nextEnabled;
+    });
+  }, [stopAmbientMusic]);
+
+  // Handle awakening animation
+  useEffect(() => {
+    if (onboarding.state === "awakening") {
+      const timer = setTimeout(() => {
+        onboarding.onAwakeningComplete();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [onboarding.state, onboarding.onAwakeningComplete]);
+
+  const handleContinueFromRecap = useCallback(() => {
+    setVoiceError(null);
+    setInputValue("");
+    setConfidencePrompt("");
+    setConfidenceResponse("");
+    onboarding.continueFromRecap();
+  }, [onboarding]);
+
+  const handleConfidencePromptSubmit = useCallback(() => {
+    const prompt = inputValue.trim();
+    if (!prompt) return;
+
+    setVoiceError(null);
+    setConfidencePrompt(prompt);
+    setConfidenceResponse(
+      buildConfidenceResponse(prompt, {
+        assistantName: onboarding.data.assistantName,
+        workStyle: onboarding.data.workStyle,
+        memoryEnabled: onboarding.data.memoryEnabled,
+      }),
+    );
+    setInputValue("");
+  }, [
+    inputValue,
+    onboarding.data.assistantName,
+    onboarding.data.memoryEnabled,
+    onboarding.data.workStyle,
+  ]);
+
+  // Handle input submission
+  const handleInputSubmit = useCallback(() => {
+    if (!inputValue.trim() && onboarding.state === "ask_name") {
+      // Allow empty name (will use default)
+      onboarding.submitName("");
+      setInputValue("");
+      return;
+    }
+
+    if (onboarding.state === "ask_name") {
+      onboarding.submitName(inputValue);
+      setInputValue("");
+    } else if (onboarding.state === "llm_api_key") {
+      onboarding.submitApiKey(inputValue);
+      setInputValue("");
+    } else if (onboarding.state === "final_try") {
+      handleConfidencePromptSubmit();
+    }
+  }, [inputValue, onboarding, handleConfidencePromptSubmit]);
+
+  // Handle key press
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleInputSubmit();
+    }
+  };
+
+  // Handle voice button click
+  const handleVoiceClick = () => {
+    setVoiceError(null);
+    if (voiceInput.state === "recording") {
+      voiceInput.stopRecording();
+    } else if (voiceInput.state === "idle") {
+      voiceInput.startRecording();
+    }
+  };
+
+  const isMicrophonePermissionError =
+    !!voiceError &&
+    (voiceError.toLowerCase().includes("microphone access is blocked") ||
+      voiceError.toLowerCase().includes("not-allowed") ||
+      voiceError.toLowerCase().includes("service-not-allowed"));
+  const isSpeechServiceUnavailableError =
+    !!voiceError &&
+    (voiceError
+      .toLowerCase()
+      .includes("speech recognition service is unavailable") ||
+      voiceError
+        .toLowerCase()
+        .includes("system speech recognition is unavailable") ||
+      voiceError.toLowerCase().includes("speech recognition error: network"));
+
+  const getOpenSettingsErrorMessage = (
+    error: unknown,
+    fallback: string,
+  ): string => {
+    const raw =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "";
+
+    if (raw.includes("No handler registered for 'system:openSettings'")) {
+      return t(
+        "onboarding.voice.restartForSettings",
+        "Please restart the app once, then try opening settings again.",
+      );
+    }
+
+    return fallback;
+  };
+
+  const openMicrophoneSettings = useCallback(() => {
+    const maybeOpenSystemSettings = (
+      window.electronAPI as typeof window.electronAPI & {
+        openSystemSettings?: (
+          target: "microphone" | "dictation",
+        ) => Promise<{ success: boolean; error?: string }>;
+      }
+    ).openSystemSettings;
+
+    if (!maybeOpenSystemSettings) {
+      setVoiceError(
+        t(
+          "onboarding.voice.openSettingsFailed",
+          "Could not open System Settings automatically. Open Privacy & Security > Microphone.",
+        ),
+      );
+      return;
+    }
+
+    void maybeOpenSystemSettings("microphone")
+      .then((result) => {
+        if (!result?.success) {
+          setVoiceError(
+            getOpenSettingsErrorMessage(
+              result?.error,
+              t(
+                "onboarding.voice.openSettingsFailed",
+                "Could not open System Settings automatically. Open Privacy & Security > Microphone.",
+              ),
+            ),
+          );
+        }
+      })
+      .catch((error) => {
+        setVoiceError(
+          getOpenSettingsErrorMessage(
+            error,
+            t(
+              "onboarding.voice.openSettingsFailed",
+              "Could not open System Settings automatically. Open Privacy & Security > Microphone.",
+            ),
+          ),
+        );
+      });
+  }, []);
+
+  const renderVoiceRecoveryHelp = () => {
+    if (isMicrophonePermissionError) {
+      return (
+        <div className="onboarding-voice-help" role="note">
+          <p>
+            {t(
+              "onboarding.voice.help.enableMic",
+              "In System Settings, enable microphone access for NeoWorker.",
+            )}
+          </p>
+          <p>
+            {t(
+              "onboarding.voice.help.devTerminal",
+              "If NeoWorker is not listed and you launched from `npm run dev`, enable Terminal/Electron access instead.",
+            )}
+          </p>
+          <p>
+            {t(
+              "onboarding.voice.help.retryAfterPermission",
+              "Then return here and tap the mic again. If you just changed permission, restart the app once.",
+            )}
+          </p>
+        </div>
+      );
+    }
+
+    if (isSpeechServiceUnavailableError) {
+      return (
+        <div className="onboarding-voice-help" role="note">
+          <p>
+            {t(
+              "onboarding.voice.help.openPrivacy",
+              "Open Privacy & Security > Microphone and ensure NeoWorker is enabled.",
+            )}
+          </p>
+          <p>
+            {t(
+              "onboarding.voice.help.devTerminal",
+              "If NeoWorker is not listed and you launched from `npm run dev`, enable Terminal/Electron access instead.",
+            )}
+          </p>
+          <p>
+            {t(
+              "onboarding.voice.help.dictation",
+              "If it is already enabled, check Keyboard > Dictation and confirm Dictation is on.",
+            )}
+          </p>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  // Determine orb state
+  const getOrbState = () => {
+    if (onboarding.state === "dormant") return "dormant";
+    if (onboarding.state === "awakening") return "awakening";
+    if (onboarding.state === "transitioning") return "transitioning";
+    if (voiceInput.state === "recording") return "listening";
+    return "breathing";
+  };
+
+  const toggleAssistantTrait = useCallback(
+    (traitId: OnboardingAssistantTraitId) => {
+      const selected = onboarding.data.assistantTraits.includes(traitId);
+      const next = selected
+        ? onboarding.data.assistantTraits.filter((item) => item !== traitId)
+        : [...onboarding.data.assistantTraits, traitId];
+      onboarding.updateData({
+        assistantTraits: next.length > 0 ? next : ["adaptive"],
+      });
+    },
+    [onboarding],
+  );
+
+  const toggleTimeDrain = useCallback(
+    (timeDrainId: OnboardingTimeDrainId) => {
+      const selected = onboarding.data.timeDrains.includes(timeDrainId);
+      onboarding.updateData({
+        timeDrains: selected
+          ? onboarding.data.timeDrains.filter((item) => item !== timeDrainId)
+          : [...onboarding.data.timeDrains, timeDrainId],
+      });
+    },
+    [onboarding],
+  );
+
+  const togglePriority = useCallback(
+    (priorityId: OnboardingPriorityId) => {
+      const selected = onboarding.data.priorities.includes(priorityId);
+      onboarding.updateData({
+        priorities: selected
+          ? onboarding.data.priorities.filter((item) => item !== priorityId)
+          : [...onboarding.data.priorities, priorityId],
+      });
+    },
+    [onboarding],
+  );
+
+  const selectResponseStyle = useCallback(
+    (styleId: OnboardingResponseStyleId) => {
+      onboarding.updateData({ responseStyle: styleId });
+    },
+    [onboarding],
+  );
+
+  const renderSelectionCards = <T extends string>(
+    namespace: OnboardingOptionNamespace,
+    options: Array<{ id: T; title: string; description: string }>,
+    selectedIds: T[],
+    onToggle: (id: T) => void,
+  ) => (
+    <div className="onboarding-selection-grid">
+      {options.map((option) => {
+        const selected = selectedIds.includes(option.id);
+        return (
+          <button
+            key={option.id}
+            className={`onboarding-selection-card ${selected ? "selected" : ""}`}
+            onClick={() => onToggle(option.id)}
+            type="button"
+          >
+            <div className="onboarding-selection-card-header">
+              <span className="onboarding-selection-card-title">
+                {t(
+                  `onboarding.option.${namespace}.${option.id}.title`,
+                  option.title,
+                )}
+              </span>
+              <span className="onboarding-selection-card-check">
+                {selected ? "✓" : ""}
+              </span>
+            </div>
+            <span className="onboarding-selection-card-desc">
+              {t(
+                `onboarding.option.${namespace}.${option.id}.description`,
+                option.description,
+              )}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const renderAssistantTraitStep = () => (
+    <div className="onboarding-step-panel">
+      {renderSelectionCards(
+        "assistantTrait",
+        ONBOARDING_ASSISTANT_TRAITS,
+        onboarding.data.assistantTraits,
+        toggleAssistantTrait,
+      )}
+      <div className="onboarding-actions">
+        <button
+          className="onboarding-btn onboarding-btn-primary"
+          onClick={() =>
+            onboarding.submitAssistantTraits(onboarding.data.assistantTraits)
+          }
+        >
+          {t("common.continue", "Continue")}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderUserProfileStep = () => (
+    <div className="onboarding-step-panel onboarding-form-panel">
+      <div className="onboarding-form-group">
+        <label className="onboarding-form-label">
+          {t("onboarding.form.yourName", "Your name")}
+        </label>
+        <input
+          className="onboarding-input"
+          placeholder={t(
+            "onboarding.form.namePlaceholder",
+            "What should NeoWorker call you?",
+          )}
+          value={profileNameDraft}
+          onChange={(e) => setProfileNameDraft(e.target.value)}
+        />
+      </div>
+      <div className="onboarding-form-group">
+        <label className="onboarding-form-label">
+          {t("onboarding.form.workContext", "Work context (optional)")}
+        </label>
+        <textarea
+          className="onboarding-textarea"
+          placeholder={t(
+            "onboarding.form.workContextPlaceholder",
+            "Describe your work, current focus, or what usually needs help.",
+          )}
+          value={profileContextDraft}
+          onChange={(e) => setProfileContextDraft(e.target.value)}
+          rows={5}
+        />
+      </div>
+      <div className="onboarding-actions">
+        <button
+          className="onboarding-btn onboarding-btn-primary"
+          onClick={() =>
+            onboarding.submitUserProfile(profileNameDraft, profileContextDraft)
+          }
+          disabled={!profileNameDraft.trim()}
+        >
+          {t("common.continue", "Continue")}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderTimeDrainsStep = () => {
+    const showOther = onboarding.data.timeDrains.includes("other");
+    return (
+      <div className="onboarding-step-panel">
+        {renderSelectionCards(
+          "timeDrain",
+          ONBOARDING_TIME_DRAINS,
+          onboarding.data.timeDrains,
+          toggleTimeDrain,
+        )}
+        {showOther && (
+          <div className="onboarding-form-group">
+            <label className="onboarding-form-label">
+              {t("onboarding.form.otherTimeDrain", "Other time drain")}
+            </label>
+            <input
+              className="onboarding-input"
+              placeholder={t(
+                "onboarding.form.otherTimeDrainPlaceholder",
+                "Describe the extra drag on your time",
+              )}
+              value={timeDrainsOtherDraft}
+              onChange={(e) => setTimeDrainsOtherDraft(e.target.value)}
+            />
+          </div>
+        )}
+        <div className="onboarding-actions">
+          <button
+            className="onboarding-btn onboarding-btn-primary"
+            onClick={() =>
+              onboarding.submitTimeDrains(
+                onboarding.data.timeDrains,
+                timeDrainsOtherDraft,
+              )
+            }
+            disabled={
+              onboarding.data.timeDrains.length === 0 ||
+              (showOther && !timeDrainsOtherDraft.trim())
+            }
+          >
+            {t("common.continue", "Continue")}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPrioritiesStep = () => {
+    const showOther = onboarding.data.priorities.includes("other");
+    return (
+      <div className="onboarding-step-panel">
+        {renderSelectionCards(
+          "priority",
+          ONBOARDING_PRIORITIES,
+          onboarding.data.priorities,
+          togglePriority,
+        )}
+        {showOther && (
+          <div className="onboarding-form-group">
+            <label className="onboarding-form-label">
+              {t("onboarding.form.otherPriority", "Other priority")}
+            </label>
+            <input
+              className="onboarding-input"
+              placeholder={t(
+                "onboarding.form.otherPriorityPlaceholder",
+                "Describe another way NeoWorker should help first",
+              )}
+              value={prioritiesOtherDraft}
+              onChange={(e) => setPrioritiesOtherDraft(e.target.value)}
+            />
+          </div>
+        )}
+        <div className="onboarding-actions">
+          <button
+            className="onboarding-btn onboarding-btn-primary"
+            onClick={() =>
+              onboarding.submitPriorities(
+                onboarding.data.priorities,
+                prioritiesOtherDraft,
+              )
+            }
+            disabled={
+              onboarding.data.priorities.length === 0 ||
+              (showOther && !prioritiesOtherDraft.trim())
+            }
+          >
+            {t("common.continue", "Continue")}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderToolsStep = () => (
+    <div className="onboarding-step-panel onboarding-form-panel">
+      <div className="onboarding-form-group">
+        <label className="onboarding-form-label">
+          {t("onboarding.form.coreTools", "Core apps and tools")}
+        </label>
+        <textarea
+          className="onboarding-textarea"
+          placeholder={t(
+            "onboarding.form.coreToolsPlaceholder",
+            "Gmail, Notion, Google Calendar, GitHub, YouTube Studio...",
+          )}
+          value={workflowToolsDraft}
+          onChange={(e) => setWorkflowToolsDraft(e.target.value)}
+          rows={4}
+        />
+      </div>
+      <div className="onboarding-actions">
+        <button
+          className="onboarding-btn onboarding-btn-primary"
+          onClick={() => onboarding.submitWorkflowTools(workflowToolsDraft)}
+          disabled={!workflowToolsDraft.trim()}
+        >
+          {t("common.continue", "Continue")}
+        </button>
+        <button
+          className="onboarding-btn onboarding-btn-secondary"
+          onClick={() => {
+            setWorkflowToolsDraft("");
+            onboarding.submitWorkflowTools("");
+          }}
+        >
+          {t("onboarding.nav.skip", "Skip onboarding")}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderResponseStyleStep = () => {
+    const selected = onboarding.data.responseStyle || "depends";
+    return (
+      <div className="onboarding-step-panel">
+        {renderSelectionCards(
+          "responseStyle",
+          ONBOARDING_RESPONSE_STYLES,
+          [selected],
+          (styleId) => selectResponseStyle(styleId),
+        )}
+        {selected === "custom" && (
+          <div className="onboarding-form-group">
+            <label className="onboarding-form-label">
+              {t(
+                "onboarding.form.customResponseStyle",
+                "Custom response style",
+              )}
+            </label>
+            <input
+              className="onboarding-input"
+              placeholder={t(
+                "onboarding.form.customResponseStylePlaceholder",
+                "Describe how you want responses to feel",
+              )}
+              value={responseStyleCustomDraft}
+              onChange={(e) => setResponseStyleCustomDraft(e.target.value)}
+            />
+          </div>
+        )}
+        <div className="onboarding-actions">
+          <button
+            className="onboarding-btn onboarding-btn-primary"
+            onClick={() =>
+              onboarding.submitResponseStyle(selected, responseStyleCustomDraft)
+            }
+            disabled={selected === "custom" && !responseStyleCustomDraft.trim()}
+          >
+            {t("common.continue", "Continue")}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAdditionalGuidanceStep = () => (
+    <div className="onboarding-step-panel onboarding-form-panel">
+      <div className="onboarding-form-group">
+        <label className="onboarding-form-label">
+          {t(
+            "onboarding.form.additionalGuidance",
+            "Anything else to always keep in mind?",
+          )}
+        </label>
+        <textarea
+          className="onboarding-textarea"
+          placeholder={t(
+            "onboarding.form.additionalGuidancePlaceholder",
+            "Share durable preferences, friction points, or hard rules. Leave blank to skip.",
+          )}
+          value={additionalGuidanceDraft}
+          onChange={(e) => setAdditionalGuidanceDraft(e.target.value)}
+          rows={4}
+        />
+      </div>
+      <div className="onboarding-actions">
+        <button
+          className="onboarding-btn onboarding-btn-primary"
+          onClick={() =>
+            onboarding.submitAdditionalGuidance(additionalGuidanceDraft)
+          }
+        >
+          {t("common.continue", "Continue")}
+        </button>
+      </div>
+    </div>
+  );
+
+  // Render work style buttons
+  const renderWorkStyleButtons = () => (
+    <div className="onboarding-actions">
+      <button
+        className="onboarding-btn onboarding-btn-secondary"
+        type="button"
+        onClick={() => onboarding.submitWorkStyle("planner")}
+      >
+        {t("onboarding.workStyle.structured", "Structured planning")}
+      </button>
+      <button
+        className="onboarding-btn onboarding-btn-secondary"
+        type="button"
+        onClick={() => onboarding.submitWorkStyle("flexible")}
+      >
+        {t("onboarding.workStyle.adaptive", "Adaptive execution")}
+      </button>
+    </div>
+  );
+
+  const renderVoiceOptions = () => (
+    <div className="onboarding-actions">
+      <button
+        className="onboarding-btn onboarding-btn-primary"
+        type="button"
+        onClick={() => onboarding.submitVoicePreference(true)}
+      >
+        {t("onboarding.voice.enableReplies", "Enable voice replies")}
+      </button>
+      <button
+        className="onboarding-btn onboarding-btn-secondary"
+        type="button"
+        onClick={() => onboarding.submitVoicePreference(false)}
+      >
+        {t("common.notNow", "Not now")}
+      </button>
+      <div
+        style={{
+          marginTop: 12,
+          color: "var(--onboarding-warm-white)",
+          opacity: 0.7,
+          fontSize: "0.9rem",
+          textAlign: "center",
+        }}
+      >
+        {t(
+          "onboarding.voice.changeLater",
+          "You can change this later in Settings > Voice.",
+        )}
+      </div>
+    </div>
+  );
+
+  const renderCapabilityPillars = () => (
+    <div
+      className="onboarding-capability-strip"
+      aria-label={t("onboarding.capability.aria", "Core capabilities")}
+    >
+      <div className="onboarding-capability-label">
+        {t("onboarding.capability.label", "How I work with you")}
+      </div>
+      <div className="onboarding-capability-pills">
+        {CAPABILITY_PILLARS.map((item) => (
+          <span key={item.key} className="onboarding-capability-pill">
+            {t(item.key, item.fallback)}
+          </span>
+        ))}
+      </div>
+      {onboarding.showIntroContinue && (
+        <button
+          type="button"
+          className="onboarding-btn-primary onboarding-intro-continue"
+          onClick={onboarding.continueFromIntro}
+        >
+          {t("common.continue", "Continue")}
+        </button>
+      )}
+    </div>
+  );
+
+  const showCapabilityPillarsOnce =
+    onboarding.state === "greeting" &&
+    onboarding.currentText === SCRIPT.greeting[SCRIPT.greeting.length - 1];
+
+  const renderMemoryTrustStep = () => (
+    <div className="onboarding-memory-trust">
+      <p className="onboarding-memory-trust-copy">
+        {t("onboarding.memoryTrust.title", "Choose what I remember:")}
+      </p>
+      <ul className="onboarding-memory-trust-list">
+        <li>
+          {t(
+            "onboarding.memoryTrust.onDescription",
+            "Memory on keeps useful preferences and recurring context from our chats.",
+          )}
+        </li>
+        <li>
+          {t(
+            "onboarding.memoryTrust.offDescription",
+            "Memory off means no memory storage at all until you re-enable it in Settings > Memory.",
+          )}
+        </li>
+        <li>
+          {t(
+            "onboarding.memoryTrust.reviewDescription",
+            "You can review, edit, or delete memory anytime in Settings > Memory.",
+          )}
+        </li>
+      </ul>
+      <button
+        className={`onboarding-memory-toggle ${onboarding.data.memoryEnabled ? "enabled" : ""}`}
+        role="switch"
+        aria-checked={onboarding.data.memoryEnabled}
+        onClick={() =>
+          onboarding.setMemoryTrustChoice(!onboarding.data.memoryEnabled)
+        }
+      >
+        <span className="onboarding-memory-toggle-track">
+          <span className="onboarding-memory-toggle-knob" />
+        </span>
+        <span className="onboarding-memory-toggle-label">
+          {onboarding.data.memoryEnabled
+            ? t("onboarding.memoryTrust.memoryOn", "Memory on")
+            : t("onboarding.memoryTrust.memoryOff", "Memory off")}
+        </span>
+      </button>
+      <div className="onboarding-actions" style={{ marginTop: 20 }}>
+        <button
+          className="onboarding-btn onboarding-btn-primary"
+          onClick={() =>
+            onboarding.submitMemoryTrust(onboarding.data.memoryEnabled)
+          }
+        >
+          {onboarding.data.memoryEnabled
+            ? t("onboarding.memoryTrust.continueOn", "Continue with memory on")
+            : t(
+                "onboarding.memoryTrust.continueOff",
+                "Continue with memory off",
+              )}
+        </button>
+      </div>
+    </div>
+  );
+
+  // Render style implications with countdown and change option
+  const renderStyleImplications = () => {
+    const implications =
+      onboarding.data.workStyle === "planner"
+        ? SCRIPT.style_implications_planner
+        : SCRIPT.style_implications_flexible;
+
+    return (
+      <div className="onboarding-style-implications">
+        <div className="onboarding-implications-list">
+          {implications.map((item, index) => (
+            <div key={index} className="onboarding-implication-item">
+              {item}
+            </div>
+          ))}
+        </div>
+        <div className="onboarding-implications-footer">
+          <button
+            className="onboarding-btn onboarding-btn-secondary onboarding-btn-sm"
+            onClick={onboarding.changeWorkStyle}
+          >
+            {t("common.change", "Change")}
+          </button>
+          <span className="onboarding-countdown">
+            {t("onboarding.style.continuingIn", "Continuing in {seconds}s...", {
+              seconds: onboarding.styleCountdown,
+            })}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  const localizedOptionTitle = <T extends string>(
+    namespace: OnboardingOptionNamespace,
+    options: Array<{ id: T; title: string }>,
+    id: T,
+  ): string => {
+    const option = options.find((item) => item.id === id);
+    return t(`onboarding.option.${namespace}.${id}.title`, option?.title || id);
+  };
+
+  const localizedSelectedTitles = <T extends string>(
+    namespace: OnboardingOptionNamespace,
+    options: Array<{ id: T; title: string }>,
+    selectedIds: T[],
+    otherId?: T,
+    otherText?: string,
+  ): string[] => {
+    const uniqueIds = Array.from(new Set(selectedIds));
+    const labels = uniqueIds
+      .filter((id) => id !== otherId)
+      .map((id) => localizedOptionTitle(namespace, options, id))
+      .filter((label) => label.trim().length > 0);
+
+    if (otherId && uniqueIds.includes(otherId) && otherText?.trim()) {
+      labels.push(otherText.trim());
+    }
+
+    return labels;
+  };
+
+  const joinLocalizedList = (items: string[]): string =>
+    items.join(language === "zh-CN" ? "、" : ", ");
+
+  const getLocalizedAssistantStyleSummary = (): string => {
+    const traits = localizedSelectedTitles(
+      "assistantTrait",
+      ONBOARDING_ASSISTANT_TRAITS,
+      onboarding.data.assistantTraits,
+    );
+    if (traits.length === 0) {
+      return t(
+        "onboarding.recap.assistantStyle.default",
+        "Direct, capable, and adaptive to the work.",
+      );
+    }
+    if (traits.length === 1) {
+      return t("onboarding.recap.assistantStyle.one", "{first}.", {
+        first: traits[0],
+      });
+    }
+    if (traits.length === 2) {
+      return t("onboarding.recap.assistantStyle.two", "{first} and {second}.", {
+        first: traits[0],
+        second: traits[1],
+      });
+    }
+    return t("onboarding.recap.assistantStyle.many", "{items}, and {last}.", {
+      items: joinLocalizedList(traits.slice(0, -1)),
+      last: traits[traits.length - 1],
+    });
+  };
+
+  const getLocalizedResponseStyleLabel = (): string => {
+    if (onboarding.data.responseStyle === "custom") {
+      return (
+        onboarding.data.responseStyleCustom.trim() ||
+        t("onboarding.option.responseStyle.custom.title", "Something else")
+      );
+    }
+    if (!onboarding.data.responseStyle) {
+      return t("onboarding.recap.notSet", "Not set yet");
+    }
+    return localizedOptionTitle(
+      "responseStyle",
+      ONBOARDING_RESPONSE_STYLES,
+      onboarding.data.responseStyle,
+    );
+  };
+
+  const renderPersonalizedRecap = () => {
+    const providerName = onboarding.data.selectedProvider
+      ? onboarding.data.selectedProvider === "openai" && !onboarding.data.apiKey
+        ? "ChatGPT"
+        : PROVIDERS.find(
+            (provider) => provider.id === onboarding.data.selectedProvider,
+          )?.name || onboarding.data.selectedProvider
+      : "Not configured yet";
+    const workStyleLabel =
+      onboarding.data.workStyle === "planner"
+        ? t("onboarding.recap.workStyle.structured", "Structured planning")
+        : onboarding.data.workStyle === "flexible"
+          ? t("onboarding.recap.workStyle.adaptive", "Adaptive execution")
+          : t("onboarding.recap.notSet", "Not set yet");
+    const localizedProviderName =
+      providerName === "Not configured yet"
+        ? t("onboarding.recap.notConfigured", "Not configured yet")
+        : providerName;
+    const memoryLabel = onboarding.data.memoryEnabled
+      ? t("onboarding.recap.on", "On")
+      : t("onboarding.recap.off", "Off");
+    const voiceLabel =
+      onboarding.data.voiceEnabled === null
+        ? t("onboarding.recap.notSet", "Not set yet")
+        : onboarding.data.voiceEnabled
+          ? t("common.enabled", "Enabled")
+          : t("common.disabled", "Disabled");
+    const assistantStyleSummary = getLocalizedAssistantStyleSummary();
+    const responseStyleLabel = getLocalizedResponseStyleLabel();
+    const timeDrains = localizedSelectedTitles(
+      "timeDrain",
+      ONBOARDING_TIME_DRAINS,
+      onboarding.data.timeDrains,
+      "other",
+      onboarding.data.timeDrainsOther,
+    );
+    const priorities = localizedSelectedTitles(
+      "priority",
+      ONBOARDING_PRIORITIES,
+      onboarding.data.priorities,
+      "other",
+      onboarding.data.prioritiesOther,
+    );
+    const hasWorkContext = Boolean(
+      onboarding.data.userContext.trim() ||
+      onboarding.data.workflowTools.trim(),
+    );
+    const hasFocusMap = timeDrains.length > 0 || priorities.length > 0;
+    const hasResponseGuidance = Boolean(
+      onboarding.data.responseStyle !== "depends" ||
+      onboarding.data.additionalGuidance.trim(),
+    );
+    const hasOperatingMode = Boolean(
+      onboarding.data.workStyle || onboarding.data.voiceEnabled !== null,
+    );
+
+    const renderEditButton = (
+      label: string,
+      target: Parameters<typeof onboarding.editRecapSection>[0],
+    ) => (
+      <button
+        type="button"
+        className="onboarding-recap-edit-btn"
+        onClick={() => onboarding.editRecapSection(target)}
+      >
+        {label}
+      </button>
+    );
+
+    return (
+      <div className="onboarding-recap">
+        <div className="onboarding-recap-hero">
+          <div className="onboarding-recap-header">
+            <span className="onboarding-recap-eyebrow">
+              {t("onboarding.recap.eyebrow", "Ready to start")}
+            </span>
+            <h2>
+              {providerName === "ChatGPT"
+                ? t(
+                    "onboarding.recap.chatgptConnected",
+                    "ChatGPT is connected.",
+                  )
+                : t("onboarding.recap.setupReady", "Your setup is ready.")}
+            </h2>
+            <p>
+              {t(
+                "onboarding.recap.subtitle",
+                "Review the essentials, tune anything that feels off, then start working.",
+              )}
+            </p>
+          </div>
+          <div
+            className="onboarding-recap-provider-badge"
+            aria-label={t(
+              "onboarding.recap.providerAria",
+              "Provider: {provider}",
+              {
+                provider: localizedProviderName,
+              },
+            )}
+          >
+            <span aria-hidden="true" />
+            {localizedProviderName}
+          </div>
+        </div>
+
+        <div className="onboarding-recap-scroll" tabIndex={0}>
+          <div
+            className="onboarding-recap-status-grid"
+            aria-label={t("onboarding.recap.setupStatus", "Setup status")}
+          >
+            <div className="onboarding-recap-status-item">
+              <span>{t("onboarding.recap.assistant", "Assistant")}</span>
+              <strong>
+                {onboarding.data.assistantName || DEFAULT_ASSISTANT_NAME}
+              </strong>
+            </div>
+            <div className="onboarding-recap-status-item">
+              <span>{t("onboarding.recap.memory", "Memory")}</span>
+              <strong>{memoryLabel}</strong>
+            </div>
+            <div className="onboarding-recap-status-item">
+              <span>{t("onboarding.recap.mode", "Mode")}</span>
+              <strong>{workStyleLabel}</strong>
+            </div>
+          </div>
+
+          <div
+            className="onboarding-recap-card-grid"
+            aria-label={t(
+              "onboarding.recap.gridAria",
+              "Onboarding setup recap",
+            )}
+          >
+            <section className="onboarding-recap-card onboarding-recap-card-featured">
+              <div className="onboarding-recap-card-copy">
+                <span className="onboarding-recap-row-label">
+                  {t("onboarding.recap.assistant", "Assistant")}
+                </span>
+                <strong>
+                  {onboarding.data.assistantName || DEFAULT_ASSISTANT_NAME}
+                </strong>
+                <p>{assistantStyleSummary}</p>
+              </div>
+              <div className="onboarding-recap-edit-actions">
+                {renderEditButton(
+                  t("onboarding.recap.edit.name", "Name"),
+                  "name",
+                )}
+                {renderEditButton(
+                  t("onboarding.recap.edit.traits", "Traits"),
+                  "assistant_traits",
+                )}
+              </div>
+            </section>
+
+            <section className="onboarding-recap-card">
+              <div className="onboarding-recap-card-copy">
+                <span className="onboarding-recap-row-label">
+                  {t("onboarding.recap.aiProvider", "AI provider")}
+                </span>
+                <strong>{localizedProviderName}</strong>
+                <p>
+                  {onboarding.data.selectedProvider
+                    ? t(
+                        "onboarding.recap.providerReady",
+                        "Ready for reasoning and task execution.",
+                      )
+                    : t(
+                        "onboarding.recap.providerLater",
+                        "You can add a provider later in Settings.",
+                      )}
+                </p>
+              </div>
+              <div className="onboarding-recap-edit-actions">
+                {renderEditButton(
+                  t("onboarding.recap.edit.change", "Change"),
+                  "model",
+                )}
+              </div>
+            </section>
+
+            <section className="onboarding-recap-card">
+              <div className="onboarding-recap-card-copy">
+                <span className="onboarding-recap-row-label">
+                  {t("onboarding.recap.memory", "Memory")}
+                </span>
+                <strong>{memoryLabel}</strong>
+                <p>
+                  {onboarding.data.memoryEnabled
+                    ? t(
+                        "onboarding.recap.memoryOnDesc",
+                        "Preferences and context can carry across conversations.",
+                      )
+                    : t(
+                        "onboarding.recap.memoryOffDesc",
+                        "No memory will be stored until you turn it on.",
+                      )}
+                </p>
+              </div>
+              <div className="onboarding-recap-edit-actions">
+                {renderEditButton(
+                  t("onboarding.recap.edit.change", "Change"),
+                  "memory",
+                )}
+              </div>
+            </section>
+
+            {hasWorkContext && (
+              <section className="onboarding-recap-card">
+                <div className="onboarding-recap-card-copy">
+                  <span className="onboarding-recap-row-label">
+                    {t("onboarding.recap.workContext", "Work context")}
+                  </span>
+                  <strong>
+                    {onboarding.data.userName ||
+                      t("onboarding.recap.userFallback", "User")}
+                  </strong>
+                  <p>
+                    {onboarding.data.userContext ||
+                      onboarding.data.workflowTools}
+                  </p>
+                </div>
+                <div className="onboarding-recap-edit-actions">
+                  {renderEditButton(
+                    t("onboarding.recap.edit.profile", "Profile"),
+                    "user_profile",
+                  )}
+                  {renderEditButton(
+                    t("onboarding.recap.edit.tools", "Tools"),
+                    "tools",
+                  )}
+                </div>
+              </section>
+            )}
+
+            {hasFocusMap && (
+              <section className="onboarding-recap-card">
+                <div className="onboarding-recap-card-copy">
+                  <span className="onboarding-recap-row-label">
+                    {t("onboarding.recap.focus", "Focus")}
+                  </span>
+                  <strong>
+                    {priorities.join(", ") ||
+                      t("onboarding.recap.priorities", "Priorities")}
+                  </strong>
+                  <p>
+                    {timeDrains.length > 0
+                      ? t(
+                          "onboarding.recap.timeDrains",
+                          "Time drains: {items}",
+                          { items: timeDrains.join(", ") },
+                        )
+                      : t(
+                          "onboarding.recap.prioritiesReady",
+                          "Priorities are ready.",
+                        )}
+                  </p>
+                </div>
+                <div className="onboarding-recap-edit-actions">
+                  {renderEditButton(
+                    t("onboarding.recap.edit.drains", "Drains"),
+                    "time_drains",
+                  )}
+                  {renderEditButton(
+                    t("onboarding.recap.edit.priorities", "Priorities"),
+                    "priorities",
+                  )}
+                </div>
+              </section>
+            )}
+
+            {(hasResponseGuidance || hasOperatingMode) && (
+              <section className="onboarding-recap-card">
+                <div className="onboarding-recap-card-copy">
+                  <span className="onboarding-recap-row-label">
+                    {t("onboarding.recap.workingStyle", "Working style")}
+                  </span>
+                  <strong>
+                    {hasResponseGuidance ? responseStyleLabel : workStyleLabel}
+                  </strong>
+                  <p>
+                    {[
+                      hasOperatingMode
+                        ? t(
+                            "onboarding.recap.workStyleLine",
+                            "Work style: {style}",
+                            { style: workStyleLabel },
+                          )
+                        : null,
+                      onboarding.data.voiceEnabled !== null
+                        ? t("onboarding.recap.voiceLine", "Voice: {voice}", {
+                            voice: voiceLabel,
+                          })
+                        : null,
+                      onboarding.data.additionalGuidance.trim() || null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                </div>
+                <div className="onboarding-recap-edit-actions">
+                  {renderEditButton(
+                    t("onboarding.recap.edit.style", "Style"),
+                    "response_style",
+                  )}
+                  {renderEditButton(
+                    t("onboarding.recap.edit.voice", "Voice"),
+                    "voice",
+                  )}
+                </div>
+              </section>
+            )}
+          </div>
+
+          {(!hasWorkContext ||
+            !hasFocusMap ||
+            !hasResponseGuidance ||
+            !hasOperatingMode) && (
+            <div className="onboarding-recap-optional">
+              <div>
+                <span className="onboarding-recap-row-label">
+                  {t(
+                    "onboarding.recap.optionalTitle",
+                    "Optional personalization",
+                  )}
+                </span>
+                <p>
+                  {t(
+                    "onboarding.recap.optionalDesc",
+                    "Add more context now, or start with ChatGPT and fill this in later.",
+                  )}
+                </p>
+              </div>
+              <div className="onboarding-recap-edit-actions">
+                {!hasWorkContext &&
+                  renderEditButton(
+                    t("onboarding.recap.edit.addProfile", "Add profile"),
+                    "user_profile",
+                  )}
+                {!hasFocusMap &&
+                  renderEditButton(
+                    t("onboarding.recap.edit.addPriorities", "Add priorities"),
+                    "priorities",
+                  )}
+                {!hasResponseGuidance &&
+                  renderEditButton(
+                    t("onboarding.recap.edit.setStyle", "Set style"),
+                    "response_style",
+                  )}
+                {!hasOperatingMode &&
+                  renderEditButton(
+                    t("onboarding.recap.edit.workMode", "Work mode"),
+                    "style",
+                  )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="onboarding-actions onboarding-recap-actions">
+          <button
+            className="onboarding-btn onboarding-btn-primary"
+            onClick={handleContinueFromRecap}
+          >
+            {t("onboarding.recap.looksGood", "Looks good")}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderFinalTryPrompt = () => (
+    <div className="onboarding-final-try">
+      <p className="onboarding-final-try-copy">
+        {t(
+          "onboarding.finalTry.copy",
+          "Try one prompt now and I'll respond instantly.",
+        )}
+      </p>
+
+      <div className="onboarding-final-try-suggestions">
+        {FINAL_TRY_SUGGESTIONS.map((mission) => (
+          <button
+            key={mission.title}
+            className="onboarding-final-try-suggestion"
+            onClick={() => {
+              setInputValue(mission.prompt);
+              setVoiceError(null);
+            }}
+          >
+            {mission.title}
+          </button>
+        ))}
+      </div>
+
+      <div className="onboarding-final-try-input-row">
+        <input
+          className="onboarding-input onboarding-final-try-input"
+          placeholder={t("onboarding.finalTry.placeholder", "Try me now...")}
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          autoFocus
+        />
+        {voiceInput.isConfigured && (
+          <button
+            className={`onboarding-final-try-voice-btn ${
+              voiceInput.state === "recording" ? "recording" : ""
+            }`}
+            onClick={handleVoiceClick}
+            disabled={voiceInput.state === "processing"}
+            aria-label={t("onboarding.finalTry.useVoice", "Use voice input")}
+            title={t("onboarding.finalTry.useVoice", "Use voice input")}
+          >
+            {voiceInput.state === "processing" ? (
+              <svg
+                className="onboarding-spinner"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  strokeDasharray="31.4"
+                  strokeDashoffset="10"
+                />
+              </svg>
+            ) : (
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            )}
+          </button>
+        )}
+      </div>
+
+      {voiceError && (
+        <div
+          className="onboarding-voice-error onboarding-final-try-voice-error"
+          role="alert"
+        >
+          {voiceError}
+        </div>
+      )}
+
+      <div className="onboarding-actions onboarding-final-try-actions">
+        <button
+          className="onboarding-btn onboarding-btn-primary"
+          onClick={handleConfidencePromptSubmit}
+          disabled={!inputValue.trim()}
+        >
+          {t("onboarding.finalTry.tryIt", "Try it")}
+        </button>
+        <button
+          className="onboarding-btn onboarding-btn-secondary"
+          onClick={onboarding.completeOnboarding}
+        >
+          {t("onboarding.finalTry.enterNeoWorker", "Enter NeoWorker")}
+        </button>
+      </div>
+
+      {confidenceResponse && (
+        <div className="onboarding-final-try-response">
+          <div className="onboarding-final-try-response-title">
+            {onboarding.data.assistantName || DEFAULT_ASSISTANT_NAME}
+          </div>
+          <p>{confidenceResponse}</p>
+          {confidencePrompt && (
+            <div className="onboarding-final-try-prompt">
+              {t("onboarding.finalTry.promptLabel", "Prompt:")}{" "}
+              <span>{confidencePrompt}</span>
+            </div>
+          )}
+          <button
+            className="onboarding-btn onboarding-btn-primary onboarding-final-try-enter-btn"
+            onClick={onboarding.completeOnboarding}
+          >
+            {t("onboarding.finalTry.startInWorkspace", "Start in workspace")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  // Render Ollama auto-detection card
+  const renderOllamaDetection = () => {
+    const modelName = onboarding.data.detectedOllamaModel || "Ollama";
+
+    return (
+      <div className="onboarding-ollama-detection">
+        <div className="onboarding-ollama-detection-icon">
+          <svg
+            width="32"
+            height="32"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
+            <rect x="4" y="4" width="16" height="16" rx="2" />
+            <path d="M9 9h6v6H9z" />
+          </svg>
+        </div>
+        <p className="onboarding-ollama-detection-model">{modelName}</p>
+        <p className="onboarding-ollama-detection-note">
+          {t(
+            "onboarding.ollama.localNote",
+            "Local model — no API key needed, completely private.",
+          )}
+        </p>
+        <div className="onboarding-actions" style={{ marginTop: 20 }}>
+          <button
+            className="onboarding-btn onboarding-btn-primary"
+            onClick={() => onboarding.acceptOllamaDetection()}
+          >
+            {t("onboarding.ollama.useModel", "Use {model}", {
+              model: modelName,
+            })}
+          </button>
+          <button
+            className="onboarding-btn onboarding-btn-secondary"
+            onClick={() => onboarding.declineOllamaDetection()}
+          >
+            {t("onboarding.ollama.chooseAnother", "Choose another provider")}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Render provider selection
+  const renderProviders = () => (
+    <div
+      className={`onboarding-setup-section ${onboarding.showProviders ? "visible" : ""}`}
+    >
+      <div className="onboarding-ai-primary-grid">
+        <button
+          type="button"
+          className="onboarding-ai-primary-card"
+          onClick={onboarding.signInWithChatGPT}
+          disabled={onboarding.chatGptSignInLoading}
+        >
+          <span className="onboarding-ai-primary-title">
+            {onboarding.chatGptSignInLoading
+              ? t("onboarding.provider.openingChatGpt", "Opening ChatGPT...")
+              : t("onboarding.provider.signInChatGpt", "Sign in with ChatGPT")}
+          </span>
+          <span className="onboarding-ai-primary-copy">
+            {t(
+              "onboarding.provider.chatGptDescription",
+              "Easiest if you already use ChatGPT. No API key required.",
+            )}
+          </span>
+        </button>
+        {onboarding.data.detectedOllamaModel ? (
+          <button
+            type="button"
+            className="onboarding-ai-primary-card"
+            onClick={() => onboarding.acceptOllamaDetection()}
+          >
+            <span className="onboarding-ai-primary-title">
+              {t("onboarding.provider.useLocalOllama", "Use local Ollama")}
+            </span>
+            <span className="onboarding-ai-primary-copy">
+              {t(
+                "onboarding.provider.ollamaFound",
+                "Found {model} on this computer. Runs privately.",
+                {
+                  model: onboarding.data.detectedOllamaModel,
+                },
+              )}
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="onboarding-ai-primary-card muted"
+            disabled
+          >
+            <span className="onboarding-ai-primary-title">
+              {t("onboarding.provider.useLocalOllama", "Use local Ollama")}
+            </span>
+            <span className="onboarding-ai-primary-copy">
+              {t(
+                "onboarding.provider.noOllama",
+                "No local model detected. Install Ollama and pull a model, then run setup again.",
+              )}
+            </span>
+          </button>
+        )}
+      </div>
+      {onboarding.chatGptSignInError && (
+        <div className="onboarding-test-result error">
+          <span>{onboarding.chatGptSignInError}</span>
+        </div>
+      )}
+      <div className="onboarding-provider-heading">
+        {t(
+          "onboarding.provider.advancedHeading",
+          "Use an API key or advanced provider",
+        )}
+      </div>
+      <div className="onboarding-provider-pills">
+        {PROVIDERS.map((provider) => (
+          <button
+            key={provider.id}
+            className={`onboarding-provider-pill ${
+              onboarding.data.selectedProvider === provider.id ? "selected" : ""
+            }`}
+            onClick={() => onboarding.selectProvider(provider.id)}
+          >
+            <span className="onboarding-provider-name">{provider.name}</span>
+            {provider.badge && (
+              <span className="onboarding-provider-badge">
+                {provider.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      <div className="onboarding-actions" style={{ marginTop: 24 }}>
+        <button
+          className="onboarding-btn onboarding-btn-secondary"
+          onClick={onboarding.skipLLMSetup}
+        >
+          {t("onboarding.provider.exploreWithoutAi", "Explore without AI")}
+        </button>
+      </div>
+    </div>
+  );
+
+  // Render API key input
+  const renderApiKeyInput = () => {
+    const provider = onboarding.data.selectedProvider;
+    const url = provider ? PROVIDER_URLS[provider] : null;
+
+    return (
+      <div
+        className={`onboarding-api-input-section ${onboarding.showApiInput ? "visible" : ""}`}
+      >
+        {url && (
+          <p className="onboarding-api-hint">
+            {t("onboarding.provider.getKeyFrom", "Get your key from")}{" "}
+            <a href={url} target="_blank" rel="noopener noreferrer">
+              {provider === "anthropic"
+                ? "Anthropic"
+                : provider === "openai"
+                  ? "OpenAI"
+                  : provider === "gemini"
+                    ? "Google AI Studio"
+                    : provider === "openrouter"
+                      ? "OpenRouter"
+                      : provider === "groq"
+                        ? "Groq Console"
+                        : provider === "xai"
+                          ? "xAI Console"
+                          : provider === "deepseek"
+                            ? "DeepSeek Platform"
+                            : "Moonshot Platform"}
+            </a>
+          </p>
+        )}
+        <div className="onboarding-input-container">
+          <input
+            type="password"
+            className="onboarding-input"
+            placeholder={t(
+              "onboarding.provider.apiKeyPlaceholder",
+              "Paste your API key",
+            )}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            autoFocus
+          />
+          <div className="onboarding-actions">
+            <button
+              className="onboarding-btn onboarding-btn-primary"
+              onClick={handleInputSubmit}
+              disabled={!inputValue.trim()}
+            >
+              {t("common.connect", "Connect")}
+            </button>
+            <button
+              className="onboarding-btn onboarding-btn-secondary"
+              onClick={onboarding.skipLLMSetup}
+            >
+              {t("common.skip", "Skip")}
+            </button>
+          </div>
+        </div>
+        {onboarding.testResult && !onboarding.testResult.success && (
+          <div className="onboarding-test-result error">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="15" y1="9" x2="9" y2="15" />
+              <line x1="9" y1="9" x2="15" y2="15" />
+            </svg>
+            <span>
+              {onboarding.testResult.error ||
+                t("onboarding.provider.connectionFailed", "Connection failed")}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render name input
+  const renderNameInput = () => (
+    <div className="onboarding-input-container">
+      {inputMode === "voice" && voiceInput.isConfigured ? (
+        <>
+          <button
+            className={`onboarding-voice-btn ${
+              voiceInput.state === "recording"
+                ? "recording"
+                : voiceInput.state === "processing"
+                  ? "processing"
+                  : ""
+            }`}
+            onClick={handleVoiceClick}
+            disabled={voiceInput.state === "processing"}
+          >
+            {voiceInput.state === "processing" ? (
+              <svg
+                className="onboarding-spinner"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  strokeDasharray="31.4"
+                  strokeDashoffset="10"
+                />
+              </svg>
+            ) : voiceInput.state === "recording" ? (
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <rect x="6" y="6" width="12" height="12" rx="2" />
+              </svg>
+            ) : (
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            )}
+          </button>
+          {inputValue && (
+            <div
+              style={{
+                marginTop: 16,
+                color: "var(--onboarding-warm-white)",
+                fontSize: "1rem",
+              }}
+            >
+              "{inputValue}"
+            </div>
+          )}
+          {inputValue && (
+            <button
+              className="onboarding-btn onboarding-btn-primary"
+              onClick={handleInputSubmit}
+              style={{ marginTop: 16 }}
+            >
+              {t("onboarding.name.thatsMyChoice", "That's my choice")}
+            </button>
+          )}
+          {voiceError && (
+            <div className="onboarding-voice-error" role="alert">
+              {voiceError}
+            </div>
+          )}
+          {renderVoiceRecoveryHelp()}
+          {isMicrophonePermissionError && (
+            <button
+              className="onboarding-btn onboarding-btn-secondary onboarding-btn-sm onboarding-voice-fix-btn"
+              onClick={openMicrophoneSettings}
+            >
+              {t(
+                "onboarding.voice.openMicrophoneSettings",
+                "Open Microphone Settings",
+              )}
+            </button>
+          )}
+          {isSpeechServiceUnavailableError && (
+            <button
+              className="onboarding-btn onboarding-btn-secondary onboarding-btn-sm onboarding-voice-fix-btn"
+              onClick={openMicrophoneSettings}
+            >
+              {t(
+                "onboarding.voice.openMicrophoneSettings",
+                "Open Microphone Settings",
+              )}
+            </button>
+          )}
+          <button
+            className="onboarding-mode-toggle"
+            onClick={() => setInputMode("keyboard")}
+          >
+            {t("onboarding.name.typeInstead", "Type instead")}
+          </button>
+        </>
+      ) : (
+        <>
+          <input
+            className="onboarding-input"
+            placeholder={t(
+              "onboarding.name.placeholder",
+              "Enter a name (or press Enter to skip)",
+            )}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            autoFocus
+          />
+          <button
+            className="onboarding-btn onboarding-btn-primary"
+            onClick={handleInputSubmit}
+            style={{ marginTop: 16 }}
+          >
+            {inputValue.trim()
+              ? t("common.continue", "Continue")
+              : t("common.skip", "Skip")}
+          </button>
+          {voiceInput.isConfigured && (
+            <button
+              className="onboarding-mode-toggle"
+              onClick={() => {
+                setVoiceError(null);
+                setInputMode("voice");
+              }}
+            >
+              {t("onboarding.name.useVoice", "Use voice")}
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <div
+      className={`cinematic-onboarding onboarding-state-${onboarding.state} ${
+        onboarding.state === "transitioning" ? "transitioning" : ""
+      }`}
+    >
+      {/* Ambient background */}
+      <div className="onboarding-ambient" />
+
+      {onboarding.canGoBack && (
+        <button
+          className="onboarding-back-btn"
+          onClick={onboarding.goBack}
+          aria-label={t(
+            "onboarding.nav.backAria",
+            "Go back to previous onboarding step",
+          )}
+          title={t("common.back", "Back")}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+      )}
+
+      <div className="onboarding-top-right-controls">
+        <button
+          className="onboarding-skip-btn"
+          onClick={onboarding.exitOnboarding}
+          aria-label={t("onboarding.nav.skipAria", "Skip onboarding")}
+          title={t("onboarding.nav.skipAria", "Skip onboarding")}
+          type="button"
+        >
+          {t("onboarding.nav.skip", "Skip onboarding")}
+        </button>
+
+        <div className="onboarding-control-btn-wrap">
+          <button
+            className="onboarding-theme-btn"
+            onClick={toggleThemeMode}
+            aria-label={
+              themeMode === "light"
+                ? t("onboarding.theme.switchDark", "Switch to dark mode")
+                : t("onboarding.theme.switchLight", "Switch to light mode")
+            }
+            title={
+              themeMode === "light"
+                ? t("onboarding.theme.switchDark", "Switch to dark mode")
+                : t("onboarding.theme.switchLight", "Switch to light mode")
+            }
+          >
+            {themeMode === "light" ? (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />
+              </svg>
+            ) : (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle cx="12" cy="12" r="5" />
+                <line x1="12" y1="1" x2="12" y2="3" />
+                <line x1="12" y1="21" x2="12" y2="23" />
+                <line x1="4.2" y1="4.2" x2="5.6" y2="5.6" />
+                <line x1="18.4" y1="18.4" x2="19.8" y2="19.8" />
+                <line x1="1" y1="12" x2="3" y2="12" />
+                <line x1="21" y1="12" x2="23" y2="12" />
+                <line x1="4.2" y1="19.8" x2="5.6" y2="18.4" />
+                <line x1="18.4" y1="5.6" x2="19.8" y2="4.2" />
+              </svg>
+            )}
+          </button>
+          {showControlHints && onboarding.state === "greeting" && (
+            <span className="onboarding-control-once-hint">
+              {t("onboarding.theme.label", "Theme")}
+            </span>
+          )}
+        </div>
+
+        <div className="onboarding-control-btn-wrap">
+          <button
+            className={`onboarding-music-btn ${musicEnabled ? "active" : ""}`}
+            onClick={toggleMusicEnabled}
+            aria-label={
+              musicEnabled
+                ? t("onboarding.music.mute", "Mute background music")
+                : t("onboarding.music.enable", "Enable background music")
+            }
+            title={
+              musicEnabled
+                ? t("onboarding.music.mute", "Mute background music")
+                : t("onboarding.music.enable", "Enable background music")
+            }
+          >
+            {musicEnabled ? (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+              </svg>
+            ) : (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                <line x1="23" y1="9" x2="17" y2="15" />
+                <line x1="17" y1="9" x2="23" y2="15" />
+              </svg>
+            )}
+          </button>
+          {showControlHints && onboarding.state === "greeting" && (
+            <span className="onboarding-control-once-hint">
+              {t("onboarding.music.label", "Music")}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div
+        className={`onboarding-content ${isCompactRecapStep ? "onboarding-content-compact" : ""}`}
+      >
+        {/* Orb */}
+        <AwakeningOrb
+          state={getOrbState()}
+          audioLevel={
+            voiceInput.state === "recording" ? voiceInput.audioLevel : 0
+          }
+        />
+
+        {/* Text */}
+        {onboarding.currentText &&
+          onboarding.state !== "dormant" &&
+          onboarding.state !== "recap" && (
+            <TypewriterText
+              text={onboarding.currentText}
+              speed={40}
+              onComplete={onboarding.onTextComplete}
+              showCursor={
+                onboarding.state !== "ask_name" &&
+                onboarding.state !== "ask_assistant_traits" &&
+                onboarding.state !== "ask_user_profile" &&
+                onboarding.state !== "ask_time_drains" &&
+                onboarding.state !== "ask_priorities" &&
+                onboarding.state !== "ask_tools" &&
+                onboarding.state !== "ask_response_style" &&
+                onboarding.state !== "ask_additional_guidance" &&
+                onboarding.state !== "ask_voice" &&
+                onboarding.state !== "ask_work_style" &&
+                onboarding.state !== "ask_memory_trust" &&
+                onboarding.state !== "ollama_detected" &&
+                onboarding.state !== "llm_setup" &&
+                onboarding.state !== "llm_api_key" &&
+                onboarding.state !== "final_try"
+              }
+            />
+          )}
+
+        {/* Product positioning cue (intro only) */}
+        {showCapabilityPillarsOnce && renderCapabilityPillars()}
+
+        {/* Name input */}
+        {onboarding.showInput &&
+          onboarding.state === "ask_name" &&
+          renderNameInput()}
+
+        {onboarding.state === "ask_assistant_traits" &&
+          renderAssistantTraitStep()}
+
+        {onboarding.state === "ask_user_profile" && renderUserProfileStep()}
+
+        {onboarding.state === "ask_time_drains" && renderTimeDrainsStep()}
+
+        {onboarding.state === "ask_priorities" && renderPrioritiesStep()}
+
+        {onboarding.state === "ask_tools" && renderToolsStep()}
+
+        {onboarding.state === "ask_response_style" && renderResponseStyleStep()}
+
+        {onboarding.state === "ask_additional_guidance" &&
+          renderAdditionalGuidanceStep()}
+
+        {/* Voice suggestion */}
+        {onboarding.showVoiceOptions &&
+          onboarding.state === "ask_voice" &&
+          renderVoiceOptions()}
+
+        {/* Work style buttons */}
+        {onboarding.showInput &&
+          onboarding.state === "ask_work_style" &&
+          renderWorkStyleButtons()}
+
+        {/* Style implications with countdown */}
+        {onboarding.showStyleImplications && renderStyleImplications()}
+
+        {/* Memory trust toggle */}
+        {onboarding.state === "ask_memory_trust" && renderMemoryTrustStep()}
+
+        {/* Ollama auto-detection */}
+        {onboarding.showOllamaDetection && renderOllamaDetection()}
+
+        {/* Provider selection */}
+        {onboarding.showProviders && renderProviders()}
+
+        {/* API key input */}
+        {onboarding.showApiInput && renderApiKeyInput()}
+
+        {/* Personalized recap */}
+        {onboarding.state === "recap" && renderPersonalizedRecap()}
+
+        {/* Final confidence moment */}
+        {onboarding.state === "final_try" && renderFinalTryPrompt()}
+
+        {/* Testing indicator */}
+        {onboarding.state === "llm_testing" && (
+          <div className="onboarding-test-result">
+            <svg
+              className="onboarding-spinner"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+                strokeDasharray="31.4"
+                strokeDashoffset="10"
+              />
+            </svg>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default Onboarding;

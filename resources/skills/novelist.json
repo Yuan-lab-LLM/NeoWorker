@@ -1,0 +1,116 @@
+{
+  "id": "novelist",
+  "name": "Novelist",
+  "description": "Draft, revise, and package a novel with a mostly autonomous workflow and durable artifacts.",
+  "icon": "📚",
+  "category": "Writing",
+  "prompt": "# novelist\n\nWrite a complete novel from this brief:\n- Seed: {{seed}}\n- Genre: {{genre}}\n- Target words: {{target_words}}\n- Chapter count: {{chapter_count}}\n- Packaging: {{packaging}}\n- Canon mode: {{canon_mode}}\n\nPrimary artifact root: `{artifactDir}`\n\nExpected core artifacts under `{artifactDir}`:\n- `{artifactDir}/brief.md`\n- `{artifactDir}/world.md`\n- `{artifactDir}/characters.md`\n- `{artifactDir}/outline.md`\n- `{artifactDir}/voice.md`\n- `{artifactDir}/canon.md`\n- `{artifactDir}/progress.json`\n- `{artifactDir}/chapters/`\n- `{artifactDir}/manuscript_complete.md`\n- `{artifactDir}/revision-notes.md`\n- `{artifactDir}/manifest.md`\n\nExecution rules:\n1. Read `{baseDir}/SKILL.md` and follow it exactly.\n2. Default to autonomous execution. Ask for user input only if the seed is missing or there is a single high-impact choice that cannot be inferred safely.\n3. Resume from existing `{artifactDir}` state if present instead of restarting.\n4. Produce durable artifacts, not chat-only drafts.\n5. Use built-in document tools for packaging when possible; do not improvise ad hoc export scripts unless you have verified the built-ins cannot satisfy the request.\n6. If packaging fails, stop retrying after one grounded retry, record the exact blocker in `{artifactDir}/manifest.md`, and still deliver the manuscript plus any successful formats.\n7. End with a concise manifest of files produced, word count, chapter count, and any exact blockers that remain.",
+  "parameters": [
+    {
+      "name": "seed",
+      "type": "string",
+      "description": "The story seed, premise, or franchise brief",
+      "required": true
+    },
+    {
+      "name": "genre",
+      "type": "select",
+      "description": "Primary genre or tonal lane",
+      "required": false,
+      "default": "science fantasy",
+      "options": [
+        "science fantasy",
+        "space opera",
+        "political thriller",
+        "epic fantasy",
+        "mystery",
+        "literary"
+      ]
+    },
+    {
+      "name": "target_words",
+      "type": "number",
+      "description": "Approximate final manuscript length",
+      "required": false,
+      "default": 45000
+    },
+    {
+      "name": "chapter_count",
+      "type": "number",
+      "description": "Planned chapter count",
+      "required": false,
+      "default": 20
+    },
+    {
+      "name": "packaging",
+      "type": "select",
+      "description": "How aggressively to package the finished book",
+      "required": false,
+      "default": "epub+pdf+manuscript",
+      "options": [
+        "manuscript-only",
+        "epub+manuscript",
+        "epub+pdf+manuscript"
+      ]
+    },
+    {
+      "name": "canon_mode",
+      "type": "select",
+      "description": "How to treat existing franchises or universes",
+      "required": false,
+      "default": "fanfiction",
+      "options": [
+        "original",
+        "fanfiction",
+        "inspired-by"
+      ]
+    }
+  ],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks to write a novel, novella, chaptered long-form fiction, or a complete fiction pipeline with worldbuilding, outline, drafting, revision, and packaging.",
+      "dontUseWhen": "Do not use for short copy, essays, poems, one-off scenes, or high-level brainstorming without a drafting request.",
+      "outputs": "A completed manuscript pipeline with durable files such as brief, world bible, character sheets, outline, chapter drafts, revision notes, manuscript assembly, and packaged ebook/document outputs.",
+      "successCriteria": "Creates a coherent long-form fiction artifact set, minimizes unnecessary clarification turns, avoids repetitive retry loops, and reports exact blockers when packaging cannot be completed.",
+      "expectedArtifacts": [
+        "brief.md",
+        "world.md",
+        "characters.md",
+        "outline.md",
+        "voice.md",
+        "canon.md",
+        "progress.json",
+        "manuscript_complete.md",
+        "revision-notes.md",
+        "manifest.md"
+      ],
+      "keywords": [
+        "novel",
+        "novelist",
+        "chapter",
+        "manuscript",
+        "world bible",
+        "fanfiction",
+        "write a book"
+      ],
+      "examples": {
+        "positive": [
+          "Write a new novel from this premise and package it.",
+          "Use the novelist skill.",
+          "Draft a complete sci-fi manuscript with chapters and ebook output.",
+          "Turn this seed into a full novel."
+        ],
+        "negative": [
+          "Write a tweet thread.",
+          "Give me three story ideas only.",
+          "Summarize this article.",
+          "Brainstorm themes for a possible novel but do not draft it."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "high"
+    }
+  }
+}

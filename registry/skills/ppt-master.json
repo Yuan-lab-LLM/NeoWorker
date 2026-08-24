@@ -1,0 +1,159 @@
+{
+  "id": "ppt-master",
+  "name": "PPT Master（高级）",
+  "description": "An opt-in advanced PowerPoint workflow for template filling, reconstruction, native enhancement, animation, narration, and deep visual review.",
+  "icon": "🎛️",
+  "category": "Content Creation",
+  "priority": 19,
+  "prompt": "# PPT Master（高级）\n\nThis is an explicit opt-in workflow. It is active because the user manually selected PPT Master; do not silently replace it with Presentation Studio, Visual Presentation, or the legacy quick-template generator.\n\nInputs:\n- Route: {{route}}\n- Profile: {{profile}}\n- Language: {{language}}\n- Source path: {{source_path}}\n- Optional export mirror: {{output_dir}}\n- Animation: {{animation}}\n- Narration: {{narration}}\n\nExecution workflow:\n1. The canonical task project directory is exactly `{artifactDir}`. Do not append another `ppt-master` segment. Keep the auditable project and its final delivery inside this directory even when {{output_dir}} requests an additional export mirror. Never overwrite a previous delivery.\n2. Run `python3 {baseDir}/scripts/neoworker_preflight.py`; on Windows, use `python` if `python3` is unavailable. Do not install dependencies during the task.\n3. Read `{baseDir}/SKILL.md` completely and run the mandatory attribution guard from the skill directory.\n4. Read `{baseDir}/workflows/routing.md`, resolve exactly one route from {{route}}, {{profile}}, and the user's request, then read only that route's authority.\n5. Initialize and execute the selected upstream PPT Master project under `{artifactDir}`. Keep source, review, validation, and export artifacts there. Use the user's source file or template when {{source_path}} is set.\n6. Follow every blocking gate in the selected upstream workflow. Ask for explicit confirmation only where the route marks a blocking gate.\n7. After planning and review, call `create_presentation` exactly once with the complete slide plan. NeoWorker will force that call through the PPT Master advanced renderer, write exactly `{artifactDir}/output/presentation.pptx`, record `{artifactDir}/validation/workflow.log`, and write `{artifactDir}/validation/pptx-delivery-check.json`. Do not call `generate_presentation` or create competing deck variants.\n8. Deliver the verified PPTX plus its editable project and validation report. A PPTX created outside `{artifactDir}/output`, or one without the matching delivery report and workflow log, is not a PPT Master result and must not be presented as success.\n\nPackaging note: NeoWorker includes the core scripts, workflows, references, and lightweight templates. The large comparison gallery, icon corpus, and sound corpus are intentionally omitted; use user-provided or task-scoped assets instead.\n\nIf a selected advanced feature is unavailable because an optional Python module or external application is missing, state the exact dependency and offer either another PPT Master route or the default Presentation Studio workflow.",
+  "parameters": [
+    {
+      "name": "route",
+      "type": "select",
+      "description": "Advanced PPT Master route",
+      "required": false,
+      "default": "auto",
+      "options": [
+        "auto",
+        "generate",
+        "create-template",
+        "template-fill",
+        "native-enhance",
+        "image-to-pptx",
+        "beautify"
+      ]
+    },
+    {
+      "name": "profile",
+      "type": "select",
+      "description": "Execution depth",
+      "required": false,
+      "default": "default",
+      "options": [
+        "default",
+        "quick"
+      ]
+    },
+    {
+      "name": "language",
+      "type": "select",
+      "description": "Primary deck language",
+      "required": false,
+      "default": "auto",
+      "options": [
+        "auto",
+        "chinese",
+        "english",
+        "mixed"
+      ]
+    },
+    {
+      "name": "source_path",
+      "type": "string",
+      "input": "file",
+      "description": "Optional source PPTX, template, image, PDF, DOCX, or source material",
+      "required": false
+    },
+    {
+      "name": "output_dir",
+      "type": "string",
+      "input": "folder",
+      "description": "Workspace-local PPT Master project directory",
+      "required": false
+    },
+    {
+      "name": "animation",
+      "type": "select",
+      "description": "Whether the selected route should add native animation",
+      "required": false,
+      "default": "auto",
+      "options": [
+        "auto",
+        "on",
+        "off"
+      ]
+    },
+    {
+      "name": "narration",
+      "type": "select",
+      "description": "Whether the selected route should add narration",
+      "required": false,
+      "default": "off",
+      "options": [
+        "off",
+        "on"
+      ]
+    }
+  ],
+  "enabled": true,
+  "requires": {
+    "tools": [
+      "run_command",
+      "create_presentation"
+    ],
+    "anyBins": [
+      "python3",
+      "python"
+    ]
+  },
+  "invocation": {
+    "userInvocable": true,
+    "disableModelInvocation": true
+  },
+  "metadata": {
+    "version": "4.8.0-neoworker.1",
+    "author": "Hugo He; NeoWorker integration",
+    "license": "MIT",
+    "homepage": "https://github.com/hugohe3/ppt-master",
+    "repository": "https://github.com/hugohe3/ppt-master",
+    "tags": [
+      "ppt-master",
+      "advanced presentation",
+      "powerpoint",
+      "pptx",
+      "template fill",
+      "native enhancement",
+      "animation",
+      "narration",
+      "高级PPT"
+    ],
+    "routing": {
+      "useWhen": "Use only when the user explicitly invokes PPT Master or selects the advanced PPT mode for native template filling, reconstruction, enhancement, animation, narration, or deep review.",
+      "dontUseWhen": "Do not auto-use for ordinary PPT creation, generic slide requests, or mentions of presentations. Those use Presentation Studio unless the user explicitly selects this skill.",
+      "outputs": "A task-scoped advanced PPT Master project, exactly one final versioned native PPTX, and delivery validation.",
+      "successCriteria": "The selected route completes its gates, the PPTX passes delivery checks, and the final response reports missing optional dependencies or incomplete visual review.",
+      "expectedArtifacts": [
+        "output/presentation.pptx",
+        "validation/pptx-delivery-check.json",
+        "validation/workflow.log"
+      ],
+      "keywords": [
+        "ppt-master",
+        "PPT Master",
+        "高级PPT",
+        "高级演示文稿",
+        "模板填充",
+        "原生增强",
+        "PPT动画",
+        "PPT旁白"
+      ],
+      "examples": {
+        "positive": [
+          "使用 PPT Master 高级模式制作这份演示文稿。",
+          "/ppt-master",
+          "用高级 PPT 模式填充这个原生模板。",
+          "Use PPT Master to enhance this PPTX and add native animations."
+        ],
+        "negative": [
+          "帮我做一份产品介绍 PPT。",
+          "把这些材料整理成幻灯片。",
+          "Create a basic presentation.",
+          "分析这份 Word 文档。"
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "high"
+    }
+  }
+}

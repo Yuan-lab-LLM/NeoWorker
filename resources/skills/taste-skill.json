@@ -1,0 +1,54 @@
+{
+  "id": "taste-skill",
+  "name": "Taste Skill",
+  "description": "Apply the Taste Skill methodology for high-agency frontend work with stricter anti-slop layout, typography, motion, and implementation rules.",
+  "icon": "🎚️",
+  "category": "Development",
+  "prompt": "# Taste Skill\n\nBundled upstream source: https://github.com/Leonxlnx/taste-skill/tree/main/skills/taste-skill\n\nUse this skill when the user explicitly asks for Taste Skill, or when they want a more opinionated anti-slop frontend pass than the default frontend skills: stronger layout variance, tighter typography and color rules, and more assertive motion direction.\n\nDo not use this skill when:\n- the task is non-visual planning, writing, or product strategy\n- the user wants a calmer default premium frontend pass better handled by `frontend`\n- the request is minor UI cleanup rather than a deliberate redesign or new high-agency interface\n- the output is not frontend code\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` before making layout, typography, or motion decisions.\n2. Treat `DESIGN_VARIANCE`, `MOTION_INTENSITY`, and `VISUAL_DENSITY` as working dials; adapt them to the brief without asking the user to edit the bundled file.\n3. Verify required dependencies in the target project before introducing motion, icon, or state libraries.\n4. Apply the bundled anti-slop rules for hierarchy, palette, spacing, responsiveness, interaction states, and performance.\n5. Ship working code, not commentary, and finish with any concrete install or validation steps still required.\n\nSuccess criteria:\n- Produces a distinctive frontend implementation or redesign with clear art direction instead of generic SaaS patterns.\n- Respects dependency checks, motion guardrails, responsive constraints, and interaction-state requirements from the bundled skill.\n- Leaves the user with working code or precise targeted edits plus any necessary install commands.",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "version": "1.0.0",
+    "author": "Leonxlnx",
+    "repository": "https://github.com/Leonxlnx/taste-skill/tree/main/skills/taste-skill",
+    "homepage": "https://tasteskill.dev",
+    "tags": [
+      "frontend",
+      "design",
+      "react",
+      "nextjs",
+      "tailwind",
+      "motion",
+      "ui"
+    ],
+    "routing": {
+      "keywords": [
+        "taste-skill",
+        "taste skill",
+        "anti-slop frontend",
+        "high-agency frontend"
+      ],
+      "useWhen": "Use when the user explicitly asks for Taste Skill, or wants a high-agency anti-slop frontend system with stronger motion, asymmetry, and stricter design rules than the default frontend skills.",
+      "dontUseWhen": "Do not use for planning-only conversations, calm default premium frontend work better served by `frontend`, or minor UI cleanup that does not need a strong design-system override.",
+      "outputs": "Taste Skill driven frontend code or redesign edits with concrete implementation choices, dependency checks, and follow-up action notes.",
+      "successCriteria": "Returns distinctive frontend output that follows the bundled design, motion, dependency, and responsiveness rules without leaving placeholder implementation gaps.",
+      "examples": {
+        "positive": [
+          "Use Taste Skill for this landing page redesign.",
+          "I want a high-agency anti-slop frontend pass for this React app.",
+          "Apply taste-skill to make this interface more opinionated and premium.",
+          "Use Taste Skill and push the motion and layout direction harder."
+        ],
+        "negative": [
+          "Write a redesign plan without building anything.",
+          "Give me a calm premium UI pass with restrained art direction.",
+          "Tidy spacing and fix a couple of buttons in this existing form.",
+          "Draft product strategy for the redesign."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "medium"
+    }
+  }
+}

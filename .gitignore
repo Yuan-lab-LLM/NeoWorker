@@ -1,0 +1,156 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+.yarn/
+
+# Build outputs
+dist/
+out/
+release/
+build/healthkit-bridge/
+native/healthkit-bridge/.build/
+build/location-helper-macos/
+build/location-helper-linux/
+build/location-helper-windows/
+build/officecli/
+native/location-helper-macos/.build/
+native/location-helper-macos/.swiftpm/
+*.app
+*.dmg
+*.exe
+*.deb
+*.rpm
+*.AppImage
+
+# TypeScript
+*.tsbuildinfo
+
+# Database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+
+# Environment - IMPORTANT: Never commit secrets!
+.env
+.env.*
+!.env.example
+
+# Cache
+.cache/
+.eslintcache
+.turbo/
+*.cache
+
+# VitePress docs build output
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
+# Local npm pack artifacts
+neoworker-*.tgz
+
+# Test coverage
+coverage/
+
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Local editor/tool output
+/.cursor/
+/.playwright-mcp/
+
+# Local assistant tooling and visual QA output
+/.codex/
+/.codex-audit/
+/.codex-qa/
+/.cowork/
+/design-audit/
+/ref/
+
+# NeoWorker local state
+/.neoworker/
+
+# Runtime-generated outputs
+artifacts/
+output/
+
+# VM artifacts
+vm-bundle/
+*.img
+*.qcow2
+
+# Electron
+*.asar
+/build/numbat/
+
+# Connector checks may emit these source-adjacent JavaScript files.
+/connectors/google-workspace-mcp/src/index.js
+/connectors/maps-mcp/src/index.js
+
+# Temporary files
+/.tmp/
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*.rej
+*~
+*.pid
+*.pid.lock
+*.seed
+
+# Python cache artifacts
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Media files — user audio/voice recordings must never be committed
+*.ogg
+*.opus
+*.mp3
+*.wav
+*.m4a
+*.aac
+*.flac
+*.webm
+*.caf
+*.aiff
+
+# iOS companion project (separate repo)
+neoworker/
+docs/ios-companion-example.swift
+Mission_Control_Comparison_Recommendations.docx
+NeoWorker founder vault/
+AGENTS.md
+/Users/
+/solana-dapp/
+changed-file-set-review-artifact.pdf
+exact-changed-file-set.xlsx
+recovery/
+jsonl-preview.png

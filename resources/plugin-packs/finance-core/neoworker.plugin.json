@@ -1,0 +1,99 @@
+{
+  "name": "finance-core-pack",
+  "displayName": "Finance Core",
+  "version": "0.1.0",
+  "description": "Shared finance workflow conventions for source ledgers, workpaper manifests, model audit, workbook authoring, deck authoring, deck QC, and review guardrails.",
+  "type": "pack",
+  "author": "NeoWorker",
+  "keywords": ["finance", "source-ledger", "workpapers", "xlsx", "pptx", "review"],
+  "icon": "📊",
+  "category": "Finance",
+  "recommendedConnectors": ["factset", "spglobal", "lseg", "egnyte"],
+  "tryAsking": [
+    "Create a source ledger for this finance analysis",
+    "Review this model and list broken checks",
+    "Turn these findings into a draft workpaper manifest"
+  ],
+  "skills": [
+    {
+      "id": "finance-source-ledger",
+      "name": "Source Ledger",
+      "description": "Create a source-ledger.json style evidence trail for finance workflows.",
+      "icon": "🧾",
+      "category": "Finance",
+      "prompt": "Create or update a finance source ledger. For every material claim, list source name, retrieval path or tool, timestamp, extracted value or passage summary, supported claim, confidence, and open caveats. Return JSON-compatible content under `source-ledger.json`. Do not invent sources. If a source is unavailable, record the missing source and the impact on confidence.",
+      "enabled": true
+    },
+    {
+      "id": "finance-model-audit",
+      "name": "Model Audit",
+      "description": "Review workbook logic, assumptions, checks, and source support.",
+      "icon": "✅",
+      "category": "Finance",
+      "prompt": "Audit the provided finance model or model plan. Check inputs, formulas, cross-statement links, valuation math, sensitivities, circularity risk, hardcodes, missing source support, and failed checks. Return findings ordered by severity, with exact workbook tab/range references when available. Stage fixes for human approval; do not finalize advice.",
+      "enabled": true
+    },
+    {
+      "id": "finance-xlsx-author",
+      "name": "XLSX Artifact Authoring",
+      "description": "Specify reviewable finance workbook artifacts for NeoWorker's spreadsheet viewer.",
+      "icon": "🧮",
+      "category": "Finance",
+      "prompt": "Author a reviewable finance workbook artifact. Required tabs: Inputs, one or more Calculation tabs, Checks, and Source Ledger or a linked source-ledger artifact. Keep assumptions explicit, formulas inspectable, and checks visible. Include a short artifact manifest listing tabs, purpose, key formulas, source links, and required review checkpoints.",
+      "enabled": true
+    },
+    {
+      "id": "finance-pptx-author",
+      "name": "PPTX Deck Authoring",
+      "description": "Draft finance presentation artifacts for NeoWorker's presentation viewer.",
+      "icon": "📽️",
+      "category": "Finance",
+      "prompt": "Draft a finance presentation artifact. Create an executive storyline, slide-by-slide outline, data exhibits, source references, and speaker notes. Keep every chart claim tied to the source ledger. Mark all content as draft for human review and stop before external distribution.",
+      "enabled": true
+    },
+    {
+      "id": "finance-deck-qc",
+      "name": "Deck QC",
+      "description": "Review finance decks for factual support, math, consistency, and sign-off readiness.",
+      "icon": "🔍",
+      "category": "Finance",
+      "prompt": "Quality-control a finance deck. Check storyline coherence, source support, chart math, date consistency, unit consistency, duplicated or stale exhibits, missing caveats, and unsupported conclusions. Return required fixes and a sign-off checklist. Do not approve external sending.",
+      "enabled": true
+    },
+    {
+      "id": "finance-workpaper-manifest",
+      "name": "Financial Workpaper Manifest",
+      "description": "Create an artifact manifest for finance models, decks, memos, PDFs, and source ledgers.",
+      "icon": "📁",
+      "category": "Finance",
+      "prompt": "Create a financial workpaper manifest. List each artifact name, type, purpose, source-ledger relationship, owner/reviewer, status, required review checkpoint, and unresolved exceptions. Include `source-ledger.json` whenever claims or figures are used.",
+      "enabled": true
+    },
+    {
+      "id": "finance-guardrails",
+      "name": "Finance Guardrails",
+      "description": "Apply finance disclaimers, staged review, and prohibited-action checks.",
+      "icon": "🛡️",
+      "category": "Finance",
+      "prompt": "Apply finance workflow guardrails. Confirm the output is draft work product for professional review. Do not execute trades, send client communications, post journal entries, approve onboarding, or claim investment/accounting/legal/tax advice. Identify any requested prohibited action and replace it with a review-ready draft, checklist, or approval pause.",
+      "enabled": true
+    }
+  ],
+  "slashCommands": [
+    {
+      "name": "source-ledger",
+      "description": "Create a finance source ledger",
+      "skillId": "finance-source-ledger"
+    },
+    {
+      "name": "finance-manifest",
+      "description": "Create a financial workpaper manifest",
+      "skillId": "finance-workpaper-manifest"
+    },
+    {
+      "name": "deck-qc",
+      "description": "Review a finance deck for support and consistency",
+      "skillId": "finance-deck-qc"
+    }
+  ]
+}

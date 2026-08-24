@@ -1,0 +1,79 @@
+{
+  "id": "stock-analysis",
+  "name": "Stock Analysis",
+  "description": "Analyze stocks, ETFs, and crypto using Yahoo Finance and Alpha Vantage. Get real-time quotes, fundamentals (P/E, EPS, margins, balance sheet), technical indicators (RSI, MACD, Bollinger), dividends, earnings, options chains, analyst ratings, institutional holders, sector comparisons, and screening. Use when the user asks about stock prices, company financials, market trends, portfolio analysis, or any investment research.",
+  "icon": "📈",
+  "category": "Tools",
+  "requires": {
+    "anyBins": [
+      "python3",
+      "curl"
+    ]
+  },
+  "prompt": "# Stock Analysis\n\nUse this skill only when the request is in scope:\n- User asks about stock prices, company fundamentals, market analysis, investment research, portfolio review, technical indicators, options, dividends, earnings, or crypto prices\n\nDo not use this skill when:\n- User asks about prediction markets (use polymarket skill), personal banking, or tax advice\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Stock quotes, fundamental analysis, technical indicators, analyst ratings, comparison tables, screening results, 8-dimensional scores.\n5. Verify success criteria: User receives accurate financial data with clear formatting, relevant context, and actionable insights.",
+  "parameters": [
+    {
+      "name": "ticker",
+      "type": "string",
+      "description": "Stock ticker symbol (e.g., AAPL, MSFT, BTC-USD, ^GSPC)",
+      "required": false
+    },
+    {
+      "name": "analysis_type",
+      "type": "select",
+      "description": "Type of analysis to perform",
+      "required": false,
+      "default": "full",
+      "options": [
+        "full",
+        "technical",
+        "fundamental",
+        "compare",
+        "screen",
+        "dividends",
+        "options"
+      ]
+    }
+  ],
+  "enabled": true,
+  "invocation": {
+    "userInvocable": true
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "NeoWorker",
+    "tags": [
+      "stocks",
+      "finance",
+      "investing",
+      "trading",
+      "crypto",
+      "market",
+      "analysis",
+      "portfolio"
+    ],
+    "routing": {
+      "useWhen": "User asks about stock prices, company fundamentals, market analysis, investment research, portfolio review, technical indicators, options, dividends, earnings, or crypto prices",
+      "dontUseWhen": "User asks about prediction markets (use polymarket skill), personal banking, or tax advice",
+      "outputs": "Stock quotes, fundamental analysis, technical indicators, analyst ratings, comparison tables, screening results, 8-dimensional scores",
+      "successCriteria": "User receives accurate financial data with clear formatting, relevant context, and actionable insights",
+      "examples": {
+        "positive": [
+          "Use the stock-analysis skill for this request.",
+          "Help me with stock analysis.",
+          "User asks about stock prices, company fundamentals, market analysis, investment research, portfolio review, technical indicators, options, dividends, earnings, or crypto prices",
+          "Stock Analysis: provide an actionable result."
+        ],
+        "negative": [
+          "User asks about prediction markets (use polymarket skill), personal banking, or tax advice",
+          "Do not use stock-analysis for unrelated requests.",
+          "This request is outside stock analysis scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

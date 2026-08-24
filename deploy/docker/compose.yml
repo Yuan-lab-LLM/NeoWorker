@@ -1,0 +1,75 @@
+services:
+  neoworker:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    init: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      # Persist database/settings.
+      - NEOWORKER_USER_DATA_DIR=/data
+
+      # Optional: IANA timezone for the container (e.g. America/New_York, Europe/London).
+      # - NEOWORKER_TZ=America/New_York
+
+      # Optional: bootstrap a default workspace inside the container.
+      - NEOWORKER_BOOTSTRAP_WORKSPACE_PATH=/workspace
+      - NEOWORKER_BOOTSTRAP_WORKSPACE_NAME=main
+
+      # Optional (recommended for headless): import provider creds from env into secure Settings.
+      # This makes it easy to configure LLM/search keys via `docker compose` env vars.
+      - NEOWORKER_IMPORT_ENV_SETTINGS=1
+      # - NEOWORKER_IMPORT_ENV_SETTINGS_MODE=merge   # merge|overwrite
+      # - NEOWORKER_LLM_PROVIDER=openai              # openai|anthropic|gemini|...
+      # - OPENAI_API_KEY=...
+      # - TAVILY_API_KEY=...
+
+      # Bind inside the container on all interfaces, but only publish on host loopback below.
+      - NEOWORKER_CONTROL_PLANE_HOST=0.0.0.0
+      - NEOWORKER_CONTROL_PLANE_PORT=18789
+      - NEOWORKER_CONTROL_PLANE_BIND_CONTEXT=container
+    volumes:
+      - neoworker_data:/data
+      # Default workspace volume (recommended to avoid host permission issues).
+      - neoworker_workspace:/workspace
+      # If you prefer a host bind mount, replace the line above with something like:
+      # - /srv/neoworker/workspace:/workspace
+    ports:
+      # Security: keep Control Plane local by default.
+      - "127.0.0.1:18789:18789"
+
+  # Optional: Node-only daemon (no Electron/Xvfb). Enable with:
+  #   docker compose --profile node up --build -d neoworker-node
+  neoworker-node:
+    profiles: ["node"]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.node
+    init: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      - NEOWORKER_USER_DATA_DIR=/data
+      # Optional: NEOWORKER_TZ=America/New_York  # IANA timezone
+      - NEOWORKER_BOOTSTRAP_WORKSPACE_PATH=/workspace
+      - NEOWORKER_BOOTSTRAP_WORKSPACE_NAME=main
+      - NEOWORKER_IMPORT_ENV_SETTINGS=1
+      - NEOWORKER_CONTROL_PLANE_HOST=0.0.0.0
+      - NEOWORKER_CONTROL_PLANE_PORT=18789
+      - NEOWORKER_CONTROL_PLANE_BIND_CONTEXT=container
+    volumes:
+      - neoworker_data:/data
+      - neoworker_workspace:/workspace
+    ports:
+      - "127.0.0.1:18789:18789"
+
+volumes:
+  neoworker_data:
+  neoworker_workspace:

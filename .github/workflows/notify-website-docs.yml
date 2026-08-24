@@ -1,0 +1,28 @@
+name: Notify website docs refresh
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - docs/**
+      - .github/workflows/notify-website-docs.yml
+
+permissions:
+  contents: read
+
+jobs:
+  notify-website:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger website docs refresh
+        env:
+          GH_TOKEN: ${{ secrets.WEBSITE_REPO_DISPATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          gh api repos/NeoWorker/neoworker-web/dispatches \
+            --method POST \
+            -f event_type=neoworker_docs_changed \
+            -f client_payload[source_repo]="${{ github.repository }}" \
+            -f client_payload[sha]="${{ github.sha }}"

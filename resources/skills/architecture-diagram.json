@@ -1,0 +1,102 @@
+{
+  "id": "architecture-diagram",
+  "name": "Architecture Diagram",
+  "description": "Generate polished dark-themed architecture diagrams as standalone HTML files with inline SVG, semantic system grouping, and readable connection flows.",
+  "icon": "🏗️",
+  "category": "Engineering",
+  "prompt": "# Architecture Diagram\n\nBundled upstream source: https://github.com/Cocoon-AI/architecture-diagram-generator\n\nUse this skill when the user wants a technical architecture diagram, infrastructure diagram, deployment map, network topology, security/data-flow diagram, cloud architecture visualization, or a polished visual of system components and how they connect.\n\nDo not use this skill when:\n- the user only wants a text summary with no diagram artifact\n- the requested output must be Mermaid, PlantUML, Excalidraw JSON, or another specific diagram format\n- the task is a product UI mockup, wireframe, org chart, or non-technical illustration\n\nInputs:\n- System name: {{system_name}}\n- Diagram brief: {{diagram_brief}}\n- Diagram type: {{diagram_type}}\n- Output path: {{output_path}}\n\nWorkflow:\n1. Resolve the output file first. If `{{output_path}}` is empty, write the final diagram to `{artifactDir}/architecture-diagram.html`.\n2. If `{{diagram_brief}}` is empty, derive the architecture from the user request and any provided workspace context. Ask one short clarifying question only if the system shape is still too ambiguous to draw faithfully.\n3. Read `{baseDir}/SKILL.md` and `{baseDir}/references/full-guidance.md`. Use `{baseDir}/assets/template.html` as the starting point instead of inventing the HTML structure from scratch.\n4. Produce a single self-contained HTML file with embedded CSS and inline SVG. The file must open directly in a browser without build steps or JavaScript.\n5. Preserve the dark technical aesthetic: semantic color coding, rounded component boxes, labeled arrows, subtle grid background, and three summary cards below the diagram.\n6. Keep the diagram readable and grounded:\n   - group related systems and boundaries clearly\n   - avoid overlapping components, arrows, legends, and boundary labels\n   - place legends outside the lowest boundary box\n   - increase the SVG viewBox when the system needs more room\n   - do not invent components, services, or data flows that are not supported by the request or inspected codebase\n7. When the request is code-backed, inspect the repo or supplied material to infer major services, databases, queues, auth providers, external integrations, and deployment boundaries before drawing.\n8. Write run artifacts to:\n   - `{artifactDir}/diagram-plan.md`\n   - `{artifactDir}/diagram-summary.md`\n   Include the component inventory, layout decisions, assumptions, and exact output path.\n9. End with the exact output path and the main assumptions or unresolved gaps.\n10. If the final output is an HTML diagram, include this directive on its own line in the assistant response after mentioning the output path: `::html{path=\"<resolved output path>\" title=\"<system name or diagram title>\"}`.\n\nSuccess criteria:\n- The final HTML diagram is self-contained, visually coherent, and directly openable in a browser.\n- Components, boundaries, arrows, and legends are readable with no obvious overlap.\n- The diagram reflects the actual architecture described or inspected, with assumptions called out explicitly.",
+  "parameters": [
+    {
+      "name": "system_name",
+      "type": "string",
+      "description": "Short system or project name to show in the diagram header",
+      "required": false
+    },
+    {
+      "name": "diagram_brief",
+      "type": "string",
+      "description": "Structured description of the architecture to visualize",
+      "required": false
+    },
+    {
+      "name": "diagram_type",
+      "type": "select",
+      "description": "Primary diagram emphasis",
+      "required": false,
+      "options": [
+        "auto",
+        "system-overview",
+        "cloud-infrastructure",
+        "deployment",
+        "data-flow",
+        "security",
+        "network-topology",
+        "microservices"
+      ]
+    },
+    {
+      "name": "output_path",
+      "type": "string",
+      "description": "Workspace-relative or absolute HTML output path",
+      "required": false
+    }
+  ],
+  "enabled": true,
+  "invocation": {
+    "userInvocable": true
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "Cocoon AI, ported by NeoWorker",
+    "license": "MIT",
+    "homepage": "https://github.com/Cocoon-AI/architecture-diagram-generator",
+    "repository": "https://github.com/Cocoon-AI/architecture-diagram-generator",
+    "tags": [
+      "architecture",
+      "diagram",
+      "infrastructure",
+      "cloud",
+      "svg",
+      "html",
+      "system-design",
+      "visualization"
+    ],
+    "routing": {
+      "useWhen": "Use when the user asks to create a technical architecture diagram, infrastructure map, deployment topology, security/data-flow visual, or a polished system diagram artifact they can open in a browser.",
+      "dontUseWhen": "Do not use for text-only summaries, requests that require Mermaid or another explicit diagram format, or non-technical visual design tasks such as UI mockups and marketing graphics.",
+      "outputs": "A standalone HTML architecture diagram plus supporting plan and summary artifacts under {artifactDir} or the requested output path.",
+      "successCriteria": "The skill produces a readable, self-contained HTML diagram grounded in the provided or inspected system context, with explicit assumptions and no major layout collisions.",
+      "expectedArtifacts": [
+        "diagram-plan.md",
+        "diagram-summary.md"
+      ],
+      "keywords": [
+        "architecture diagram",
+        "infrastructure diagram",
+        "system diagram",
+        "deployment diagram",
+        "cloud architecture",
+        "network topology",
+        "data flow diagram",
+        "security diagram"
+      ],
+      "examples": {
+        "positive": [
+          "Create an architecture diagram for this SaaS stack and give me an HTML file.",
+          "Turn this codebase into a polished cloud architecture diagram.",
+          "Make a system topology diagram showing services, databases, queues, and auth.",
+          "Use the architecture-diagram skill for this request."
+        ],
+        "negative": [
+          "Summarize this architecture in bullets only.",
+          "Draw this as Mermaid so I can paste it into Markdown.",
+          "Design a landing page hero illustration for our product.",
+          "Create a wireframe for the settings screen."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "medium"
+    }
+  }
+}

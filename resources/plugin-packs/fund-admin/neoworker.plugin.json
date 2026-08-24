@@ -1,0 +1,76 @@
+{
+  "name": "fund-admin-pack",
+  "displayName": "Fund Admin",
+  "version": "0.1.0",
+  "description": "Fund administration workflows for GL reconciliation, break tracing, accruals, roll-forwards, variance commentary, and NAV tie-out.",
+  "type": "pack",
+  "author": "NeoWorker",
+  "keywords": ["fund-admin", "gl", "reconciliation", "nav", "close", "workpapers"],
+  "icon": "🧾",
+  "category": "Finance",
+  "recommendedConnectors": ["chronograph", "egnyte"],
+  "skills": [
+    {
+      "id": "fund-gl-recon",
+      "name": "GL Reconciliation",
+      "description": "Prepare GL reconciliation workpapers and exception lists.",
+      "icon": "🧾",
+      "category": "Finance",
+      "prompt": "Prepare a GL reconciliation from provided ledger, subledger, statement, or support files. Return tie-out tables, unreconciled breaks, possible drivers, source-ledger entries, and a review checkpoint. Do not post journal entries or mark the reconciliation complete.",
+      "enabled": true
+    },
+    {
+      "id": "fund-break-trace",
+      "name": "Break Tracing",
+      "description": "Trace reconciliation breaks to source records and likely causes.",
+      "icon": "🔎",
+      "category": "Finance",
+      "prompt": "Trace breaks between finance records. For each break, list amount, date, accounts/entities, source records reviewed, likely cause, evidence, owner, and next action. Stage all conclusions for controller review.",
+      "enabled": true
+    },
+    {
+      "id": "fund-accrual-schedule",
+      "name": "Accrual Schedule",
+      "description": "Draft accrual schedules with support and review status.",
+      "icon": "📅",
+      "category": "Finance",
+      "prompt": "Draft an accrual schedule from available contracts, invoices, prior accruals, and support. Include assumptions, period allocation, source support, checks, and required approval. Do not post entries.",
+      "enabled": true
+    },
+    {
+      "id": "fund-roll-forward",
+      "name": "Roll-Forward",
+      "description": "Prepare roll-forward workpapers and movement explanations.",
+      "icon": "📈",
+      "category": "Finance",
+      "prompt": "Prepare a roll-forward workpaper. Show beginning balance, additions, reductions, transfers, FX or valuation movement, ending balance, source support, and unresolved exceptions.",
+      "enabled": true
+    },
+    {
+      "id": "fund-variance-commentary",
+      "name": "Variance Commentary",
+      "description": "Draft variance explanations tied to source evidence.",
+      "icon": "💬",
+      "category": "Finance",
+      "prompt": "Draft variance commentary for financial close or fund admin reporting. Quantify each variance, identify source-backed drivers, separate timing from permanent differences, and list follow-up questions.",
+      "enabled": true
+    },
+    {
+      "id": "fund-nav-tieout",
+      "name": "NAV Tie-Out",
+      "description": "Tie out NAV workpapers and surface differences.",
+      "icon": "⚖️",
+      "category": "Finance",
+      "prompt": "Prepare a NAV tie-out. Compare trial balance, investor allocations, portfolio valuations, cash, expenses, and support schedules. Return differences, source references, and review actions. Do not approve NAV.",
+      "enabled": true
+    }
+  ],
+  "slashCommands": [
+    { "name": "gl-recon", "description": "Prepare a GL reconciliation workpaper", "skillId": "fund-gl-recon" },
+    { "name": "break-trace", "description": "Trace reconciliation breaks", "skillId": "fund-break-trace" },
+    { "name": "accrual-schedule", "description": "Draft accrual support", "skillId": "fund-accrual-schedule" },
+    { "name": "roll-forward", "description": "Prepare a roll-forward workpaper", "skillId": "fund-roll-forward" },
+    { "name": "variance-commentary", "description": "Draft variance commentary", "skillId": "fund-variance-commentary" },
+    { "name": "nav-tieout", "description": "Prepare a NAV tie-out", "skillId": "fund-nav-tieout" }
+  ]
+}

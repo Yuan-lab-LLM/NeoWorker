@@ -1,0 +1,42 @@
+{
+  "id": "skill-creator",
+  "name": "Skill-creator",
+  "description": "Create or update AgentSkills for NeoWorker. Use when designing, structuring, or packaging skills. Supports JSON format with requirements, installation specs, and metadata.",
+  "icon": "✨",
+  "category": "Tools",
+  "metadata": {
+    "version": "2.0.0",
+    "author": "NeoWorker",
+    "tags": [
+      "development",
+      "skills",
+      "authoring"
+    ],
+    "routing": {
+      "useWhen": "Use when the user asks to create or update AgentSkills for NeoWorker. Use when designing, structuring, or packaging skills. Supports JSON format with requirements, installation specs, and metadata.",
+      "dontUseWhen": "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.",
+      "outputs": "Outcome from Skill-creator: task-specific result plus concrete action notes.",
+      "successCriteria": "Returns concrete actions and decisions matching the requested task, with no fabricated tool-side behavior.",
+      "examples": {
+        "positive": [
+          "Use the skill-creator skill for this request.",
+          "Help me with skill-creator.",
+          "Use when the user asks to create or update AgentSkills for NeoWorker. Use when designing, structuring, or packaging skills. Supports JSON format with requirements, installation specs, and metadata.",
+          "Skill-creator: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.",
+          "Do not use skill-creator for unrelated requests.",
+          "This request is outside skill-creator scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  },
+  "prompt": "# Skill-creator\n\nUse this skill only when the request is in scope:\n- Use when the user asks to create or update AgentSkills for NeoWorker. Use when designing, structuring, or packaging skills. Supports JSON format with requirements, installation specs, and metadata.\n\nDo not use this skill when:\n- Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead.\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Outcome from Skill-creator: task-specific result plus concrete action notes..\n5. Verify success criteria: Returns concrete actions and decisions matching the requested task, with no fabricated tool-side behavior..",
+  "parameters": [],
+  "enabled": true
+}

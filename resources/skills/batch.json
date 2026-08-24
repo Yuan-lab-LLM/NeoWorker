@@ -1,0 +1,84 @@
+{
+  "id": "batch",
+  "name": "Batch",
+  "description": "Plan and execute parallel, repeatable migrations across code, docs, research artifacts, ops configs, or mixed task sets.",
+  "icon": "🧺",
+  "category": "Use Cases",
+  "prompt": "Batch workflow.\n\nGoal\n- Execute repeatable work across multiple targets in parallel with clear checkpoints.\n\nInputs\n- Objective: {{objective}}\n- Domain: {{domain}}\n- Parallelism: {{parallel}}\n- External effects policy: {{external}}\n\nExecution\n1) Identify migration targets and split work into independent units.\n2) Build a concise execution plan with ordering, dependencies, and risk notes.\n3) Execute units in parallel up to {{parallel}} workers when safe.\n4) Validate each unit before marking done (tests/checks/lint/quality checks as applicable).\n5) Aggregate results into a single summary with per-unit status and blockers.\n\nSafety defaults\n- Local/file changes may execute automatically.\n- External side effects must follow External effects policy:\n  - confirm: draft actions and require explicit confirmation before execution.\n  - execute: execute external actions when tool policies allow.\n  - none: do not execute external actions.\n- For code-domain runs: stop at branch/worktree + verified summary. Do not auto-open PRs unless user explicitly asks.\n\nOutput\n- Batch plan\n- Per-target execution results\n- Validation outcomes\n- Blockers and rollback notes\n- Recommended next batch\n",
+  "parameters": [
+    {
+      "name": "objective",
+      "type": "string",
+      "description": "Batch objective to execute across multiple targets",
+      "required": true
+    },
+    {
+      "name": "domain",
+      "type": "select",
+      "description": "Task domain",
+      "required": false,
+      "default": "auto",
+      "options": [
+        "auto",
+        "code",
+        "research",
+        "operations",
+        "writing",
+        "general"
+      ]
+    },
+    {
+      "name": "parallel",
+      "type": "number",
+      "description": "Maximum parallel workers (1-8)",
+      "required": false,
+      "default": 4
+    },
+    {
+      "name": "external",
+      "type": "select",
+      "description": "Policy for external side effects",
+      "required": false,
+      "default": "confirm",
+      "options": [
+        "confirm",
+        "execute",
+        "none"
+      ]
+    }
+  ],
+  "enabled": true,
+  "metadata": {
+    "version": "1.0.0",
+    "author": "NeoWorker",
+    "tags": [
+      "workflow",
+      "parallel",
+      "migration",
+      "cross-domain"
+    ],
+    "routing": {
+      "useWhen": "Use when the user asks to run parallelizable migrations or repeated transformations across many independent targets in any domain.",
+      "dontUseWhen": "Do not use for single-target quality polishing (use simplify) or when the request is purely conceptual with no execution intent.",
+      "outputs": "A parallel execution plan, per-target outcomes, validations, and explicit next actions.",
+      "successCriteria": "Work is partitioned, executed with bounded parallelism, validated per target, and summarized with clear blockers/safety boundaries.",
+      "examples": {
+        "positive": [
+          "Use /batch migrate src/ from Solid to React.",
+          "Run /batch to update all policy docs to the new template.",
+          "Batch-convert these reports and validate each output.",
+          "Apply this config migration across all environments in parallel."
+        ],
+        "negative": [
+          "Clean up this one function for readability.",
+          "Improve this single memo's tone and clarity.",
+          "Discuss migration options without executing any changes.",
+          "Use simplify for one-off quality tuning instead of batch."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

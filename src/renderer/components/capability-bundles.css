@@ -1,0 +1,29 @@
+.capability-bundles-page {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+}
+
+.capability-bundles-product-header {
+  width: 100%;
+  background: var(--color-bg-primary);
+}
+
+.capability-bundles-body {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 20% -10%, color-mix(in srgb, var(--color-accent) 5%, transparent), transparent 25rem),
+    var(--color-bg-primary);
+}
+
+.capability-bundles-body > .cp-container {
+  box-sizing: border-box;
+}

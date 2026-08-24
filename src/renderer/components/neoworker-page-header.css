@@ -1,0 +1,266 @@
+/*
+ * Shared top-of-page contract for NeoWorker's primary work surfaces.
+ * Page-specific controls remain local; geometry and hierarchy stay consistent.
+ */
+.neoworker-page-header {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--neoworker-page-header-min-height);
+  padding: var(--neoworker-page-header-padding-block) clamp(28px, 3.2vw, 56px);
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-bg-primary) 96%, transparent);
+}
+
+.neoworker-page-header-copy {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+}
+
+.neoworker-page-header-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.neoworker-page-header-icon {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  flex: 0 0 40px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-border));
+  border-radius: 10px;
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-bg-primary));
+}
+
+.neoworker-page-header-icon > svg {
+  width: 20px;
+  height: 20px;
+}
+
+.neoworker-page-header-copy h1,
+.neoworker-page-header h1 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+
+.neoworker-page-header-copy p,
+.neoworker-page-header p {
+  overflow: hidden;
+  max-width: 720px;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.neoworker-page-header-actions {
+  min-width: 0;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.neoworker-page-header-actions button,
+.neoworker-page-header-actions .ideas-search,
+.neoworker-page-header-actions .ea-secondary-button,
+.neoworker-page-header-actions .ea-icon-button {
+  min-height: 40px;
+}
+
+.neoworker-page-header-actions button > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.crew-page-context {
+  min-height: 40px;
+  padding: 0 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-primary);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* The team page keeps its visual story, but only after the common masthead. */
+.workspace-product-header + .workspace-hero {
+  min-height: 540px;
+  padding-top: clamp(42px, 4vw, 62px);
+}
+
+.workspace-product-header + .workspace-hero .workspace-hero-eyebrow {
+  display: none;
+}
+
+.workspace-product-header + .workspace-hero .workspace-hero-copy > h1 {
+  margin-top: 0;
+}
+
+/* Everyday Agent previously used a centered max-width header. */
+.everyday-agent-main .everyday-agent-panel.ea-console {
+  max-width: none;
+  padding: 0 0 72px;
+}
+
+.everyday-agent-main .everyday-agent-panel.ea-console > .neoworker-page-header {
+  width: 100%;
+  margin: 0 0 22px;
+  padding: var(--neoworker-page-header-padding-block) clamp(28px, 3.2vw, 56px);
+  align-items: center;
+}
+
+.everyday-agent-main .everyday-agent-panel.ea-console > :not(.neoworker-page-header) {
+  width: min(1240px, calc(100% - 64px));
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.everyday-agent-main .everyday-agent-panel.ea-console > .neoworker-page-header .ea-console-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Ideas keeps its content measure while the page header spans the work surface. */
+.ideas-gallery {
+  width: 100%;
+  max-width: none;
+  padding: var(--title-bar-height) 0 56px;
+  background: var(--color-bg-primary);
+}
+
+.ideas-gallery > .neoworker-page-header {
+  width: 100%;
+  margin: 0 0 24px;
+  padding: var(--neoworker-page-header-padding-block) clamp(28px, 3.2vw, 56px);
+  align-items: center;
+}
+
+.ideas-gallery > :not(.neoworker-page-header) {
+  width: min(1720px, calc(100% - 64px));
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.ideas-gallery > .neoworker-page-header .ideas-gallery-actions {
+  margin: 0;
+}
+
+/* Mission Control owns its three-column controls but shares the same masthead. */
+.mc-v2 .mc-command-masthead {
+  width: auto;
+  margin: 0;
+  padding: var(--title-bar-height) 0 0;
+  background: transparent;
+}
+
+.mc-command-topbar.neoworker-page-header {
+  min-height: var(--neoworker-page-header-min-height);
+  padding: var(--neoworker-page-header-padding-block) clamp(28px, 3.2vw, 56px);
+  grid-template-columns: minmax(330px, 1fr) minmax(270px, 460px) auto;
+  gap: 22px;
+}
+
+.mc-command-topbar.neoworker-page-header .mc-command-title h1 {
+  font-size: 24px;
+  font-weight: 650;
+}
+
+.mc-command-topbar.neoworker-page-header .mc-command-title p {
+  display: block;
+  width: auto;
+  max-width: 720px;
+  margin-top: 6px;
+  color: var(--task-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.mc-command-topbar.neoworker-page-header .mc-command-search,
+.mc-command-topbar.neoworker-page-header .mc-v2-selector {
+  height: 40px;
+}
+
+@media (max-width: 1100px) {
+  .neoworker-page-header {
+    gap: 20px;
+  }
+
+  .mc-command-topbar.neoworker-page-header {
+    grid-template-columns: minmax(280px, 1fr) minmax(220px, 360px) auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .neoworker-page-header {
+    min-height: var(--neoworker-page-header-min-height);
+    padding-right: 28px;
+    padding-left: 28px;
+  }
+
+  .everyday-agent-main .everyday-agent-panel.ea-console > :not(.neoworker-page-header) {
+    width: min(1240px, calc(100% - 40px));
+  }
+
+  .ideas-gallery > :not(.neoworker-page-header) {
+    width: calc(100% - 40px);
+  }
+
+  .mc-command-topbar.neoworker-page-header {
+    padding-right: 28px;
+    padding-left: 28px;
+  }
+}
+
+@media (max-width: 720px) {
+  .neoworker-page-header {
+    min-height: 0;
+    padding-top: var(--neoworker-page-header-padding-block);
+    padding-bottom: var(--neoworker-page-header-padding-block);
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .neoworker-page-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .neoworker-page-header-copy p,
+  .neoworker-page-header p {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .mc-command-topbar.neoworker-page-header {
+    display: flex;
+    align-items: stretch;
+  }
+}

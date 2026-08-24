@@ -1,0 +1,35 @@
+{
+  "id": "game-performance",
+  "name": "Game Performance Optimization",
+  "description": "Cross-engine game performance: draw call optimization, LOD, object pooling, GPU profiling, memory management, and platform-specific tuning.",
+  "icon": "⚡",
+  "category": "Engineering",
+  "prompt": "# Game Performance Optimization\n\nUse this skill only when the request is in scope:\n- Use when the user asks about game performance optimization, FPS improvement, draw call reduction, LOD configuration, object pooling, GPU profiling, memory optimization, or frame time budgeting in any game engine.\n\nDo not use this skill when:\n- Do not use for engine-specific coding tasks (use unity-development or unreal-development), or web/app performance optimization unrelated to games.\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Performance analysis, optimization strategies, profiling guidance, and engine-specific configuration..\n5. Verify success criteria: Returns actionable optimization steps with measurable targets (FPS, draw calls, memory)..",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks about game performance optimization, FPS improvement, draw call reduction, LOD configuration, object pooling, GPU profiling, memory optimization, or frame time budgeting in any game engine.",
+      "dontUseWhen": "Do not use for engine-specific coding tasks (use unity-development or unreal-development), or web/app performance optimization unrelated to games.",
+      "outputs": "Performance analysis, optimization strategies, profiling guidance, and engine-specific configuration.",
+      "successCriteria": "Returns actionable optimization steps with measurable targets (FPS, draw calls, memory).",
+      "examples": {
+        "positive": [
+          "Use the game-performance skill for this request.",
+          "Help me with game performance optimization.",
+          "Use when the user asks about game performance optimization, FPS improvement, draw call reduction, LOD configuration, object pooling, GPU profiling, memory optimization, or frame time budgeting in any game engine.",
+          "Game Performance Optimization: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use for engine-specific coding tasks (use unity-development or unreal-development), or web/app performance optimization unrelated to games.",
+          "Do not use game-performance for unrelated requests.",
+          "This request is outside game performance optimization scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

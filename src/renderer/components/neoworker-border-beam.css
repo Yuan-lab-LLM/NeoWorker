@@ -1,0 +1,20 @@
+.neoworker-border-beam-host {
+  position: relative;
+  isolation: isolate;
+}
+
+.neoworker-border-beam-layer {
+  box-sizing: border-box;
+}
+
+.neoworker-border-beam-surface {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neoworker-border-beam-layer {
+    display: none;
+  }
+}

@@ -1,0 +1,1530 @@
+/*
+ * Tools & Integrations visual system
+ *
+ * Keep this workspace deliberately neutral. Brand colour is reserved for
+ * selection, focus and primary actions; semantic success/warning/error colours
+ * continue to come from their existing component styles.
+ */
+.settings-page .settings-tools-integrations-workspace {
+  --color-bg-elevated: #ffffff;
+  --color-bg-secondary: #f7f8fa;
+  --color-bg-tertiary: #f1f3f6;
+  --color-bg-hover: #f4f6f8;
+  --color-bg-input: #ffffff;
+  --color-border: #dfe4ea;
+  --color-border-subtle: #e8ebef;
+  --color-accent: #416b96;
+  --color-accent-dark: #31577f;
+  --color-accent-subtle: #edf3f8;
+  --color-action-primary: #1e8df6;
+  --color-action-primary-hover: #1676d2;
+}
+
+/* Keep enabled switches consistent with the rest of Settings. The muted
+   workspace accent is for navigation and low-emphasis selection; an enabled
+   control uses the product action colour so it cannot read as disabled. */
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(
+    .settings-toggle input:checked + .toggle-slider,
+    .toggle-switch input:checked + .toggle-slider,
+    .skill-toggle input:checked + .skill-toggle-slider,
+    .builtin-tool-toggle input:checked + .builtin-tool-toggle-slider,
+    .cp-toggle input:checked + .cp-toggle-slider
+  ) {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-primary);
+}
+
+/* The vertical information architecture should feel like navigation, not a
+   stack of filled buttons. */
+.settings-page
+  .settings-tools-integrations-workspace
+  > .more-channels-tabs
+  .more-channels-tab {
+  color: #667085;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  > .more-channels-tabs
+  .more-channels-tab:hover {
+  background: #f5f7f9;
+  color: #344054;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  > .more-channels-tabs
+  .more-channels-tab.active {
+  background: #eef2f5;
+  color: #243344;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  > .more-channels-tabs
+  .more-channels-tab.active
+  svg {
+  color: #4f7091;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  > .more-channels-content {
+  max-width: 960px;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .settings-nested-tab-panel
+  > .more-channels-tabs
+  .more-channels-tab.active,
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-nav-button.active {
+  color: #315f91;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .settings-nested-tab-panel
+  > .more-channels-tabs
+  .more-channels-tab.active::after,
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-nav-button.active::after {
+  background: #416b96;
+}
+
+/* Connector directory */
+.settings-page .settings-tools-integrations-workspace .cm-filter-tabs {
+  border-color: #dde3e9;
+  background: #f4f6f8;
+  box-shadow: none;
+}
+
+.settings-page .settings-tools-integrations-workspace .cm-filter-tab {
+  color: #667085;
+}
+
+.settings-page .settings-tools-integrations-workspace .cm-filter-tab:hover {
+  background: #e9edf1;
+  color: #344054;
+}
+
+.settings-page .settings-tools-integrations-workspace .cm-filter-tab--active {
+  border: 1px solid #d9e0e7;
+  background: #ffffff;
+  color: #253445;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+}
+
+.settings-page .settings-tools-integrations-workspace .cm-filter-count,
+.settings-page
+  .settings-tools-integrations-workspace
+  .cm-filter-tab--active
+  .cm-filter-count {
+  background: transparent;
+  color: #8791a1;
+}
+
+.settings-page .settings-tools-integrations-workspace .cm-search {
+  height: 34px;
+  border-color: #d9e0e7;
+  background: #ffffff;
+}
+
+.settings-page .settings-tools-integrations-workspace .cm-search:focus-within {
+  border-color: #7896b5;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(65, 107, 150, 0.12);
+}
+
+.settings-page .settings-tools-integrations-workspace .cm-category-nav-item--active {
+  background: #eef2f5;
+  color: #31577f;
+}
+
+.settings-page .settings-tools-integrations-workspace .cm-directory-row:hover {
+  background: #f7f9fa;
+}
+
+.settings-page .settings-tools-integrations-workspace .cm-empty,
+.settings-page .settings-tools-integrations-workspace .skills-empty {
+  border: 1px dashed #d5dce4;
+  border-radius: 12px;
+  background: #fbfcfd;
+  color: #667085;
+  box-shadow: none;
+}
+
+/* Skills and MCP forms */
+.settings-page
+  .settings-tools-integrations-workspace
+  .skills-directory-actions
+  input,
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(.settings-input, .settings-select, .settings-textarea) {
+  border-color: #d9e0e7;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .skills-directory-actions
+  input:focus,
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(.settings-input, .settings-select, .settings-textarea):focus {
+  border-color: #7896b5;
+  box-shadow: 0 0 0 3px rgba(65, 107, 150, 0.12);
+}
+
+.settings-page .settings-tools-integrations-workspace .mcp-add-form,
+.settings-page .settings-tools-integrations-workspace .mcp-config-panel,
+.settings-page .settings-tools-integrations-workspace .mcp-server-card {
+  border-color: #dfe4ea;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.settings-page .settings-tools-integrations-workspace .mcp-empty-state {
+  border-color: #d5dce4;
+  background: #fbfcfd;
+}
+
+/* Identity resolution had a lavender gradient plus tinted fields and cards.
+   Use one white working surface and quiet neutral summaries instead. */
+.settings-page
+  .settings-tools-integrations-workspace
+  .contact-identity-content {
+  gap: 14px !important;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .contact-identity-manual-panel {
+  padding: 18px !important;
+  border-color: #dfe4ea !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  box-shadow: none;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .contact-identity-manual-panel
+  :is(input, select) {
+  min-height: 38px;
+  border-color: #d9e0e7 !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  font-size: 13px !important;
+  box-shadow: none;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .contact-identity-manual-panel
+  :is(input, select):focus {
+  outline: 0;
+  border-color: #7896b5 !important;
+  box-shadow: 0 0 0 3px rgba(65, 107, 150, 0.12);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .contact-identity-manual-panel
+  button {
+  min-height: 34px;
+  box-shadow: none;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .contact-identity-stat,
+.settings-page
+  .settings-tools-integrations-workspace
+  .contact-identity-section {
+  border-color: #e1e6ec !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  box-shadow: none;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .contact-identity-stat {
+  min-height: 74px;
+  padding: 13px 14px !important;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .contact-identity-result-card,
+.settings-page
+  .settings-tools-integrations-workspace
+  .contact-identity-candidate {
+  border-color: #e3e8ee !important;
+  border-radius: 9px !important;
+  background: #fbfcfd !important;
+  box-shadow: none;
+}
+
+/* Built-in tools */
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-intro {
+  border-color: #dfe4ea;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-intro::before {
+  width: 2px;
+  background: #6f8cab;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-summary {
+  border-color: #e1e6ec;
+  background: #f8f9fb;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tool-group,
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-guide {
+  border-color: #dfe4ea;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tool-group-heading,
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-priority-guide
+  > div {
+  background: #f7f8fa;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tool-category-icon,
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-guide-icon {
+  border-color: #d7e0e8;
+  background: #f3f6f8;
+  color: #4f7091;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tool-category[data-priority="high"]
+  .builtin-tool-category-icon {
+  border-color: #c9d7e3;
+  background: #edf3f8;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tool-priority-control,
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(.builtin-tool-advanced, .builtin-tool-list) {
+  border-color: #dfe4ea;
+  background: #f7f8fa;
+  box-shadow: none;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tool-priority-control
+  button.active {
+  background: #ffffff;
+  color: #315f91;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+
+/* Extensions */
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-catalog-summary,
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-directory-heading,
+.settings-page
+  .settings-tools-integrations-workspace
+  .extension-item,
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-tunnel-section {
+  border-color: #e1e6ec;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.theme-dark .settings-page .settings-tools-integrations-workspace {
+  --color-bg-elevated: #171a1f;
+  --color-bg-secondary: #1d2127;
+  --color-bg-tertiary: #252a31;
+  --color-bg-hover: #232830;
+  --color-bg-input: #171a1f;
+  --color-border: rgba(255, 255, 255, 0.14);
+  --color-border-subtle: rgba(255, 255, 255, 0.09);
+  --color-accent: #8eb4d8;
+  --color-accent-dark: #b6d2ec;
+  --color-accent-subtle: rgba(112, 155, 196, 0.15);
+}
+
+.theme-dark
+  .settings-page
+  .settings-tools-integrations-workspace
+  :is(
+    .cm-filter-tab--active,
+    .cm-search,
+    .contact-identity-manual-panel,
+    .contact-identity-stat,
+    .contact-identity-section,
+    .mcp-add-form,
+    .mcp-config-panel,
+    .mcp-server-card,
+    .builtin-tools-intro,
+    .builtin-tool-group,
+    .builtin-tools-guide,
+    .extensions-catalog-summary,
+    .extensions-directory-heading,
+    .extension-item,
+    .extensions-tunnel-section
+  ) {
+  border-color: rgba(255, 255, 255, 0.13) !important;
+  background: #171a1f !important;
+}
+
+.theme-dark
+  .settings-page
+  .settings-tools-integrations-workspace
+  .contact-identity-manual-panel
+  :is(input, select) {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: #1d2127 !important;
+  color: #e5e7eb !important;
+}
+
+@media (max-width: 760px) {
+  .settings-page
+    .settings-tools-integrations-workspace
+    .contact-identity-search-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Precision pass: compact, shared summary headers
+ *
+ * Extensions, built-in tools and every MCP view now share the same hierarchy:
+ * one quiet surface, a 16px title, concise copy and compact actions or metrics.
+ * -------------------------------------------------------------------------- */
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(.extensions-settings, .builtin-tools-settings, .mcp-settings) {
+  gap: 16px;
+}
+
+/* Extensions */
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-catalog-header {
+  min-height: 0;
+  align-items: center;
+  gap: 20px;
+  padding: 18px 20px;
+  border: 1px solid var(--ti-border);
+  border-radius: 12px;
+  background: var(--ti-canvas);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-catalog-header
+  > div:first-child {
+  min-width: 0;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-catalog-header
+  h3 {
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-catalog-header
+  .settings-description {
+  max-width: 620px;
+  margin-top: 5px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-discovery {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-discovery
+  .settings-hint {
+  max-width: 152px;
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-catalog-summary {
+  display: flex;
+  width: max-content;
+  max-width: 100%;
+  margin: 12px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-catalog-summary
+  > div {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 112px;
+  padding: 0 18px;
+  border-right: 1px solid var(--ti-border);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-catalog-summary
+  > div:first-child {
+  padding-left: 0;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-catalog-summary
+  > div:last-child {
+  border-right: 0;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-catalog-summary
+  dt {
+  color: var(--ti-text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-catalog-summary
+  dd {
+  color: var(--ti-text);
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-directory {
+  margin-top: 14px;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-directory-heading {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-directory-heading
+  h4 {
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+
+/* Built-in tools */
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-intro {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  padding: 18px 20px;
+  border: 1px solid var(--ti-border);
+  border-radius: 12px;
+  background: var(--ti-canvas);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-intro::before {
+  display: none;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-intro
+  h3 {
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-intro
+  .settings-description {
+  max-width: 640px;
+  margin-top: 5px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-summary {
+  min-width: 350px;
+  overflow: visible;
+  border: 0;
+  border-left: 1px solid var(--ti-border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-summary
+  > div {
+  gap: 2px;
+  min-width: 74px;
+  padding: 1px 14px;
+  border-right: 0;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-summary
+  dt {
+  color: var(--ti-text-muted);
+  font-size: 10px;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-summary
+  dd {
+  color: var(--ti-text);
+  font-size: 17px;
+  font-weight: 650;
+}
+
+/* MCP */
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-settings-nav {
+  min-height: 38px;
+  gap: 22px;
+  margin-bottom: 14px;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-nav-button {
+  min-height: 38px;
+  padding: 0 2px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-view-section {
+  margin: 0;
+  padding: 18px 20px !important;
+  border: 1px solid var(--ti-border) !important;
+  border-radius: 12px !important;
+  background: var(--ti-canvas) !important;
+  box-shadow: none !important;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-view-section
+  > h3,
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-view-header
+  h3 {
+  margin: 0;
+  color: var(--ti-text);
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.012em;
+  line-height: 1.35;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-view-header {
+  min-height: 34px;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-view-section
+  > .settings-description {
+  max-width: 720px;
+  margin: 5px 0 0;
+  color: var(--ti-text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-header-actions {
+  gap: 8px;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-header-actions
+  .button-small,
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-tunnels-section
+  > .mcp-view-header
+  .button-small {
+  min-height: 32px;
+  padding: 0 11px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-view-section
+  .mcp-empty-state {
+  margin-top: 16px;
+  padding: 26px 18px;
+  border: 1px dashed var(--ti-border-strong);
+  border-radius: 10px;
+  background: var(--ti-surface);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-registry-section
+  > :last-child {
+  margin-top: 16px;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-config-panel {
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-config-auto-connect {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--ti-border);
+  border-radius: 10px;
+  background: var(--ti-surface);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-config-auto-connect
+  .settings-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  color: var(--ti-text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .mcp-config-auto-connect
+  input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--ti-accent);
+}
+
+.theme-dark
+  .settings-page
+  .settings-tools-integrations-workspace
+  :is(.extensions-catalog-header, .builtin-tools-intro, .mcp-view-section) {
+  border-color: var(--ti-border) !important;
+  background: var(--ti-canvas) !important;
+}
+
+@media (max-width: 900px) {
+  .settings-page
+    .settings-tools-integrations-workspace
+    .builtin-tools-intro {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .settings-page
+    .settings-tools-integrations-workspace
+    .builtin-tools-summary {
+    width: 100%;
+    min-width: 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--ti-border);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 680px) {
+  .settings-page
+    .settings-tools-integrations-workspace
+    .extensions-catalog-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .settings-page
+    .settings-tools-integrations-workspace
+    .extensions-discovery {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .settings-page
+    .settings-tools-integrations-workspace
+    .extensions-catalog-summary {
+    width: 100%;
+  }
+
+  .settings-page
+    .settings-tools-integrations-workspace
+    .extensions-catalog-summary
+    > div {
+    min-width: 0;
+    flex: 1;
+    padding: 0 10px;
+  }
+
+  .settings-page
+    .settings-tools-integrations-workspace
+    .mcp-view-section {
+    padding: 16px !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Shared page anatomy
+ *
+ * Every child view in Tools & Integrations now uses the same canvas width,
+ * vertical rhythm, heading scale, controls and surface treatment. Individual
+ * views may still be a directory, form or workbench, but they no longer look
+ * like separate products.
+ * -------------------------------------------------------------------------- */
+.settings-page .settings-tools-integrations-workspace {
+  --ti-canvas: #ffffff;
+  --ti-surface: #f8f9fb;
+  --ti-surface-hover: #f3f6f8;
+  --ti-border: #e1e6ec;
+  --ti-border-strong: #d6dde5;
+  --ti-text: #263142;
+  --ti-text-secondary: #667085;
+  --ti-text-muted: #8a94a3;
+  --ti-accent: #1e8df6;
+  --ti-accent-soft: #edf3f8;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  > .more-channels-header {
+  padding: 2px 0 20px;
+  border-bottom: 1px solid var(--ti-border);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  > .more-channels-header
+  h2 {
+  margin-bottom: 6px;
+  color: var(--ti-text);
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  > .more-channels-header
+  .settings-description {
+  max-width: 720px;
+  color: var(--ti-text-secondary);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  > .tools-integrations-content {
+  width: min(100%, 960px);
+  max-width: 960px;
+}
+
+.settings-page .settings-tools-integrations-workspace .tools-integrations-content,
+.settings-page .settings-tools-integrations-workspace .tools-integrations-nested-content,
+.settings-page .settings-tools-integrations-workspace .settings-tools-stack,
+.settings-page .settings-tools-integrations-workspace :is(
+    .connector-marketplace,
+    .contact-identity-settings,
+    .skills-settings,
+    .skillhub-settings,
+    .mcp-settings,
+    .builtin-tools-settings,
+    .extensions-settings,
+    .computer-use-settings
+  ) {
+  min-width: 0;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .tools-integrations-nested-content {
+  padding-top: 18px;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(
+    .connector-marketplace,
+    .contact-identity-settings,
+    .skills-settings,
+    .skillhub-settings,
+    .mcp-settings,
+    .builtin-tools-settings,
+    .extensions-settings,
+    .computer-use-settings
+  ) {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.settings-page .settings-tools-integrations-workspace .settings-tools-stack {
+  gap: 24px;
+}
+
+/* One title language for all child pages. */
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(
+    .settings-section-header h3,
+    .connector-marketplace > .settings-section-header h3,
+    .contact-identity-settings > .more-channels-header h2,
+    .skills-settings-heading-copy h3,
+    .extensions-catalog-header h3,
+    .builtin-tools-intro h3,
+    .computer-use-settings-heading h3,
+    .cp-sidebar-header h3
+  ) {
+  margin: 0;
+  color: var(--ti-text);
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.012em;
+  line-height: 1.35;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(
+    .settings-section-header,
+    .extensions-catalog-header,
+    .computer-use-settings-heading,
+    .cp-detail-header
+  ) {
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(.settings-description, .settings-hint, .cp-sidebar-note) {
+  color: var(--ti-text-secondary);
+}
+
+/* Shared controls. Purple gradients and component-specific button geometry are
+   intentionally removed inside this workspace. */
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(
+    .button-primary,
+    .btn-primary,
+    .settings-button.primary,
+    .button-success
+  ) {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid var(--ti-accent);
+  border-radius: 8px;
+  background: var(--ti-accent);
+  color: #ffffff;
+  box-shadow: none;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(
+    .button-primary,
+    .btn-primary,
+    .settings-button.primary,
+    .button-success
+  ):hover:not(:disabled) {
+  border-color: var(--color-action-primary-hover);
+  background: var(--color-action-primary-hover);
+  box-shadow: none;
+  transform: none;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(
+    .button-secondary,
+    .btn-secondary,
+    .settings-button:not(.primary),
+    .extension-scan-button
+  ) {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--ti-border-strong);
+  border-radius: 8px;
+  background: var(--ti-canvas);
+  color: #445166;
+  box-shadow: none;
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(
+    .button-secondary,
+    .btn-secondary,
+    .settings-button:not(.primary),
+    .extension-scan-button
+  ):hover:not(:disabled) {
+  border-color: #c8d1dc;
+  background: var(--ti-surface-hover);
+  color: var(--ti-text);
+  box-shadow: none;
+  transform: none;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea,
+    .settings-input,
+    .settings-select,
+    .settings-textarea,
+    .cp-search-input,
+    .builtin-tool-timeout-input,
+    .builtin-tool-mode-select
+  ) {
+  border-color: var(--ti-border-strong);
+  border-radius: 8px;
+  background: var(--ti-canvas);
+  color: var(--ti-text);
+  box-shadow: none;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea,
+    .settings-input,
+    .settings-select,
+    .settings-textarea,
+    .cp-search-input,
+    .builtin-tool-timeout-input,
+    .builtin-tool-mode-select
+  ):focus {
+  outline: 0;
+  border-color: #7896b5;
+  box-shadow: 0 0 0 3px rgba(65, 107, 150, 0.12);
+}
+
+/* Integration directory */
+.settings-page
+  .settings-tools-integrations-workspace
+  .connector-marketplace {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .connector-marketplace
+  > .settings-section-header {
+  min-height: 0;
+  align-items: flex-start;
+  margin: 0;
+  padding: 2px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .connector-marketplace
+  > .settings-section-header
+  .settings-description {
+  max-width: 620px;
+  margin: 5px 0 0;
+  color: var(--ti-text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.settings-page .settings-tools-integrations-workspace .cm-toolbar {
+  gap: 12px;
+  padding: 16px 0 0;
+}
+
+/* The search shell owns the surface and focus ring. Keep the nested input
+   visually inert so the workspace-wide form-control rules cannot draw a
+   second rounded rectangle inside it. */
+.settings-page
+  .settings-tools-integrations-workspace
+  .connector-marketplace
+  .cm-search
+  input[type="search"],
+.settings-page
+  .settings-tools-integrations-workspace
+  .connector-marketplace
+  .cm-search
+  input[type="search"]:hover,
+.settings-page
+  .settings-tools-integrations-workspace
+  .connector-marketplace
+  .cm-search
+  input[type="search"]:focus {
+  width: auto;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.settings-page .settings-tools-integrations-workspace .cm-directory-layout {
+  gap: 18px;
+}
+
+.settings-page .settings-tools-integrations-workspace .cm-category-nav {
+  padding-right: 14px;
+  border-right: 1px solid var(--ti-border);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .cm-category-nav-title {
+  margin-bottom: 6px;
+  color: var(--ti-text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.4;
+  text-transform: none;
+}
+
+.settings-page .settings-tools-integrations-workspace .cm-directory-results {
+  border: 1px solid var(--ti-border);
+  border-radius: 12px;
+  background: var(--ti-canvas);
+  overflow: hidden;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .cm-directory-heading {
+  min-height: 64px;
+  align-items: center;
+  margin: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ti-border);
+  background: var(--ti-surface);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .cm-directory-heading
+  h4 {
+  color: var(--ti-text);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .cm-directory-heading
+  p {
+  margin-top: 3px;
+  color: var(--ti-text-muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .cm-directory-subheading {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  margin: 0;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--ti-border);
+  color: var(--ti-text-secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--ti-canvas);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .cm-directory-list {
+  border-top: 0;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .cm-directory-row {
+  padding-right: 16px;
+  padding-left: 16px;
+}
+
+/* Feature packs: use the same compact internal navigation as Connectors. */
+.settings-page
+  .settings-tools-integrations-workspace
+  .cp-container--management {
+  grid-template-columns: 208px minmax(0, 1fr) !important;
+  gap: 20px !important;
+  height: auto !important;
+  padding: 0 !important;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .cp-container--management
+  .cp-sidebar {
+  padding: 0 14px 18px 0 !important;
+  border-right-color: var(--ti-border) !important;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .cp-container--management
+  .cp-sidebar-item--active {
+  background: var(--ti-accent-soft) !important;
+  color: var(--ti-accent) !important;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .cp-container--management
+  :is(.cp-management-intro, .cp-command-card) {
+  border-color: var(--ti-border) !important;
+  background: var(--ti-canvas) !important;
+  box-shadow: none !important;
+}
+
+/* Skills, MCP and extensions all start with the same unboxed page intro. */
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(
+    .skills-settings-intro,
+    .skillhub-settings > .settings-section:first-child,
+    .mcp-settings > .settings-section,
+    .extensions-catalog
+  ) {
+  margin: 0;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(
+    .skills-settings-intro,
+    .skillhub-settings > .settings-section:first-child
+  ) {
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--ti-border);
+  background: transparent;
+}
+
+.settings-page .settings-tools-integrations-workspace .mcp-settings-nav,
+.settings-page .settings-tools-integrations-workspace .skillhub-settings .settings-tabs {
+  min-height: 38px;
+  margin: 0 0 14px;
+  padding: 0;
+  gap: 0;
+  border-bottom: 1px solid var(--ti-border);
+  background: transparent;
+}
+
+.settings-page .settings-tools-integrations-workspace .mcp-nav-button,
+.settings-page .settings-tools-integrations-workspace .skillhub-settings .settings-tab {
+  min-height: 38px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ti-text-secondary);
+  box-shadow: none;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.settings-page .settings-tools-integrations-workspace .mcp-nav-button.active,
+.settings-page .settings-tools-integrations-workspace .skillhub-settings .settings-tab.active {
+  border: 0;
+  background: transparent;
+  color: var(--ti-accent);
+  box-shadow: inset 0 -2px 0 var(--ti-accent);
+}
+
+.settings-page .settings-tools-integrations-workspace .mcp-nav-button:focus {
+  outline: none;
+}
+
+.settings-page .settings-tools-integrations-workspace .mcp-nav-button:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid color-mix(in srgb, var(--ti-accent) 42%, transparent);
+  outline-offset: 2px;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  :is(.skill-card, .skillhub-card, .mcp-server-card, .extension-item) {
+  border-color: var(--ti-border);
+  background: var(--ti-canvas);
+  box-shadow: none;
+}
+
+/* Built-in tools, Chronicle and Computer Use form one continuous tool console. */
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-intro {
+  padding: 18px 20px;
+  border-radius: 12px;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .builtin-tools-summary {
+  min-width: 320px;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .settings-tools-stack
+  > .computer-use-settings {
+  padding: 20px;
+  border: 1px solid var(--ti-border);
+  border-radius: 12px;
+  background: var(--ti-canvas);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .settings-tools-stack
+  > .computer-use-settings
+  > .computer-use-settings-heading {
+  margin: 0 0 16px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--ti-border);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .computer-use-settings-heading-icon {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border: 1px solid var(--ti-border);
+  border-radius: 8px;
+  background: var(--ti-surface);
+  color: #4f7091;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .computer-use-status-card {
+  min-height: 0;
+  padding: 13px 14px;
+  border-color: var(--ti-border);
+  border-radius: 10px;
+  background: var(--ti-surface);
+}
+
+/* Extension catalogue mirrors the built-in tool overview. */
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-catalog-summary {
+  margin-top: 12px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-directory {
+  margin-top: 16px;
+  overflow: hidden;
+  border: 1px solid var(--ti-border);
+  border-radius: 12px;
+  background: var(--ti-canvas);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extensions-directory-heading {
+  border: 0;
+  border-bottom: 1px solid var(--ti-border);
+  border-radius: 0;
+  background: var(--ti-surface);
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extension-item {
+  border-width: 0 0 1px;
+  border-radius: 0;
+}
+
+.settings-page
+  .settings-tools-integrations-workspace
+  .extension-item:last-child {
+  border-bottom: 0;
+}
+
+.theme-dark .settings-page .settings-tools-integrations-workspace {
+  --ti-canvas: #171a1f;
+  --ti-surface: #1d2127;
+  --ti-surface-hover: #232830;
+  --ti-border: rgba(255, 255, 255, 0.1);
+  --ti-border-strong: rgba(255, 255, 255, 0.15);
+  --ti-text: #e5e7eb;
+  --ti-text-secondary: #a7b0bd;
+  --ti-text-muted: #7f8997;
+  --ti-accent: #8eb4d8;
+  --ti-accent-soft: rgba(112, 155, 196, 0.15);
+}
+
+@media (max-width: 900px) {
+  .settings-page
+    .settings-tools-integrations-workspace
+    .cp-container--management {
+    grid-template-columns: 180px minmax(0, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  .settings-page
+    .settings-tools-integrations-workspace
+    .builtin-tools-summary {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .settings-page
+    .settings-tools-integrations-workspace
+    .cp-container--management {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .settings-page
+    .settings-tools-integrations-workspace
+    .cp-container--management
+    .cp-sidebar {
+    padding: 0 0 14px !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--ti-border) !important;
+  }
+
+  .settings-page .settings-tools-integrations-workspace .cm-directory-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-page .settings-tools-integrations-workspace .cm-category-nav {
+    padding: 0 0 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--ti-border);
+  }
+}

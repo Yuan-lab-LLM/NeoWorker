@@ -1,0 +1,35 @@
+{
+  "id": "coding-agent",
+  "name": "Coding-agent",
+  "description": "Run Codex CLI, OpenCode, or Pi Coding Agent via background process for programmatic control.",
+  "icon": "🧩",
+  "category": "Tools",
+  "prompt": "# Coding-agent\n\nUse this skill only when the request is in scope:\n- Use when the user asks to run Codex CLI, OpenCode, or Pi Coding Agent via background process for programmatic control.\n- ROUTING NOTE: For requests specifically targeting Codex CLI alone, prefer the `codex-cli` skill. Use this generic skill for OpenCode, Pi, or when the user doesn't specify a particular CLI.\n\nDo not use this skill when:\n- Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead. Avoid using in non-interactive environments unless automation can fully satisfy prompts.\n- Do not use when the user explicitly names a specific CLI and expects detection + setup handling (use the dedicated skill instead).\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: Outcome from Coding-agent: task-specific result plus concrete action notes..\n5. Verify success criteria: Returns concrete actions and decisions matching the requested task, with no fabricated tool-side behavior..",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks to run Codex CLI, OpenCode, or Pi Coding Agent via background process for programmatic control.",
+      "dontUseWhen": "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead. Avoid using in non-interactive environments unless automation can fully satisfy prompts.",
+      "outputs": "Outcome from Coding-agent: task-specific result plus concrete action notes.",
+      "successCriteria": "Returns concrete actions and decisions matching the requested task, with no fabricated tool-side behavior.",
+      "examples": {
+        "positive": [
+          "Use the coding-agent skill for this request.",
+          "Help me with coding-agent.",
+          "Use when the user asks to run Codex CLI, OpenCode, or Pi Coding Agent via background process for programmatic control.",
+          "Coding-agent: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use when the request is asking for planning documents, high-level strategy, or non-executable discussion; use the relevant planning or design workflow instead. Avoid using in non-interactive environments unless automation can fully satisfy prompts.",
+          "Do not use coding-agent for unrelated requests.",
+          "This request is outside coding-agent scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

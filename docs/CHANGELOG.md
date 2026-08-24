@@ -1,0 +1,1707 @@
+# Changelog
+
+All notable changes to NeoWorker will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.5.51] - 2026-08-17
+
+### Added
+
+- **Release notes for 0.5.51**: see [Release Notes 0.5.51](docs/release-notes-0.5.51.md).
+- **Agent security with Numbat**: added a disabled-by-default, checksum-verified Numbat runtime with monitor/enforce modes, bounded tool-call projections, rule provenance, findings and decisions, scheduled scans, incident case bundles, retention controls, CLI operations, and optional external hooks. Numbat can add restrictions but cannot grant permissions or suppress ordinary approvals.
+- **Bounded long-document analysis**: added deterministic read-only review for named `.docx`, `.pdf`, `.md`, and `.txt` sources, including safe workspace discovery, extraction, overlapping analysis windows, complete coverage accounting, evidence reduction, split retry, cancellation, and partial-success reporting when final synthesis times out.
+- **Native System Voice TTS**: added capability detection and local text-to-speech adapters for macOS `say`, Windows PowerShell/SAPI, and Linux `espeak`. System speech recognition remains explicitly reported as unavailable so users can select OpenAI or Azure Whisper when transcription is needed.
+
+### Changed
+
+- **Long-session timeline performance**: added bounded timeline pages, cursor-based history loading, replay-tail transport, detail hydration, payload byte budgets, truncation metadata, renderer caches, and large-session profiling fixtures to keep task switching and replay predictable.
+- **Runtime and dependency maintenance**: refreshed the Electron, SQLite, provider, messaging, charting, and packaging dependency set; expanded native/runtime compatibility checks; and refactored the main application architecture and CLI/daemon boundaries without changing the local-first product model.
+- **WSL native window frame**: WSL/WSLg sessions now retain the operating system window frame and render the in-app toolbar as a non-draggable row. This remains a best-effort compatibility path pending visual validation on representative WSL hosts.
+- **Sidebar update action**: moved the update action into the sidebar footer so it remains available without occupying the main task header.
+- **Persistent UI density**: power density selection now persists across restarts and is applied during early renderer bootstrap to reduce visual layout changes during startup.
+
+### Fixed
+
+- **Linked source-checkout dependency repair**: the `neoworker` launcher and native SQLite recovery now preserve lockfile-defined versions and development dependencies when a global command is linked to a Git checkout, preventing runtime self-healing from upgrading Electron or removing Vite, Vitest, TypeScript, and other local development tools. Packaged npm installs continue to repair runtime dependencies without installing the development toolchain.
+- **Timeline completion ordering**: preserve the final task completion event, suppress stage chatter emitted after completion, retain relevant tool output, coalesce final responses correctly, and sanitize namespaced tool tags before rendering.
+- **Planning and document-analysis reliability**: hardened document source discovery and extraction, chunk retries, evidence reduction, local Ollama budget selection, and recovery from incomplete planner output.
+- **Browser navigation and renderer recovery**: restricted Browser Workbench navigation to approved web schemes and added renderer-crash handling so invalid destinations and renderer failures surface controlled recovery behavior.
+
+## [0.5.50] - 2026-07-20
+
+### Added
+- **Release notes for 0.5.50**: see [Release Notes 0.5.50](docs/release-notes-0.5.50.md).
+- **Main-screen Automation Studio**: added Discover, Library, Builder, and Activity views under the main sidebar **Automations** destination, with conservative prompt-to-draft generation, eight built-in templates, a searchable action catalog, typed variables, explicit Yes/No branch authoring, dry-run and Google-scope review, immutable activation versions, manual runs, turn-off controls, per-step approvals, cancellation, and backing-task links. Added the complete [Automation Studio guide](docs/automation-studio.md).
+- **Deterministic workflow runtime**: added versioned structured definitions, graph validation, bounded conditions/filters/for-each execution, a durable deduplicated event inbox, Google Workspace polling starters with cursor pagination, action adapters, signed outbound webhooks, secure secret references, connector allowlist/schema checks, run/step/event/sample persistence, retry policy, retention cleanup, and additive legacy Routine compatibility.
+- **ChatGPT subscription GPT-5.6 controls**: added `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna`, model-specific reasoning effort choices through Max and Ultra, response verbosity controls, OAuth model preservation, and Codex Responses transport forwarding.
+- **Bundled `unbroker` skill**: added a global consent-gated privacy cleanup workflow for authorized data-broker and people-search opt-outs, with a local PII ledger, deterministic `pdd.py` action queue, human-task digest, recurring recheck support, and related docs. Added [Unbroker Skill](docs/skills/unbroker.md).
+- **Session archive and retention controls**: added non-destructive session archive behavior, previewable filtered prune operations, automatic daemon retention settings, sidebar archived-session filtering, and CLI/runtime coverage.
+- **Mixture of Agents provider**: added advisor/aggregator orchestration, slot-specific provider routing and failover, usage aggregation, reference caching, recursion protection, Settings integration, and corporate TLS/Zscaler guidance. Added [Mixture of Agents](docs/mixture-of-agents.md).
+- **Browser Workbench annotations**: added persistent browser-target annotations, live element pins, an annotation composer, send-to-agent context, lifecycle events, and repository/renderer coverage.
+- **Inline mail compose frames**: assistant email drafts can render inline for review before sending, with richer recipient/body inputs, draft retrieval over IPC, send-status polling, and in-place event updates.
+- **Video attachment analysis**: uploaded `.mp4`, `.mov`, and `.webm` files are copied into the workspace, sampled into representative frames, passed to image-capable models, and shown as contact-sheet/full-frame image artifacts in the task timeline. Added [Video Attachments](docs/video-attachments.md) documentation.
+- **Google Calendar MCP tools**: added calendar listing, event list/read/batch read, availability/freeBusy lookup, and confirmed create/update/delete operations to the Google Workspace connector.
+- **Memory write governance**: added approval modes and a pending queue for archive, curated, background, and external memory writes, with sensitive external-memory blocking before persistence and approval controls in Memory Hub.
+- **Architecture design orchestration**: added local-only Rhino, Blender, and ComfyUI MCP connectors plus the `architecture-design` skill, project-root path enforcement, capability metadata, and artifact guidance.
+- **Cross-platform desktop location**: added permission-gated macOS, Windows, and Linux location helpers with a common JSON response envelope and packaged runtime assets.
+
+### Changed
+- **Automation product placement**: structured flow authoring now lives in the main Automations tab instead of Settings. **Settings > Automations** remains the advanced surface for prompt-based Routines, Task Queue, Workflow Intelligence, Scheduled Tasks, Webhooks, Event Triggers, and Daily Briefing.
+- **Workflow safety and lifecycle**: external writes and data exports require approval under safe/default policies, external automatic retries are capped at one, active versions are isolated from saved drafts, and re-enabling validates the active version's current account scopes and secret references.
+- **Browser and computer-use approvals**: background/headless execution is preferred unless visible Browser Workbench or native computer control is requested or approved; visible fallback choices can be governed by permission rules.
+- **Provider ordering**: moved OpenRouter, OpenAI, Mixture of Agents, Claude, Gemini, and DeepSeek to the front of the built-in provider list while preserving the relative order of remaining providers.
+- **Replay controls**: hid replay controls behind an explicit toggle to keep the default task surface focused.
+- **First-run onboarding**: refreshed staged setup, ChatGPT subscription sign-in, Ollama detection, free-provider badges, and the fixed-frame onboarding recap.
+
+### Fixed
+- **Automation Studio startup and database upgrades**: registered the complete `routine:workflow*` IPC surface, ordered compatibility-column migrations before dependent indexes, and made the dev launcher detect an already-running source Electron instance before macOS bundle rebranding. Missing-handler, legacy `workflow_run_id`, silent single-instance exit, and same-bundle `SIGABRT` failures now surface actionable diagnostics without destructive database recovery.
+- **Automation Studio layout and scrolling**: made the main Automations page the vertical scroll owner, removed task-view width constraints, bounded internal panes, wrapped long card content, and added responsive collapse plus placement/layout regression coverage.
+- **Workflow recovery and cancellation**: requeue processing events after restart, recover runs before draining new events, move interrupted steps to explicit outcome verification, propagate cancellation into agent/Google/webhook work, continue Gmail/Drive pagination without skipping capped backlogs, and redact/prune durable payload data.
+- **ChatGPT OAuth token exchange**: added an Electron network fallback for the OpenAI token endpoint, preserved Node fallback behavior, and surfaced useful refresh errors instead of collapsing them into generic failures.
+- **Build-health evidence checks**: kept `package.json` inspection read-only, required concrete command/API evidence, and tightened completion-report parsing.
+- **Mail draft sending state**: poll draft status during send so compose frames accurately reflect delivery progress.
+- **Memory FTS performance**: moved prompt recall to a bounded fast path, batched tier tracking, reduced redundant detail lookups, added caching and indexes, and enriched slow-query diagnostics.
+- **Google Workspace settings writes**: cached refreshed OAuth tokens during mailbox sync to avoid repeated refresh/save cycles.
+- **Output filtering**: reduced YAML capability-list false positives by requiring stronger system-prompt context.
+- **Multitask resource stability**: bounded renderer memory, MCP process lifecycles, synthesis prompt size, SQLite contention, and executor cache pressure.
+- **Collaborative execution status**: added an explicit execute phase so active child work is no longer shown as generic thinking.
+- **Blocked task progress status**: preserved the blocked state in task-progress summaries instead of classifying every blocked task as waiting for approval.
+- **Read-only review safety**: snapshot git state and restrict system interaction tools during review tasks.
+- **Workspace verification deduplication**: deduplicate identical verification commands in the same workspace.
+
+## [0.5.49] - 2026-06-08
+
+### Added
+- **Release notes for 0.5.49**: see [Release Notes 0.5.49](docs/release-notes-0.5.49.md).
+- **CLI local runner**: added the `neoworker` npm binary, CLI source/build coverage, local Control Plane discovery, terminal UI helpers, direct-run support, and package inclusion for `config/typescript/tsconfig.cli.json`.
+- **Browser Use Cloud stealth backend**: Browser V2 can now explicitly route `browser_navigate` through Browser Use Cloud with `browser_provider: "browser-use-cloud"`, using `BROWSER_USE_API_KEY` or encrypted `browser-use` settings, Browser Use API v3 session creation, CDP attach, optional proxy/profile/timeout/recording/screen controls, stale-session retry, and remote-session stop handling.
+- **Codex Security workflows**: added repository, diff, and deep security scan workflows, workspace-local scan artifact orchestration, report validation/render helpers, and the bundled Codex Security plugin pack with skills, references, scripts, and assets.
+- **Automation outcomes**: scheduled/automated runs can now record actionable, informational, low-value, and failed outcomes, with Mission Control surfacing outcome summaries and recent run details.
+- **Usage Insights token heatmap**: added a 12-month token activity overview with daily, weekly, and cumulative heatmap modes.
+- **Prompt composer link chips**: pasted standalone web URLs are converted to compact Markdown links and rendered as favicon chips in the composer.
+- **Public adoption stats**: added public GitHub/npm adoption stat collection, README rendering, history snapshots, and generated adoption reports.
+- **Namespaced skill slash commands**: slash command resolution now supports namespaced skill routes.
+
+### Changed
+- **Browser V2 docs and safety model**: documented Browser Use Cloud configuration, explicit opt-in behavior, private/local target blocking, redacted Browser Use errors/URLs, and retryable pending-stop results across Browser Workbench, Browser V2 architecture, getting started, troubleshooting, development, feature, and architecture docs.
+- **Startup and Control Plane behavior**: reduced sluggish desktop startup paths, tuned deferred startup work, and added an opt-in desktop Control Plane auto-enable path.
+- **Renderer shell polish**: improved task-list load-more state, reduced static Control Plane polling, isolated Settings sidebar search into a memoized component, and de-duplicated adjacent timeline failures in summary mode.
+- **Timeline event display**: improved browser action classification, timeline labels, event projection, and parallel group rendering for clearer task progress.
+- **Tool prompting**: contextual prompt guidance now wins over generic tool guidance when both apply.
+- **Documentation refresh**: refreshed README and docs for CLI usage, security scans, Browser Use Cloud, setup, troubleshooting, security, plugin packs, project status, and public adoption signals.
+
+### Fixed
+- **Security and auth hardening**: hardened webhook and MCP host auth, authenticated NeoWorker host tunnel forwarding, blocked cross-host Scrapling redirects, restricted `open_url` to web schemes, and tightened web fetch/scraping guardrails.
+- **Executor completion guardrails**: strengthened completion contract handling, file mutation verification, command requirements, and frontend browser-preview guidance.
+- **Automation permissions**: automated tasks now default to `dont_ask` permission behavior.
+- **Database migrations**: repaired pinned activity schema migration behavior and added legacy/schema migration coverage.
+- **Provider routing**: fixed retired Anthropic model handling and OpenCode Go Qwen 3.7 Max routing.
+- **Payments policy**: fixed x402 payment approval enforcement.
+- **Everyday Agent settings**: fixed the Everyday Agent read-only toggle.
+- **Development codesigning**: hardened the Electron development codesign helper.
+
+## [0.5.48] - 2026-05-28
+
+### Added
+- **Release notes for 0.5.48**: see [Release Notes 0.5.48](docs/release-notes-0.5.48.md).
+- **Side Chat**: `/side [question]` opens a right-side read-only side conversation for the selected running task, with hidden parent context, live parent-status snapshots for progress questions, and tools denied.
+- **Secure MCP Tunnels**: added self-hosted outbound-only private MCP access with a relay, local tunnel client, separate client/caller tokens, policy enforcement, audit logs, Settings UI, and relay smoke coverage.
+- **YouTube video intelligence**: added YouTube transcript ingestion, segment storage/search, video Q&A, Browser Workbench YouTube ask UI, and native YouTube tools.
+- **Timeline/sidebar paging**: added sidebar summary loading, cursor-based sidebar pagination, task timeline page/detail IPC APIs, timeline payload sanitization, and performance QA scripts.
+
+### Changed
+- **Mission Control semantics**: clarified UI/docs language around Heartbeat agents, the global runtime queue, and workspace-scoped Mission Board work.
+- **Scheduler reliability**: cron jobs now persist run leases before task creation, tag scheduled tasks with `scheduledJobId`, detect active scheduled work after restart, and avoid duplicate runs.
+- **Routine reconciliation**: routine runs now dedupe duplicate backing-task dispatches, preserve distinct thread follow-ups, and repair stale timeout rows when backing tasks later finish.
+- **Completion contract handling**: text-only briefs with file paths no longer require file artifacts, and recovery steps no longer overwrite stronger final deliverables with narrow operational status.
+
+### Fixed
+- **Tool policy read-only enforcement**: an explicit empty task allowlist now denies all tools, while an omitted allowlist remains unrestricted.
+- **Glob and file-path safeguards**: glob scans skip generated/dependency folders case-insensitively, reject generated search roots, cap scan duration, and file tools expand `~` paths before resolution.
+- **macOS sandbox path aliases**: sandbox profiles now include `/var` and `/private/var` aliases for workspace, temp, and allowed paths.
+- **Browser/webview URL policy**: Browser Workbench now applies explicit webview URL policy and short-lived allowlisting for local HTML previews.
+
+## [0.5.47] - 2026-05-21
+
+### Added
+- **Release notes for 0.5.47**: see [Release Notes 0.5.47](docs/release-notes-0.5.47.md).
+- **FTS worker memory search**: added an off-main-thread memory FTS worker for prompt recall, marker lookup, and memory search, with request timeouts, crash handling, exponential restart backoff, and teardown on app quit.
+- **Desktop location and maps tools**: added native desktop location helpers and maps MCP coverage for current location, geocoding, reverse geocoding, route estimates, and nearby-place search.
+
+### Changed
+- **Renderer event stability**: task-event appends now batch transient replacements, cap noisy renderer events, reduce stale-task reconciliation frequency, and avoid avoidable sidebar rerenders during large multi-agent/multi-task runs.
+- **Memory pressure analysis**: workspace memory-pressure scans now use async file reads so memory-nudge and heartbeat paths avoid synchronous filesystem pressure.
+- **Playbook recall**: playbook lookup now uses bounded marker search plus prompt-overlap scoring instead of broad main-thread recall.
+- **macOS unsigned distribution**: `0.5.47` continues the unsigned/ad hoc signed macOS artifact path; validate with the `--allow-unsigned` desktop smoke option.
+
+### Fixed
+- **Memory recall fallback**: async memory search falls back to the existing DB/hybrid paths when the FTS worker is unavailable, restarting, or returns no useful rows.
+- **Prompt recall filtering**: worker prompt-recall results include content so ignored imported-memory markers and prompt-suppression rules continue to apply.
+- **Timer and map cleanup**: Teams deduplication timers, tray status timers, managed briefing runs, subconscious evidence maps, and cross-signal mention maps are cleaned up or bounded to reduce long-session memory growth.
+- **WhatsApp listener cleanup**: preload WhatsApp listeners now return unsubscribe callbacks.
+- **Location approval safety**: location permission prompts cannot be auto-approved or persisted.
+- **Private memory marker search**: content-marker lookup excludes private memories.
+- **Timeline evidence privacy**: evidence links use local compact icons instead of fetching remote favicons.
+
+## [0.5.45] - 2026-05-14
+
+### Added
+- **Release notes for 0.5.45**: see [Release Notes 0.5.45](docs/release-notes-0.5.45.md).
+- **Claude-for-Legal workflows**: documented and registered bundled legal practice plugin packs, slash commands, editable picker flows, demand-letter intake cards, management-command exclusions, and safety behavior.
+- **Finance and legal plugin packs**: added legal practice packs, finance-core packs, fund administration, KYC operations, and expanded equity research, financial analysis, investment banking, private equity, and wealth management packs.
+- **Multitask command**: added `/multitask [N] <task>` for bounded collaborative lane fan-out with lane planning, queue behavior, worktree safety checks, and synthesis through existing team orchestration.
+- **Dreaming memory curation**: added Dreaming documentation and persisted `dreaming_runs` / `dreaming_candidates` support for review-first Workflow Intelligence memory refinement.
+- **Google Workspace MCP expansion**: added Google Tasks and Slides tools, broader Workspace OAuth scopes, scope diagnostics, and destructive-action safeguards.
+- **Agent Builder and managed-agent templates**: added a plan-based managed-agent builder, finance templates, starter prompts, missing-connection reporting, and managed-session panel flows.
+- **Channel specialization**: added per-channel/chat/thread specialization records, routing, workspace/role overrides, tool restrictions, shared-memory opt-in, and settings UI.
+- **Mailbox client upgrades**: added draft attachments, send queue/retry support, Graph send paths, navigation metadata, transient sync backoff, and client settings.
+- **Network and sandbox policy controls**: added admin runtime policies for sandbox types, shell network egress, network domain evaluation, and integration-auth notifications.
+- **Renderer task-surface split**: added lazy task-surface CSS ownership, markdown/code rendering helpers, spawned-agent sidebar surfaces, renderer performance fixtures, and startup marks.
+- **New skills and registry entries**: added autobrowse, AURL, autoresearch report, imagegen frontend web, Kami, LLM Wiki, Manim video, novelist, Playwright QA, and taste-skill registry coverage.
+
+### Changed
+- **Managed Agents concept docs**: refreshed Managed Agents, Agents Hub, Mission Control, architecture, getting started, docs home, README, and status documentation so clicked-agent detail is a configuration surface while tests/previews open normal main-window tasks.
+- **Message-box shortcut docs**: clarified skill-backed slash picker insertion behavior, Claude-for-Legal intake cards, and multitask command usage.
+- **Google Workspace OAuth and mentions**: service-specific Google Workspace options now distinguish Gmail, Drive, Calendar, Docs, Sheets, Slides, Tasks, and Chat coverage, with reconnect guidance for missing scopes.
+- **OpenRouter Pareto Code docs and settings**: documented `openrouter/pareto-code`, Nitro routing, the `0..1` Pareto minimum coding score, routed-model usage reporting, and headless control-plane configuration.
+- **Browser Workbench responsive QA docs**: documented visible `browser_emulate` viewport presets and screenshot verification for desktop, tablet, and mobile checks.
+- **Renderer task-surface performance docs**: documented lazy `MainContent` / `RightPanel` boundaries, task-view skeletons, surface-specific CSS ownership, and `npm run qa:renderer-perf`.
+- **macOS unsigned DMG distribution**: release builds continue to publish unsigned macOS DMG/ZIP artifacts without requiring a personal Developer ID certificate, with user-facing Gatekeeper first-launch guidance.
+
+### Fixed
+- **Google Workspace destructive safeguards**: destructive or broad Tasks/Slides MCP tools require explicit confirmation.
+- **Task surface restart styling**: critical welcome/composer chrome remains in startup CSS while heavier task-surface styles lazy-load safely.
+- **Shell sandbox review fixes**: persistent shell commands keep their session lifecycle when sandboxing is not required, `requireSandboxForShell` is honored, and macOS sandbox profiles honor per-command network decisions.
+- **WhatsApp TLS handling**: non-retryable certificate trust failures pause reconnect attempts and surface actionable status errors.
+- **Mailbox resilience**: transient Gmail sync failures back off cleanly, provider action errors include connection context, and draft attachment paths are workspace-scoped.
+
+## [0.5.44] - 2026-05-05
+
+### Added
+- **Release notes for 0.5.44**: see [Release Notes 0.5.44](docs/release-notes-0.5.44.md).
+- **Browser V2 documentation**: added the canonical Browser V2 architecture guide covering the visible Browser Workbench default, `BrowserSessionManager`, Electron-workbench / Playwright-local / external-CDP backends, accessibility snapshot refs, diagnostics, downloads/uploads, real-browser consent, safety invariants, and verification flow. Refreshed README, Features, Architecture, Development, Getting Started, Troubleshooting, Use Cases, Web Page Artifacts, Showcase, Status, and docs home to reflect Browser V2 as the new browser concept. See [Browser V2 Architecture](docs/browser-v2-architecture.md) and [Browser Workbench](docs/browser-workbench.md).
+- **Gateway and channel user guides**: documented remote command routing, active-task behavior, `/new` and `/new temp` sessions, `/stop` cancellation, skill slash invocation, shared channel delivery, editable WhatsApp progress, scheduled channel output delivery, per-channel feature guides, dedicated per-channel user guide pages, and end-user best practices for using NeoWorker from messaging channels. See [Channel User Guides](docs/channel-user-guides.md), [Dedicated Channel Guides](docs/channel-guides/), [Gateway User Guide](docs/gateway-user-guide.md), and [Gateway Message Lifecycle](docs/gateway-message-lifecycle.md).
+- **Browser Use approval and routing controls**: added tool-prefix permission scopes, browser-domain approval context, Browser Use domain approval prompts, the Browser Use composer mention option, sidebar approval wiring, markdown-link routing into the browser sidebar, and tests covering permission-rule behavior.
+- **Expanded gateway runtime**: added shared gateway types, channel delivery services, remote command normalization and registry support, WhatsApp command utilities, temporary workspace routing, voice event routing, tray channel activity, plugin/persona IPC update hooks, and daemon startup wiring for gateway services.
+- **Provider coverage**: added DeepSeek and NanoGPT as named provider options, including NanoGPT onboarding/settings support and Anthropic-compatible request handling that avoids NeoWorker-managed caching where the upstream provider does not support it.
+- **Persistent goal slash command**: added a slash-command path for keeping an explicit persistent goal in the active task context.
+- **Imagegen frontend web skill**: bundled and registered `imagegen-frontend-web` guidance for higher-quality frontend image direction and generated visual references.
+
+### Changed
+- **Browser Workbench experience**: refined Browser Workbench navigation, styling, sidebar approvals, mention text/icons, browser tool prompting, runtime browser tool definitions, storage-secret redaction, and tool-scheduler behavior so live browser work is more visible and controlled.
+- **Agent and gateway routing**: tightened gateway/skill command routing, parallel batch execution coverage, temporary workspace handling, ambient monitoring updates, and shared channel-message behavior across Slack, Discord, email, Telegram, WhatsApp, and the channel registry.
+- **Release packaging and smoke coverage**: refined the Electron builder runner, mac packaging environment loading, desktop artifact smoke checks, unsigned mac entitlements, release artifact-name verification, and the mac unsigned release smoke path used by CI.
+- **Documentation refresh**: updated README, docs home, feature overview, capabilities, architecture, getting started, troubleshooting, web artifact, Linux VPS, self-hosting, status, showcase, development, and message-box guidance to reflect Browser V2, channel guides, gateway behavior, and current release packaging.
+- **Branding assets**: refreshed app/logo assets and related docs for the current NeoWorker branding set.
+
+### Fixed
+- **Agents Hub active agents**: Mission Control active agents now appear in Agents Hub counts and panel state instead of being hidden from the hub summary.
+- **Task metadata persistence**: restored persisted `TaskRepository.findAll` fields for assigned agent role, board metadata, and awaiting-user-input reason codes.
+- **Provider retry handling**: overloaded provider failures are classified as transient/retryable, enabling existing fallback and retry handling instead of failing immediately.
+- **HTTP tool failure details**: `http_request` failures preserve clearer failure reason and status metadata instead of collapsing into a generic unknown-error path.
+- **OpenCode Go/Kimi compatibility**: improved OpenAI-compatible tool-call handling for Kimi/OpenCode Go style responses and tightened workspace status labels in the renderer.
+- **Anthropic-compatible custom model selection**: fixed overlapping custom-model matching so the intended Anthropic-compatible gateway model is selected.
+- **NanoGPT request reliability**: fixed NanoGPT Anthropic-compatible request handling and auth/cache behavior for routes that should bypass NeoWorker-managed prompt caching.
+- **Task archive cleanup**: fixed archive deletion and SQLite cleanup paths so archived tasks and dependent rows are removed without foreign-key leftovers.
+- **Workspace switching**: fixed active-chat workspace switching so task context follows the selected workspace correctly.
+- **PPTX preview path validation**: tightened workspace path validation for presentation previews.
+- **Security hardening**: hardened MCP registry package verification, command/path containment, control-plane auth, and workspace file access.
+- **Email channel timeouts**: reset IMAP timeout state after failures so one timeout does not cascade into later mailbox operations.
+- **Dev-log diagnostics**: reduced false-positive error classification in development log utilities.
+
+## [0.5.43] - 2026-05-02
+
+### Added
+- **Composer `@` mentions for integrations**: added a grouped autocomplete above the message box with Agents, configured Integrations, and Files. Integration mentions render as icon+name chips in prompts and user message bubbles, restore from task/session history, and submit `integrationMentions` as soft runtime guidance. See [Composer Mentions](docs/composer-mentions.md).
+- **`@Inbox` main-composer routing**: `@Inbox` / `@inbox ...` now opens Inbox Agent and runs the remaining query through the Ask Inbox module instead of starting a normal task run.
+- **Ask Inbox sidebar chat**: Inbox Agent now has right-sidebar tabs for Agent Rail and Ask Inbox. Ask Inbox shows the user question, live mailbox-agent steps, final answer, and matched email evidence, with a pinned composer for follow-up questions. See [Ask Inbox Architecture](docs/ask-inbox-architecture.md).
+- **Hybrid mailbox retrieval for Ask Inbox**: Ask Inbox now plans broad mailbox searches across local FTS, semantic mailbox embeddings, provider-native search, and attachment text, then shortlists and reads evidence before answering.
+- **Bundled `react-best-practices` skill**: added React and Next.js implementation guidance for feature work, enhancements, refactors, reviews, data fetching, bundle-size checks, and rendering-performance fixes. See [React Best Practices Skill](docs/skills/react-best-practices.md).
+- **Desktop artifact smoke tests**: release packaging now runs shared macOS DMG and Windows installer smoke checks, while the release workflow continues to build and smoke-test the Linux server tarball before publishing artifacts.
+
+### Changed
+- **Right sidebar polish**: refined the task right sidebar with keyboard-accessible section headers, cleaner compact spacing, stable row grids, clearer in-progress/checklist states, tighter truncation, a four-row scroll cap for Tools used, and lighter feedback/file/context surfaces.
+- **Files panel type icons**: the right-sidebar Files section now shows format-aware Lucide icons beside created/modified/deleted file rows, distinguishing markdown/text, code, JSON, spreadsheets, images, presentations, media, archives, folders, and generic files while preserving the existing action color states.
+- **Integration mention resolver**: Google Workspace now appears as Gmail, Google Drive, and Google Calendar in the composer; gateway channels and MCP connectors appear only when locally connected/configured; multi-service MCP connectors can split by service tool groups.
+- **Bundled-skill docs**: README, Features, Skill Store, development guidance, docs home, and status docs now reflect the `react-best-practices` addition and the built-in skill count increase to 147.
+- **Inbox Agent docs**: Inbox Agent, Features, Composer Mentions, troubleshooting, use cases, showcase, and implementation docs now describe Ask Inbox as a sidebar mailbox-agent chat with transient progress events and hybrid evidence retrieval.
+
+### Fixed
+- **Rich composer mention editing**: fixed duplicate `@` rendering and the React `removeChild` crash when deleting a raw mention or integration chip.
+- **Google Workspace reconnect recovery**: stale Google Workspace refresh tokens are cleared after refresh bad-request failures, and changing Google OAuth client credentials or scopes clears old tokens before reconnect.
+- **Azure OpenAI tool-result replay**: normalized long Responses fallback tool-call ids so Azure OpenAI does not reject integration-heavy turns with a `call_id` length error.
+
+## [0.5.42] - 2026-04-30
+
+### Fixed
+- **Windows installer architecture**: rebuilt the Windows installer as an x64 app package so standard Windows PCs install `NeoWorker.exe` correctly. The 0.5.41 GitHub release asset was built with an ARM64 Windows payload and GitHub immutable releases prevented replacing that asset in place.
+
+## [0.5.41] - 2026-04-29
+
+### Added
+- **Release notes for 0.5.41**: see [Release Notes 0.5.41](docs/release-notes-0.5.41.md).
+- **Everything Workbench positioning docs**: added the canonical [Everything Workbench](docs/everything-workbench.md) page and refreshed product copy around NeoWorker as a local-first AI workbench for generated docs, sheets, decks, web pages, PDFs, previews, tasks, and automations.
+- **Document artifact workbench**: Word-style document artifact cards now recognize DOCX, DOCM, DOTX, DOTM, DOC, RTF, ODT, OTT, and Pages outputs. DOCX opens directly into an editable sidebar/fullscreen document surface with Google Docs-style controls, save/copy actions, external app actions, functional follow-up composer controls, and automatic preview refresh after follow-up edits. See [Document Artifacts](docs/document-artifacts.md).
+- **Spreadsheet artifact format support**: spreadsheet artifact cards now recognize Excel workbooks, CSV/TSV, Numbers, Google Sheets shortcut files, ODS, and XLSB. Editable in-app mode supports workbook and delimited formats; native/app-owned formats keep the same artifact card and external-app/folder actions. See [Spreadsheet Artifacts](docs/spreadsheet-artifacts.md).
+- **Presentation artifact workbench**: PPTX outputs now render as compact artifact cards and open by default in a resizable sidebar/fullscreen presentation viewer with thumbnails, navigation, zoom, speaker notes, fast text-first loading, cached rendered slide images, external actions, and functional follow-up composer controls. Legacy PowerPoint formats are recognized with external-app/folder actions. See [Presentation Artifacts and PPTX Preview](docs/pptx-generation-and-preview.md).
+- **Web page artifact workbench**: generated `.html` / `.htm` files and built React output entrypoints now render as compact artifact cards and open by default in a resizable sidebar/fullscreen sandboxed iframe preview with browser/folder/copy actions and functional follow-up composer controls. React-style projects without build output show a build-output-needed state instead of auto-starting a dev server. See [Web Page Artifacts](docs/web-page-artifacts.md).
+- **Browser Workbench**: interactive browser-use tasks now open a visible right-sidebar/fullscreen browser by default, with a persistent workspace browser profile, functional navigation controls, screenshots, screenshot annotation, follow-up handoff, and visible cursor movement during agent actions. See [Browser Workbench](docs/browser-workbench.md).
+
+### Changed
+- **Product positioning**: README, docs home, Features, Getting Started, Showcase, Use Cases, GTM, best-fit workflows, artifact docs, architecture, development, troubleshooting, and status docs now frame document, spreadsheet, presentation, web page, PDF, and preview surfaces as one unified artifact workbench that reduces app switching for generated knowledge work without claiming full office-suite replacement.
+- **Document output concept**: README, Features, Architecture, Development, Getting Started, Troubleshooting, Project Status, and the docs index now describe Word-style outputs as first-class document artifacts with sidebar/fullscreen editing for DOCX and preview/external handling for other document formats.
+- **Spreadsheet output concept**: README, Features, Architecture, Development, Getting Started, Troubleshooting, Project Status, and the docs index now describe Excel outputs as first-class spreadsheet artifacts with sidebar/fullscreen workbench behavior rather than only generic XLSX file previews.
+- **Presentation output concept**: README, Features, Architecture, Development, Getting Started, Troubleshooting, Project Status, Use Cases, and the docs index now describe PowerPoint outputs as first-class presentation artifacts with fast text-first preview, cached rendered slides, sidebar/fullscreen review, and deferred refresh after follow-up completion.
+- **Web output concept**: README, Features, Architecture, Development, Getting Started, Troubleshooting, Project Status, Use Cases, Live Canvas, and the docs index now describe generated web pages as first-class artifacts with sandboxed sidebar/fullscreen preview, built React output handling, no automatic dev-server startup, and deferred refresh after follow-up completion.
+- **Browser-use concept**: README, Features, Architecture, Development, Getting Started, Troubleshooting, Use Cases, Web Page Artifacts, and the docs index now distinguish generated web artifacts from live Browser Workbench sessions, with visible sidebar browser automation as the default for normal-user website testing.
+
+## [0.5.40] - 2026-04-26
+
+### Added
+- **Release notes for 0.5.40**: see [Release Notes 0.5.40](docs/release-notes-0.5.40.md).
+- **Chronicle Desktop Research Preview**: opt-in recent-screen context for vague desktop references, with consent-gated passive capture, pause/resume controls, per-task toggles, observation management, promoted `screen_context` evidence, and optional linked background memory generation.
+- **Workflow Intelligence docs and product framing**: added the canonical Workflow Intelligence architecture guide and kept the former Subconscious page as a compatibility redirect.
+- **Routines**: documented and surfaced the routines-first automation model with schedule, API, connector, channel, mailbox, GitHub, and manual triggers; execution targets; outputs; run history; and lower-level Scheduled Tasks/Webhooks/Event Triggers as compiled backends.
+- **AgentMail and expanded Inbox Agent workflows**: added AgentMail configuration/realtime support and documented Inbox Agent Classic/Today modes, Mailbox Ask, attachment search, manual reply/reply-all/forward, editable AI drafts, sender cleanup, commitments, and Gmail forwarding automations.
+- **Managed Agents Hub improvements**: managed agents now include templates, role/profile conversion, runtime tool catalogs, routines, governance, insights, audit history, Slack health, workpapers, and image-generation profiles.
+- **Multi-provider image generation**: image settings now cover OpenAI, OpenAI Codex/OAuth, Azure, OpenRouter, and Gemini providers with default/backup routing, model selection, timeouts, and provider-attempt progress.
+- **LaTeX/PDF artifact workflow docs**: documented the new `compile_latex` source-first workflow across README, feature, use-case, architecture, runtime, troubleshooting, development, showcase, status, ideas, changelog, and docs index surfaces.
+- **Bundled `kami` skill**: added a new editorial-document workflow for resumes, one-pagers, white papers, letters, portfolios, diagrams, and slide decks, with workspace-local scaffolding, PDF/PPTX render helpers, and related docs.
+- **Bundled `taste-skill` frontend workflow**: NeoWorker now ships `taste-skill` as a global bundled skill for high-agency frontend design with stricter anti-slop layout, typography, motion, dependency, and responsive-implementation rules.
+- **Rich PPTX artifact previews**: PowerPoint outputs now open in an in-app presentation viewer with slide thumbnails, navigation, zoom, extracted slide text, and speaker notes. Visual slide images are cached when local `soffice` + `pdftoppm` are available and fall back to text-only previews otherwise.
+
+### Changed
+- **Workflow Intelligence concept refresh**: updated README, feature, getting-started, Mission Control, Heartbeat, core automation, digital twin, company-ops, troubleshooting, and status docs to describe Memory as source of truth, Heartbeat as scheduler, Reflection as internal evaluation, and Suggestions as the reviewable user-facing output.
+- **Bundled-skill docs**: README, features, skill-store, and related status/comparison docs now reflect the bundled `taste-skill` addition and the built-in skill count increase to 140.
+- **Computer use runtime and docs**: macOS computer use now documents helper-targeted permissions, normalized tool names, screenshot-relative coordinates, fresh `captureId` validation, single-session sequential execution, Esc abort, and clearer Chronicle-vs-GUI-control boundaries.
+- **Artifact and settings surfaces**: task outputs, Files, timeline details, AI model settings, Automations, Memory Hub, Tools, and integration settings were updated for presentation previews, LaTeX/PDF pairs, image providers, routines, Chronicle, and AgentMail.
+- **Developer and packaging guidance**: documented focused build commands, Oxfmt/Oxlint/type-check commands, staged skills-check strictness, Kami validation, PPTX preview dependencies, LaTeX troubleshooting, dev-start Electron repair, skill assets, computer-use resources, and refreshed app icons.
+
+### Fixed
+- **Mailbox autosync**: autosync is scoped to the singleton IPC service instead of starting from every `MailboxService` instance.
+- **Mailbox search and attachments**: upgraded mailboxes now backfill FTS before trusting search results, and attachment-content filters search decrypted extracted text.
+- **Suggestion feedback**: welcome suggestions are recorded as acted-on only after prompt submission.
+- **Image generation dedupe**: duplicate protection blocks identical repeated image requests without blocking distinct prompts in the same task.
+- **Image OAuth and managed routines**: fixed derived Codex API key usage for OAuth image generation and synchronized managed routine lifecycle through the routines service.
+- **Runtime reliability**: tightened workflow-intelligence evidence gating, restart/catch-up behavior, hook token scoping, private workspace path exclusions, Azure streaming/tool-call parsing, sidebar/session loading, task replay state, and task pause messaging.
+
+## [0.5.35] - 2026-04-12
+
+### Added
+- **Release notes for 0.5.35**: see [Release Notes 0.5.35](docs/release-notes-0.5.35.md).
+- **Managed Agents and Managed Sessions**: NeoWorker now includes versioned managed-agent definitions, durable managed-session runtime plumbing, and Mission Control/control-plane surfaces for operating longer-lived reusable agents.
+- **Optional Supermemory integration**: Supermemory can now act as an external memory lane with setup flows, tool exposure, runtime metadata, Memory Hub controls, and prompt-time profile context injection.
+- **Task Trace Debugger**: a new debugger surface exposes trace requests, projections, formatting helpers, and renderer tabs for inspecting task execution traces directly in the app.
+- **Bundled `novelist` skill and NeoWorker School guide**: the shipped skill set now includes a novelist workflow, and the docs now include a beginner-oriented `neoworker-school` guide.
+
+### Changed
+- **Explicit-only turn budgets**: main interactive tasks no longer receive implicit strategy-derived `maxTurns` windows. `maxTurns` and `windowTurnCap` are now explicit-only caps, while uncapped tasks rely on lifetime limits, emergency fuses, and existing recovery safeguards.
+- **Runtime telemetry and docs**: turn-budget events, runtime docs, and session/runtime ownership docs now distinguish explicit capped runs from default-unbounded main-task execution more clearly.
+- **Renderer task-event playback**: renderer event handling now batches, throttles, and derives UI state more aggressively so larger task histories replay more smoothly.
+- **Mission Control, Memory Hub, and provider settings**: the UI now surfaces Supermemory controls, trace-debugger controls, provider-specific failover chains, updated lane actions, and more consistent board-card/task summaries.
+- **Daily briefings and context quality**: briefing generation now favors higher-signal context and filters low-signal background automation noise more aggressively.
+- **Release and packaging guidance**: docs and packaging scripts now better enforce artifact-name consistency and local release validation.
+
+### Fixed
+- **Release smoke installs**: restored the Electron runtime as an installed dependency so `npm run release:smoke` no longer falls back into dependency bootstrap on clean consumer installs.
+- **Chat MCP discovery**: fixed MCP tool discovery inside chat sessions.
+- **Workspace path recovery**: stale absolute file paths can now be remapped into the active workspace more reliably during file reads.
+- **Executor/runtime edge cases**: completion evidence checks, pending skill-parameter handling, iCloud execution routing, and extra JSON Schema keys in tool definitions are handled more safely.
+- **Remote/task data cleanup**: remote shadow-task pruning now deletes only rows covered by the fetched remote window.
+
+## [0.5.34] - 2026-04-08
+
+### Added
+- **Release notes for 0.5.34**: see [Release Notes 0.5.34](docs/release-notes-0.5.34.md).
+- **Core automation profiles**: automation profiles now own the always-on runtime surface, replacing the older heartbeat-centric ownership path.
+- **Core automation pipelines**: the runtime now persists traces, failures, failure clusters, eval cases, harness experiments, learnings, memory candidates, regression gates, and memory-distill runs as first-class data.
+- **Memory distillation**: core memory distillation now has a dedicated service layer, scoped memory resolution, and supporting repositories.
+- **Research vaults (`LLM Wiki`)**: workspace-local research vaults inspired by Andrej Karpathy's LLM Wiki concept now support deterministic source capture, vault search, graph reporting, and filed-back outputs.
+- **Programmatic video skill (`manim-video`)**: a bundled skill now plans and scaffolds Manim CE explainers, equation walkthroughs, algorithm visualizations, and animated architecture/data stories.
+- **Curated memory and recall**: new curated-memory, quote-recall, and session-recall services expand durable context handling.
+- **PDF text and workspace healing**: PDF text extraction and workspace-path healing are now handled by dedicated utility layers.
+- **File provenance tracking**: imported and exported files can now carry trust/provenance metadata through a dedicated registry.
+
+### Changed
+- **Mission Control and onboarding**: the UI now surfaces automation profiles, distillation controls, core failures, learnings, companion inbox state, and shared onboarding data more clearly.
+- **Renderer and completion UX**: task completion, disclosure handling, memory hub settings, permission settings, Slack settings, and onboarding screens were updated to fit the new runtime model.
+- **Gateway and messaging routing**: WhatsApp command handling, channel routing, and email/report delivery were updated to match the richer runtime and task-state model.
+- **Tooling and skill execution**: explicit skill invocation matching, runtime tool metadata, tool exposure, and tool-policy inference were refined across the executor and loader layers.
+- **Provider behavior**: OpenRouter and provider-factory behavior were tightened with better catalog loading, logging, and model-selection handling.
+- **Security and approval flows**: approval controls, workspace rule handling, control-plane sanitization, and export-permission context handling were strengthened.
+- **Documentation and tests**: release notes, changelog surfaces, architecture docs, feature docs, security docs, and onboarding guidance were refreshed alongside broader test coverage.
+
+### Fixed
+- **Legacy task migration**: fixed legacy task-event migration paths so older task data upgrades cleanly into the newer runtime model.
+- **Heartbeat compatibility**: preserved compatibility while routing dispatch state through automation profiles and handling deferred heartbeat state more carefully.
+- **Completion evidence**: fixed report-task contract inference and completion evidence handling so task finalization is more reliable.
+- **OpenRouter noise**: reduced noisy provider catalog loading and made structured logging more predictable.
+- **Tool-call sanitization**: tightened tool-call and task-message sanitization so malformed payloads are less likely to leak into runtime state.
+- **Workspace boundaries**: edits to workspace ignore files now respect workspace boundaries more strictly.
+- **Approval and runtime edge cases**: updated approval handling, tool exposure, and runtime policy decisions so guarded actions fail more predictably.
+- **Release artifacts**: release artifact naming and packaging logic were aligned with updater metadata so published assets stay consistent.
+
+## [0.5.23] - 2026-04-05
+
+### Added
+- **Release notes for 0.5.23**: see [Release Notes 0.5.23](docs/release-notes-0.5.23.md).
+- **Subconscious reflective loop**: NeoWorker now includes a new reflective automation subsystem with persisted targets, backlog items, hypotheses, critiques, dispatch records, artifact storage, migration support, and a dedicated settings surface under Automations.
+- **Provider-aware prompt caching**: stable prompt sections can now be cached across Anthropic, OpenRouter Claude, Azure OpenAI, and OpenAI-family routes, with shared cache metadata persisted in `SessionRuntime`.
+- **Adaptive output token policy**: request-kind-aware output budgeting now classifies truncation modes, adjusts output-token limits by provider family, and guides retry or continuation behavior when a response hits output ceilings.
+- **Prompt-aware tool descriptions**: built-in tools now carry prompt metadata so the runtime can render concise execution-facing descriptions and compact planning text from one shared definition.
+- **Imported capability security**: managed skills and plugin packs now stage through a shared security gate with persisted reports, quarantine handling, retry/remove actions, and explicit file-import approval tracking.
+- **Usage Insights projector**: usage metrics now support incremental backfill/projection, richer provider breakdowns, retry metrics, normalized provider names, and new renderer helpers for periods and formatting.
+- **Task feedback controls**: completed tasks can now collect user feedback directly from the right panel.
+
+### Changed
+- **Execution runtime**: prompt assembly now uses cache-aware session- and turn-scoped sections, shared prompt-section hashing, adaptive output-budget state, prompt-aware tool text, and normalized delegation-role inference.
+- **Provider routing and failover**: fallback settings now preserve cached model metadata, respect a configurable retry-to-primary cooldown, keep active failover routes stable, and expose the new behavior in settings and provider docs.
+- **Anthropic, OpenAI, Azure, and OpenRouter integrations**: provider implementations now handle scoped system blocks, prompt-cache metadata, richer usage accounting, safer credential handling, and normalized display names more consistently.
+- **Import and extension loading**: imported skills and plugin packs now carry persisted security reports through loader, installer, registry, IPC, and renderer surfaces instead of surfacing ad hoc warnings.
+- **Automations terminology and docs**: product copy, settings labels, comparisons, and troubleshooting guides now consistently use `Subconscious` or `subconscious loop` in place of the older self-improvement language where appropriate.
+- **Usage Insights UI**: the LLM section and charts now use normalized provider names, richer charting, one-day and shared period presets, and extracted formatting helpers.
+- **Approval and task-detail UX**: approval dialogs now render safer command previews, and task detail feedback moved into the right panel.
+- **Gateway, daemon, and worktree plumbing**: workspace bootstrap, channel gateway startup, secure worktree persistence, and health snapshots now carry richer routing and provider state.
+
+### Fixed
+- **OpenRouter attribution**: request headers now use a single normalized attribution category set across OpenRouter calls.
+- **Fallback routing stability**: retryable provider failures now move through fallback routes more reliably without immediately snapping back to the primary route.
+- **LLM settings persistence**: saving provider settings now preserves fallback chains, retry cooldowns, and cached model metadata more reliably.
+- **Tool-result reminder payloads**: JSON envelopes remain valid when model reminders are attached to tool results.
+- **Approval command previews**: long or multiline commands now render as truncated previews instead of overflowing approval dialogs.
+- **Managed import integrity**: imported skills and packs are rechecked and can be quarantined consistently when their stored bundle no longer matches the expected digest or security outcome.
+- **Task cleanup bookkeeping**: deleting task rows now clears subconscious task references so reflective automation state does not retain stale task pointers.
+- **Empty follow-up end turns**: follow-up loops now retry empty `end_turn` responses instead of silently finalizing with no text, and repeated empty follow-up responses are surfaced as provider errors.
+
+## [0.5.22] - 2026-04-03
+
+### Added
+- **Release notes for 0.5.22**: see [Release Notes 0.5.22](docs/release-notes-0.5.22.md).
+- **Session checklist primitive**: execution-style tasks can create a session-local ordered checklist via `task_list_create`, maintain it with `task_list_update`, inspect it with `task_list_list`, and surface it read-only in the task UI with verification nudge state.
+- **Shared turn/runtime kernel**: task steps, follow-ups, subagents, and verification now run through a canonical `TurnKernel` instead of duplicated loop bodies.
+- **Metadata-driven tool scheduling**: concurrency-safe reads batch together automatically, scoped writes serialize, and post-batch result ordering stays stable through a single `ToolScheduler`.
+- **Graph-backed delegation**: spawned agents, collaborative runs, workflow phases, and ACP task delegation now resolve through a normalized orchestration graph engine.
+- **Typed worker roles**: built-in `researcher`, `implementer`, `verifier`, and `synthesizer` worker roles drive delegation, prompts, and hard tool scopes.
+- **Semantic tool summaries**: completed tool batches now carry concise semantic labels for timeline rows and completion relays.
+- **Debug/runtime orchestration**: debug-mode flows and the supporting runtime helpers now expose the same orchestration, projection, and completion surfaces as normal tasks.
+- **Mailbox / inbox visibility**: inbox and mailbox completion handoff paths now keep follow-up triggers and terminal state in sync with the task timeline.
+
+### Changed
+- **SessionRuntime ownership**: runtime state now includes the session checklist bucket, replayable checklist events, and the non-blocking verification nudge algorithm for implementation-first tasks.
+- **Completion projection**: task completion relays now compose from `resultSummary`, semantic batch labels, and verifier verdict/report fields.
+- **Follow-up visibility**: follow-up completion events now preserve the triggering user text so the timeline can surface orphaned follow-ups explicitly.
+- **Canvas / visual refinement UX**: screenshot-heavy refinement loops render more compactly in summary mode to keep the feed readable.
+- **ACP / control plane**: ACP and control-plane handlers now project delegated work from graph-backed state instead of maintaining parallel orchestration logic.
+- **Renderer surfaces**: debug, session, timeline, and completion views were updated to reflect the richer runtime state and completion payloads.
+- **Shared contracts**: shared types, detection, sanitization, and timeline-event contracts were updated for the new history and projection model.
+- **Tool plumbing**: search, middleware, registry, and envelope handling were tightened to fit the new runtime and scheduler contracts.
+- **Build / packaging**: packaging scripts and branding assets were refreshed so release artifacts and UI branding stay aligned with the current build.
+
+### Fixed
+- **Resume race on terminal tasks**: approval- or follow-up-driven resume handling no longer overwrites a freshly completed task row back to `executing`; resume now re-checks canonical persisted task state before applying active status.
+- **Stale completion state**: follow-up completion now persists terminal task state together with the completion payload, preventing sidebar/task-detail divergence after a task finishes.
+- **Hidden follow-up triggers**: session follow-up messages now remain visible in the timeline rather than collapsing behind later action blocks.
+- **Orchestration regressions**: graph-backed delegation, workflow phases, and ACP task state no longer depend on the old duplicated runtime paths.
+- **Test coverage gaps**: the runtime, ACP, inbox/mailbox, debug, renderer, and build paths now have significantly broader regression coverage.
+
+## [0.5.19] - 2026-03-30
+
+### Added
+- **App profiles**: isolated `userData` per profile with export/import bundles for migration and multi-environment use (`Settings → Profiles`).
+- **Feishu/Lark and WeCom channels**: enterprise messaging adapters, settings UI, and gateway registration with webhook and encrypted event handling.
+- **Gateway channel instances**: per-`channelId` adapter routing so multiple Slack workspaces, distinct channel configs, and correct reply routing coexist in one profile.
+- **Slack multi-workspace**: add more than one Slack channel entry; each workspace is a separate gateway instance.
+- **Telegram group controls**: routing modes and optional allowed group chat IDs.
+- **Discord guild allowlist**: ignore traffic from guilds not in the configured list.
+- **Signal and email policy alignment**: DM/group policies and exact sender or domain allowlists for email ingress.
+- **Exa web search**: new search provider in Settings with ordered fallback integration alongside Tavily, Brave, SerpAPI, Google, and DuckDuckGo.
+- **Ordered LLM fallback chain**: configure up to five ordered fallback providers/models for runtime failover.
+- **External skill directories**: optional read-only absolute skill folders with precedence `bundled < external < managed < workspace`; Settings UI and secure settings persistence.
+- **ACP task persistence**: `acp_tasks` SQLite table and handler persistence for restart-safe ACP task state.
+- **ACP remote invoker**: remote HTTP calls with endpoint validation, timeouts, HTTPS preference, loopback-only `http`, private IP rejection, and remote **task cancel**.
+- **ACP scoped access**: control-plane scope gates and stricter task/inbox visibility for non-operator clients.
+- **RuntimeVisibilityService**: consolidates runtime learning/recall visibility wiring (replaces legacy internal parity helper).
+- **Computer use (macOS)**: session manager, permissions/risk helpers, settings and approval UI; see `docs/computer-use.md`.
+- **Usage Insights LLM section**: model/provider-oriented usage reporting with shared helpers where applicable.
+- **MCP host**: `NeoWorkerHostProvider` and host server improvements; tests for MCP host behavior.
+- **Heartbeat policy repository**: persisted heartbeat policy hooks integrated with pulse/heartbeat services.
+- **Connector-backed Event Triggers**: MCP connector notifications and resource updates as trigger inputs with subscription sync (see docs).
+- **Per-phase workflow model routing**: workflow pipeline phases with LLM overrides or capability-based auto-selection.
+- **Federated ACP orchestration**: persisted remote agents and A2A-style invocation with orchestration targeting `acp_agent_id`.
+- **Usage Insights quality metrics**: persona breakdowns, retry metrics, and task-result satisfaction signals.
+- **Release notes for 0.5.19**: see [Release Notes 0.5.19](docs/release-notes-0.5.19.md).
+
+### Changed
+- **Gateway router and IPC**: refactored for channel-instance maps, pending task metadata, and adapter lifecycle consistency.
+- **Video tools**: validate reference media paths before provider calls.
+- **Secure settings categories**: `skills` and `acp` categories for new persistence.
+- **Documentation**: README, docs home, getting started, features, channels, providers, architecture, ACP, enterprise connectors, security, skill store, showcase, GTM, and related pages updated for 17 channels, profiles, Exa, fallback chains, and ACP hardening.
+- **Automated tests**: suite now **4,583+ passing tests** across **331+ test files** (`npm run test`; 68 tests skipped in default run).
+
+### Fixed
+- **ACP Vitest stability**: handler tests use an in-memory DB fake to avoid `better-sqlite3` native ABI mismatches in Node test runners.
+- **Gateway edge cases**: router/channel fixes (e.g. `channelId` on pending maps, stricter typing and allowlist behavior) and related adapter tests.
+
+### Removed
+- **Legacy Hermes-named parity helper**: removed in favor of `RuntimeVisibilityService` and updated tests.
+
+## [0.5.18] - 2026-03-30
+
+### Fixed
+- **macOS CI release pipeline**: explicitly install Electron binary after `npm ci` to prevent silent postinstall failures that blocked the macOS release job.
+- **Shell session manager test portability**: resolve temp directory symlinks at creation time to avoid `/var` vs `/private/var` mismatches on macOS.
+- **Completion hardening**: verified evidence and entropy sweeps wired into execution, step intent alignment scoring, and LLM fallback for oversized workflow steps.
+
+## [0.5.17] - 2026-03-30
+
+### Added
+- **Release notes for 0.5.17**: added a detailed summary page covering runtime visibility, Discord supervisor mode, Microsoft email OAuth, mailbox hardening, external skill imports, the related Devices/Inbox UX updates, and the release reliability fixes. See [Release Notes 0.5.17](docs/release-notes-0.5.17.md).
+- **Operator runtime visibility**: task completion now surfaces learning progression, unified recall spans tasks/messages/files/workspace notes/memory/knowledge graph, persistent shell sessions preserve task state, and live provider routing/fallback status is visible in task detail and settings.
+- **Discord supervisor mode**: Discord channels can now run a strict worker/supervisor protocol with persisted exchanges, escalation workflows, Mission Control feed integration, resolve actions, and workspace `SUPERVISOR.md` guidance.
+- **Skill Store and external skills**: the desktop app can now browse curated skills, search ClawHub, and import external skills from Git repositories, ClawHub pages, raw manifests, or raw `SKILL.md` URLs into the managed skills directory.
+- **Microsoft email OAuth**: Outlook.com, Hotmail, Live, and MSN personal accounts now support Microsoft OAuth with PKCE, token refresh, connector auth wiring, and Outlook-focused email setup presets.
+
+### Changed
+- **Mailbox and email workflows**: mailbox sync, thread actions, and settings now support per-account filtering, no-reply sender handling, Loom recent-message fetches, and OAuth-backed IMAP/SMTP connections with stronger provider validation.
+- **Mission Control and operator UI**: Mission Control now supports an all-workspaces view with workspace badges across board/feed/agent/detail surfaces, task detail shows learning and recall context, and temporary workspaces no longer expose unsupported reporting actions.
+- **Devices and dispatch surfaces**: Dispatch onboarding now lives inside the Devices panel, the standalone Dispatch panel/sidebar entry were removed, Home Dashboard workspace naming now resolves from visible workspaces, and Inbox Agent filter/pulse controls were compacted.
+- **Security hardening**: channel configs are encrypted at rest when available, mailbox bodies/summaries/excerpts are encrypted locally, database/user-data permissions are restricted during setup, mailbox IPC is limited to the main app window, and OAuth secrets are sanitized from renderer-visible channel configs.
+- **Documentation and positioning**: README, feature docs, channel docs, mission control docs, architecture docs, project status, and new comparison/reference pages were refreshed to reflect runtime visibility, supervisor mode, and external skill support.
+- **Renderer performance**: in the `NeoWorker/NeoWorker` repo, sidebar rows now flatten before virtualization, timeline cards use `@chenglou/pretext` estimates with `ResizeObserver` reconciliation, and the main transcript cap stays conservative until the transcript surface is virtualized.
+
+### Fixed
+- **Release hardening gate**: deterministic eval runs against fresh CI/release databases can now be explicitly configured to allow an empty regression corpus instead of failing every tag-triggered release before packaging starts.
+- **Release validation on macOS**: shell command unit tests no longer pull the full Electron daemon/runtime graph into Vitest, approval mocks are reset between cases, tool-group risk metadata now matches the security invariants, and the shell-session integration test has a CI-safe timeout budget.
+- **Unsupported Outlook manual setup**: manual password-based IMAP/SMTP setup is now rejected for Outlook.com-family consumer accounts, steering users to Microsoft OAuth instead of failing later in the transport stack.
+- **Outlook MIME handling**: Outlook-style multipart emails are parsed more reliably without leaking MIME boundary artifacts into visible message bodies.
+- **Supervisor and mailbox edge cases**: supervisor configs now validate required routing fields up front, escalated exchanges can be resolved from the activity feed, and mailbox cleanup/no-reply handling is less likely to generate bad follow-up actions.
+
+## [0.5.14] - 2026-03-29
+
+### Added
+- **Release notes for 0.5.14**: added a detailed summary page covering inbox identity, Mission Control handoff, mailbox automation, Google Workspace helpers, and the related UI/branding refresh. See [Release Notes 0.5.14](docs/release-notes-0.5.14.md).
+- **Cross-channel inbox identity**: Inbox Agent now supports unified contact identity linking across email, Slack, Teams, WhatsApp, Signal, iMessage, and CRM-linked handles, with reply targets surfaced from the active channel.
+- **Mission Control handoff**: inbox threads can be turned into company issues with mailbox evidence and operator wake-up context.
+- **Mailbox automation hub**: inbox rules, reminder cadences, and patrol schedules are now modeled as first-class mailbox automation flows.
+- **Brand refresh assets**: new screenshot, logo, and favicon variants were added for the current product branding.
+
+### Changed
+- **Inbox Agent surfaces**: inbox, settings, workspace selector, Mission Control, and task routing UIs were updated to reflect the new cross-channel inbox workflow.
+- **Google Workspace helpers**: shared Gmail/Calendar/Drive helpers and OAuth normalization were consolidated to support the inbox pipeline and identity linking.
+- **Heartbeat and briefing flow**: mailbox and scheduling signals now feed Heartbeat v3, planner, briefing, playbook, and knowledge-graph paths more directly.
+- **Documentation counts**: README, docs home, feature docs, project status, and comparison docs were synchronized to current product counts and release scope.
+
+### Fixed
+- **Identity-linking conservatism**: ambiguous contact matches stay review-first instead of auto-linking blindly.
+- **Reply routing clarity**: reply actions now prefer real conversation targets rather than generic fallbacks.
+
+## [0.5.13] - 2026-03-28
+
+### Added
+- **Inbox Agent**: full AI-powered email workspace with LLM thread classification (category, needsReply, priorityScore, urgencyScore, staleFollowup, cleanupCandidate, confidence), SHA-256 fingerprinting to skip unchanged threads, backfill pipeline for existing threads, on-demand `reclassifyThread`/`reclassifyAccount` API, sandboxed HTML email rendering with form neutralization, sort/filter controls (priority/recent, inbox/sent/all, unread, needsReply, commitments, proposals), classification pending badge, draft style profiling, and structured calendar schedule options. See [Inbox Agent](docs/inbox-agent.md).
+- **R&D Council**: `CouncilService` manages multi-LLM research councils with CRUD, cron-scheduled runs, seat rotation by sort order, memo persistence, and file delivery. Includes `CouncilSettings` panel under Automations, IPC wiring, council synthesis prompt, and `council_configs`/`council_runs`/`council_memos` SQLite tables. `AgentConfigSchema` extended with `MultiLlm` participant fields and `ExternalRuntime` shape.
+- **AcpxRuntimeRunner**: spawns the `acpx` binary for Codex child tasks with session management, arg builders, and JSON line parser. Integrated into `TaskExecutor` with automatic `ENOENT` fallback to native execution. `codexRuntimeMode` setting (`native`/`acpx`) added to Built-in Tools settings.
+- **Task Replay**: `useReplayMode` hook steps through completed task event logs at 1×–10× speed. `ReplayControlsBar` provides play/pause/reset and speed controls. Wired into App root and MainContent.
+- **Computer Use**: `computer_use` tool wrapper, permission dialog, translucent safety overlay, window isolation, and keyboard shortcut guard for desktop automation sessions.
+- **Batch image processing**: `batch_image` tool supporting OCR, captioning, classification, and multi-image comparison in a single call.
+- **`ocrmypdf` PDF integration**: document-level OCR for image-heavy PDFs via `ocrmypdf --skip-text --deskew --rotate-pages`. `assessPdfCoverage()` detects image-heavy documents; `decidePdfExtractionMode()` selects `ocrmypdf`, `page-ocr`, or `native`. `extractionMode` and `imageHeavy` surfaced on `PdfReviewSummary`.
+- **Google Workspace copy-link OAuth**: `startGoogleWorkspaceOAuthGetLink()` returns the auth URL immediately for paste-into-browser flow; tokens saved automatically on callback. Concurrent-call guard prevents port 18766 conflicts. `loginHint` pre-selects the correct Google account. Step-by-step setup guide added to the settings panel.
+- **Prompt-cache cost accounting**: `cachedTokens` field on `LLMResponse.usage` extracted from Azure OpenAI and OpenAI-compatible responses; cache discounts applied in `calculateCost()`.
+- **Agent companies service**: company data service with companies panel UI and company preview service.
+- **Release notes for 0.5.13**: added detailed summary page. See [Release Notes 0.5.13](docs/release-notes-0.5.13.md).
+
+### Changed
+- **`sanitizeToolCallHistory()`**: strips assistant turns with no matching `tool_result` before serializing conversation history, preventing dangling tool-use errors on OpenAI-compatible providers. Logs missing IDs.
+- **Azure OpenAI structured errors**: `buildAzureApiError()` centralizes error construction with `status`, `requestId` (from `x-ms-request-id` / `apim-request-id`), `providerMessage`, `providerCode`, and raw error body. Logger replaces all `console.*` calls.
+- **Source-coverage guard**: Daily AI Agent Trends Research requires Reddit, X, and tech-news evidence before completion; missing categories block the run with a descriptive error.
+- **Skill routing gate**: `getAutoRoutableSkill()` validates the skill is still loaded and satisfies its keyword gate before auto-routing executes.
+- **Task lifecycle normalization**: stale terminal tasks reconciled on daemon startup; collaborative tasks in launching state re-launched. `task-status` utility extracts lifecycle derivation into a shared module.
+- **X Mentions**: retry errors in `fetchMentionsWithRetry` are now propagated instead of swallowed; bridge poll failures reset the status store immediately.
+- **Bird CLI errors**: `dedupeBirdOutputDetail()` deduplicates stderr/stdout lines against the base error message.
+- **Mac sidebars**: left and right sidebars are transparent for macOS vibrancy support.
+- **`extractGmailBody`**: `multipart/alternative` payloads now prefer the HTML part (reverse iteration per RFC 2822).
+- **Render scale**: default PDF render scale bumped from 1400 to 1800 px for better OCR quality.
+- **`CHANNEL_TYPES` constant**: `ChannelType` derived from a single exported const array, removing the hardcoded enum.
+- **Relationship memory**: mailbox sync captures contact insights into the relationship memory graph.
+- **Apple HealthKit bridge**: runtime and build script improvements.
+
+### Fixed
+- **Broken task FK**: fixed foreign key constraint on `tasks` after `heartbeat_runs` table rename; migration guard added for future renames.
+- **Stale terminal fields**: `completed_at`, `failed_at`, and related fields cleared when a task is patched back to an active status.
+- **Multi-LLM seat assignment**: council participant seats now assigned using the configured sort order; fixed off-by-one on first run.
+- **CLI child-task detection**: detector uses a pre-built event map, fixing missed child tasks on parents with large event counts.
+- **Quality-pass draft rejection**: quality-pass callback returns `QualityPassDraftResult`; rejected drafts are now correctly skipped.
+- **Tool transcript false positives**: removed the overly broad `"command":` marker from plain-tool-transcript detection.
+- **`mailbox_commitments` migration**: added missing `ALTER TABLE mailbox_commitments ADD COLUMN metadata_json TEXT` migration for existing databases.
+- **`CronSchedule` import boundary**: inlined in shared types to fix an `electron/` boundary import error in renderer-visible code.
+- **`BriefingPanel` TypeScript**: fixed implicit-any on workspace filter result.
+
+## [0.5.12] - 2026-03-22
+
+### Added
+- **Heartbeat v3**: signal-driven Pulse/Dispatch pipeline replaces the queue-first heartbeat internals. `Pulse` runs cheap deterministic gating with no LLM calls; `Dispatch` escalates only when Pulse justifies it. Includes signal ledger with fingerprint-based merging, deferred-state compression, run tracking, heartbeat profiles (`observer`/`operator`/`dispatcher`), dispatch guardrails, foreground suppression, and richer Mission Control status. See [Heartbeat v3](docs/heartbeat-v3.md).
+- **Ideas panel**: curated launch panel with pre-written idea prompts accessible from the sidebar above Sessions. Includes an `/ideas` gateway route and [capabilities reference doc](docs/ideas-capabilities.md).
+- **Azure Anthropic provider**: Azure-hosted Claude deployments are now a built-in provider. Configure API key, endpoint, and deployment in Settings > LLM > Azure Anthropic.
+- **OpenRouter image generation**: image generation requests can now be routed through OpenRouter, including preset model support.
+- **Document editing sessions**: inline PDF region editing, DOCX block replacement, version browsing, and document-aware file viewing for active editing sessions.
+- **Video generation**: new provider routing layer for text-to-video and image-to-video models, video model settings, polling tools, and inline video preview in the task feed.
+- **Mission Control task controls**: start, pause, stop, and retry task actions are now accessible from Mission Control without navigating to the individual task view.
+- **Release notes for 0.5.12**: added a detailed summary page. See [Release Notes 0.5.12](docs/release-notes-0.5.12.md).
+
+### Changed
+- **Memory compression**: workspace context summaries compressed in batches, compact summary preservation across session compaction, concise playbook imports, chat prompt summarization on import, and context summary validation.
+- **Task routing and execution**: chat-mode sessions locked to user-configured tasks; tighter execution contracts; strategy tool allowlists per execution mode; skill routing query precision; improved completion contract parsing; more reliable daemon completion flow; better structured input request handling; consistent child task lifecycle.
+- **Agent role labels**: role labels now formatted consistently across Mission Control, collaborative task headers, and agent detail views.
+- **Provider factory routing**: custom routing rules for per-provider model-pattern overrides; Azure Anthropic and OpenRouter routing as first-class factory routes.
+- **Image provider ordering**: configurable priority ordering across Gemini, OpenAI, Azure OpenAI, and OpenRouter for image generation.
+- **Automated task model routing**: automated (heartbeat/cron) tasks can be routed to a different model than interactive tasks.
+
+## [0.5.11] - 2026-03-20
+
+### Added
+- **Release notes for 0.5.11**: added a detailed summary page covering the mission-control surfaces, QA workflow, native HealthKit bridge, new connectors, and runtime routing changes included in this release. See [Release Notes 0.5.11](docs/release-notes-0.5.11.md).
+- **Discord live API tools**: `channel_fetch_discord_messages` fetches up to 100 recent messages directly from Discord (not just the local gateway log). `channel_download_discord_attachment` downloads attachments from any message by ID. Both tools require Discord channel configured and connected. See [Channel Integrations](docs/channels.md#discord) and [Channel Comparison](docs/channel-comparison.md).
+- **14 new MCP connectors** (44 total): Tavily (web search), tldraw (diagrams), Amplitude (analytics), Clerk (auth), Mem (notes), Grafana (monitoring), Mailtrap (email), Socket (dependency security), Metabase (analytics), Shadcn UI (components), GrowthBook (feature flags), Drafts (macOS notes), Fantastical (macOS calendar), Tomba (email finder/verifier). All npm-installable from Settings > Connectors.
+
+### Changed
+- **Mission Control and health surfaces**: new Mission Control tabs, a dedicated Health panel, Dispatch panel, and connector profile view now extend the primary operator surface.
+- **Runtime and agent routing**: chat-mode and context-mode detection, proactive suggestions, managed output paths, tool-policy changes, and executor/provider refreshes tightened task routing.
+- **Operator intelligence**: autonomy/awareness services, heartbeat orchestration, briefing updates, strategic planner changes, mode-suggestion detection, automated-task detection, connector profiles, and health primitives were refreshed.
+- **Renderer refresh**: sidebar, settings, home dashboard, notification, and personality surfaces were broadly updated for the new release layout.
+- **Shared release assets**: bundled skills, document generators, and type/provider formatting updates were added to support the expanded runtime.
+
+## [0.5.1] - 2026-03-18
+
+### Added
+- **HuggingFace Local AI provider**: added `hf-agents` + `llama.cpp` local-model support with installation checks, model selection, and local server lifecycle management from Settings.
+- **Research channels**: Telegram and WhatsApp chats can now be designated as link-research channels that automatically turn posted URLs into a structured findings report.
+- **Tool catalog versioning**: tool discovery now emits a stable SHA-1 catalog hash that covers native tools and MCP state, with immediate snapshot rebuilds after MCP status or `tools_changed` updates.
+
+### Changed
+- **Connector surface consolidation**: the shipped MCP allowlist is now Salesforce, Jira, HubSpot, Zendesk, ServiceNow, Linear, Asana, Okta, Resend, Discord, and Google Workspace. Google services are consolidated under `google-workspace`; DocuSign, Outreach, and Slack were removed from the shipped Tier-1 connector surface.
+- **Native-first GitHub and Notion routing**: GitHub and Notion workflows now prefer NeoWorker's direct API paths and fall back to MCP only when needed.
+- **Collaborative task UI**: sidebar/task views now use inline agent headers, Lucide role icons, markdown normalization for collaborative output, and explicit sub-task back-navigation.
+- **Notifications**: task notifications now use cleaner titles, humanized statuses, and direct view actions.
+
+### Fixed
+- **Executor tool cache invalidation**: executor-side tool snapshots are now invalidated consistently when the shared catalog version changes.
+- **Sidebar task navigation polish**: sessions header layout, filter affordance, and sub-task navigation behavior were tightened for collaborative runs.
+
+## [0.5.0] - 2026-03-15
+
+### Added
+- **Sub-Agent Orchestrator**: Delegated execution lanes with confirmation gates, risk classification, and capability-based model selection. High-risk actions are routed through an approval gate before execution.
+- **Autonomous Self-Improvement Loop**: Bounded improvement campaigns with multi-variant experiment evaluation, winner selection, cooldowns, candidate parking, and direct-apply review. Requires owner enrollment under Settings → Automations → Self-Improve.
+- **Unified Memory Synthesizer**: New `MemorySynthesizer` combines all 6 memory subsystems (UserProfile, RelationshipMemory, Playbook, KnowledgeGraph, Memory, WorkspaceKit) into a single deduplicated context block injected into the system prompt.
+- **Workspace Kits**: Structured workspace memory with frontmatter linting, revision snapshots, bootstrap lifecycle management, and a `workspace-kit lint` CLI.
+- **Companies & Strategic Planner**: `CompaniesPanel` and `ControlPlaneCoreService` for zero-human company ops; `StrategicPlannerService` auto-generates issues on the heartbeat loop; company-scoped digital twin personas.
+- **Managed Devices & Remote Sessions**: Fleet connection manager for remote gateway devices, remote file picker, remote directory listing, real-time remote task monitoring and event proxying.
+- **Semantic Timeline**: Normalized event renderer with dedicated cards for agent activity, approval requests, and semantic summaries. Includes collapsible action block summaries with tool usage, duration, and token stats.
+- **Mermaid diagram rendering**: Inline diagram steps route through `create_diagram` and render safely in the task feed. Mermaid dependency added and locked.
+- **Chrome DevTools attach mode**: `browser_attach` connects to an existing Chrome instance via the DevTools Protocol. `browser_act_batch` executes sequences of actions with optional per-action delays.
+- **Google Workspace MCP Connector**: Sheets, Docs, and Chat integration via a new connector marketplace UI.
+- **Sandboxed code execution**: `execute_code` tool runs code in an isolated sandbox (requires E2B configuration). Hidden until E2B is set up.
+- **Document parser tool**: Structured file extraction for agent use.
+- **Inline video playback**: Tokenized local playback protocol, inline video preview component, and markdown-alongside support.
+- **Daily operational log writer**: Ranked daily summaries included in synthesized prompt context.
+- **New persona templates**: Growth Operator, Founder Office Operator, Customer Ops Lead, and Company Planner; company selector in `PersonaTemplateGallery`.
+- **Best-fit workflow lanes**: Support Ops, IT Ops, and Sales Ops.
+- **`geo-seo` plugin pack**: Location-aware SEO skills.
+- **Cron enhancements**: `shellAccess` and `allowUserInput` fields on `CronJob`; toggle checkboxes in scheduled task modal.
+- **Docker timezone support**: `NEOWORKER_TZ` environment variable pins the container to an IANA timezone. Validated at startup; invalid values fall back to UTC.
+- **Gateway exec approval fallback**: Channel-originated `run_command` requests honor per-agent exec policy and allowlist when approval UI is unavailable.
+
+### Changed
+- **Plan mode rename**: "propose" mode renamed to "plan" mode throughout UI and codebase.
+- **Settings restructure**: Automation group renamed to "Automations"; new Companies and Improvement sections added.
+- **Dashboard**: Shows only automated sessions; Heartbeat-titled tasks treated as automated.
+- **Sidebar**: Tasks paginated; improvement runs deep-linked; automated sessions grouped with filter empty states.
+- **Executor thresholds**: Iteration/continuation limits raised; timeout/failure/compaction thresholds tuned with rationale comments.
+- **Tool events**: Batched at 400ms to reduce feed re-render storms; milestone events flush immediately.
+- **Memory injection**: System prompt assembly calls `MemorySynthesizer.synthesize()` replacing 6 independent context calls.
+- **LLM providers**: Improved model listing, error handling, and cache management for `AnthropicCompatibleProvider`; new model refresh endpoint.
+
+### Fixed
+- Fixed remote gateway token and connection flow.
+- Fixed remote device task shadow sync and workspace mapping before remote task creation.
+- Fixed control-plane schema not being created/seeded on startup.
+- Fixed `timeline_error` events incorrectly mapped to failed status.
+- Fixed `AdaptiveStyleEngine` calling non-existent `SecureSettingsRepository` API.
+- Removed redundant `LLMProviderFactory.clearCache()` calls after `saveSettings`.
+- Evidence-backed failed steps now auto-waived on partial success.
+- Fixed double-nesting path fallback and browser-session heuristic in executor.
+- Fixed `descriptionHasDiscoveryIntent` triggering on write-intent steps.
+- Enforced 128-tool hard limit for Azure OpenAI API.
+- Tightened transient interruption detection and structured error wrapping for Azure OpenAI.
+- Resolved TypeScript compilation errors in `AdaptiveStyleEngine` and `ChannelPersonaAdapter`.
+
+### Added (documentation)
+- Zero-human company ops guide.
+- Behavior adaptation guide.
+- Workspace memory flow architecture guide.
+- OpenClaw vs NeoWorker feature comparison.
+- Troubleshooting steps for connectors and improvement runs.
+- Timezone configuration guidance for self-hosting.
+- Managed Devices and Automations control center docs.
+
+### Changed (documentation)
+- README updated for plan mode and current platform features.
+- Digital-twin personas guide updated for company-linked twins and operator roles.
+- Architecture docs renamed propose mode references to plan mode.
+- Features, use-cases, mission-control, and digital-twins docs updated for zero-human company ops.
+- Self-improvement execution model documented: bounded campaigns, staged progress tracking, promotion evidence requirements.
+
+## [0.4.14] - 2026-03-07
+
+### Added
+- **Unified Memory Synthesizer**: New `MemorySynthesizer` combines all 6 memory subsystems (UserProfile, RelationshipMemory, Playbook, KnowledgeGraph, Memory, WorkspaceKit) into a single deduplicated, relevance-ranked context block injected into the system prompt. Replaces fragmented per-source injection — reduces token waste, eliminates contradictions, and produces a single `<neoworker_synthesized_memory>` block with source attribution for audit trails. Located: `src/electron/memory/MemorySynthesizer.ts`.
+- **Adaptive Style Engine**: New `AdaptiveStyleEngine` observes user message patterns (length distribution, emoji frequency, technical vocabulary density) and feedback signals, then gradually adjusts `PersonalityManager` response style preferences. Adaptations are rate-limited by the new `adaptiveStyleMaxDriftPerWeek` guardrail (default 1 shift/week), fully auditable via `getAdaptationHistory()`, and disabled by default (`adaptiveStyleEnabled: false`). Located: `src/electron/memory/AdaptiveStyleEngine.ts`.
+- **Playbook-to-Skill Auto-Promotion Pipeline**: New `PlaybookSkillPromoter` bridges `PlaybookService` and `SkillProposalService`. When a task pattern is reinforced 3+ times (configurable threshold), the service auto-generates a skill proposal with evidence, required tools, and a draft prompt template — routed through the existing admin approval workflow. `PlaybookService` now emits a `pattern-reinforced` event via its new static `EventEmitter`. Per-workspace cooldown (10 min) prevents proposal spam. Located: `src/electron/memory/PlaybookSkillPromoter.ts`.
+- **Cross-Channel Persona Coherence**: New `ChannelPersonaAdapter` applies channel-specific communication directives on top of the core personality — Slack gets concise/bullet-friendly output, Email gets formal structure with greeting/sign-off, WhatsApp/iMessage/Signal get short conversational replies, Discord gets markdown-rich formatting, and Teams gets professional structured output. Controlled by the new `channelPersonaEnabled` guardrail (default off). Located: `src/electron/memory/ChannelPersonaAdapter.ts`.
+- **Evolution Metrics Service**: New `EvolutionMetricsService` computes 5 evolution metrics on-demand: correction rate trend, adaptation velocity, knowledge graph growth, task success rate, and style alignment score. Produces an overall evolution score (0–100) and formats a briefing-ready summary. Integrated into `DailyBriefingService` as the new `evolution_metrics` section. Located: `src/electron/memory/EvolutionMetricsService.ts`.
+- **New guardrail settings**: `adaptiveStyleEnabled` (bool, default `false`), `adaptiveStyleMaxDriftPerWeek` (int, default `1`), and `channelPersonaEnabled` (bool, default `false`) added to `GuardrailSettings` and `GuardrailManager` defaults.
+- **New briefing section**: `evolution_metrics` added to `BriefingSectionType` and `DEFAULT_BRIEFING_CONFIG` (enabled by default). `DailyBriefingService.generateBriefing` is now async to support the evolution metrics computation.
+
+### Changed
+- **Memory injection in executor**: The system prompt assembly now calls `MemorySynthesizer.synthesize()` in place of 6 independent context calls (`kitContext`, `memoryContext`, `playbookContext`). Falls back to legacy per-source injection if the synthesizer throws. Combined token budget is preserved (1820 tokens).
+- **Personality prompt in executor**: When `task.agentConfig.originChannel` is set, the personality prompt is augmented with a channel-specific directive from `ChannelPersonaAdapter` before being injected into the system prompt.
+- **`AdaptiveStyleEngine.observe()`** hooked into `daemon.ts` after every `UserProfileService.ingestUserMessage()` call. `observeFeedback()` is called alongside `UserProfileService.ingestUserFeedback()`.
+- **`PlaybookService.reinforceEntry()`** now emits a `pattern-reinforced` event after writing reinforcement memories. The executor calls `PlaybookSkillPromoter.maybePropose()` asynchronously post-task.
+
+## [0.4.13] - 2026-03-05
+
+### Added
+- **Universal workflow slash skills**: `/simplify` and `/batch` now work across desktop and gateway channels, including inline chaining (`then run /simplify`) and shared parsing/normalization.
+- **Zero-config web search fallback**: DuckDuckGo now acts as a built-in last-resort search provider, so `web_search` works even without paid API keys.
+- **Structured input requests**: plan-mode tasks can use `request_user_input` to pause for persisted multiple-choice decisions, with submission from the desktop UI or Control Plane dashboard.
+- **Tier-1 integration orchestration**: new `integration_setup` flow supports `list`, `inspect`, and `configure` for Resend, Slack, the Google family, Jira, Linear, and HubSpot with `expected_plan_hash` stale-plan protection.
+- **Approval-gated skill expansion**: new `skill_proposal` lifecycle lets agents draft, list, approve, and reject workspace-local skill proposals instead of mutating skills directly.
+- **Workspace bootstrap lifecycle**: `.neoworker/BOOTSTRAP.md`, `.neoworker/VIBES.md`, `.neoworker/LORE.md`, and `.neoworker/workspace-state.json` now track onboarding/bootstrap state and heartbeat-ready context.
+- **Workspace agent policy**: optional `agent-policy.toml` can require tool families, filter tools, tune loop thresholds, and attach pre-tool / stop-attempt hooks per workspace.
+- **New bundled skills**: added Polymarket, Humanizer, YouTube video intelligence, Stock analysis, Calendly scheduling, Moltbook, and Marketing Strategist skills.
+- **Developer logging capture**: `npm run dev` can mirror timestamped output to `logs/dev-latest.log`, with `npm run dev:log` forcing capture regardless of the Settings toggle.
+
+### Changed
+- **Adaptive executor defaults**: execution-oriented tasks now default to adaptive turn-window recovery, follow-up safety stops, and bounded context-overflow retries instead of treating window exhaustion as an immediate hard failure.
+- **Path reliability policies**: the executor and file tools can normalize `/workspace/...` aliases and rewrite drifted relative paths back under a pinned task root, with `strict_fail` policies available when hard enforcement is desired.
+- **Timeline rendering**: parallel read-only tool bursts are projected into grouped lane cards, task completion is inferred more reliably from timeline payloads, and input-request / recovery events now map cleanly across shared status and timeline models.
+- **Completion and insights UX**: usage insights now surface token/runtime/top-tool metrics and reliability outcomes, while renderer timelines and output surfaces continue the filename-first, output-ready workflow.
+- **Pi provider compatibility**: OpenAI ChatGPT OAuth and Pi-backed model discovery now load `@mariozechner/pi-ai` 0.56.1 through lazy ESM loaders so Electron/CommonJS bundles keep working.
+- **Remote and headless operations**: the Control Plane dashboard now handles pending structured input requests in addition to tasks, approvals, workspaces, and channels.
+
+### Fixed
+- **Shell protocol violations**: `run_command` now rejects direct or wrapped `apply_patch` invocations and tells the agent to use the dedicated patch tool.
+- **Task-root rewrites**: pinned-root recovery no longer skips rewrites just because an unpinned root-level path already exists, preventing drifted writes from mutating the wrong files.
+- **Legacy read-only resumes**: tasks resumed without `executionModeSource` now keep user-selected non-`execute` modes instead of being auto-promoted to mutation-capable execution.
+- **Electron-optional OAuth imports**: connector and Google Workspace OAuth helpers now resolve `shell.openExternal` lazily so plain Node test/release environments can import them without a packaged Electron runtime.
+- **Task execution heuristics**: write-intent detection, duplicate-mutation bypass, follow-up tool locking, and browser-session verification heuristics were tightened to reduce false stalls and false completions.
+- **Canvas URL validation**: canvas browsing now rejects non-HTTP(S) schemes explicitly.
+- **Documentation alignment**: README, architecture, remote-access, development, and getting-started docs now reflect structured input, recovery policies, and Control Plane input-request handling.
+
+## [0.4.12] - 2026-02-28
+
+### Added
+- **Agentic Work Unit (AWU) metric**: Usage Insights now tracks agent efficiency via AWU — successfully completed tasks measured against tokens and cost consumed. Shows AWU count, tokens/AWU, cost/AWU, AWUs per dollar, and period-over-period trend comparison.
+- **All Workspaces aggregation**: Usage Insights defaults to "All Workspaces" view, aggregating metrics across every workspace. Individual workspace filtering remains available via dropdown.
+- **Completion output summary payload**: `task_completed` events now support an optional `outputSummary` contract with normalized output metadata (`created`, `modifiedFallback`, `primaryOutputPath`, `outputCount`, `folders`). This keeps completion UX accurate even when renderer event history is capped.
+- **Completion output UX actions**: completion toasts now show output-aware copy (including filename/count) and include direct actions for `Open file`, `Show in Finder`, and `View in Files`.
+- **Shared renderer completion UX utilities**: added reusable helpers for completion toast construction, output badge behavior, panel auto-open decisions, and output/event visibility rules.
+- **Artifact visibility parity across bridges**: `artifact_created` is now included in collaborative child-file merging and in the control-plane task event bridge allowlist, so artifact-only tasks are visible consistently in all surfaces.
+
+### Changed
+- **Usage Insights UI redesign**: Replaced single-column layout with compact hero stats row (completed, success rate with color-coded progress bar, failed, avg time) and two-column grid for detailed sections (Cost & AWU side-by-side, Activity Day & Hour side-by-side, Skills & Packs side-by-side).
+- **Output detection rule**: completion output detection now prefers newly created outputs (`file_created`, `artifact_created`) and only falls back to modified outputs when no created outputs exist.
+- **Right panel file-output emphasis**: Files section now highlights primary output, shows an output count badge, and adds a separate location context line while keeping filename-only rows.
+- **Completion timeline details**: `task_completed` now renders an explicit “Output ready” details card (with actions) when outputs exist; `artifact_created` is treated as important and expandable in summary/technical timelines.
+- **Status-map coherence for artifact events**: `artifact_created` now maps to `executing` in shared task event status mapping for consistent in-progress state display.
+
+### Fixed
+- **Database startup migration ordering**: moved task evaluation/index-related index creation from bootstrap table creation to post-migration execution so databases created pre-`risk_level` and `eval_*` columns no longer fail on startup (`no such column: risk_level`).
+- **Hidden extensionless outputs in files list**: output files without a dot in the filename are no longer filtered out from the right-panel files section.
+
+## [0.4.9] - 2026-02-26
+
+### Fixed
+- **Release workflow reliability**: removed the flaky release-time first-install smoke gate from publish workflow execution and moved draft-release preparation to both macOS and Windows runners so packaging does not fail due release-draft timing.
+
+## [0.4.8] - 2026-02-26
+
+### Fixed
+- **Release pipeline gating for cross-platform packaging**: Windows release leg now skips the full `npm test` gate and focuses on packaging, while macOS remains the test/validation gate for release publication.
+- **Windows test portability**: updated path-sensitive test mocks and shell command fixtures to be platform-safe (`path.basename` handling and cross-platform shell commands), reducing Windows CI false negatives.
+
+## [0.4.7] - 2026-02-26
+
+### Fixed
+- **Release/CI test stability**: removed hard import-time dependency on Electron in `MCPRegistryManager` by using a safe runtime check for `app.isPackaged`, so test runs no longer fail when Electron binary install scripts are skipped.
+
+## [0.4.6] - 2026-02-26
+
+This release is the first recommended Windows install baseline for normal users following the documented GitHub/npm installation steps.
+
+### Fixed
+- **Windows title bar actions alignment**: corrected Windows header layout so action icons stay in the top-right region instead of drifting toward center.
+- **Windows-first release messaging and metadata**: package description/keywords and release notes now explicitly reflect desktop support for both macOS and Windows.
+- **Cross-platform docs consistency**: updated setup, migration, self-hosting, getting-started, and status docs to remove outdated desktop-level macOS-only wording while preserving truly macOS-only feature notes (for example iMessage).
+
+## [0.4.5] - 2026-02-26
+
+### Fixed
+- **Windows black-screen startup guard**: app now detects missing renderer entry (`dist/renderer/index.html`) and shows an explicit installation error page instead of opening a blank window.
+- **Unpackaged runtime resource resolution**: bundled skills, persona templates, and plugin packs now resolve from `process.cwd()/resources` when running from npm-installed (non-packaged) Electron runtime, restoring bundled content loading on Windows/Linux npm installs.
+- **Launcher artifact checks**: `neoworker` CLI now validates both main and renderer build artifacts before launch and surfaces a clearer recovery message if published assets are incomplete.
+
+## [0.4.4] - 2026-02-26
+
+### Fixed
+- **Windows ARM64 startup crash after native setup**: moved `pdf-parse` loading to runtime in `parsePdfBuffer` so Electron startup no longer crashes when `@napi-rs/canvas` bindings are unavailable (`DOMMatrix is not defined` on app boot).
+- **PDF parser failure isolation**: PDF parsing backend load errors are now surfaced only when a PDF is actually parsed, allowing normal app startup and non-PDF workflows to proceed.
+
+## [0.4.3] - 2026-02-26
+
+### Fixed
+- **Windows ARM64 first-run native setup**: when `better-sqlite3` cannot be rebuilt for `arm64`, setup now automatically falls back to `x64` Electron emulation and validates module loading before launch.
+- **Windows ARM64 fallback robustness**: if npm-based x64 rebuild is insufficient, setup now runs an explicit `@electron/rebuild` pass with `--arch x64 --version <electron>` to avoid npm 11 runtime/target env ambiguity.
+- **Windows node-gyp instructions**: replaced invalid npm config guidance with environment-variable-based setup (`GYP_MSVS_VERSION` / `npm_config_msvs_version`) for MSVC detection compatibility.
+
+## [0.4.0] - 2026-02-26
+
+### Added
+- **Windows support**: NeoWorker now runs natively on Windows with an NSIS installer (.exe), custom frameless title bar with minimize/maximize/close controls, and full feature parity with the macOS version
+- **Windows build target**: electron-builder config produces Windows NSIS installer alongside existing macOS DMG
+- **Windows app icon**: .ico icon with 16x16, 32x32, 48x48, and 256x256 sizes
+- **Custom window controls**: frameless window on Windows with styled minimize, maximize, and close buttons matching the macOS aesthetic
+- **Windows shell execution**: agent commands run via PowerShell 7 (pwsh.exe) → Windows PowerShell → cmd.exe fallback chain with `-NoProfile -Command` args
+- **Windows process tree management**: PowerShell `Get-CimInstance Win32_Process` for child process enumeration with wmic fallback for older Windows versions
+- **Windows Tailscale integration**: added Windows Tailscale binary paths and fixed `isExecutable` check (uses `R_OK` instead of `X_OK` on Windows)
+- **Windows Chrome paths for PDF generation**: added Program Files, Program Files (x86), and LOCALAPPDATA Chrome paths for headless PDF generation
+- **Windows image downscaling**: Electron `nativeImage` fallback when macOS `sips` and ImageMagick `convert` are unavailable
+- **Cross-platform setup scripts**: replaced POSIX shell-based npm setup scripts with Node.js entry points (`scripts/setup.mjs`) that work on macOS, Linux, and Windows
+- **Windows build tools prerequisite check**: setup script warns if Visual C++ Build Tools are missing (required for native module compilation)
+- **Windows CI/CD**: GitHub Actions build matrix includes `windows-latest` for both CI and release workflows
+
+### Fixed
+- **Platform-aware paths**: replaced hardcoded Unix paths (`/tmp`, `~/.local/share`, `/bin/sh`) with platform-aware alternatives across signal-client, sandbox-factory, runner, and control-plane handlers
+- **HOME/USERPROFILE fallback**: all `process.env.HOME` references now include `process.env.USERPROFILE` fallback for Windows across 8 files (main.ts, extensions loader/registry/scaffold/pack-installer, control-plane handlers)
+- **Path separator handling**: replaced `filePath.split("/").pop()` with `path.basename()` in executor-helpers for correct Windows backslash path handling
+- **Sandbox shell resolution**: `NoSandbox.execute()` now uses platform-aware shell instead of hardcoded `/bin/sh`
+- **npm global install detection**: added Windows system-level path (`Program Files/nodejs/node_modules`) to update-manager detection patterns
+
+### Changed
+- **Window appearance on Windows**: opaque background (`#1a1a1c`) replaces macOS vibrancy/transparency; CSS overrides via `html.platform-win32` class
+- **Tray settings terminology**: dynamically shows "System Tray" on Windows vs "Menu Bar" on macOS; dock icon toggle hidden on Windows
+- **System tray enabled on Windows**: tray icon and quick input window now initialize on both macOS and Windows
+- **QuickInputWindow**: vibrancy, transparency, and `setVisibleOnAllWorkspaces` are macOS-only; Windows gets opaque frameless window
+- **Roadmap updated**: "Cross-platform UI support (Windows, Linux)" replaced with "Linux desktop support" since Windows is complete
+
+## [0.3.95] - 2026-02-26
+
+### Added
+- **Scoped temp workspace identity**: temp workspaces now use scope prefixes (`ui`, `gateway`, `hooks`, `tray`) for context-specific isolation, replacing the flat ID convention
+- **Temp workspace lease management**: in-memory lease tracking with 6-hour TTL prevents active workspaces from being pruned; UI refreshes leases every 60 seconds
+- **Stale sandbox profile pruning**: automatic periodic cleanup (6-hour interval) of leftover `.sb` sandbox profile files from the system temp directory
+- **Managed scheduled workspace paths**: cron jobs now get deterministic workspace paths under `userData/scheduled-workspaces/` with per-run directories (`<workspace>/.neoworker/scheduled-runs/run-<timestamp>-<id>`)
+- **CronService workspace context resolution**: `resolveWorkspaceContext` hook enables runtime workspace migration for scheduled jobs on add (temp→managed) and run (per-run directory creation) phases; adds `{{workspace_path}}`, `{{run_workspace_path}}`, `{{run_workspace_relpath}}` template variables
+- **Cascade delete for temp workspaces**: `deleteWorkspaceAndRelatedData` performs transactional deletion that introspects all tables for `workspace_id`/`task_id`/`session_id` columns and removes related rows before deleting the workspace itself
+
+### Fixed
+- **Idle session cleanup**: channel gateway now prunes idle sessions older than 7 days automatically via `deleteIdleOlderThan`
+- **Sandbox profile temp file cleanup**: replaced fixed `setTimeout` cleanup with process-event-driven (`close`/`error`) handlers and idempotent `cleanupOnce` pattern in both `MacOSSandbox` and `SandboxRunner`
+- **Temp workspace init**: renderer no longer forces `createNew: true` on startup, reusing existing temp workspaces instead of creating duplicates
+- **Control plane temp workspace filtering**: uses `isTempWorkspaceId()` instead of exact `TEMP_WORKSPACE_ID` match to correctly filter all scoped variants
+
+### Changed
+- **Active task status filtering**: temp workspace pruning now only considers active task statuses (pending, queued, planning, executing, paused, blocked), ignoring completed/failed tasks
+- **Cron-tools workspace delegation**: removed inline `ensureDedicatedWorkspaceForScheduledJob` from `CronTools`; workspace normalization is handled by CronService's `resolveWorkspaceContext` hook
+- **Build-mode skill**: added routing metadata (useWhen, dontUseWhen, outputs, successCriteria) for intent-based skill matching
+
+## [0.3.94] - 2026-02-26
+
+### Added
+- **DuckDuckGo free search fallback**: built-in web search provider that requires no API key. Works out of the box by scraping DuckDuckGo's HTML endpoint. Automatically used as a last-resort fallback when paid providers fail or are not configured. The `web_search` tool is now always available — users no longer need to configure a search provider to use web search. Supports web search with region and date range filters. Configured providers still take priority; DuckDuckGo is appended at the end of the fallback chain.
+- **Discord MCP Connector**: full REST API connector for Discord Bot management with 19 tools — guild listing, channel CRUD, message sending with rich embed support, thread creation, role CRUD, reactions, webhooks, and member listing. Includes 429 rate-limit retry (2 attempts, 10s cap), 2000-char message validation, embed schema enforcement (10 embeds max, typed fields), and privileged intent error hints for `list_members` and `get_messages`. Configurable in Settings > Connectors with bot token, application ID, and optional default guild ID.
+- **Mobile Development plugin pack**: new bundled pack with 4 skills (React Native setup, iOS development, Android development, build pipeline) and a mobile-developer agent role. Covers SwiftUI, Jetpack Compose, Fastlane, code signing, and simulator/emulator management.
+- **Game Development plugin pack**: new bundled pack with 4 skills (Unity, Unreal Engine, Godot, cross-engine performance) and a game-developer agent role. Covers C#/MonoBehaviour, C++/Blueprints, GDScript, draw call optimization, LOD, and GPU profiling.
+- **iOS Development skill**: deep standalone skill covering SwiftUI, UIKit, @Observable, SwiftData/Core Data, async/await, push notifications, `xcodebuild`, `xcrun simctl`, code signing, and App Store submission.
+- **Android Development skill**: deep standalone skill covering Jetpack Compose, ViewModel, Room, Retrofit, Hilt, Coroutines/Flow, Gradle builds, ADB, ProGuard/R8, and Play Store submission.
+- **Unity Development skill**: standalone skill for Unity/C# — MonoBehaviour lifecycle, ScriptableObjects, Addressables, object pooling, Shader Graph, UI Toolkit, editor scripting, and Unity CLI batch builds.
+- **Unreal Engine Development skill**: standalone skill for UE5/C++ — Gameplay Framework, Enhanced Input, UCLASS/UPROPERTY/UFUNCTION macros, Niagara, Lumen/Nanite, multiplayer replication, and UnrealBuildTool packaging.
+- **Game Performance Optimization skill**: cross-engine standalone skill covering draw call batching, LOD configuration, occlusion culling, texture optimization, object pooling, memory budgets, and platform-specific tuning (mobile/PC/console).
+- **Terraform Operations skill**: comprehensive IaC skill for `terraform init/plan/apply/destroy`, state management, module development, workspace management, backend configuration, drift detection, and provider patterns.
+- **Kubernetes Operations skill**: comprehensive skill for `kubectl` operations, manifest generation (Deployment, Service, Ingress, ConfigMap, Secret, HPA), Helm charts, RBAC, NetworkPolicy, kustomize overlays, and debugging workflows.
+- **Cloud Migration skill**: migration playbook covering the 6 Rs assessment framework, database migration strategies, network migration, cost estimation, cutover planning, rollback procedures, and multi-cloud patterns.
+- **Docker Compose Operations skill**: skill for Docker Compose v2 commands, Compose file authoring, multi-stage builds, health checks, override patterns, environment management, and production vs dev configurations.
+- **Enhanced DevOps plugin pack (v1.1.0)**: added 4 new inline IaC skills (Terraform plan review, Kubernetes manifest generation, cloud migration assessment, Docker Compose file generation) and expanded keywords for infrastructure-as-code discovery.
+- **Proactive session compaction with structured summaries**: context compaction now triggers proactively at 90% utilization (aligned with Codex CLI) instead of waiting for overflow. Generates comprehensive structured summaries (up to 6,144 tokens) covering user messages, work completed, errors/fixes, decisions, pending tasks, and recommended next steps. Uses role-aware transcript formatting (user messages get 3x more room than tool results), handoff-oriented framing, model-aware budget scaling (safe for small-context models), and an overflow guard to prevent the summary from re-inflating context. Timeline UI renders summaries as collapsible sections with token-freed stats.
+- **Polymarket prediction market skill**: query odds, trending markets, price momentum, orderbook depth, open interest, trade history, and resolution timelines across Gamma, CLOB, and Data APIs — no authentication required. Includes formatted output with percentages, volume breakdowns, and multi-outcome event support.
+- **Humanizer writing skill**: rewrite AI-generated text to sound natural and human-written. Detects and removes 50+ LLM tells across 7 layers — vocabulary, sentence mechanics, paragraph structure, emotional register, content depth, document architecture, and tone. Includes flagged word lists, 6 tone presets (casual, professional, academic, journalistic, technical, warm), and a systematic 7-step rewriting process.
+- **YouTube video intelligence skill**: fetch transcripts, metadata, chapters, and captions from YouTube videos via yt-dlp or youtube-transcript-api. Supports auto-generated and manual captions, multi-language, translation, audio extraction, playlists, and timestamp deep links. Includes 6 workflow recipes (summarize, search, compare, extract resources, blog conversion, key quotes).
+- **Stock analysis skill**: comprehensive market intelligence across 3 data sources (Yahoo Finance API, yfinance, Alpha Vantage). Covers real-time quotes, 60+ fundamental metrics, 50+ technical indicators, financial statements, earnings, options chains, analyst ratings, institutional holders, dividends, stock screening, and an 8-dimensional scoring framework. Supports stocks, ETFs, indices, crypto, and forex.
+- **Calendly scheduling skill**: manage Calendly via the v2 API with Personal Access Token auth. Covers event types, scheduled events (upcoming/past/cancelled), invitees with custom Q&A and UTM tracking, availability schedules and busy times, cancellation with reasons, no-show management, one-off booking links, webhooks, and organization members. Includes 8 workflow recipes and timezone-aware agenda formatting.
+- **Moltbook agent social network skill**: interact with Moltbook — the social network for AI agents. Post content, reply to discussions, browse feeds (hot/new/top/rising), upvote/downvote, join submolt communities, follow agents, search semantically, and track engagement via the home dashboard. Includes agent registration, verification challenge solving, rate limit awareness, and formatted feed output.
+- **Marketing Strategist skill**: comprehensive marketing strategy across 25 disciplines — positioning, messaging frameworks (StoryBrand, JTBD, Category Design), buyer psychology (Cialdini's 7 principles, 10 cognitive biases), 5 copywriting frameworks (PAS, AIDA, BAB, 4Ps, FAB), SEO (on-page checklist, technical audit, keyword research, link building), landing page CRO (above-the-fold formula, 10-item checklist, A/B testing methodology), paid ads (Google, Meta, LinkedIn with platform-specific guidance), funnel architecture with lead magnet ranking and nurture sequences, analytics and attribution models, pricing psychology, product launch playbook, growth loops and referral design, competitive intelligence templates, and marketing operations. Includes 8 workflow recipes and integrates with existing channel-specific skills.
+- **OpenAI-Compatible as built-in LLM provider**: promoted from custom provider to first-class built-in provider with dedicated settings panel, SSRF-safe base URL validation (blocks private/metadata IPs, DNS rebinding), model list fetching, and automatic migration from legacy custom provider config. Configurable in Settings > AI Model.
+- **Task continuation after turn-limit exhaustion**: failed tasks stopped by the global turn limit now show a "Continue" button in the timeline. Clicking it reconstructs the executor from persisted events, resets budgets, and resumes execution from the last plan checkpoint. Respects concurrency limits — overflow continuations are queued and resume automatically when a slot opens.
+- **Step-level user feedback**: users can now interact with in-progress plan steps via retry, skip, stop, or redirect ("drift") actions. Feedback controls appear in both the timeline view and the bubble view on actively running steps. Skipped steps are marked with a new `skipped` status and the executor advances to the next step.
+- **Tool allow-list for child tasks**: parent tasks can now specify an `allowedTools` list in `agentConfig`. When both parent and child define allow-lists, the child receives the intersection — preventing privilege escalation. An empty intersection throws a clear error at child task creation.
+- **LoreService (shared workspace history)**: new service that auto-records milestones from completed tasks into `.neoworker/LORE.md`. Entries are debounced, deduplicated, capped at 40, and written into the `<!-- neoworker:auto:lore:start -->` marked section. Rebuilds from recent task history on startup.
+- **VIBES.md workspace kit file**: new `.neoworker/VIBES.md` for tracking current workspace energy and mode (e.g., crunch, deep-focus, balanced). Loaded before SOUL.md in agent context so current vibes influence personality interpretation. Auto-updated by agents based on cues.
+- **LORE.md workspace kit file**: new `.neoworker/LORE.md` for shared history between user and agent. Milestones section is auto-populated by LoreService. Loaded after MISTAKES.md and before daily logs in agent context.
+- **Low-progress loop detection**: detects agents stuck repeatedly probing the same target with mixed tools (≥6 of last 8 calls on same base target across ≥2 tool categories). Injects a course-correction nudge, then escalates to a final warning if looping persists.
+- **Stop-reason nudge**: detects consecutive `tool_use` stops (≥6) or `max_tokens` stops (≥2) and injects a message telling the agent to wrap up and produce a direct answer.
+- **Turn-budget guard for max_tokens recovery**: max_tokens retry is now skipped when insufficient turns remain in the budget, preventing wasted turns on truncated responses that can't be completed.
+- **MCP server tools in context panel**: the active context data now includes tool names from connected MCP servers, giving the UI visibility into what tools each connector provides.
+- **Citation Engine**: per-task citation tracker that intercepts `web_search` and `web_fetch` results, deduplicates URLs, assigns sequential [N] indices, and injects formatted citation lists into the LLM system prompt. Citations appear inline in agent responses and are displayed in a dedicated Citation Panel UI with URL, title, domain, snippet, and access timestamp.
+- **Scratchpad Tools**: session-scoped note-taking system for agents during long-running tasks. `scratchpad_write` stores key-value notes (max 100-char keys, 10,000-char values); `scratchpad_read` retrieves all or specific notes. Persists to `.neoworker/scratchpad-{taskId}.json` for crash recovery.
+- **Workflow Pipeline**: multi-phase task execution for complex workflows. The Workflow Decomposer detects multi-step prompts (connectives like "then", "after that", "next", "finally") and splits them into sequential phases (research, create, deliver, analyze, general). Each phase creates a child task with output piped to the next phase. Includes LLM-powered fallback decomposition for complex prompts.
+- **Deep Work Mode**: extended execution mode for complex tasks with longer timeouts, progress journaling visible in the task timeline, and automatic memory compression pause during active execution to avoid context disruption.
+- **Document Generation Tools**: three LLM-callable tools (`generate_document` → PDF, `generate_presentation` → PPTX, `generate_spreadsheet` → XLSX) registered as native agent tools with artifact registration and MIME type metadata.
+- **Event Trigger Service**: condition-based automation engine that fires actions (`create_task`, `send_message`, `wake_agent`) in response to channel gateway messages, cron events, or webhooks. Supports AND condition logic, configurable cooldowns (default 1 min), event variable substitution, and history tracking (last 50 fires per trigger). Configure in Settings > Event Triggers.
+- **File Hub Service**: unified file aggregation combining local workspace files, task artifacts, and cloud storage into a single searchable interface. Includes filename-based search, recent files tracking, and MIME type detection for 20+ formats.
+- **Web Access Server**: serves NeoWorker as a web application over HTTP/WebSocket with bearer token authentication (timing-safe comparison), CORS origin whitelisting, REST endpoints mapped to IPC channels, static file serving with SPA fallback, and a health check endpoint.
+- **OAuth connectors (Google, DocuSign, Outreach, Slack)**: enterprise OAuth 2.0 authentication flows for Google Workspace (Calendar, Drive, Gmail with PKCE and scope mapping), DocuSign (signature scope), Outreach (sales intelligence scopes), and Slack (team-domain support). Uses local callback server on port 18765 with CSRF state validation.
+- **Vision tools improvements**: SHA1-keyed result cache (128 entries) preventing redundant vision API calls, automatic image downscaling for images >2MB (1600×1200 at 80% quality), multi-provider fallback chain (OpenAI → Anthropic → Gemini → Bedrock), retry logic for transient errors (429, 5xx, timeouts), and PDF page conversion via `pdftoppm` at 72 DPI.
+- **5 Financial plugin packs**: Equity Research (earnings analysis, sector analysis, coverage initiation, price target, catalyst tracking), Financial Analysis (DCF modeling, ratio analysis, financial statement analysis, peer benchmarking, valuation summary), Investment Banking (deal screening, pitch book, M&A analysis, due diligence, comps analysis), Private Equity (deal sourcing, LBO modeling, portfolio monitoring, exit analysis, fund reporting), Wealth Management (portfolio construction, asset allocation, client reporting, risk assessment, tax optimization). Each pack includes a dedicated agent role and 5 "Try Asking" prompts.
+- **7 financial standalone skills**: DCF Valuation, Earnings Analyzer, ESG Scorer, Financial Modeling, Market Screener, Portfolio Optimizer, Risk Analyzer, Tax Optimizer.
+- **Symlink escape detection**: file tools now resolve symlinks via `realpath()` and verify the resolved path remains within the workspace boundary before any read/write operation. Symlinks pointing outside the workspace are rejected.
+- **Memory compression pause/resume**: the MemoryService pauses background compression during active task execution (especially deep work mode) to avoid context disruption, and resumes automatically when the task completes.
+- **Bedrock provider maxTokens pre-clamping**: the Bedrock LLM provider now pre-clamps `maxTokens` to model-specific limits before sending requests, preventing API rejections. Includes regex fix for error message parsing and `_callId` injection for log correlation.
+- **Browser navigation deduplication**: `browser_navigate` tool now normalizes URLs to detect and skip duplicate navigations to the same page.
+
+### Changed
+- **Task queue limits raised**: default concurrent tasks increased from 5 → 8, max configurable ceiling raised from 10 → 20, default timeout increased from 30 → 60 minutes. Existing users who never changed their settings are automatically upgraded to the new defaults.
+- **Sub-agent safety cap**: sub-agents that bypass the normal concurrency limit are now capped at 40 total running tasks (2× max configurable) to prevent runaway resource consumption.
+- **Resumed tasks respect concurrency**: tasks resuming after app restart now respect the concurrency limit instead of all starting simultaneously. Overflow tasks are re-queued at the front and start as slots open.
+- **Memory kit skill updated**: VIBES.md and LORE.md templates added to the memory-kit skill. Bootstrap guide updated with steps for reviewing vibes and lore files.
+- **HeartbeatService singleton**: HeartbeatService now exposes `getHeartbeatService()` / `setHeartbeatService()` for global access without passing references through the dependency chain.
+- **PlanStep status**: plan steps now support a `skipped` status in addition to pending, in_progress, completed, and failed.
+- **Codebase formatting**: applied oxfmt across ~40 renderer components, IPC handlers, extensions, tray modules, and utility files for consistent line wrapping and indentation.
+
+### Fixed
+- **Focused mode tabs**: Mission Control now correctly included in focused mode tab list.
+- **Bedrock inference profile fallback**: improved profile scoring to prefer same-family models and prevent silent downgrade to a different model family. MaxTokens is now clamped to model-specific limits on the retry path.
+- **Browser HTTP status errors**: browser tools returning HTTP 4xx/5xx no longer immediately circuit-break the tool. These URL-specific failures are now treated as input-dependent with a higher threshold before disabling.
+- **Skipped-tool-only turn detection**: executor now detects agents stuck emitting only policy-blocked tool calls with no text output; injects nudge after first turn, force-stops after 2 consecutive blocked-only turns.
+- **Follow-up tool call lock placement**: relocated `followUpToolCallsLocked` from `executeStep` to `executeGoalStep` where the loop detection state is maintained, fixing misplaced lock reference.
+
+## [0.3.91] - 2026-02-24
+
+### Added
+- **Agent-initiated memory (`memory_save` tool)**: agents can now explicitly save observations, decisions, insights, and errors to the workspace memory database during task execution. Memories are persisted across sessions and recalled via hybrid search in future tasks. Respects workspace memory settings, privacy modes, and sensitive data filtering.
+- **Enhanced `search_memories`**: now searches both the memory database AND `.neoworker/` workspace markdown files (MEMORY.md, daily logs, project contexts, etc.). Results are merged, deduplicated, and ranked by relevance. Response includes `source` ("db" or "markdown") and file `path` for markdown hits.
+- **Web Scraping (Scrapling integration)**: new scraping subsystem powered by [Scrapling](https://github.com/D4Vinci/Scrapling) with anti-bot bypass, stealth browsing, and structured data extraction. Five new agent tools: `scrape_page` (single URL with TLS fingerprinting, Cloudflare bypass, stealth mode), `scrape_multiple` (batch scrape up to 20 URLs), `scrape_extract` (structured data — tables, lists, headings, metadata), `scrape_session` (multi-step persistent sessions for login→navigate→extract workflows), and `scraping_status` (installation check). Python bridge architecture via stdin/stdout JSON. Configurable fetcher modes (default/stealth/playwright), proxy support, rate limiting, and headless toggle. Settings UI at Settings > Web Scraping. Five new skills: `web-scraper`, `price-tracker`, `site-mapper`, `lead-scraper`, `content-monitor`.
+- **"Think With Me" Socratic mode**: new `think` conversation mode for brainstorming and decision-making without tool execution. Activated via "Think with me" toggle or detected automatically from brainstorm/trade-off/pros-and-cons patterns. Uses Socratic system prompt with read-only tools.
+- **Problem framing pre-flight**: complex execution tasks now show a structured restatement of the problem, assumptions, risks, and proposed approach before diving into tool execution. Triggered by intent complexity scoring (prompt length, action verb count, multi-step signals).
+- **Task complexity scoring**: `IntentRoute` now includes a `complexity` field (`low | medium | high`) used to gate pre-flight and other adaptive behaviors.
+- **Graceful uncertainty messaging**: system prompt now instructs the agent to express uncertainty honestly, rate confidence on recommendations, and never fabricate tool outputs. Assistant messages with `[Low confidence]` markers render with an amber indicator.
+- **AI Playbook (personal patterns)**: auto-captures "what worked" patterns from completed tasks (approach, outcome, tools used) and lessons from failures. Relevant playbook entries are injected into system prompts. Viewable in Settings > AI Playbook.
+- **Proactive daily briefing**: morning briefing combining task stats (completed, in-progress, scheduled), recent memory highlights, and goal-based suggested priorities. Auto-creates a disabled cron job on first workspace load; configurable in Settings > Scheduled Tasks.
+- **Build Mode with enhanced canvas**: dedicated "idea → working prototype" workflow powered by Canvas with four phases (Concept → Plan → Scaffold → Iterate). Includes named phase checkpoints, phase timeline, revert-to-phase, and diff-between-phases support.
+- **Canvas named checkpoints**: `findCheckpointByLabel()` and `diffCheckpoints()` methods on CanvasManager for labeled checkpoint lookup and file-level comparison between any two checkpoints.
+- **Persistent multi-agent teams**: teams can now be marked as `persistent` with a `defaultWorkspaceId`, surviving across sessions. Includes `listPersistent()` repository method, DB migration, and UI toggle with badge in Agent Teams panel.
+- **Weekly Usage Insights dashboard**: new Settings > Usage Insights panel showing task metrics, cost/token tracking by model, activity heatmap by day-of-week and hour, and top skills usage. Supports 7/14/30-day period selection.
+- **Starter mission templates**: expanded from 3 onboarding suggestions to 10 one-click missions with categories. Displayed in onboarding and on the empty-state welcome screen.
+- **Competitive research skills**: new `competitive-research.json` and `idea-validation.json` skill files for market analysis, competitor scanning, and MVP scoping.
+- **Plain-language settings labels**: renamed jargon in Settings sidebar (MCP Servers → Connected Tools, Guardrails → Safety Limits, LLM Provider → AI Model, Control Plane → Remote Access, SkillHub → Skill Store). Technical names preserved in tooltips.
+- **Native Infrastructure tools**: built-in cloud sandbox (E2B), domain registration (Namecheap), crypto wallet (USDC on Base), and x402 payment protocol support — all registered as native agent tools with no external MCP subprocess. Configurable in Settings > Infrastructure.
+- **Dispatched Agents Progress Panel**: when a task mentions agents (e.g. `@Security Analyst`), the parent task's main window now shows a Collab-mode-style progress panel with agent chips, phase indicator (Dispatched → Working → Complete), and a real-time event stream from all child agent tasks. Click any agent chip to navigate to its full task view.
+- **`userPrompt` field on Task**: child tasks dispatched to agents now store the original user prompt separately, so the UI displays the user's actual request instead of the internal agent-dispatch formatting.
+- **Digital Twin (Persona Templates)**: create role-specific AI digital twins from 10 pre-built templates across 5 categories (Engineering, Management, Product, Data & Analytics, Operations). Each template includes a tailored system prompt, capabilities, proactive heartbeat tasks, cognitive offload categories, and recommended skills. Templates: Software Engineer, Hardware Engineer, QA/Test Engineer, DevOps/SRE, Technical Writer, Engineering Manager, Technical Director, VP Engineering, Product Manager, and Data Scientist. Activation flow: browse gallery → customize name/heartbeat/tasks → create twin as a new AgentRole with background proactive tasks. Accessible via "Add Digital Twin" button in Mission Control agents panel.
+- **Knowledge graph system**: FTS5 search and graph traversal for structured knowledge representation.
+- **Twitter/X content writer skill**.
+- **Proactive suggestions service** with edge case handling.
+
+### Changed
+- **Execution strategy orchestration** in daemon lifecycle: strategy derivation at task creation, runtime strategy re-application for queued/legacy tasks, relationship-memory outcome recording on top-level task completion.
+- **Friendlier error messages, mode hints, and settings grouping** across the UI.
+
+### Fixed
+- **Task cancellation now cascades to child tasks**: stopping a parent task also cancels all dispatched agent sub-tasks instead of leaving them running.
+- **TypeScript errors in scraping tools** resolved.
+- **Wrap-up skips synthesis phase** due to premature phase transition.
+- **Task cancellation spinner** stays active after cancel (fixed).
+- **Collapsed sidebar header padding** adjusted for new session button.
+
+## [0.3.90] - 2026-02-23
+
+### Added
+- **Collaborative mode**: multi-agent collaborative thoughts and capability matching.
+- **Multi-LLM orchestration**: config validation and comparison service for running multiple LLM providers.
+- **Git worktree manager**: worktree isolation for parallel agent branches with comparison service.
+- **Git tools**: new agent tools for git operations.
+- **Task pinning**: pin important tasks for quick access.
+- **Anthropic streaming**: streaming support with progress callbacks for Anthropic provider.
+- **Bedrock as vision provider** for `analyze_image` tool.
+- **Crypto trading and email marketing skill definitions**.
+
+### Changed
+- **Action-first planning**: executor enhanced with resourcefulness and companion identity.
+- **Context summarization events** surfaced in task timeline.
+- **Image attachment support** for task creation and follow-ups.
+- **Bedrock display names**: improved formatting, model ID parsing, and AP region regex fix.
+
+## [0.3.89] - 2026-02-20
+
+### Added
+- **Declarative plugin system**: connectors, skills, and agent roles defined via JSON manifests.
+- **Built-in plugin packs**: pre-configured plugin bundles for common workflows.
+- **Slash command autocomplete** in input areas.
+- **`create_spreadsheet` and `create_presentation` tool support** for agents.
+- **Inline spreadsheet preview** in task view.
+
+### Changed
+- **Sonnet 4.6 model**: added as new model option and updated as Bedrock default.
+- **Oxfmt formatter** and promoted Oxlint rules to errors.
+- **Conway Terminal**: auto-provision API key and inject into MCP server env.
+- **Model selector redesign** and defensive electronAPI guards.
+
+### Fixed
+- **Bedrock transcript mismatches**: repaired and preserved tool-call pairs during compaction.
+- **Follow-up error handling**: prevent pinned message insertion between tool pairs.
+- **Electron sandbox**: disabled for preload and hardened attachment validation.
+
+## [0.3.88] - 2026-02-19
+
+### Added
+- **Vision/image support** across all LLM providers.
+- **LOOM email protocol** support alongside IMAP/SMTP.
+- **Conway Terminal integration** with payment safety caps.
+- **Adaptive complexity (power user toggle)**: three-tier UI density (`focused | standard | power`) controlling which settings tabs and features are visible. Focused mode hides advanced settings; power mode shows everything.
+- **Validation schemas and config sanitization** for security hardening.
+
+### Changed
+- **Executor enhanced** with image attachments and tool approval flow.
+- **Email settings, toast positioning, XLSX viewer, and styling** improvements.
+- **Contextual welcome cards** in the UI.
+
+### Fixed
+- **Electron env variable handling** and strict dev port configuration.
+
+## [0.3.87] - 2026-02-17
+
+### Added
+- **Intent-routed task strategy runtime**: tasks are now classified into `chat`, `advice`, `planning`, `execution`, or `mixed` and receive derived strategy defaults (conversation mode, turns, quality passes, answer-first flags).
+- **Relationship memory lifecycle APIs**: added relationship memory and commitment IPC/preload surfaces:
+  - `memory:relationshipList`
+  - `memory:relationshipUpdate`
+  - `memory:relationshipDelete`
+  - `memory:commitmentsGet`
+  - `memory:commitmentsDueSoon`
+- **Relationship memory UI controls** in Memory Settings for edit/forget and commitment status management.
+- **Dedicated relationship-agent architecture + UAT docs**:
+  - `docs/relationship-agent-architecture.md`
+  - `docs/relationship-agent-uat.md`
+- **XLSX file extraction** and auto-generate missing hooks token.
+- **Attachment chips** in chat bubbles and collapsible toggle fix.
+- **Use-case skill templates** and Pi finder/librarian skills.
+- **Resend email connector** and expanded gateway router commands.
+
+### Changed
+- **Execution strategy orchestration** in daemon lifecycle: strategy derivation at task creation, runtime strategy re-application for queued/legacy tasks, relationship-memory outcome recording on top-level task completion.
+- **Memory context composition** now combines `UserProfileService` facts with layered relationship memory context for prompt injection.
+- **Soft-deadline behavior** in executor now switches from deep step execution to best-effort finalization before hard timeout.
+- **Approval modal replaced** with centered notification toasts and session approve-all.
+- **MCP connectors** kept disabled until configured.
+
+### Fixed
+- **Timeout-abort completion gap**: timeout-triggered cancellation paths now attempt best-effort finalization instead of exiting without a user-facing answer.
+- **Cancellation observability**: executor cancellation logs now include cancellation reason (`user`, `timeout`, `shutdown`, etc.) for clearer diagnosis.
+- **Stuck 'executing' status**: prevented with varied failure loop detection and improved artifact handling.
+- **Slack socket stability** and WhatsApp connection flap detection.
+- **Max iterations** increased for complex agent operations.
+- **User name rules** strengthened to prevent OS username leakage.
+
+## [0.3.86] - 2026-02-14
+
+### Added
+- **ACP and Canvas control-plane endpoints**: introduced ACP task-delegation handlers and new canvas APIs (`canvas.list/get/snapshot/content/push/eval/checkpoint.*`) with corresponding protocol constants and IPC wiring.
+- **Canvas checkpoint tooling**: added `canvas_checkpoint`, `canvas_restore`, and `canvas_checkpoints` tools, plus in-memory checkpoint history and restore flows in `CanvasManager`.
+- **Renderer i18n support**: added language resources and UI selection for English, Japanese, and Simplified Chinese, with persisted language preference.
+- **Talk Mode UX**: introduced continuous voice talk-mode hook and UI controls for conversational voice interaction in main task view.
+
+### Changed
+- **Agent execution flow hardening**: executor now emits long-running tool heartbeats, tracks recovered failures more precisely, and preflights shell-permission requirements when command execution is required.
+- **Shell approvals and safety**: `run_command` now supports single-approval bundle mode for safe command sequences and normalizes signatures more robustly for duplicate detection.
+- **Gateway routing extensibility**: router now supports channel-level `defaultAgentRoleId`, `defaultWorkspaceId`, and `allowedAgentRoleIds`, plus new `set_agent` router-rule action.
+- **Skill registry backend**: default registry now points to GitHub static catalog mode with client-side cached search and static skill fetch/install paths.
+- **Plugin discovery behavior**: plugin registry initializes at startup and supports incremental discovery of newly-added plugins without full re-init.
+
+### Fixed
+- **Sensitive shell output leakage**: command output now redacts seed phrases and private-key material before logging/model context.
+- **Isolated macOS install keychain prompt safety**: added `NEOWORKER_DISABLE_OS_KEYCHAIN=1` path to bypass OS keychain integration in disposable test environments.
+- **Task activity signaling in UI**: task “working” indicators now consider tool calls/results and tool-execution progress heartbeats, reducing false idle states.
+- **Install reliability carry-forward**: retains prior setup retry behavior and low-memory setup defaults while validating clean first-install flow.
+
+## [0.3.85] - 2026-02-14
+
+### Fixed
+- **Hoisted Electron detection in setup**: `npm run setup` now treats `../electron` as valid in npm-hoisted installs, so first-time setup no longer triggers unnecessary full dependency bootstrap.
+- **Native setup install scope**: missing `better-sqlite3` recovery and rebuild now run from the actual install root (not inside `node_modules/neoworker`), reducing first-run reify pressure that caused frequent macOS `SIGKILL`.
+- **Release publish gating**: npm/GitHub package publish jobs now depend on the release validation job, and smoke tests fail if setup unexpectedly falls back to dependency bootstrap.
+- **Install docs hardening**: README now includes a direct native retry-wrapper fallback when `npm run --prefix node_modules/neoworker setup` is terminated by `zsh: killed`, and recommends local bin launch over `npx` for first run.
+
+## [0.3.84] - 2026-02-14
+
+### Fixed
+- **Release smoke-test module resolution**: installability validation now runs Electron with `cwd` set to the installed `neoworker` package directory so `require('better-sqlite3')` resolves correctly after setup.
+- **Release continuity**: keeps the 0.3.82 npm SIGKILL regression fix while restoring end-to-end GitHub release packaging path after CI validation.
+
+## [0.3.83] - 2026-02-14
+
+### Fixed
+- **Release workflow syntax fix**: corrected the installability smoke-test shell step so the release pipeline no longer exits with `syntax error: unexpected end of file` before desktop packaging.
+- **Release continuity**: preserves the 0.3.82 npm SIGKILL fix while restoring full GitHub release asset publishing (DMG/ZIP).
+
+## [0.3.82] - 2026-02-14
+
+### Fixed
+- **SIGKILL regression fix for npm installs**: `setup_native` no longer uses `npm install --ignore-scripts=false` when recovering missing `better-sqlite3`, preventing `electron-winstaller` lifecycle scripts from being executed during first-time setup.
+- **Recovery install hardening**: missing runtime dependency repair now uses `--omit=dev` and `--package-lock=false` to avoid reifying packaging/dev dependency trees in user runtime installs.
+
+## [0.3.81] - 2026-02-14
+
+### Fixed
+- **README install path hardening**: `npm run setup` now skips a full dependency reinstall when the Electron dependency is already present, so fresh `/tmp` installs avoid avoidable reinstall-driven SIGKILL pressure.
+- **Native setup reliability**: restores the 0.3.71-style flow with retryable native setup and keeps `better-sqlite3` installation script-safe, then rebuilds it explicitly against Electron ABI.
+
+## [0.3.80] - 2026-02-14
+
+### Fixed
+- **macOS install reliability hardening**: setup now skips optional dependency reinstall during `npm run setup`, avoids propagating child SIGKILL events from native setup back to the shell, and documents a first-install flow that avoids macOS-terminating paths.
+- **Release validation hardening**: CI now resolves release metadata before install validation and validates installability from either published npm tarball (if already published) or local `npm pack` fallback, preventing release regressions for first-release tags.
+
+## [0.3.79] - 2026-02-14
+
+### Fixed
+- **macOS install reliability carry-forward**: retained the 0.3.71 SIGKILL workaround for first-time users by documenting and reinforcing the `npm install --ignore-scripts` + `npm run --prefix node_modules/neoworker setup` flow.
+- **Release workflow hardening**: ensured the macOS release job always creates or reopens the GitHub release as a draft before packaging so `electron-builder` can attach DMG/zip assets without immutable-release failures.
+- **Version alignment**: published metadata now identifies this release as `0.3.79` with the same installability and packaging reliability changes.
+
+## [0.3.78] - 2026-02-14
+
+### Fixed
+- **Release build hardening**: restored the missing `src/electron/agent/executor-helpers.ts` source file so builds can resolve `executor.ts` imports after packaging from a fresh clone.
+- **TypeScript strictness fixes**: fixed implicit `any` errors in `executor.ts` that could break release builds on CI.
+- **TLS fingerprint callback typing fix**: aligned `remote-client.ts` callback signature/type usage with current `ws` client typings to satisfy strict build checks.
+
+## [0.3.77] - 2026-02-14
+
+### Fixed
+- **Setup script safety**: `npm run setup` in a fresh install now runs dependency reinstall with `--ignore-scripts` so optional postinstall hooks like `electron-winstaller` cannot SIGKILL the process during first-run recovery on macOS.
+- **Install reliability carry-forward**: this patch keeps the documented `/tmp` first-install sequence intact while ensuring setup stays stable across npm install layouts.
+- **Version alignment**: published metadata is now aligned on `0.3.77` so the installability fix is included in both npm and GitHub release tracks.
+
+## [0.3.76] - 2026-02-14
+
+### Fixed
+- **Installability restoration**: pinned `electron` to `40.2.1` so first-time installs from `npm` pull the known-good Electron patch and avoid `SIGKILL` during `node_modules/electron/install.js` on affected macOS environments.
+- **README alignment**: clarified the first-time CLI install path to reflect the exact commands users should run from a fresh temporary folder.
+
+## [0.3.75] - 2026-02-14
+
+### Fixed
+- **Installability fix from 0.3.71**: restored Electron lockfile behavior by keeping `electron` at `40.2.1` during publish-time installs, matching the working `0.3.71` state and avoiding default `SIGKILL` during `node_modules/electron/install.js` on affected installs.
+
+## [0.3.74] - 2026-02-14
+
+### Fixed
+- **Release pipeline reliability**: updated the GitHub release publish step to find and publish the tag created by `electron-builder` instead of assuming the trigger ref matches exactly.
+- **Release docs/notes alignment**: updated release notes and README "What’s new" section for `0.3.74` to reflect install and CI reliability fixes.
+- **Release artifact consistency**: ensured workflow publishes desktop artifacts and release notes from the same release tag path used by electron packaging.
+
+## [0.3.73] - 2026-02-14
+
+### Fixed
+- **Release pipeline fix**: included daemon TypeScript sources in shared ESLint targets so `npm run lint` runs instead of failing with parse errors before build/publish steps.
+- **Workspace/task validation fix**: enforced `PersonalityId` validation for task agent configs to prevent runtime/inference mismatches during task creation.
+- **CLI and release install tests alignment**: updated control-plane and skill validation tests to match current runtime behaviors and skill metadata output.
+- **Workspace preflight reliability**: stabilized ambiguous temp-task auto-switch behavior when project-signals are present and tests now validate that behavior.
+
+## [0.3.72] - 2026-02-14
+
+### Added
+- **Session workspace isolation and cleanup**: temp tasks now get session-scoped workspace IDs, dedicated temp directories, and automatic pruning by age + usage caps.
+- **Autonomous task mode** in execution flow and control-plane/web-UI paths, with optional bypass of interactive approval prompts where explicitly enabled.
+- **Companion-mode handling for short conversational prompts** to return concise check-in responses without running task pipeline when appropriate.
+- **Search execution ordering** now prefers Brave when available and can safely fallback through configured providers automatically.
+- **PDF parsing compatibility wrapper** with runtime-safe handling for both legacy and v2 parser module shapes.
+
+### Changed
+- **Task completion validation tightened** with final-response contracts (required direct answers, artifact checks, verification evidence).
+- **Stricter tool failure handling** for hard/unavailable/disallowed outcomes to prevent false completion without real progress.
+- **Temporary workspace handling** now uses explicit session-aware IDs and filters temp workspaces from user-visible lists consistently.
+- **Search and file tools** now enforce more bounded scanning behavior and clearer fallback behavior under high-load conditions.
+
+### Fixed
+- **Watch/skip recommendation tasks** now block artifact tools and require direct recommendation output.
+- **Intermittent approval/partial-task updates** reduced by normalizing auto-approved events in UI and task-stream handling.
+- **Temp workspace lifecycle reliability** improved through scheduled pruning and safer restore/create paths.
+
+## [0.3.69] - 2026-02-11
+
+### Fixed
+- `npm install -g neoworker` could fail on macOS with `fsevents` (`binding.gyp not found`) due an npm 11 rebuild edge case triggered by `playwright`.
+- Switched runtime browser dependency to `playwright-core` via npm alias (`playwright` package name preserved in code) to avoid the failing `fsevents` install path.
+- Added launcher self-heal: on first run, `neoworker` now verifies direct runtime dependencies and repairs missing packages with a script-free npm install pass before boot.
+- Moved `@types/jszip` to `devDependencies` and excluded `@types/*` from runtime dependency checks to avoid unnecessary first-run repair installs.
+- Moved `@electron/rebuild` to runtime dependencies so native fallback rebuild works in npm-installed environments.
+- Fixed native setup fallback to locate `@electron/rebuild` via package exports (instead of resolving blocked subpaths), so fallback rebuild actually runs when needed.
+- `neoworker` first run now uses the shell retry wrapper for native setup, reducing one-shot startup failures when macOS kills a setup attempt under memory pressure.
+
+## [0.3.68] - 2026-02-11
+
+### Fixed
+- `neoworker` CLI startup could still fail with `better-sqlite3` ABI mismatch on first launch.
+- Launcher now validates `better-sqlite3` by opening an in-memory database (not just requiring the module) and runs native setup when needed.
+- Native setup script now resolves hoisted dependencies correctly (Electron and `better-sqlite3`) so it works in npm-installed layouts.
+
+## [0.3.67] - 2026-02-11
+
+### Added
+- Added npm CLI command support: `neoworker`, `neoworkerctl`, `neoworkerd`, and `neoworkerd-node`.
+
+### Fixed
+- Fixed launcher script to resolve the Electron binary correctly (`require('electron')` instead of `require.resolve`).
+- Included `dist/` in published npm files so the `neoworker` command can start without requiring a local build step.
+- Moved `electron` to runtime dependencies so CLI launch works after normal npm install.
+
+## [0.3.66] - 2026-02-11
+
+### Fixed
+- `npm ci` could hang indefinitely in CI due an `overrides.undici` resolution loop on npm 11.
+- Removed the `undici` override so release and publish jobs can complete.
+
+## [0.3.65] - 2026-02-11
+
+### Fixed
+- npm publishing no longer waits for the macOS packaging job in `release.yml`.
+- This prevents npm release delays when GitHub macOS runners are stalled while still allowing desktop packaging to run independently.
+
+## [0.3.64] - 2026-02-11
+
+### Fixed
+- Release workflow could stall for a long time at `Install dependencies` when git-based dependencies attempted SSH transport on GitHub runners.
+- CI now forces GitHub git dependencies to HTTPS before `npm ci` in all release/publish jobs.
+- Added explicit workflow timeouts and `npm ci --no-audit --no-fund` to reduce long-running hangs during release.
+
+## [0.3.63] - 2026-02-11
+
+### Fixed
+- npm installs could still fail with `SIGKILL` in transitive `protobufjs` postinstall hooks under macOS memory pressure.
+- Bundled `@mariozechner/pi-ai` and `@whiskeysockets/baileys` in the published npm tarball so their transitive install scripts are not executed on end-user `npm install`.
+- Restricted published package contents via `files` in `package.json` to remove large non-runtime artifacts and reduce install-time memory pressure.
+
+## [0.3.62] - 2026-02-11
+
+### Fixed
+- npm installs could still fail when the package `postinstall` script itself was SIGKILL'd by macOS memory pressure.
+- Removed `postinstall` from the published npm package so `npm install neoworker@latest` no longer depends on any NeoWorker lifecycle hook.
+
+## [0.3.61] - 2026-02-11
+
+### Fixed
+- npm installs could fail with `sh: electron-rebuild: command not found` because `postinstall` depended on a tool not available in all install contexts.
+- `postinstall` now uses a best-effort native setup driver and never fails the overall npm install.
+- `better-sqlite3` is now an optional dependency so transient native build failures no longer abort `npm install`; `npm run setup` now ensures it is installed before rebuild.
+
+## [0.3.60] - 2026-02-11
+
+### Fixed
+- npm installs could fail on macOS with `Killed: 9` during dependency lifecycle scripts due to floating dependency upgrades.
+- Pinned `@whiskeysockets/baileys` to `6.7.16` and `better-sqlite3` to `12.6.2` to avoid pulling newer variants that increased install-time instability.
+
+## [0.3.59] - 2026-02-10
+
+### Fixed
+- Increased default native setup outer retry attempts on macOS so `npm run setup` is more resilient to repeated transient `Killed: 9` SIGKILLs on the first run after install.
+
+## [0.3.58] - 2026-02-10
+
+### Fixed
+- macOS `npm run setup` could still fail with `Killed: 9` if the native setup retry wrapper itself was SIGKILL’d immediately after install; setup now performs outer retries (with backoff) around native setup so a transient SIGKILL doesn’t require manual re-runs.
+
+## [0.3.57] - 2026-02-10
+
+### Fixed
+- macOS `npm run setup` could still fail with `Killed: 9` if the nested `npm run setup:native` process was SIGKILL’d; setup now runs the native setup retry wrapper directly (no nested npm process) and propagates SIGKILL as exit code 137 so retries reliably trigger.
+
+## [0.3.56] - 2026-02-10
+
+### Fixed
+- macOS `npm run setup` could still fail with `Killed: 9` if macOS SIGKILL’d Node before in-process retries could run; native setup now uses a POSIX shell retry wrapper with exponential backoff so users don’t need to re-run commands manually.
+
+## [0.3.55] - 2026-02-10
+
+### Fixed
+- macOS `npm run setup` could still fail with `Killed: 9` before the retry driver could start; setup now retries native setup at the shell level (multiple attempts) so users don’t need to re-run commands manually.
+
+## [0.3.54] - 2026-02-10
+
+### Fixed
+- macOS `npm run setup` could still fail with `Killed: 9` on the first run under memory pressure; native setup now runs via a retrying driver and `setup` disables npm audit/fund to reduce peak memory usage.
+
+## [0.3.53] - 2026-02-10
+
+### Fixed
+- macOS `npm run setup` could still fail with `Killed: 9`; native setup now prefers an Electron-targeted `better-sqlite3` rebuild via `npm rebuild` (often uses prebuilds) and only falls back to `electron-rebuild` when necessary.
+
+## [0.3.52] - 2026-02-10
+
+### Fixed
+- macOS `npm run setup` could fail with `Killed: 9` during native module rebuild; native setup now defaults to low parallelism for reliability.
+
+## [0.3.29] - 2025-02-08
+
+### Added
+- **Vision Tool** - Analyze workspace images (screenshots, photos, diagrams) via `analyze_image`
+  - Supports OpenAI, Anthropic, and Google Gemini vision providers
+  - Workspace-safe file resolution with MIME type detection
+  - Handles images up to 20 MB
+- **Email IMAP Tool** - Direct IMAP mailbox access via `email_imap_unread`
+  - Check unread emails without requiring Google Workspace integration
+  - Uses existing Email channel IMAP/SMTP configuration
+- **Chat Commands** - New slash commands available across all gateway channels
+  - `/schedule <prompt>` - Schedule recurring agent tasks with results delivered back to the chat
+  - `/digest [lookback]` - Generate on-demand digest of recent chat messages
+  - `/followups [lookback]` - Extract follow-ups and commitments from recent chat messages
+  - `/brief [today|tomorrow|week]` - Generate brief summaries (DM only)
+  - `/brief schedule|list|unschedule` - Manage recurring brief schedules
+- **Inbound Attachment Persistence** - Channel messages with attachments are saved to workspace
+  - Files persisted under `.neoworker/inbox/attachments/<date>/<channel>/<chat>/<message>/`
+  - Attachment extraction added to Discord, Slack, Teams, Telegram, Google Chat, and iMessage adapters
+  - Saved paths appended to task prompts so agents can inspect files (and images via `analyze_image`)
+- **Cron Template Variables** - Dynamic variables in scheduled task prompts
+  - Date variables: `{{today}}`, `{{tomorrow}}`, `{{week_end}}`, `{{now}}`
+  - Chat context variables: `{{chat_messages}}`, `{{chat_since}}`, `{{chat_until}}`, `{{chat_message_count}}`, `{{chat_truncated}}`
+  - Conditional delivery: `deliverOnlyIfResult` skips posting when the task produces no output
+- **Chat Transcript Formatter** - New `formatChatTranscriptForPrompt()` utility for injecting chat history into agent prompts
+- **Tool Restrictions Tests** - New test suite for agent tool restriction enforcement
+- **Image Generation (Multi-Provider)** - Generate images via `generate_image` tool with provider auto-selection
+  - Supports **Gemini** (gemini-image-fast, gemini-image-pro), **OpenAI** (gpt-image-1, gpt-image-1.5, DALL-E 3/2), and **Azure OpenAI** (deployment-based)
+  - Model alias resolution (e.g. "gpt-1.5" → gpt-image-1.5, "dalle-3" → dall-e-3)
+  - Provider auto-selection picks the best configured provider when not specified
+  - Azure deployment detection for image-capable deployments
+  - 180-second tool timeout for remote image generation
+- **Visual Annotation Tools** - Agentic generate → annotate → refine → repeat workflow
+  - `visual_open_annotator` - Open Live Canvas with an image for visual annotation
+  - `visual_update_annotator` - Update the annotator with a new iteration image
+  - Structured feedback via canvas interactions (visual_feedback, visual_regenerate, visual_approve)
+- **Agentic Image Loop Skill** - New built-in skill for iterative image refinement
+  - Generate an image, open the Visual Annotator, collect user markup, refine prompt, regenerate
+  - Loops until user approves the result
+- **Inline Image Preview** - Generated images display directly in the task event timeline
+  - Auto-expands for `file_created`/`file_modified` events with image files
+  - Click to open in the full image viewer
+- **Local Embeddings for Memory** - Lightweight local vector embeddings without external API calls
+  - Token-based hashing for 256-dimensional vectors
+  - `MemoryEmbeddingRepository` for persisting embeddings in `memory_embeddings` table
+- **Global Imported Memory Search** - Cross-workspace search for ChatGPT imported memories
+  - `searchImportedGlobal` enables sessions in any workspace to retrieve imported history
+  - FTS with relaxed fallback and LIKE-based backup query
+
+### Changed
+- **Task Export** - Moved from `telemetry/` to `reports/` to better reflect purpose (structured task summaries, not telemetry)
+- **Skill Metadata** - Added `requires.bins` and `invocation.disableModelInvocation` to gog and himalaya skills
+- **Local Websearch Skill** - Updated branding (moltbot → neoworker) and paths to `Application Support/neoworker`
+- **Agent Executor** - Improved email fallback logic: prefers `email_imap_unread` when Google Workspace tools are unavailable
+- **Agent Executor** - Fixed missing `tool_result` entries on pause/cancel to keep API message history valid
+- **Channel Tools** - Added channel status and warning metadata to `channel_list_chats` and `channel_history` results
+- **Cron Delivery** - When a task has a non-empty result, delivery messages now include the result text directly instead of a generic status line
+- **Email Client TLS** - Load macOS system keychain CAs for IMAP/SMTP connections (fixes corporate proxy/antivirus TLS inspection)
+- **Email Client IMAP** - Improved response buffering and greeting handling reliability
+- **Image Generation** - Replaced single-provider "nano-banana" model system with multi-provider architecture; removed deprecated model aliases from pricing
+- **Gemini Provider** - Removed `banana` filter from model discovery exclusion list
+- **Verification Steps** - Verification steps are now internal; agent responds with "OK" on success instead of verbose summaries
+- **Task Timeline UI** - Verification step events (step_started, step_completed, verification_started/passed) are filtered from the timeline
+- **Plan Display** - Verification steps hidden from displayed plan step lists (still shown on failure)
+
+### Added (UI)
+- **step_failed Event** - New event type rendered with error styling in task timeline, right panel, and task timeline views
+
+### Fixed
+- **Gateway Message Logging** - Outgoing message persistence is now best-effort (never fails delivery)
+- **Security Docs** - Corrected `userData` paths, documented platform-specific locations
+- **Architecture Docs** - Added vision tool, chat commands, attachment handling, and cron template variable documentation
+
+## [0.3.25] - 2025-02-05
+
+### Added
+- **Google Workspace Integration** - Unified access to Gmail, Google Calendar, and Google Drive
+  - **Shared OAuth Authentication**: Single sign-in for all Google services
+  - **Gmail Tools**: `gmail_action` for sending emails, reading messages, creating drafts, searching
+  - **Calendar Tools**: `google_calendar_action` for creating, updating, and managing events
+  - **Drive Tools**: Enhanced `google_drive_action` with improved error handling
+  - **Settings UI**: New "Google Workspace" tab replaces separate Google Drive settings
+- **Gateway Channel Enhancements** - Improved channel implementations
+  - **Gateway Cleanup**: Proper cleanup on disconnect for all channels
+  - **Matrix Direct Rooms**: Support for direct message rooms in Matrix
+  - **Slack Group Handling**: Proper `is_group` detection for Slack channels
+  - **WhatsApp Config**: Enhanced configuration options for WhatsApp
+  - **Security Pending State**: Better handling of pending security approvals
+- **Agent Transient Error Retry** - Automatic retry for transient failures
+  - **Daemon Retry**: Transient errors in daemon scheduling trigger automatic retry with exponential backoff
+  - **Executor Retry**: Step processing failures are retried before failing the task
+  - **Graceful Degradation**: Non-critical errors don't abort entire task execution
+- **Document Tool Parameter Inference** - Smart parameter handling for document creation
+  - **Filename Inference**: Automatically infer filename from path or name parameters
+  - **Format Detection**: Detect document format (docx/pdf) from file extension
+  - **Content Fallback**: Use assistant output as content when not explicitly provided
+  - **Validation Errors**: Return helpful error messages for missing required fields
+- **Channel User Repository** - Track user-channel mappings in database
+- **Encrypted Settings Storage (SecureSettingsRepository)** - All settings now stored encrypted in database
+  - **OS Keychain Integration**: Settings encrypted using native OS keychain (macOS Keychain, Windows DPAPI, Linux libsecret)
+  - **Fallback Encryption**: App-level AES-256 encryption when OS keychain unavailable
+  - **Stable Machine ID**: Persistent machine identifier survives hostname changes and system updates
+  - **Data Integrity**: SHA-256 checksums detect corruption or tampering
+  - **Backup & Recovery**: Create encrypted backups of all settings, restore with optional overwrite
+  - **Health Checks**: `loadWithStatus()` and `checkHealth()` APIs for debugging encryption issues
+  - **Settings Categories**: voice, llm, search, appearance, personality, guardrails, hooks, mcp, controlplane, channels, builtintools, tailscale, claude-auth, queue, tray
+  - **Safe Migration**: Legacy JSON settings automatically migrated with backups preserved on failure
+- **Mobile Companions** - Connect iOS/Android devices as mobile nodes for device-specific actions
+  - **Node Architecture**: Mobile devices connect as "nodes" via WebSocket with role-based authentication
+  - **Device Capabilities**: Camera capture, location access, screen recording, SMS (Android only)
+  - **Standard Commands**:
+    - `camera.snap` - Take a photo with front/back camera
+    - `camera.clip` - Record video clip
+    - `location.get` - Get current GPS location (coarse or precise)
+    - `screen.record` - Record device screen
+    - `sms.send` - Send SMS message (Android only)
+  - **AI Agent Tools**: 6 new tools for agent interaction with mobile devices
+    - `node_list` - List connected mobile companions
+    - `node_describe` - Get detailed info about a specific node
+    - `node_camera_snap` - Take a photo using a mobile node's camera
+    - `node_location` - Get current location from a mobile node
+    - `node_screen_record` - Record screen on a mobile node
+    - `node_sms_send` - Send SMS via an Android node
+  - **Settings UI**: New "Mobile Companions" tab in Settings
+    - View connected devices with status and capabilities
+    - Test commands directly from the UI
+    - Connection instructions and troubleshooting
+  - **Foreground Detection**: Commands like camera/screen require the app to be in foreground
+  - **Permission Tracking**: Monitor granted permissions per capability
+  - **Event Broadcasting**: Operators receive real-time node connect/disconnect events
+- **Live Canvas Interactive Mode** - Full browser-like interaction directly in the preview
+  - **Interactive mode** (default): Embedded webview for clicking, scrolling, and interacting with canvas content
+  - **Snapshot mode**: Static screenshot with auto-refresh for monitoring
+  - Toggle between modes with **I** key or pointer button
+  - Resizable preview by dragging the bottom edge
+  - Export options: Download HTML, open in browser, show in Finder
+  - Snapshot history panel to browse previous states
+  - Console viewer for canvas logs
+- **Scheduled Tasks (Cron Jobs)** - Automate recurring tasks with cron expressions
+  - Schedule tasks using standard cron syntax (minute, hour, day, month, weekday)
+  - Visual schedule builder for users unfamiliar with cron syntax
+  - Workspace binding - each scheduled task runs in a specific workspace
+  - Channel delivery - optionally send task results to Telegram, Discord, Slack, WhatsApp, or iMessage
+  - Run history - view execution history with status, duration, and error details
+  - Enable/disable jobs without deleting them
+  - Manual trigger to run any scheduled task on-demand
+  - Configurable concurrent run limits (default: 3)
+  - Desktop notifications when scheduled tasks complete or fail
+- **In-App Notification Center** - Centralized notification management
+  - Bell icon in the top-right corner with unread badge count
+  - Dropdown notification panel accessible from the title bar
+  - Click-to-navigate - click any notification to jump to the related task
+  - Mark as read - individual or bulk "mark all as read" actions
+  - Delete notifications - remove individual or clear all
+  - Real-time updates - new notifications appear instantly without refresh
+  - macOS native desktop notifications for scheduled task completions
+  - Notification types: task_completed, task_failed, scheduled_task, info, warning, error
+  - Persistent storage - notifications survive app restarts
+- **WhatsApp Bot Integration** - Run tasks via WhatsApp with the Baileys library
+  - QR code pairing for WhatsApp Web connection
+  - Self-Chat Mode for users using their personal WhatsApp number
+    - Bot only responds in "Message Yourself" chat when enabled
+    - Configurable response prefix (e.g., "🤖") to distinguish bot messages
+  - Standard security modes: Pairing, Allowlist, Open
+  - Full command support: `/start`, `/help`, `/workspaces`, `/workspace`, `/newtask`, `/status`, `/cancel`, `/pair`
+  - Markdown to WhatsApp formatting conversion (`**bold**` → `*bold*`, headers, strikethrough, links)
+  - Automatic cleanup of expired pairing codes
+  - Logout and re-pairing support
+- **AppleScript Execution** - New `run_applescript` system tool for macOS automation
+  - Execute AppleScript code to control applications and automate system tasks
+  - Control apps like Safari, Finder, Mail, and more
+  - Manage windows, click UI elements, send keystrokes
+  - Get/set system preferences and interact with files
+  - 30-second timeout with 1MB output buffer
+  - macOS only (graceful error on other platforms)
+- **Configurable Guardrails** - User-configurable safety limits in Settings > Guardrails
+  - **Token Budget**: Limit total tokens per task (default: 100,000, range: 1K-10M)
+  - **Cost Budget**: Limit estimated cost per task (default: $1.00, disabled by default)
+  - **Iteration Limit**: Limit LLM calls per task to prevent infinite loops (default: 50)
+  - **Dangerous Command Blocking**: Block shell commands matching dangerous patterns (enabled by default)
+    - Built-in patterns: `sudo`, `rm -rf /`, `mkfs`, `dd if=`, fork bombs, `curl|bash`, etc.
+    - Support for custom regex patterns
+  - **File Size Limit**: Limit file write size (default: 50MB)
+  - **Domain Allowlist**: Restrict browser automation to approved domains (disabled by default)
+- Model pricing table for cost estimation (Anthropic, Bedrock, Gemini, OpenRouter models)
+- New IPC handlers and preload APIs for guardrail settings
+
+### Changed
+- Task executor now tracks token usage, cost, and iterations across LLM calls
+- Shell commands are blocked by guardrails before reaching approval dialog
+- File writes check size limits before writing
+- Browser navigation checks domain allowlist when enabled
+
+## [0.1.7] - 2025-01-26
+
+### Added
+- **Shell Command Execution** - AI can now execute shell commands with user approval
+  - `run_command` tool for running terminal commands (npm, git, brew, etc.)
+  - Each command requires explicit user approval before execution
+  - Configurable timeout (default 60s, max 5 minutes)
+  - Output truncation for large command outputs (100KB max)
+  - New `shell` permission in workspace settings (disabled by default)
+- `/shell` command for Discord/Telegram to enable/disable shell execution
+  - `/shell` - Show current status
+  - `/shell on` - Enable shell commands for workspace
+  - `/shell off` - Disable shell commands
+- **Safety & Data Loss Warning** in README
+  - Prominent warning section at top of documentation
+  - Guidelines for safe usage (separate environment, non-critical folders, backups)
+  - Clear disclaimer of maintainer responsibility
+
+### Changed
+- Workspace permissions now include `shell: boolean` field
+- Updated help text in Discord/Telegram bots to include shell command info
+- Permission model documentation updated in README
+
+## [0.1.6] - 2025-01-25
+
+### Added
+- **Discord Bot Integration** - Full Discord support with slash commands and DMs
+  - `/start` - Start the bot and get help
+  - `/help` - Show available commands
+  - `/workspaces` - List available workspaces
+  - `/workspace` - Select or show current workspace
+  - `/addworkspace` - Add a new workspace by path
+  - `/newtask` - Start a fresh task/conversation
+  - `/provider` - Change or show current LLM provider
+  - `/models` - List available AI models
+  - `/model` - Change or show current model
+  - `/status` - Check bot status
+  - `/cancel` - Cancel current task
+  - `/task` - Run a task directly
+- Direct message support for conversational interactions
+- Mention-based task creation in server channels
+- Automatic message chunking for Discord's 2000 character limit
+- Guild-specific or global slash command registration
+
+### Changed
+- Channel gateway now supports both Telegram and Discord adapters
+- Added `discord.js` dependency for Discord API integration
+
+## [0.1.5] - 2025-01-25
+
+### Added
+- **Browser Automation** - Full browser control using Playwright
+  - `browser_navigate` - Navigate to any URL
+  - `browser_screenshot` - Capture page or full-page screenshots
+  - `browser_get_content` - Extract text, links, and forms from pages
+  - `browser_click` - Click on elements using CSS selectors
+  - `browser_fill` - Fill form fields
+  - `browser_type` - Type text character by character (for autocomplete)
+  - `browser_press` - Press keyboard keys (Enter, Tab, etc.)
+  - `browser_wait` - Wait for elements to appear
+  - `browser_scroll` - Scroll pages up/down/top/bottom
+  - `browser_select` - Select dropdown options
+  - `browser_get_text` - Get element text content
+  - `browser_evaluate` - Execute JavaScript in browser context
+  - `browser_back/forward` - Navigate browser history
+  - `browser_reload` - Reload current page
+  - `browser_save_pdf` - Save pages as PDF
+  - `browser_close` - Close the browser
+- Automatic browser cleanup when tasks complete or fail
+- Headless Chrome browser (Chromium) via Playwright
+
+### Changed
+- Tool registry now includes 17 browser automation tools
+- Executor now handles resource cleanup in finally block
+
+## [0.1.4] - 2025-01-25
+
+### Added
+- **Real Office Format Support** - Documents now create actual Office files instead of text placeholders
+  - Excel (.xlsx) files with `exceljs` - multiple sheets, auto-fit columns, header formatting, filters, frozen rows
+  - Word (.docx) files with `docx` - headings, paragraphs, lists, tables, code blocks with proper styling
+  - PDF files with `pdfkit` - professional document generation with custom fonts and margins
+  - PowerPoint (.pptx) files with `pptxgenjs` - multiple slide layouts (title, content, two-column, image), speaker notes, themes
+- Spreadsheet read capability for existing Excel files
+- Fallback to CSV/Markdown when those extensions are explicitly requested
+
+### Changed
+- SpreadsheetBuilder now creates real Excel workbooks with formatting
+- DocumentBuilder supports Word, PDF, and Markdown output formats
+- PresentationBuilder creates professional PowerPoint presentations with layouts
+
+## [0.1.3] - 2025-01-25
+
+### Added
+- CLI/ASCII terminal-style UI throughout the application
+- Model selection dropdown (Opus 4.5, Sonnet 4.5, Haiku 4.5)
+- AWS Bedrock support as alternative to Anthropic API
+- Telegram bot integration with full command support
+- Web search integration (Tavily, Brave, SerpAPI, Google)
+- Ollama support for local LLM inference
+
+### Changed
+- Updated branding to NeoWorker
+- Improved workspace selector with terminal aesthetic
+
+## [0.1.0] - 2025-01-24
+
+### Added
+
+#### Core Features
+- Task-based workflow with multi-step execution
+- Plan-execute-observe loop for agent orchestration
+- Real-time task timeline with live activity feed
+- Workspace management with folder selection
+
+#### Agent Capabilities
+- File operation tools (read, write, list, rename, delete)
+- Built-in skills:
+  - Spreadsheet creation (Excel format)
+  - Document creation (Word/PDF)
+  - Presentation creation (PowerPoint)
+  - Folder organization
+
+#### Security & Permissions
+- Sandboxed file operations within selected workspace
+- Permission system for destructive operations
+- Approval dialogs for file deletion and bulk operations
+- Path traversal protection
+
+#### LLM Integration
+- Anthropic Claude API support
+- AWS Bedrock support
+- Multiple model selection (Opus, Sonnet, Haiku)
+- Settings UI for API configuration
+
+#### User Interface
+- Electron desktop application for macOS
+- React-based UI with dark theme
+- CLI/ASCII terminal aesthetic
+- Task list with status indicators
+- System monitor panel (progress, files, context)
+
+#### Data Management
+- SQLite local database
+- Task and event persistence
+- Workspace history
+- Artifact tracking
+
+### Technical
+- Electron 40 with React 19
+- TypeScript throughout
+- Vite for fast development
+- electron-builder for packaging
+
+## [0.0.1] - 2025-01-20
+
+### Added
+- Initial project setup
+- Basic Electron app shell
+- Database schema design
+- IPC communication layer
+
+---
+
+## Version History Summary
+
+| Version | Date | Highlights |
+|---------|------|------------|
+| 0.5.49 | 2026-06-08 | NeoWorker CLI, Browser Use Cloud, Codex Security workflows, automation outcomes, Usage Insights heatmaps, composer link chips, public adoption stats, and security hardening |
+| 0.5.48 | 2026-05-28 | Side Chat, Secure MCP Tunnels, YouTube video intelligence, timeline/sidebar paging, scheduler/routine reliability, and runtime safety fixes |
+| 0.5.47 | 2026-05-21 | Long-session reliability, off-main-thread memory recall, renderer stability, location approval safety, Maps MCP workflows, and private-memory filtering |
+| 0.5.45 | 2026-05-14 | Agent Builder, finance/legal packs, channel specialization, Google Workspace Tasks/Slides, mailbox queue upgrades, runtime policy controls, Dreaming, and multitask lanes |
+| 0.3.91 | 2026-02-24 | Digital twins, web scraping, AI playbook, build mode, knowledge graph, usage insights, infrastructure tools |
+| 0.3.90 | 2026-02-23 | Collaborative mode, multi-LLM orchestration, git worktree isolation, Anthropic streaming |
+| 0.3.89 | 2026-02-20 | Declarative plugin system, built-in packs, Sonnet 4.6, slash command autocomplete |
+| 0.3.88 | 2026-02-19 | Vision support across all LLM providers, LOOM email, Conway Terminal, density mode |
+| 0.3.87 | 2026-02-17 | Intent-routed strategy, relationship memory, timeout recovery, Resend connector |
+| 0.3.86 | 2026-02-14 | ACP canvas endpoints, i18n, talk mode, skill registry |
+| 0.3.84 | 2026-02-14 | Fixes CI installability check module resolution so release validation passes and desktop packaging can continue |
+| 0.3.83 | 2026-02-14 | Fixes release workflow shell parsing so installability validation and desktop asset publishing complete successfully |
+| 0.3.82 | 2026-02-14 | Removes script-enabled recovery installs that triggered electron-winstaller SIGKILL and hardens runtime repair install flags |
+| 0.3.81 | 2026-02-14 | Restored reliable /tmp install flow with retry-safe native setup and CI validation for both registry and npm-pack install paths |
+| 0.3.80 | 2026-02-14 | Fixed macOS first-install runtime setup reliability and hardened release validation so new tags can still run installation checks |
+| 0.3.79 | 2026-02-14 | Retained the 0.3.71 SIGKILL workaround and hardened draft release preparation so desktop assets upload reliably |
+| 0.3.78 | 2026-02-14 | Fixes missing release-time `executor-helpers` source and remaining strict-mode TypeScript blockers |
+| 0.3.77 | 2026-02-14 | Skips lifecycle scripts during setup reinstall and prevents setup-time SIGKILL in user-first installs |
+| 0.3.76 | 2026-02-14 | Pinned Electron to 40.2.1 for first-run installability and aligned README CLI flow |
+| 0.3.75 | 2026-02-14 | Restored 0.3.71-compatible Electron lockfile for installability and release confidence |
+| 0.3.73 | 2026-02-14 | Release automation hardening and task/workspace validation fixes |
+| 0.3.72 | 2026-02-14 | Session-based temp workspaces, autonomous execution mode, safer completion validation |
+| 0.3.29 | 2025-02-08 | Multi-provider image generation, visual annotation, local embeddings, verification UX |
+| 0.3.25 | 2025-02-05 | Google Workspace integration, gateway enhancements, agent retry logic |
+| 0.1.6 | 2025-01-25 | Discord bot integration with slash commands |
+| 0.1.5 | 2025-01-25 | Browser automation with Playwright |
+| 0.1.4 | 2025-01-25 | Real Office format support (Excel, Word, PDF, PowerPoint) |
+| 0.1.3 | 2025-01-25 | Telegram bot, web search, Ollama support |
+| 0.1.0 | 2025-01-24 | First public release with core features |
+| 0.0.1 | 2025-01-20 | Initial development setup |
+
+[Unreleased]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.49...HEAD
+[0.5.49]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.48...v0.5.49
+[0.5.48]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.47...v0.5.48
+[0.5.47]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.45...v0.5.47
+[0.5.45]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.44...v0.5.45
+[0.5.44]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.43...v0.5.44
+[0.5.43]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.42...v0.5.43
+[0.5.42]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.41...v0.5.42
+[0.5.41]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.40...v0.5.41
+[0.5.40]: https://github.com/NeoWorker/NeoWorker/compare/v0.5.35...v0.5.40
+[0.5.35]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.35
+[0.5.34]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.34
+[0.5.23]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.23
+[0.5.19]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.19
+[0.5.18]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.18
+[0.5.17]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.17
+[0.5.16]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.16
+[0.5.15]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.15
+[0.5.14]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.14
+[0.5.13]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.13
+[0.5.11]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.11
+[0.5.1]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.1
+[0.5.0]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.5.0
+[0.4.13]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.13
+[0.4.12]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.12
+[0.4.11]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.11
+[0.4.10]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.10
+[0.4.9]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.9
+[0.4.8]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.8
+[0.4.7]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.7
+[0.4.6]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.6
+[0.4.1]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.4.1
+[0.3.91]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.91
+[0.3.90]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.90
+[0.3.89]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.89
+[0.3.88]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.88
+[0.3.87]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.87
+[0.3.86]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.86
+[0.3.84]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.84
+[0.3.83]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.83
+[0.3.82]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.82
+[0.3.81]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.81
+[0.3.80]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.80
+[0.3.79]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.79
+[0.3.78]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.78
+[0.3.77]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.77
+[0.3.76]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.76
+[0.3.75]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.75
+[0.3.73]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.73
+[0.3.72]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.72
+[0.3.71]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.71
+[0.3.29]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.29
+[0.3.25]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.25
+[0.1.6]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.6
+[0.1.5]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.5
+[0.1.4]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.4
+[0.1.3]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.3
+[0.1.0]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.0
+[0.0.1]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.0.1

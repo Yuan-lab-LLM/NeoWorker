@@ -1,0 +1,710 @@
+import { describe, expect, it } from "vitest";
+import {
+  fromOpenAICompatibleResponse,
+  parseOpenAICompatibleToolArguments,
+  parseTextEncodedToolCalls,
+  sanitizeToolCallHistory,
+  toOpenAICompatibleMessages,
+  toOpenAICompatibleTools,
+} from "../openai-compatible";
+
+describe("OpenAI-compatible tool arguments", () => {
+  it("repairs a missing comma instead of failing the whole agent step", () => {
+    const response = fromOpenAICompatibleResponse({
+      choices: [
+        {
+          finish_reason: "tool_calls",
+          message: {
+            content: "总结已经完成。",
+            tool_calls: [
+              {
+                id: "call-1",
+                type: "function",
+                function: {
+                  name: "task_complete",
+                  arguments: '{"summary":"完成" "details":"已生成结果"}',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(response.content).toEqual([
+      { type: "text", text: "总结已经完成。" },
+      {
+        type: "tool_use",
+        id: "call-1",
+        name: "task_complete",
+        input: { summary: "完成", details: "已生成结果" },
+      },
+    ]);
+  });
+
+  it("repairs literal control characters inside large text arguments", () => {
+    expect(
+      parseOpenAICompatibleToolArguments(
+        '{"path":"report.html","content":"<h1>标题</h1>\n<p>\t正文</p>"}',
+      ),
+    ).toEqual({
+      path: "report.html",
+      content: "<h1>标题</h1>\n<p>\t正文</p>",
+    });
+  });
+
+  it("marks unrecoverable tool arguments as retryable", () => {
+    expect(() =>
+      parseOpenAICompatibleToolArguments("not json at all"),
+    ).toThrowError(
+      expect.objectContaining({
+        name: "MalformedToolArgumentsError",
+        code: "MALFORMED_TOOL_ARGUMENTS",
+        retryable: true,
+      }),
+    );
+  });
+
+  it("accepts object-valued tool arguments from compatible gateways", () => {
+    expect(
+      parseOpenAICompatibleToolArguments({
+        file_path: "/tmp/image.png",
+      }),
+    ).toEqual({ file_path: "/tmp/image.png" });
+  });
+});
+
+describe("text-encoded OpenAI-compatible tool calls", () => {
+  it("converts Kimi native tool tokens into an executable tool use", () => {
+    const raw =
+      "<|tool_calls_section_begin|><|tool_call_begin|>functions.read_file:0" +
+      '<|tool_call_argument_begin|>{"file_path":"/tmp/image.png"}' +
+      "<|tool_call_end|><|tool_calls_section_end|>";
+
+    const response = fromOpenAICompatibleResponse({
+      choices: [
+        {
+          finish_reason: "stop",
+          message: { content: raw },
+        },
+      ],
+    });
+
+    expect(response.stopReason).toBe("tool_use");
+    expect(response.content).toEqual([
+      expect.objectContaining({
+        type: "tool_use",
+        name: "read_file",
+        input: { file_path: "/tmp/image.png" },
+      }),
+    ]);
+    expect(JSON.stringify(response.content)).not.toContain(
+      "tool_calls_section_begin",
+    );
+  });
+
+  it("keeps ordinary text around a text-encoded tool call", () => {
+    const parsed = parseTextEncodedToolCalls(
+      "I will inspect it.\n" +
+        "<|tool_calls_section_begin|><|tool_call_begin|>functions.read_file:0" +
+        '<|tool_call_argument_begin|>{"file_path":"/tmp/image.png"}' +
+        "<|tool_call_end|><|tool_calls_section_end|>",
+    );
+
+    expect(parsed.visibleText).toBe("I will inspect it.");
+    expect(parsed.toolUses).toHaveLength(1);
+  });
+
+  it("rejects incomplete native tool tokens as retryable", () => {
+    expect(() =>
+      parseTextEncodedToolCalls(
+        "<|tool_calls_section_begin|><|tool_call_begin|>functions.read_file:0",
+      ),
+    ).toThrowError(
+      expect.objectContaining({
+        name: "MalformedToolArgumentsError",
+        code: "MALFORMED_TOOL_ARGUMENTS",
+        retryable: true,
+      }),
+    );
+  });
+
+  it("converts Kimi native tool tokens returned in reasoning_content", () => {
+    const raw =
+      "<|tool_calls_section_begin|><|tool_call_begin|>functions.read_file:0" +
+      '<|tool_call_argument_begin|>{"file_path":"/tmp/reasoning.png"}' +
+      "<|tool_call_end|><|tool_calls_section_end|>";
+
+    const response = fromOpenAICompatibleResponse({
+      choices: [
+        {
+          finish_reason: "stop",
+          message: { content: null, reasoning_content: raw },
+        },
+      ],
+    });
+
+    expect(response.stopReason).toBe("tool_use");
+    expect(response.content).toEqual([
+      expect.objectContaining({
+        type: "tool_use",
+        name: "read_file",
+        input: { file_path: "/tmp/reasoning.png" },
+      }),
+    ]);
+    expect(JSON.stringify(response.content)).not.toContain(
+      "tool_calls_section_begin",
+    );
+  });
+});
+
+describe("toOpenAICompatibleMessages", () => {
+  it("replays reasoning state on a follow-up tool turn", () => {
+    const providerResponse = fromOpenAICompatibleResponse({
+      choices: [
+        {
+          finish_reason: "tool_calls",
+          message: {
+            content: null,
+            reasoning_content: "I should inspect the supplied image.",
+            reasoning_details: [{ type: "reasoning.text", text: "inspect" }],
+            tool_calls: [
+              {
+                id: "call-reasoning-1",
+                type: "function",
+                function: {
+                  name: "read_file",
+                  arguments: '{"file_path":"/tmp/image.png"}',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const result = toOpenAICompatibleMessages([
+      { role: "assistant", content: providerResponse.content },
+      {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "call-reasoning-1",
+            content: "done",
+          },
+        ],
+      },
+    ]);
+
+    expect(result[0]).toMatchObject({
+      role: "assistant",
+      reasoning_content: "I should inspect the supplied image.",
+      reasoning_details: [{ type: "reasoning.text", text: "inspect" }],
+      tool_calls: [{ id: "call-reasoning-1" }],
+    });
+  });
+
+  it("splits stable and turn-scoped system blocks into separate leading system messages", () => {
+    const result = toOpenAICompatibleMessages(
+      [{ role: "user" as const, content: "hello" }],
+      "Stable instructions\n\nCurrent time: 2026-04-04T10:00:00Z",
+      {
+        systemBlocks: [
+          {
+            text: "Stable instructions",
+            scope: "session",
+            cacheable: true,
+            stableKey: "identity:1",
+          },
+          {
+            text: "Current time: 2026-04-04T10:00:00Z",
+            scope: "turn",
+            cacheable: false,
+            stableKey: "time:1",
+          },
+        ],
+      },
+    );
+
+    expect(result).toEqual([
+      { role: "system", content: "Stable instructions" },
+      { role: "system", content: "Current time: 2026-04-04T10:00:00Z" },
+      { role: "user", content: "hello" },
+    ]);
+  });
+
+  it("keeps assistant text and tool calls in one ordered message block", () => {
+    const input = [
+      {
+        role: "assistant" as const,
+        content: [
+          { type: "text" as const, text: "Preparing your summary." },
+          {
+            type: "tool_use" as const,
+            id: "tool-1",
+            name: "search_web",
+            input: { query: "workspace status" },
+          },
+        ],
+      },
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "tool_result" as const,
+            tool_use_id: "tool-1",
+            content: "done",
+          },
+        ],
+      },
+    ];
+
+    const result = toOpenAICompatibleMessages(input);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      role: "assistant",
+      content: "Preparing your summary.",
+      tool_calls: [
+        {
+          id: "tool-1",
+          type: "function",
+          function: {
+            name: "search_web",
+            arguments: '{"query":"workspace status"}',
+          },
+        },
+      ],
+    });
+    expect(result[1]).toMatchObject({
+      role: "tool",
+      tool_call_id: "tool-1",
+      content: "done",
+    });
+  });
+
+  it("shortens long tool call IDs consistently when a provider limit is set", () => {
+    const longId =
+      "call_fTqRlz9aYMXqPEzJkcc0NrzA|fc_074924a6cf3a48280169f173f70f988191b1e8342ae256b142";
+    const input = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "tool_use" as const,
+            id: longId,
+            name: "scratchpad_write",
+            input: {
+              key: "heartbeat-190f8bd3-bf28-458d-8819-333337121d6d-duplicate-already-covered",
+              content:
+                "Heartbeat run id: 190f8bd3-bf28-458d-8819-333337121d6d.",
+            },
+          },
+        ],
+      },
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "tool_result" as const,
+            tool_use_id: longId,
+            content: "done",
+          },
+        ],
+      },
+    ];
+
+    const result = toOpenAICompatibleMessages(input, undefined, {
+      maxToolCallIdLength: 64,
+    });
+    const toolCallId = result[0].tool_calls?.[0]?.id;
+
+    expect(toolCallId).toBeDefined();
+    expect(toolCallId).not.toBe(longId);
+    expect(toolCallId?.length).toBeLessThanOrEqual(64);
+    expect(result[1]).toMatchObject({
+      role: "tool",
+      tool_call_id: toolCallId,
+      content: "done",
+    });
+  });
+
+  it("does not drop text when image and tool_use are both present for an assistant message", () => {
+    const input = [
+      {
+        role: "assistant" as const,
+        content: [
+          { type: "text" as const, text: "Analyzing image and tools." },
+          {
+            type: "tool_use" as const,
+            id: "tool-2",
+            name: "scan_image",
+            input: { confidence: 0.9 },
+          },
+          {
+            type: "image" as const,
+            mimeType: "image/png",
+            data: "AAECAw==",
+          },
+        ],
+      },
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "tool_result" as const,
+            tool_use_id: "tool-2",
+            content: "done",
+          },
+        ],
+      },
+    ];
+
+    const result = toOpenAICompatibleMessages(input);
+
+    expect(result[0]).toMatchObject({
+      role: "assistant",
+      content:
+        "Analyzing image and tools.\n[Image attached: image/png, 0.0MB - this provider does not support inline images. Switch to an image-capable model/provider and resend the image.]",
+      tool_calls: [
+        {
+          id: "tool-2",
+        },
+      ],
+    });
+    expect(result).toHaveLength(2);
+    expect(result[0].content).toContain("[Image attached: image/png");
+    expect(result[1]).toMatchObject({
+      role: "tool",
+      tool_call_id: "tool-2",
+      content: "done",
+    });
+  });
+
+  it("falls back to text for assistant image content", () => {
+    const input = [
+      {
+        role: "assistant" as const,
+        content: [
+          { type: "image" as const, mimeType: "image/jpeg", data: "AQIDBA==" },
+          { type: "text" as const, text: "Summary from previous model." },
+        ],
+      },
+    ];
+
+    const result = toOpenAICompatibleMessages(input, undefined, {
+      supportsImages: true,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      role: "assistant",
+    });
+    expect(result[0].content).toContain("[Image attached: image/jpeg");
+    expect(result[0].content).toContain("Summary from previous model.");
+    expect(result[0].content).not.toContain("image_url");
+  });
+
+  it("falls back to text for user image content by default", () => {
+    const input = [
+      {
+        role: "user" as const,
+        content: [
+          { type: "text" as const, text: "Here is an image:" },
+          { type: "image" as const, mimeType: "image/png", data: "AQIDBA==" },
+        ],
+      },
+    ];
+
+    const result = toOpenAICompatibleMessages(input);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      role: "user",
+      content:
+        "Here is an image:\n[Image attached: image/png, 0.0MB - this provider does not support inline images. Switch to an image-capable model/provider and resend the image.]",
+    });
+  });
+
+  it("keeps assistant text and tool calls in one block with image fallback when text is empty", () => {
+    const input = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "tool_use" as const,
+            id: "tool-3",
+            name: "fetch_status",
+            input: { taskId: "task-7" },
+          },
+          {
+            type: "image" as const,
+            mimeType: "image/jpeg",
+            data: "AQIDBA==",
+          },
+        ],
+      },
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "tool_result" as const,
+            tool_use_id: "tool-3",
+            content: "done",
+          },
+        ],
+      },
+    ];
+
+    const result = toOpenAICompatibleMessages(input);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      role: "assistant",
+      tool_calls: [
+        {
+          id: "tool-3",
+          type: "function",
+          function: {
+            name: "fetch_status",
+            arguments: '{"taskId":"task-7"}',
+          },
+        },
+      ],
+    });
+    expect(result[0].content).toContain("[Image attached: image/jpeg");
+    expect(result[1]).toMatchObject({
+      role: "tool",
+      tool_call_id: "tool-3",
+      content: "done",
+    });
+  });
+
+  it("does not emit image_url for assistant messages with text, tool calls, and images", () => {
+    const input = [
+      {
+        role: "assistant" as const,
+        content: [
+          { type: "text" as const, text: "Reviewing attached screenshot." },
+          {
+            type: "tool_use" as const,
+            id: "tool-4",
+            name: "describe_image",
+            input: { confidence: 0.95 },
+          },
+          { type: "image" as const, mimeType: "image/png", data: "AQIDBA==" },
+        ],
+      },
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "tool_result" as const,
+            tool_use_id: "tool-4",
+            content: "done",
+          },
+        ],
+      },
+    ];
+
+    const result = toOpenAICompatibleMessages(input, undefined, {
+      supportsImages: true,
+    });
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      role: "assistant",
+      content:
+        "Reviewing attached screenshot.\n[Image attached: image/png, 0.0MB - this provider does not support inline images. Switch to an image-capable model/provider and resend the image.]",
+      tool_calls: [
+        {
+          id: "tool-4",
+          type: "function",
+          function: {
+            name: "describe_image",
+            arguments: '{"confidence":0.95}',
+          },
+        },
+      ],
+    });
+    expect(result[0].content).not.toContain("image_url");
+    expect(result[1]).toMatchObject({
+      role: "tool",
+      tool_call_id: "tool-4",
+      content: "done",
+    });
+  });
+
+  it("skips orphaned tool_result when preceding message has no tool_calls (compaction edge case)", () => {
+    // After compaction, a user message with tool_result can end up without its preceding
+    // assistant (tool_use). OpenAI/Azure reject "tool" messages that don't follow assistant
+    // with tool_calls. We must skip orphaned tool_result blocks.
+    const input = [
+      { role: "user" as const, content: "task context" },
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "tool_result" as const,
+            tool_use_id: "call_1",
+            content: "result",
+          },
+        ],
+      },
+    ];
+
+    const result = toOpenAICompatibleMessages(input);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ role: "user", content: "task context" });
+    expect(result.some((m) => m.role === "tool")).toBe(false);
+  });
+
+  it("drops unexpected tool_call_id entries from an otherwise valid tool response block", () => {
+    const input = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "tool_use" as const,
+            id: "call_1",
+            name: "search_web",
+            input: { query: "status" },
+          },
+        ],
+      },
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "tool_result" as const,
+            tool_use_id: "call_1",
+            content: "ok",
+          },
+          {
+            type: "tool_result" as const,
+            tool_use_id: "call_orphan",
+            content: "stale",
+          },
+        ],
+      },
+    ];
+
+    const result = toOpenAICompatibleMessages(input);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      role: "assistant",
+      tool_calls: [{ id: "call_1" }],
+    });
+    expect(result[1]).toMatchObject({
+      role: "tool",
+      tool_call_id: "call_1",
+      content: "ok",
+    });
+  });
+
+  it("drops standalone raw tool messages left behind by malformed restored history", () => {
+    const input = [
+      { role: "user", content: "task context" },
+      {
+        role: "tool",
+        content: "stale tool output",
+        tool_call_id: "call_orphan",
+      },
+    ] as unknown as Parameters<typeof toOpenAICompatibleMessages>[0];
+
+    const result = toOpenAICompatibleMessages(input);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ role: "user", content: "task context" });
+    expect(result.some((m) => m.role === "tool")).toBe(false);
+  });
+
+  it("drops incomplete assistant tool batches before provider conversion", () => {
+    const input = [
+      {
+        role: "assistant" as const,
+        content: [
+          { type: "text" as const, text: "Fetching sources." },
+          {
+            type: "tool_use" as const,
+            id: "call_1",
+            name: "web_fetch",
+            input: { url: "https://example.com" },
+          },
+          {
+            type: "tool_use" as const,
+            id: "call_2",
+            name: "web_fetch",
+            input: { url: "https://example.org" },
+          },
+        ],
+      },
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "tool_result" as const,
+            tool_use_id: "call_1",
+            content: "only one result",
+          },
+        ],
+      },
+      { role: "assistant" as const, content: "Recovered later." },
+    ];
+
+    expect(sanitizeToolCallHistory(input)).toEqual([
+      { role: "assistant", content: "Recovered later." },
+    ]);
+    expect(toOpenAICompatibleMessages(input)).toEqual([
+      { role: "assistant", content: "Recovered later." },
+    ]);
+  });
+
+  it("omits image payload when provider does not support images", () => {
+    const input = [
+      {
+        role: "user" as const,
+        content: [
+          { type: "text" as const, text: "Here is an image:" },
+          { type: "image" as const, mimeType: "image/png", data: "AQIDBA==" },
+        ],
+      },
+    ];
+
+    const result = toOpenAICompatibleMessages(input, undefined, {
+      supportsImages: false,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].content).toBe(
+      "Here is an image:\n[Image attached: image/png, 0.0MB - this provider does not support inline images. Switch to an image-capable model/provider and resend the image.]",
+    );
+    expect(result[0].content).not.toContain("image_url");
+  });
+});
+
+describe("toOpenAICompatibleTools", () => {
+  it("can mark functions non-strict for providers with strict schema defaults", () => {
+    const result = toOpenAICompatibleTools(
+      [
+        {
+          name: "web_search",
+          description: "Search the web",
+          input_schema: {
+            type: "object",
+            properties: {
+              query: { type: "string" },
+            },
+            required: ["query"],
+          },
+        },
+      ],
+      { functionStrict: false },
+    );
+
+    expect(result[0].function.strict).toBe(false);
+  });
+});

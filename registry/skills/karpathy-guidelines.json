@@ -1,0 +1,38 @@
+{
+  "id": "karpathy-guidelines",
+  "name": "Task Guidelines",
+  "description": "Surgical execution guardrails for coding, debugging, review, and refactor tasks",
+  "icon": "🧠",
+  "category": "Guidelines",
+  "type": "guideline",
+  "priority": 1,
+  "prompt": "## Surgical Task Guidelines\n\n- State assumptions only when they affect the work; ask before choosing between materially different interpretations.\n- Define the smallest verifiable success criteria before editing.\n- Change only files needed for the request. Avoid unrelated cleanup, broad rewrites, renames, and speculative abstractions.\n- Prefer the simplest implementation that fits existing project patterns.\n- For code changes, verify behavior with the narrowest useful test/build/check and report what passed or could not run.\n- If you notice unrelated issues, mention them separately instead of fixing them silently.",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use for coding, debugging, review, refactor, build, test, release, or file-editing tasks where scope control and verification matter.",
+      "dontUseWhen": "Do not use for pure brainstorming, broad strategy, or requests where the user explicitly asks for expansive ideation rather than execution.",
+      "outputs": "A focused task result with assumptions, scoped changes, verification evidence, and unrelated issues kept separate.",
+      "successCriteria": "The result satisfies the user's request with minimal relevant changes, no drive-by edits, and clear verification evidence.",
+      "examples": {
+        "positive": [
+          "Use the karpathy-guidelines skill for this request.",
+          "Fix this bug without refactoring unrelated modules.",
+          "Review this patch and point out overcomplicated or unnecessary changes.",
+          "Refactor this file surgically while preserving behavior.",
+          "Implement this feature and verify the narrowest relevant test passes."
+        ],
+        "negative": [
+          "Brainstorm ten moonshot product directions.",
+          "Write a broad strategy memo with multiple speculative options.",
+          "Do not use karpathy-guidelines for unrelated requests.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

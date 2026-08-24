@@ -1,0 +1,35 @@
+{
+  "id": "kubernetes-ops",
+  "name": "Kubernetes Operations",
+  "description": "Kubernetes cluster operations: kubectl commands, manifest generation, Helm charts, RBAC, debugging, and deployment strategies.",
+  "icon": "☸️",
+  "category": "DevOps",
+  "prompt": "# Kubernetes Operations\n\nUse this skill only when the request is in scope:\n- Use when the user asks about Kubernetes, k8s, kubectl, pods, deployments, services, ingress, Helm charts, RBAC, container orchestration, or cluster management.\n\nDo not use this skill when:\n- Do not use for Docker Compose (use docker-compose-ops), Terraform IaC (use terraform-ops), or general cloud migration (use cloud-migration).\n\nExecution workflow:\n1. Read `{baseDir}/SKILL.md` for routing boundaries and expected outputs.\n2. Read `{baseDir}/references/full-guidance.md` for detailed procedures/examples.\n3. If `{baseDir}/scripts` exists, execute scripts instead of rewriting logic.\n4. Return outputs matching: kubectl commands, Kubernetes manifests (YAML), Helm operations, and debugging guidance..\n5. Verify success criteria: Returns valid Kubernetes manifests or kubectl commands that can be applied to a cluster..",
+  "parameters": [],
+  "enabled": true,
+  "metadata": {
+    "routing": {
+      "useWhen": "Use when the user asks about Kubernetes, k8s, kubectl, pods, deployments, services, ingress, Helm charts, RBAC, container orchestration, or cluster management.",
+      "dontUseWhen": "Do not use for Docker Compose (use docker-compose-ops), Terraform IaC (use terraform-ops), or general cloud migration (use cloud-migration).",
+      "outputs": "kubectl commands, Kubernetes manifests (YAML), Helm operations, and debugging guidance.",
+      "successCriteria": "Returns valid Kubernetes manifests or kubectl commands that can be applied to a cluster.",
+      "examples": {
+        "positive": [
+          "Use the kubernetes-ops skill for this request.",
+          "Help me with kubernetes operations.",
+          "Use when the user asks about Kubernetes, k8s, kubectl, pods, deployments, services, ingress, Helm charts, RBAC, container orchestration, or cluster management.",
+          "Kubernetes Operations: provide an actionable result."
+        ],
+        "negative": [
+          "Do not use for Docker Compose (use docker-compose-ops), Terraform IaC (use terraform-ops), or general cloud migration (use cloud-migration).",
+          "Do not use kubernetes-ops for unrelated requests.",
+          "This request is outside kubernetes operations scope.",
+          "This is conceptual discussion only; no tool workflow is needed."
+        ]
+      }
+    },
+    "authoring": {
+      "complexity": "low"
+    }
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "name": "geo-seo-pack",
+  "displayName": "GEO / AI Search Pack",
+  "version": "0.1.0",
+  "description": "Draft NeoWorker port of the GEO-first SEO workflow for AI search visibility, citation readiness, crawler access, and actionable optimization recommendations.",
+  "type": "pack",
+  "author": "NeoWorker",
+  "homepage": "https://github.com/zubair-trabzada/geo-seo-claude",
+  "keywords": [
+    "geo",
+    "seo",
+    "ai-search",
+    "citability",
+    "llms-txt",
+    "schema",
+    "crawler",
+    "marketing"
+  ],
+  "icon": "🌐",
+  "category": "Marketing",
+  "outcomeExamples": [
+    "Produce a fast AI-search visibility snapshot for any marketing page or homepage",
+    "Identify blockers to citation readiness, crawler access, and answer-engine discoverability",
+    "Turn website observations into prioritized GEO actions for content, technical SEO, and schema"
+  ],
+  "tryAsking": [
+    "Run a GEO quick audit for https://example.com",
+    "Check whether AI crawlers can access this site and what should change",
+    "Give me a citation-readiness snapshot for our homepage",
+    "What should we fix first so AI search engines cite this website more often?"
+  ],
+  "skills": [
+    {
+      "id": "geo-quick-audit",
+      "name": "GEO Quick Audit",
+      "description": "Generate a fast GEO visibility snapshot for a URL with priorities across citability, crawler access, content structure, and AI-search readiness.",
+      "icon": "🧭",
+      "category": "Marketing",
+      "prompt": "Run a GEO quick audit for the provided URL.\n\nURL: {{url}}\nBusiness context: {{businessContext}}\nPrimary goal: {{goal}}\n\nUse available web fetching or search tools when helpful to inspect the homepage and obvious supporting files such as `robots.txt`, `sitemap.xml`, and `llms.txt` if they exist.\n\nFocus on a fast, operator-grade GEO assessment rather than a generic SEO checklist.\n\nEvaluate these areas:\n1. AI-search summary: what this company/page appears to be about and whether the value proposition is easy for an answer engine to restate.\n2. Citability: whether the page contains self-contained, factual, quotable passages and clear answer blocks.\n3. Crawl access: whether AI crawlers appear likely to be blocked or impaired by `robots.txt`, rendering, or weak internal discoverability.\n4. Content structure: title clarity, headings, canonical cues, freshness or authority signals, and obvious schema opportunities.\n5. Platform readiness: likely performance for ChatGPT-style citation, Perplexity-style answer retrieval, and Google AI Overview-style synthesis.\n\nReturn exactly these sections:\n## Snapshot\n- One short paragraph on current GEO readiness.\n\n## Scorecard\n- GEO readiness score: 0-100\n- Citability: strong / mixed / weak\n- AI crawler access: clear / uncertain / blocked\n- Content structure: strong / mixed / weak\n- Platform readiness: strong / mixed / weak\n\n## Findings\n- 3-6 bullets with the most important evidence-backed observations.\n\n## Priority Actions\n- Quick wins: 2-4 bullets\n- Strategic improvements: 2-4 bullets\n\n## Operator Notes\n- Unknowns or checks that need deeper audit before making a high-confidence recommendation.\n\nKeep the result concise, practical, and oriented toward what should change next.",
+      "parameters": [
+        {
+          "name": "url",
+          "type": "string",
+          "description": "Website or page URL to audit",
+          "required": true
+        },
+        {
+          "name": "businessContext",
+          "type": "string",
+          "description": "Optional company, market, or audience context",
+          "required": false
+        },
+        {
+          "name": "goal",
+          "type": "string",
+          "description": "Optional optimization goal such as lead gen, local discovery, SaaS comparisons, or brand authority",
+          "required": false
+        }
+      ],
+      "enabled": true,
+      "metadata": {
+        "version": "0.1.0",
+        "author": "NeoWorker",
+        "routing": {
+          "useWhen": "Use when the user wants a GEO or AI-search visibility audit for a website or page, especially around citation readiness, AI crawler access, llms.txt, schema, or answer-engine discoverability.",
+          "dontUseWhen": "Do not use for generic marketing strategy with no target URL, for deep multi-page technical SEO migrations, or for requests that are purely about writing copy without site analysis.",
+          "outputs": "A concise GEO snapshot with scorecard, evidence-backed findings, and prioritized next actions.",
+          "successCriteria": "The response clearly evaluates AI-search readiness for the provided URL and gives practical GEO actions tied to observable evidence.",
+          "examples": {
+            "positive": [
+              "Run a GEO audit for our homepage and tell me what to fix first.",
+              "Check whether this site is ready for AI search engines and citations.",
+              "Give me a quick GEO visibility snapshot for https://example.com."
+            ],
+            "negative": [
+              "Write three LinkedIn posts about our launch.",
+              "Create a full quarter marketing strategy without analyzing a website.",
+              "Refactor our sitemap generator implementation in the app codebase."
+            ]
+          }
+        },
+        "authoring": {
+          "complexity": "medium"
+        }
+      }
+    }
+  ],
+  "slashCommands": [
+    {
+      "name": "geo-quick",
+      "description": "Run a fast GEO visibility snapshot for a URL",
+      "skillId": "geo-quick-audit"
+    }
+  ],
+  "agentRoles": [
+    {
+      "name": "geo-analyst",
+      "displayName": "GEO Analyst",
+      "description": "Specializes in AI-search visibility, citation readiness, crawler access, llms.txt, schema opportunities, and GEO prioritization.",
+      "icon": "🌐",
+      "color": "#0ea5e9",
+      "capabilities": [
+        "research",
+        "analyze",
+        "market",
+        "write"
+      ],
+      "systemPrompt": "You are a GEO Analyst. You evaluate how well websites are positioned for AI-powered search and answer engines such as ChatGPT, Perplexity, Gemini, and Google AI Overviews. Focus on evidence-backed recommendations across citability, crawl access, content structure, entity clarity, schema opportunities, and practical prioritization. Avoid vague SEO advice; prefer concrete GEO actions with clear rationale."
+    }
+  ]
+}

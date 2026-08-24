@@ -1,0 +1,738 @@
+import { v4 as uuidv4 } from "uuid";
+import { SecureSettingsRepository } from "../database/SecureSettingsRepository";
+import type { Task } from "../../shared/types";
+import {
+  extractPreferredNameFromMessage,
+  sanitizePreferredNameMemoryLine,
+} from "../utils/preferred-name";
+
+type RelationshipLayer = "identity" | "preferences" | "context" | "history" | "commitments";
+type RelationshipSource = "conversation" | "feedback" | "task";
+type TaskSource = NonNullable<Task["source"]>;
+
+export interface RelationshipMemoryItem {
+  id: string;
+  layer: RelationshipLayer;
+  text: string;
+  confidence: number;
+  source: RelationshipSource;
+  createdAt: number;
+  updatedAt: number;
+  lastTaskId?: string;
+  status?: "open" | "done";
+  dueAt?: number;
+  contactIdentityId?: string;
+  companyId?: string;
+}
+
+interface RelationshipMemoryProfile {
+  items: RelationshipMemoryItem[];
+  updatedAt: number;
+}
+
+const MAX_ITEMS = 300;
+const MAX_TEXT_LENGTH = 220;
+const STORAGE_KEY = "relationship-memory";
+
+const EMPTY_PROFILE: RelationshipMemoryProfile = {
+  items: [],
+  updatedAt: 0,
+};
+
+interface BuildPromptContextOptions {
+  maxPerLayer?: number;
+  maxChars?: number;
+  includeDueSoon?: boolean;
+  contactIdentityId?: string;
+  companyId?: string;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+export class RelationshipMemoryService {
+  private static inMemoryProfile: RelationshipMemoryProfile = {
+    ...EMPTY_PROFILE,
+  };
+
+  static listItems(
+    params: {
+      layer?: RelationshipLayer;
+      includeDone?: boolean;
+      limit?: number;
+      contactIdentityId?: string;
+      companyId?: string;
+    } = {},
+  ): RelationshipMemoryItem[] {
+    const profile = this.load();
+    const limit = Math.max(1, params.limit ?? 80);
+    return this.sort(this.filterByScope(profile.items, params.contactIdentityId, params.companyId))
+      .filter((item) => !params.layer || item.layer === params.layer)
+      .filter((item) => params.includeDone === true || item.status !== "done")
+      .slice(0, limit);
+  }
+
+  static updateItem(
+    id: string,
+    patch: {
+      text?: string;
+      confidence?: number;
+      status?: "open" | "done";
+      dueAt?: number | null;
+      contactIdentityId?: string | null;
+      companyId?: string | null;
+    },
+  ): RelationshipMemoryItem | null {
+    const profile = this.load();
+    const item = profile.items.find((entry) => entry.id === id);
+    if (!item) return null;
+
+    if (typeof patch.text === "string") {
+      const nextText = this.normalizeText(patch.text);
+      if (!nextText) throw new Error("Item text is required");
+      item.text = nextText;
+    }
+    if (typeof patch.confidence === "number") {
+      item.confidence = clamp(patch.confidence, 0, 1);
+    }
+    if (patch.status === "open" || patch.status === "done") {
+      item.status = patch.status;
+    }
+    if (patch.dueAt === null) {
+      delete item.dueAt;
+    } else if (typeof patch.dueAt === "number" && Number.isFinite(patch.dueAt)) {
+      item.dueAt = Math.floor(patch.dueAt);
+    }
+    if (patch.contactIdentityId === null) {
+      delete item.contactIdentityId;
+    } else if (typeof patch.contactIdentityId === "string") {
+      item.contactIdentityId = patch.contactIdentityId;
+    }
+    if (patch.companyId === null) {
+      delete item.companyId;
+    } else if (typeof patch.companyId === "string") {
+      item.companyId = patch.companyId;
+    }
+    item.updatedAt = Date.now();
+    this.save(profile);
+    return item;
+  }
+
+  static deleteItem(id: string): boolean {
+    const profile = this.load();
+    const before = profile.items.length;
+    profile.items = profile.items.filter((item) => item.id !== id);
+    if (profile.items.length === before) return false;
+    this.save(profile);
+    return true;
+  }
+
+  static listOpenCommitments(
+    limit = 20,
+    scope?: { contactIdentityId?: string; companyId?: string },
+  ): RelationshipMemoryItem[] {
+    return this.listItems({
+      layer: "commitments",
+      includeDone: false,
+      limit,
+      contactIdentityId: scope?.contactIdentityId,
+      companyId: scope?.companyId,
+    });
+  }
+
+  static listDueSoonCommitments(
+    windowHours = 72,
+    nowMs = Date.now(),
+    scope?: { contactIdentityId?: string; companyId?: string },
+  ): RelationshipMemoryItem[] {
+    const cutoff = nowMs + Math.max(1, Math.floor(windowHours)) * 60 * 60 * 1000;
+    return this.listOpenCommitments(200, scope)
+      .filter((item) => typeof item.dueAt === "number" && item.dueAt <= cutoff)
+      .sort((a, b) => Number(a.dueAt || 0) - Number(b.dueAt || 0));
+  }
+
+  static ingestUserMessage(message: string, taskId?: string): void {
+    const text = String(message || "").trim();
+    if (!text) return;
+
+    const candidates: Array<Omit<RelationshipMemoryItem, "id" | "createdAt" | "updatedAt">> = [];
+    const _lower = text.toLowerCase();
+
+    const preferredName = extractPreferredNameFromMessage(text);
+    if (preferredName) {
+      candidates.push({
+        layer: "identity",
+        text: `Preferred name: ${preferredName}`,
+        confidence: 0.9,
+        source: "conversation",
+        lastTaskId: taskId,
+      });
+    }
+
+    const preferenceMatch = text.match(
+      /\b(?:i prefer|please always|please don't|i like|i dislike)\s+([^.!?\n]{3,120})/i,
+    );
+    if (preferenceMatch) {
+      candidates.push({
+        layer: "preferences",
+        text: preferenceMatch[0].trim(),
+        confidence: 0.78,
+        source: "conversation",
+        lastTaskId: taskId,
+      });
+    }
+
+    const contextMatch = text.match(
+      /\b(?:remember that|please remember|for future reference)\s+([^.!?\n]{3,150})/i,
+    );
+    if (contextMatch) {
+      candidates.push({
+        layer: "context",
+        text: contextMatch[0].trim(),
+        confidence: 0.8,
+        source: "conversation",
+        lastTaskId: taskId,
+      });
+    }
+
+    const commitmentMatch = text.match(
+      /\b(?:remind me to|please remember to|i need to|i must)\s+([^.!?\n]{3,150})/i,
+    );
+    if (commitmentMatch) {
+      const dueAt = this.parseDueAt(text, Date.now());
+      const normalizedLeadIn = commitmentMatch[0].toLowerCase();
+      candidates.push({
+        layer: "commitments",
+        text: commitmentMatch[0].trim(),
+        confidence:
+          normalizedLeadIn.startsWith("i need to") || normalizedLeadIn.startsWith("i must")
+            ? 0.74
+            : 0.82,
+        source: "conversation",
+        status: "open",
+        dueAt,
+        lastTaskId: taskId,
+      });
+    }
+
+    for (const candidate of candidates.slice(0, 4)) {
+      this.upsert(candidate);
+    }
+  }
+
+  static ingestUserFeedback(decision?: string, reason?: string, taskId?: string): void {
+    const feedback = String(reason || "").trim();
+    if (!feedback) return;
+
+    const lowered = feedback.toLowerCase();
+    if (/\b(concise|shorter|brief|more detail|detailed|tone|format)\b/.test(lowered)) {
+      this.upsert({
+        layer: "preferences",
+        text: `Feedback preference: ${feedback}`.slice(0, MAX_TEXT_LENGTH),
+        confidence: 0.86,
+        source: "feedback",
+        lastTaskId: taskId,
+      });
+    }
+
+    if (decision && /\b(reject|deny|denied)\b/i.test(decision)) {
+      this.upsert({
+        layer: "history",
+        text: `Rejected approach: ${feedback}`.slice(0, MAX_TEXT_LENGTH),
+        confidence: 0.72,
+        source: "feedback",
+        lastTaskId: taskId,
+      });
+    }
+  }
+
+  static recordTaskCompletion(
+    title: string,
+    resultSummary?: string,
+    taskId?: string,
+    taskSource: TaskSource = "manual",
+  ): void {
+    const normalizedTitle = String(title || "").trim();
+    if (!normalizedTitle) return;
+
+    const compactSummary = String(resultSummary || "")
+      .trim()
+      .replace(/\s+/g, " ");
+    const excerpt =
+      compactSummary.length > 90 ? `${compactSummary.slice(0, 90)}...` : compactSummary;
+    const text = excerpt
+      ? `Completed task: ${normalizedTitle}. Outcome: ${excerpt}`
+      : `Completed task: ${normalizedTitle}`;
+
+    if (taskSource === "cron") {
+      this.upsertRecurringTaskHistory({
+        title: normalizedTitle,
+        text,
+        taskId,
+      });
+    } else {
+      this.upsert({
+        layer: "history",
+        text: text.slice(0, MAX_TEXT_LENGTH),
+        confidence: 0.68,
+        source: "task",
+        lastTaskId: taskId,
+      });
+    }
+
+    if (/\b(done|completed|finished|shipped)\b/i.test(compactSummary)) {
+      this.markMatchingCommitmentsDone(compactSummary);
+    }
+  }
+
+  static rememberMailboxInsights(params: {
+    facts?: string[];
+    commitments?: Array<{ text: string; dueAt?: number }>;
+    taskId?: string;
+    contactIdentityId?: string;
+    companyId?: string;
+  }): void {
+    const facts = Array.isArray(params.facts) ? params.facts : [];
+    const commitments = Array.isArray(params.commitments) ? params.commitments : [];
+
+    for (const fact of facts.slice(0, 4)) {
+      const text = this.normalizeText(fact);
+      if (!text) continue;
+      this.upsert({
+        layer: "context",
+        text,
+        confidence: 0.7,
+        source: "task",
+        lastTaskId: params.taskId,
+        contactIdentityId: params.contactIdentityId,
+        companyId: params.companyId,
+      });
+    }
+
+    for (const commitment of commitments.slice(0, 6)) {
+      const text = this.normalizeText(commitment.text);
+      if (!text) continue;
+      this.upsert({
+        layer: "commitments",
+        text,
+        confidence: 0.82,
+        source: "task",
+        lastTaskId: params.taskId,
+        status: "open",
+        dueAt: commitment.dueAt,
+        contactIdentityId: params.contactIdentityId,
+        companyId: params.companyId,
+      });
+    }
+  }
+
+  static cleanupRecurringTaskHistory(): {
+    collapsed: number;
+    groupsCollapsed: number;
+  } {
+    const profile = this.load();
+    const byTitle = new Map<string, number[]>();
+
+    for (let i = 0; i < profile.items.length; i++) {
+      const item = profile.items[i];
+      if (item.layer !== "history" || item.source !== "task") continue;
+      const title = this.extractCompletedTaskTitle(item.text);
+      if (!title) continue;
+      const key = this.normalizeForMatch(title);
+      const bucket = byTitle.get(key);
+      if (bucket) bucket.push(i);
+      else byTitle.set(key, [i]);
+    }
+
+    const indexesToDelete = new Set<number>();
+    let groupsCollapsed = 0;
+    for (const indexes of byTitle.values()) {
+      if (indexes.length <= 1) continue;
+      groupsCollapsed += 1;
+      const keepIndex = indexes.reduce((best, idx) => {
+        const candidate = profile.items[idx];
+        const currentBest = profile.items[best];
+        if (candidate.updatedAt !== currentBest.updatedAt) {
+          return candidate.updatedAt > currentBest.updatedAt ? idx : best;
+        }
+        if (candidate.createdAt !== currentBest.createdAt) {
+          return candidate.createdAt > currentBest.createdAt ? idx : best;
+        }
+        return idx > best ? idx : best;
+      });
+      for (const idx of indexes) {
+        if (idx !== keepIndex) indexesToDelete.add(idx);
+      }
+    }
+
+    const collapsed = indexesToDelete.size;
+    if (collapsed > 0) {
+      profile.items = profile.items.filter((_, idx) => !indexesToDelete.has(idx));
+      this.save(profile);
+    }
+
+    return { collapsed, groupsCollapsed };
+  }
+
+  static buildPromptContext(options: BuildPromptContextOptions = {}): string {
+    const maxPerLayer = Math.max(1, options.maxPerLayer ?? 2);
+    const maxChars = Math.max(300, options.maxChars ?? 1200);
+    const includeDueSoon = options.includeDueSoon !== false;
+    const profile = this.load();
+    const scopedItems = this.filterByScope(
+      profile.items,
+      options.contactIdentityId,
+      options.companyId,
+    );
+    if (!scopedItems.length) return "";
+
+    const lines: string[] = [
+      "RELATIONSHIP MEMORY (continuity context only, never task scope):",
+      "- Do not infer the active workspace, company, industry, topic, or any missing task parameter from this memory.",
+      "- If required information is absent from the current request and explicit workspace context, ask one focused question.",
+    ];
+
+    const appendLayer = (label: string, layer: RelationshipLayer, openOnly = false) => {
+      const selected = this.sort(profile.items)
+        .filter((item) => scopedItems.some((entry) => entry.id === item.id))
+        .filter((item) => item.layer === layer)
+        .filter((item) => !openOnly || item.status !== "done")
+        .slice(0, maxPerLayer);
+      if (!selected.length) return;
+      lines.push(`${label}:`);
+      for (const item of selected) {
+        lines.push(`- ${item.text}`);
+      }
+    };
+
+    appendLayer("Identity", "identity");
+    appendLayer("Preferences", "preferences");
+    appendLayer("Current context", "context");
+    appendLayer("Open commitments", "commitments", true);
+    if (includeDueSoon) {
+      const dueSoon = this.listDueSoonCommitments(72, Date.now(), {
+        contactIdentityId: options.contactIdentityId,
+        companyId: options.companyId,
+      }).slice(0, maxPerLayer);
+      if (dueSoon.length > 0) {
+        lines.push("Due soon reminders:");
+        for (const item of dueSoon) {
+          const dueText = item.dueAt ? new Date(item.dueAt).toISOString() : "soon";
+          lines.push(`- ${item.text} (due: ${dueText})`);
+        }
+      }
+    }
+    appendLayer("Recent history", "history");
+
+    let text = lines.join("\n");
+    if (text.length > maxChars) {
+      text = `${text.slice(0, maxChars - 16)}\n[... truncated]`;
+    }
+    return text;
+  }
+
+  private static upsert(
+    input: Omit<RelationshipMemoryItem, "id" | "createdAt" | "updatedAt">,
+  ): void {
+    const normalizedText = this.normalizeText(input.text);
+    if (!normalizedText) return;
+
+    const profile = this.load();
+    const now = Date.now();
+    const existing = profile.items.find(
+      (item) =>
+        item.layer === input.layer &&
+        this.normalizeForMatch(item.text) === this.normalizeForMatch(normalizedText) &&
+        item.contactIdentityId === input.contactIdentityId &&
+        item.companyId === input.companyId,
+    );
+
+    if (existing) {
+      existing.updatedAt = now;
+      existing.confidence = Math.max(existing.confidence, clamp(input.confidence, 0, 1));
+      existing.source = input.source;
+      existing.lastTaskId = input.lastTaskId ?? existing.lastTaskId;
+      existing.status = input.status ?? existing.status;
+      existing.dueAt = typeof input.dueAt === "number" ? Math.floor(input.dueAt) : existing.dueAt;
+      existing.contactIdentityId = input.contactIdentityId ?? existing.contactIdentityId;
+      existing.companyId = input.companyId ?? existing.companyId;
+      this.save(profile);
+      return;
+    }
+
+    profile.items.push({
+      id: uuidv4(),
+      layer: input.layer,
+      text: normalizedText,
+      confidence: clamp(input.confidence, 0, 1),
+      source: input.source,
+      createdAt: now,
+      updatedAt: now,
+      lastTaskId: input.lastTaskId,
+      status: input.status,
+      dueAt: typeof input.dueAt === "number" ? Math.floor(input.dueAt) : undefined,
+      contactIdentityId: input.contactIdentityId,
+      companyId: input.companyId,
+    });
+
+    if (profile.items.length > MAX_ITEMS) {
+      profile.items = this.sort(profile.items).slice(0, MAX_ITEMS);
+    }
+    this.save(profile);
+  }
+
+  private static markMatchingCommitmentsDone(summary: string): void {
+    const profile = this.load();
+    const normalizedSummary = this.normalizeForMatch(summary);
+    if (!normalizedSummary) return;
+
+    let changed = false;
+    for (const item of profile.items) {
+      if (item.layer !== "commitments" || item.status === "done") continue;
+      const signal = this.normalizeForMatch(item.text).replace(/^remind me to\s+/, "");
+      if (signal && normalizedSummary.includes(signal.slice(0, Math.min(signal.length, 40)))) {
+        item.status = "done";
+        item.updatedAt = Date.now();
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      this.save(profile);
+    }
+  }
+
+  private static sort(items: RelationshipMemoryItem[]): RelationshipMemoryItem[] {
+    return [...items].sort((a, b) => {
+      const dueA =
+        a.status === "open" ? (a.dueAt ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+      const dueB =
+        b.status === "open" ? (b.dueAt ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+      if (dueA !== dueB) return dueA - dueB;
+      if ((a.status === "open") !== (b.status === "open")) {
+        return a.status === "open" ? -1 : 1;
+      }
+      if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+      return b.updatedAt - a.updatedAt;
+    });
+  }
+
+  private static parseDueAt(text: string, nowMs: number): number | undefined {
+    const lower = text.toLowerCase();
+    const dayMs = 24 * 60 * 60 * 1000;
+    if (/\btoday\b/.test(lower)) return nowMs + 8 * 60 * 60 * 1000;
+    if (/\btomorrow\b/.test(lower)) return nowMs + dayMs;
+    if (/\bthis week\b/.test(lower)) return nowMs + 3 * dayMs;
+    if (/\bnext week\b/.test(lower)) return nowMs + 7 * dayMs;
+
+    const inDaysMatch = lower.match(/\bin\s+(\d{1,2})\s+days?\b/);
+    if (inDaysMatch) {
+      const days = Number(inDaysMatch[1]);
+      if (Number.isFinite(days) && days > 0) return nowMs + days * dayMs;
+    }
+
+    const isoDateMatch = lower.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+    if (isoDateMatch) {
+      const parsed = Date.parse(
+        `${isoDateMatch[1]}-${isoDateMatch[2]}-${isoDateMatch[3]}T17:00:00`,
+      );
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return undefined;
+  }
+
+  private static normalizeText(value: string): string {
+    return String(value || "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .slice(0, MAX_TEXT_LENGTH);
+  }
+
+  private static normalizeForMatch(value: string): string {
+    return this.normalizeText(value).toLowerCase();
+  }
+
+  private static extractCompletedTaskTitle(text: string): string | null {
+    const normalized = this.normalizeText(text);
+    const match = normalized.match(/^completed task:\s*(.+?)(?:\.\s*outcome:|$)/i);
+    if (!match) return null;
+    const title = this.normalizeText(match[1]);
+    return title || null;
+  }
+
+  private static upsertRecurringTaskHistory(params: {
+    title: string;
+    text: string;
+    taskId?: string;
+  }): void {
+    const profile = this.load();
+    const now = Date.now();
+    const titleKey = this.normalizeForMatch(params.title);
+
+    const matchingIndexes: number[] = [];
+    for (let i = 0; i < profile.items.length; i++) {
+      const item = profile.items[i];
+      if (item.layer !== "history" || item.source !== "task") continue;
+      const existingTitle = this.extractCompletedTaskTitle(item.text);
+      if (!existingTitle) continue;
+      if (this.normalizeForMatch(existingTitle) === titleKey) {
+        matchingIndexes.push(i);
+      }
+    }
+
+    if (matchingIndexes.length > 0) {
+      const keepIndex = matchingIndexes.reduce((best, idx) =>
+        profile.items[idx].updatedAt > profile.items[best].updatedAt ? idx : best,
+      );
+      const keepItem = profile.items[keepIndex];
+      keepItem.text = this.normalizeText(params.text);
+      keepItem.updatedAt = now;
+      keepItem.confidence = Math.max(keepItem.confidence, 0.48);
+      keepItem.lastTaskId = params.taskId ?? keepItem.lastTaskId;
+
+      if (matchingIndexes.length > 1) {
+        const indexesToDelete = new Set(matchingIndexes.filter((idx) => idx !== keepIndex));
+        profile.items = profile.items.filter((_, idx) => !indexesToDelete.has(idx));
+      }
+
+      this.save(profile);
+      return;
+    }
+
+    profile.items.push({
+      id: uuidv4(),
+      layer: "history",
+      text: this.normalizeText(params.text),
+      confidence: 0.48,
+      source: "task",
+      createdAt: now,
+      updatedAt: now,
+      lastTaskId: params.taskId,
+    });
+
+    if (profile.items.length > MAX_ITEMS) {
+      profile.items = this.sort(profile.items).slice(0, MAX_ITEMS);
+    }
+    this.save(profile);
+  }
+
+  private static load(): RelationshipMemoryProfile {
+    let profile: RelationshipMemoryProfile | undefined;
+    if (SecureSettingsRepository.isInitialized()) {
+      try {
+        const repo = SecureSettingsRepository.getInstance();
+        profile = repo.load<RelationshipMemoryProfile>(STORAGE_KEY);
+      } catch {
+        // fallback to in-memory
+      }
+    }
+
+    if (!profile || !Array.isArray(profile.items)) {
+      profile = this.inMemoryProfile;
+    }
+
+    let profileWasSanitized = false;
+    const normalizedProfile: RelationshipMemoryProfile = {
+      items: Array.isArray(profile.items)
+        ? profile.items
+            .filter(
+              (item) => !!item && typeof item.id === "string" && typeof item.text === "string",
+            )
+            .map((item): RelationshipMemoryItem | null => {
+              const normalizedText = this.normalizeText(item.text);
+              if (normalizedText !== item.text) profileWasSanitized = true;
+              const cleanedIdentityText =
+                item.layer === "identity"
+                  ? sanitizePreferredNameMemoryLine(normalizedText)
+                  : normalizedText;
+              if (!cleanedIdentityText) {
+                profileWasSanitized = true;
+                return null;
+              }
+              if (cleanedIdentityText !== normalizedText) profileWasSanitized = true;
+
+              const sanitizedItem: RelationshipMemoryItem = {
+                id: item.id,
+                layer: item.layer,
+                text: cleanedIdentityText,
+                confidence: clamp(Number(item.confidence ?? 0.65), 0, 1),
+                source:
+                  item.source === "feedback" || item.source === "task"
+                    ? item.source
+                    : "conversation",
+                createdAt: Number(item.createdAt || Date.now()),
+                updatedAt: Number(item.updatedAt || Date.now()),
+              };
+
+              if (typeof item.lastTaskId === "string") {
+                sanitizedItem.lastTaskId = item.lastTaskId;
+              }
+              if (item.status === "open" || item.status === "done") {
+                sanitizedItem.status = item.status;
+              }
+              if (typeof item.dueAt === "number" && Number.isFinite(item.dueAt)) {
+                sanitizedItem.dueAt = Math.floor(item.dueAt);
+              }
+              if (typeof item.contactIdentityId === "string") {
+                sanitizedItem.contactIdentityId = item.contactIdentityId;
+              }
+              if (typeof item.companyId === "string") {
+                sanitizedItem.companyId = item.companyId;
+              }
+
+              return sanitizedItem;
+            })
+            .filter((item): item is RelationshipMemoryItem => item !== null)
+        : [],
+      updatedAt: Number(profile.updatedAt || 0),
+    };
+
+    this.inMemoryProfile = normalizedProfile;
+    if (profileWasSanitized) {
+      this.save(normalizedProfile);
+    }
+
+    return normalizedProfile;
+  }
+
+  private static save(profile: RelationshipMemoryProfile): void {
+    const next: RelationshipMemoryProfile = {
+      items: this.sort(profile.items).slice(0, MAX_ITEMS),
+      updatedAt: Date.now(),
+    };
+
+    this.inMemoryProfile = next;
+    if (!SecureSettingsRepository.isInitialized()) return;
+    try {
+      const repo = SecureSettingsRepository.getInstance();
+      repo.save(STORAGE_KEY, next);
+    } catch {
+      // keep in-memory fallback only
+    }
+  }
+
+  private static filterByScope(
+    items: RelationshipMemoryItem[],
+    contactIdentityId?: string,
+    companyId?: string,
+  ): RelationshipMemoryItem[] {
+    if (!contactIdentityId && !companyId) return items;
+    const scoped = items.filter((item) => item.contactIdentityId === contactIdentityId);
+    const companyScoped = items.filter(
+      (item) =>
+        !item.contactIdentityId &&
+        companyId &&
+        item.companyId === companyId &&
+        !scoped.some((entry) => entry.id === item.id),
+    );
+    const global = items.filter(
+      (item) =>
+        !item.contactIdentityId &&
+        !item.companyId &&
+        !scoped.some((entry) => entry.id === item.id) &&
+        !companyScoped.some((entry) => entry.id === item.id),
+    );
+    return [...scoped, ...companyScoped, ...global];
+  }
+}

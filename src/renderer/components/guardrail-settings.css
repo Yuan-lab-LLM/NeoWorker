@@ -1,0 +1,682 @@
+.system-security-section--safety .settings-combined-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.guardrail-budget-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.guardrail-budget-panel > .settings-save-indicator,
+.guardrail-budget-panel > .guardrail-budget-primary,
+.guardrail-budget-panel > .guardrail-advanced-group,
+.guardrail-budget-panel > .settings-actions {
+  grid-column: 1 / -1;
+}
+
+.guardrail-budget-panel > .settings-section {
+  min-width: 0;
+  margin: 0;
+  padding: 18px;
+  border: 1px solid #e2e7ed;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
+}
+
+.guardrail-budget-panel > .guardrail-budget-primary {
+  padding: 20px;
+  border-color: #d8e6f8;
+  background: linear-gradient(105deg, #f7fbff 0%, #ffffff 68%);
+}
+
+.guardrail-budget-panel .settings-section-header {
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 7px;
+}
+
+.guardrail-budget-panel .settings-section-header h3 {
+  margin: 0;
+  color: #263142;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 20px;
+}
+
+.guardrail-budget-panel .settings-description {
+  max-width: 640px;
+  margin: 0;
+  color: #717b8d;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.guardrail-budget-mode {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(78px, 1fr));
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #dce4ee;
+  border-radius: 9px;
+  background: #eef3f8;
+}
+
+.guardrail-budget-mode label {
+  position: relative;
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: #6f7c8e;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.guardrail-budget-mode label:hover {
+  color: #354255;
+}
+
+.guardrail-budget-mode label.is-active {
+  color: #1f5fba;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(35, 63, 96, 0.1);
+}
+
+.guardrail-budget-mode input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.guardrail-budget-mode label:has(input:focus-visible) {
+  outline: 2px solid rgba(38, 120, 232, 0.38);
+  outline-offset: 1px;
+}
+
+.guardrail-budget-panel .settings-inline-input {
+  margin-top: 15px;
+}
+
+.guardrail-budget-primary .settings-inline-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  align-items: center;
+  gap: 18px;
+  padding-top: 15px;
+  border-top: 1px solid #e4edf8;
+}
+
+.guardrail-limit-card .settings-inline-input {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.guardrail-budget-panel .settings-inline-input label {
+  color: #3f4b5d;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.guardrail-budget-panel .settings-input-number {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border-color: #dce3eb;
+  border-radius: 9px;
+  color: #202939;
+  font-variant-numeric: tabular-nums;
+  font-weight: 560;
+}
+
+.guardrail-budget-panel .settings-hint {
+  margin: 8px 0 0;
+  color: #8a94a3;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.guardrail-budget-primary .settings-inline-input + .settings-hint {
+  margin-top: 10px;
+}
+
+.guardrail-budget-primary .settings-hint + .settings-hint {
+  margin-top: 2px;
+}
+
+.guardrail-budget-unlimited-note {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #e4edf8;
+}
+
+.guardrail-budget-unlimited-note strong {
+  flex: 0 0 auto;
+  color: #263142;
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 18px;
+}
+
+.guardrail-budget-unlimited-note span {
+  color: #7f8a9b;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.guardrail-budget-panel > .settings-actions {
+  gap: 9px;
+  margin-top: 2px;
+  padding-top: 14px;
+  border-top-color: #e6e9ee;
+}
+
+/* Guardrail controls live on a light surface; the generic settings hover tint is too dark here. */
+.guardrail-settings .settings-input {
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.guardrail-settings .settings-input:hover:not(:disabled) {
+  border-color: #b9c8d9;
+  background: #ffffff;
+}
+
+.guardrail-settings .settings-input:focus {
+  border-color: #2678e8;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(38, 120, 232, 0.14);
+}
+
+.guardrail-settings .settings-input:disabled {
+  background: #f4f6f8;
+  color: #9aa6b5;
+}
+
+/* Keep the paired reset/save controls visually balanced in short-label locales. */
+.guardrail-settings .settings-actions > .button-primary,
+.guardrail-settings .settings-actions > .button-secondary {
+  min-width: 112px;
+  justify-content: center;
+}
+
+.guardrail-advanced-group {
+  overflow: clip;
+  border: 1px solid #e2e7ed;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
+}
+
+.guardrail-advanced-summary {
+  display: flex;
+  width: 100%;
+  min-height: 68px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border: 0;
+  background: #ffffff;
+  color: #20242c;
+  cursor: pointer;
+  text-align: left;
+}
+
+.guardrail-advanced-summary:hover {
+  background: #f7f9fc;
+}
+
+.guardrail-advanced-summary:focus-visible {
+  position: relative;
+  outline: 2px solid rgba(35, 131, 255, 0.45);
+  outline-offset: -2px;
+}
+
+.guardrail-advanced-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.guardrail-advanced-copy strong {
+  color: #263142;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 20px;
+}
+
+.guardrail-advanced-copy > span {
+  overflow: hidden;
+  color: #7d8797;
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.guardrail-advanced-chevron {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  margin-right: 3px;
+  border-right: 1.5px solid #7d8590;
+  border-bottom: 1.5px solid #7d8590;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 140ms ease;
+}
+
+.guardrail-advanced-group.is-open .guardrail-advanced-chevron {
+  transform: rotate(225deg) translate(-1px, -1px);
+}
+
+.guardrail-advanced-content {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+  border-top: 1px solid #e4e7eb;
+  background: #f6f8fb;
+}
+
+.guardrail-advanced-content > .guardrail-advanced-card {
+  min-width: 0;
+  margin: 0;
+  padding: 18px;
+  border: 1px solid #e1e7ee;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
+}
+
+.guardrail-web-search-card,
+.guardrail-network-card {
+  grid-column: 1 / -1;
+}
+
+.guardrail-advanced-card > .settings-section-header {
+  min-height: 26px;
+  margin-bottom: 4px;
+}
+
+.guardrail-advanced-card > .settings-description {
+  max-width: 720px;
+}
+
+.guardrail-advanced-card .settings-subsection {
+  gap: 8px;
+  margin-top: 16px;
+  padding: 14px 0 0;
+  border-top: 1px solid #edf0f4;
+}
+
+.guardrail-advanced-card .settings-subsection h4 {
+  margin: 0;
+  color: #354154;
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 18px;
+}
+
+.guardrail-advanced-card .settings-subsection .settings-description {
+  margin: -1px 0 2px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.guardrail-advanced-card .settings-input-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.guardrail-advanced-card .settings-input-group .settings-input {
+  height: 40px;
+  min-width: 0;
+  padding: 0 12px;
+  border-radius: 9px;
+}
+
+.guardrail-advanced-card .settings-input-group .button-small {
+  min-width: 64px;
+  height: 40px;
+  justify-content: center;
+  margin: 0;
+  padding: 0 14px;
+  border-radius: 9px;
+}
+
+.guardrail-advanced-card .pattern-list {
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.guardrail-advanced-card .pattern-tag {
+  min-height: 25px;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 7px;
+  font-size: 11px;
+  line-height: 17px;
+  overflow-wrap: anywhere;
+}
+
+.guardrail-advanced-card .pattern-tag.builtin {
+  border-color: #e2e7ed;
+  background: #f5f7f9;
+  color: #7b8491;
+}
+
+.guardrail-advanced-card .pattern-tag.custom,
+.guardrail-advanced-card .pattern-tag.domain {
+  border-color: #cfe0f5;
+  background: #f4f8fd;
+  color: #326baa;
+}
+
+.guardrail-advanced-card .pattern-tag.trusted,
+.guardrail-advanced-card .pattern-tag.builtin.trusted {
+  border-color: #cfe7db;
+  background: #f3faf6;
+  color: #27835a;
+}
+
+.guardrail-advanced-card > .settings-hint {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #edf0f4;
+}
+
+.guardrail-policy-fields {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) repeat(2, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.guardrail-policy-fields .settings-inline-input {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #e6ebf1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.guardrail-policy-fields .settings-input,
+.guardrail-policy-fields .settings-input-number {
+  width: 100%;
+  height: 38px;
+  min-width: 0;
+  padding: 0 11px;
+  border-radius: 8px;
+}
+
+.guardrail-domain-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.guardrail-domain-grid > .settings-subsection {
+  min-width: 0;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid #e6ebf1;
+  border-radius: 10px;
+  background: #fbfcfd;
+}
+
+.guardrail-network-card > .settings-subsection {
+  padding-top: 16px;
+}
+
+.theme-dark .guardrail-advanced-group {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: #181a1f;
+}
+
+.theme-dark .guardrail-budget-panel > .settings-section {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: #181a1f;
+  box-shadow: none;
+}
+
+.theme-dark .guardrail-budget-panel > .guardrail-budget-primary {
+  border-color: rgba(76, 151, 255, 0.2);
+  background: linear-gradient(
+    105deg,
+    rgba(43, 103, 181, 0.13),
+    rgba(24, 26, 31, 0.98) 68%
+  );
+}
+
+.theme-dark .guardrail-budget-panel .settings-section-header h3,
+.theme-dark .guardrail-budget-panel .settings-input-number,
+.theme-dark .guardrail-budget-panel .settings-inline-input label {
+  color: #eef1f5;
+}
+
+.theme-dark .guardrail-budget-panel .settings-description {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.theme-dark .guardrail-budget-panel .settings-hint {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.theme-dark .guardrail-budget-primary .settings-inline-input {
+  border-top-color: rgba(255, 255, 255, 0.09);
+}
+
+.theme-dark .guardrail-budget-mode {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.theme-dark .guardrail-budget-mode label {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.theme-dark .guardrail-budget-mode label:hover {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.theme-dark .guardrail-budget-mode label.is-active {
+  color: #7eb8ff;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+.theme-dark .guardrail-budget-unlimited-note {
+  border-top-color: rgba(255, 255, 255, 0.09);
+}
+
+.theme-dark .guardrail-budget-unlimited-note strong {
+  color: #eef1f5;
+}
+
+.theme-dark .guardrail-budget-unlimited-note span {
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.theme-dark .guardrail-settings .settings-input,
+.theme-dark .guardrail-settings .settings-input:hover:not(:disabled),
+.theme-dark .guardrail-settings .settings-input:focus {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.07);
+  color: #f0f1f3;
+}
+
+.theme-dark .guardrail-settings .settings-input:focus {
+  border-color: #48a0ff;
+  box-shadow: 0 0 0 3px rgba(72, 160, 255, 0.18);
+}
+
+.theme-dark .guardrail-advanced-summary {
+  background: rgba(255, 255, 255, 0.035);
+  color: #f0f1f3;
+}
+
+.theme-dark .guardrail-advanced-summary:hover {
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.theme-dark .guardrail-advanced-copy strong {
+  color: #f0f1f3;
+}
+
+.theme-dark .guardrail-advanced-copy > span {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.theme-dark .guardrail-advanced-chevron {
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.theme-dark .guardrail-advanced-content {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: #14171b;
+}
+
+.theme-dark .guardrail-advanced-content > .guardrail-advanced-card {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: #1b1e23;
+  box-shadow: none;
+}
+
+.theme-dark .guardrail-advanced-card .settings-subsection,
+.theme-dark .guardrail-advanced-card > .settings-hint {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+.theme-dark .guardrail-advanced-card .settings-subsection h4 {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.theme-dark .guardrail-policy-fields .settings-inline-input,
+.theme-dark .guardrail-domain-grid > .settings-subsection {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.theme-dark .guardrail-advanced-card .pattern-tag.builtin {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.theme-dark .guardrail-advanced-card .pattern-tag.custom,
+.theme-dark .guardrail-advanced-card .pattern-tag.domain {
+  border-color: rgba(87, 161, 247, 0.25);
+  background: rgba(50, 116, 190, 0.12);
+  color: #7db9f7;
+}
+
+.theme-dark .guardrail-advanced-card .pattern-tag.trusted,
+.theme-dark .guardrail-advanced-card .pattern-tag.builtin.trusted {
+  border-color: rgba(67, 184, 125, 0.24);
+  background: rgba(45, 132, 87, 0.12);
+  color: #76d6a7;
+}
+
+@media (max-width: 720px) {
+  .guardrail-budget-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .guardrail-budget-panel > .settings-section {
+    grid-column: 1;
+    padding: 16px;
+  }
+
+  .guardrail-budget-primary .settings-inline-input {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .guardrail-budget-panel .settings-section-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .guardrail-budget-mode {
+    width: 100%;
+  }
+
+  .guardrail-budget-unlimited-note {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .guardrail-advanced-summary {
+    padding: 12px 14px;
+  }
+
+  .guardrail-advanced-copy > span {
+    white-space: normal;
+  }
+
+  .guardrail-advanced-content {
+    grid-template-columns: 1fr;
+    padding: 10px;
+  }
+
+  .guardrail-web-search-card,
+  .guardrail-network-card {
+    grid-column: 1;
+  }
+
+  .guardrail-policy-fields,
+  .guardrail-domain-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .guardrail-advanced-content > .guardrail-advanced-card {
+    padding: 15px;
+  }
+
+  .guardrail-advanced-card .settings-input-group {
+    grid-template-columns: 1fr;
+  }
+
+  .guardrail-advanced-card .settings-input-group .button-small {
+    width: 100%;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1040px) {
+  .guardrail-policy-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .guardrail-domain-grid {
+    grid-template-columns: 1fr;
+  }
+}

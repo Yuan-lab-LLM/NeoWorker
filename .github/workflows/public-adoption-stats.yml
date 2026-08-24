@@ -1,0 +1,57 @@
+name: Public Adoption Stats
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-public-adoption-stats:
+    name: Update public adoption stats
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Collect and render stats
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ADOPTION_STATS_GITHUB_TOKEN: ${{ secrets.ADOPTION_STATS_GITHUB_TOKEN }}
+        run: npm run adoption:update
+
+      - name: Commit updated stats
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- data/adoption docs/public-adoption-stats.md README.md; then
+            echo "No adoption stats changes to commit."
+            exit 0
+          fi
+
+          git config user.name "Yuan-lab-LLM"
+          git config user.email "service@yuanlab.ai"
+          git add data/adoption docs/public-adoption-stats.md README.md
+          git commit -m "chore: update public adoption stats"
+          git push
+
+      - name: Upload stats artifact
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: public-adoption-stats-${{ github.run_id }}
+          path: |
+            data/adoption/public-stats-latest.json
+            docs/public-adoption-stats.md
+            README.md
+          if-no-files-found: warn

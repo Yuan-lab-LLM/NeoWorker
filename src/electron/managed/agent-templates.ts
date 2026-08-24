@@ -1,0 +1,529 @@
+import type {
+  AgentTemplate,
+  ManagedAgentStudioConfig,
+  ManagedEnvironmentConfig,
+} from "../../shared/types";
+
+function makeStudio(
+  studio: Partial<ManagedAgentStudioConfig>,
+): Partial<ManagedAgentStudioConfig> {
+  return studio;
+}
+
+function makeEnvironment(
+  environment: Partial<ManagedEnvironmentConfig>,
+): Partial<ManagedEnvironmentConfig> {
+  return environment;
+}
+
+const FINANCE_TEAM_ROLES = [
+  "finance-lead",
+  "finance-data-reader",
+  "finance-model-builder",
+  "finance-document-writer",
+  "finance-reviewer",
+  "finance-controller",
+];
+
+const FINANCE_GUARDRAIL_PROMPT =
+  "All outputs are draft finance work product for qualified human review. Keep a source-ledger.json artifact or equivalent ledger table for every material claim. Pause for review after material artifacts are ready. Do not execute trades, send client communications, post journal entries, approve onboarding, or present investment, accounting, legal, or tax advice as final.";
+
+function makeFinanceStudio(
+  skills: string[],
+  mcpServers: string[],
+  artifacts: AgentTemplate["expectedArtifacts"],
+): Partial<ManagedAgentStudioConfig> {
+  return makeStudio({
+    skills,
+    apps: {
+      allowedToolFamilies: ["files", "documents", "search", "browser"],
+      mcpServers,
+    },
+    memoryConfig: { mode: "focused", sources: ["workspace", "sessions"] },
+    scheduleConfig: { enabled: false, mode: "manual" },
+    approvalPolicy: {
+      autoApproveReadOnly: true,
+      requireApprovalFor: [
+        "send email",
+        "post message",
+        "edit spreadsheet",
+        "file external ticket",
+      ],
+    },
+    audioSummaryConfig: { enabled: false, style: "executive-briefing" },
+    instructions: {
+      operatingNotes: `Expected finance artifacts: ${(artifacts || []).join(", ") || "source ledger"}. ${FINANCE_GUARDRAIL_PROMPT}`,
+    },
+  });
+}
+
+function makeFinanceEnvironment(mcpServers: string[]): Partial<ManagedEnvironmentConfig> {
+  return makeEnvironment({
+    enableShell: false,
+    enableBrowser: true,
+    enableComputerUse: false,
+    allowedToolFamilies: ["files", "documents", "search", "browser"],
+    allowedMcpServerIds: mcpServers,
+  });
+}
+
+export const BUILTIN_AGENT_TEMPLATES: AgentTemplate[] = [
+  {
+    id: "team-chat-qna",
+    name: "Team Chat Q&A",
+    description: "Answer common team questions in Slack using approved docs, files, and skills.",
+    tagline: "Build agents that reply in Slack",
+    icon: "💬",
+    color: "#1570ef",
+    category: "support",
+    systemPrompt:
+      "You answer team questions with concise, source-grounded responses. Prefer attached files, configured skills, and workspace context over guessing. If the answer is uncertain, say what is missing.",
+    executionMode: "solo",
+    skills: ["summarize", "github", "notion"],
+    studio: makeStudio({
+      skills: ["summarize", "github", "notion"],
+      apps: {
+        allowedToolFamilies: ["communication", "files", "search", "documents"],
+      },
+      memoryConfig: { mode: "focused", sources: ["workspace", "memory"] },
+      channelTargets: [],
+      scheduleConfig: { enabled: false, mode: "manual" },
+      audioSummaryConfig: { enabled: false, style: "executive-briefing" },
+    }),
+    environmentConfig: makeEnvironment({
+      enableShell: false,
+      enableBrowser: true,
+      enableComputerUse: false,
+      allowedToolFamilies: ["communication", "files", "search", "documents"],
+    }),
+  },
+  {
+    id: "morning-planner",
+    name: "Morning Planner",
+    description: "Turn calendar, open tasks, and inbox context into a clear daily plan.",
+    tagline: "Start with a proven workflow",
+    icon: "📅",
+    color: "#0ea5e9",
+    category: "planning",
+    featured: true,
+    systemPrompt:
+      "You prepare crisp morning plans. Synthesize calendar, inbox, and open work into a prioritized agenda with explicit next actions and blockers.",
+    executionMode: "solo",
+    runtimeDefaults: {
+      autonomousMode: true,
+      allowUserInput: true,
+    },
+    skills: ["calendly", "summarize"],
+    studio: makeStudio({
+      skills: ["calendly", "summarize"],
+      apps: {
+        allowedToolFamilies: ["communication", "files", "search"],
+      },
+      memoryConfig: { mode: "default", sources: ["memory", "workspace", "sessions"] },
+      scheduleConfig: {
+        enabled: true,
+        mode: "routine",
+        label: "Every morning",
+        cadenceMinutes: 24 * 60,
+      },
+      audioSummaryConfig: { enabled: true, style: "executive-briefing" },
+    }),
+    environmentConfig: makeEnvironment({
+      enableBrowser: true,
+      enableShell: false,
+      allowedToolFamilies: ["communication", "files", "search"],
+    }),
+  },
+  {
+    id: "bug-triage",
+    name: "Bug Triage",
+    description: "Review incoming bugs, prioritize them, and prepare a grounded triage summary.",
+    icon: "🐞",
+    color: "#f97316",
+    category: "engineering",
+    systemPrompt:
+      "You triage bugs. Classify severity, extract repro details, note likely owners, and produce a concise action-ready summary without inventing evidence.",
+    executionMode: "solo",
+    runtimeDefaults: {
+      autonomousMode: true,
+      allowUserInput: true,
+      requireWorktree: true,
+    },
+    skills: ["github", "code-review", "debug-error"],
+    studio: makeStudio({
+      skills: ["github", "code-review", "debug-error"],
+      apps: {
+        allowedToolFamilies: ["files", "search", "shell", "documents"],
+      },
+      memoryConfig: { mode: "focused", sources: ["workspace", "sessions"] },
+      scheduleConfig: { enabled: false, mode: "manual" },
+      audioSummaryConfig: { enabled: false, style: "study-guide" },
+    }),
+    environmentConfig: makeEnvironment({
+      enableShell: true,
+      enableBrowser: true,
+      allowedToolFamilies: ["files", "search", "shell", "documents"],
+    }),
+  },
+  {
+    id: "chief-of-staff",
+    name: "Chief of Staff",
+    description: "Prepare executive-style briefs from inbox, calendar, chats, and workspace context.",
+    icon: "🧳",
+    color: "#14b8a6",
+    category: "operations",
+    systemPrompt:
+      "You operate like a chief of staff. Build high-signal executive briefs, surface priorities, and recommend the next actions with a bias for clarity and leverage.",
+    executionMode: "solo",
+    runtimeDefaults: {
+      autonomousMode: true,
+      allowUserInput: true,
+    },
+    skills: ["usecase-chief-of-staff-briefing", "summarize"],
+    studio: makeStudio({
+      skills: ["usecase-chief-of-staff-briefing", "summarize"],
+      apps: {
+        allowedToolFamilies: ["communication", "files", "documents", "search"],
+      },
+      memoryConfig: { mode: "default", sources: ["memory", "workspace", "sessions"] },
+      scheduleConfig: { enabled: false, mode: "manual" },
+      audioSummaryConfig: { enabled: true, style: "public-radio" },
+    }),
+    environmentConfig: makeEnvironment({
+      enableBrowser: true,
+      allowedToolFamilies: ["communication", "files", "documents", "search"],
+    }),
+  },
+  {
+    id: "customer-reply-drafter",
+    name: "Customer Reply Drafter",
+    description: "Draft grounded replies from tickets, accounts, policy, and saved context.",
+    icon: "✉️",
+    color: "#8b5cf6",
+    category: "support",
+    systemPrompt:
+      "You draft customer replies. Stay grounded in the available context, keep the tone calm and clear, and flag missing evidence instead of guessing.",
+    executionMode: "solo",
+    skills: ["usecase-draft-reply", "summarize"],
+    studio: makeStudio({
+      skills: ["usecase-draft-reply", "summarize"],
+      apps: {
+        allowedToolFamilies: ["communication", "files", "documents"],
+      },
+      memoryConfig: { mode: "focused", sources: ["workspace", "memory"] },
+      scheduleConfig: { enabled: false, mode: "manual" },
+      channelTargets: [],
+    }),
+    environmentConfig: makeEnvironment({
+      enableBrowser: true,
+      allowedToolFamilies: ["communication", "files", "documents"],
+    }),
+  },
+  {
+    id: "research-analyst",
+    name: "Research Analyst",
+    description: "Investigate topics, synthesize findings, and maintain a concise answer trail.",
+    icon: "🔎",
+    color: "#2563eb",
+    category: "research",
+    systemPrompt:
+      "You are a research analyst. Find the highest-signal information, compare sources, and present a concise evidence-backed synthesis with explicit uncertainty when needed.",
+    executionMode: "solo",
+    runtimeDefaults: {
+      autonomousMode: true,
+      allowUserInput: true,
+      webSearchMode: "live",
+    },
+    skills: ["competitive-research", "research-last-days", "summarize"],
+    studio: makeStudio({
+      skills: ["competitive-research", "research-last-days", "summarize"],
+      apps: {
+        allowedToolFamilies: ["search", "files", "documents", "memory"],
+      },
+      memoryConfig: { mode: "default", sources: ["memory", "workspace", "sessions"] },
+      scheduleConfig: { enabled: false, mode: "manual" },
+      audioSummaryConfig: { enabled: true, style: "study-guide" },
+    }),
+    environmentConfig: makeEnvironment({
+      enableBrowser: true,
+      allowedToolFamilies: ["search", "files", "documents", "memory"],
+    }),
+  },
+  {
+    id: "inbox-follow-up-assistant",
+    name: "Inbox Follow-up Assistant",
+    description: "Track stale threads, draft follow-ups, and keep the inbox moving.",
+    icon: "📥",
+    color: "#22c55e",
+    category: "operations",
+    systemPrompt:
+      "You monitor inbox follow-ups. Find stale conversations, suggest the next reply, and keep the user moving without over-automating sensitive conversations.",
+    executionMode: "solo",
+    runtimeDefaults: {
+      autonomousMode: true,
+      allowUserInput: true,
+    },
+    skills: ["usecase-inbox-manager", "summarize"],
+    studio: makeStudio({
+      skills: ["usecase-inbox-manager", "summarize"],
+      apps: {
+        allowedToolFamilies: ["communication", "documents", "files"],
+      },
+      memoryConfig: { mode: "focused", sources: ["workspace", "sessions"] },
+      scheduleConfig: {
+        enabled: true,
+        mode: "recurring",
+        label: "Check for follow-ups",
+        cadenceMinutes: 180,
+      },
+      audioSummaryConfig: { enabled: false, style: "executive-briefing" },
+    }),
+    environmentConfig: makeEnvironment({
+      enableBrowser: true,
+      allowedToolFamilies: ["communication", "documents", "files"],
+    }),
+  },
+  {
+    id: "finance-pitch-agent",
+    name: "Pitch Agent",
+    description: "Create pitch materials from company, market, comp, and deal context.",
+    tagline: "Finance teams: draft a reviewable pitch",
+    icon: "📊",
+    color: "#0f766e",
+    category: "finance",
+    featured: true,
+    systemPrompt:
+      `You coordinate a finance pitch workflow. Build an evidence-backed source ledger, prepare analysis workpapers, draft a presentation outline, generate a reviewable PPTX artifact, and stop for sign-off before any external use. ${FINANCE_GUARDRAIL_PROMPT}`,
+    executionMode: "team",
+    runtimeDefaults: { autonomousMode: true, allowUserInput: true, webSearchMode: "live" },
+    skills: ["finance-source-ledger", "finance-pptx-author", "finance-deck-qc", "ib-one-pager", "ib-cim", "ib-buyer-list"],
+    mcpServers: ["factset", "spglobal", "lseg", "pitchbook"],
+    requiredPackIds: ["finance-core-pack", "financial-analysis-pack", "investment-banking-pack"],
+    requiredConnectorIds: ["factset", "spglobal", "lseg", "pitchbook"],
+    expectedArtifacts: ["pptx", "xlsx", "json"],
+    teamRoleNames: FINANCE_TEAM_ROLES,
+    studio: makeFinanceStudio(
+      ["finance-source-ledger", "finance-pptx-author", "finance-deck-qc", "ib-one-pager", "ib-cim", "ib-buyer-list"],
+      ["factset", "spglobal", "lseg", "pitchbook"],
+      ["pptx", "xlsx", "json"],
+    ),
+    environmentConfig: makeFinanceEnvironment(["factset", "spglobal", "lseg", "pitchbook"]),
+  },
+  {
+    id: "finance-meeting-prep-agent",
+    name: "Meeting Prep Agent",
+    description: "Prepare concise finance meeting briefs with sources, open questions, and follow-up risks.",
+    icon: "🗓️",
+    color: "#2563eb",
+    category: "finance",
+    systemPrompt:
+      `Prepare meeting briefs from read-only company, market, transcript, note, and document context. Return a short agenda, participant context, source-backed discussion points, unresolved questions, and a source-ledger.json artifact. ${FINANCE_GUARDRAIL_PROMPT}`,
+    executionMode: "solo",
+    runtimeDefaults: { autonomousMode: true, allowUserInput: true, webSearchMode: "live" },
+    skills: ["finance-source-ledger", "er-morning-note", "finance-workpaper-manifest"],
+    mcpServers: ["lseg", "aiera", "egnyte"],
+    requiredPackIds: ["finance-core-pack", "equity-research-pack"],
+    requiredConnectorIds: ["lseg", "aiera", "egnyte"],
+    expectedArtifacts: ["docx", "json"],
+    teamRoleNames: ["finance-data-reader", "finance-document-writer", "finance-reviewer"],
+    studio: makeFinanceStudio(
+      ["finance-source-ledger", "er-morning-note", "finance-workpaper-manifest"],
+      ["lseg", "aiera", "egnyte"],
+      ["docx", "json"],
+    ),
+    environmentConfig: makeFinanceEnvironment(["lseg", "aiera", "egnyte"]),
+  },
+  {
+    id: "finance-market-researcher",
+    name: "Market Researcher",
+    description: "Research sectors, companies, catalysts, and market signals with a source trail.",
+    icon: "🔎",
+    color: "#0891b2",
+    category: "finance",
+    systemPrompt:
+      `Run a read-only market research workflow. Compare sources, identify consensus and dissenting signals, produce a concise memo, and include a source ledger with every material market claim. ${FINANCE_GUARDRAIL_PROMPT}`,
+    executionMode: "team",
+    runtimeDefaults: { autonomousMode: true, allowUserInput: true, webSearchMode: "live" },
+    skills: ["finance-source-ledger", "er-sector-analysis", "er-catalyst-tracking", "er-screen", "er-thesis"],
+    mcpServers: ["lseg", "spglobal", "mtnewswires", "morningstar"],
+    requiredPackIds: ["finance-core-pack", "equity-research-pack"],
+    requiredConnectorIds: ["lseg", "spglobal", "mtnewswires", "morningstar"],
+    expectedArtifacts: ["docx", "json"],
+    teamRoleNames: FINANCE_TEAM_ROLES.slice(0, 5),
+    studio: makeFinanceStudio(
+      ["finance-source-ledger", "er-sector-analysis", "er-catalyst-tracking", "er-screen", "er-thesis"],
+      ["lseg", "spglobal", "mtnewswires", "morningstar"],
+      ["docx", "json"],
+    ),
+    environmentConfig: makeFinanceEnvironment(["lseg", "spglobal", "mtnewswires", "morningstar"]),
+  },
+  {
+    id: "finance-earnings-reviewer",
+    name: "Earnings Reviewer",
+    description: "Review earnings releases, calls, guidance, revisions, and sector read-throughs.",
+    icon: "📈",
+    color: "#059669",
+    category: "finance",
+    featured: true,
+    systemPrompt:
+      `Analyze earnings materials and call context. Produce a beat/miss view, guidance bridge, estimate revision notes, sector read-through, source ledger, and review checkpoint before conclusions are reused. ${FINANCE_GUARDRAIL_PROMPT}`,
+    executionMode: "team",
+    runtimeDefaults: { autonomousMode: true, allowUserInput: true, webSearchMode: "live" },
+    skills: ["finance-source-ledger", "er-earnings-analysis", "er-earnings-preview", "er-model-update", "er-morning-note"],
+    mcpServers: ["factset", "lseg", "aiera", "mtnewswires"],
+    requiredPackIds: ["finance-core-pack", "equity-research-pack"],
+    requiredConnectorIds: ["factset", "lseg", "aiera", "mtnewswires"],
+    expectedArtifacts: ["xlsx", "docx", "json"],
+    teamRoleNames: FINANCE_TEAM_ROLES.slice(0, 5),
+    studio: makeFinanceStudio(
+      ["finance-source-ledger", "er-earnings-analysis", "er-earnings-preview", "er-model-update", "er-morning-note"],
+      ["factset", "lseg", "aiera", "mtnewswires"],
+      ["xlsx", "docx", "json"],
+    ),
+    environmentConfig: makeFinanceEnvironment(["factset", "lseg", "aiera", "mtnewswires"]),
+  },
+  {
+    id: "finance-model-builder",
+    name: "Model Builder",
+    description: "Build reviewable DCF, comps, LBO, and three-statement workbook artifacts.",
+    icon: "🧮",
+    color: "#7c3aed",
+    category: "finance",
+    systemPrompt:
+      `Build finance workbook artifacts with Inputs, calculation tabs, Checks, and a linked Source Ledger. Surface assumption gaps, failed checks, and review checkpoints. ${FINANCE_GUARDRAIL_PROMPT}`,
+    executionMode: "team",
+    runtimeDefaults: { autonomousMode: true, allowUserInput: true, webSearchMode: "live" },
+    skills: ["finance-xlsx-author", "finance-model-audit", "fa-dcf-modeling", "fa-peer-benchmarking", "fa-three-statement-model", "fa-lbo-modeling"],
+    mcpServers: ["daloopa", "factset", "spglobal", "lseg"],
+    requiredPackIds: ["finance-core-pack", "financial-analysis-pack"],
+    requiredConnectorIds: ["daloopa", "factset", "spglobal", "lseg"],
+    expectedArtifacts: ["xlsx", "json"],
+    teamRoleNames: FINANCE_TEAM_ROLES,
+    studio: makeFinanceStudio(
+      ["finance-xlsx-author", "finance-model-audit", "fa-dcf-modeling", "fa-peer-benchmarking", "fa-three-statement-model", "fa-lbo-modeling"],
+      ["daloopa", "factset", "spglobal", "lseg"],
+      ["xlsx", "json"],
+    ),
+    environmentConfig: makeFinanceEnvironment(["daloopa", "factset", "spglobal", "lseg"]),
+  },
+  {
+    id: "finance-valuation-reviewer",
+    name: "Valuation Reviewer",
+    description: "Review valuation workbooks, comp sets, sensitivities, and source support.",
+    icon: "✅",
+    color: "#f59e0b",
+    category: "finance",
+    systemPrompt:
+      `Review valuation artifacts for source support, math integrity, assumption sensitivity, comp relevance, and presentation clarity. Return exceptions, proposed fixes, and a sign-off checklist; do not finalize advice. ${FINANCE_GUARDRAIL_PROMPT}`,
+    executionMode: "team",
+    runtimeDefaults: { autonomousMode: true, allowUserInput: true, webSearchMode: "live" },
+    skills: ["finance-model-audit", "finance-deck-qc", "fa-valuation-summary", "fa-model-audit", "er-price-target"],
+    mcpServers: ["factset", "spglobal", "lseg", "morningstar"],
+    requiredPackIds: ["finance-core-pack", "financial-analysis-pack", "equity-research-pack"],
+    requiredConnectorIds: ["factset", "spglobal", "lseg", "morningstar"],
+    expectedArtifacts: ["xlsx", "docx", "json"],
+    teamRoleNames: FINANCE_TEAM_ROLES,
+    studio: makeFinanceStudio(
+      ["finance-model-audit", "finance-deck-qc", "fa-valuation-summary", "fa-model-audit", "er-price-target"],
+      ["factset", "spglobal", "lseg", "morningstar"],
+      ["xlsx", "docx", "json"],
+    ),
+    environmentConfig: makeFinanceEnvironment(["factset", "spglobal", "lseg", "morningstar"]),
+  },
+  {
+    id: "finance-gl-reconciler",
+    name: "GL Reconciler",
+    description: "Prepare reconciliation workpapers, trace breaks, and stage exceptions for approval.",
+    icon: "🧾",
+    color: "#475569",
+    category: "finance",
+    systemPrompt:
+      `Run a GL reconciliation workflow from provided ledger and support files. Produce reconciliation tables, break tracing notes, source ledger, and a controller review checkpoint. Never post journal entries or mark reconciliation complete without human sign-off. ${FINANCE_GUARDRAIL_PROMPT}`,
+    executionMode: "team",
+    runtimeDefaults: { autonomousMode: true, allowUserInput: true },
+    skills: ["finance-source-ledger", "finance-xlsx-author", "fund-gl-recon", "fund-break-trace", "fund-nav-tieout"],
+    mcpServers: ["chronograph", "egnyte"],
+    requiredPackIds: ["finance-core-pack", "fund-admin-pack"],
+    requiredConnectorIds: ["chronograph", "egnyte"],
+    expectedArtifacts: ["xlsx", "json"],
+    teamRoleNames: FINANCE_TEAM_ROLES,
+    studio: makeFinanceStudio(
+      ["finance-source-ledger", "finance-xlsx-author", "fund-gl-recon", "fund-break-trace", "fund-nav-tieout"],
+      ["chronograph", "egnyte"],
+      ["xlsx", "json"],
+    ),
+    environmentConfig: makeFinanceEnvironment(["chronograph", "egnyte"]),
+  },
+  {
+    id: "finance-month-end-closer",
+    name: "Month-End Closer",
+    description: "Stage accruals, roll-forwards, variance commentary, and close review packets.",
+    icon: "📅",
+    color: "#0ea5e9",
+    category: "finance",
+    systemPrompt:
+      `Prepare month-end close workpapers from provided files and read-only systems. Produce accrual support, roll-forwards, variance commentary, NAV or trial-balance tie-outs where applicable, and approval pauses for controller review. ${FINANCE_GUARDRAIL_PROMPT}`,
+    executionMode: "team",
+    runtimeDefaults: { autonomousMode: true, allowUserInput: true },
+    skills: ["finance-workpaper-manifest", "fund-accrual-schedule", "fund-roll-forward", "fund-variance-commentary", "fund-nav-tieout"],
+    mcpServers: ["chronograph", "egnyte"],
+    requiredPackIds: ["finance-core-pack", "fund-admin-pack"],
+    requiredConnectorIds: ["chronograph", "egnyte"],
+    expectedArtifacts: ["xlsx", "docx", "json"],
+    teamRoleNames: FINANCE_TEAM_ROLES,
+    studio: makeFinanceStudio(
+      ["finance-workpaper-manifest", "fund-accrual-schedule", "fund-roll-forward", "fund-variance-commentary", "fund-nav-tieout"],
+      ["chronograph", "egnyte"],
+      ["xlsx", "docx", "json"],
+    ),
+    environmentConfig: makeFinanceEnvironment(["chronograph", "egnyte"]),
+  },
+  {
+    id: "finance-statement-auditor",
+    name: "Statement Auditor",
+    description: "Review statements and workpapers for evidence support, exceptions, and disclosure risks.",
+    icon: "🧾",
+    color: "#dc2626",
+    category: "finance",
+    systemPrompt:
+      `Audit provided statement packages and support files for source support, inconsistencies, missing schedules, disclosure risks, and review exceptions. Produce a findings memo and source-ledger.json. This is audit preparation only, not an audit opinion. ${FINANCE_GUARDRAIL_PROMPT}`,
+    executionMode: "team",
+    runtimeDefaults: { autonomousMode: true, allowUserInput: true },
+    skills: ["finance-source-ledger", "finance-model-audit", "finance-workpaper-manifest", "fund-break-trace", "fund-variance-commentary"],
+    mcpServers: ["egnyte", "chronograph"],
+    requiredPackIds: ["finance-core-pack", "fund-admin-pack"],
+    requiredConnectorIds: ["egnyte", "chronograph"],
+    expectedArtifacts: ["docx", "xlsx", "json"],
+    teamRoleNames: FINANCE_TEAM_ROLES,
+    studio: makeFinanceStudio(
+      ["finance-source-ledger", "finance-model-audit", "finance-workpaper-manifest", "fund-break-trace", "fund-variance-commentary"],
+      ["egnyte", "chronograph"],
+      ["docx", "xlsx", "json"],
+    ),
+    environmentConfig: makeFinanceEnvironment(["egnyte", "chronograph"]),
+  },
+  {
+    id: "finance-kyc-screener",
+    name: "KYC Screener",
+    description: "Parse KYC packets, evaluate rules grids, and stage onboarding exceptions.",
+    icon: "🛡️",
+    color: "#9333ea",
+    category: "finance",
+    systemPrompt:
+      `Screen KYC documents using read-only evidence. Extract entity and beneficial ownership facts, apply the configured rules grid, list missing documents and exceptions, and pause for compliance review. Never approve onboarding or represent legal advice. ${FINANCE_GUARDRAIL_PROMPT}`,
+    executionMode: "team",
+    runtimeDefaults: { autonomousMode: true, allowUserInput: true },
+    skills: ["finance-source-ledger", "finance-workpaper-manifest", "ops-kyc-doc-parse", "ops-kyc-rules"],
+    mcpServers: ["egnyte", "moodys", "spglobal"],
+    requiredPackIds: ["finance-core-pack", "operations-kyc-pack"],
+    requiredConnectorIds: ["egnyte", "moodys", "spglobal"],
+    expectedArtifacts: ["json", "docx", "pdf"],
+    teamRoleNames: ["finance-lead", "finance-data-reader", "finance-document-writer", "finance-reviewer"],
+    studio: makeFinanceStudio(
+      ["finance-source-ledger", "finance-workpaper-manifest", "ops-kyc-doc-parse", "ops-kyc-rules"],
+      ["egnyte", "moodys", "spglobal"],
+      ["json", "docx", "pdf"],
+    ),
+    environmentConfig: makeFinanceEnvironment(["egnyte", "moodys", "spglobal"]),
+  },
+];
