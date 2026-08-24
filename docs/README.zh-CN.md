@@ -105,7 +105,23 @@ NeoWorker 聚焦把 AI 从对话助手升级为能够持续理解上下文、执
 | --- | --- | --- |
 | **macOS（Apple Silicon）** | `NeoWorker-0.1.0-arm64.dmg` | 打开磁盘映像，将 NeoWorker 拖入“应用程序”。 |
 | **Windows（x64）** | `NeoWorker-0.1.0-windows-x64-setup.exe` | 运行安装程序并按提示完成安装。 |
-| **校验文件** | `NeoWorker-v0.1-SHA256SUMS.txt` | 打开安装包前核对下载文件。 |
+| **校验文件** | `NeoWorker-0.1.0-local-v5-SHA256SUMS.txt` | 打开安装包前核对下载文件。 |
+
+#### 校验下载文件
+
+请从同一个 Release 下载校验文件，在本地计算安装包的 SHA-256，并在打开安装包前核对两个值是否一致。
+
+macOS：
+
+```bash
+shasum -a 256 NeoWorker-0.1.0-arm64.dmg
+```
+
+Windows PowerShell：
+
+```powershell
+Get-FileHash .\NeoWorker-0.1.0-windows-x64-setup.exe -Algorithm SHA256
+```
 
 #### macOS 安装须知
 

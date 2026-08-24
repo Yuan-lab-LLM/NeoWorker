@@ -105,7 +105,23 @@ Download NeoWorker only from the official [GitHub Releases](https://github.com/Y
 | --- | --- | --- |
 | **macOS (Apple Silicon)** | <code>NeoWorker-0.1.0-arm64.dmg</code> | Open the disk image and drag NeoWorker into Applications. |
 | **Windows (x64)** | <code>NeoWorker-0.1.0-windows-x64-setup.exe</code> | Run the installer and follow the setup prompts. |
-| **Checksums** | <code>NeoWorker-v0.1-SHA256SUMS.txt</code> | Verify the downloaded installer before opening it. |
+| **Checksums** | <code>NeoWorker-0.1.0-local-v5-SHA256SUMS.txt</code> | Verify the downloaded installer before opening it. |
+
+#### Verify the download
+
+Download the checksum manifest from the same Release, calculate the installer checksum locally, and compare the two values before opening the package.
+
+On macOS:
+
+~~~bash
+shasum -a 256 NeoWorker-0.1.0-arm64.dmg
+~~~
+
+On Windows PowerShell:
+
+~~~powershell
+Get-FileHash .\NeoWorker-0.1.0-windows-x64-setup.exe -Algorithm SHA256
+~~~
 
 #### Install on macOS
 
