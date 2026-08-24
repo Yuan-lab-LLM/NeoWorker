@@ -109,7 +109,7 @@
     "jszip": "^3.10.1",
     "lucide-react": "^0.577.0",
     "mammoth": "^1.11.0",
-    "marked": "^16.4.2",
+    "marked": "^18.0.10",
     "mermaid": "^11.13.0",
     "mime-types": "^3.0.2",
     "node-fetch": "npm:node-fetch-native@1.6.7",
