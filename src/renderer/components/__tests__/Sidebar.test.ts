@@ -166,8 +166,8 @@ describe("Sidebar top-level destinations", () => {
     );
 
     expect(markup).toContain('class="sidebar-brand-name">NeoWorker</span>');
-    expect(markup).toContain('class="sidebar-brand-version">V0.1</span>');
-    expect(markup).toContain('aria-label="NeoWorker V0.1"');
+    expect(markup).toContain('class="sidebar-brand-version">V0.1.1</span>');
+    expect(markup).toContain('aria-label="NeoWorker V0.1.1"');
     expect(markup).not.toContain("sidebar-brand-search");
     expect(markup).toContain('class="sidebar-session-action');
     expect(markup.match(/aria-label="搜索会话"/g)).toHaveLength(1);
