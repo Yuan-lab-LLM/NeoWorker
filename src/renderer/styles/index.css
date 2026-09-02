@@ -1993,7 +1993,7 @@ a,
 .sidebar-brand-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   height: var(--title-bar-height);
   min-height: var(--title-bar-height);
   padding: 0 16px;
@@ -2040,36 +2040,6 @@ a,
   letter-spacing: 0.02em;
   white-space: nowrap;
   user-select: none;
-}
-
-.sidebar-brand-search {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  -webkit-app-region: no-drag;
-  transition:
-    color 140ms ease,
-    background 140ms ease;
-}
-
-.sidebar-brand-search:hover,
-.sidebar-brand-search.active {
-  background: var(--color-bg-hover);
-  color: var(--color-text-primary);
-}
-
-.sidebar-brand-search:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-accent) 42%, transparent);
-  outline-offset: 1px;
 }
 
 /* Removed: double-border effect - using single border only */

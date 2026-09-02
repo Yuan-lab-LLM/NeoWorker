@@ -2151,30 +2151,6 @@ function SidebarComponent({
             {PRODUCT_DISPLAY_VERSION}
           </span>
         </div>
-        <button
-          type="button"
-          className={`sidebar-brand-search ${showSessionSearch ? "active" : ""}`}
-          onClick={() => {
-            setSessionsCollapsed(false);
-            setShowSessionSearch((value) => {
-              if (value) setSessionSearch("");
-              return !value;
-            });
-          }}
-          aria-pressed={showSessionSearch}
-          title={
-            showSessionSearch
-              ? translate("sidebar.sessions.hideSearch", "Hide search")
-              : translate("sidebar.sessions.search", "Search sessions")
-          }
-          aria-label={
-            showSessionSearch
-              ? translate("sidebar.sessions.hideSearch", "Hide search")
-              : translate("sidebar.sessions.search", "Search sessions")
-          }
-        >
-          <Search size={15} strokeWidth={1.8} aria-hidden="true" />
-        </button>
       </div>
 
       {/* New Session Button */}
@@ -2592,6 +2568,11 @@ function SidebarComponent({
                   }}
                   aria-pressed={showSessionSearch}
                   title={
+                    showSessionSearch
+                      ? translate("sidebar.sessions.hideSearch", "Hide search")
+                      : translate("sidebar.sessions.search", "Search sessions")
+                  }
+                  aria-label={
                     showSessionSearch
                       ? translate("sidebar.sessions.hideSearch", "Hide search")
                       : translate("sidebar.sessions.search", "Search sessions")

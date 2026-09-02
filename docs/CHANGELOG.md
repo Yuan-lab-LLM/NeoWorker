@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-02
+
+### Fixed
+
+- Removed the duplicate sidebar session-search button; the search action now appears only in the Sessions header.
+- Added an accessible label to the retained session-search action so keyboard and assistive-technology users have one unambiguous entry point.
+
 ## [0.5.51] - 2026-08-17
 
 ### Added
@@ -1703,5 +1710,6 @@ This release is the first recommended Windows install baseline for normal users 
 [0.1.5]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.5
 [0.1.4]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.4
 [0.1.3]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.3
+[0.1.1]: https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.1.1
 [0.1.0]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.0
 [0.0.1]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.0.1

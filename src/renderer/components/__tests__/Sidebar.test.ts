@@ -150,7 +150,7 @@ describe("Sidebar top-level destinations", () => {
     expect(markup).not.toContain('aria-label="探索"');
   });
 
-  it("shows the NeoWorker product name with its search action", () => {
+  it("shows one session search action next to the NeoWorker product name", () => {
     const markup = renderToStaticMarkup(
       React.createElement(Sidebar, {
         workspace: { id: "ws-1", name: "Workspace", path: "/workspace" } as Any,
@@ -168,8 +168,9 @@ describe("Sidebar top-level destinations", () => {
     expect(markup).toContain('class="sidebar-brand-name">NeoWorker</span>');
     expect(markup).toContain('class="sidebar-brand-version">V0.1</span>');
     expect(markup).toContain('aria-label="NeoWorker V0.1"');
-    expect(markup).toContain('class="sidebar-brand-search');
-    expect(markup).toContain('aria-label="搜索会话"');
+    expect(markup).not.toContain("sidebar-brand-search");
+    expect(markup).toContain('class="sidebar-session-action');
+    expect(markup.match(/aria-label="搜索会话"/g)).toHaveLength(1);
     expect(markup).not.toContain("sidebar-brand-menu");
     expect(markup).not.toContain('aria-haspopup="menu"');
     expect(markup).not.toContain("设置向导");
