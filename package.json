@@ -358,9 +358,9 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "NeoWorker",
+      "owner": "Yuan-lab-LLM",
       "repo": "NeoWorker",
-      "releaseType": "draft"
+      "releaseType": "release"
     }
   }
 }

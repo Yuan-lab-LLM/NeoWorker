@@ -7,6 +7,12 @@ import { UpdateInfo, UpdateProgress, AppVersionInfo, IPC_CHANNELS } from "../../
 
 const execAsync = promisify(exec);
 
+// Keep the API check and electron-updater feed pointed at the same release
+// repository.  A mismatch here makes the UI report an update but leaves the
+// packaged updater downloading from a different (or non-existent) repo.
+export const UPDATE_REPOSITORY_OWNER = "Yuan-lab-LLM";
+export const UPDATE_REPOSITORY_NAME = "NeoWorker";
+
 interface GitHubRelease {
   tag_name: string;
   name: string;
@@ -22,8 +28,6 @@ interface GitHubRelease {
 
 export class UpdateManager {
   private mainWindow: BrowserWindow | null = null;
-  private repoOwner = "NeoWorker";
-  private repoName = "NeoWorker";
   private isUpdating = false;
 
   setMainWindow(window: BrowserWindow): void {
@@ -109,7 +113,7 @@ export class UpdateManager {
     try {
       // Fetch latest release from GitHub
       const response = await net.fetch(
-        `https://api.github.com/repos/${this.repoOwner}/${this.repoName}/releases/latest`,
+        `https://api.github.com/repos/${UPDATE_REPOSITORY_OWNER}/${UPDATE_REPOSITORY_NAME}/releases/latest`,
         {
           headers: {
             Accept: "application/vnd.github.v3+json",
@@ -149,7 +153,7 @@ export class UpdateManager {
               currentVersion: `${currentVersion} (${versionInfo.gitCommit})`,
               latestVersion: `${latestVersion} (new commits)`,
               releaseNotes: "New commits available on the main branch.",
-              releaseUrl: `https://github.com/${this.repoOwner}/${this.repoName}`,
+              releaseUrl: `https://github.com/${UPDATE_REPOSITORY_OWNER}/${UPDATE_REPOSITORY_NAME}`,
               updateMode: "git",
             };
           }
@@ -165,8 +169,9 @@ export class UpdateManager {
         publishedAt: release.published_at,
         updateMode,
       };
-    } catch (error: Any) {
-      this.sendError(error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.sendError(message);
       throw error;
     }
   }
@@ -233,7 +238,7 @@ export class UpdateManager {
       } else if (updateInfo.updateMode === "git") {
         await this.gitUpdate();
       } else {
-        await this.electronUpdaterUpdate();
+        await this.electronUpdaterUpdate(updateInfo);
       }
     } finally {
       this.isUpdating = false;
@@ -396,9 +401,13 @@ export class UpdateManager {
     });
   }
 
-  private async electronUpdaterUpdate(): Promise<void> {
-    // For packaged apps, we'll use electron-updater
-    // This requires electron-updater to be installed and configured
+  private async electronUpdaterUpdate(updateInfo: UpdateInfo): Promise<void> {
+    // For packaged apps, use the same published GitHub release that the API
+    // check above queried.  Calling downloadUpdate() without first checking
+    // the feed leaves electron-updater without a resolved update URL and can
+    // make the UI remain at 0% indefinitely.
+    let cleanupListeners: (() => void) | undefined;
+
     try {
       // Dynamic import to avoid issues when running in dev mode
       const electronUpdater = await import("electron-updater").catch(() => null);
@@ -407,32 +416,39 @@ export class UpdateManager {
       }
       const { autoUpdater } = electronUpdater;
 
-      autoUpdater.on("checking-for-update", () => {
-        this.sendProgress({ phase: "checking", message: "Checking for updates..." });
+      autoUpdater.autoDownload = false;
+      autoUpdater.autoInstallOnAppQuit = false;
+      autoUpdater.setFeedURL({
+        provider: "github",
+        owner: UPDATE_REPOSITORY_OWNER,
+        repo: UPDATE_REPOSITORY_NAME,
+        releaseType: "release",
       });
 
-      autoUpdater.on("update-available", () => {
+      const onCheckingForUpdate = () => {
+        this.sendProgress({ phase: "checking", message: "Checking for updates..." });
+      };
+      const onUpdateAvailable = () => {
         this.sendProgress({
           phase: "downloading",
           percent: 0,
           message: "Update available, starting download...",
         });
-      });
-
-      autoUpdater.on(
-        "download-progress",
-        (progress: { percent: number; transferred: number; total: number }) => {
-          this.sendProgress({
-            phase: "downloading",
-            percent: Math.round(progress.percent),
-            message: `Downloading update... ${Math.round(progress.percent)}%`,
-            bytesDownloaded: progress.transferred,
-            bytesTotal: progress.total,
-          });
-        },
-      );
-
-      autoUpdater.on("update-downloaded", () => {
+      };
+      const onDownloadProgress = (progress: {
+        percent: number;
+        transferred: number;
+        total: number;
+      }) => {
+        this.sendProgress({
+          phase: "downloading",
+          percent: Math.round(progress.percent),
+          message: `Downloading update... ${Math.round(progress.percent)}%`,
+          bytesDownloaded: progress.transferred,
+          bytesTotal: progress.total,
+        });
+      };
+      const onUpdateDownloaded = () => {
         this.sendProgress({
           phase: "complete",
           percent: 100,
@@ -444,23 +460,44 @@ export class UpdateManager {
             message: 'Update downloaded. Click "Install & Restart" to apply.',
           });
         }
-      });
+      };
+      const onError = (error: Error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.sendProgress({ phase: "error", message: `Update error: ${message}` });
+        this.sendError(message);
+      };
 
-      autoUpdater.on("error", (error: Error) => {
-        this.sendProgress({ phase: "error", message: `Update error: ${error.message}` });
-        this.sendError(error.message);
-      });
+      autoUpdater.on("checking-for-update", onCheckingForUpdate);
+      autoUpdater.on("update-available", onUpdateAvailable);
+      autoUpdater.on("download-progress", onDownloadProgress);
+      autoUpdater.on("update-downloaded", onUpdateDownloaded);
+      autoUpdater.on("error", onError);
+      cleanupListeners = () => {
+        autoUpdater.removeListener("checking-for-update", onCheckingForUpdate);
+        autoUpdater.removeListener("update-available", onUpdateAvailable);
+        autoUpdater.removeListener("download-progress", onDownloadProgress);
+        autoUpdater.removeListener("update-downloaded", onUpdateDownloaded);
+        autoUpdater.removeListener("error", onError);
+      };
+
+      const result = await autoUpdater.checkForUpdates();
+      if (!result?.isUpdateAvailable || !result.updateInfo) {
+        throw new Error(
+          `The update feed did not return a downloadable release (expected ${updateInfo.latestVersion}).`,
+        );
+      }
 
       await autoUpdater.downloadUpdate();
-    } catch  {
-      // If electron-updater is not available, fall back to manual download
-      this.sendProgress({
-        phase: "error",
-        message: "electron-updater not available. Please download manually from GitHub.",
-      });
-      throw new Error(
-        "Auto-update not available for packaged builds. Please download the latest release from GitHub.",
-      );
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.sendProgress({ phase: "error", message: `Update failed: ${message}` });
+      this.sendError(message);
+      throw error;
+    } finally {
+      // The update dialog can be opened repeatedly.  Remove only the
+      // listeners installed by this attempt so progress events are not
+      // duplicated on subsequent downloads.
+      cleanupListeners?.();
     }
   }
 
