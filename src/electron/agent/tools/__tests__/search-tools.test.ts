@@ -173,6 +173,45 @@ describe("SearchTools", () => {
       );
     });
 
+    it("uses bounded flight variants and reports route evidence metadata", async () => {
+      vi.mocked(SearchProviderFactory.searchWithFallback)
+        .mockResolvedValueOnce({
+          query: "北京到上海9月3日航班",
+          searchType: "web",
+          results: [
+            {
+              title: "北京上海出行指南",
+              url: "https://example.com/guide",
+              snippet: "航班信息入口",
+            },
+          ],
+          provider: "tavily",
+        } as Any)
+        .mockResolvedValueOnce({
+          query: "PEK SHA flight schedule 9月3日",
+          searchType: "web",
+          results: [
+            {
+              title: "PEK to SHA flight schedule",
+              url: "https://example.com/schedule",
+              snippet: "PEK SHA schedule",
+            },
+          ],
+          provider: "tavily",
+        } as Any);
+
+      const result = await searchTools.webSearch({ query: "北京到上海9月3日航班" });
+
+      expect(SearchProviderFactory.searchWithFallback).toHaveBeenCalledTimes(2);
+      expect(result.results).toHaveLength(2);
+      expect(result.metadata?.flightRoute).toMatchObject({
+        fromCode: "PEK",
+        toCode: "SHA",
+      });
+      expect(result.metadata?.flightQueryVariants).toHaveLength(2);
+      expect(result.metadata?.flightRouteMatchedCount).toBe(2);
+    });
+
     it("should pass search type to provider", async () => {
       vi.mocked(SearchProviderFactory.searchWithFallback).mockResolvedValue({
         query: "test query",

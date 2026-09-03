@@ -9,6 +9,11 @@ import {
   SearchType,
   SearchProviderType,
 } from "../search";
+import {
+  buildFlightQueryVariants,
+  extractFlightRoute,
+  filterFlightResults,
+} from "../search/flight-query";
 
 /**
  * SearchTools implements web search operations for the agent
@@ -199,7 +204,70 @@ export class SearchTools {
     });
 
     try {
-      const response = await SearchProviderFactory.searchWithFallback(searchQuery);
+      const flightRoute = extractFlightRoute(input.query);
+      const queryVariants = flightRoute
+        ? buildFlightQueryVariants(input.query).slice(0, 2)
+        : [input.query];
+      const responses: SearchResponse[] = [];
+      let lastFlightError: Any = null;
+
+      // Flight schedules and fares are often split across dynamic OTA pages.
+      // Run at most two deterministic variants, merge only real provider
+      // results, and expose the variants as metadata so the final answer can
+      // distinguish evidence from an unverified route.
+      for (const queryVariant of queryVariants) {
+        try {
+          const variantResponse = await SearchProviderFactory.searchWithFallback({
+            ...searchQuery,
+            query: queryVariant,
+          });
+          if (variantResponse.success === false) {
+            lastFlightError = variantResponse.error || "Web search failed";
+            continue;
+          }
+          responses.push(variantResponse);
+          if (!flightRoute || variantResponse.results.length >= searchQuery.maxResults!) {
+            break;
+          }
+        } catch (error: Any) {
+          lastFlightError = error;
+          if (!flightRoute) throw error;
+        }
+      }
+
+      if (responses.length === 0) {
+        if (lastFlightError) throw lastFlightError;
+        throw new Error("Web search returned no usable response");
+      }
+
+      const firstResponse = responses[0];
+      const seenUrls = new Set<string>();
+      const mergedResults = responses.flatMap((result) => result.results).filter((result) => {
+        const key = String(result.url || result.title || "").trim();
+        if (!key || seenUrls.has(key)) return false;
+        seenUrls.add(key);
+        return true;
+      });
+      const routeEvidence = flightRoute
+        ? filterFlightResults(mergedResults, flightRoute)
+        : { results: mergedResults, matchedCount: 0 };
+      const response: SearchResponse = {
+        ...firstResponse,
+        query: input.query,
+        results: routeEvidence.results.slice(0, searchQuery.maxResults),
+        metadata: {
+          ...firstResponse.metadata,
+          ...(flightRoute
+            ? {
+                flightRoute,
+                flightQueryVariants: queryVariants,
+                flightRouteMatchedCount: routeEvidence.matchedCount,
+                flightEvidencePolicy:
+                  "Only provider-returned results are included; route matching is evidence metadata, not a flight schedule or price claim.",
+              }
+            : {}),
+        },
+      };
       const domainPolicy = this.applyDomainPolicy(response);
       const filteredResponse = domainPolicy.response;
 

@@ -73,6 +73,11 @@ import {
 import { parseNaturalLlmWikiPrompt } from "../../shared/llm-wiki-prompt-routing";
 import { parseOnboardingSlashCommand } from "../../shared/onboarding";
 import { RICH_FRAME_DESIGN_LANGUAGE_PROMPT } from "../../shared/rich-frame-design-language";
+import {
+  POST_TOOL_FINALIZATION_CONTINUATION_MAX_TOKENS,
+  POST_TOOL_FINALIZATION_INITIAL_MAX_TOKENS,
+  truncateResultSummary,
+} from "./finalization-policy";
 import * as fs from "fs";
 import * as fsPromises from "fs/promises";
 import * as path from "path";
@@ -14731,9 +14736,7 @@ ${transcript}
         normalized,
         { finalResponse: true },
       );
-      return languageSafe.length > 4000
-        ? `${languageSafe.slice(0, 4000)}...`
-        : languageSafe;
+      return truncateResultSummary(languageSafe);
     }
 
     return undefined;
@@ -26604,9 +26607,9 @@ You are continuing a previous conversation. The context from the previous conver
       .join("\n")
       .trim();
     if (!text) return;
-    // Cap at 4000 to match buildResultSummary limit – the previous 1500 limit
-    // was too aggressive and caused delivered results to be cut short.
-    const truncated = text.length > 4000 ? `${text.slice(0, 4000)}…` : text;
+    // Keep the same 20k display limit used by buildResultSummary so a long
+    // report is not silently reduced to 4k before the final response is built.
+    const truncated = truncateResultSummary(text);
     if (!this.isVerificationStep(step)) {
       const preserveExistingDeliverable =
         this.isRecoveryPlanStep(step) &&
@@ -44968,8 +44971,8 @@ Return ONLY a JSON object:
             },
           ],
           systemPrompt: this.systemPrompt,
-          initialMaxTokens: 1200,
-          continuationMaxTokens: 600,
+          initialMaxTokens: POST_TOOL_FINALIZATION_INITIAL_MAX_TOKENS,
+          continuationMaxTokens: POST_TOOL_FINALIZATION_CONTINUATION_MAX_TOKENS,
           mode: "follow_up",
           operationLabel: "Follow-up tool-free final response",
           allowContinuation: true,
