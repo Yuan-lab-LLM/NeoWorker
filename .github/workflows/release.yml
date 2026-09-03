@@ -37,7 +37,12 @@ jobs:
       - name: Run deterministic eval suite
         id: run_eval_suite
         continue-on-error: true
-        run: npm run qa:eval:run -- --suite reliability-regressions --mode deterministic
+        run: |
+          if node -e "const scripts = require('./package.json').scripts || {}; process.exit(scripts['qa:eval:run'] ? 0 : 1)"; then
+            npm run qa:eval:run -- --suite reliability-regressions --mode deterministic
+          else
+            echo "Deterministic eval skipped: this checkout does not define qa:eval:run."
+          fi
         env:
           NEOWORKER_DB_PATH: ${{ runner.temp }}/neoworker-release-eval.db
           NEOWORKER_EVAL_ALLOW_EMPTY: '1'
