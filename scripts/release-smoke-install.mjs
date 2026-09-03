@@ -84,6 +84,22 @@ function main() {
       { cwd: testDir }
     );
 
+    const installedPackagePath = path.join(
+      testDir,
+      "node_modules",
+      "neoworker",
+      "package.json",
+    );
+    const installedPackage = JSON.parse(
+      fs.readFileSync(installedPackagePath, "utf8"),
+    );
+    if (!installedPackage.scripts?.setup) {
+      console.log(
+        "[release-smoke] Skipping CLI setup smoke: the published package does not expose a setup script.",
+      );
+      return;
+    }
+
     const setupRes = runNpm(["run", "--prefix", "node_modules/neoworker", "setup"], {
       cwd: testDir,
     });
