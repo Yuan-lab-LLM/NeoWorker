@@ -114,6 +114,12 @@ jobs:
           node-version: '24'
           cache: 'npm'
 
+      - name: Cache pinned Numbat toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/neoworker/numbat-build
+          key: ${{ runner.os }}-numbat-${{ hashFiles('resources/numbat/source-manifest.json') }}
+
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
@@ -228,9 +234,10 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${RUNNER_OS}" = "macOS" ]; then
+            npm run numbat:build -- --target=darwin-arm64
             NEOWORKER_MAC_UNSIGNED=1 node scripts/run_electron_builder.mjs --mac --publish never
           else
-            npm run package
+            npm run package:win:x64
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -505,11 +512,12 @@ jobs:
   publish-github-release:
     name: Publish GitHub release
     runs-on: ubuntu-latest
+    # The desktop release is the user-facing deliverable for this workflow.
+    # Keep publishing it independent from optional Linux/npm jobs so a
+    # platform-specific packaging issue cannot leave a valid desktop draft
+    # stranded forever.
     needs:
       - release
-      - release-linux-server
-      - publish-npm
-      - publish-github-packages
     timeout-minutes: 15
     steps:
       - name: Publish draft GitHub release
