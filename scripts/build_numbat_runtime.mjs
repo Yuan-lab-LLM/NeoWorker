@@ -145,7 +145,11 @@ function run(command, args, options = {}) {
 }
 
 function tarPath(filePath) {
-  return path.resolve(filePath);
+  const resolved = path.resolve(filePath);
+  // Git for Windows' tar expects POSIX-style drive paths.  Passing the
+  // native `C:\\...` spelling makes it reinterpret the drive as a remote
+  // archive or mangle the extraction directory.
+  return process.platform === "win32" ? resolved.replaceAll("\\", "/") : resolved;
 }
 
 async function download(url, outputPath, expectedSha256, label) {
