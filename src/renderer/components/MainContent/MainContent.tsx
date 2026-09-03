@@ -104,6 +104,7 @@ import { localizeProgressText } from "../../utils/localized-progress-text";
 import { isCapabilityCatalogPlan } from "../../../shared/plan-quality";
 import { shouldShowComposerProgress } from "../../utils/right-panel-progress";
 import { getLocalizedSkillText } from "../../utils/localized-skills";
+import { getAgentRolePortrait } from "../../utils/agent-role-portraits";
 import {
   hasTaskOutputs,
   resolveTaskOutputSummaryFromCompletionEvent,
@@ -751,6 +752,7 @@ interface MainContentProps {
   onChangeWorkspace?: () => void;
   onSelectWorkspace?: (workspace: Workspace) => void;
   onOpenSettings?: (tab?: SettingsTab) => void;
+  onOpenAgentManagement?: () => void;
   onStopTask?: () => void;
   onEnableShellForPausedTask?: () => void | Promise<void>;
   onContinueWithoutShellForPausedTask?: () => void | Promise<void>;
@@ -4745,6 +4747,134 @@ function InlineOnboardingCard({
   );
 }
 
+type HomeAgentRoleEntry = {
+  id: string;
+  roleName: string;
+  name: string;
+  description: string;
+  source?: AgentRoleData;
+};
+
+const HOME_AGENT_ROLE_FALLBACKS = [
+  {
+    id: "researcher",
+    name: "研究员",
+    description: "调研方案并收集信息",
+    englishName: "Researcher",
+    englishDescription: "Research topics and collect evidence",
+  },
+  {
+    id: "coder",
+    name: "编码工程师",
+    description: "编写代码并实现功能",
+    englishName: "Coding engineer",
+    englishDescription: "Write code and implement features",
+  },
+  {
+    id: "data_analyst",
+    name: "数据分析师",
+    description: "分析数据并发现趋势",
+    englishName: "Data analyst",
+    englishDescription: "Analyze data and uncover trends",
+  },
+  {
+    id: "writer",
+    name: "内容撰写员",
+    description: "撰写文档与内容",
+    englishName: "Content writer",
+    englishDescription: "Write documents and content",
+  },
+] as const;
+
+function HomeAgentHub({
+  roles,
+  onSelect,
+  onViewAll,
+}: {
+  roles: AgentRoleData[];
+  onSelect: (roleName: string) => void;
+  onViewAll?: () => void;
+}) {
+  const language = useLanguage();
+  const isChinese = language === "zh-CN";
+  const entries = useMemo<HomeAgentRoleEntry[]>(() => {
+    return HOME_AGENT_ROLE_FALLBACKS.map((fallback) => {
+      const source = roles.find(
+        (role) => role.id === fallback.id || role.name === fallback.id,
+      );
+      if (!source) {
+        return {
+          id: fallback.id,
+          roleName: fallback.id,
+          name: isChinese ? fallback.name : fallback.englishName,
+          description: isChinese ? fallback.description : fallback.englishDescription,
+        };
+      }
+      const localized = getLocalizedAgentRoleText(source, language);
+      return {
+        id: source.id,
+        roleName: source.name,
+        name: localized.name,
+        description: localized.description || (isChinese ? fallback.description : fallback.englishDescription),
+        source,
+      };
+    });
+  }, [isChinese, language, roles]);
+
+  return (
+    <section className="nw-home-agent-hub" aria-labelledby="home-agent-hub-title">
+      <div className="focused-cards-section-header nw-home-agent-hub-header">
+        <div>
+          <h2 id="home-agent-hub-title">
+            {isChinese ? "推荐智能体" : "Recommended agents"}
+          </h2>
+          <p>
+            {isChinese
+              ? "选择合适的角色，直接开始一项工作"
+              : "Choose a role and start a task"}
+          </p>
+        </div>
+        {onViewAll && (
+          <button
+            type="button"
+            className="welcome-card-refresh"
+            onClick={onViewAll}
+            aria-label={isChinese ? "查看全部智能体" : "View all agents"}
+          >
+            <span>{isChinese ? "查看全部" : "View all"}</span>
+            <ChevronRight size={14} strokeWidth={1.8} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+      <div className="nw-home-agent-grid" aria-live="polite">
+        {entries.map((entry) => (
+          <button
+            type="button"
+            className="nw-home-agent-card"
+            key={entry.id}
+            onClick={() => onSelect(entry.roleName)}
+            title={isChinese ? `由${entry.name}处理` : `Handled by ${entry.name}`}
+          >
+            <img
+              src={getAgentRolePortrait(entry.source || { name: entry.roleName })}
+              alt=""
+              aria-hidden="true"
+              className="nw-home-agent-portrait"
+            />
+            <span className="nw-home-agent-copy">
+              <span className="nw-home-agent-name">
+                <span className="nw-home-agent-status" aria-hidden="true" />
+                <span>{entry.name}</span>
+              </span>
+              <span className="nw-home-agent-description">{entry.description}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function MainContentComponent({
   task,
   selectedTaskId,
@@ -4769,6 +4899,7 @@ function MainContentComponent({
   onChangeWorkspace,
   onSelectWorkspace,
   onOpenSettings,
+  onOpenAgentManagement,
   onStopTask,
   onEnableShellForPausedTask,
   onContinueWithoutShellForPausedTask,
@@ -11326,6 +11457,14 @@ function MainContentComponent({
                 onOpenModelSettings={() => onOpenSettings?.("llm")}
                 onComplete={onCompleteInlineOnboarding}
                 onProfileSaved={agentContext.refresh}
+              />
+            )}
+
+            {uiDensity === "focused" && !outcomeTemplatesEnabled && (
+              <HomeAgentHub
+                roles={agentRoles}
+                onSelect={(roleName) => handleQuickAction(`@${roleName}`)}
+                onViewAll={onOpenAgentManagement}
               />
             )}
 

@@ -5,15 +5,15 @@ import { describe, expect, it } from "vitest";
 const appPath = fileURLToPath(new URL("../App.tsx", import.meta.url));
 
 describe("initial workspace view", () => {
-  it("opens the workspace dashboard on a fresh renderer session", () => {
+  it("opens the focused task-first welcome surface on a fresh renderer session", () => {
     const source = readFileSync(appPath, "utf8");
 
     expect(source).toContain(
-      'const [currentView, setCurrentView] = useState<AppView>("home")',
+      'const [currentView, setCurrentView] = useState<AppView>("main")',
     );
     expect(source).toContain(
-      'const currentViewRef = useRef<AppView>("home")',
+      'const currentViewRef = useRef<AppView>("main")',
     );
-    expect(source).toContain('{ view: "home", taskId: null }');
+    expect(source).toContain('{ view: "main", taskId: null }');
   });
 });

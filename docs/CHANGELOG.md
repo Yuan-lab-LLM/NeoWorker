@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-09-03
+
+### Added
+
+- Restored the focused task-first welcome surface as the default desktop entry point.
+- Added a localized recommended-agent hub with portraits, role-aware composer shortcuts, and a direct link to agent management.
+- Added responsive layout and regression coverage so the agent hub and quick-start actions remain visible together on smaller windows.
+
 ## [0.1.5] - 2026-09-03
 
 ### Fixed
