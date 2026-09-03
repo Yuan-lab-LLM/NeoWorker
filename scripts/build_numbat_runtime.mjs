@@ -369,7 +369,14 @@ const temporaryRoot = fs.mkdtempSync(
 );
 
 try {
-  run("tar", ["-xzf", tarPath(sourceArchive), "-C", tarPath(temporaryRoot)]);
+  // Git for Windows' tar treats a drive-letter path (for example
+  // `C:\\Users\\...`) as a remote archive name unless --force-local is
+  // supplied.  The release workflow runs this script from Git Bash, so keep
+  // the extraction local on Windows while preserving the native invocation
+  // used by macOS/Linux.
+  const sourceExtractArgs = ["-xzf", tarPath(sourceArchive), "-C", tarPath(temporaryRoot)];
+  if (process.platform === "win32") sourceExtractArgs.unshift("--force-local");
+  run("tar", sourceExtractArgs);
   const sourceEntries = fs
     .readdirSync(temporaryRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory());
