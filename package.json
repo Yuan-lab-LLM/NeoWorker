@@ -1,6 +1,6 @@
 {
   "name": "neoworker",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "NeoWorker - GUI-first, CLI-capable local AI super app and everything app for coding, email, agents, documents, spreadsheets, presentations, web design, automations, and agentic work",
   "main": "dist/electron/electron/main.js",
   "author": "Yuan-lab-LLM",
@@ -70,6 +70,7 @@
     "office:release-gate": "npm run build:electron && node scripts/qa/office-artifact-release-gate.cjs",
     "skills:validate-routing": "node scripts/qa/validate-skills-routing.mjs",
     "skills:validate-content": "node scripts/qa/validate-skills-content.mjs",
+    "qa:eval:enforce-regressions": "node scripts/qa/enforce_eval_regression_policy.cjs",
     "lint": "oxlint --config config/oxlint.json src tests",
     "type-check": "tsc --noEmit -p tsconfig.json",
     "test": "vitest --config config/vitest.config.ts run",

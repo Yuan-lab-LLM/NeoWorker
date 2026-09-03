@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-03
+
+### Fixed
+
+- Increased the post-tool finalization budget and retained-result summary limit so long analysis answers are not cut off prematurely.
+- Generalized flight lookup routing to infer city pairs, IATA codes, dates, and reliable indexed sources instead of falling back to a fixed Beijing–Shanghai route.
+- Hardened GitHub update downloads with trusted asset filtering, streaming progress, checksum verification, timeout handling, and a clear manual-install fallback.
+- Added packaged-runtime patch and regression-test scripts covering the three fixes above.
+
 ## [0.1.2] - 2026-09-03
 
 ### Changed
