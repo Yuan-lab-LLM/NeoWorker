@@ -63,6 +63,7 @@ export function UpdateSettings() {
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
+  const [manualInstallerReady, setManualInstallerReady] = useState(false);
 
   useEffect(() => {
     loadVersionInfo();
@@ -76,8 +77,9 @@ export function UpdateSettings() {
       }
     });
 
-    const unsubDownloaded = window.electronAPI.onUpdateDownloaded(() => {
+    const unsubDownloaded = window.electronAPI.onUpdateDownloaded((info) => {
       setUpdateReady(true);
+      setManualInstallerReady(Boolean(info?.manual));
       setUpdating(false);
     });
 
@@ -317,7 +319,9 @@ export function UpdateSettings() {
             className="button-primary update-button restart"
             onClick={handleInstallUpdate}
           >
-            {t("updates.restart", "Restart to Apply Update")}
+            {manualInstallerReady
+              ? t("updates.openInstaller", "Open Installer")
+              : t("updates.restart", "Restart to Apply Update")}
           </button>
         )}
       </div>

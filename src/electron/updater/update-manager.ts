@@ -1,8 +1,9 @@
-import { app, BrowserWindow, net } from "electron";
+import { app, BrowserWindow, net, shell } from "electron";
 import { exec, spawn } from "child_process";
 import { promisify } from "util";
 import * as _path from "path";
 import * as _fs from "fs";
+import { createHash } from "crypto";
 import { UpdateInfo, UpdateProgress, AppVersionInfo, IPC_CHANNELS } from "../../shared/types";
 
 const execAsync = promisify(exec);
@@ -19,16 +20,61 @@ interface GitHubRelease {
   body: string;
   html_url: string;
   published_at: string;
+  draft?: boolean;
+  prerelease?: boolean;
   assets: Array<{
     name: string;
     browser_download_url: string;
     size: number;
+    digest?: string | null;
   }>;
 }
+
+type ReleaseAsset = GitHubRelease["assets"][number];
+
+export function isTrustedReleaseAssetUrl(url: string): boolean {
+  return url.startsWith(
+    `https://github.com/${UPDATE_REPOSITORY_OWNER}/${UPDATE_REPOSITORY_NAME}/releases/download/`,
+  );
+}
+
+export function pickReleaseAsset(
+  assets: ReleaseAsset[],
+  platform = process.platform,
+  arch = process.arch,
+): ReleaseAsset | null {
+  const trusted = assets.filter((asset) => isTrustedReleaseAssetUrl(asset.browser_download_url));
+  const patterns =
+    platform === "darwin"
+      ? [
+          arch === "arm64" ? /(?:arm64|aarch64).*\.dmg$/i : /x64.*\.dmg$/i,
+          /\.dmg$/i,
+        ]
+      : platform === "win32"
+        ? [
+            arch === "arm64" ? /(?:arm64|aarch64).*setup.*\.exe$/i : /x64.*setup.*\.exe$/i,
+            /(?:setup|installer).*\.exe$/i,
+            /\.exe$/i,
+          ]
+        : [
+            arch === "arm64" ? /arm64.*\.(?:AppImage|deb|rpm)$/i : /x64.*\.(?:AppImage|deb|rpm)$/i,
+            /\.(?:AppImage|deb|rpm)$/i,
+          ];
+
+  for (const pattern of patterns) {
+    const match = trusted.find((asset) => pattern.test(asset.name));
+    if (match) return match;
+  }
+  return null;
+}
+
+// GitHub omits these flags for normal releases, so keep them optional.
 
 export class UpdateManager {
   private mainWindow: BrowserWindow | null = null;
   private isUpdating = false;
+  private latestRelease: GitHubRelease | null = null;
+  private manualUpdatePath: string | null = null;
 
   setMainWindow(window: BrowserWindow): void {
     this.mainWindow = window;
@@ -135,11 +181,24 @@ export class UpdateManager {
       }
 
       const release = (await response.json()) as GitHubRelease;
+      if (release.draft || release.prerelease) {
+        throw new Error("GitHub returned a draft or prerelease; refusing to install it.");
+      }
       const latestVersion = release.tag_name.replace(/^v/, "");
+      if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(latestVersion)) {
+        throw new Error(`GitHub returned an invalid release tag: ${release.tag_name}`);
+      }
+      this.latestRelease = release;
       const available = this.isNewerVersion(latestVersion, currentVersion);
 
       // Determine update mode based on installation type
       const updateMode = this.getUpdateMode(versionInfo);
+
+      if (available && updateMode === "electron-updater" && !pickReleaseAsset(release.assets || [])) {
+        throw new Error(
+          `No trusted ${process.platform}/${process.arch} installer was found in release ${release.tag_name}.`,
+        );
+      }
 
       if (versionInfo.isGitRepo && !available) {
         // Only check for new commits if versions are equal (not if local version is newer)
@@ -238,7 +297,14 @@ export class UpdateManager {
       } else if (updateInfo.updateMode === "git") {
         await this.gitUpdate();
       } else {
-        await this.electronUpdaterUpdate(updateInfo);
+        try {
+          await this.downloadPackagedUpdate(updateInfo);
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.sendProgress({ phase: "error", message: `Update failed: ${message}` });
+          this.sendError(message);
+          throw error;
+        }
       }
     } finally {
       this.isUpdating = false;
@@ -501,7 +567,158 @@ export class UpdateManager {
     }
   }
 
+  private async fetchLatestRelease(): Promise<GitHubRelease> {
+    const response = await net.fetch(
+      `https://api.github.com/repos/${UPDATE_REPOSITORY_OWNER}/${UPDATE_REPOSITORY_NAME}/releases/latest`,
+      {
+        headers: {
+          Accept: "application/vnd.github.v3+json",
+          "User-Agent": "NeoWorker-Updater",
+        },
+      },
+    );
+    if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
+    const release = (await response.json()) as GitHubRelease;
+    if (release.draft || release.prerelease) {
+      throw new Error("GitHub returned a draft or prerelease; refusing to install it.");
+    }
+    const version = release.tag_name.replace(/^v/, "");
+    if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
+      throw new Error(`GitHub returned an invalid release tag: ${release.tag_name}`);
+    }
+    this.latestRelease = release;
+    return release;
+  }
+
+  private async downloadPackagedUpdate(updateInfo: UpdateInfo): Promise<void> {
+    const release =
+      this.latestRelease?.tag_name.replace(/^v/, "") === updateInfo.latestVersion
+        ? this.latestRelease
+        : await this.fetchLatestRelease();
+    const asset = pickReleaseAsset(release.assets || []);
+    if (!asset) {
+      throw new Error(
+        `No trusted ${process.platform}/${process.arch} installer was found in release ${release.tag_name}.`,
+      );
+    }
+
+    const tempDir = app.getPath("temp");
+    const filename = _path.basename(asset.name);
+    if (!filename || filename !== asset.name) {
+      throw new Error("GitHub returned an unsafe installer filename.");
+    }
+    const destination = _path.join(tempDir, filename);
+    const partial = `${destination}.part`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45_000);
+    let response: Response;
+    try {
+      response = await net.fetch(asset.browser_download_url, {
+        headers: { "User-Agent": "NeoWorker-Updater" },
+        signal: controller.signal,
+      });
+    } catch (error) {
+      throw new Error(
+        `Update download could not start within 45 seconds: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!response.ok || !response.body) {
+      throw new Error(`Update download failed: HTTP ${response.status}`);
+    }
+
+    await _fs.promises.rm(partial, { force: true });
+    const expectedSize = Number.isFinite(asset.size) && asset.size > 0 ? asset.size : undefined;
+    const expectedDigest =
+      typeof asset.digest === "string" && /^sha256:[0-9a-f]{64}$/i.test(asset.digest)
+        ? asset.digest.slice("sha256:".length).toLowerCase()
+        : undefined;
+    const hash = createHash("sha256");
+    const reader = response.body.getReader();
+    const file = await _fs.promises.open(partial, "w");
+    let bytesDownloaded = 0;
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    let streamError: unknown;
+
+    try {
+      this.sendProgress({
+        phase: "downloading",
+        percent: 0,
+        message: `Downloading NeoWorker ${updateInfo.latestVersion}...`,
+        bytesDownloaded: 0,
+        bytesTotal: expectedSize,
+      });
+      while (true) {
+        const chunk = await new Promise<ReadableStreamReadResult<Uint8Array>>((resolve, reject) => {
+          idleTimer = setTimeout(() => {
+            controller.abort();
+            reject(new Error("Update download stalled for 30 seconds."));
+          }, 30_000);
+          reader.read().then(resolve, reject);
+        }).finally(() => {
+          if (idleTimer) clearTimeout(idleTimer);
+        });
+        if (chunk.done) break;
+        if (!chunk.value || chunk.value.byteLength === 0) continue;
+        const buffer = Buffer.from(chunk.value);
+        await file.write(buffer);
+        hash.update(buffer);
+        bytesDownloaded += buffer.byteLength;
+        const percent = expectedSize ? Math.min(99, Math.round((bytesDownloaded / expectedSize) * 100)) : undefined;
+        this.sendProgress({
+          phase: "downloading",
+          percent,
+          message: percent === undefined ? `Downloading update... ${bytesDownloaded} bytes` : `Downloading update... ${percent}%`,
+          bytesDownloaded,
+          bytesTotal: expectedSize,
+        });
+      }
+    } catch (error) {
+      streamError = error;
+    } finally {
+      await file.close();
+      try {
+        await reader.cancel();
+      } catch {
+        // The stream may already be closed.
+      }
+    }
+    if (streamError !== undefined) {
+      await _fs.promises.rm(partial, { force: true });
+      throw streamError;
+    }
+
+    if (expectedSize !== undefined && bytesDownloaded !== expectedSize) {
+      await _fs.promises.rm(partial, { force: true });
+      throw new Error(`Update size mismatch: expected ${expectedSize} bytes, received ${bytesDownloaded}.`);
+    }
+    const actualDigest = hash.digest("hex");
+    if (expectedDigest && actualDigest !== expectedDigest) {
+      await _fs.promises.rm(partial, { force: true });
+      throw new Error("Update integrity check failed: SHA-256 digest does not match GitHub.");
+    }
+
+    await _fs.promises.rm(destination, { force: true });
+    await _fs.promises.rename(partial, destination);
+    this.manualUpdatePath = destination;
+    this.sendProgress({ phase: "complete", percent: 100, message: "Update downloaded. Ready to install." });
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send(IPC_CHANNELS.APP_UPDATE_DOWNLOADED, {
+        requiresRestart: false,
+        manual: true,
+        path: destination,
+        message: "Update downloaded. Open the installer to finish the update.",
+      });
+    }
+  }
+
   async installUpdateAndRestart(): Promise<void> {
+    if (this.manualUpdatePath) {
+      const openError = await shell.openPath(this.manualUpdatePath);
+      if (openError) throw new Error(`Could not open the downloaded installer: ${openError}`);
+      return;
+    }
     const versionInfo = await this.getVersionInfo();
 
     if (versionInfo.isGitRepo) {

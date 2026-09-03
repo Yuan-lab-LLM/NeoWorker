@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { truncateResultSummary, RESULT_SUMMARY_MAX_CHARS } from "../finalization-policy";
 
 /**
  * Mirrors TaskExecutor.buildResultSummary selection logic.
@@ -31,7 +32,7 @@ function buildResultSummary(
     if (!trimmed) continue;
     if (placeholders.has(trimmed.toLowerCase())) continue;
     if (trimmed.length < minLength) continue;
-    return trimmed.length > 4000 ? `${trimmed.slice(0, 4000)}...` : trimmed;
+    return truncateResultSummary(trimmed);
   }
 
   return undefined;
@@ -87,9 +88,9 @@ describe("Result Summary Selection", () => {
   });
 
   it("truncates long summaries", () => {
-    const long = "x".repeat(5000);
+    const long = "x".repeat(RESULT_SUMMARY_MAX_CHARS + 25);
     const summary = buildResultSummary(long, null, null);
-    expect(summary?.length).toBe(4003);
+    expect(summary?.length).toBe(RESULT_SUMMARY_MAX_CHARS + 3);
     expect(summary?.endsWith("...")).toBe(true);
   });
 });

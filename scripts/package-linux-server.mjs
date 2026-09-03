@@ -56,7 +56,7 @@ async function copyIfPresent(fromRelative, toRoot) {
   return true;
 }
 
-function getConnectorPackageNames(pkg) {
+async function getConnectorPackageNames(pkg) {
   const buildConnectorsScript = pkg.scripts?.["build:connectors"];
   if (typeof buildConnectorsScript !== "string" || buildConnectorsScript.length === 0) {
     throw new Error(
@@ -65,9 +65,14 @@ function getConnectorPackageNames(pkg) {
   }
 
   const names = new Set();
-  const connectorPattern = /connectors\/([^/\s"']+)\/tsconfig\.json/g;
-  for (const match of buildConnectorsScript.matchAll(connectorPattern)) {
-    names.add(match[1]);
+  // Resolve the source of truth from the filesystem instead of parsing a
+  // shell command. The build script is intentionally cross-platform Node.js,
+  // so connector names are no longer embedded in package.json.
+  const entries = await fsp.readdir(path.join(ROOT, "connectors"), { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isDirectory() && (await exists(path.join(ROOT, "connectors", entry.name, "tsconfig.json")))) {
+      names.add(entry.name);
+    }
   }
 
   if (names.size === 0) {
@@ -217,7 +222,7 @@ async function main() {
 
   const pkg = JSON.parse(await fsp.readFile(path.join(ROOT, "package.json"), "utf8"));
   const version = pkg.version;
-  const connectorPackageNames = getConnectorPackageNames(pkg);
+  const connectorPackageNames = await getConnectorPackageNames(pkg);
   const packageName = `neoworker-server-linux-x64-v${version}`;
   const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "neoworker-linux-server-package-"));
   const packageRoot = path.join(tempRoot, packageName);

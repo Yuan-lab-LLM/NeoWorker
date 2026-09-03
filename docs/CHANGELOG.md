@@ -7,14 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-03
+
+### Fixed
+
+- Integrated the long-result finalization limits into the executor source so packaged builds retain complete analysis responses instead of relying on an unapplied ASAR patch.
+- Added bounded, direction-aware flight query variants that preserve provider evidence and never synthesize flight numbers, schedules, or prices.
+- Replaced the packaged updater's unbounded electron-updater download path with trusted-asset filtering, streaming progress, timeout handling, and SHA-256 verification before opening the installer.
+- Restored the Linux server packaging scripts and made connector discovery cross-platform so the release workflow fails early with actionable build errors.
+
 ## [0.1.3] - 2026-09-03
 
 ### Fixed
 
-- Increased the post-tool finalization budget and retained-result summary limit so long analysis answers are not cut off prematurely.
-- Generalized flight lookup routing to infer city pairs, IATA codes, dates, and reliable indexed sources instead of falling back to a fixed Beijing–Shanghai route.
-- Hardened GitHub update downloads with trusted asset filtering, streaming progress, checksum verification, timeout handling, and a clear manual-install fallback.
-- Added packaged-runtime patch and regression-test scripts covering the three fixes above.
+- Added temporary packaged-runtime patch and regression-test scripts used to diagnose long-output, flight-routing, and updater failures. These scripts were not automatically applied to the published installer.
 
 ## [0.1.2] - 2026-09-03
 

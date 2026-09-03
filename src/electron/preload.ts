@@ -7821,7 +7821,12 @@ export interface ElectronAPI {
     }) => void,
   ) => () => void;
   onUpdateDownloaded: (
-    callback: (info: { requiresRestart: boolean; message: string }) => void,
+    callback: (info: {
+      requiresRestart: boolean;
+      message: string;
+      manual?: boolean;
+      path?: string;
+    }) => void,
   ) => () => void;
   onUpdateError: (callback: (error: { error: string }) => void) => () => void;
   // Guardrail Settings
