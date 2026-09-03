@@ -197,7 +197,7 @@ jobs:
           set -euo pipefail
           release_tag="${{ steps.release_metadata.outputs.release_tag }}"
           npm_version="${{ steps.release_metadata.outputs.npm_version }}"
-          release_title="Release ${npm_version}"
+          release_title="NeoWorker v${npm_version}"
 
           # Handle parallel matrix jobs safely: create if missing, otherwise edit.
           if gh release view "${release_tag}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
@@ -378,7 +378,7 @@ jobs:
           set -euo pipefail
           release_tag="${{ steps.release_metadata.outputs.release_tag }}"
           npm_version="${{ steps.release_metadata.outputs.npm_version }}"
-          release_title="Release ${npm_version}"
+          release_title="NeoWorker v${npm_version}"
 
           if gh release view "${release_tag}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             echo "Found existing release tag: ${release_tag}"
