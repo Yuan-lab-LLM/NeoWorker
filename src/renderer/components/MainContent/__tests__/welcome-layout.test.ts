@@ -160,6 +160,19 @@ describe("Welcome layout", () => {
     expect(source).toContain(".quick-start-affordance");
   });
 
+  it("keeps the latest focused homepage agent hub in the shipped source", () => {
+    const source = readFileSync(componentPath, "utf8");
+    const styles = readFileSync(stylesPath, "utf8");
+
+    expect(source).toMatch(/function\s+HomeAgentHub/);
+    expect(source).toContain('"推荐智能体"');
+    expect(source).toContain("getAgentRolePortrait");
+    expect(source).toMatch(/researcher[\s\S]*coder[\s\S]*data_analyst[\s\S]*writer/);
+    expect(source).toContain('onViewAll={onOpenAgentManagement}');
+    expect(styles).toMatch(/\.nw-home-agent-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(4/);
+    expect(styles).toContain(".nw-home-agent-card");
+  });
+
   it("fills recommendation prompts into the composer without executing them", () => {
     const component = readFileSync(componentPath, "utf8");
     const quickAction =

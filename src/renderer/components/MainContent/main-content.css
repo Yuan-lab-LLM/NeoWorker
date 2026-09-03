@@ -18735,6 +18735,144 @@
   box-shadow: none;
 }
 
+/* Focused homepage recommended agents. Keep this row compact so the composer
+   and quick-start actions remain visible on laptop-sized windows. */
+.welcome-content.welcome-content-focused > .nw-home-agent-hub {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.nw-home-agent-hub-header {
+  margin-bottom: 8px;
+}
+
+.nw-home-agent-hub-header h2 {
+  margin: 0;
+  color: var(--color-text-primary, var(--color-text));
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.nw-home-agent-hub-header p {
+  margin: 3px 0 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.nw-home-agent-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.nw-home-agent-card {
+  display: grid;
+  min-width: 0;
+  min-height: 72px;
+  box-sizing: border-box;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  color: var(--color-text);
+  background: var(--color-bg-elevated);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-text) 4%, transparent);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.nw-home-agent-card:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border-subtle));
+  box-shadow: 0 9px 22px -16px color-mix(in srgb, var(--color-accent) 46%, var(--color-text));
+  transform: translateY(-2px);
+}
+
+.nw-home-agent-card:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 48%, transparent);
+  outline-offset: 2px;
+}
+
+.nw-home-agent-portrait {
+  display: block;
+  width: 44px;
+  height: 54px;
+  object-fit: cover;
+  object-position: top;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-bg-hover));
+}
+
+.nw-home-agent-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.nw-home-agent-name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-primary, var(--color-text));
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.nw-home-agent-name > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nw-home-agent-status {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #19a974;
+  box-shadow: 0 0 0 2px #e8f8f1;
+}
+
+.nw-home-agent-description {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+@media (max-width: 760px) {
+  .nw-home-agent-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .nw-home-agent-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nw-home-agent-card {
+    transition: none;
+  }
+}
+
 .welcome-content.welcome-content-focused .quick-start-section .focused-cards-section-header {
   display: flex;
   min-height: 28px;

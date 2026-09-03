@@ -1022,6 +1022,7 @@ type SelectedTaskWorkspaceViewProps = {
   onChangeWorkspace: () => void;
   onSelectWorkspace: (workspace: Workspace) => void;
   onOpenSettings: (tab?: string) => void;
+  onOpenAgentManagement: () => void;
   onStopTask: () => Promise<void>;
   onEnableShellForPausedTask: () => Promise<void>;
   onContinueWithoutShellForPausedTask: () => Promise<void>;
@@ -1151,6 +1152,7 @@ const SelectedTaskWorkspaceView = memo(
     onChangeWorkspace,
     onSelectWorkspace,
     onOpenSettings,
+    onOpenAgentManagement,
     onStopTask,
     onEnableShellForPausedTask,
     onContinueWithoutShellForPausedTask,
@@ -1949,6 +1951,7 @@ const SelectedTaskWorkspaceView = memo(
               onChangeWorkspace={onChangeWorkspace}
               onSelectWorkspace={onSelectWorkspace}
               onOpenSettings={onOpenSettings as Any}
+              onOpenAgentManagement={onOpenAgentManagement}
               onStopTask={onStopTask}
               onEnableShellForPausedTask={onEnableShellForPausedTask}
               onContinueWithoutShellForPausedTask={
@@ -2226,6 +2229,7 @@ const SelectedTaskWorkspaceView = memo(
     prev.sideChat === next.sideChat &&
     prev.rightPanelInput === next.rightPanelInput &&
     prev.onArtifactFocusChange === next.onArtifactFocusChange &&
+    prev.onOpenAgentManagement === next.onOpenAgentManagement &&
     prev.onToggleRightSidebar === next.onToggleRightSidebar,
 );
 
@@ -2477,14 +2481,14 @@ export function App() {
   const [remoteTaskView, setRemoteTaskView] = useState<RemoteTaskView | null>(
     null,
   );
-  // The workspace dashboard is the first-run landing surface.  Starting in
-  // the chat/task view made a fresh install look like the legacy interface
-  // even though the newer dashboard was already bundled in the release.
-  const [currentView, setCurrentView] = useState<AppView>("home");
+  // Start in the focused welcome surface so a fresh install opens the same
+  // task-first experience as an existing session (including recommended
+  // agents and quick-start actions).
+  const [currentView, setCurrentView] = useState<AppView>("main");
   const [agentTeamSelectedRole, setAgentTeamSelectedRole] =
     useState<AgentRole | null>(null);
   const navigationHistoryRef = useRef<AppNavigationEntry[]>([
-    { view: "home", taskId: null },
+    { view: "main", taskId: null },
   ]);
   const navigationIndexRef = useRef(0);
   const navigationApplyTargetRef = useRef<AppNavigationEntry | null>(null);
@@ -2875,7 +2879,7 @@ export function App() {
   const sideChatRequestSeqRef = useRef(0);
   const selectedTaskIdRef = useRef<string | null>(null);
   const fetchedFullTaskForMentionMetadataRef = useRef<Set<string>>(new Set());
-  const currentViewRef = useRef<AppView>("home");
+  const currentViewRef = useRef<AppView>("main");
   const rightSidebarCollapsedRef = useRef(false);
   const currentWorkspaceRef = useRef<Workspace | null>(null);
   const noiseEventThrottleRef = useRef<Map<string, number>>(new Map());
@@ -8247,6 +8251,7 @@ export function App() {
                     );
                     setCurrentView("settings");
                   }}
+                  onOpenAgentManagement={() => setCurrentView("agentsManage")}
                   onStopTask={handleCancelTask}
                   onEnableShellForPausedTask={handleEnableShellForPausedTask}
                   onContinueWithoutShellForPausedTask={
