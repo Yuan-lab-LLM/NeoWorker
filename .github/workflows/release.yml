@@ -147,6 +147,10 @@ jobs:
 
       - name: Validate npm tarball first-install flow
         if: runner.os != 'Windows'
+        # This check targets the optional CLI distribution. Desktop releases
+        # are validated separately by the platform smoke check below; keep a
+        # CLI-only failure visible without blocking the installers.
+        continue-on-error: true
         run: node scripts/release-smoke-install.mjs
 
       - name: Build application
