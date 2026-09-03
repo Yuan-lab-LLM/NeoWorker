@@ -2477,11 +2477,14 @@ export function App() {
   const [remoteTaskView, setRemoteTaskView] = useState<RemoteTaskView | null>(
     null,
   );
-  const [currentView, setCurrentView] = useState<AppView>("main");
+  // The workspace dashboard is the first-run landing surface.  Starting in
+  // the chat/task view made a fresh install look like the legacy interface
+  // even though the newer dashboard was already bundled in the release.
+  const [currentView, setCurrentView] = useState<AppView>("home");
   const [agentTeamSelectedRole, setAgentTeamSelectedRole] =
     useState<AgentRole | null>(null);
   const navigationHistoryRef = useRef<AppNavigationEntry[]>([
-    { view: "main", taskId: null },
+    { view: "home", taskId: null },
   ]);
   const navigationIndexRef = useRef(0);
   const navigationApplyTargetRef = useRef<AppNavigationEntry | null>(null);
@@ -2872,7 +2875,7 @@ export function App() {
   const sideChatRequestSeqRef = useRef(0);
   const selectedTaskIdRef = useRef<string | null>(null);
   const fetchedFullTaskForMentionMetadataRef = useRef<Set<string>>(new Set());
-  const currentViewRef = useRef<AppView>("main");
+  const currentViewRef = useRef<AppView>("home");
   const rightSidebarCollapsedRef = useRef(false);
   const currentWorkspaceRef = useRef<Workspace | null>(null);
   const noiseEventThrottleRef = useRef<Map<string, number>>(new Map());

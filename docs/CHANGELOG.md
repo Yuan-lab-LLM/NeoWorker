@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-03
+
+### Changed
+
+- Open a fresh NeoWorker window on the workspace dashboard so the published build does not fall back to the legacy empty-session surface.
+- Keep the full task/session runtime and existing navigation available from the dashboard.
+
 ## [0.1.1] - 2026-09-02
 
 ### Fixed
@@ -1710,6 +1717,7 @@ This release is the first recommended Windows install baseline for normal users 
 [0.1.5]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.5
 [0.1.4]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.4
 [0.1.3]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.3
+[0.1.2]: https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.1.1
 [0.1.0]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.0
 [0.0.1]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.0.1

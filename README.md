@@ -87,7 +87,7 @@ NeoWorker focuses on turning AI from a conversational assistant into a personal 
 
 ## Current version
 
-The current public version is **<code>v0.1</code>** (package version <code>0.1.0</code>). The GitHub Release includes:
+The current public version is **<code>v0.1.2</code>** (package version <code>0.1.2</code>). The GitHub Release includes:
 
 - a macOS Apple Silicon <code>.dmg</code> package
 - a Windows <code>.exe</code> installer
@@ -103,9 +103,9 @@ Download NeoWorker only from the official [GitHub Releases](https://github.com/Y
 
 | Platform | Package | Installation |
 | --- | --- | --- |
-| **macOS (Apple Silicon)** | <code>NeoWorker-0.1.0-arm64.dmg</code> | Open the disk image and drag NeoWorker into Applications. |
-| **Windows (x64)** | <code>NeoWorker-0.1.0-windows-x64-setup.exe</code> | Run the installer and follow the setup prompts. |
-| **Checksums** | <code>NeoWorker-0.1.0-local-v5-SHA256SUMS.txt</code> | Verify the downloaded installer before opening it. |
+| **macOS (Apple Silicon)** | <code>NeoWorker-0.1.2-arm64.dmg</code> | Open the disk image and drag NeoWorker into Applications. |
+| **Windows (x64)** | <code>NeoWorker-0.1.2-windows-x64-setup.exe</code> | Run the installer and follow the setup prompts. |
+| **Checksums** | <code>latest-mac.yml</code> / <code>latest.yml</code> | Verify the downloaded installer before opening it. |
 
 #### Verify the download
 
@@ -114,20 +114,20 @@ Download the checksum manifest from the same Release, calculate the installer ch
 On macOS:
 
 ~~~bash
-shasum -a 256 NeoWorker-0.1.0-arm64.dmg
+shasum -a 256 NeoWorker-0.1.2-arm64.dmg
 ~~~
 
 On Windows PowerShell:
 
 ~~~powershell
-Get-FileHash .\NeoWorker-0.1.0-windows-x64-setup.exe -Algorithm SHA256
+Get-FileHash .\NeoWorker-0.1.2-windows-x64-setup.exe -Algorithm SHA256
 ~~~
 
 #### Install on macOS
 
-NeoWorker v0.1 for macOS is an unsigned Apple Silicon build. The first launch may therefore need a one-time Gatekeeper approval for this app.
+NeoWorker v0.1.2 for macOS is an unsigned Apple Silicon build. The first launch may therefore need a one-time Gatekeeper approval for this app.
 
-1. Download <code>NeoWorker-0.1.0-arm64.dmg</code> from the official [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) page.
+1. Download <code>NeoWorker-0.1.2-arm64.dmg</code> from the official [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) page.
 2. Open the downloaded disk image, then drag **NeoWorker** into **Applications**.
 
    <p align="left">
@@ -176,7 +176,7 @@ If macOS says NeoWorker **will damage your computer**, do not bypass that warnin
 
 #### Install on Windows
 
-1. Download <code>NeoWorker-0.1.0-windows-x64-setup.exe</code> from the official [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) page.
+1. Download <code>NeoWorker-0.1.2-windows-x64-setup.exe</code> from the official [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) page.
 2. Double-click the installer and follow the setup prompts.
 3. If Windows SmartScreen displays **Windows protected your PC**, confirm that the file name is the NeoWorker installer from this Release, click **More info**, then click **Run anyway**.
 4. Finish setup and launch **NeoWorker** from the Start menu or desktop shortcut.
