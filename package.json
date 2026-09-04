@@ -160,7 +160,7 @@
     "cross-env": "^10.1.0",
     "electron": "^40.4.1",
     "electron-builder": "^26.15.3",
-    "eslint": "^9.39.2",
+    "eslint": "^10.8.1",
     "globals": "^17.3.0",
     "oxfmt": "^0.40.0",
     "oxlint": "^1.47.0",
