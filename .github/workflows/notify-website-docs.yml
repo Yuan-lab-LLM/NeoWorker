@@ -21,8 +21,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          gh api repos/NeoWorker/neoworker-web/dispatches \
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::WEBSITE_REPO_DISPATCH_TOKEN is not configured; skipping website docs refresh."
+            exit 0
+          fi
+
+          if ! gh api repos/NeoWorker/neoworker-web/dispatches \
             --method POST \
             -f event_type=neoworker_docs_changed \
             -f client_payload[source_repo]="${{ github.repository }}" \
-            -f client_payload[sha]="${{ github.sha }}"
+            -f client_payload[sha]="${{ github.sha }}"; then
+            echo "::warning::Website docs refresh dispatch failed; the source repository commit is still valid."
+          fi

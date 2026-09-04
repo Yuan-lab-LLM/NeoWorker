@@ -87,10 +87,11 @@ NeoWorker 聚焦把 AI 从对话助手升级为能够持续理解上下文、执
 
 ## 当前版本
 
-当前公开版本为 **`v0.1`**（安装包语义版本为 `0.1.0`），与 NeoWorker 应用内显示一致。GitHub Release 提供：
+当前公开版本为 **`v0.1.8`**（安装包语义版本为 `0.1.8`），与 NeoWorker 应用内显示一致。GitHub Release 提供：
 
 - macOS Apple Silicon `.dmg`
 - Windows `.exe` 安装程序
+- Linux Server x64 `.tar.gz` 服务端包
 - 对应版本的更新说明和校验信息
 
 版本变更请查看[版本记录](./CHANGELOG.md)。
@@ -103,31 +104,26 @@ NeoWorker 聚焦把 AI 从对话助手升级为能够持续理解上下文、执
 
 | 平台 | 安装包 | 安装方式 |
 | --- | --- | --- |
-| **macOS（Apple Silicon）** | `NeoWorker-0.1.0-arm64.dmg` | 打开磁盘映像，将 NeoWorker 拖入“应用程序”。 |
-| **Windows（x64）** | `NeoWorker-0.1.0-windows-x64-setup.exe` | 运行安装程序并按提示完成安装。 |
-| **校验文件** | `NeoWorker-0.1.0-local-v5-SHA256SUMS.txt` | 打开安装包前核对下载文件。 |
+| **macOS（Apple Silicon）** | `NeoWorker-0.1.8-arm64.dmg` | 打开磁盘映像，将 NeoWorker 拖入“应用程序”。 |
+| **Windows（x64）** | `NeoWorker-0.1.8-windows-x64-setup.exe` | 运行安装程序并按提示完成安装。 |
+| **Linux Server（x64）** | `neoworker-server-linux-x64-v0.1.8.tar.gz` | 解压后按服务端说明启动。 |
+| **校验文件** | `neoworker-server-linux-x64-v0.1.8.tar.gz.sha256` | 打开或解压安装包前核对下载文件。 |
 
 #### 校验下载文件
 
-请从同一个 Release 下载校验文件，在本地计算安装包的 SHA-256，并在打开安装包前核对两个值是否一致。
-
-macOS：
+对于 Linux Server 压缩包，请从同一个 Release 下载配套的 `.sha256` 文件，在解压前执行：
 
 ```bash
-shasum -a 256 NeoWorker-0.1.0-arm64.dmg
+sha256sum --check neoworker-server-linux-x64-v0.1.8.tar.gz.sha256
 ```
 
-Windows PowerShell：
-
-```powershell
-Get-FileHash .\NeoWorker-0.1.0-windows-x64-setup.exe -Algorithm SHA256
-```
+桌面安装包使用 Electron 更新清单 `latest-mac.yml` 和 `latest.yml`。打开安装包前，请确认清单中的版本和文件名均为 `0.1.8`。
 
 #### macOS 安装须知
 
-NeoWorker v0.1 的 macOS 安装包适用于 Apple Silicon，当前为未签名构建，因此首次启动时可能需要针对 NeoWorker 完成一次 Gatekeeper 放行。
+NeoWorker v0.1.8 的 macOS 安装包适用于 Apple Silicon，当前为未签名构建，因此首次启动时可能需要针对 NeoWorker 完成一次 Gatekeeper 放行。
 
-1. 从官方 [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) 页面下载 `NeoWorker-0.1.0-arm64.dmg`。
+1. 从官方 [NeoWorker v0.1.8 Release](https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.1.8) 页面下载 `NeoWorker-0.1.8-arm64.dmg`。
 2. 双击打开下载的磁盘映像，将 **NeoWorker** 拖到 **应用程序（Applications）** 文件夹。
 
    <p align="left">
@@ -176,7 +172,7 @@ open "/Applications/NeoWorker.app"
 
 #### Windows 安装须知
 
-1. 从官方 [NeoWorker Releases](https://github.com/Yuan-lab-LLM/NeoWorker/releases/latest) 页面下载 `NeoWorker-0.1.0-windows-x64-setup.exe`。
+1. 从官方 [NeoWorker v0.1.8 Release](https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.1.8) 页面下载 `NeoWorker-0.1.8-windows-x64-setup.exe`。
 2. 双击安装程序，按界面提示完成安装。
 3. 如果 Windows SmartScreen 显示**“Windows 已保护你的电脑”**，先确认文件名是本 Release 提供的 NeoWorker 安装程序，再点击**“更多信息” → “仍要运行”**。
 4. 安装完成后，从开始菜单或桌面快捷方式启动 **NeoWorker**。

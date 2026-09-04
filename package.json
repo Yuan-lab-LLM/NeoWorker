@@ -72,6 +72,7 @@
     "package:mac:smoke": "node scripts/smoke-desktop-artifacts.mjs --platform=mac",
     "package:win:smoke": "node scripts/smoke-desktop-artifacts.mjs --platform=win",
     "office:release-gate": "npm run build:electron && node scripts/qa/office-artifact-release-gate.cjs",
+    "adoption:update": "node scripts/collect-public-adoption-stats.mjs && node scripts/render-public-adoption-summary.mjs",
     "qa:eval:build": "node scripts/qa/build_eval_corpus.cjs",
     "qa:eval:run": "node scripts/qa/run_eval_suite.cjs",
     "skills:validate-routing": "node scripts/qa/validate-skills-routing.mjs",
