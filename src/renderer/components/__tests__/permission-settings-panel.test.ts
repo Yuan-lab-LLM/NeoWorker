@@ -23,13 +23,17 @@ const builtinCategories = {
 
 describe("PermissionSettingsPanel helpers", () => {
   it("renders domain-scoped rules without returning an object", () => {
-    expect(
-      scopeToLabel({
-        kind: "domain",
-        domain: "api.example.com",
-        toolName: "http_request",
-      }),
-    ).toBe("Domain: api.example.com (http_request)");
+    const label = scopeToLabel({
+      kind: "domain",
+      domain: "api.example.com",
+      toolName: "http_request",
+    });
+
+    // The UI is localized; assert the rendered values without hard-coding
+    // either the English or Chinese label wrapper.
+    expect(typeof label).toBe("string");
+    expect(label).toContain("api.example.com");
+    expect(label).toContain("http_request");
   });
 
   it("builds a domain scope from the rule draft", () => {
