@@ -115,7 +115,7 @@ jobs:
           cache: 'npm'
 
       - name: Cache pinned Numbat toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/neoworker/numbat-build
           key: ${{ runner.os }}-numbat-${{ hashFiles('resources/numbat/source-manifest.json') }}
