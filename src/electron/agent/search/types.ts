@@ -37,6 +37,11 @@ export interface SearchQuery {
   region?: string; // e.g., 'us', 'uk', 'de'
   language?: string; // e.g., 'en', 'de', 'fr'
   safeSearch?: boolean;
+  // Prefer the free route-aware provider for flight lookups. Explicit
+  // provider selections still take precedence.
+  preferFlight?: boolean;
+  // Prefer the mainland search route for Chinese-language lookups.
+  preferChinaRoute?: boolean;
   // Override provider for this query
   provider?: SearchProviderType;
 }

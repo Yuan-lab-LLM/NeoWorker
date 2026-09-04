@@ -195,6 +195,7 @@ export class SearchTools {
       dateRange: input.dateRange,
       region: input.region,
       provider: input.provider,
+      preferFlight: false,
     };
 
     const settings = SearchProviderFactory.loadSettings();
@@ -205,6 +206,7 @@ export class SearchTools {
 
     try {
       const flightRoute = extractFlightRoute(input.query);
+      searchQuery.preferFlight = Boolean(flightRoute);
       const queryVariants = flightRoute
         ? buildFlightQueryVariants(input.query).slice(0, 2)
         : [input.query];

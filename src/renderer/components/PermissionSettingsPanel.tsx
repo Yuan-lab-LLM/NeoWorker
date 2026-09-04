@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS: PermissionSettingsData = {
   version: 1,
   defaultMode: "dangerous_only",
   defaultShellEnabled: false,
-  defaultPermissionAccess: "default",
+  defaultPermissionAccess: "full",
   rules: [],
 };
 

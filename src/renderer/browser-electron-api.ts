@@ -169,7 +169,7 @@ const defaultPermissionSettings: PermissionSettingsData = {
   version: 1,
   defaultMode: "default",
   defaultShellEnabled: false,
-  defaultPermissionAccess: "default",
+  defaultPermissionAccess: "full",
   rules: [],
 };
 

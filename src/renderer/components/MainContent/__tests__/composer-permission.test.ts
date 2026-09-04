@@ -13,6 +13,15 @@ const mainContentSource = readFileSync(
 );
 
 describe("composer permission state", () => {
+  it("boots the composer with the recovered full-access default", () => {
+    expect(mainContentSource).toContain(
+      'useState<PermissionAccessMode>("full")',
+    );
+    expect(mainContentSource).toContain(
+      'useRef<PermissionAccessMode>("full")',
+    );
+  });
+
   it("shows full access for a task persisted with bypass permissions", () => {
     expect(
       resolveComposerPermissionAccessMode("bypass_permissions", "default"),

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Restored the recovered build's full-access default consistently across the
+  permission manager, renderer fallback, settings panel, and task composer.
+- Expanded flight route aliases, rejected reverse-direction evidence, and
+  preferred the built-in DuckDuckGo route for automatic flight searches while
+  preserving explicit provider selections and paid-provider fallback.
+
 ## [0.1.6] - 2026-09-03
 
 ### Added

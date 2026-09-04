@@ -5435,10 +5435,10 @@ function MainContentComponent({
   const [executionModeDirty, setExecutionModeDirty] = useState(false);
   const [chatModeUpgradePrompt, setChatModeUpgradePrompt] = useState(false);
   const [defaultPermissionAccessMode, setDefaultPermissionAccessMode] =
-    useState<PermissionAccessMode>("default");
+    useState<PermissionAccessMode>("full");
   const [permissionAccessMode, setPermissionAccessModeState] =
-    useState<PermissionAccessMode>("default");
-  const permissionAccessModeRef = useRef<PermissionAccessMode>("default");
+    useState<PermissionAccessMode>("full");
+  const permissionAccessModeRef = useRef<PermissionAccessMode>("full");
   const permissionAccessModeDirtyRef = useRef(false);
   const setPermissionAccessMode = useCallback(
     (next: PermissionAccessMode, userInitiated = false) => {
@@ -7181,7 +7181,10 @@ function MainContentComponent({
         setPermissionAccessMode(nextDefault);
         return;
       }
-      if (!permissionAccessModeDirtyRef.current && permissionAccessModeRef.current === "default") {
+      // Apply the persisted profile even when the recovered default starts at
+      // "full". A task with its own permission mode is resolved separately
+      // and must not be overwritten by the global profile hydration.
+      if (!permissionAccessModeDirtyRef.current && !task?.agentConfig?.permissionMode) {
         setPermissionAccessMode(nextDefault);
       }
     };

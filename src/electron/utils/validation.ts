@@ -671,7 +671,7 @@ export const PermissionSettingsSchema = z.object({
   version: z.literal(1),
   defaultMode: PermissionModeSchema,
   defaultShellEnabled: z.boolean().default(false),
-  defaultPermissionAccess: z.enum(["default", "full"]).default("default"),
+  defaultPermissionAccess: z.enum(["default", "full"]).default("full"),
   rules: z.array(PermissionRuleSchema).default([]),
 });
 

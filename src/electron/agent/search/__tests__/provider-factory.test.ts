@@ -271,6 +271,10 @@ describe("SearchProviderFactory", () => {
   });
 
   describe("provider execution order", () => {
+    it("defaults to the built-in DuckDuckGo route when no provider is selected", () => {
+      expect(SearchProviderFactory.loadSettings().primaryProvider).toBe("duckduckgo");
+    });
+
     it("should respect the explicitly selected primary provider", () => {
       const settings = {
         primaryProvider: "tavily",
@@ -324,6 +328,36 @@ describe("SearchProviderFactory", () => {
       const order = (SearchProviderFactory as Any).getProviderExecutionOrder(settings);
 
       expect(order).toEqual(["duckduckgo", "tavily", "brave"]);
+    });
+
+    it("puts DuckDuckGo first for automatic flight searches", () => {
+      const settings = {
+        primaryProvider: null,
+        fallbackProvider: "tavily",
+        tavily: { apiKey: "tavily" },
+        brave: { apiKey: "brave" },
+      } as Any;
+
+      const order = (SearchProviderFactory as Any).getProviderExecutionOrder(settings, {
+        preferFlight: true,
+      });
+
+      expect(order).toEqual(["duckduckgo", "brave", "tavily"]);
+    });
+
+    it("keeps an explicitly configured primary provider first for flights", () => {
+      const settings = {
+        primaryProvider: "tavily",
+        fallbackProvider: "brave",
+        tavily: { apiKey: "tavily" },
+        brave: { apiKey: "brave" },
+      } as Any;
+
+      const order = (SearchProviderFactory as Any).getProviderExecutionOrder(settings, {
+        preferFlight: true,
+      });
+
+      expect(order).toEqual(["tavily", "brave", "duckduckgo"]);
     });
   });
 

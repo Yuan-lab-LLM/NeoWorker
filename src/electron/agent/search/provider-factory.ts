@@ -17,6 +17,7 @@ import { GoogleProvider } from "./google-provider";
 import { DuckDuckGoProvider } from "./duckduckgo-provider";
 import { SecureSettingsRepository } from "../../database/SecureSettingsRepository";
 import { getUserDataDir } from "../../utils/user-data-dir";
+import { isFlightQuery } from "./flight-query";
 
 const LEGACY_SETTINGS_FILE = "search-settings.json";
 
@@ -327,24 +328,19 @@ export class SearchProviderFactory {
       console.error("[SearchProviderFactory] Failed to load settings from database:", error);
     }
 
-    // Auto-detect and select providers if primaryProvider is not set.
-    // Only auto-select paid providers — DuckDuckGo is an implicit last-resort fallback.
+    // Keep the built-in route as the default when the user has not selected a
+    // provider. This avoids making the first search depend on an optional paid
+    // provider key; configured providers remain available as fallbacks.
     if (!settings.primaryProvider) {
-      const orderedProviders = this.getProviderExecutionOrder(settings).filter(
-        (p) => p !== "duckduckgo",
-      );
-      if (orderedProviders.length > 0) {
-        settings.primaryProvider = orderedProviders[0];
+      settings.primaryProvider = "duckduckgo";
+      const configuredProviders = this.getConfiguredProvidersFromSettings(settings);
+      if (configuredProviders.length > 0 && !settings.fallbackProvider) {
+        settings.fallbackProvider = configuredProviders[0];
         console.log(
-          `[SearchProviderFactory] Auto-selected primary provider: ${orderedProviders[0]}`,
+          `[SearchProviderFactory] Auto-selected fallback provider: ${settings.fallbackProvider}`,
         );
-        if (orderedProviders.length > 1 && !settings.fallbackProvider) {
-          settings.fallbackProvider = orderedProviders[1];
-          console.log(
-            `[SearchProviderFactory] Auto-selected fallback provider: ${orderedProviders[1]}`,
-          );
-        }
       }
+      console.log("[SearchProviderFactory] Using built-in DuckDuckGo as the default provider");
     }
 
     this.cachedSettings = settings;
@@ -494,10 +490,12 @@ export class SearchProviderFactory {
    */
   static async searchWithFallback(query: SearchQuery): Promise<SearchResponse> {
     const settings = this.loadSettings();
+    const preferFlight = query.preferFlight === true || isFlightQuery(query.query);
 
-    // getProviderExecutionOrder always includes DuckDuckGo as a last-resort fallback.
+    // getProviderExecutionOrder uses the built-in DuckDuckGo/Bing route by
+    // default; explicit primary/fallback settings still retain their order.
     // When a provider is explicitly requested we still allow fallback on quota/rate errors.
-    const providerExecutionOrder = this.getProviderExecutionOrder(settings);
+    const providerExecutionOrder = this.getProviderExecutionOrder(settings, { preferFlight });
     const providersToTry = query.provider
       ? [query.provider, ...providerExecutionOrder.filter((provider) => provider !== query.provider)]
       : providerExecutionOrder;
@@ -541,6 +539,22 @@ export class SearchProviderFactory {
         const provider = this.createProviderFromConfig(providerConfig);
         const scopedQuery: SearchQuery = { ...query, provider: providerType };
         const response = await this.searchWithRetry(provider, scopedQuery);
+        // An empty DDG response is not useful evidence for a flight lookup.
+        // Continue to the configured provider chain instead of terminating
+        // after a sparse or blocked HTML index.
+        if (
+          preferFlight &&
+          providerType === "duckduckgo" &&
+          response.results.length === 0 &&
+          orderedProviders[i + 1]
+        ) {
+          providerErrors.push({
+            provider: providerType,
+            error: "DuckDuckGo returned no flight results",
+            failureClass: "external_unknown",
+          });
+          continue;
+        }
         this.clearProviderCooldown(providerType);
         return response;
       } catch (error: Any) {
@@ -658,11 +672,14 @@ export class SearchProviderFactory {
   /**
    * Build the provider execution order for automatic search fallback.
    * - Always respect the user's explicit primary/fallback ordering.
-   * - When no preference exists, prefer Brave among multiple configured providers.
+   * - When no preference exists, use the built-in DuckDuckGo/Bing route first.
    * - Fill remaining providers from the detected configured list.
-   * - DuckDuckGo is appended as the last-resort fallback unless explicitly selected earlier.
+   * - Keep DuckDuckGo available as a final fallback for explicitly configured paid routes.
    */
-  private static getProviderExecutionOrder(settings: SearchSettings): SearchProviderType[] {
+  private static getProviderExecutionOrder(
+    settings: SearchSettings,
+    options: { preferFlight?: boolean } = {},
+  ): SearchProviderType[] {
     const configuredProviders = this.getConfiguredProvidersFromSettings(settings);
     const orderedProviders: SearchProviderType[] = [];
     const addProviderIfAvailable = (provider?: SearchProviderType | null) => {
@@ -674,6 +691,12 @@ export class SearchProviderFactory {
         orderedProviders.push(provider);
       }
     };
+
+    // Keep this branch for callers that pass an unhydrated settings object
+    // directly. loadSettings() normally materializes DuckDuckGo as primary.
+    if (options.preferFlight && !settings.primaryProvider) {
+      addProviderIfAvailable("duckduckgo");
+    }
 
     if (settings.primaryProvider) {
       addProviderIfAvailable(settings.primaryProvider);

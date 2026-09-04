@@ -22,6 +22,10 @@ describe("flight query routing", () => {
       fromCode: "PEK",
       toCode: "SHA",
     });
+    expect(extractFlightRoute("HGH XIY flight schedule")).toMatchObject({
+      fromCode: "HGH",
+      toCode: "XIY",
+    });
     expect(isFlightQuery("PEK to SHA flight schedule")).toBe(true);
   });
 
@@ -43,5 +47,40 @@ describe("flight query routing", () => {
     expect(
       filterFlightResults([results[1]], route).results,
     ).toEqual([results[1]]);
+  });
+
+  it("does not treat a reverse route page as evidence for the requested direction", () => {
+    const route = extractFlightRoute("杭州到西安航班")!;
+    expect(route).toMatchObject({ fromCode: "HGH", toCode: "XIY" });
+    const results = [
+      {
+        title: "XIY to HGH flight schedule",
+        url: "https://example.com/reverse",
+        snippet: "XIY → HGH",
+      },
+      {
+        title: "HGH to XIY flight schedule",
+        url: "https://example.com/forward",
+        snippet: "HGH → XIY",
+      },
+    ];
+
+    expect(filterFlightResults(results, route).results).toEqual([results[1]]);
+  });
+
+  it("recognizes additional domestic and regional city aliases", () => {
+    expect(extractFlightRoute("广州到沈阳 9月3日航班")).toMatchObject({
+      fromCity: "广州",
+      fromCode: "CAN",
+      toCity: "沈阳",
+      toCode: "SHE",
+      date: "9月3日",
+    });
+    expect(extractFlightRoute("HKG to TPE flight schedule")).toMatchObject({
+      fromCity: "香港",
+      fromCode: "HKG",
+      toCity: "台北",
+      toCode: "TPE",
+    });
   });
 });

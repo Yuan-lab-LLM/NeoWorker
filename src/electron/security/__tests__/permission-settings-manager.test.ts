@@ -1,4 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../../database/SecureSettingsRepository", () => ({
+  SecureSettingsRepository: {
+    isInitialized: vi.fn(),
+    getInstance: vi.fn(),
+  },
+}));
+
 import { SecureSettingsRepository } from "../../database/SecureSettingsRepository";
 import { PermissionSettingsManager } from "../permission-settings-manager";
 
@@ -52,14 +60,14 @@ describe("PermissionSettingsManager", () => {
     ]);
   });
 
-  it("falls back to dangerous_only when no settings are stored", () => {
+  it("falls back to dangerous_only with full access for new tasks", () => {
     repository.load.mockReturnValue(undefined);
 
     const settings = PermissionSettingsManager.loadSettings();
 
     expect(settings.defaultMode).toBe("dangerous_only");
     expect(settings.defaultShellEnabled).toBe(false);
-    expect(settings.defaultPermissionAccess).toBe("default");
+    expect(settings.defaultPermissionAccess).toBe("full");
     expect(settings.rules).toEqual([]);
   });
 

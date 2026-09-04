@@ -17,7 +17,10 @@ const DEFAULT_SETTINGS: PermissionSettings = {
   version: 1,
   defaultMode: "dangerous_only",
   defaultShellEnabled: false,
-  defaultPermissionAccess: "default",
+  // Match the recovered NeoWorker build: new tasks start in full access.
+  // Users can still explicitly downgrade a task or change this profile in
+  // Permission Settings; persisted settings continue to take precedence.
+  defaultPermissionAccess: "full",
   rules: [],
 };
 

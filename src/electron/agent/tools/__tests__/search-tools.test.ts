@@ -203,6 +203,14 @@ describe("SearchTools", () => {
       const result = await searchTools.webSearch({ query: "北京到上海9月3日航班" });
 
       expect(SearchProviderFactory.searchWithFallback).toHaveBeenCalledTimes(2);
+      expect(SearchProviderFactory.searchWithFallback).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ preferFlight: true }),
+      );
+      expect(SearchProviderFactory.searchWithFallback).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ preferFlight: true }),
+      );
       expect(result.results).toHaveLength(2);
       expect(result.metadata?.flightRoute).toMatchObject({
         fromCode: "PEK",
