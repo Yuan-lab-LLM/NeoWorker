@@ -124,6 +124,16 @@ if (numbatBuild.status !== 0) {
   process.exit(numbatBuild.status ?? 1);
 }
 
+log("Preparing the verified OfficeCLI runtime …");
+const officeCliBuild = spawnSync("npm", ["run", "setup:officecli"], {
+  cwd: ROOT,
+  stdio: "inherit",
+  env: process.env,
+});
+if (officeCliBuild.status !== 0) {
+  process.exit(officeCliBuild.status ?? 1);
+}
+
 log("Running npm run build …");
 const build = spawnSync("npm", ["run", "build"], {
   cwd: ROOT,
