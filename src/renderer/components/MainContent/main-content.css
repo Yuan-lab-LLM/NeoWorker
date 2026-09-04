@@ -5598,6 +5598,50 @@
   line-height: 1;
 }
 
+/* Live reasoning/activity summary shown beside the task timer. Keep it
+   compact so the action controls remain usable on narrow windows. */
+.timeline-controls-progress {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-controls-status .timeline-controls-progress {
+  flex: 1 1 auto;
+}
+
+.timeline-controls-label.is-working::before {
+  content: "";
+  display: inline-block;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border: 2px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: task-attention-spin 1s linear infinite;
+}
+
+@keyframes task-attention-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-controls-label.is-working::before {
+    animation: none;
+  }
+}
+
 .timeline-controls-label-button {
   display: inline-flex;
   align-items: center;

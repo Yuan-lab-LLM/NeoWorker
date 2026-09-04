@@ -50,6 +50,7 @@ export {
   shouldShowBootstrapProgressRow,
   shouldMarkActionBlockActiveForCurrentTurn,
   getBootstrapProgressTitle,
+  deriveProgressHeartbeat,
   deriveAgentReasoningPanelState,
   selectVisibleTaskFeedRows,
   hasInactiveStringSetEntries,

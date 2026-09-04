@@ -112,6 +112,14 @@ const ZH_EXACT_PROGRESS_TEXT: Record<string, string> = {
   working: "工作中",
   "working...": "工作中...",
   "working on your request": "正在处理你的请求",
+  "understanding the request and planning...": "正在理解问题并制定方案...",
+  "searching reliable sources...": "正在检索可靠来源...",
+  "reading key material...": "正在读取关键资料...",
+  "a source is responding slowly; switching or retrying...":
+    "目标来源响应较慢，正在切换或重试...",
+  "sources collected; preparing the conclusion...": "资料已收集，正在整理结论...",
+  "analyzing the collected information...": "正在分析已收集的信息...",
+  "working on the task...": "正在推进任务...",
 };
 
 function canonicalizeProgressText(n: string): string {

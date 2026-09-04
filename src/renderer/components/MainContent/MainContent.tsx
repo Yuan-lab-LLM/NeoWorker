@@ -440,6 +440,7 @@ import {
   shouldShowBootstrapProgressRow,
   shouldMarkActionBlockActiveForCurrentTurn,
   getBootstrapProgressTitle,
+  deriveProgressHeartbeat,
   selectVisibleTaskFeedRows,
   hasInactiveStringSetEntries,
   pruneStringSetToActiveIds,
@@ -6473,6 +6474,10 @@ function MainContentComponent({
           duration: workDuration,
         })
       : translate("taskHeader.activity", "Activity");
+  const progressHeartbeat = useMemo(
+    () => (isTaskWorking ? deriveProgressHeartbeat(events, task?.id) : ""),
+    [events, isTaskWorking, task?.id],
+  );
 
   const continuationStatusChip = useMemo(() => {
     if (!task || !isTaskWorking) return null;
@@ -11174,9 +11179,18 @@ function MainContentComponent({
           <span
             className={`timeline-controls-label ${
               isTaskWorking || isTaskFinished ? "with-duration" : ""
-            }`}
+            }${isTaskWorking ? " is-working" : ""}`}
           >
             {workDurationLabel}
+          </span>
+        )}
+        {isTaskWorking && progressHeartbeat && (
+          <span
+            className="timeline-controls-progress"
+            aria-live="polite"
+            title={progressHeartbeat}
+          >
+            {progressHeartbeat}
           </span>
         )}
         {isTaskWorking && continuationStatusChip && (
@@ -11202,6 +11216,7 @@ function MainContentComponent({
       continuationStatusChip,
       isTaskFinished,
       isTaskWorking,
+      progressHeartbeat,
       toggleCompletedTranscriptMode,
       transcriptMode,
       workDurationLabel,

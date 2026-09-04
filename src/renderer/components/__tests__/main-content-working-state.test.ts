@@ -24,6 +24,7 @@ import {
   getAutoScrollTargetTop,
   pinScrollElementToBottom,
   getBootstrapProgressTitle,
+  deriveProgressHeartbeat,
   getDefaultTranscriptMode,
   getVisibleEndOfTaskArtifactCards,
   getEndOfTaskArtifactStackAnchorEventId,
@@ -2008,6 +2009,24 @@ describe("isTaskActivelyWorking", () => {
     );
     expect(state.isStreaming).toBe(true);
     expect(state.recentUpdates).toEqual(["Inspecting repository"]);
+  });
+
+  it("derives a localized live heartbeat from the current execution stage", () => {
+    expect(
+      deriveProgressHeartbeat([
+        makeEvent("plan", 100, "timeline_step_updated", {
+          legacyType: "progress_update",
+          message: "Planning the approach",
+        }),
+        makeEvent("search", 200, "tool_call", { tool: "web_search" }),
+      ], "task-1"),
+    ).toBe("正在检索可靠来源...");
+    expect(
+      deriveProgressHeartbeat(
+        [makeEvent("done", 300, "task_completed", {})],
+        "task-1",
+      ),
+    ).toBe("");
   });
 
   it("falls back to recent user-facing progress updates when no reasoning stream is active", () => {

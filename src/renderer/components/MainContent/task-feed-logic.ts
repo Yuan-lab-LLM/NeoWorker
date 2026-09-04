@@ -10,6 +10,7 @@ import {
   resolveTaskOutputSummaryFromCompletionEvent,
   hasTaskOutputs,
 } from "../../utils/task-outputs";
+import { localizeProgressText } from "../../utils/localized-progress-text";
 import type { EndOfTaskArtifactCard } from "./artifact-logic";
 import type { CommandOutputSession } from "../../utils/task-event-derived";
 
@@ -119,6 +120,111 @@ export const LIVE_TRANSCRIPT_TRANSIENT_RAW_EVENT_TYPES = new Set([
   "llm_streaming",
 ]);
 export const MAX_AGENT_REASONING_UPDATE_COUNT = 6;
+
+const PROGRESS_HEARTBEAT_TEXT = {
+  planning: "Understanding the request and planning...",
+  search: "Searching reliable sources...",
+  fetch: "Reading key material...",
+  retry: "A source is responding slowly; switching or retrying...",
+  synthesis: "Sources collected; preparing the conclusion...",
+  analysis: "Analyzing the collected information...",
+  work: "Working on the task...",
+} as const;
+
+/**
+ * Derive the short, user-facing activity summary shown beside the live task
+ * duration. Timeline rows remain the detailed source of truth; this helper is
+ * deliberately conservative so the header never exposes tool payloads or
+ * internal reasoning text.
+ */
+export function deriveProgressHeartbeat(
+  events: TaskEvent[],
+  taskId?: string | null,
+): string {
+  const scopedEvents = taskId
+    ? events.filter((event) => event.taskId === taskId)
+    : events;
+  const hasToolActivity = scopedEvents.some((event) => {
+    const type = getEffectiveTaskEventType(event);
+    return type === "tool_call" || type === "tool_result";
+  });
+  let latestUserMessageIndex = -1;
+  for (let index = scopedEvents.length - 1; index >= 0; index -= 1) {
+    if (getEffectiveTaskEventType(scopedEvents[index]) === "user_message") {
+      latestUserMessageIndex = index;
+      break;
+    }
+  }
+
+  for (let index = scopedEvents.length - 1; index >= 0; index -= 1) {
+    const event = scopedEvents[index];
+    const effectiveType = getEffectiveTaskEventType(event);
+    if (
+      effectiveType === "task_completed" ||
+      effectiveType === "task_failed" ||
+      effectiveType === "task_cancelled" ||
+      effectiveType === "follow_up_completed"
+    ) {
+      // A follow-up can reuse a task that already has a terminal event. In
+      // that case the newer user message starts a fresh live window.
+      return latestUserMessageIndex > index
+        ? localizeProgressText(PROGRESS_HEARTBEAT_TEXT.planning)
+        : "";
+    }
+
+    const payload =
+      event.payload &&
+      typeof event.payload === "object" &&
+      !Array.isArray(event.payload)
+        ? (event.payload as Record<string, unknown>)
+        : {};
+    const step =
+      payload.step && typeof payload.step === "object" && !Array.isArray(payload.step)
+        ? (payload.step as Record<string, unknown>)
+        : {};
+    const details = [
+      effectiveType,
+      event.type,
+      payload.message,
+      payload.stepDescription,
+      step.description,
+      payload.tool,
+      payload.operation,
+    ]
+      .filter((value): value is string => typeof value === "string")
+      .join(" ");
+
+    if (/temporary network|network failure|retrying|响应较慢|重试/i.test(details)) {
+      return localizeProgressText(PROGRESS_HEARTBEAT_TEXT.retry);
+    }
+    if (
+      /citations_collected|all steps completed|final user-facing synthesis|terminal_synthesis|starting deliver|整理结论/i.test(
+        details,
+      )
+    ) {
+      return localizeProgressText(PROGRESS_HEARTBEAT_TEXT.synthesis);
+    }
+    if (/web_fetch|http_request|fetching|读取关键|抓取网页/i.test(details)) {
+      return localizeProgressText(PROGRESS_HEARTBEAT_TEXT.fetch);
+    }
+    if (/web_search|searching web|检索|搜索/i.test(details)) {
+      return localizeProgressText(PROGRESS_HEARTBEAT_TEXT.search);
+    }
+    if (/plan|planning|task_analysis|creating execution|analyzing task|discover/i.test(details)) {
+      return localizeProgressText(PROGRESS_HEARTBEAT_TEXT.planning);
+    }
+    if (/llm_|tool_result|step_completed/i.test(details)) {
+      return localizeProgressText(
+        hasToolActivity ? PROGRESS_HEARTBEAT_TEXT.analysis : PROGRESS_HEARTBEAT_TEXT.planning,
+      );
+    }
+    if (/executing|step_started|build|fix/i.test(details)) {
+      return localizeProgressText(PROGRESS_HEARTBEAT_TEXT.work);
+    }
+  }
+
+  return localizeProgressText(PROGRESS_HEARTBEAT_TEXT.planning);
+}
 
 export const LIVE_TRANSCRIPT_URGENT_EFFECTIVE_EVENT_TYPES = new Set([
   "approval_requested",
