@@ -53,6 +53,24 @@ function hasNotarizationCredentials() {
   return hasAppleIdCredentials || hasApiKeyCredentials || hasKeychainProfile;
 }
 
+function configureMacCppHeaders() {
+  if (process.platform !== "darwin" || process.env.CPLUS_INCLUDE_PATH) return;
+
+  const sdk = spawnSync("xcrun", ["--sdk", "macosx", "--show-sdk-path"], {
+    encoding: "utf8",
+  });
+  if (sdk.status !== 0) return;
+
+  const sdkCppHeaders = path.join(sdk.stdout.trim(), "usr", "include", "c++", "v1");
+  if (!existsSync(path.join(sdkCppHeaders, "functional"))) return;
+
+  // Some CommandLineTools installations leave an incomplete toolchain-level
+  // c++/v1 directory ahead of the SDK headers. Prefer the complete SDK copy
+  // so native modules such as node-pty can be rebuilt reliably.
+  process.env.CPLUS_INCLUDE_PATH = sdkCppHeaders;
+  log(`Using C++ standard headers from ${sdkCppHeaders}`);
+}
+
 function configureSigningMode() {
   if (isTrueEnv(process.env.NEOWORKER_MAC_UNSIGNED) || !hasExplicitSigningIdentity()) {
     process.env.NEOWORKER_MAC_UNSIGNED = "1";
@@ -113,6 +131,7 @@ function run(cmd, args) {
 }
 
 loadDotEnvMac();
+configureMacCppHeaders();
 configureSigningMode();
 log("Building the pinned Numbat runtime …");
 const numbatBuild = spawnSync("npm", ["run", "numbat:build"], {
