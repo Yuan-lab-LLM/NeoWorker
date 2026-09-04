@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing release tag whose assets should be rebuilt'
+        required: true
+        default: 'v0.1.8'
 
 permissions:
   contents: write
@@ -133,15 +139,21 @@ jobs:
         run: |
           npm_version="$(node -p "require('./package.json').version")"
 
-          if [ "${GITHUB_REF_NAME}" != "${npm_version}" ] && [ "${GITHUB_REF_NAME}" != "v${npm_version}" ]; then
-            echo "Tag mismatch: GITHUB_REF_NAME=${GITHUB_REF_NAME} but package.json is ${npm_version}" >&2
-            exit 1
-          fi
-
-          release_tag="v${npm_version}"
-          if [ "${GITHUB_REF_NAME}" = "${npm_version}" ]; then
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            release_tag="${{ inputs.release_tag }}"
+          else
+            if [ "${GITHUB_REF_NAME}" != "${npm_version}" ] && [ "${GITHUB_REF_NAME}" != "v${npm_version}" ]; then
+              echo "Tag mismatch: GITHUB_REF_NAME=${GITHUB_REF_NAME} but package.json is ${npm_version}" >&2
+              exit 1
+            fi
             release_tag="v${npm_version}"
           fi
+
+          if [ "${release_tag}" != "${npm_version}" ] && [ "${release_tag}" != "v${npm_version}" ]; then
+            echo "Release tag ${release_tag} does not match package.json version ${npm_version}" >&2
+            exit 1
+          fi
+          release_tag="v${npm_version}"
 
           echo "npm_version=${npm_version}" >> "$GITHUB_OUTPUT"
           echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
@@ -330,15 +342,21 @@ jobs:
         run: |
           npm_version="$(node -p "require('./package.json').version")"
 
-          if [ "${GITHUB_REF_NAME}" != "${npm_version}" ] && [ "${GITHUB_REF_NAME}" != "v${npm_version}" ]; then
-            echo "Tag mismatch: GITHUB_REF_NAME=${GITHUB_REF_NAME} but package.json is ${npm_version}" >&2
-            exit 1
-          fi
-
-          release_tag="v${npm_version}"
-          if [ "${GITHUB_REF_NAME}" = "${npm_version}" ]; then
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            release_tag="${{ inputs.release_tag }}"
+          else
+            if [ "${GITHUB_REF_NAME}" != "${npm_version}" ] && [ "${GITHUB_REF_NAME}" != "v${npm_version}" ]; then
+              echo "Tag mismatch: GITHUB_REF_NAME=${GITHUB_REF_NAME} but package.json is ${npm_version}" >&2
+              exit 1
+            fi
             release_tag="v${npm_version}"
           fi
+
+          if [ "${release_tag}" != "${npm_version}" ] && [ "${release_tag}" != "v${npm_version}" ]; then
+            echo "Release tag ${release_tag} does not match package.json version ${npm_version}" >&2
+            exit 1
+          fi
+          release_tag="v${npm_version}"
 
           echo "npm_version=${npm_version}" >> "$GITHUB_OUTPUT"
           echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
@@ -439,6 +457,7 @@ jobs:
     needs:
       - release
       - release-linux-server
+    if: github.event_name != 'workflow_dispatch'
     timeout-minutes: 45
     steps:
       - name: Checkout code
@@ -472,6 +491,7 @@ jobs:
     needs:
       - release
       - release-linux-server
+    if: github.event_name != 'workflow_dispatch'
     timeout-minutes: 45
     steps:
       - name: Checkout code
@@ -524,9 +544,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          release_tag="${GITHUB_REF_NAME}"
-          if [[ "${release_tag}" != v* ]]; then
-            release_tag="v${release_tag}"
+          release_tag="${{ inputs.release_tag }}"
+          if [ -z "${release_tag}" ]; then
+            release_tag="${GITHUB_REF_NAME}"
+            if [[ "${release_tag}" != v* ]]; then
+              release_tag="v${release_tag}"
+            fi
           fi
           gh release edit "${release_tag}" --draft=false --repo "${GITHUB_REPOSITORY}"
         env:
