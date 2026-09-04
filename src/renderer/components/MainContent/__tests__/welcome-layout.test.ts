@@ -167,10 +167,16 @@ describe("Welcome layout", () => {
     expect(source).toMatch(/function\s+HomeAgentHub/);
     expect(source).toContain('"推荐智能体"');
     expect(source).toContain("getAgentRolePortrait");
-    expect(source).toMatch(/researcher[\s\S]*coder[\s\S]*data_analyst[\s\S]*writer/);
+    expect(source).toMatch(/coder[\s\S]*reviewer[\s\S]*researcher[\s\S]*tester/);
+    expect(source).toContain("Show another agent set");
+    expect(source).toContain("setAgentPage");
     expect(source).toContain('onViewAll={onOpenAgentManagement}');
+    expect(source).toMatch(
+      /className="cli-commands quick-start-section">[\s\S]*<HomeAgentHub[\s\S]*<\/div>/,
+    );
     expect(styles).toMatch(/\.nw-home-agent-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(4/);
     expect(styles).toContain(".nw-home-agent-card");
+    expect(styles).toContain(".quick-start-section > .nw-home-agent-hub");
   });
 
   it("fills recommendation prompts into the composer without executing them", () => {

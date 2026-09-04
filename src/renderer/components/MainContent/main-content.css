@@ -18737,10 +18737,10 @@
 
 /* Focused homepage recommended agents. Keep this row compact so the composer
    and quick-start actions remain visible on laptop-sized windows. */
-.welcome-content.welcome-content-focused > .nw-home-agent-hub {
+.welcome-content.welcome-content-focused .quick-start-section > .nw-home-agent-hub {
   box-sizing: border-box;
   width: 100%;
-  margin-top: 4px;
+  margin: 0 0 12px;
 }
 
 .nw-home-agent-hub-header {
@@ -18760,6 +18760,12 @@
   color: var(--color-text-muted);
   font-size: 11px;
   line-height: 1.35;
+}
+
+.nw-home-agent-hub-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .nw-home-agent-grid {

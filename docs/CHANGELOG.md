@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-09-04
+
+### Added
+
+- Promoted the recovered V21 task-first homepage into the source build: the
+  composer is the primary action, followed by a rotating recommended-agent
+  hub and compact quick-start cards.
+- Release packaging now documents and publishes the Windows NSIS installer and
+  Linux x64 Server tarball alongside the macOS DMG/ZIP artifacts.
+
+### Fixed
+
+- Kept the full-access default and evidence-based flight-search routing in the
+  same source revision as the recovered homepage, so all platform builds share
+  the verified behavior.
+
 ## [0.1.7] - 2026-09-04
 
 ### Fixed
