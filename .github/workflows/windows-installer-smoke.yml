@@ -60,7 +60,7 @@ jobs:
         run: npm run package:win:smoke -- --expected-version=${{ inputs.expected_version }}
 
       - name: Upload Windows installer
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: NeoWorker-${{ inputs.expected_version }}-windows-x64
           path: |
