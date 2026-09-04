@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-09-04
+
 ### Fixed
 
 - Restored the recovered build's full-access default consistently across the
@@ -14,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded flight route aliases, rejected reverse-direction evidence, and
   preferred the built-in DuckDuckGo route for automatic flight searches while
   preserving explicit provider selections and paid-provider fallback.
+- Bundled and checksum-verified the OfficeCLI runtime in macOS packages so
+  DOCX, XLSX, and PPTX generation uses the same validated delivery path.
+- Added the macOS SDK C++ header fallback needed to rebuild native modules on
+  CommandLineTools-only installations.
 
 ## [0.1.6] - 2026-09-03
 
