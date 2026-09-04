@@ -87,7 +87,7 @@ NeoWorker focuses on turning AI from a conversational assistant into a personal 
 
 ## Current version
 
-This project is based on the official **<code>v0.1.6</code>** release and publishes the recovered V21 homepage and reliability fixes as **<code>v0.1.8</code>** (package version <code>0.1.8</code>). The new release keeps the focused homepage while adding the recovered default **full-access** permission, route-aware flight search, and verified OfficeCLI packaging.
+The current release is **<code>v0.1.8</code>** (package version <code>0.1.8</code>) and publishes the recovered V21 homepage and reliability fixes. It keeps the focused homepage while adding the recovered default **full-access** permission, route-aware flight search, and verified OfficeCLI packaging.
 
 The official GitHub Release includes:
 
