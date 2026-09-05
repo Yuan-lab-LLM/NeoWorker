@@ -93,6 +93,7 @@ The official GitHub Release includes:
 
 - a macOS Apple Silicon <code>.dmg</code> package
 - a Windows <code>.exe</code> installer
+- a Linux x64 Server <code>.tar.gz</code> package
 - release notes and checksums
 
 See the [changelog](./docs/CHANGELOG.md) for version history.

@@ -64,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Added temporary packaged-runtime patch and regression-test scripts used to diagnose long-output, flight-routing, and updater failures. These scripts were not automatically applied to the published installer.
+- Added regression coverage for long-output, flight-search routing, and updater flows.
 
 ## [0.1.2] - 2026-09-03
 
@@ -1772,10 +1772,12 @@ This release is the first recommended Windows install baseline for normal users 
 [0.3.71]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.71
 [0.3.29]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.29
 [0.3.25]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.3.25
-[0.1.6]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.6
-[0.1.5]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.5
-[0.1.4]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.4
-[0.1.3]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.3
+[0.1.8]: https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.1.8
+[0.1.7]: https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.1.7
+[0.1.6]: https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.1.6
+[0.1.5]: https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.1.5
+[0.1.4]: https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.1.4
+[0.1.3]: https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.1.3
 [0.1.2]: https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.1.1
 [0.1.0]: https://github.com/NeoWorker/NeoWorker/releases/tag/v0.1.0
