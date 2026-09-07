@@ -682,6 +682,9 @@ export function buildCompletionGuidancePrompt(opts: {
       lines.push(
         "- Office tools are built into NeoWorker; call the named create/generate tools directly. They are not localhost HTTP services, so never probe guessed ports or an /officecli endpoint and never report them unavailable based on a prior analysis step.",
       );
+      lines.push(
+        "- For a PDF or PPTX deliverable, call the built-in artifact tool in the delivery step before doing optional enrichment. Do not replace it with run_command, AppleScript, Python, matplotlib, chart_engine.py, shell scripts, or a progress-only status update.",
+      );
     }
     if (opts.explicitOutputExtensions.includes(".docx")) {
       lines.push(
@@ -691,6 +694,12 @@ export function buildCompletionGuidancePrompt(opts: {
     if (opts.explicitOutputExtensions.includes(".pdf")) {
       lines.push(
         "- For PDF output, use create_document with format=\"pdf\". Only claim delivery when qualityCheck.status is passed, validation.passed is true, and visual.passed is true; file existence alone is not acceptance.",
+      );
+      lines.push(
+        "- PDF charts are dependency-free: put native chart blocks in create_document content (data.type bar/column/line/pie/donut/radar, categories, and series). Do not install or probe Python/matplotlib, and do not end the step by asking the user to continue.",
+      );
+      lines.push(
+        "- For chart-rich PDF output, put chart data in create_document content blocks with type=\"chart\" and data (or the charts array). NeoWorker renders dependency-free SVG charts in Chromium; do not install/probe matplotlib or write a temporary chart_engine.py fallback.",
       );
     }
     if (opts.explicitOutputExtensions.includes(".pptx")) {
@@ -712,6 +721,34 @@ export function buildCompletionGuidancePrompt(opts: {
   }
 
   return lines.join("\n");
+}
+
+/**
+ * Detects the common failure mode where a model emits a progress/capability
+ * update instead of invoking the requested artifact tool. This is deliberately
+ * narrow: ordinary explanatory text must not be retried, while messages that
+ * announce Python/matplotlib/chart-engine fallbacks or an undelivered PDF/PPTX
+ * should get one deterministic nudge from the executor.
+ */
+export function isArtifactProgressOnlyText(text: string): boolean {
+  const normalized = String(text || "").trim();
+  if (!normalized) return false;
+  const lower = normalized.toLowerCase();
+
+  const fallbackOrMissingArtifact =
+    /(?:office(?:cli|工具)?[^\n]{0,80}(?:不可用|unavailable|not available|missing)|matplotlib|chart[ _-]?engine|python[^\n]{0,40}(?:生成|绘图|pdf)|(?:尚未|未|没有)[^\n]{0,40}(?:检测到|生成|找到)[^\n]{0,30}(?:pdf|pptx|演示文稿|文件)|(?:先|正在|继续)[^\n]{0,40}(?:探测|修正|重跑|分析|生成|组装))/i.test(
+      normalized,
+    );
+  if (!fallbackOrMissingArtifact) return false;
+
+  // A response that contains a concrete success assertion is likely a final
+  // report. The executor's artifact evidence guard remains authoritative, but
+  // avoid needlessly nudging a clearly successful tool-backed summary.
+  const explicitSuccess =
+    /(?:已(?:成功)?(?:生成|创建|交付)|生成成功|创建成功|已交付|质量检查通过|qualitycheck[^\n]{0,40}(?:passed|通过)|artifact[^\n]{0,40}(?:created|published))/i.test(
+      normalized,
+    );
+  return !explicitSuccess && lower.length >= 6;
 }
 
 /**

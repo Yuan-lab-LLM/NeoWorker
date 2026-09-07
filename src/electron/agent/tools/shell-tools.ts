@@ -663,12 +663,28 @@ export class ShellTools {
     try {
       const policies = options.policies;
       const sandboxAllowed = policies.runtime.allowedSandboxTypes.includes(sandbox.type);
-      if (sandbox.type === "none" || !sandboxAllowed) {
+      const sandboxTypeBlocked = !sandboxAllowed;
+      const sandboxUnavailable = sandbox.type === "none";
+      const noOsSandboxRequired =
+        sandboxUnavailable &&
+        (policies.runtime.requireSandboxForShell || process.platform !== "win32");
+      // Windows has no native sandbox implementation yet.  When the policy
+      // does not require one, allow the controlled cmd.exe/PowerShell path so
+      // Windows machines without Docker remain usable.  Preserve fail-closed
+      // behavior on Unix-like platforms and whenever a policy requires a
+      // sandbox.
+      if (
+        sandboxTypeBlocked ||
+        noOsSandboxRequired
+      ) {
+        const denialReason = noOsSandboxRequired
+          ? "no_os_sandbox_available"
+          : "sandbox_type_not_allowed";
         if (this.allowUnsandboxedShellFallback(policies)) {
           this.daemon.logEvent(this.taskId, "shell_sandbox_bypassed", {
             command,
             cwd: options.cwd,
-            reason: sandbox.type === "none" ? "no_os_sandbox_available" : "sandbox_type_not_allowed",
+            reason: denialReason,
             sandboxType: sandbox.type,
             requireSandboxForShell: policies.runtime.requireSandboxForShell,
             overrideEnv: UNSANDBOXED_SHELL_OVERRIDE_ENV,
@@ -679,12 +695,12 @@ export class ShellTools {
           tool: "run_command",
           command,
           cwd: options.cwd,
-          reason: sandbox.type === "none" ? "no_os_sandbox_available" : "sandbox_type_not_allowed",
+          reason: denialReason,
           sandboxType: sandbox.type,
           allowedSandboxTypes: policies.runtime.allowedSandboxTypes,
         });
         throw new Error(
-          sandbox.type === "none"
+          denialReason === "no_os_sandbox_available"
             ? `run_command requires an OS-level sandbox for complex shell execution. Configure macOS sandboxing or Docker, or set ${UNSANDBOXED_SHELL_OVERRIDE_ENV}=1 with admin policy allowUnsandboxedShell=true for explicit local development fallback.`
             : `run_command sandbox type "${sandbox.type}" is blocked by admin policy.`,
         );

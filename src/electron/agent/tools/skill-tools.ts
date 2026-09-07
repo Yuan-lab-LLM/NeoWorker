@@ -28,6 +28,7 @@ import {
 import { resolveVersionedOutputPath } from "../../utils/versioned-output-path";
 import {
   contentBlocksToMarkdown,
+  contentBlocksToCharts,
   generatePDF,
 } from "../../utils/document-generators/pdf-generator";
 import type {
@@ -385,6 +386,7 @@ export class SkillTools {
     officeProfile?: "word" | "academic-paper" | "word-form";
     templateId?: string;
     useCase?: OfficeTemplateUseCase;
+    charts?: import("../../utils/document-generators/pdf-generator").PDFChartOptions[];
     content: Array<{
       type: string;
       text: string;
@@ -392,6 +394,7 @@ export class SkillTools {
       items?: string[];
       rows?: string[][];
       language?: string;
+      data?: import("../../utils/document-generators/pdf-generator").PDFChartOptions;
     } & OfficeContentReferenceInput>;
     contentSnapshot?: CanonicalContentSnapshot;
   }, execution: { signal?: AbortSignal } = {}): Promise<{
@@ -562,7 +565,11 @@ export class SkillTools {
         subject: input.subject,
         templateId: templateSelection.template.id,
         titleColor: templateSelection.template.tokens.titleColor,
-        markdown: contentBlocksToMarkdown(input.content),
+        markdown: contentBlocksToMarkdown(input.content.filter((block) => block.type !== "chart")),
+        charts: [
+          ...(Array.isArray(input.charts) ? input.charts : []),
+          ...contentBlocksToCharts(input.content),
+        ],
         format: "A4",
       });
       generationEngine = result.generationEngine;

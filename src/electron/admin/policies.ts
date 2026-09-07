@@ -28,6 +28,14 @@ import {
 } from "../../shared/agent-security";
 
 export type AdminSandboxType = "macos" | "docker" | "none";
+
+// Windows does not provide a NeoWorker-native sandbox backend yet.  Include
+// the controlled NoSandbox runner in the platform default so a fresh Windows
+// install can execute approved commands when Docker is unavailable.  An
+// administrator can still set `requireSandboxForShell` or remove `none` from
+// `allowedSandboxTypes` to keep a fail-closed posture.
+const DEFAULT_ALLOWED_SANDBOX_TYPES: AdminSandboxType[] =
+  process.platform === "win32" ? ["docker", "none"] : ["macos", "docker"];
 export type AdminNetworkDefault = "allow" | "deny";
 
 /**
@@ -163,7 +171,7 @@ const DEFAULT_POLICIES: AdminPolicies = {
   },
   runtime: {
     allowedPermissionModes: [],
-    allowedSandboxTypes: ["macos", "docker"],
+    allowedSandboxTypes: [...DEFAULT_ALLOWED_SANDBOX_TYPES],
     requireSandboxForShell: false,
     allowUnsandboxedShell: false,
     network: {

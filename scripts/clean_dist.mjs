@@ -9,6 +9,10 @@ const generatedDirectories = [
   "dist/daemon",
   "dist/electron",
   "dist/renderer",
+  // Never let an unpacked electron-builder output tree become input to the
+  // next app.asar build when a custom output directory was used.
+  "dist/win-unpacked",
+  "dist/win-arm64-unpacked",
 ];
 
 for (const relativePath of generatedDirectories) {

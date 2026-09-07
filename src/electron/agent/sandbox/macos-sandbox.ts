@@ -40,7 +40,39 @@ const DEFAULT_OPTIONS: Required<SandboxOptions> = {
 const MACOS_RUNTIME_READ_PATHS = [
   "/private/etc/ssl",
   "/etc/ssl",
+  // Swift/.NET single-file tools such as the bundled OfficeCLI load ICU data
+  // from the system shared-data directory. sandbox-exec denies it by default.
+  "/usr/share",
 ];
+
+function packagedResourcePaths(): string[] {
+  const resourcesPath =
+    typeof process.resourcesPath === "string" ? process.resourcesPath.trim() : "";
+  if (!resourcesPath) return [];
+  // OfficeCLI and the bundled skill helpers live in Electron's Resources
+  // directory. sandbox-exec otherwise hides them even though the parent app
+  // can resolve them, making `officecli`/resource-backed commands look absent
+  // only in packaged macOS builds.
+  return [resourcesPath, path.join(resourcesPath, "officecli")].filter((value, index, values) =>
+    value.length > 0 && values.indexOf(value) === index,
+  );
+}
+
+// Python installed with `pip install --user`, pyenv, or the official
+// python.org installer keeps its site-packages outside /usr/local and
+// /opt/homebrew.  sandbox-exec otherwise makes an installed module look as if
+// it is missing (notably matplotlib/Pillow) even though the interpreter can
+// see it outside the sandbox.  These are read-only, narrowly scoped runtime
+// roots; workspace writes and network policy remain unchanged.
+function macOSPythonReadPaths(): string[] {
+  const home = os.homedir();
+  return [
+    path.join(home, "Library", "Python"),
+    path.join(home, ".local", "lib"),
+    path.join(home, ".pyenv"),
+    "/Library/Frameworks/Python.framework",
+  ];
+}
 
 const PROTECTED_WORKSPACE_WRITE_RELATIVE_PATHS = [
   ".git",
@@ -411,7 +443,11 @@ export class MacOSSandbox implements ISandbox {
     safeEnv.LANG = process.env.LANG || "en_US.UTF-8";
     safeEnv.TMPDIR = os.tmpdir();
 
+    const bundledOfficeCliDir = packagedResourcePaths().find((candidate) =>
+      candidate.endsWith(`${path.sep}officecli`),
+    );
     safeEnv.PATH = [
+      ...(bundledOfficeCliDir ? [bundledOfficeCliDir] : []),
       "/opt/homebrew/bin",
       "/opt/homebrew/sbin",
       "/usr/local/bin",
@@ -438,6 +474,7 @@ export class MacOSSandbox implements ISandbox {
     const tempAliases = this.getMacOSPathAliases(tempDir);
     const escapedWorkspace = escapeSandboxProfileString(this.workspace.path);
     const escapedTempDir = escapeSandboxProfileString(tempDir);
+    const packagedPaths = packagedResourcePaths();
 
     let profile = `(version 1)
 (deny default)
@@ -490,11 +527,16 @@ export class MacOSSandbox implements ISandbox {
       "/dev/random",
       "/private/tmp",
       "/opt/homebrew",
+      ...macOSPythonReadPaths(),
       ...workspaceAliases,
       ...tempAliases,
+      ...packagedPaths,
     ]);
     profile = this.appendReadSubpathRules(profile, workspaceAliases);
     profile = this.appendReadSubpathRules(profile, tempAliases);
+    profile = this.appendReadSubpathRules(profile, MACOS_RUNTIME_READ_PATHS);
+    profile = this.appendReadSubpathRules(profile, packagedPaths);
+    profile = this.appendReadSubpathRules(profile, macOSPythonReadPaths());
 
     // Allow writing to workspace if permitted
     if (permissions.write) {

@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import type { ChildProcess } from "child_process";
+import type { Workspace } from "../../../shared/types";
 
 const spawnMock = vi.hoisted(() => vi.fn());
 
@@ -8,7 +9,7 @@ vi.mock("child_process", () => ({
   spawn: spawnMock,
 }));
 
-import { isMacOSSandboxAvailable, resetMacOSSandboxCache } from "../sandbox-factory";
+import { isMacOSSandboxAvailable, NoSandbox, resetMacOSSandboxCache } from "../sandbox-factory";
 
 function makeChildProcess(options: {
   closeCode?: number | null;
@@ -99,5 +100,76 @@ describe("sandbox factory macOS probe", () => {
 
     await expect(available).resolves.toBe(false);
     expect(proc.kill).toHaveBeenCalled();
+  });
+});
+
+describe("Windows no-sandbox command execution", () => {
+  let platformSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    spawnMock.mockReset();
+    platformSpy = vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    spawnMock.mockImplementation(() => makeChildProcess({ closeCode: 0 }));
+  });
+
+  afterEach(() => {
+    platformSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("runs a complete command line through cmd.exe without quoting it as one token", async () => {
+    const sandbox = new NoSandbox({ path: process.cwd() } as unknown as Workspace);
+
+    await expect(sandbox.execute("echo hello")).resolves.toMatchObject({ exitCode: 0 });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.stringMatching(/(?:cmd\.exe)$/i),
+      ["/d", "/s", "/c", "echo hello"],
+      expect.objectContaining({ shell: false }),
+    );
+  });
+
+  it("maps the Unix python3 spelling to python on Windows", async () => {
+    const sandbox = new NoSandbox({ path: process.cwd() } as unknown as Workspace);
+
+    await sandbox.execute('python3 "C:\\Users\\alice\\script.py"');
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.stringMatching(/(?:cmd\.exe)$/i),
+      ["/d", "/s", "/c", 'python "C:\\Users\\alice\\script.py"'],
+      expect.objectContaining({ shell: false }),
+    );
+  });
+
+  it("launches quoted PowerShell scripts with spaces in their path", async () => {
+    const sandbox = new NoSandbox({ path: process.cwd() } as unknown as Workspace);
+
+    await sandbox.execute(
+      '"C:\\Program Files\\NeoWorker\\disk_scan.ps1" -Root "C:\\Users\\alice"',
+    );
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.stringMatching(/powershell\.exe$/i),
+      [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "& 'C:\\Program Files\\NeoWorker\\disk_scan.ps1' -Root \"C:\\Users\\alice\"",
+      ],
+      expect.objectContaining({ shell: false }),
+    );
+  });
+
+  it("does not wrap an explicit PowerShell command in another shell", async () => {
+    const sandbox = new NoSandbox({ path: process.cwd() } as unknown as Workspace);
+
+    await sandbox.execute('powershell -NoProfile -Command "Write-Output hi"');
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.stringMatching(/(?:cmd\.exe)$/i),
+      ["/d", "/s", "/c", 'powershell -NoProfile -Command "Write-Output hi"'],
+      expect.objectContaining({ shell: false }),
+    );
   });
 });

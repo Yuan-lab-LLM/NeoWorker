@@ -535,6 +535,46 @@ describe("TaskExecutor completion contract integration", () => {
     );
   });
 
+  it("uses a deterministic built-in PDF plan instead of a Python chart fallback", () => {
+    const prompt =
+      "读取附件中的 Excel，生成一份详细的 PDF 报告，包含柱状图和饼图";
+    const executor = createExecuteHarness({
+      title: "Excel 分析 PDF 报告",
+      prompt,
+      rawPrompt: prompt,
+      lastOutput: "",
+    });
+    (executor as Any).task.agentConfig = {
+      executionMode: "execute",
+      conversationMode: "task",
+      taskIntent: "execution",
+    };
+
+    const plan = (executor as Any).buildDirectPdfArtifactPlan();
+    expect(plan).toBeTruthy();
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0].description).toContain('create_document（format="pdf"）');
+    expect(plan.steps[0].description).toContain("chart_engine.py");
+    expect(plan.steps[0].description).toContain("create_document");
+  });
+
+  it("does not force PDF creation for an explicitly read-only request", () => {
+    const prompt = "只读分析附件 PDF，不要创建或修改任何文件";
+    const executor = createExecuteHarness({
+      title: "只读分析 PDF",
+      prompt,
+      rawPrompt: prompt,
+      lastOutput: "",
+    });
+    (executor as Any).task.agentConfig = {
+      executionMode: "execute",
+      conversationMode: "task",
+      taskIntent: "execution",
+    };
+
+    expect((executor as Any).buildDirectPdfArtifactPlan()).toBeNull();
+  });
+
   it("keys incremental edits by anchor instead of treating the whole HTML file as done", () => {
     const executor = createExecuteHarness({
       prompt: "生成一个 HTML 动画页面",

@@ -28,6 +28,27 @@ export interface PDFContentBlock {
   items?: string[];
   rows?: string[][];
   language?: string;
+  data?: PDFChartOptions;
+}
+
+/**
+ * A dependency-free chart contract for PDF reports.  Charts are rendered as
+ * inline SVG inside NeoWorker's Chromium print path, so report generation
+ * never depends on a user-installed Python interpreter or matplotlib.
+ */
+export interface PDFChartSeries {
+  name?: string;
+  values: Array<string | number>;
+  color?: string;
+}
+
+export interface PDFChartOptions {
+  type?: "bar" | "column" | "line" | "pie" | "donut" | "radar";
+  title?: string;
+  categories?: string[];
+  series?: PDFChartSeries[];
+  width?: number;
+  height?: number;
 }
 
 export interface PDFOptions {
@@ -41,6 +62,7 @@ export interface PDFOptions {
   templateId?: string;
   sections?: PDFSection[];
   markdown?: string;
+  charts?: PDFChartOptions[];
   format?: "A4" | "Letter";
   landscape?: boolean;
 }
@@ -217,12 +239,235 @@ export function contentBlocksToMarkdown(blocks: PDFContentBlock[]): string {
         }
         case "code":
           return `\`\`\`${block.language || ""}\n${text}\n\`\`\``;
+        case "chart":
+          // Chart blocks are rendered by buildPDFHTML as inline SVG. Keep a
+          // short textual fallback in the markdown stream for callers that
+          // still consume this helper directly.
+          return text ? `### ${text}` : "";
         default:
           return text;
       }
     })
     .filter(Boolean)
     .join("\n\n");
+}
+
+function normalizeChartColor(value: unknown, fallback: string): string {
+  const raw = String(value || "").trim().replace(/^#/, "");
+  return /^[0-9a-f]{6}$/i.test(raw) ? `#${raw.toUpperCase()}` : fallback;
+}
+
+function finiteChartValues(values: unknown): number[] {
+  return (Array.isArray(values) ? values : []).map((value) => {
+    const number =
+      typeof value === "number"
+        ? value
+        : Number(String(value ?? "").replace(/[,%$€£¥]/g, "").trim());
+    return Number.isFinite(number) ? number : 0;
+  });
+}
+
+function normalizedChart(options: PDFChartOptions): {
+  type: NonNullable<PDFChartOptions["type"]>;
+  title: string;
+  categories: string[];
+  series: Array<{ name: string; values: number[]; color: string }>;
+  width: number;
+  height: number;
+} | null {
+  const rawSeries = Array.isArray(options.series) ? options.series : [];
+  if (rawSeries.length === 0) return null;
+  const type = options.type || "column";
+  const supported: Array<NonNullable<PDFChartOptions["type"]>> = [
+    "bar",
+    "column",
+    "line",
+    "pie",
+    "donut",
+    "radar",
+  ];
+  if (!supported.includes(type)) return null;
+  const lengths = rawSeries.map((series) => finiteChartValues(series?.values).length);
+  const count = Math.max(0, Math.min(24, Math.max(...lengths, 0)));
+  if (count === 0) return null;
+  const palette = ["#2563EB", "#0F766E", "#EA580C", "#7C3AED", "#CA8A04", "#DB2777"];
+  const categories = Array.from({ length: count }, (_, index) =>
+    String(options.categories?.[index] ?? index + 1),
+  );
+  const series = rawSeries.slice(0, type === "pie" || type === "donut" ? 1 : 6).map((item, index) => ({
+    name: String(item?.name || `Series ${index + 1}`),
+    values: Array.from({ length: count }, (_, valueIndex) => finiteChartValues(item?.values)[valueIndex] || 0),
+    color: normalizeChartColor(item?.color, palette[index % palette.length]),
+  }));
+  return {
+    type,
+    title: String(options.title || ""),
+    categories,
+    series,
+    width: Math.max(360, Math.min(900, Number(options.width) || 720)),
+    height: Math.max(220, Math.min(600, Number(options.height) || 360)),
+  };
+}
+
+function chartText(options: PDFChartOptions): string {
+  const chart = normalizedChart(options);
+  if (!chart) return "";
+  return [
+    chart.title,
+    ...chart.categories,
+    ...chart.series.flatMap((series) => [series.name, ...series.values.map(String)]),
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function svgText(text: unknown, x: number, y: number, attributes = ""): string {
+  return `<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" ${attributes}>${escapeHtml(String(text ?? ""))}</text>`;
+}
+
+function chartLegend(chart: ReturnType<typeof normalizedChart>, x: number, y: number): string {
+  if (!chart) return "";
+  return chart.series
+    .map((series, index) => {
+      const offset = index * 125;
+      return `<g transform="translate(${x + offset},${y})"><rect width="10" height="10" rx="2" fill="${series.color}"/>${svgText(series.name, 16, 10, 'font-size="11" fill="#334155"')}</g>`;
+    })
+    .join("");
+}
+
+function polarPoint(cx: number, cy: number, radius: number, angle: number): [number, number] {
+  return [cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius];
+}
+
+function pieSlicePath(cx: number, cy: number, radius: number, start: number, end: number, innerRadius = 0): string {
+  const [sx, sy] = polarPoint(cx, cy, radius, start);
+  const [ex, ey] = polarPoint(cx, cy, radius, end);
+  const largeArc = end - start > Math.PI ? 1 : 0;
+  if (innerRadius <= 0) {
+    return `M ${cx.toFixed(2)} ${cy.toFixed(2)} L ${sx.toFixed(2)} ${sy.toFixed(2)} A ${radius} ${radius} 0 ${largeArc} 1 ${ex.toFixed(2)} ${ey.toFixed(2)} Z`;
+  }
+  const [isx, isy] = polarPoint(cx, cy, innerRadius, start);
+  const [iex, iey] = polarPoint(cx, cy, innerRadius, end);
+  return `M ${sx.toFixed(2)} ${sy.toFixed(2)} A ${radius} ${radius} 0 ${largeArc} 1 ${ex.toFixed(2)} ${ey.toFixed(2)} L ${iex.toFixed(2)} ${iey.toFixed(2)} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${isx.toFixed(2)} ${isy.toFixed(2)} Z`;
+}
+
+function renderChartSvg(options: PDFChartOptions): string {
+  const chart = normalizedChart(options);
+  if (!chart) return "";
+  const width = chart.width;
+  const height = chart.height;
+  const plot = { left: 62, top: chart.title ? 54 : 30, width: width - 92, height: height - 106 };
+  const title = chart.title
+    ? svgText(chart.title, 16, 27, 'font-size="16" font-weight="700" fill="#172033"')
+    : "";
+  const legend = chartLegend(chart, 62, height - 26);
+  let marks = "";
+
+  if (chart.type === "pie" || chart.type === "donut") {
+    const values = chart.series[0].values.map((value) => Math.max(0, value));
+    const total = values.reduce((sum, value) => sum + value, 0) || 1;
+    const cx = width * 0.38;
+    const cy = plot.top + plot.height / 2;
+    const radius = Math.min(plot.height, plot.width * 0.62) / 2;
+    let angle = -Math.PI / 2;
+    marks = values
+      .map((value, index) => {
+        const next = angle + (value / total) * Math.PI * 2;
+        const path = pieSlicePath(cx, cy, radius, angle, next, chart.type === "donut" ? radius * 0.52 : 0);
+        const mid = (angle + next) / 2;
+        const [labelX, labelY] = polarPoint(cx, cy, radius * 0.72, mid);
+        angle = next;
+        return `<path d="${path}" fill="${chart.series[0].color}" opacity="${(0.56 + (index % 4) * 0.1).toFixed(2)}" stroke="#fff" stroke-width="2"/>${svgText(chart.categories[index], labelX, labelY, 'text-anchor="middle" dominant-baseline="middle" font-size="11" fill="#172033"')}`;
+      })
+      .join("");
+    const labels = chart.categories
+      .map((category, index) => `<g transform="translate(${width * 0.7},${plot.top + index * 24})"><rect width="10" height="10" rx="2" fill="${chart.series[0].color}" opacity="${(0.56 + (index % 4) * 0.1).toFixed(2)}"/>${svgText(`${category} · ${values[index]}`, 16, 10, 'font-size="11" fill="#334155"')}</g>`)
+      .join("");
+    marks += labels;
+  } else if (chart.type === "radar") {
+    const cx = plot.left + plot.width / 2;
+    const cy = plot.top + plot.height / 2;
+    const radius = Math.min(plot.width, plot.height) * 0.38;
+    const maxValue = Math.max(1, ...chart.series.flatMap((series) => series.values.map((value) => Math.abs(value))));
+    const rings = [0.25, 0.5, 0.75, 1]
+      .map((ratio) => {
+        const points = chart.categories.map((_, index) => {
+          const angle = -Math.PI / 2 + (index / chart.categories.length) * Math.PI * 2;
+          const [x, y] = polarPoint(cx, cy, radius * ratio, angle);
+          return `${x.toFixed(2)},${y.toFixed(2)}`;
+        }).join(" ");
+        return `<polygon points="${points}" fill="none" stroke="#CBD5E1" stroke-width="1"/>`;
+      })
+      .join("");
+    const axes = chart.categories.map((category, index) => {
+      const angle = -Math.PI / 2 + (index / chart.categories.length) * Math.PI * 2;
+      const [x, y] = polarPoint(cx, cy, radius, angle);
+      const [labelX, labelY] = polarPoint(cx, cy, radius + 18, angle);
+      return `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#CBD5E1"/>${svgText(category, labelX, labelY, 'text-anchor="middle" dominant-baseline="middle" font-size="10" fill="#334155"')}`;
+    }).join("");
+    const polygons = chart.series.map((series) => {
+      const points = series.values.map((value, index) => {
+        const angle = -Math.PI / 2 + (index / chart.categories.length) * Math.PI * 2;
+        const [x, y] = polarPoint(cx, cy, radius * Math.abs(value) / maxValue, angle);
+        return `${x.toFixed(2)},${y.toFixed(2)}`;
+      }).join(" ");
+      return `<polygon points="${points}" fill="${series.color}" fill-opacity="0.18" stroke="${series.color}" stroke-width="2"/>`;
+    }).join("");
+    marks = `${rings}${axes}${polygons}`;
+  } else {
+    const allValues = chart.series.flatMap((series) => series.values);
+    const minValue = Math.min(0, ...allValues);
+    const maxValue = Math.max(1, ...allValues);
+    const range = maxValue - minValue || 1;
+    const baseline = plot.top + plot.height * (maxValue / range);
+    const grid = [0, 0.25, 0.5, 0.75, 1]
+      .map((ratio) => {
+        const y = plot.top + plot.height * ratio;
+        const value = maxValue - range * ratio;
+        return `<line x1="${plot.left}" y1="${y.toFixed(2)}" x2="${(plot.left + plot.width).toFixed(2)}" y2="${y.toFixed(2)}" stroke="#E2E8F0"/>${svgText(value.toFixed(0), plot.left - 8, y + 4, 'text-anchor="end" font-size="10" fill="#64748B"')}`;
+      })
+      .join("");
+    const categoryWidth = plot.width / Math.max(1, chart.categories.length);
+    const yFor = (value: number) => plot.top + ((maxValue - value) / range) * plot.height;
+    const labels = chart.categories.map((category, index) => svgText(category, plot.left + categoryWidth * (index + 0.5), plot.top + plot.height + 20, 'text-anchor="middle" font-size="10" fill="#334155"')).join("");
+    if (chart.type === "line") {
+      marks = chart.series.map((series) => {
+        const points = series.values.map((value, index) => `${(plot.left + categoryWidth * (index + 0.5)).toFixed(2)},${yFor(value).toFixed(2)}`).join(" ");
+        const dots = series.values.map((value, index) => {
+          const x = plot.left + categoryWidth * (index + 0.5);
+          return `<circle cx="${x.toFixed(2)}" cy="${yFor(value).toFixed(2)}" r="3.5" fill="${series.color}"/>`;
+        }).join("");
+        return `<polyline points="${points}" fill="none" stroke="${series.color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>${dots}`;
+      }).join("");
+    } else if (chart.type === "bar") {
+      const rowHeight = plot.height / Math.max(1, chart.categories.length);
+      marks = chart.series.map((series, seriesIndex) => series.values.map((value, index) => {
+        const y = plot.top + rowHeight * index + rowHeight * 0.18 + seriesIndex * (rowHeight * 0.64 / chart.series.length);
+        const x = value >= 0 ? plot.left : plot.left + (value / range) * plot.width;
+        const zeroX = plot.left + ((0 - minValue) / range) * plot.width;
+        const w = Math.abs(value / range) * plot.width;
+        return `<rect x="${(value >= 0 ? zeroX : x).toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${Math.max(4, rowHeight * 0.56 / chart.series.length).toFixed(2)}" rx="3" fill="${series.color}"/>`;
+      }).join("")).join("") + chart.categories.map((category, index) => svgText(category, plot.left - 8, plot.top + rowHeight * (index + 0.56), 'text-anchor="end" font-size="10" fill="#334155"')).join("");
+    } else {
+      const groupWidth = categoryWidth * 0.76;
+      const barWidth = groupWidth / Math.max(1, chart.series.length);
+      marks = chart.series.map((series, seriesIndex) => series.values.map((value, index) => {
+        const x = plot.left + categoryWidth * index + categoryWidth * 0.12 + barWidth * seriesIndex;
+        const y = yFor(Math.max(value, 0));
+        const zeroY = baseline;
+        return `<rect x="${x.toFixed(2)}" y="${Math.min(y, zeroY).toFixed(2)}" width="${Math.max(3, barWidth - 3).toFixed(2)}" height="${Math.max(2, Math.abs(zeroY - yFor(value))).toFixed(2)}" rx="2" fill="${series.color}"/>`;
+      }).join("")).join("") + labels;
+    }
+    marks = `${grid}<line x1="${plot.left}" y1="${baseline.toFixed(2)}" x2="${(plot.left + plot.width).toFixed(2)}" y2="${baseline.toFixed(2)}" stroke="#94A3B8" stroke-width="1.2"/>${marks}`;
+  }
+
+  return `<figure class="pdf-chart"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(chart.title || "Chart")}">${title}${marks}${legend}</svg></figure>`;
+}
+
+export function contentBlocksToCharts(blocks: PDFContentBlock[]): PDFChartOptions[] {
+  return blocks
+    .filter((block) => block.type === "chart" && block.data)
+    .map((block) => ({ ...(block.data as PDFChartOptions), title: block.data?.title || block.text }));
 }
 
 function plainTextFromOptions(options: PDFOptions): string {
@@ -235,6 +480,7 @@ function plainTextFromOptions(options: PDFOptions): string {
     options.author || "",
     options.markdown || "",
     ...(options.sections || []).flatMap((section) => [section.heading || "", section.content]),
+    ...(options.charts || []).map(chartText),
   ]
     .join("\n")
     .replace(/```[\s\S]*?```/g, (value) => value.replace(/```\w*/g, ""))
@@ -581,6 +827,9 @@ export function buildPDFHTML(options: PDFOptions): string {
     }
   }
 
+  const chartMarkup = (options.charts || []).map(renderChartSvg).filter(Boolean).join("\n");
+  if (chartMarkup) body += chartMarkup;
+
   const displayDate =
     String(options.reportDate || "").trim() ||
     new Intl.DateTimeFormat("zh-CN", {
@@ -653,6 +902,8 @@ export function buildPDFHTML(options: PDFOptions): string {
     .meta { font-size: 12px; color: #6b7280; margin-bottom: 20px; }
     a { color: #1d4ed8; text-decoration: none; }
     img { max-width: 100%; height: auto; }
+    .pdf-chart { margin: 18px 0 24px; break-inside: avoid; page-break-inside: avoid; }
+    .pdf-chart svg { display: block; width: 100%; height: auto; max-height: 165mm; }
     .report-cover {
       position: relative;
       z-index: 2;

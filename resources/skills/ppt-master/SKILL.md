@@ -47,6 +47,13 @@ metadata:
 - Do not call `generate_presentation`, and do not call `create_presentation`
   more than once for the same delivery. Repair the slide plan before that one
   build rather than creating competing deck variants.
+- Do not replace the required `create_presentation` call with Python,
+  matplotlib, `chart_engine.py`, shell scripts, or a progress-only status
+  message. If an optional dependency is missing, attempt the built-in artifact
+  call first, then report the exact limitation and offer a supported route.
+- Never ask the user to press “Continue” merely because an artifact step has
+  not run. A delivery step must either call the built-in artifact tool and
+  verify its result, or stop with a concrete error and recovery action.
 
 PPT Master is a routed presentation workflow. This entry owns global execution discipline and route selection only; each selected route owns its procedure.
 

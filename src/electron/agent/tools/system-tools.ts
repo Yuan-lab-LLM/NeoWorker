@@ -32,6 +32,16 @@ const DEFAULT_TIMEOUT = 30 * 1000; // 30 seconds
 const APPLESCRIPT_TIMEOUT_MS = 240 * 1000; // 4 minutes
 const CURRENT_LOCATION_FAILURE_TTL_MS = 2 * 60 * 1000;
 
+function resolveReportedShell(): string {
+  if (process.platform === "win32") {
+    const comspec = process.env.ComSpec || process.env.COMSPEC;
+    if (comspec) return comspec;
+    const systemRoot = process.env.SystemRoot || "C:\\Windows";
+    return path.join(systemRoot, "System32", "cmd.exe");
+  }
+  return process.env.SHELL || "/bin/sh";
+}
+
 type MacOSAppProcessRecord = {
   pid: number;
   ppid: number | null;
@@ -419,7 +429,7 @@ export class SystemTools {
       uptime: `${uptimeHours} hours`,
       homeDir: os.homedir(),
       tempDir: os.tmpdir(),
-      shell: process.env.SHELL || "unknown",
+      shell: resolveReportedShell(),
       username: os.userInfo().username,
     };
 

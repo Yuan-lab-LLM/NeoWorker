@@ -36,10 +36,25 @@ def main() -> int:
     report = {
         "status": "failed" if missing_paths else "ready",
         "python": sys.version.split()[0],
+        "python_executable": sys.executable,
         "platform": platform.platform(),
         "skill_root": str(ROOT),
         "missing_required_paths": missing_paths,
         "optional_modules": modules,
+        "python_dependency_policy": {
+            "required_for_native_office": False,
+            "required_for_pdf_charts": False,
+            "interpretation": "advisory-only; missing optional modules must not block OfficeCLI or native SVG output",
+        },
+        # Chart pages are authored as native SVG/Office shapes by NeoWorker.
+        # Keep this explicit so an agent does not mistake an absent matplotlib
+        # package for a failed PPT/PDF capability and start writing an ad-hoc
+        # chart_engine.py script.
+        "charting": {
+            "backend": "native-svg",
+            "python_dependency": None,
+            "matplotlib_required": False,
+        },
         "packaging": {
             "heavy_comparison_gallery": False,
             "bundled_icon_corpus": False,

@@ -39,6 +39,16 @@ import {
 import { ensureEverydayAgentSchema } from "./schema";
 import { DEFAULT_AGENT_SECURITY_POLICY } from "../../shared/agent-security";
 
+const DEFAULT_FAIL_CLOSED_SANDBOX_TYPES =
+  process.platform === "win32" ? (["docker", "none"] as const) : (["macos", "docker"] as const);
+// A Windows host has no NeoWorker-native sandbox backend.  Keep the
+// fail-closed policy strict on Unix-like hosts, while allowing the same
+// controlled NoSandbox runner used by the regular Windows policy when Docker
+// is unavailable.  Everyday Agent itself remains blocked below, so this only
+// prevents an unrelated shell request from being denied solely because the
+// policy file could not be loaded.
+const DEFAULT_FAIL_CLOSED_REQUIRE_SANDBOX_FOR_SHELL = process.platform !== "win32";
+
 const VALID_CAPABILITIES = new Set<EverydayCapabilityBundle>(
   EVERYDAY_AGENT_CAPABILITY_BUNDLES.map((bundle) => bundle.id),
 );
@@ -74,8 +84,8 @@ function failClosedPolicies(): AdminPolicies {
     },
     runtime: {
       allowedPermissionModes: [],
-      allowedSandboxTypes: ["macos", "docker"],
-      requireSandboxForShell: true,
+      allowedSandboxTypes: [...DEFAULT_FAIL_CLOSED_SANDBOX_TYPES],
+      requireSandboxForShell: DEFAULT_FAIL_CLOSED_REQUIRE_SANDBOX_FOR_SHELL,
       allowUnsandboxedShell: false,
       network: {
         defaultAction: "deny",

@@ -1,5 +1,6 @@
 import { EventEmitter } from "events";
 import fs from "fs";
+import os from "os";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ChildProcess } from "child_process";
 import type { Workspace } from "../../../../shared/types";
@@ -188,6 +189,8 @@ describe("MacOSSandbox", () => {
     expect(profile).toContain('/var/folders/test/neoworker workspace');
     expect(profile).toContain('/private/var/folders/test/neoworker workspace');
     expect(profile).not.toContain('(allow file-read* (subpath "/private/var/folders"))');
+    expect(profile).toContain(`${os.homedir()}/Library/Python`);
+    expect(profile).toContain(`${os.homedir()}/.local/lib`);
 
     proc.emit("close", 0, null);
     await expect(resultPromise).resolves.toMatchObject({ exitCode: 0 });
@@ -247,5 +250,30 @@ describe("MacOSSandbox", () => {
 
     proc.emit("close", 0, null);
     await expect(resultPromise).resolves.toMatchObject({ exitCode: 0 });
+  });
+
+  it("allows packaged OfficeCLI resources inside sandbox-exec", () => {
+    const originalResourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+    Object.defineProperty(process, "resourcesPath", {
+      configurable: true,
+      value: "/Applications/NeoWorker.app/Contents/Resources",
+    });
+    try {
+      const sandbox = new MacOSSandbox(makeWorkspace());
+      const profile = (sandbox as unknown as { generateSandboxProfile: (network: boolean) => string })
+        .generateSandboxProfile(false);
+      expect(profile).toContain(
+        '(allow file-read* (subpath "/Applications/NeoWorker.app/Contents/Resources/officecli"))',
+      );
+    } finally {
+      if (originalResourcesPath === undefined) {
+        delete (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+      } else {
+        Object.defineProperty(process, "resourcesPath", {
+          configurable: true,
+          value: originalResourcesPath,
+        });
+      }
+    }
   });
 });

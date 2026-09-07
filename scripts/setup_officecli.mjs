@@ -56,7 +56,10 @@ const ASSETS = {
 
 function readFlag(name) {
   const index = process.argv.indexOf(name);
-  return index >= 0 ? process.argv[index + 1] : undefined;
+  if (index >= 0) return process.argv[index + 1];
+  const prefix = `${name}=`;
+  const inline = process.argv.find((argument) => argument.startsWith(prefix));
+  return inline ? inline.slice(prefix.length) : undefined;
 }
 
 function log(message) {

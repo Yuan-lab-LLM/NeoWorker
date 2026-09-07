@@ -6547,6 +6547,37 @@ ${skillDescriptions}`;
               type: "string",
               description: "Optional built-in Office template ID. Omit to select by use case.",
             },
+            charts: {
+              type: "array",
+              description:
+                "Optional dependency-free PDF charts. Use this for bar, column, line, pie, donut, or radar visuals instead of writing Python/matplotlib scripts.",
+              items: {
+                type: "object",
+                properties: {
+                  type: {
+                    type: "string",
+                    enum: ["bar", "column", "line", "pie", "donut", "radar"],
+                  },
+                  title: { type: "string" },
+                  categories: { type: "array", items: { type: "string" } },
+                  series: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        name: { type: "string" },
+                        values: { type: "array", items: { type: ["number", "string"] } },
+                        color: { type: "string" },
+                      },
+                      required: ["values"],
+                    },
+                  },
+                  width: { type: "number" },
+                  height: { type: "number" },
+                },
+                required: ["series"],
+              },
+            },
             useCase: {
               type: "string",
               enum: [
@@ -6595,7 +6626,7 @@ ${skillDescriptions}`;
       {
         name: "create_document",
         description:
-          "Create exactly one polished Word or PDF deliverable. For business, research, financing, and operating reports, NeoWorker automatically applies the professional deep-blue report system: cover, metadata, heading hierarchy, table styling, contents, headers/footers, pagination, and render validation. Supply title/subtitle/author/organization/reportDate when known. DOCX uses the complete official OfficeCLI workflow and PDF uses the validated Chromium workflow. For multi-format requests, reuse the same frozen contentSnapshot used by PPTX/XLSX.",
+          "Create exactly one polished Word or PDF deliverable. For business, research, financing, and operating reports, NeoWorker automatically applies the professional deep-blue report system: cover, metadata, heading hierarchy, table styling, contents, headers/footers, pagination, and render validation. Supply title/subtitle/author/organization/reportDate when known. DOCX uses the complete official OfficeCLI workflow and PDF uses the validated Chromium workflow. PDF charts are rendered as dependency-free native SVG: use a chart content block (type=chart with data.type bar/column/line/pie/donut/radar) or the charts array; never switch to Python, matplotlib, chart_engine.py, or shell scripts. For multi-format requests, reuse the same frozen contentSnapshot used by PPTX/XLSX.",
         input_schema: {
           type: "object",
           properties: {
@@ -6668,6 +6699,32 @@ ${skillDescriptions}`;
                     type: "array",
                     items: { type: "array", items: { type: "string" } },
                     description: "For tables: rows and cells",
+                  },
+                  data: {
+                    type: "object",
+                    description:
+                      "For chart blocks: type, categories, and series values. Charts render natively in the PDF without Python dependencies.",
+                    properties: {
+                      type: {
+                        type: "string",
+                        enum: ["bar", "column", "line", "pie", "donut", "radar"],
+                      },
+                      title: { type: "string" },
+                      categories: { type: "array", items: { type: "string" } },
+                      series: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            name: { type: "string" },
+                            values: { type: "array", items: { type: ["number", "string"] } },
+                            color: { type: "string" },
+                          },
+                          required: ["values"],
+                        },
+                      },
+                    },
+                    required: ["series"],
                   },
                   language: { type: "string", description: "For code blocks: language label" },
                   ...officeContentReferenceInputProperties(),
