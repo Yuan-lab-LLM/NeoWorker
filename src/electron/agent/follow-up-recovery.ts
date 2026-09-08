@@ -32,6 +32,10 @@ function getTurnId(payload: Record<string, unknown>): string | undefined {
 function isFollowUpUserMessage(event: FollowUpRecoveryEvent): boolean {
   if (getEventType(event) !== "user_message") return false;
   const payload = event.payload || {};
+  // A daemon-owned follow-up can be persisted while the previous turn is
+  // still running. It has not started yet, so a later completion event from
+  // that previous turn must not clear it from the recovery state machine.
+  if (payload.queued === true) return false;
   const turnId = getTurnId(payload) || "";
   return payload.followUp === true || /:follow-up:/i.test(turnId);
 }
@@ -60,6 +64,33 @@ export function findInterruptedFollowUp(
   for (const event of ordered) {
     const type = getEventType(event);
     const payload = event.payload || {};
+
+    // The daemon writes this marker immediately before dispatching a durable
+    // queued follow-up. Treat it as an active turn if the process exits before
+    // the executor can emit its normal follow_up_started event.
+    if (type === "follow_up_dispatch_started") {
+      const message = String(
+        payload.message || payload.effectiveMessage || "",
+      ).trim();
+      if (!message) continue;
+      active = {
+        message,
+        startedAt: Number(
+          payload.dispatchStartedAt || getEventTime(event) || Date.now(),
+        ),
+        turnId: getTurnId(payload),
+        requiredArtifactExtensions: [],
+      };
+      continue;
+    }
+
+    // The daemon writes this marker only after sendMessage has settled. It is
+    // the durable terminal boundary for a queued dispatch, even when the
+    // executor completed through its recoverable-error path.
+    if (type === "follow_up_dispatch_finished") {
+      active = null;
+      continue;
+    }
 
     if (type === "follow_up_started") {
       const message = String(

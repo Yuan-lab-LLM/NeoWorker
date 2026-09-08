@@ -383,6 +383,7 @@ import {
   extractExplicitOutputExtensions as extractExplicitOutputExtensionsUtil,
   getExplicitArtifactToolNames as getExplicitArtifactToolNamesUtil,
   buildCompletionGuidancePrompt as buildCompletionGuidancePromptUtil,
+  isArtifactProgressOnlyText as isArtifactProgressOnlyTextUtil,
   extractHtmlSourceCoverageAnchors,
   getFollowUpIterationLimit,
   isHtmlBrowserVerificationInfrastructureFailure,
@@ -5769,7 +5770,7 @@ export class TaskExecutor {
     // description of an output, not an executable file-creation objective. If
     // retained, it can consume a plan slot while the real deterministic
     // create_document/create_spreadsheet step is compacted into unrelated work.
-    return !/\b(?:create|generate|write|save|produce|export|build|make|deliver|assemble|call|invoke)\b|(?:创建|生成|制作|输出|导出|保存|写入|交付|产出|撰写|组装|调用)/iu.test(
+    return !/\b(?:create(?:[_-](?:document|spreadsheet|presentation))?|generate|write|save|produce|export|build|make|deliver|assemble|call|invoke)\b|(?:创建|生成|制作|输出|导出|保存|写入|交付|产出|撰写|组装|调用)/iu.test(
       desc,
     );
   }
@@ -13470,9 +13471,9 @@ ${transcript}
   private buildPptxArtifactPlanStepDescription(): string {
     const filename = this.buildTaskArtifactFilename(".pptx");
     if (this.taskRequiresSimplifiedChineseOutput()) {
-      return `创建最终 PowerPoint 演示文稿 \`${filename}\`，并写入完整的幻灯片内容。`;
+      return `根据用户要求和附件内容，在本步骤调用 create_presentation 一次性创建最终 PowerPoint 演示文稿 \`${filename}\`，写入完整的幻灯片内容；不得仅输出分析、方案或大纲代替真实 .pptx 文件，并确认文件非空且可打开。`;
     }
-    return `Create the final PowerPoint presentation \`${filename}\` with the completed slide content.`;
+    return `Call create_presentation in this step to create the final PowerPoint presentation \`${filename}\` with the completed slide content. Do not substitute analysis, a plan, or an outline for the real .pptx file; confirm it is non-empty and readable.`;
   }
 
   private buildVideoArtifactPlanStepDescription(): string {
@@ -15393,6 +15394,69 @@ ${transcript}
   }
 
   /**
+   * PDF delivery has the same deterministic contract as XLSX delivery.  In
+   * particular, do not send a direct PDF request through the general planner:
+   * that leaves the model enough room to invent a Python/matplotlib workflow
+   * (or stop after an analysis update) before it ever calls create_document.
+   */
+  private buildDirectPdfArtifactPlan(): Plan | null {
+    if (this.getEffectiveExecutionMode() !== "execute") return null;
+
+    const requiredExtensions =
+      this.buildCompletionContract().requiredArtifactExtensions.map(
+        (extension) => String(extension || "").toLowerCase(),
+      );
+    if (requiredExtensions.length !== 1 || requiredExtensions[0] !== ".pdf") {
+      return null;
+    }
+
+    const prompt = [
+      this.task.rawPrompt,
+      this.task.userPrompt,
+      this.task.prompt,
+      this.task.title,
+    ]
+      .filter(
+        (value): value is string =>
+          typeof value === "string" && value.trim().length > 0,
+      )
+      .join("\n");
+    if (!prompt.trim() || this.promptHasReadOnlyConstraint(prompt)) return null;
+    if (
+      !/\b(?:create|make|generate|write|build|produce|export|save|deliver|convert)\b|(?:创建|生成|制作|输出|写入|制作|导出|保存|交付|转换)/i.test(
+        prompt,
+      )
+    ) {
+      return null;
+    }
+
+    const filename = this.buildTaskArtifactFilename(".pdf");
+    const chinese = this.taskRequiresSimplifiedChineseOutput();
+    const description = chinese
+      ? `${this.buildPdfArtifactPlanStepDescription()} 立即调用内置 create_document（format="pdf"）工具完成并校验；如果用户要求图表，使用 PDF 内容块的内置图表/SVG能力。不要改用其他 Office 工具，不要编写或运行 matplotlib、chart_engine.py、临时 Python 脚本，也不要安装依赖。生成文件后直接交付，不要只发送进度说明。`
+      : `${this.buildPdfArtifactPlanStepDescription()} Call the built-in create_document tool now and use its validation result. If charts are requested, use the PDF content block's built-in chart/SVG support. Do not switch to another Office tool, write or run matplotlib/chart_engine.py or ad-hoc Python scripts, install dependencies, or stop at a progress update.`;
+
+    // Keep this deterministic plan intact.  Its explanatory guard text
+    // intentionally mentions forbidden fallback formats (for example
+    // Markdown/matplotlib); running the generic output-intent filter over that
+    // text would mistake those negative examples for additional artifacts and
+    // drop the real PDF step.
+    return {
+      description: chinese
+        ? "一次性生成并校验用户要求的 PDF"
+        : "Create and validate the requested PDF",
+      steps: [
+        {
+          id: "1",
+          description,
+          kind: "primary",
+          status: "pending",
+        },
+      ],
+    };
+  }
+
+  /**
    * HTML deliverables are especially vulnerable to planning-model timeouts:
    * the planner tends to restate the entire page specification before any
    * write tool is called.  The completion contract already tells us exactly
@@ -16168,17 +16232,33 @@ ${transcript}
 
   private buildCompletionContract(): CompletionContract {
     const canonicalIntent = this.getCanonicalTaskIntentQuery();
+    const contractPrompt = canonicalIntent || this.getContractPrompt();
     const contract = buildCompletionContractUtil({
       // The canonical query contains only user-authored intent. Do not let a
       // generated title or attachment/OCR text add another output format.
       taskTitle: "",
-      taskPrompt: canonicalIntent || this.getContractPrompt(),
+      taskPrompt: contractPrompt,
       requiresDirectAnswer: this.promptRequiresDirectAnswer(),
       requiresDecisionSignal: this.promptRequestsDecision(),
       isWatchSkipRecommendationTask: this.promptIsWatchSkipRecommendationTask(),
     });
     const workerRole = resolveWorkerRoleKind(this.task.workerRole);
-    if (workerRole === "researcher" || workerRole === "verifier") {
+    const isReadOnlyDelegate = workerRole === "researcher" || workerRole === "verifier";
+    // PPT Master has an explicit file-delivery contract. Terse localized
+    // prompts could previously reach finalization without a .pptx plan step.
+    if (
+      !isReadOnlyDelegate &&
+      this.getRequestedPresentationWorkflow() === "ppt-master" &&
+      !detectReadOnlyConstraintUtil(contractPrompt)
+    ) {
+      contract.requiresExecutionEvidence = true;
+      contract.requiresArtifactEvidence = true;
+      contract.artifactKind = "file";
+      if (!contract.requiredArtifactExtensions.includes(".pptx")) {
+        contract.requiredArtifactExtensions.push(".pptx");
+      }
+    }
+    if (isReadOnlyDelegate) {
       // These delegation roles are explicitly read-only.  Their deliverable is
       // a findings/verdict message consumed by the parent task, even when the
       // root request mentions a file artifact.  Requiring every team member to
@@ -19059,6 +19139,13 @@ ${transcript}
           "- If you created .neoworker/tmp fragments or an assemble.py helper, execute the assembly and read the final HTML back before replying. Do not end after writing a skeleton or saying that assembly will happen next.",
         ]
       : [];
+    const pdfGuidance = requestedExtensions.includes(".pdf")
+      ? [
+          "- This follow-up requests PDF. Call the built-in create_document tool with format=\"pdf\" now, using the complete findings and source data already gathered in this task, and finish the file in this turn.",
+          "- If charts are requested, use create_document's PDF chart/SVG content blocks. Do not call create_presentation, use OfficeCLI as a localhost service, write or run matplotlib/chart_engine.py or other ad-hoc Python scripts, install packages, or end with a progress update.",
+          "- Verify the returned PDF is non-empty and readable, then deliver its path. A status message, Markdown report, or renamed text file is not a PDF artifact.",
+        ]
+      : [];
     const browserVerificationGuidance =
       this.shouldPreferBuiltInBrowserVerification(message)
         ? [
@@ -19083,6 +19170,7 @@ ${transcript}
       "- Gather new evidence only when the follow-up needs information that is not already available.",
       ...presentationGuidance,
       ...htmlGuidance,
+      ...pdfGuidance,
       ...browserVerificationGuidance,
     ].join("\n");
   }
@@ -22752,9 +22840,9 @@ You are continuing a previous conversation. The context from the previous conver
         additionalContext += `DOCUMENT CREATION BEST PRACTICES:
 1. DEFAULT to Markdown (.md) using write_file — it is the preferred output format.
 2. ONLY use create_document/generate_document when the user EXPLICITLY requests Word, DOCX, or PDF format.
-3. create_document parameters: filename, format ('docx' or 'pdf'), content (array of blocks)
+3. create_document parameters: filename, format ('docx' or 'pdf'), content (array of blocks); for chart-rich PDF reports use type='chart' blocks with data.type/categories/series (native SVG, no matplotlib)
    generate_document parameters: filename plus markdown or sections
-4. Content blocks: { type: 'heading'|'paragraph'|'list', text: '...', level?: 1-6 }`;
+4. Content blocks: { type: 'heading'|'paragraph'|'list'|'table'|'chart', text: '...', level?: 1-6, data?: { type, categories, series } }; chart blocks render as native SVG in PDF.`;
       }
 
       // Log the analysis result
@@ -31544,6 +31632,19 @@ You are continuing a previous conversation. The context from the previous conver
       return;
     }
 
+    const directPdfArtifactPlan = this.buildDirectPdfArtifactPlan();
+    if (directPdfArtifactPlan) {
+      this.plan = directPdfArtifactPlan;
+      this.emitEvent("log", {
+        message: "Using direct artifact plan for PDF creation.",
+      });
+      this.emitEvent("plan_created", {
+        plan: this.plan,
+        source: "direct_pdf",
+      });
+      return;
+    }
+
     const directSpreadsheetArtifactPlan =
       this.buildDirectSpreadsheetArtifactPlan();
     if (directSpreadsheetArtifactPlan) {
@@ -34558,6 +34659,12 @@ Return ONLY a JSON object:
       let lastSharedContextKey = "";
       let lastSharedContextBlock = "";
       let toolRecoveryHintInjected = false;
+      // A model can stop a document step after emitting a capability/progress
+      // update (for example, "matplotlib is unavailable; I will build a
+      // chart_engine.py fallback"). Keep this bounded nudge separate from
+      // tool-failure recovery so the task advances to the built-in artifact
+      // tool instead of asking the user to press Continue repeatedly.
+      let artifactProgressNudgeCount = 0;
       let consecutiveSkippedToolOnlyTurns = 0;
       // Loop detection: track recent tool calls to detect degenerate loops
       const recentToolCalls: ToolLoopCall[] = [];
@@ -35231,6 +35338,44 @@ Return ONLY a JSON object:
           if (hasTextInThisResponse) {
             hadMeaningfulAssistantText = true;
           }
+
+          const artifactProgressOnly =
+            response.stopReason === "end_turn" &&
+            !responseHasToolUse &&
+            !isVerifyStep &&
+            requiredArtifactExtensions.length > 0 &&
+            artifactProgressNudgeCount < 2 &&
+            isArtifactProgressOnlyTextUtil(assistantText);
+          if (artifactProgressOnly) {
+            artifactProgressNudgeCount += 1;
+            const requestedArtifactKinds = requiredArtifactExtensions.join(", ");
+            const nudgeText =
+              stepContract.mode === "analysis_only"
+                ? `Do not stop on a progress or dependency note and do not write Python/matplotlib/chart_engine.py fallbacks. Finish this read-only analysis step now with the findings already collected; the later delivery step owns ${requestedArtifactKinds} and must call the built-in artifact tool.`
+                : requestedArtifactKinds.includes(".pdf")
+                  ? 'Do not send another progress update. Call create_document now with format="pdf" and the complete content (use native chart data blocks when charts are needed), then wait for its quality/validation result.'
+                  : requestedArtifactKinds.includes(".pptx")
+                    ? "Do not send another progress update. Call create_presentation now with the complete slide plan and deliver the single verified .pptx. Do not use Python or shell scripts as a substitute."
+                    : `Do not send another progress update. Use the built-in artifact tool now to create ${requestedArtifactKinds}.`;
+            // Preserve the model's own turn so the corrective user message is
+            // valid for providers that require alternating roles.
+            messages.push({ role: "assistant", content: response.content || [] });
+            messages.push({
+              role: "user",
+              content: [{ type: "text", text: this.sanitizeFallbackInstruction(nudgeText) }],
+            });
+            this.emitEvent("log", {
+              metric: "artifact_progress_nudge",
+              stepId: step.id,
+              iteration: iterationCount,
+              requiredArtifactExtensions,
+              attempt: artifactProgressNudgeCount,
+            });
+            continueLoop = true;
+            state.messages = messages;
+            return { continueLoop, emptyResponseCount };
+          }
+
           const mutationSatisfiedAfterAssistantText =
             stepSucceededWithFileMutation ||
             stepSucceededWithCanvasMutation ||

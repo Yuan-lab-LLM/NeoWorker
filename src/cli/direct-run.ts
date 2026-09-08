@@ -43,6 +43,7 @@ import {
 import { isTerminalTaskStatus } from "../shared/task-status";
 import type { AgentConfig, CliTaskOwnership, Task } from "../shared/types";
 import { buildTaskTitle } from "./format";
+import { splitCommandLine } from "./command-line";
 import { NumbatService } from "../electron/security/numbat";
 import type { AgentSecurityFindingStatus } from "../shared/agent-security";
 import { requiresAgentSecurityConfirmation } from "./agent-security-confirmation";
@@ -2451,43 +2452,6 @@ function normalizeMcpTransport(value: string): "stdio" | "sse" | "websocket" | "
   }
   if (normalized === "http") return "streamable-http";
   throw new Error(`Unsupported MCP transport: ${value}`);
-}
-
-function splitCommandLine(input: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let quote: "'" | '"' | null = null;
-  let escaped = false;
-  for (const ch of input) {
-    if (escaped) {
-      current += ch;
-      escaped = false;
-      continue;
-    }
-    if (ch === "\\") {
-      escaped = true;
-      continue;
-    }
-    if (quote) {
-      if (ch === quote) quote = null;
-      else current += ch;
-      continue;
-    }
-    if (ch === "'" || ch === '"') {
-      quote = ch;
-      continue;
-    }
-    if (/\s/.test(ch)) {
-      if (current) {
-        result.push(current);
-        current = "";
-      }
-      continue;
-    }
-    current += ch;
-  }
-  if (current) result.push(current);
-  return result;
 }
 
 function redactObject(value: unknown, redact: boolean): unknown {

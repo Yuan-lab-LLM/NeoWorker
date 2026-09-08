@@ -240,6 +240,35 @@ export class DocumentTools {
                 required: ["content"],
               },
             },
+            charts: {
+              type: "array",
+              description:
+                "Optional native SVG charts rendered inside the PDF; no Python or matplotlib installation is required.",
+              items: {
+                type: "object",
+                properties: {
+                  type: {
+                    type: "string",
+                    enum: ["bar", "column", "line", "pie", "donut", "radar"],
+                  },
+                  title: { type: "string" },
+                  categories: { type: "array", items: { type: "string" } },
+                  series: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        name: { type: "string" },
+                        values: { type: "array", items: { type: ["number", "string"] } },
+                        color: { type: "string" },
+                      },
+                      required: ["values"],
+                    },
+                  },
+                },
+                required: ["series"],
+              },
+            },
           },
           required: ["filename"],
         },
@@ -718,6 +747,7 @@ export class DocumentTools {
       author: input.author,
       markdown: input.markdown,
       sections: input.sections,
+      charts: Array.isArray(input.charts) ? input.charts : undefined,
     });
 
     if (result.success && this.registerArtifact) {

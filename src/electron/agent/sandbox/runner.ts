@@ -228,7 +228,14 @@ export class SandboxRunner {
     try {
       fs.writeFileSync(tempFile, code, "utf8");
 
-      const interpreter = language === "python" ? "python3" : "node";
+      // Windows installs expose the interpreter as `python.exe`; `python3`
+      // is a Unix convention and commonly does not exist on PATH.
+      const interpreter =
+        language === "python"
+          ? process.platform === "win32"
+            ? "python"
+            : "python3"
+          : "node";
       return await this.execute(interpreter, [tempFile], {
         timeout: 60 * 1000, // 1 minute for scripts
         allowNetwork: false,

@@ -30,7 +30,12 @@ let cachedHealth: Promise<OfficeCliHealthReport> | undefined;
 function runHealthCommand(executable: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, {
-      env: { ...process.env, OFFICECLI_NO_AUTO_RESIDENT: "1" },
+      env: {
+        ...process.env,
+        OFFICECLI_NO_AUTO_RESIDENT: "1",
+        OFFICECLI_SKIP_UPDATE: "1",
+        OFFICECLI_NO_AUTO_INSTALL: "1",
+      },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -87,7 +92,12 @@ export function getBundledOfficeCliCandidates(
   const cwd = context.cwd || process.cwd();
   const binaryName = getOfficeCliBinaryName(platform);
   const bundleKey = getOfficeCliBundleKey(platform, arch);
+  const recordedBundledPath =
+    platform === process.platform && arch === process.arch
+      ? process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH
+      : undefined;
   const candidates = [
+    recordedBundledPath,
     resourcesPath ? path.join(resourcesPath, "officecli", binaryName) : undefined,
     path.join(cwd, "build", "officecli", bundleKey, binaryName),
     path.join(path.resolve(__dirname, "../../../.."), "build", "officecli", bundleKey, binaryName),
@@ -149,6 +159,13 @@ export function installBundledOfficeCliRuntime(): string | null {
     path.delimiter,
   );
   process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH = executable;
+  // Agent shell commands inherit these values as well as the built-in Office
+  // artifact writers. Keeping calls one-shot prevents an interrupted resident
+  // process from blocking the next task on its IPC pipe.
+  process.env.OFFICECLI_NO_AUTO_RESIDENT = "1";
+  process.env.OFFICECLI_RESIDENT_FLUSH = "each";
+  process.env.OFFICECLI_SKIP_UPDATE = "1";
+  process.env.OFFICECLI_NO_AUTO_INSTALL = "1";
   return executable;
 }
 

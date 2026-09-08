@@ -135,6 +135,10 @@ function executableCandidates(): string[] {
   const binaryName = officeCliBinaryName();
   const resourcesPath = process.resourcesPath;
   const candidates = [
+    // main.ts records the resolved bundled binary here before the daemon and
+    // skills are initialized. Keep this candidate first so packaged builds
+    // still work when Electron's cwd/resourcesPath differ from the app root.
+    process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH,
     process.env.NEOWORKER_OFFICECLI_PATH,
     process.env.OFFICECLI_PATH,
     resourcesPath ? path.join(resourcesPath, "officecli", binaryName) : undefined,
@@ -162,7 +166,15 @@ function defaultInvoker(
     const child = spawn(executable, args, {
       env: {
         ...process.env,
+        // NeoWorker commands must not attach to a resident left behind by an
+        // interrupted task. A stale resident can keep its pipe busy forever
+        // and make every later OfficeCLI command appear unavailable.
+        OFFICECLI_NO_AUTO_RESIDENT: "1",
         OFFICECLI_RESIDENT_FLUSH: "each",
+        // NeoWorker owns and signs the bundled executable. OfficeCLI's
+        // background updater must not replace it inside an installed app.
+        OFFICECLI_SKIP_UPDATE: "1",
+        OFFICECLI_NO_AUTO_INSTALL: "1",
       },
       stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     });

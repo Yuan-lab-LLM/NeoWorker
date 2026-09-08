@@ -96,7 +96,14 @@ export class CodeExecTools {
     options: SandboxOptions,
   ) {
     const ext = language === "python" ? ".py" : ".js";
-    const interpreter = language === "python" ? "python3" : "node";
+    // `python3` is not a standard Windows command; use the Windows launcher
+    // name so execute_code works on regular Python.org installations.
+    const interpreter =
+      language === "python"
+        ? process.platform === "win32"
+          ? "python"
+          : "python3"
+        : "node";
     const { filePath, cleanup } = createSecureTempFile(ext, code);
 
     try {

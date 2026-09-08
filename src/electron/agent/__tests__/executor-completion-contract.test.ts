@@ -535,6 +535,46 @@ describe("TaskExecutor completion contract integration", () => {
     );
   });
 
+  it("uses a deterministic built-in PDF plan instead of a Python chart fallback", () => {
+    const prompt =
+      "读取附件中的 Excel，生成一份详细的 PDF 报告，包含柱状图和饼图";
+    const executor = createExecuteHarness({
+      title: "Excel 分析 PDF 报告",
+      prompt,
+      rawPrompt: prompt,
+      lastOutput: "",
+    });
+    (executor as Any).task.agentConfig = {
+      executionMode: "execute",
+      conversationMode: "task",
+      taskIntent: "execution",
+    };
+
+    const plan = (executor as Any).buildDirectPdfArtifactPlan();
+    expect(plan).toBeTruthy();
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0].description).toContain('create_document（format="pdf"）');
+    expect(plan.steps[0].description).toContain("chart_engine.py");
+    expect(plan.steps[0].description).toContain("create_document");
+  });
+
+  it("does not force PDF creation for an explicitly read-only request", () => {
+    const prompt = "只读分析附件 PDF，不要创建或修改任何文件";
+    const executor = createExecuteHarness({
+      title: "只读分析 PDF",
+      prompt,
+      rawPrompt: prompt,
+      lastOutput: "",
+    });
+    (executor as Any).task.agentConfig = {
+      executionMode: "execute",
+      conversationMode: "task",
+      taskIntent: "execution",
+    };
+
+    expect((executor as Any).buildDirectPdfArtifactPlan()).toBeNull();
+  });
+
   it("keys incremental edits by anchor instead of treating the whole HTML file as done", () => {
     const executor = createExecuteHarness({
       prompt: "生成一个 HTML 动画页面",
@@ -1269,6 +1309,100 @@ Use concise engineering judgment. Include exact evidence: file paths, command re
 
     expect(contract.requiresArtifactEvidence).toBe(true);
     expect(contract.artifactKind).toBe("file");
+    expect(contract.requiredArtifactExtensions).toContain(".pptx");
+  });
+
+  it("treats requests to optimize an existing PPT as a pptx deliverable", () => {
+    const contract = buildCompletionContract({
+      taskTitle: "",
+      taskPrompt: "帮我优化一下PPT",
+      requiresDirectAnswer: false,
+      requiresDecisionSignal: false,
+      isWatchSkipRecommendationTask: false,
+    });
+
+    expect(contract.requiresArtifactEvidence).toBe(true);
+    expect(contract.requiredArtifactExtensions).toContain(".pptx");
+    expect(contract.artifactKind).toBe("file");
+  });
+
+  it("does not treat presentation analysis alone as a pptx deliverable", () => {
+    const contract = buildCompletionContract({
+      taskTitle: "",
+      taskPrompt: "只分析一下这个PPT里的内容和结构",
+      requiresDirectAnswer: true,
+      requiresDecisionSignal: false,
+      isWatchSkipRecommendationTask: false,
+    });
+
+    expect(contract.requiresArtifactEvidence).toBe(false);
+    expect(contract.requiredArtifactExtensions).not.toContain(".pptx");
+  });
+
+  it("forces PPT Master plans to include final pptx delivery", () => {
+    const executor = createExecuteHarness({
+      title: "Ppt Master: 处理附件",
+      prompt: "/ppt-master 按技能要求处理附件",
+      lastOutput: "",
+    }) as Any;
+    executor.task.agentConfig = { requestedSkillId: "ppt-master" };
+
+    const contract = executor.buildCompletionContract();
+    const result = executor.ensureRequiredPlanSteps({
+      description: "PPT redesign plan",
+      steps: [
+        {
+          id: "1",
+          description: "读取并预检源演示文稿",
+          kind: "primary",
+          status: "pending",
+        },
+        {
+          id: "2",
+          description: "分析十页内容并制定逐页重构方案",
+          kind: "primary",
+          status: "pending",
+        },
+      ],
+    });
+
+    expect(contract.requiresArtifactEvidence).toBe(true);
+    expect(contract.requiredArtifactExtensions).toContain(".pptx");
+    expect(result.steps).toHaveLength(3);
+    expect(result.steps[2]).toEqual(
+      expect.objectContaining({
+        kind: "primary",
+        status: "pending",
+        description: expect.stringContaining("create_presentation"),
+      }),
+    );
+    expect(result.steps[2].description).toContain("不得仅输出分析、方案或大纲");
+  });
+
+  it("honors an explicit read-only constraint for PPT Master", () => {
+    const executor = createExecuteHarness({
+      title: "Ppt Master: 分析PPT",
+      prompt: "/ppt-master 只分析这个PPT，不要创建、修改或导出任何文件",
+      lastOutput: "",
+    }) as Any;
+    executor.task.agentConfig = { requestedSkillId: "ppt-master" };
+
+    const contract = executor.buildCompletionContract();
+
+    expect(contract.requiresArtifactEvidence).toBe(false);
+    expect(contract.requiredArtifactExtensions).toEqual([]);
+  });
+
+  it("does not confuse preserving the source deck with a read-only task", () => {
+    const contract = buildCompletionContract({
+      taskTitle: "",
+      taskPrompt: "不要修改源演示文稿，请创建一份新的演示文稿",
+      requiresDirectAnswer: false,
+      requiresDecisionSignal: false,
+      isWatchSkipRecommendationTask: false,
+    });
+
+    expect(contract.requiresArtifactEvidence).toBe(true);
     expect(contract.requiredArtifactExtensions).toContain(".pptx");
   });
 

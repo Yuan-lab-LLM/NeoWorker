@@ -312,6 +312,69 @@ describe("AgentDaemon follow-up permission overrides", () => {
     );
   });
 
+  it("preserves queued turn context when draining without an app restart", async () => {
+    const executor = {
+      isRunning: false,
+      drainAllPendingFollowUps: vi.fn().mockReturnValue([]),
+      suppressNextUserMessageEvent: vi.fn(),
+    };
+    const followUp = {
+      queueId: "queue-context",
+      displayMessage: "继续修改当前文档",
+      message: "## Active Artifact Context\n\n继续修改当前文档",
+      queuedAt: 1,
+      activeArtifactContext: { kind: "document", path: "/tmp/report.docx" },
+      executionMode: "execute",
+      taskDomain: "documents",
+      requestedSkillId: "officecli",
+      permissionMode: "bypass_permissions",
+      shellAccess: true,
+      integrationMentions: [{ integrationId: "drive", label: "Drive" }],
+      agentConfigOverride: { allowUserInput: false },
+      userMessageAlreadyEmitted: true,
+      effectiveMessageAlreadyBuilt: true,
+    } as Any;
+    const sendMessage = vi.fn().mockResolvedValue({ queued: false });
+    const daemonLike = {
+      taskRepo: {
+        findById: vi.fn().mockReturnValue({ status: "completed" }),
+      },
+      deferredUserFollowUps: new Map([["task-1", [followUp]]]),
+      deferredUserFollowUpDrains: new Map(),
+      deferredUserFollowUpDispatches: new Set(),
+      deferredUserFollowUpRetryTimers: new Map(),
+      sendMessage,
+    } as Any;
+    Object.setPrototypeOf(daemonLike, AgentDaemon.prototype);
+
+    (AgentDaemon.prototype as Any).processOrphanedFollowUps.call(
+      daemonLike,
+      "task-1",
+      executor,
+    );
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+
+    expect(sendMessage).toHaveBeenCalledWith(
+      "task-1",
+      followUp.message,
+      undefined,
+      undefined,
+      expect.objectContaining({
+        activeArtifactContext: followUp.activeArtifactContext,
+        executionMode: "execute",
+        taskDomain: "documents",
+        requestedSkillId: "officecli",
+        permissionMode: "bypass_permissions",
+        shellAccess: true,
+        integrationMentions: followUp.integrationMentions,
+        agentConfigOverride: followUp.agentConfigOverride,
+        userMessageAlreadyEmitted: true,
+        effectiveMessageAlreadyBuilt: true,
+        deferredQueueDispatch: true,
+      }),
+    );
+  });
+
   it("keeps the queue intact until the previous run has reached a settled state", async () => {
     vi.useFakeTimers();
     const executor = {
@@ -350,6 +413,45 @@ describe("AgentDaemon follow-up permission overrides", () => {
     await Promise.resolve();
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(daemonLike.deferredUserFollowUpRetryTimers.size).toBe(0);
+    vi.useRealTimers();
+  });
+
+  it("requeues a follow-up when dispatch fails instead of dropping the message", async () => {
+    vi.useFakeTimers();
+    const executor = {
+      isRunning: false,
+      drainAllPendingFollowUps: vi.fn().mockReturnValue([]),
+      suppressNextUserMessageEvent: vi.fn(),
+    };
+    const queued = {
+      queueId: "queue-failed-dispatch",
+      message: "请继续处理",
+      displayMessage: "请继续处理",
+      queuedAt: 1,
+    };
+    const daemonLike = {
+      taskRepo: {
+        findById: vi.fn().mockReturnValue({ status: "completed" }),
+      },
+      deferredUserFollowUps: new Map([["task-1", [queued]]]),
+      deferredUserFollowUpDrains: new Map(),
+      deferredUserFollowUpDispatches: new Set(),
+      deferredUserFollowUpRetryTimers: new Map(),
+      sendMessage: vi.fn().mockRejectedValue(new Error("temporary dispatch failure")),
+    } as Any;
+    Object.setPrototypeOf(daemonLike, AgentDaemon.prototype);
+
+    (AgentDaemon.prototype as Any).processOrphanedFollowUps.call(
+      daemonLike,
+      "task-1",
+      executor,
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(daemonLike.deferredUserFollowUps.get("task-1")).toEqual([queued]);
+    expect(daemonLike.deferredUserFollowUpRetryTimers.size).toBe(1);
+
     vi.useRealTimers();
   });
 
@@ -495,10 +597,14 @@ describe("AgentDaemon follow-up permission overrides", () => {
         quotedAssistantMessage: undefined,
       }),
     ]);
-    expect(daemonLike.logEvent).not.toHaveBeenCalledWith(
+    expect(daemonLike.logEvent).toHaveBeenCalledWith(
       task.id,
       "user_message",
-      expect.anything(),
+      expect.objectContaining({
+        message: "Continue with full access",
+        followUp: true,
+        queued: true,
+      }),
     );
   });
 
@@ -593,5 +699,211 @@ describe("AgentDaemon follow-up permission overrides", () => {
         agentConfigOverride,
       }),
     ]);
+  });
+
+  it("rehydrates a queued follow-up from durable timeline markers after restart", () => {
+    const task = {
+      id: "task-rehydrate-follow-up",
+      status: "executing",
+      completedAt: undefined,
+      terminalStatus: undefined,
+    } as Any;
+    const daemonLike = {
+      taskRepo: {
+        findByStatus: vi.fn().mockReturnValue([task]),
+      },
+      eventRepo: {
+        findByTaskIdAndTypes: vi.fn().mockReturnValue([
+          {
+            id: "event-user-1",
+            taskId: task.id,
+            timestamp: 100,
+            type: "user_message",
+            payload: {
+              message: "重启后继续",
+              effectiveMessage: "重启后继续",
+              followUp: true,
+              queued: true,
+              queueId: "queue-1",
+              queuedAt: 100,
+              attachmentCount: 1,
+            },
+          },
+          {
+            id: "event-update-1",
+            taskId: task.id,
+            timestamp: 110,
+            type: "follow_up_queue_updated",
+            payload: {
+              queueId: "queue-1",
+              message: "重启后继续（已修改）",
+              effectiveMessage: "重启后继续（已修改）",
+            },
+          },
+        ]),
+      },
+      deferredUserFollowUps: new Map(),
+      restoredDeferredFollowUpTaskIds: new Set(),
+    } as Any;
+    Object.setPrototypeOf(daemonLike, AgentDaemon.prototype);
+
+    const terminalTasks =
+      (AgentDaemon.prototype as Any).restorePersistedDeferredUserFollowUps.call(
+        daemonLike,
+      );
+
+    expect(terminalTasks).toEqual([]);
+    expect(daemonLike.deferredUserFollowUps.get(task.id)).toEqual([
+      expect.objectContaining({
+        queueId: "queue-1",
+        displayMessage: "重启后继续（已修改）",
+        message: "重启后继续（已修改）",
+        attachmentCount: 1,
+        userMessageAlreadyEmitted: true,
+      }),
+    ]);
+  });
+
+  it("schedules durable queued follow-ups on terminal tasks for replay", () => {
+    const task = {
+      id: "task-terminal-follow-up",
+      status: "completed",
+      completedAt: 200,
+      terminalStatus: "completed",
+    } as Any;
+    const daemonLike = {
+      taskRepo: {
+        findByStatus: vi.fn().mockReturnValue([task]),
+      },
+      eventRepo: {
+        findByTaskIdAndTypes: vi.fn().mockReturnValue([
+          {
+            id: "event-user-2",
+            taskId: task.id,
+            timestamp: 100,
+            type: "user_message",
+            payload: {
+              message: "终态任务也不能丢",
+              followUp: true,
+              queued: true,
+              queueId: "queue-2",
+              queuedAt: 100,
+            },
+          },
+        ]),
+      },
+      deferredUserFollowUps: new Map(),
+      restoredDeferredFollowUpTaskIds: new Set(),
+    } as Any;
+    Object.setPrototypeOf(daemonLike, AgentDaemon.prototype);
+
+    const terminalTasks =
+      (AgentDaemon.prototype as Any).restorePersistedDeferredUserFollowUps.call(
+        daemonLike,
+      );
+
+    expect(terminalTasks).toEqual([task.id]);
+    expect(daemonLike.deferredUserFollowUps.get(task.id)).toEqual([
+      expect.objectContaining({
+        displayMessage: "终态任务也不能丢",
+        userMessageAlreadyEmitted: true,
+      }),
+    ]);
+  });
+
+  it("replays the durable effective message and turn options on terminal tasks", async () => {
+    const task = {
+      id: "task-terminal-replay-options",
+      status: "completed",
+      completedAt: 200,
+      terminalStatus: "completed",
+    } as Any;
+    const followUp = {
+      queueId: "queue-replay-options",
+      displayMessage: "请继续修改",
+      message: "## Active Artifact Context\n\n请继续修改",
+      queuedAt: 100,
+      activeArtifactContext: { kind: "document", path: "/tmp/report.docx" },
+      executionMode: "execute",
+      taskDomain: "documents",
+      requestedSkillId: "officecli",
+      permissionMode: "bypass_permissions",
+      shellAccess: true,
+      integrationMentions: [{ integrationId: "drive", label: "Drive" }],
+      agentConfigOverride: { allowUserInput: false },
+      userMessageAlreadyEmitted: true,
+      effectiveMessageAlreadyBuilt: true,
+    } as Any;
+    const sendMessage = vi.fn().mockResolvedValue({ queued: false });
+    const daemonLike = {
+      taskRepo: { findById: vi.fn().mockReturnValue(task) },
+      activeTasks: new Map(),
+      deferredUserFollowUps: new Map([[task.id, [followUp]]]),
+      restoredDeferredFollowUpRetryTimers: new Map(),
+      sendMessage,
+    } as Any;
+    Object.setPrototypeOf(daemonLike, AgentDaemon.prototype);
+
+    await (AgentDaemon.prototype as Any).dispatchRestoredDeferredFollowUps.call(
+      daemonLike,
+      task.id,
+    );
+
+    expect(sendMessage).toHaveBeenCalledWith(
+      task.id,
+      followUp.message,
+      undefined,
+      undefined,
+      expect.objectContaining({
+        activeArtifactContext: followUp.activeArtifactContext,
+        executionMode: "execute",
+        taskDomain: "documents",
+        requestedSkillId: "officecli",
+        permissionMode: "bypass_permissions",
+        shellAccess: true,
+        integrationMentions: followUp.integrationMentions,
+        agentConfigOverride: followUp.agentConfigOverride,
+        userMessageAlreadyEmitted: true,
+        effectiveMessageAlreadyBuilt: true,
+        deferredQueueDispatch: true,
+      }),
+    );
+    expect(daemonLike.deferredUserFollowUps.has(task.id)).toBe(false);
+  });
+
+  it("requeues and schedules a retry when terminal replay fails", async () => {
+    vi.useFakeTimers();
+    const task = {
+      id: "task-terminal-replay-retry",
+      status: "completed",
+      completedAt: 200,
+      terminalStatus: "completed",
+    } as Any;
+    const followUp = {
+      queueId: "queue-replay-retry",
+      displayMessage: "重试这条",
+      message: "重试这条",
+      queuedAt: 100,
+      userMessageAlreadyEmitted: true,
+      effectiveMessageAlreadyBuilt: true,
+    } as Any;
+    const daemonLike = {
+      taskRepo: { findById: vi.fn().mockReturnValue(task) },
+      activeTasks: new Map(),
+      deferredUserFollowUps: new Map([[task.id, [followUp]]]),
+      restoredDeferredFollowUpRetryTimers: new Map(),
+      sendMessage: vi.fn().mockRejectedValue(new Error("temporary")),
+    } as Any;
+    Object.setPrototypeOf(daemonLike, AgentDaemon.prototype);
+
+    await (AgentDaemon.prototype as Any).dispatchRestoredDeferredFollowUps.call(
+      daemonLike,
+      task.id,
+    );
+
+    expect(daemonLike.deferredUserFollowUps.get(task.id)).toEqual([followUp]);
+    expect(daemonLike.restoredDeferredFollowUpRetryTimers.size).toBe(1);
+    vi.clearAllTimers();
+    vi.useRealTimers();
   });
 });

@@ -5,6 +5,16 @@ import { AgentDaemon } from "../daemon";
 import { LLMTool } from "../llm/types";
 
 /**
+ * Glob patterns and relative paths use `/` as their portable separator.
+ * `path.relative()` returns `\\` on Windows, which otherwise makes a pattern
+ * such as `workflows/*.md` miss every nested file.  Accept backslash patterns
+ * too so callers can pass a path copied from Windows Explorer.
+ */
+function normalizeGlobPath(value: string): string {
+  return String(value || "").replace(/\\/g, "/");
+}
+
+/**
  * GlobTools provides fast pattern-based file search
  * Similar to Claude Code's Glob tool for finding files by pattern
  */
@@ -125,7 +135,11 @@ export class GlobTools {
       }
 
       // Parse the glob pattern
-      const { matches, scanTruncated } = await this.findMatches(basePath, pattern, maxResults);
+      const { matches, scanTruncated } = await this.findMatches(
+        basePath,
+        normalizeGlobPath(pattern),
+        maxResults,
+      );
 
       // Sort by modification time (newest first)
       matches.sort((a, b) => b.mtime - a.mtime);
@@ -277,7 +291,7 @@ export class GlobTools {
         if (scanState.scanTruncated) break;
 
         const fullPath = path.join(currentPath, entry.name);
-        const relativePath = path.relative(basePath, fullPath);
+        const relativePath = normalizeGlobPath(path.relative(basePath, fullPath));
 
         if (entry.isDirectory()) {
           await this.walkDirectory(

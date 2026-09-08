@@ -234,6 +234,36 @@ describe("loadPoliciesStrict", () => {
       }),
     );
   });
+
+  it("migrates the legacy macOS/Docker sandbox default for existing Windows installs", async () => {
+    const platformSpy = vi
+      .spyOn(process, "platform", "get")
+      .mockReturnValue("win32");
+    try {
+      mockFs.existsSync.mockReturnValue(true);
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({
+          version: 2,
+          runtime: {
+            allowedSandboxTypes: ["macos", "docker"],
+            // This was the fail-closed setting used by older builds.  The
+            // migration must clear it along with the unusable sandbox list.
+            requireSandboxForShell: true,
+          },
+        }),
+      );
+      const { loadPoliciesStrict: freshLoadPoliciesStrict } = await import(
+        "../policies"
+      );
+
+      expect(
+        freshLoadPoliciesStrict()?.runtime.allowedSandboxTypes,
+      ).toEqual(["docker", "none"]);
+      expect(freshLoadPoliciesStrict()?.runtime.requireSandboxForShell).toBe(false);
+    } finally {
+      platformSpy.mockRestore();
+    }
+  });
 });
 
 describe("policy change notifications", () => {

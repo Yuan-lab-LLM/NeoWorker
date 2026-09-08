@@ -56,7 +56,10 @@ const ASSETS = {
 
 function readFlag(name) {
   const index = process.argv.indexOf(name);
-  return index >= 0 ? process.argv[index + 1] : undefined;
+  if (index >= 0) return process.argv[index + 1];
+  const prefix = `${name}=`;
+  const inline = process.argv.find((argument) => argument.startsWith(prefix));
+  return inline ? inline.slice(prefix.length) : undefined;
 }
 
 function log(message) {
@@ -172,7 +175,14 @@ async function main() {
 
   if (platform === process.platform && arch === process.arch) {
     try {
-      const version = execFileSync(destination, ["--version"], { encoding: "utf8" }).trim();
+      const version = execFileSync(destination, ["--version"], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          OFFICECLI_SKIP_UPDATE: "1",
+          OFFICECLI_NO_AUTO_INSTALL: "1",
+        },
+      }).trim();
       if (!version.includes(VERSION)) {
         throw new Error(`Unexpected version output: ${version}`);
       }

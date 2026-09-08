@@ -433,6 +433,93 @@ describe('ShellTools auto-approval', () => {
     );
   });
 
+  it('allows controlled NoSandbox execution on Windows when policy permits none', async () => {
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+    vi.mocked(loadPolicies).mockReturnValueOnce({
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      packs: { allowed: [], blocked: [], required: [] },
+      connectors: { blocked: [] },
+      agents: { maxHeartbeatFrequencySec: 60, maxConcurrentAgents: 10 },
+      runtime: {
+        allowedPermissionModes: [],
+        allowedSandboxTypes: ['docker', 'none'],
+        requireSandboxForShell: false,
+        allowUnsandboxedShell: false,
+        network: { defaultAction: 'deny', allowedDomains: [], blockedDomains: [], allowShellNetwork: false },
+        autoReview: { enabled: true },
+        telemetry: { enabled: false },
+      },
+      general: {
+        allowCustomPacks: true,
+        allowGitInstall: true,
+        allowUrlInstall: true,
+      },
+    });
+    sandboxMocks.createSandbox.mockResolvedValueOnce({
+      ...sandboxMocks.sandbox,
+      type: 'none',
+      cleanup: vi.fn(),
+    });
+
+    try {
+      const result = await shellTools.runCommand(SAFE_CMD_1, { cwd: process.cwd() });
+
+      expect(result.success).toBe(true);
+      expect(sandboxMocks.sandbox.execute).toHaveBeenCalled();
+      expect(mockDaemon.logEvent).not.toHaveBeenCalledWith(
+        'task-1',
+        'sandbox_denied',
+        expect.anything(),
+      );
+    } finally {
+      platformSpy.mockRestore();
+    }
+  });
+
+  it('still blocks a Windows NoSandbox when policy excludes none', async () => {
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+    vi.mocked(loadPolicies).mockReturnValueOnce({
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      packs: { allowed: [], blocked: [], required: [] },
+      connectors: { blocked: [] },
+      agents: { maxHeartbeatFrequencySec: 60, maxConcurrentAgents: 10 },
+      runtime: {
+        allowedPermissionModes: [],
+        allowedSandboxTypes: ['docker'],
+        requireSandboxForShell: false,
+        allowUnsandboxedShell: false,
+        network: { defaultAction: 'deny', allowedDomains: [], blockedDomains: [], allowShellNetwork: false },
+        autoReview: { enabled: true },
+        telemetry: { enabled: false },
+      },
+      general: {
+        allowCustomPacks: true,
+        allowGitInstall: true,
+        allowUrlInstall: true,
+      },
+    });
+    sandboxMocks.createSandbox.mockResolvedValueOnce({
+      ...sandboxMocks.sandbox,
+      type: 'none',
+      cleanup: vi.fn(),
+    });
+
+    try {
+      await expect(shellTools.runCommand(SAFE_CMD_1, { cwd: process.cwd() })).rejects.toThrow(
+        /blocked by admin policy/i,
+      );
+      expect(mockDaemon.logEvent).toHaveBeenCalledWith(
+        'task-1',
+        'sandbox_denied',
+        expect.objectContaining({ reason: 'sandbox_type_not_allowed' }),
+      );
+    } finally {
+      platformSpy.mockRestore();
+    }
+  });
+
   it('fails closed without the explicit unsandboxed shell environment override even when sandboxing is not required', async () => {
     vi.mocked(loadPolicies).mockReturnValueOnce({
       version: 1,

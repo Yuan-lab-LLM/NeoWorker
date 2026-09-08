@@ -2515,10 +2515,9 @@ export class SessionRuntime {
     const snapshotEvents = events.filter(
       (e) => this.deps.getReplayEventType(e) === "conversation_snapshot",
     );
+    const latestSnapshotEvent = snapshotEvents.at(-1) || null;
     const latestSnapshotPayload =
-      snapshotEvents.length > 0
-        ? snapshotEvents[snapshotEvents.length - 1]?.payload
-        : null;
+      latestSnapshotEvent?.payload || null;
 
     const v2Candidates: Array<{ payload: Any; sourceLabel: string }> = [];
     if (
@@ -2546,6 +2545,12 @@ export class SessionRuntime {
           candidate.sourceLabel,
         )
       ) {
+        this.restoreConversationTail(
+          events,
+          candidate.payload,
+          candidate.sourceLabel,
+          latestSnapshotEvent,
+        );
         this.restorePendingSkillStateFromEvents(events);
         this.restoreTaskListStateFromEvents(events);
         return;
@@ -2572,6 +2577,12 @@ export class SessionRuntime {
           candidate.sourceLabel,
         )
       ) {
+        this.restoreConversationTail(
+          events,
+          candidate.payload,
+          candidate.sourceLabel,
+          latestSnapshotEvent,
+        );
         this.restorePendingSkillStateFromEvents(events);
         if (
           this.state.usage.totalInputTokens === 0 &&
@@ -2594,6 +2605,7 @@ export class SessionRuntime {
     for (const event of events) {
       switch (this.deps.getReplayEventType(event)) {
         case "user_message":
+          if (event.payload?.queued === true) break;
           if (event.payload?.message) {
             conversationParts.push(`User: ${event.payload.message}`);
           }
@@ -2688,6 +2700,172 @@ export class SessionRuntime {
 
     this.restorePendingSkillStateFromEvents(events);
     this.restoreTaskListStateFromEvents(events);
+  }
+
+  /**
+   * A checkpoint or conversation snapshot is a prefix of the event stream.
+   * The daemon deliberately supplies the bounded replay tail after that
+   * boundary, but restoring the payload alone used to return before applying
+   * those user/assistant events.  A crash between a snapshot and the next
+   * snapshot therefore made the latest follow-up disappear after restart.
+   * Replay only the message events after the selected boundary and append them
+   * to the restored history.
+   */
+  private restoreConversationTail(
+    events: TaskEvent[],
+    payload: Any,
+    sourceLabel: string,
+    latestSnapshotEvent: TaskEvent | null,
+  ): void {
+    const messageEvents = events.filter((event) => {
+      const type = this.deps.getReplayEventType(event);
+      return (
+        (type === "user_message" && event.payload?.queued !== true) ||
+        type === "assistant_message"
+      );
+    });
+    if (messageEvents.length === 0) return;
+
+    const sourceEventId =
+      sourceLabel === "checkpoint" && typeof payload?.sourceEventId === "string"
+        ? payload.sourceEventId.trim()
+        : "";
+    const boundaryEvent =
+      sourceLabel === "snapshot"
+        ? latestSnapshotEvent
+        : sourceEventId
+          ? events.find(
+              (event) =>
+                event.eventId === sourceEventId || event.id === sourceEventId,
+            ) || null
+          : null;
+    const boundaryIndex = boundaryEvent ? events.lastIndexOf(boundaryEvent) : -1;
+    const boundaryTimestamp = Number(
+      sourceLabel === "snapshot"
+        ? payload?.timestamp
+        : payload?.sourceTimestamp ?? payload?.timestamp,
+    );
+
+    // A legacy checkpoint without a source cursor cannot tell us which events
+    // are already represented by its history.  Replaying all messages there
+    // would duplicate the transcript, so leave that path unchanged.
+    if (!boundaryEvent && !Number.isFinite(boundaryTimestamp)) return;
+
+    const tail = messageEvents
+      .filter((event) => {
+        // Older event records (and lightweight callers) may not carry seq,
+        // timestamps, or ids. When the boundary object is present, its array
+        // position is still an unambiguous replay cursor.
+        if (boundaryIndex >= 0) {
+          const eventIndex = events.indexOf(event);
+          if (eventIndex >= 0) return eventIndex > boundaryIndex;
+        }
+        if (boundaryEvent) {
+          return this.isEventAfterRecoveryBoundary(event, boundaryEvent);
+        }
+        // Checkpoints written by TranscriptStore carry only a timestamp when
+        // their source event has been pruned. Include equal-timestamp events:
+        // several timeline events can be emitted in one millisecond, and the
+        // suffix de-duplication below prevents the snapshot's last message
+        // from being appended twice.
+        const eventTimestamp = Number(event.ts ?? event.timestamp);
+        return Number.isFinite(eventTimestamp) && eventTimestamp >= boundaryTimestamp;
+      })
+      .sort((a, b) => this.compareRecoveryEventOrder(a, b));
+
+    if (tail.length === 0) return;
+
+    const history = [...this.state.transcript.conversationHistory];
+    let changed = false;
+    for (const event of tail) {
+      const type = this.deps.getReplayEventType(event);
+      const role = type === "user_message" ? "user" : "assistant";
+      const message = this.getReplayMessageText(event);
+      if (!message) continue;
+
+      if (role === "user") {
+        this.state.transcript.lastUserMessage = message;
+      } else {
+        this.state.transcript.lastAssistantOutput = message;
+        this.state.transcript.lastNonVerificationOutput = message;
+        this.state.transcript.lastAssistantText = message;
+      }
+
+      const previous = history.at(-1);
+      const previousText = previous
+        ? this.extractTextFromLLMContent(
+            Array.isArray(previous.content)
+              ? previous.content
+              : [{ type: "text", text: String(previous.content || "") }],
+          )
+        : "";
+      if (
+        previous?.role === role &&
+        previousText.trim() === message.trim()
+      ) {
+        continue;
+      }
+
+      history.push({
+        role,
+        content: [{ type: "text", text: message }],
+      });
+      changed = true;
+    }
+
+    if (changed) this.updateConversationHistory(history);
+  }
+
+  private getReplayMessageText(event: TaskEvent): string {
+    const payload = event.payload as Any;
+    for (const candidate of [payload?.message, payload?.content, payload?.text]) {
+      if (typeof candidate === "string" && candidate.trim()) {
+        return candidate;
+      }
+    }
+    return "";
+  }
+
+  private isEventAfterRecoveryBoundary(
+    event: TaskEvent,
+    boundary: TaskEvent,
+  ): boolean {
+    const eventSeq = Number(event.seq);
+    const boundarySeq = Number(boundary.seq);
+    if (Number.isFinite(eventSeq) && Number.isFinite(boundarySeq)) {
+      return eventSeq > boundarySeq;
+    }
+
+    const eventTimestamp = Number(event.ts ?? event.timestamp);
+    const boundaryTimestamp = Number(boundary.ts ?? boundary.timestamp);
+    if (
+      Number.isFinite(eventTimestamp) &&
+      Number.isFinite(boundaryTimestamp) &&
+      eventTimestamp !== boundaryTimestamp
+    ) {
+      return eventTimestamp > boundaryTimestamp;
+    }
+
+    // Equal timestamps are common for a user event and its immediately
+    // following assistant event. Keep the suffix and let the adjacent-message
+    // check avoid duplicating the boundary message itself.
+    const eventId = event.eventId || event.id;
+    const boundaryId = boundary.eventId || boundary.id;
+    return eventId !== boundaryId;
+  }
+
+  private compareRecoveryEventOrder(a: TaskEvent, b: TaskEvent): number {
+    const aSeq = Number(a.seq);
+    const bSeq = Number(b.seq);
+    if (Number.isFinite(aSeq) && Number.isFinite(bSeq) && aSeq !== bSeq) {
+      return aSeq - bSeq;
+    }
+    const aTimestamp = Number(a.ts ?? a.timestamp);
+    const bTimestamp = Number(b.ts ?? b.timestamp);
+    return (
+      (Number.isFinite(aTimestamp) ? aTimestamp : 0) -
+        (Number.isFinite(bTimestamp) ? bTimestamp : 0)
+    );
   }
 
   private restoreConversationFromPayload(

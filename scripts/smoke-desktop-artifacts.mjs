@@ -270,6 +270,99 @@ async function validateNumbatRuntime(resourcesRoot, targetKey) {
   );
 }
 
+/**
+ * OfficeCLI is the packaged Office/PPT engine. A missing binary is easy to
+ * overlook because electron-builder treats a missing extraResources source as
+ * an empty directory; the app then falls back to the system Python/PDF path.
+ * Verify the executable and its self-reported version in the installed app so
+ * a release cannot regress to that silent fallback.
+ */
+const EXPECTED_OFFICECLI_ASSETS = {
+  "darwin-arm64": "officecli-mac-arm64",
+  "darwin-x64": "officecli-mac-x64",
+  "win32-arm64": "officecli-win-arm64.exe",
+  "win32-x64": "officecli-win-x64.exe",
+  "linux-arm64": "officecli-linux-arm64",
+  "linux-x64": "officecli-linux-x64",
+};
+
+async function validateOfficeCliRuntime(resourcesRoot, targetKey) {
+  const officeRoot = path.join(resourcesRoot, "officecli");
+  const manifestPath = path.join(officeRoot, "manifest.json");
+  const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+  const expectedAsset = EXPECTED_OFFICECLI_ASSETS[targetKey];
+  if (!expectedAsset || String(manifest.asset || "") !== expectedAsset || !String(manifest.version || "").trim()) {
+    const actualAsset = String(manifest.asset || "<missing>");
+    throw new Error(
+      `Packaged OfficeCLI manifest targets ${actualAsset} but ${targetKey} requires ${expectedAsset || "a supported target"}`,
+    );
+  }
+  const binaryName = process.platform === "win32" ? "officecli.exe" : "officecli";
+  const binaryPath = path.join(officeRoot, binaryName);
+  await fs.access(binaryPath, process.platform === "win32" ? fsConstants.F_OK : fsConstants.X_OK);
+  const version = run(binaryPath, ["--version"], {
+    shell: false,
+    quiet: true,
+    env: {
+      ...process.env,
+      OFFICECLI_SKIP_UPDATE: "1",
+      OFFICECLI_NO_AUTO_INSTALL: "1",
+      OFFICECLI_NO_AUTO_RESIDENT: "1",
+    },
+  });
+  if (!String(version.stdout || "").includes(String(manifest.version))) {
+    throw new Error(
+      `Packaged OfficeCLI version mismatch for ${targetKey}: expected ${manifest.version}, got ${version.stdout || version.stderr || ""}`,
+    );
+  }
+  // electron-builder re-signs nested macOS executables and changes their
+  // Mach-O load-command layout, so the source hash is not byte-identical after
+  // packaging. The manifest asset/target check plus version check still prove
+  // the macOS bundle is the intended runtime; enforce the exact hash on PE and
+  // ELF targets where packaging preserves the bytes.
+  if (manifest.sha256 && process.platform !== "darwin") {
+    const actualSha256 = await sha256File(binaryPath);
+    if (actualSha256.toLowerCase() !== String(manifest.sha256).toLowerCase()) {
+      throw new Error(
+        `Packaged OfficeCLI checksum mismatch for ${targetKey}: expected ${manifest.sha256}, got ${actualSha256}`,
+      );
+    }
+  }
+  for (const relativePath of ["LICENSE", "NOTICE"]) {
+    await fs.access(path.join(officeRoot, relativePath), fsConstants.F_OK);
+  }
+}
+
+async function validatePackagedSkillAssets(resourcesRoot) {
+  const skillRoot = path.join(resourcesRoot, "skills", "ppt-master");
+  const requiredPaths = [
+    "SKILL.md",
+    "LICENSE",
+    "SPONSORS.md",
+    "SPONSORS_CN.md",
+    "THIRD_PARTY_NOTICES.md",
+    "requirements.txt",
+    "scripts/attribution_guard.py",
+    "scripts/neoworker_preflight.py",
+    "workflows/routing.md",
+    "workflows/generate-pptx.md",
+    "templates/README.md",
+  ];
+  const missing = [];
+  for (const relativePath of requiredPaths) {
+    try {
+      await fs.access(path.join(skillRoot, relativePath), fsConstants.F_OK);
+    } catch {
+      missing.push(relativePath);
+    }
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `Packaged PPT Master skill is incomplete; missing: ${missing.join(", ")}`,
+    );
+  }
+}
+
 async function walkDirs(dir, predicate, maxDepth = 3) {
   const results = [];
   async function visit(current, depth) {
@@ -436,6 +529,11 @@ async function smokeMac({ releaseDir, expectedVersion, allowUnsigned }) {
       path.join(appPath, "Contents", "Resources"),
       `darwin-${process.arch}`,
     );
+    await validateOfficeCliRuntime(
+      path.join(appPath, "Contents", "Resources"),
+      `darwin-${process.arch}`,
+    );
+    await validatePackagedSkillAssets(path.join(appPath, "Contents", "Resources"));
     assertMacCodeSignature(appPath, allowUnsigned);
     await smokeLaunchMac(executablePath);
     console.log(`[desktop-smoke] macOS DMG passed: ${dmg.name} (${path.basename(appPath)})`);
@@ -567,6 +665,11 @@ Write-Output $item.VersionInfo.ProductVersion
       path.join(path.dirname(appExe), "resources"),
       `win32-${process.arch}`,
     );
+    await validateOfficeCliRuntime(
+      path.join(path.dirname(appExe), "resources"),
+      `win32-${process.arch}`,
+    );
+    await validatePackagedSkillAssets(path.join(path.dirname(appExe), "resources"));
 
     if (!skipLaunch) {
       let spawnError = null;

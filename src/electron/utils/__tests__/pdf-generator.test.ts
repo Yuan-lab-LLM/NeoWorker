@@ -62,6 +62,34 @@ describe("PDF generator HTML", () => {
     expect(reportHtml).not.toContain('class="doc-title"');
   });
 
+  it("renders dependency-free SVG charts for chart-rich PDF reports", () => {
+    const html = buildPDFHTML({
+      title: "经营分析",
+      markdown: "## 结论\n\n收入保持增长。",
+      charts: [
+        {
+          type: "column",
+          title: "季度收入",
+          categories: ["一季度", "二季度", "三季度"],
+          series: [{ name: "收入", values: [12, 18, 24] }],
+        },
+        {
+          type: "donut",
+          title: "业务结构",
+          categories: ["产品", "服务"],
+          series: [{ name: "占比", values: [70, 30] }],
+        },
+      ],
+    });
+
+    expect(html).toContain('class="pdf-chart"');
+    expect(html).toContain("季度收入");
+    expect(html).toContain("一季度");
+    expect(html).toContain("业务结构");
+    expect(html).toContain("<svg");
+    expect(html).not.toContain("matplotlib");
+  });
+
   it("does not execute raw HTML from Markdown", () => {
     const html = buildPDFHTML({ markdown: '<script>alert("x")</script>' });
 

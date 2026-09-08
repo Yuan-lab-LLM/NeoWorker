@@ -75,6 +75,88 @@ describe("findInterruptedFollowUp", () => {
     ).toBeNull();
   });
 
+  it("does not treat a queued follow-up as an already-started turn", () => {
+    expect(
+      findInterruptedFollowUp([
+        {
+          seq: 1,
+          timestamp: 100,
+          payload: {
+            legacyType: "user_message",
+            message: "排队中的追问",
+            followUp: true,
+            queued: true,
+            queueId: "queue-1",
+          },
+        },
+        {
+          seq: 2,
+          timestamp: 200,
+          payload: {
+            legacyType: "follow_up_completed",
+            message: "上一轮追问完成",
+          },
+        },
+      ]),
+    ).toBeNull();
+  });
+
+  it("recovers a queued follow-up whose dispatch started before shutdown", () => {
+    expect(
+      findInterruptedFollowUp([
+        {
+          seq: 1,
+          timestamp: 100,
+          payload: {
+            legacyType: "user_message",
+            message: "排队中的追问",
+            followUp: true,
+            queued: true,
+            queueId: "queue-1",
+          },
+        },
+        {
+          seq: 2,
+          timestamp: 200,
+          payload: {
+            legacyType: "follow_up_dispatch_started",
+            queueId: "queue-1",
+            message: "排队中的追问",
+            dispatchStartedAt: 190,
+          },
+        },
+      ]),
+    ).toEqual({
+      message: "排队中的追问",
+      startedAt: 190,
+      requiredArtifactExtensions: [],
+    });
+  });
+
+  it("treats a persisted dispatch-finished marker as terminal", () => {
+    expect(
+      findInterruptedFollowUp([
+        {
+          seq: 1,
+          timestamp: 100,
+          payload: {
+            legacyType: "follow_up_dispatch_started",
+            queueId: "queue-1",
+            message: "已发送",
+          },
+        },
+        {
+          seq: 2,
+          timestamp: 200,
+          payload: {
+            legacyType: "follow_up_dispatch_finished",
+            queueId: "queue-1",
+          },
+        },
+      ]),
+    ).toBeNull();
+  });
+
   it("preserves the explicit multi-artifact contract", () => {
     expect(
       findInterruptedFollowUp([

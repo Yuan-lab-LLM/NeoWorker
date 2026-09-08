@@ -114,6 +114,27 @@ describe("GlobTools", () => {
         message: expect.stringContaining("**/*.ts"),
       });
     });
+
+    it("normalizes Windows separators in patterns and relative matches", async () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), "neoworker-glob-windows-"));
+      tempDirs.push(root);
+      fs.mkdirSync(path.join(root, "workflows"), { recursive: true });
+      fs.writeFileSync(path.join(root, "workflows", "routing.md"), "route\n");
+
+      globTools = new GlobTools(
+        {
+          ...mockWorkspace,
+          path: root,
+        },
+        mockDaemon as Any,
+        "test-task-id",
+      );
+
+      const result = await globTools.glob({ pattern: "workflows\\*.md" });
+
+      expect(result.success).toBe(true);
+      expect(result.matches.map((match) => match.path)).toEqual(["workflows/routing.md"]);
+    });
   });
 
   describe("logging", () => {
