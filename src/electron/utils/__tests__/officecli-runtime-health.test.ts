@@ -73,6 +73,8 @@ describe("Office tools health check", () => {
     const previousBundledPath = process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH;
     const previousNoAutoResident = process.env.OFFICECLI_NO_AUTO_RESIDENT;
     const previousResidentFlush = process.env.OFFICECLI_RESIDENT_FLUSH;
+    const previousSkipUpdate = process.env.OFFICECLI_SKIP_UPDATE;
+    const previousNoAutoInstall = process.env.OFFICECLI_NO_AUTO_INSTALL;
 
     try {
       Object.defineProperty(runtimeProcess, "resourcesPath", {
@@ -82,12 +84,16 @@ describe("Office tools health check", () => {
       delete process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH;
       process.env.OFFICECLI_NO_AUTO_RESIDENT = "0";
       delete process.env.OFFICECLI_RESIDENT_FLUSH;
+      delete process.env.OFFICECLI_SKIP_UPDATE;
+      delete process.env.OFFICECLI_NO_AUTO_INSTALL;
 
       expect(installBundledOfficeCliRuntime()).toBe(binary);
       expect(String(process.env.PATH).split(path.delimiter)[0]).toBe(path.dirname(binary));
       expect(process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH).toBe(binary);
       expect(process.env.OFFICECLI_NO_AUTO_RESIDENT).toBe("1");
       expect(process.env.OFFICECLI_RESIDENT_FLUSH).toBe("each");
+      expect(process.env.OFFICECLI_SKIP_UPDATE).toBe("1");
+      expect(process.env.OFFICECLI_NO_AUTO_INSTALL).toBe("1");
     } finally {
       Object.defineProperty(runtimeProcess, "resourcesPath", {
         configurable: true,
@@ -101,6 +107,10 @@ describe("Office tools health check", () => {
       else process.env.OFFICECLI_NO_AUTO_RESIDENT = previousNoAutoResident;
       if (previousResidentFlush === undefined) delete process.env.OFFICECLI_RESIDENT_FLUSH;
       else process.env.OFFICECLI_RESIDENT_FLUSH = previousResidentFlush;
+      if (previousSkipUpdate === undefined) delete process.env.OFFICECLI_SKIP_UPDATE;
+      else process.env.OFFICECLI_SKIP_UPDATE = previousSkipUpdate;
+      if (previousNoAutoInstall === undefined) delete process.env.OFFICECLI_NO_AUTO_INSTALL;
+      else process.env.OFFICECLI_NO_AUTO_INSTALL = previousNoAutoInstall;
       await fs.rm(root, { recursive: true, force: true });
     }
   });

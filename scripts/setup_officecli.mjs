@@ -175,7 +175,14 @@ async function main() {
 
   if (platform === process.platform && arch === process.arch) {
     try {
-      const version = execFileSync(destination, ["--version"], { encoding: "utf8" }).trim();
+      const version = execFileSync(destination, ["--version"], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          OFFICECLI_SKIP_UPDATE: "1",
+          OFFICECLI_NO_AUTO_INSTALL: "1",
+        },
+      }).trim();
       if (!version.includes(VERSION)) {
         throw new Error(`Unexpected version output: ${version}`);
       }

@@ -61,9 +61,11 @@ function ensureOfficeCliBundles(args) {
       }
       const binaryName = platform === "win32" ? "officecli.exe" : "officecli";
       const binaryPath = path.join(ROOT, "build", "officecli", bundleKey, binaryName);
-      if (fs.existsSync(binaryPath)) continue;
 
-      console.log(`[electron-builder] Preparing verified OfficeCLI runtime for ${platform}-${arch}…`);
+      // Always run the setup verifier. OfficeCLI can self-update an existing
+      // binary in place, so existence alone does not prove that the build tree
+      // still contains the pinned, checksummed release.
+      console.log(`[electron-builder] Verifying OfficeCLI runtime for ${platform}-${arch}…`);
       const setup = spawnSync(
         process.execPath,
         ["scripts/setup_officecli.mjs", "--platform", platform, "--arch", arch],

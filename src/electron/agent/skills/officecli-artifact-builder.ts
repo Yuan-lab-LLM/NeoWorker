@@ -171,6 +171,10 @@ function defaultInvoker(
         // and make every later OfficeCLI command appear unavailable.
         OFFICECLI_NO_AUTO_RESIDENT: "1",
         OFFICECLI_RESIDENT_FLUSH: "each",
+        // NeoWorker owns and signs the bundled executable. OfficeCLI's
+        // background updater must not replace it inside an installed app.
+        OFFICECLI_SKIP_UPDATE: "1",
+        OFFICECLI_NO_AUTO_INSTALL: "1",
       },
       stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     });

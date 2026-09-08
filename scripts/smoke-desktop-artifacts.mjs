@@ -300,7 +300,16 @@ async function validateOfficeCliRuntime(resourcesRoot, targetKey) {
   const binaryName = process.platform === "win32" ? "officecli.exe" : "officecli";
   const binaryPath = path.join(officeRoot, binaryName);
   await fs.access(binaryPath, process.platform === "win32" ? fsConstants.F_OK : fsConstants.X_OK);
-  const version = run(binaryPath, ["--version"], { shell: false, quiet: true });
+  const version = run(binaryPath, ["--version"], {
+    shell: false,
+    quiet: true,
+    env: {
+      ...process.env,
+      OFFICECLI_SKIP_UPDATE: "1",
+      OFFICECLI_NO_AUTO_INSTALL: "1",
+      OFFICECLI_NO_AUTO_RESIDENT: "1",
+    },
+  });
   if (!String(version.stdout || "").includes(String(manifest.version))) {
     throw new Error(
       `Packaged OfficeCLI version mismatch for ${targetKey}: expected ${manifest.version}, got ${version.stdout || version.stderr || ""}`,

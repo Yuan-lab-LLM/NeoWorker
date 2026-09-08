@@ -30,7 +30,12 @@ let cachedHealth: Promise<OfficeCliHealthReport> | undefined;
 function runHealthCommand(executable: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, {
-      env: { ...process.env, OFFICECLI_NO_AUTO_RESIDENT: "1" },
+      env: {
+        ...process.env,
+        OFFICECLI_NO_AUTO_RESIDENT: "1",
+        OFFICECLI_SKIP_UPDATE: "1",
+        OFFICECLI_NO_AUTO_INSTALL: "1",
+      },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -159,6 +164,8 @@ export function installBundledOfficeCliRuntime(): string | null {
   // process from blocking the next task on its IPC pipe.
   process.env.OFFICECLI_NO_AUTO_RESIDENT = "1";
   process.env.OFFICECLI_RESIDENT_FLUSH = "each";
+  process.env.OFFICECLI_SKIP_UPDATE = "1";
+  process.env.OFFICECLI_NO_AUTO_INSTALL = "1";
   return executable;
 }
 
