@@ -154,6 +154,11 @@ export function installBundledOfficeCliRuntime(): string | null {
     path.delimiter,
   );
   process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH = executable;
+  // Agent shell commands inherit these values as well as the built-in Office
+  // artifact writers. Keeping calls one-shot prevents an interrupted resident
+  // process from blocking the next task on its IPC pipe.
+  process.env.OFFICECLI_NO_AUTO_RESIDENT = "1";
+  process.env.OFFICECLI_RESIDENT_FLUSH = "each";
   return executable;
 }
 

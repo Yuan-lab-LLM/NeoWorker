@@ -166,6 +166,10 @@ function defaultInvoker(
     const child = spawn(executable, args, {
       env: {
         ...process.env,
+        // NeoWorker commands must not attach to a resident left behind by an
+        // interrupted task. A stale resident can keep its pipe busy forever
+        // and make every later OfficeCLI command appear unavailable.
+        OFFICECLI_NO_AUTO_RESIDENT: "1",
         OFFICECLI_RESIDENT_FLUSH: "each",
       },
       stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
