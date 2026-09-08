@@ -234,6 +234,33 @@ describe("loadPoliciesStrict", () => {
       }),
     );
   });
+
+  it("migrates the legacy macOS/Docker sandbox default for existing Windows installs", async () => {
+    const platformSpy = vi
+      .spyOn(process, "platform", "get")
+      .mockReturnValue("win32");
+    try {
+      mockFs.existsSync.mockReturnValue(true);
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({
+          version: 2,
+          runtime: {
+            allowedSandboxTypes: ["macos", "docker"],
+            requireSandboxForShell: false,
+          },
+        }),
+      );
+      const { loadPoliciesStrict: freshLoadPoliciesStrict } = await import(
+        "../policies"
+      );
+
+      expect(
+        freshLoadPoliciesStrict()?.runtime.allowedSandboxTypes,
+      ).toEqual(["docker", "none"]);
+    } finally {
+      platformSpy.mockRestore();
+    }
+  });
 });
 
 describe("policy change notifications", () => {

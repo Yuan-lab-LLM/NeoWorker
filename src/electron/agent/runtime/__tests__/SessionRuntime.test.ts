@@ -873,6 +873,104 @@ describe("SessionRuntime", () => {
     ).toBe("v2 snapshot");
   });
 
+  it("replays user and assistant events after a V2 snapshot boundary", () => {
+    const harness = createHarness();
+    const snapshot = createV2Snapshot({
+      timestamp: 100,
+      conversationHistory: [{ role: "user", content: "before snapshot" }],
+    });
+
+    harness.runtime.restoreFromEvents([
+      {
+        id: "snapshot-event",
+        eventId: "snapshot-event",
+        seq: 10,
+        ts: 100,
+        timestamp: 100,
+        type: "conversation_snapshot",
+        payload: snapshot,
+      } as Any,
+      {
+        id: "follow-up-event",
+        eventId: "follow-up-event",
+        seq: 11,
+        ts: 110,
+        timestamp: 110,
+        type: "user_message",
+        payload: { message: "继续处理 Windows 问题" },
+      } as Any,
+      {
+        id: "assistant-event",
+        eventId: "assistant-event",
+        seq: 12,
+        ts: 120,
+        timestamp: 120,
+        type: "assistant_message",
+        payload: { message: "我会继续检查执行器。" },
+      } as Any,
+    ]);
+
+    const history = harness.runtime.getOutputState().conversationHistory;
+    expect(history.map((message) => message.role)).toEqual([
+      "user",
+      "user",
+      "assistant",
+    ]);
+    expect(JSON.stringify(history[1]?.content)).toContain("继续处理 Windows 问题");
+    expect(JSON.stringify(history[2]?.content)).toContain("继续检查执行器");
+    expect(harness.runtime.getOutputState().lastUserMessage).toBe(
+      "继续处理 Windows 问题",
+    );
+    expect(harness.runtime.getOutputState().lastAssistantOutput).toBe(
+      "我会继续检查执行器。",
+    );
+  });
+
+  it("replays only messages after a checkpoint timestamp and ignores queued prompts", () => {
+    const harness = createHarness();
+    harness.setCheckpointPayload({
+      ...createV2Snapshot({
+        timestamp: 100,
+        conversationHistory: [{ role: "user", content: "checkpoint context" }],
+      }),
+      sourceTimestamp: 100,
+      sourceEventId: "pruned-checkpoint-event",
+    });
+
+    harness.runtime.restoreFromEvents([
+      {
+        id: "old-user",
+        timestamp: 90,
+        type: "user_message",
+        payload: { message: "old message" },
+      } as Any,
+      {
+        id: "queued-user",
+        timestamp: 110,
+        type: "user_message",
+        payload: { message: "waiting in queue", queued: true },
+      } as Any,
+      {
+        id: "new-user",
+        timestamp: 120,
+        type: "user_message",
+        payload: { message: "dispatched follow-up" },
+      } as Any,
+      {
+        id: "new-assistant",
+        timestamp: 130,
+        type: "assistant_message",
+        payload: { message: "follow-up complete" },
+      } as Any,
+    ]);
+
+    const history = harness.runtime.getOutputState().conversationHistory;
+    expect(JSON.stringify(history[0]?.content)).toContain("checkpoint context");
+    expect(JSON.stringify(history[1]?.content)).toContain("dispatched follow-up");
+    expect(JSON.stringify(history[2]?.content)).toContain("follow-up complete");
+    expect(history).toHaveLength(3);
+  });
+
   it("rebuilds a summary transcript when no snapshot payload is available", () => {
     const harness = createHarness();
 

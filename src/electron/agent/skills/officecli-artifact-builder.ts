@@ -135,6 +135,10 @@ function executableCandidates(): string[] {
   const binaryName = officeCliBinaryName();
   const resourcesPath = process.resourcesPath;
   const candidates = [
+    // main.ts records the resolved bundled binary here before the daemon and
+    // skills are initialized. Keep this candidate first so packaged builds
+    // still work when Electron's cwd/resourcesPath differ from the app root.
+    process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH,
     process.env.NEOWORKER_OFFICECLI_PATH,
     process.env.OFFICECLI_PATH,
     resourcesPath ? path.join(resourcesPath, "officecli", binaryName) : undefined,

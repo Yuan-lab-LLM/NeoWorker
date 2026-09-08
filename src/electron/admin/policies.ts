@@ -530,6 +530,21 @@ function normalizeSandboxTypes(value: unknown): AdminSandboxType[] {
   const normalized = normalizeStringList(value).filter((mode): mode is AdminSandboxType =>
     VALID_SANDBOX_TYPES.has(mode as AdminSandboxType),
   );
+  // Builds before the Windows runner existed persisted the cross-platform
+  // default ["macos", "docker"] into policies.json.  That file survives an
+  // application upgrade, so simply changing DEFAULT_POLICIES left existing
+  // Windows users permanently blocked: macOS sandboxing is unavailable and
+  // the Docker backend is a Linux container that cannot launch host tools.
+  // Migrate only that exact legacy default.  Deliberate administrator choices
+  // such as ["docker"] remain fail-closed.
+  if (
+    process.platform === "win32" &&
+    normalized.length === 2 &&
+    normalized.includes("macos") &&
+    normalized.includes("docker")
+  ) {
+    return [...DEFAULT_ALLOWED_SANDBOX_TYPES];
+  }
   return normalized.length > 0 ? normalized : [...DEFAULT_POLICIES.runtime.allowedSandboxTypes];
 }
 

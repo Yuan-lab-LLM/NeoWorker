@@ -505,8 +505,44 @@ type DeferredUserFollowUp = TaskFollowUpInput & {
   queueId: string;
   displayMessage: string;
   queuedAt: number;
+  /** Number of attachments submitted with the message, including data-only uploads. */
+  attachmentCount?: number;
   /** Legacy executor-owned messages already emitted their user timeline event. */
   userMessageAlreadyEmitted?: boolean;
+  /** The stored message already contains artifact/annotation context. */
+  effectiveMessageAlreadyBuilt?: boolean;
+};
+
+/**
+ * Timeline markers used to make daemon-owned follow-up queues durable.  The
+ * queue itself intentionally remains in memory while a process is alive, but
+ * these small records let a new daemon reconstruct it after a crash/restart.
+ */
+const DEFERRED_FOLLOW_UP_MARKER_TYPES = [
+  "follow_up_queue_updated",
+  "follow_up_queue_removed",
+  "follow_up_queue_reordered",
+  "follow_up_dispatch_started",
+  "follow_up_dispatch_finished",
+] as const;
+
+type DeferredFollowUpSendOptions = Pick<
+  TaskFollowUpInput,
+  | "activeArtifactContext"
+  | "executionMode"
+  | "taskDomain"
+  | "requestedSkillId"
+  | "permissionMode"
+  | "shellAccess"
+  | "integrationMentions"
+  | "agentConfigOverride"
+> & {
+  /** Internal startup-replay flag; the user_message is already persisted. */
+  userMessageAlreadyEmitted?: boolean;
+  /** Internal queue flag: do not prepend artifact/annotation context twice. */
+  effectiveMessageAlreadyBuilt?: boolean;
+  /** Internal queue flag: fail and retry instead of creating a duplicate item. */
+  deferredQueueDispatch?: boolean;
 };
 
 export class AgentDaemon extends EventEmitter {
@@ -547,6 +583,13 @@ export class AgentDaemon extends EventEmitter {
   private deferredUserFollowUpDispatches: Set<string> = new Set();
   /** Rechecks the lifecycle boundary when status/event settlement lags mutex release. */
   private deferredUserFollowUpRetryTimers: Map<
+    string,
+    ReturnType<typeof setTimeout>
+  > = new Map();
+  /** Prevent duplicate replay scheduling if initialize() is called twice. */
+  private restoredDeferredFollowUpTaskIds: Set<string> = new Set();
+  /** Retries terminal-task follow-up replay when startup races executor setup. */
+  private restoredDeferredFollowUpRetryTimers: Map<
     string,
     ReturnType<typeof setTimeout>
   > = new Map();
@@ -1696,6 +1739,19 @@ export class AgentDaemon extends EventEmitter {
 
     // Initialize queue with queued tasks
     await this.queueManager.initialize(queuedTasks, []);
+
+    // Rehydrate daemon-owned follow-up FIFOs before interrupted tasks resume.
+    // A queued user message is durable even when the renderer/daemon process
+    // exits between the IPC request and the end of the active turn.
+    const terminalTasksWithRestoredFollowUps =
+      this.restorePersistedDeferredUserFollowUps();
+    if (terminalTasksWithRestoredFollowUps.length > 0) {
+      setTimeout(() => {
+        for (const taskId of terminalTasksWithRestoredFollowUps) {
+          void this.dispatchRestoredDeferredFollowUps(taskId);
+        }
+      }, 2000);
+    }
 
     // Resume all resumable tasks after a short delay to let the rest of the app
     // (IPC handlers, tray, cron, UI) finish initializing first.
@@ -12330,6 +12386,382 @@ export class AgentDaemon extends EventEmitter {
     ].join("\n");
   }
 
+  /**
+   * Keep only attachment metadata that can be safely replayed after a restart.
+   * Base64 data is intentionally omitted: it can make a timeline event huge,
+   * and task-scoped uploads are already copied to durable storage by
+   * persistTaskAttachmentBindings() before a follow-up is queued.
+   */
+  private serializeDeferredFollowUpImages(
+    images?: ImageAttachment[],
+  ): ImageAttachment[] | undefined {
+    const durableImages = (images || [])
+      .filter(
+        (image): image is ImageAttachment =>
+          Boolean(image && typeof image.filePath === "string" && image.filePath.trim()),
+      )
+      .map((image) => {
+        const { data: _data, ...metadata } = image;
+        return metadata;
+      });
+    return durableImages.length > 0 ? durableImages : undefined;
+  }
+
+  private serializeDeferredFollowUp(
+    followUp: DeferredUserFollowUp,
+  ): Record<string, unknown> {
+    const persistedImages = this.serializeDeferredFollowUpImages(
+      followUp.images,
+    );
+    return {
+      queueId: followUp.queueId,
+      message: followUp.displayMessage,
+      effectiveMessage: followUp.message,
+      queuedAt: followUp.queuedAt,
+      followUp: true,
+      queued: true,
+      attachmentCount:
+        followUp.attachmentCount ?? followUp.images?.length ?? 0,
+      ...(persistedImages ? { images: persistedImages } : {}),
+      ...(followUp.activeArtifactContext
+        ? { activeArtifactContext: followUp.activeArtifactContext }
+        : {}),
+      ...(followUp.executionMode
+        ? { executionMode: followUp.executionMode }
+        : {}),
+      ...(followUp.taskDomain ? { taskDomain: followUp.taskDomain } : {}),
+      ...(followUp.requestedSkillId
+        ? { requestedSkillId: followUp.requestedSkillId }
+        : {}),
+      ...(followUp.permissionMode
+        ? { permissionMode: followUp.permissionMode }
+        : {}),
+      ...(typeof followUp.shellAccess === "boolean"
+        ? { shellAccess: followUp.shellAccess }
+        : {}),
+      ...(followUp.quotedAssistantMessage
+        ? { quotedAssistantMessage: followUp.quotedAssistantMessage }
+        : {}),
+      ...(followUp.integrationMentions
+        ? { integrationMentions: followUp.integrationMentions }
+        : {}),
+      ...(followUp.agentConfigOverride
+        ? { agentConfigOverride: followUp.agentConfigOverride }
+        : {}),
+    };
+  }
+
+  private logDeferredFollowUpMarker(
+    taskId: string,
+    type: (typeof DEFERRED_FOLLOW_UP_MARKER_TYPES)[number],
+    payload: Record<string, unknown>,
+  ): void {
+    // Lightweight prototype-based unit fixtures do not construct repositories;
+    // avoid invoking the real logEvent implementation on those objects.
+    if (!this.eventRepo) return;
+    try {
+      this.logEvent(taskId, type, payload);
+    } catch (error) {
+      // Marker persistence is best effort for queue UI updates. The canonical
+      // user_message event is written synchronously before a message enters the
+      // in-memory queue, so a marker failure cannot erase the visible prompt.
+      log.warn(
+        `[AgentDaemon] Failed to persist deferred follow-up marker ${type}:`,
+        error,
+      );
+    }
+  }
+
+  private restorePersistedDeferredUserFollowUps(): string[] {
+    const candidates = this.taskRepo.findByStatus([
+      "pending",
+      "queued",
+      "planning",
+      "executing",
+      "paused",
+      "blocked",
+      "interrupted",
+      "completed",
+      "failed",
+      "cancelled",
+    ]);
+    const terminalTasksToDispatch: string[] = [];
+    const eventTypes = ["user_message", ...DEFERRED_FOLLOW_UP_MARKER_TYPES];
+
+    for (const task of candidates) {
+      if (this.restoredDeferredFollowUpTaskIds.has(task.id)) continue;
+
+      const events = this.eventRepo.findByTaskIdAndTypes(task.id, eventTypes);
+      if (events.length === 0) continue;
+
+      type PersistedQueueRecord = {
+        followUp: DeferredUserFollowUp;
+        dispatchStarted: boolean;
+        dispatchFinished: boolean;
+      };
+      const records = new Map<string, PersistedQueueRecord>();
+      let latestOrder: string[] | undefined;
+
+      const asRecord = (value: unknown): Record<string, unknown> | null =>
+        value && typeof value === "object" && !Array.isArray(value)
+          ? (value as Record<string, unknown>)
+          : null;
+      const asString = (value: unknown): string =>
+        typeof value === "string" ? value : "";
+      const asOptionalString = (value: unknown): string | undefined => {
+        const text = asString(value).trim();
+        return text || undefined;
+      };
+      const asBoolean = (value: unknown): boolean | undefined =>
+        typeof value === "boolean" ? value : undefined;
+      const asImages = (value: unknown): ImageAttachment[] | undefined => {
+        if (!Array.isArray(value)) return undefined;
+        const images = value.filter((image): image is ImageAttachment => {
+          const item = asRecord(image);
+          return Boolean(
+            item &&
+              typeof item.filePath === "string" &&
+              item.filePath.trim().length > 0,
+          );
+        });
+        return images.length > 0 ? images : undefined;
+      };
+
+      for (const event of events) {
+        const type = this.resolveLegacyEventType(event);
+        const payload = asRecord(event.payload) || {};
+        const queueId = asString(payload.queueId).trim();
+
+        if (type === "user_message") {
+          if (payload.followUp !== true || payload.queued !== true || !queueId) {
+            continue;
+          }
+          const displayMessage = asString(payload.message);
+          if (!displayMessage.trim()) continue;
+          const effectiveMessage =
+            asString(payload.effectiveMessage) || displayMessage;
+          records.set(queueId, {
+            followUp: {
+              queueId,
+              displayMessage,
+              message: effectiveMessage,
+              queuedAt:
+                typeof payload.queuedAt === "number" &&
+                Number.isFinite(payload.queuedAt)
+                  ? payload.queuedAt
+                  : event.timestamp,
+              images: asImages(payload.images),
+              activeArtifactContext: asRecord(payload.activeArtifactContext) as
+                unknown as TaskFollowUpInput["activeArtifactContext"],
+              executionMode: asOptionalString(payload.executionMode) as
+                TaskFollowUpInput["executionMode"],
+              taskDomain: asOptionalString(payload.taskDomain) as
+                TaskFollowUpInput["taskDomain"],
+              requestedSkillId: asOptionalString(payload.requestedSkillId),
+              permissionMode: asOptionalString(payload.permissionMode) as
+                TaskFollowUpInput["permissionMode"],
+              shellAccess: asBoolean(payload.shellAccess),
+              attachmentCount:
+                typeof payload.attachmentCount === "number" &&
+                Number.isFinite(payload.attachmentCount)
+                  ? Math.max(0, Math.floor(payload.attachmentCount))
+                  : asImages(payload.images)?.length || 0,
+              quotedAssistantMessage: asRecord(
+                payload.quotedAssistantMessage,
+              ) as unknown as QuotedAssistantMessage | undefined,
+              integrationMentions: Array.isArray(payload.integrationMentions)
+                ? (payload.integrationMentions as TaskFollowUpInput["integrationMentions"])
+                : undefined,
+              agentConfigOverride: asRecord(payload.agentConfigOverride) as
+                unknown as AgentConfig | undefined,
+              userMessageAlreadyEmitted: true,
+              effectiveMessageAlreadyBuilt: true,
+            },
+            dispatchStarted: false,
+            dispatchFinished: false,
+          });
+          continue;
+        }
+
+        if (!queueId) {
+          if (type === "follow_up_queue_reordered") {
+            latestOrder = Array.isArray(payload.queueIds)
+              ? payload.queueIds
+                  .map((id) => asString(id).trim())
+                  .filter(Boolean)
+              : undefined;
+          }
+          continue;
+        }
+
+        const record = records.get(queueId);
+        if (type === "follow_up_queue_removed") {
+          records.delete(queueId);
+          continue;
+        }
+        if (!record) continue;
+
+        if (type === "follow_up_queue_updated") {
+          const displayMessage = asString(payload.message).trim();
+          if (displayMessage) {
+            const previousDisplay = record.followUp.displayMessage;
+            const previousMessage = record.followUp.message;
+            const suffixIndex = previousMessage.lastIndexOf(previousDisplay);
+            record.followUp = {
+              ...record.followUp,
+              displayMessage,
+              message:
+                suffixIndex >= 0 &&
+                suffixIndex + previousDisplay.length === previousMessage.length
+                  ? `${previousMessage.slice(0, suffixIndex)}${displayMessage}`
+                  : asString(payload.effectiveMessage) || displayMessage,
+            };
+          }
+          continue;
+        }
+        if (type === "follow_up_dispatch_started") {
+          record.dispatchStarted = true;
+          continue;
+        }
+        if (type === "follow_up_dispatch_finished") {
+          record.dispatchFinished = true;
+        }
+      }
+
+      const orderedRecords = Array.from(records.values()).filter(
+        (record) => !record.dispatchFinished,
+      );
+      if (orderedRecords.length === 0) continue;
+
+      const byId = new Map(
+        orderedRecords.map((record) => [record.followUp.queueId, record]),
+      );
+      const ordered = [
+        ...(latestOrder || [])
+          .map((queueId) => byId.get(queueId))
+          .filter((record): record is PersistedQueueRecord => Boolean(record)),
+        ...orderedRecords
+          .filter((record) => !(latestOrder || []).includes(record.followUp.queueId))
+          .sort((a, b) => a.followUp.queuedAt - b.followUp.queuedAt),
+      ];
+
+      const status = deriveCanonicalTaskStatus(task);
+      const taskCanResume = [
+        "pending",
+        "queued",
+        "planning",
+        "executing",
+        "interrupted",
+      ].includes(status);
+      // An in-flight dispatch is recovered by findInterruptedFollowUp() for a
+      // resumable task. Re-queue it only when the task was already terminal (or
+      // paused/blocked), where no executor recovery callback will run.
+      const pending = ordered
+        .filter((record) => !record.dispatchStarted || !taskCanResume)
+        .map((record) => record.followUp);
+      if (pending.length === 0) continue;
+
+      this.deferredUserFollowUps.set(task.id, pending);
+      this.restoredDeferredFollowUpTaskIds.add(task.id);
+      if (isTerminalTaskStatus(status)) {
+        terminalTasksToDispatch.push(task.id);
+      }
+      log.info(
+        `[AgentDaemon] Restored ${pending.length} deferred follow-up(s) for task ${task.id}`,
+      );
+    }
+
+    return terminalTasksToDispatch;
+  }
+
+  private async dispatchRestoredDeferredFollowUps(taskId: string): Promise<void> {
+    const pendingRetry = this.restoredDeferredFollowUpRetryTimers.get(taskId);
+    if (pendingRetry) {
+      clearTimeout(pendingRetry);
+      this.restoredDeferredFollowUpRetryTimers.delete(taskId);
+    }
+    const task = this.taskRepo.findById(taskId);
+    if (!task || !isTerminalTaskStatus(deriveCanonicalTaskStatus(task))) {
+      const cached = this.activeTasks?.get(taskId);
+      if (cached) this.processOrphanedFollowUps(taskId, cached.executor);
+      return;
+    }
+
+    const queued = this.deferredUserFollowUps.get(taskId) || [];
+    this.deferredUserFollowUps.delete(taskId);
+    for (let index = 0; index < queued.length; index += 1) {
+      const followUp = queued[index];
+      this.logDeferredFollowUpMarker(taskId, "follow_up_dispatch_started", {
+        queueId: followUp.queueId,
+        message: followUp.message,
+        dispatchStartedAt: Date.now(),
+      });
+      try {
+        await this.sendMessage(
+          taskId,
+          followUp.message,
+          followUp.images,
+          followUp.quotedAssistantMessage,
+          {
+            ...(followUp.activeArtifactContext
+              ? { activeArtifactContext: followUp.activeArtifactContext }
+              : {}),
+            ...(followUp.executionMode
+              ? { executionMode: followUp.executionMode }
+              : {}),
+            ...(followUp.taskDomain
+              ? { taskDomain: followUp.taskDomain }
+              : {}),
+            ...(followUp.requestedSkillId
+              ? { requestedSkillId: followUp.requestedSkillId }
+              : {}),
+            ...(followUp.permissionMode
+              ? { permissionMode: followUp.permissionMode }
+              : {}),
+            ...(typeof followUp.shellAccess === "boolean"
+              ? { shellAccess: followUp.shellAccess }
+              : {}),
+            ...(followUp.integrationMentions
+              ? { integrationMentions: followUp.integrationMentions }
+              : {}),
+            ...(followUp.agentConfigOverride
+              ? { agentConfigOverride: followUp.agentConfigOverride }
+              : {}),
+            userMessageAlreadyEmitted: true,
+            effectiveMessageAlreadyBuilt: true,
+            ...(followUp.effectiveMessageAlreadyBuilt
+              ? { deferredQueueDispatch: true }
+              : {}),
+          },
+        );
+        this.logDeferredFollowUpMarker(taskId, "follow_up_dispatch_finished", {
+          queueId: followUp.queueId,
+          finishedAt: Date.now(),
+        });
+      } catch (error) {
+        // Keep the failed item and all later items visible so a later user
+        // action or process restart can retry them instead of losing input.
+        this.deferredUserFollowUps.set(taskId, queued.slice(index));
+        this.scheduleRestoredDeferredFollowUpRetry(taskId);
+        log.warn(
+          `[AgentDaemon] Failed to replay deferred follow-up for task ${taskId}:`,
+          error,
+        );
+        return;
+      }
+    }
+  }
+
+  private scheduleRestoredDeferredFollowUpRetry(taskId: string): void {
+    if (this.restoredDeferredFollowUpRetryTimers.has(taskId)) return;
+    const timer = setTimeout(() => {
+      this.restoredDeferredFollowUpRetryTimers.delete(taskId);
+      void this.dispatchRestoredDeferredFollowUps(taskId);
+    }, 500);
+    timer.unref?.();
+    this.restoredDeferredFollowUpRetryTimers.set(taskId, timer);
+  }
+
   private toQueuedFollowUp(
     taskId: string,
     followUp: DeferredUserFollowUp,
@@ -12339,7 +12771,7 @@ export class AgentDaemon extends EventEmitter {
       taskId,
       message: followUp.displayMessage,
       createdAt: followUp.queuedAt,
-      attachmentCount: followUp.images?.length ?? 0,
+      attachmentCount: followUp.attachmentCount ?? followUp.images?.length ?? 0,
     };
   }
 
@@ -12376,6 +12808,12 @@ export class AgentDaemon extends EventEmitter {
       displayMessage: nextDisplayMessage,
     };
     queued[index] = next;
+    this.logDeferredFollowUpMarker(taskId, "follow_up_queue_updated", {
+      queueId,
+      message: nextDisplayMessage,
+      effectiveMessage: nextExecutionMessage,
+      updatedAt: Date.now(),
+    });
     return this.toQueuedFollowUp(taskId, next);
   }
 
@@ -12407,6 +12845,10 @@ export class AgentDaemon extends EventEmitter {
     }
 
     this.deferredUserFollowUps.set(taskId, reordered);
+    this.logDeferredFollowUpMarker(taskId, "follow_up_queue_reordered", {
+      queueIds: reordered.map((followUp) => followUp.queueId),
+      updatedAt: Date.now(),
+    });
     return reordered.map((followUp) => this.toQueuedFollowUp(taskId, followUp));
   }
 
@@ -12423,6 +12865,10 @@ export class AgentDaemon extends EventEmitter {
     if (queued.length === 0) {
       this.deferredUserFollowUps.delete(taskId);
     }
+    this.logDeferredFollowUpMarker(taskId, "follow_up_queue_removed", {
+      queueId,
+      removedAt: Date.now(),
+    });
     return {
       removed: true,
       ...(removed.images?.length ? { images: removed.images } : {}),
@@ -12433,26 +12879,15 @@ export class AgentDaemon extends EventEmitter {
    * Send a follow-up message to a task.
    *
    * If the executor is currently running (mutex held), the message is kept as
-   * a separate follow-up turn. It is deliberately not written into the
-   * timeline until that turn actually starts; otherwise the active turn can
-   * continue emitting reasoning and tool events below a future user message.
+   * a separate follow-up turn. The user_message is persisted immediately so a
+   * renderer/process restart cannot erase the user's input while it waits.
    */
   async sendMessage(
     taskId: string,
     message: string,
     images?: ImageAttachment[],
     quotedAssistantMessage?: QuotedAssistantMessage,
-    options?: Pick<
-      TaskFollowUpInput,
-      | "activeArtifactContext"
-      | "executionMode"
-      | "taskDomain"
-      | "requestedSkillId"
-      | "permissionMode"
-      | "shellAccess"
-      | "integrationMentions"
-      | "agentConfigOverride"
-    >,
+    options?: DeferredFollowUpSendOptions,
   ): Promise<{ queued: boolean; queueItem?: TaskQueuedFollowUp }> {
     let executor: TaskExecutor;
 
@@ -12517,14 +12952,20 @@ export class AgentDaemon extends EventEmitter {
     );
 
     this.taskRepo.touch(taskId);
-    const artifactScopedMessage = this.buildActiveArtifactFollowUpContext(
-      message,
-      effectiveOptions?.activeArtifactContext,
-    );
-    const annotationContext = this.buildAnnotationFollowUpContext(
-      taskId,
-      artifactScopedMessage,
-    );
+    // Queue entries persist the fully expanded effective message. Rebuilding
+    // these wrappers on replay would duplicate artifact/annotation context and
+    // can make a restored turn diverge from the one the user submitted.
+    const artifactScopedMessage =
+      effectiveOptions?.effectiveMessageAlreadyBuilt === true
+        ? message
+        : this.buildActiveArtifactFollowUpContext(
+            message,
+            effectiveOptions?.activeArtifactContext,
+          );
+    const annotationContext =
+      effectiveOptions?.effectiveMessageAlreadyBuilt === true
+        ? { message: artifactScopedMessage, annotations: [] as Annotation[] }
+        : this.buildAnnotationFollowUpContext(taskId, artifactScopedMessage);
     const effectiveMessage = annotationContext.message;
     this.persistTaskAttachmentBindings(
       effectiveTask,
@@ -12592,6 +13033,11 @@ export class AgentDaemon extends EventEmitter {
         queuedBeforeSend.length > 0 ||
         this.deferredUserFollowUpDrains?.has(taskId) === true);
     if (executor.isRunning || mustQueueBehindExisting) {
+      if (effectiveOptions?.deferredQueueDispatch === true) {
+        throw new Error(
+          `Deferred follow-up dispatch for task ${taskId} raced another active turn`,
+        );
+      }
       const integrationMentions =
         effectiveTask.agentConfig?.integrationMentions;
       const queuedFollowUp: DeferredUserFollowUp = {
@@ -12600,6 +13046,25 @@ export class AgentDaemon extends EventEmitter {
         queuedAt: Date.now(),
         message: effectiveMessage,
         images,
+        attachmentCount: images?.length ?? 0,
+        ...(effectiveOptions?.activeArtifactContext
+          ? { activeArtifactContext: effectiveOptions.activeArtifactContext }
+          : {}),
+        ...(effectiveOptions?.executionMode
+          ? { executionMode: effectiveOptions.executionMode }
+          : {}),
+        ...(effectiveOptions?.taskDomain
+          ? { taskDomain: effectiveOptions.taskDomain }
+          : {}),
+        ...(effectiveOptions?.requestedSkillId
+          ? { requestedSkillId: effectiveOptions.requestedSkillId }
+          : {}),
+        ...(effectiveOptions?.permissionMode
+          ? { permissionMode: effectiveOptions.permissionMode }
+          : {}),
+        ...(typeof effectiveOptions?.shellAccess === "boolean"
+          ? { shellAccess: effectiveOptions.shellAccess }
+          : {}),
         quotedAssistantMessage,
         ...(integrationMentions && integrationMentions.length > 0
           ? { integrationMentions }
@@ -12607,7 +13072,24 @@ export class AgentDaemon extends EventEmitter {
         ...(effectiveOptions?.agentConfigOverride
           ? { agentConfigOverride: effectiveOptions.agentConfigOverride }
           : {}),
+        userMessageAlreadyEmitted: true,
+        effectiveMessageAlreadyBuilt: true,
       };
+
+      // Persist the visible prompt before putting it in the in-memory FIFO.
+      // `queued: true` keeps follow-up recovery from mistaking this message for
+      // a turn that already started; the queue markers below describe its
+      // lifecycle across process restarts.
+      this.logEvent(
+        taskId,
+        "user_message",
+        this.serializeDeferredFollowUp(queuedFollowUp),
+      );
+      this.logDeferredFollowUpMarker(
+        taskId,
+        "follow_up_queue_updated",
+        this.serializeDeferredFollowUp(queuedFollowUp),
+      );
       queuedBeforeSend.push(queuedFollowUp);
       this.deferredUserFollowUps.set(taskId, queuedBeforeSend);
       // Usually the active executor will trigger the drain when it settles.
@@ -12621,18 +13103,20 @@ export class AgentDaemon extends EventEmitter {
     }
 
     // Send the message (executor is idle, acquire mutex normally)
-    if (effectiveMessage !== message) {
+    if (effectiveMessage !== message || options?.userMessageAlreadyEmitted) {
       executor.suppressNextUserMessageEvent();
-      this.logEvent(taskId, "user_message", {
-        message,
-        ...(annotationContext.annotations.length > 0
-          ? { annotationContextInjected: true }
-          : {}),
-        ...(effectiveOptions?.activeArtifactContext
-          ? { activeArtifactContextInjected: true }
-          : {}),
-        ...(quotedAssistantMessage ? { quotedAssistantMessage } : {}),
-      });
+      if (!options?.userMessageAlreadyEmitted) {
+        this.logEvent(taskId, "user_message", {
+          message,
+          ...(annotationContext.annotations.length > 0
+            ? { annotationContextInjected: true }
+            : {}),
+          ...(effectiveOptions?.activeArtifactContext
+            ? { activeArtifactContextInjected: true }
+            : {}),
+          ...(quotedAssistantMessage ? { quotedAssistantMessage } : {}),
+        });
+      }
     }
     await executor.sendMessage(
       effectiveMessage,
@@ -12737,6 +13221,9 @@ export class AgentDaemon extends EventEmitter {
       return;
     }
     if (this.deferredUserFollowUpDrains.has(taskId)) return;
+    // A dispatch failure schedules its own retry. Do not start a second drain
+    // from the completion callback while that backoff timer is pending.
+    if (this.deferredUserFollowUpRetryTimers.has(taskId)) return;
 
     // The mutex alone is not enough: a lifecycle promise can release it while
     // the task record still says the previous run is executing. Waiting for a
@@ -12761,7 +13248,10 @@ export class AgentDaemon extends EventEmitter {
         }
         // A message may have arrived between the final queue check and cleanup.
         // Re-evaluate once without creating an overlapping drain.
-        if ((this.deferredUserFollowUps.get(taskId) || []).length > 0) {
+        if (
+          (this.deferredUserFollowUps.get(taskId) || []).length > 0 &&
+          !this.deferredUserFollowUpRetryTimers.has(taskId)
+        ) {
           this.processOrphanedFollowUps(taskId, executor);
         }
       },
@@ -12818,6 +13308,15 @@ export class AgentDaemon extends EventEmitter {
       }
 
       try {
+        this.logDeferredFollowUpMarker(
+          taskId,
+          "follow_up_dispatch_started",
+          {
+            queueId: followUp.queueId,
+            message: followUp.message,
+            dispatchStartedAt: Date.now(),
+          },
+        );
         if (followUp.userMessageAlreadyEmitted) {
           executor.suppressNextUserMessageEvent();
         }
@@ -12828,6 +13327,24 @@ export class AgentDaemon extends EventEmitter {
           followUp.images,
           followUp.quotedAssistantMessage,
           {
+            ...(followUp.activeArtifactContext
+              ? { activeArtifactContext: followUp.activeArtifactContext }
+              : {}),
+            ...(followUp.executionMode
+              ? { executionMode: followUp.executionMode }
+              : {}),
+            ...(followUp.taskDomain
+              ? { taskDomain: followUp.taskDomain }
+              : {}),
+            ...(followUp.requestedSkillId
+              ? { requestedSkillId: followUp.requestedSkillId }
+              : {}),
+            ...(followUp.permissionMode
+              ? { permissionMode: followUp.permissionMode }
+              : {}),
+            ...(typeof followUp.shellAccess === "boolean"
+              ? { shellAccess: followUp.shellAccess }
+              : {}),
             ...(Object.prototype.hasOwnProperty.call(
               followUp,
               "integrationMentions",
@@ -12840,6 +13357,15 @@ export class AgentDaemon extends EventEmitter {
             )
               ? { agentConfigOverride: followUp.agentConfigOverride }
               : {}),
+            ...(followUp.userMessageAlreadyEmitted
+              ? { userMessageAlreadyEmitted: true }
+              : {}),
+            ...(followUp.effectiveMessageAlreadyBuilt
+              ? { effectiveMessageAlreadyBuilt: true }
+              : {}),
+            ...(followUp.effectiveMessageAlreadyBuilt
+              ? { deferredQueueDispatch: true }
+              : {}),
           },
         );
         // The bypass is only for the synchronous queue decision at dispatch
@@ -12847,11 +13373,27 @@ export class AgentDaemon extends EventEmitter {
         // turn is awaiting the model or tools.
         this.deferredUserFollowUpDispatches.delete(taskId);
         await dispatch;
+        this.logDeferredFollowUpMarker(
+          taskId,
+          "follow_up_dispatch_finished",
+          {
+            queueId: followUp.queueId,
+            finishedAt: Date.now(),
+          },
+        );
       } catch (err) {
         console.error(
           `[AgentDaemon] Failed to process queued follow-up for task ${taskId}:`,
           err,
         );
+        // The queue item was removed before dispatch. Keep it at the head and
+        // retry after the normal lifecycle-settlement delay instead of silently
+        // dropping the user's message when executor setup/IPC fails on Windows
+        // (or during a transient app/database restart).
+        const remaining = this.deferredUserFollowUps.get(taskId) || [];
+        this.deferredUserFollowUps.set(taskId, [followUp, ...remaining]);
+        this.scheduleDeferredUserFollowUpDrain(taskId, executor);
+        return;
       } finally {
         this.deferredUserFollowUpDispatches.delete(taskId);
       }
@@ -12995,6 +13537,11 @@ export class AgentDaemon extends EventEmitter {
       clearInterval(this.maintenanceIntervalHandle);
       this.maintenanceIntervalHandle = undefined;
     }
+
+    this.restoredDeferredFollowUpRetryTimers.forEach((timer) =>
+      clearTimeout(timer),
+    );
+    this.restoredDeferredFollowUpRetryTimers.clear();
 
     // Clear all pending approval timeouts and reject pending promises
     this.pendingApprovals.forEach((pending, _approvalId) => {

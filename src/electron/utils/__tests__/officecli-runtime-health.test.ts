@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   checkOfficeCliHealth,
+  getBundledOfficeCliCandidates,
   getOfficeCliBinaryName,
   invalidateOfficeCliHealthCache,
 } from "../officecli-runtime";
@@ -43,5 +44,17 @@ describe("Office tools health check", () => {
       ready: false,
       diagnosticCode: "OFFICE_TOOL_SMOKE_FAILED",
     });
+  });
+
+  it("prefers the runtime-recorded bundled executable path", () => {
+    const previous = process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH;
+    const recordedPath = "/Applications/NeoWorker.app/Contents/Resources/officecli/officecli";
+    process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH = recordedPath;
+    try {
+      expect(getBundledOfficeCliCandidates()[0]).toBe(recordedPath);
+    } finally {
+      if (previous === undefined) delete process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH;
+      else process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH = previous;
+    }
   });
 });

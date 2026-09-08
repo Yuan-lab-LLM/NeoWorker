@@ -5626,6 +5626,11 @@ export function App() {
   const taskOffsetRef = useRef(0);
   const isLoadingMoreRef = useRef(false);
   const hasMoreTasksRef = useRef(false);
+  // Sidebar refreshes can overlap on slower Windows machines (for example
+  // when a task event and the app-focus handler fire together). Ignore an old
+  // response so it cannot replace a newer task page with stale data.
+  const taskListRequestIdRef = useRef(0);
+  const taskLoadMoreRequestIdRef = useRef(0);
   const sidebarTaskCursorRef = useRef<{
     id: string;
     pinned?: boolean;
@@ -5646,10 +5651,17 @@ export function App() {
   }, []);
 
   const loadTasks = useCallback(async () => {
+    const requestId = ++taskListRequestIdRef.current;
+    // Invalidate an in-flight pagination request as well; its finally block
+    // must not leave the new pagination state stuck in "loading".
+    taskLoadMoreRequestIdRef.current += 1;
+    const isCurrentRequest = () =>
+      requestId === taskListRequestIdRef.current;
     setIsInitialTaskListLoading(true);
     const listSidebarTasks =
       window.electronAPI?.listSidebarTasks ?? window.electronAPI?.listTasks;
     if (!listSidebarTasks) {
+      if (!isCurrentRequest()) return;
       setTasks([]);
       setHasMoreTasks(false);
       hasMoreTasksRef.current = false;
@@ -5676,6 +5688,7 @@ export function App() {
         prioritizeSidebar: true,
         excludeSources: MAIN_SIDEBAR_EXCLUDED_TASK_SOURCES,
       });
+      if (!isCurrentRequest()) return;
       const receiveMs = performance.now() - startedAt;
       recordRendererPerfSample(
         "sidebar.data_receive_ms",
@@ -5704,13 +5717,15 @@ export function App() {
       taskOffsetRef.current = loadedTasks.length;
       sidebarTaskCursorRef.current = toSidebarTaskCursor(loadedTasks.at(-1));
     } catch (error) {
+      if (!isCurrentRequest()) return;
       console.error("Failed to load tasks:", error);
     } finally {
-      setIsInitialTaskListLoading(false);
+      if (isCurrentRequest()) setIsInitialTaskListLoading(false);
     }
   }, [rendererPerfLoggingEnabled, toSidebarTaskCursor]);
 
   const loadMoreTasks = useCallback(async () => {
+    const requestId = taskListRequestIdRef.current;
     const listSidebarTasks =
       window.electronAPI?.listSidebarTasks ?? window.electronAPI?.listTasks;
     if (
@@ -5720,6 +5735,10 @@ export function App() {
     ) {
       return;
     }
+    const loadMoreRequestId = ++taskLoadMoreRequestIdRef.current;
+    const isCurrentRequest = () =>
+      requestId === taskListRequestIdRef.current &&
+      loadMoreRequestId === taskLoadMoreRequestIdRef.current;
     isLoadingMoreRef.current = true;
     setIsLoadingMoreTasks(true);
     try {
@@ -5732,6 +5751,7 @@ export function App() {
         prioritizeSidebar: true,
         excludeSources: MAIN_SIDEBAR_EXCLUDED_TASK_SOURCES,
       });
+      if (!isCurrentRequest()) return;
       const moreTasks = moreTaskPage.slice(0, TASK_LOAD_MORE);
       if (moreTasks.length > 0) {
         setTasks((prev) => {
@@ -5761,10 +5781,13 @@ export function App() {
       setHasMoreTasks(more);
       hasMoreTasksRef.current = more;
     } catch (error) {
+      if (!isCurrentRequest()) return;
       console.error("Failed to load more tasks:", error);
     } finally {
-      isLoadingMoreRef.current = false;
-      setIsLoadingMoreTasks(false);
+      if (isCurrentRequest()) {
+        isLoadingMoreRef.current = false;
+        setIsLoadingMoreTasks(false);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

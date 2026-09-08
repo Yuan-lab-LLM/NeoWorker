@@ -87,7 +87,12 @@ export function getBundledOfficeCliCandidates(
   const cwd = context.cwd || process.cwd();
   const binaryName = getOfficeCliBinaryName(platform);
   const bundleKey = getOfficeCliBundleKey(platform, arch);
+  const recordedBundledPath =
+    platform === process.platform && arch === process.arch
+      ? process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH
+      : undefined;
   const candidates = [
+    recordedBundledPath,
     resourcesPath ? path.join(resourcesPath, "officecli", binaryName) : undefined,
     path.join(cwd, "build", "officecli", bundleKey, binaryName),
     path.join(path.resolve(__dirname, "../../../.."), "build", "officecli", bundleKey, binaryName),

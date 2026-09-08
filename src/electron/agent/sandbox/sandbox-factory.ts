@@ -604,6 +604,16 @@ export async function isMacOSSandboxAvailable(): Promise<boolean> {
  * Detect the best available sandbox type for the current platform
  */
 export async function detectAvailableSandbox(): Promise<SandboxType> {
+  // DockerSandbox runs a Linux image (`/bin/sh -c`).  It is therefore not a
+  // host sandbox for a Windows desktop process: native commands and packaged
+  // Windows binaries (OfficeCLI, Python, npm.cmd, etc.) cannot execute inside
+  // that container.  Falling back to NoSandbox keeps the controlled
+  // cmd.exe/PowerShell invocation path usable until a real Windows-container
+  // implementation exists.
+  if (process.platform === "win32") {
+    return "none";
+  }
+
   // On macOS, prefer native sandbox-exec
   if (process.platform === "darwin" && (await isMacOSSandboxAvailable())) {
     return "macos";
@@ -639,9 +649,14 @@ export async function createSandbox(
     ) {
       console.warn("macOS sandbox requested but unavailable, falling back to auto-detect");
       sandboxType = await detectAvailableSandbox();
-    } else if (preferredType === "docker" && !(await isDockerAvailable())) {
+    } else if (
+      preferredType === "docker" &&
+      (process.platform === "win32" || !(await isDockerAvailable()))
+    ) {
       console.warn(
-        "Docker sandbox requested but Docker not available, falling back to auto-detect",
+        process.platform === "win32"
+          ? "Docker sandbox is not compatible with native Windows command execution; falling back to the Windows shell path"
+          : "Docker sandbox requested but Docker not available, falling back to auto-detect",
       );
       sandboxType = await detectAvailableSandbox();
     } else {

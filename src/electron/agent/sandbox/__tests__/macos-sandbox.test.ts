@@ -246,6 +246,7 @@ describe("MacOSSandbox", () => {
     expect(profile).toContain('(allow file-write* (literal "/dev/null"))');
     expect(profile).toContain('(subpath "/private/etc/ssl")');
     expect(profile).toContain('(subpath "/etc/ssl")');
+    expect(profile).toContain('(subpath "/private/var/select")');
     expect(profile).toContain("(allow network*)");
 
     proc.emit("close", 0, null);
@@ -273,6 +274,42 @@ describe("MacOSSandbox", () => {
           configurable: true,
           value: originalResourcesPath,
         });
+      }
+    }
+  });
+
+  it("keeps the recorded bundled OfficeCLI path visible to sandboxed shells", async () => {
+    const previousBundledPath = process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH;
+    process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH =
+      "/Applications/NeoWorker.app/Contents/Resources/officecli/officecli";
+    const proc = new EventEmitter() as ChildProcess;
+    proc.stdout = new EventEmitter() as ChildProcess["stdout"];
+    proc.stderr = new EventEmitter() as ChildProcess["stderr"];
+    proc.kill = vi.fn(() => true) as unknown as ChildProcess["kill"];
+    spawnMock.mockImplementationOnce(() => proc);
+    try {
+      const sandbox = new MacOSSandbox(makeWorkspace());
+      const resultPromise = sandbox.execute("officecli --version", [], {
+        cwd: "/tmp/neoworker workspace",
+        timeout: 1000,
+      });
+
+      const [, args, options] = spawnMock.mock.calls[0];
+      const profile = fs.readFileSync(args[1], "utf-8");
+      expect(profile).toContain(
+        '(allow file-read* (subpath "/Applications/NeoWorker.app/Contents/Resources/officecli"))',
+      );
+      expect(options.env.PATH.split(":")).toContain(
+        "/Applications/NeoWorker.app/Contents/Resources/officecli",
+      );
+
+      proc.emit("close", 0, null);
+      await expect(resultPromise).resolves.toMatchObject({ exitCode: 0 });
+    } finally {
+      if (previousBundledPath === undefined) {
+        delete process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH;
+      } else {
+        process.env.NEOWORKER_BUNDLED_OFFICECLI_PATH = previousBundledPath;
       }
     }
   });

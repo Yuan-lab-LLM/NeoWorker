@@ -9,7 +9,13 @@ vi.mock("child_process", () => ({
   spawn: spawnMock,
 }));
 
-import { isMacOSSandboxAvailable, NoSandbox, resetMacOSSandboxCache } from "../sandbox-factory";
+import {
+  detectAvailableSandbox,
+  isMacOSSandboxAvailable,
+  NoSandbox,
+  resetDockerCache,
+  resetMacOSSandboxCache,
+} from "../sandbox-factory";
 
 function makeChildProcess(options: {
   closeCode?: number | null;
@@ -113,8 +119,16 @@ describe("Windows no-sandbox command execution", () => {
   });
 
   afterEach(() => {
+    resetDockerCache();
     platformSpy.mockRestore();
     vi.useRealTimers();
+  });
+
+  it("does not select the Linux Docker sandbox on Windows", async () => {
+    // Docker Desktop may be installed and running, but DockerSandbox executes
+    // `/bin/sh` in a Linux image and cannot run host OfficeCLI/Python/npm.cmd.
+    await expect(detectAvailableSandbox()).resolves.toBe("none");
+    expect(spawnMock).not.toHaveBeenCalled();
   });
 
   it("runs a complete command line through cmd.exe without quoting it as one token", async () => {
