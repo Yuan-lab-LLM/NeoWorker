@@ -3,6 +3,7 @@ import {
   validateCanonicalContentSnapshot,
   type CanonicalContentSnapshot,
 } from "../../utils/office-content-model";
+import { createHash } from "crypto";
 
 export type CoordinatedOfficeArtifactFormat = "docx" | "pptx" | "xlsx";
 
@@ -15,6 +16,37 @@ type OfficeArtifactResult = {
 type CoordinatedJob = {
   promise: Promise<OfficeArtifactResult>;
 };
+
+/**
+ * Return a deterministic JSON representation for the plain data objects used
+ * by the Office tools.  The model may emit the same presentation with object
+ * keys in a different order; that must still be considered the same write.
+ */
+function stableSerialize(value: unknown): string {
+  if (value === undefined) return "null";
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "null";
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableSerialize(item)).join(",")}]`;
+  }
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableSerialize(record[key])}`)
+    .join(",")}}`;
+}
+
+/**
+ * Hash normalized Office tool input so a retry with materially different
+ * content cannot be mistaken for a duplicate call just because it uses the
+ * same filename.  The identity is deliberately separate from the filename
+ * family: repeated identical calls still coalesce, while a preview followed
+ * by a complete document gets a fresh writer.
+ */
+export function hashOfficeArtifactInput(value: unknown): string {
+  return createHash("sha256").update(stableSerialize(value)).digest("hex");
+}
 
 const DEFAULT_REQUEST_IDENTITY = "default";
 
@@ -81,11 +113,11 @@ function buildPresentationVariantIdentity(
 /**
  * Build a stable identity for one requested Office deliverable.
  *
- * Content is deliberately excluded. Using the whole payload made a later,
- * lossy rewrite (for example fewer spreadsheet rows plus a `v2` filename)
- * look like a second user request and caused both files to be published.
- * Distinct semantic filenames remain distinct, while automatic v2/copy
- * suffixes share the first successful writer result for this request boundary.
+ * The filename family remains the primary request identity so automatic
+ * v2/copy suffixes share one writer result inside a turn. Callers that can
+ * retry a file with materially different content also pass `contentIdentity`
+ * to `run`; that optional hash prevents a preview from being reused as the
+ * final artifact without changing the filename-family semantics.
  */
 export function buildOfficeArtifactRequestIdentity(
   format: CoordinatedOfficeArtifactFormat,
@@ -165,10 +197,18 @@ export class OfficeArtifactRequestCoordinator {
     operation: () => Promise<OfficeArtifactResult>,
     contentSnapshot?: CanonicalContentSnapshot,
     requestIdentity = DEFAULT_REQUEST_IDENTITY,
+    contentIdentity?: string,
   ): Promise<OfficeArtifactResult> {
     this.bindContentSnapshot(format, contentSnapshot);
     const normalizedIdentity = String(requestIdentity || DEFAULT_REQUEST_IDENTITY).trim();
-    const jobKey = `${format}:${normalizedIdentity || DEFAULT_REQUEST_IDENTITY}`;
+    const normalizedContentIdentity = String(contentIdentity || "").trim();
+    const jobKey = [
+      format,
+      normalizedIdentity || DEFAULT_REQUEST_IDENTITY,
+      normalizedContentIdentity ? `content:${normalizedContentIdentity}` : "",
+    ]
+      .filter(Boolean)
+      .join(":");
     const existing = this.jobs.get(jobKey);
     if (existing) {
       const result = await existing.promise;

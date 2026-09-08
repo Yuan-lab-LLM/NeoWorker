@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createCanonicalContentSnapshot } from "../../../utils/office-content-model";
 import {
   buildOfficeArtifactRequestIdentity,
+  hashOfficeArtifactInput,
   OfficeArtifactRequestCoordinator,
 } from "../office-artifact-request-coordinator";
 
@@ -292,6 +293,79 @@ describe("OfficeArtifactRequestCoordinator", () => {
       path: "report.docx",
       reusedExistingArtifact: true,
     });
+  });
+
+  it("reruns a same-name presentation when the normalized slide content changes", async () => {
+    const coordinator = new OfficeArtifactRequestCoordinator();
+    const firstWriter = vi.fn(async () => ({
+      success: true,
+      path: "presentation.pptx",
+    }));
+    const completeWriter = vi.fn(async () => ({
+      success: true,
+      path: "presentation.pptx",
+    }));
+    const firstInput = {
+      filename: "presentation.pptx",
+      title: "Quarterly training",
+      slides: [{ title: "Preview", content: ["One slide"] }],
+    };
+    const completeInput = {
+      ...firstInput,
+      slides: [
+        { title: "Preview", content: ["One slide"] },
+        { title: "Complete", content: ["The remaining content"] },
+      ],
+    };
+    const identity = buildOfficeArtifactRequestIdentity("pptx", firstInput);
+
+    await coordinator.run(
+      "pptx",
+      firstWriter,
+      undefined,
+      identity,
+      hashOfficeArtifactInput(firstInput),
+    );
+    const complete = await coordinator.run(
+      "pptx",
+      completeWriter,
+      undefined,
+      buildOfficeArtifactRequestIdentity("pptx", completeInput),
+      hashOfficeArtifactInput(completeInput),
+    );
+
+    expect(firstWriter).toHaveBeenCalledTimes(1);
+    expect(completeWriter).toHaveBeenCalledTimes(1);
+    expect(complete.reusedExistingArtifact).toBeUndefined();
+  });
+
+  it("coalesces identical normalized presentation content despite object key order", async () => {
+    const coordinator = new OfficeArtifactRequestCoordinator();
+    const writer = vi.fn(async () => ({
+      success: true,
+      path: "presentation.pptx",
+    }));
+    const first = { filename: "presentation.pptx", slides: [{ title: "A", content: ["B"] }] };
+    const sameContentDifferentKeyOrder = {
+      slides: [{ content: ["B"], title: "A" }],
+      filename: "presentation.pptx",
+    };
+    const identity = buildOfficeArtifactRequestIdentity("pptx", first);
+    const firstHash = hashOfficeArtifactInput(first);
+    const secondHash = hashOfficeArtifactInput(sameContentDifferentKeyOrder);
+    expect(secondHash).toBe(firstHash);
+
+    await coordinator.run("pptx", writer, undefined, identity, firstHash);
+    const duplicate = await coordinator.run(
+      "pptx",
+      writer,
+      undefined,
+      buildOfficeArtifactRequestIdentity("pptx", sameContentDifferentKeyOrder),
+      secondHash,
+    );
+
+    expect(writer).toHaveBeenCalledTimes(1);
+    expect(duplicate.reusedExistingArtifact).toBe(true);
   });
 
   it("allows a retry after a failed delivery gate", async () => {

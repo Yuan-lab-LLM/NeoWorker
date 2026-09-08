@@ -169,6 +169,7 @@ import { evaluateToolPolicyPipeline } from "../runtime/ToolPolicyPipeline";
 import { ToolSearchService } from "../runtime/ToolSearchService";
 import {
   buildOfficeArtifactRequestIdentity,
+  hashOfficeArtifactInput,
   OfficeArtifactRequestCoordinator,
 } from "../runtime/office-artifact-request-coordinator";
 import {
@@ -849,6 +850,9 @@ export class ToolRegistry {
       // model authored the tool call. Build the identity from that normalized
       // payload so ppt-master cannot reuse a standard deck from this task.
       buildOfficeArtifactRequestIdentity("pptx", normalized),
+      // A follow-up can keep the same filename while replacing a preview with
+      // the complete deck. Only identical normalized content should coalesce.
+      hashOfficeArtifactInput(normalized),
     ) as Promise<Any>;
   }
 
@@ -862,6 +866,7 @@ export class ToolRegistry {
       () => this.skillTools.createDocument(normalized, { signal }),
       normalized.contentSnapshot,
       buildOfficeArtifactRequestIdentity("docx", input),
+      hashOfficeArtifactInput(normalized),
     ) as Promise<Any>;
   }
 
@@ -872,6 +877,7 @@ export class ToolRegistry {
       () => this.skillTools.createSpreadsheet(normalized, { signal }),
       normalized.contentSnapshot,
       buildOfficeArtifactRequestIdentity("xlsx", input),
+      hashOfficeArtifactInput(normalized),
     ) as Promise<Any>;
   }
 
