@@ -13471,9 +13471,9 @@ ${transcript}
   private buildPptxArtifactPlanStepDescription(): string {
     const filename = this.buildTaskArtifactFilename(".pptx");
     if (this.taskRequiresSimplifiedChineseOutput()) {
-      return `创建最终 PowerPoint 演示文稿 \`${filename}\`，并写入完整的幻灯片内容。`;
+      return `根据用户要求和附件内容，在本步骤调用 create_presentation 一次性创建最终 PowerPoint 演示文稿 \`${filename}\`，写入完整的幻灯片内容；不得仅输出分析、方案或大纲代替真实 .pptx 文件，并确认文件非空且可打开。`;
     }
-    return `Create the final PowerPoint presentation \`${filename}\` with the completed slide content.`;
+    return `Call create_presentation in this step to create the final PowerPoint presentation \`${filename}\` with the completed slide content. Do not substitute analysis, a plan, or an outline for the real .pptx file; confirm it is non-empty and readable.`;
   }
 
   private buildVideoArtifactPlanStepDescription(): string {
@@ -16232,17 +16232,33 @@ ${transcript}
 
   private buildCompletionContract(): CompletionContract {
     const canonicalIntent = this.getCanonicalTaskIntentQuery();
+    const contractPrompt = canonicalIntent || this.getContractPrompt();
     const contract = buildCompletionContractUtil({
       // The canonical query contains only user-authored intent. Do not let a
       // generated title or attachment/OCR text add another output format.
       taskTitle: "",
-      taskPrompt: canonicalIntent || this.getContractPrompt(),
+      taskPrompt: contractPrompt,
       requiresDirectAnswer: this.promptRequiresDirectAnswer(),
       requiresDecisionSignal: this.promptRequestsDecision(),
       isWatchSkipRecommendationTask: this.promptIsWatchSkipRecommendationTask(),
     });
     const workerRole = resolveWorkerRoleKind(this.task.workerRole);
-    if (workerRole === "researcher" || workerRole === "verifier") {
+    const isReadOnlyDelegate = workerRole === "researcher" || workerRole === "verifier";
+    // PPT Master has an explicit file-delivery contract. Terse localized
+    // prompts could previously reach finalization without a .pptx plan step.
+    if (
+      !isReadOnlyDelegate &&
+      this.getRequestedPresentationWorkflow() === "ppt-master" &&
+      !detectReadOnlyConstraintUtil(contractPrompt)
+    ) {
+      contract.requiresExecutionEvidence = true;
+      contract.requiresArtifactEvidence = true;
+      contract.artifactKind = "file";
+      if (!contract.requiredArtifactExtensions.includes(".pptx")) {
+        contract.requiredArtifactExtensions.push(".pptx");
+      }
+    }
+    if (isReadOnlyDelegate) {
       // These delegation roles are explicitly read-only.  Their deliverable is
       // a findings/verdict message consumed by the parent task, even when the
       // root request mentions a file artifact.  Requiring every team member to

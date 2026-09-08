@@ -1312,6 +1312,100 @@ Use concise engineering judgment. Include exact evidence: file paths, command re
     expect(contract.requiredArtifactExtensions).toContain(".pptx");
   });
 
+  it("treats requests to optimize an existing PPT as a pptx deliverable", () => {
+    const contract = buildCompletionContract({
+      taskTitle: "",
+      taskPrompt: "帮我优化一下PPT",
+      requiresDirectAnswer: false,
+      requiresDecisionSignal: false,
+      isWatchSkipRecommendationTask: false,
+    });
+
+    expect(contract.requiresArtifactEvidence).toBe(true);
+    expect(contract.requiredArtifactExtensions).toContain(".pptx");
+    expect(contract.artifactKind).toBe("file");
+  });
+
+  it("does not treat presentation analysis alone as a pptx deliverable", () => {
+    const contract = buildCompletionContract({
+      taskTitle: "",
+      taskPrompt: "只分析一下这个PPT里的内容和结构",
+      requiresDirectAnswer: true,
+      requiresDecisionSignal: false,
+      isWatchSkipRecommendationTask: false,
+    });
+
+    expect(contract.requiresArtifactEvidence).toBe(false);
+    expect(contract.requiredArtifactExtensions).not.toContain(".pptx");
+  });
+
+  it("forces PPT Master plans to include final pptx delivery", () => {
+    const executor = createExecuteHarness({
+      title: "Ppt Master: 处理附件",
+      prompt: "/ppt-master 按技能要求处理附件",
+      lastOutput: "",
+    }) as Any;
+    executor.task.agentConfig = { requestedSkillId: "ppt-master" };
+
+    const contract = executor.buildCompletionContract();
+    const result = executor.ensureRequiredPlanSteps({
+      description: "PPT redesign plan",
+      steps: [
+        {
+          id: "1",
+          description: "读取并预检源演示文稿",
+          kind: "primary",
+          status: "pending",
+        },
+        {
+          id: "2",
+          description: "分析十页内容并制定逐页重构方案",
+          kind: "primary",
+          status: "pending",
+        },
+      ],
+    });
+
+    expect(contract.requiresArtifactEvidence).toBe(true);
+    expect(contract.requiredArtifactExtensions).toContain(".pptx");
+    expect(result.steps).toHaveLength(3);
+    expect(result.steps[2]).toEqual(
+      expect.objectContaining({
+        kind: "primary",
+        status: "pending",
+        description: expect.stringContaining("create_presentation"),
+      }),
+    );
+    expect(result.steps[2].description).toContain("不得仅输出分析、方案或大纲");
+  });
+
+  it("honors an explicit read-only constraint for PPT Master", () => {
+    const executor = createExecuteHarness({
+      title: "Ppt Master: 分析PPT",
+      prompt: "/ppt-master 只分析这个PPT，不要创建、修改或导出任何文件",
+      lastOutput: "",
+    }) as Any;
+    executor.task.agentConfig = { requestedSkillId: "ppt-master" };
+
+    const contract = executor.buildCompletionContract();
+
+    expect(contract.requiresArtifactEvidence).toBe(false);
+    expect(contract.requiredArtifactExtensions).toEqual([]);
+  });
+
+  it("does not confuse preserving the source deck with a read-only task", () => {
+    const contract = buildCompletionContract({
+      taskTitle: "",
+      taskPrompt: "不要修改源演示文稿，请创建一份新的演示文稿",
+      requiresDirectAnswer: false,
+      requiresDecisionSignal: false,
+      isWatchSkipRecommendationTask: false,
+    });
+
+    expect(contract.requiresArtifactEvidence).toBe(true);
+    expect(contract.requiredArtifactExtensions).toContain(".pptx");
+  });
+
   it("treats heartbeat priority updates as file artifacts, not canvas apps", () => {
     const executor = createExecuteHarness({
       title: "Heartbeat: Pending work detected (7 mentions, 0 assigned tasks)",

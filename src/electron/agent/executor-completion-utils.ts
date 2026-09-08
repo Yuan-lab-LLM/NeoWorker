@@ -366,16 +366,29 @@ export function promptRequestsPresentationArtifactOutput(
     /\b(?:create|build|make|generate|produce|draft|prepare|design|author|compose|export|save)\b/.test(
       prompt,
     ) && /\b(?:pptx|ppt)\b|\.pptx\b/.test(prompt);
+  // Editing an existing deck is still an artifact-producing request. Keep
+  // analysis/review verbs out so "分析一下 PPT" remains text-only while common
+  // requests such as "优化一下 PPT" require a real updated .pptx deliverable.
+  const presentationMutation = new RegExp(
+    String.raw`\b(?:edit|update|revise|redesign|rework|improve|enhance|optimize|polish|refresh|fix)\b[^.!?\n]{0,80}\b${presentationNoun}\b|\b${presentationNoun}\b[^.!?\n]{0,80}\b(?:edit|update|revise|redesign|rework|improve|enhance|optimize|polish|refresh|fix)\b`,
+    "i",
+  ).test(prompt);
   const cjkPresentationOutput =
     CJK_ARTIFACT_CREATION_VERB_REGEX.test(prompt) &&
     /(?:pptx|powerpoint|ppt|演示文稿|幻灯片)/i.test(prompt);
+  const cjkPresentationMutation =
+    /(?:优化|美化|修改|改进|重构|重做|润色|调整|编辑|完善|更新|修复)[^。！？!?\n]{0,80}(?:pptx|powerpoint|ppt|演示文稿|幻灯片)|(?:pptx|powerpoint|ppt|演示文稿|幻灯片)[^。！？!?\n]{0,80}(?:优化|美化|修改|改进|重构|重做|润色|调整|编辑|完善|更新|修复)/i.test(
+      prompt,
+    );
 
   return (
     directCreation ||
     createNounImmediately ||
     transformIntoPresentation ||
     explicitPptxOutput ||
-    cjkPresentationOutput
+    presentationMutation ||
+    cjkPresentationOutput ||
+    cjkPresentationMutation
   );
 }
 
@@ -769,7 +782,14 @@ export function detectReadOnlyConstraint(prompt: string): boolean {
     /\b(?:do\s+not\s+(?:edit|create|modify|write)\s+(?:any\s+)?files?|do\s+not\s+make\s+(?:any\s+)?changes|no\s+file\s+changes|without\s+(?:editing|modifying|creating)|don'?t\s+(?:edit|create|modify|write)\s+(?:any\s+)?files?|situational\s+awareness\s+(?:only|mode))\b/.test(
       lower,
     );
-  if (hasExplicitConstraint) return true;
+  const hasCjkExplicitConstraint =
+    /(?:不要|禁止|不得)[^。！？!?\n]{0,48}(?:创建|生成|修改|编辑|写入|保存|导出)[^。！？!?\n]{0,36}(?:任何|任意|所有)(?:文件|文档|报告|表格|工作簿|演示文稿|幻灯片)/i.test(
+      lower,
+    ) ||
+    /(?:仅|只)(?:做|进行)?(?:分析|审阅|检查|评估)[^。！？!?\n]{0,80}(?:不|无需|不要)(?:创建|生成|修改|编辑|写入|保存|导出)/i.test(
+      lower,
+    );
+  if (hasExplicitConstraint || hasCjkExplicitConstraint) return true;
 
   // "read-only" requires constraint context — must NOT be preceded by fix/debug verbs
   // "fix the read-only issue" → false, "this task is read-only" → true
