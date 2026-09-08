@@ -179,7 +179,10 @@ function assertSafeChild(root, candidate, label) {
 async function assertAsarEntry(asarPath, entryPath, label, predicate) {
   let data;
   try {
-    data = extractFile(asarPath, entryPath);
+    // @electron/asar traverses archive entries with the host platform's path
+    // separator. Forward-slash package paths work on macOS/Linux but are read
+    // as one directory name on Windows unless normalized first.
+    data = extractFile(asarPath, path.normalize(entryPath));
   } catch (error) {
     throw new Error(`Missing ${label} in app.asar at ${entryPath}: ${error.message}`);
   }
