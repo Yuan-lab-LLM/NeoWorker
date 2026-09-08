@@ -246,7 +246,9 @@ describe("loadPoliciesStrict", () => {
           version: 2,
           runtime: {
             allowedSandboxTypes: ["macos", "docker"],
-            requireSandboxForShell: false,
+            // This was the fail-closed setting used by older builds.  The
+            // migration must clear it along with the unusable sandbox list.
+            requireSandboxForShell: true,
           },
         }),
       );
@@ -257,6 +259,7 @@ describe("loadPoliciesStrict", () => {
       expect(
         freshLoadPoliciesStrict()?.runtime.allowedSandboxTypes,
       ).toEqual(["docker", "none"]);
+      expect(freshLoadPoliciesStrict()?.runtime.requireSandboxForShell).toBe(false);
     } finally {
       platformSpy.mockRestore();
     }

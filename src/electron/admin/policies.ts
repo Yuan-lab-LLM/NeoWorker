@@ -223,6 +223,16 @@ function clonePolicies(policies: AdminPolicies): AdminPolicies {
 }
 
 function normalizePolicies(parsed: any): AdminPolicies {
+  // Older builds wrote the cross-platform sandbox default (macOS + Docker)
+  // into policies.json on every platform.  On Windows that combination is
+  // unusable: macOS sandboxing cannot run and the Docker backend cannot launch
+  // host commands.  Treat the exact legacy pair as a migration, including its
+  // old fail-closed flag, so an upgraded Windows install can execute commands
+  // through the controlled NoSandbox runner when Docker is unavailable.
+  const legacyWindowsSandboxDefault = isLegacyWindowsSandboxDefault(
+    parsed.runtime?.allowedSandboxTypes,
+  );
+
   return {
     version: 2,
     updatedAt: parsed.updatedAt || new Date().toISOString(),
@@ -265,7 +275,9 @@ function normalizePolicies(parsed: any): AdminPolicies {
       allowedPermissionModes: normalizePermissionModes(parsed.runtime?.allowedPermissionModes),
       allowedSandboxTypes: normalizeSandboxTypes(parsed.runtime?.allowedSandboxTypes),
       requireSandboxForShell:
-        typeof parsed.runtime?.requireSandboxForShell === "boolean"
+        legacyWindowsSandboxDefault
+          ? false
+          : typeof parsed.runtime?.requireSandboxForShell === "boolean"
           ? parsed.runtime.requireSandboxForShell
           : DEFAULT_POLICIES.runtime.requireSandboxForShell,
       allowUnsandboxedShell:
@@ -526,6 +538,18 @@ function normalizePermissionModes(value: unknown): PermissionMode[] {
 
 const VALID_SANDBOX_TYPES = new Set<AdminSandboxType>(["macos", "docker", "none"]);
 
+function isLegacyWindowsSandboxDefault(value: unknown): boolean {
+  const normalized = normalizeStringList(value).filter((mode): mode is AdminSandboxType =>
+    VALID_SANDBOX_TYPES.has(mode as AdminSandboxType),
+  );
+  return (
+    process.platform === "win32" &&
+    normalized.length === 2 &&
+    normalized.includes("macos") &&
+    normalized.includes("docker")
+  );
+}
+
 function normalizeSandboxTypes(value: unknown): AdminSandboxType[] {
   const normalized = normalizeStringList(value).filter((mode): mode is AdminSandboxType =>
     VALID_SANDBOX_TYPES.has(mode as AdminSandboxType),
@@ -537,12 +561,7 @@ function normalizeSandboxTypes(value: unknown): AdminSandboxType[] {
   // the Docker backend is a Linux container that cannot launch host tools.
   // Migrate only that exact legacy default.  Deliberate administrator choices
   // such as ["docker"] remain fail-closed.
-  if (
-    process.platform === "win32" &&
-    normalized.length === 2 &&
-    normalized.includes("macos") &&
-    normalized.includes("docker")
-  ) {
+  if (isLegacyWindowsSandboxDefault(normalized)) {
     return [...DEFAULT_ALLOWED_SANDBOX_TYPES];
   }
   return normalized.length > 0 ? normalized : [...DEFAULT_POLICIES.runtime.allowedSandboxTypes];
