@@ -29,7 +29,7 @@ jobs:
         run: npx vitest --config config/vitest.config.ts run src/electron/agent/search/__tests__ src/electron/agent/tools/__tests__/search-tools.test.ts src/electron/agent/tools/__tests__/web-fetch-tools.test.ts src/electron/utils/__tests__/network-fetch.test.ts --maxWorkers=1
       - run: node scripts/qa/proxy-failure-recovery.cjs
       - run: node scripts/qa/public-search-smoke.cjs
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: windows-public-search-report
