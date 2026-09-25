@@ -1,9 +1,13 @@
 .paper-news-panel {
+  /* Keep absolutely positioned accessibility labels inside this scrollport. */
+  position: relative;
   container: paper-news / inline-size;
   flex: 1;
   min-width: 0;
+  min-height: 0;
   height: 100%;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   padding-top: var(--title-bar-height, 48px);
   background: color-mix(in srgb, var(--color-bg-secondary) 40%, var(--color-bg-primary));
   color: var(--color-text-primary);
@@ -124,10 +128,10 @@
 .pn-brand .pn-brand-dark {
   display: none;
 }
-:root:not(.theme-light) .pn-brand:not(.pn-brand-huggingface) .pn-brand-light {
+:root:not(.theme-light) .pn-brand-has-dark .pn-brand-light {
   display: none;
 }
-:root:not(.theme-light) .pn-brand .pn-brand-dark {
+:root:not(.theme-light) .pn-brand-has-dark .pn-brand-dark {
   display: block;
 }
 .pn-visually-hidden {
@@ -1437,4 +1441,45 @@ button.pn-directory-source:hover {
   .pn-preferences-footer {
     align-items: flex-start;
   }
+}
+
+/* The official NDRC header includes the emblem followed by its wordmark. */
+.pn-brand-ndrc {
+  overflow: hidden;
+}
+.pn-brand-ndrc img {
+  width: 825%;
+  max-width: none;
+  flex: none;
+  object-fit: fill;
+}
+/* Show the Q mark from the official square wordmark without scaling its whitespace. */
+.pn-brand-qbitai {
+  position: relative;
+  overflow: hidden;
+  background: white;
+  border-radius: 4px;
+}
+.pn-brand-qbitai img {
+  position: absolute;
+  width: 357.14%;
+  height: 357.14%;
+  max-width: none;
+  left: -3.57%;
+  top: -128.57%;
+}
+:root:not(.theme-light) .pn-brand-nbs,
+:root:not(.theme-light) .pn-brand-openalex,
+:root:not(.theme-light) .pn-brand-huxiu {
+  background: white;
+  border-radius: 4px;
+}
+.pn-pref-check .pn-brand {
+  width: 20px;
+  height: 20px;
+}
+.pn-tags > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }

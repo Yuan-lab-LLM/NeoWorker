@@ -1,3 +1,4 @@
+import { isHfHubSource, hfHubUrl } from "../../shared/news-hub";
 import { newsSourceEnabled } from "../../shared/news-preferences";
 import { NEWS_PUBLISHERS, isNewsPublisher, publisherArticleUrl } from "../../shared/news-sources";
 import { PaperNewsRequestError, paperNewsHttpError } from "./request";
@@ -73,6 +74,18 @@ function validCachedItem(item: unknown): item is PaperNewsItem {
     )
   )
     return false;
+  if (isHfHubSource(i.source)) {
+    const id = i.id.slice(i.source.length + 1);
+    return (
+      typeof i.url === "string" &&
+      hfHubUrl(i.source, id) === i.url &&
+      !i.pdfUrl &&
+      (i.downloads === undefined ||
+        (typeof i.downloads === "number" && Number.isFinite(i.downloads) && i.downloads >= 0)) &&
+      [i.license, i.hubTask].every((v) => v === undefined || typeof v === "string") &&
+      (i.gated === undefined || typeof i.gated === "boolean")
+    );
+  }
   if (isNewsPublisher(i.source))
     return typeof i.url === "string" && publisherArticleUrl(i.source, i.url) === i.url && !i.pdfUrl;
   const origins = {

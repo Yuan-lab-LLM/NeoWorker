@@ -1,9 +1,13 @@
+import { isHfHubSource } from "../../shared/news-hub";
 import { NewsPreferencesPanel, type NewsSettingsScope } from "./NewsPreferencesPanel";
 import { newsSourceEnabled, newsDefaultSort } from "../../shared/news-preferences";
 import { NEWS_PUBLISHERS, isNewsPublisher } from "../../shared/news-sources";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
+  Download,
+  Database,
+  Box,
   BriefcaseBusiness,
   ChartNoAxesCombined,
   ChevronRight,
@@ -44,11 +48,7 @@ import {
 } from "../../shared/paper-news";
 import { useLanguage } from "../i18n";
 import { NeoWorkerPageHeader } from "./NeoWorkerPageHeader";
-import arxivBrand from "../assets/paper-news/arxiv.svg";
-import arxivWhiteBrand from "../assets/paper-news/arxiv-white.svg";
-import huggingFaceBrand from "../assets/paper-news/huggingface.svg";
-import githubBrand from "../assets/paper-news/github-black.svg";
-import githubWhiteBrand from "../assets/paper-news/github-white.svg";
+import { NewsSourceBrand as SourceBrand } from "./NewsSourceBrand";
 import {
   NEWS_FEED_CATEGORIES,
   newsCategoryForSource,
@@ -66,30 +66,13 @@ const categoryIcons = {
   business: BriefcaseBusiness,
 };
 
-const brandAssets = {
-  arxiv: arxivBrand,
-  huggingface: huggingFaceBrand,
-  github: githubBrand,
-};
-const darkBrandAssets = { arxiv: arxivWhiteBrand, github: githubWhiteBrand };
-
 const paperNames = {
   arxiv: "arXiv",
   huggingface: "Hugging Face Papers",
+  "hf-models": "Hugging Face Models",
+  "hf-datasets": "Hugging Face Datasets",
   github: "GitHub",
 };
-function SourceBrand({ source }: { source: PaperNewsSource }) {
-  if (isNewsPublisher(source)) return null;
-  return (
-    <span className={`pn-brand pn-brand-${source}`} aria-hidden="true">
-      <img className="pn-brand-light" src={brandAssets[source]} alt="" />
-      {source !== "huggingface" && (
-        <img className="pn-brand-dark" src={darkBrandAssets[source]} alt="" />
-      )}
-    </span>
-  );
-}
-
 function NewsSourceDirectory({
   category,
   expanded,
@@ -216,7 +199,7 @@ function NewsSourceDirectory({
               <ul className="pn-directory-list">
                 {planned.map((provider) => (
                   <li className="pn-directory-source" key={provider.id}>
-                    {provider.id === "hf-models" && <SourceBrand source="huggingface" />}
+                    <SourceBrand source={provider.id} />
                     <span>{t(provider.name, provider.nameEn || provider.name)}</span>
                   </li>
                 ))}
@@ -289,9 +272,19 @@ export function PaperNewsPanel({
   const sort =
     sortOverride || (snapshot ? newsDefaultSort(snapshot.config, category) : "recommended");
   const [settings, setSettings] = useState(false);
+  const panelRef = useRef<HTMLElement>(null);
   const preferencesAnchor = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (settings) preferencesAnchor.current?.scrollIntoView({ block: "start" });
+    const panel = panelRef.current;
+    const anchor = preferencesAnchor.current;
+    if (settings && panel && anchor) {
+      // scrollIntoView also scrolls ancestors, including the desktop shell.
+      panel.scrollTo({
+        top:
+          panel.scrollTop + anchor.getBoundingClientRect().top - panel.getBoundingClientRect().top,
+        behavior: "instant",
+      });
+    }
   }, [settings]);
   const [settingsScope, setSettingsScope] = useState<NewsSettingsScope>("general");
   const [settingsRevision, setSettingsRevision] = useState(0);
@@ -487,14 +480,22 @@ export function PaperNewsPanel({
   const sourceDescription = (s: PaperNewsSource) =>
     s === "arxiv"
       ? t("按关注词检索近期论文", "Recent papers matching your topics")
-      : s === "huggingface"
-        ? t("社区每日精选论文", "Community daily paper selection")
-        : s === "github"
-          ? t("近期更新的开源项目", "Recently active open-source projects")
-          : t("公开资讯与原文链接", "Public stories and source links");
+      : isHfHubSource(s)
+        ? t(
+            s === "hf-models" ? "公开模型与模型卡" : "公开数据集与数据说明",
+            s === "hf-models"
+              ? "Public models and model cards"
+              : "Public datasets and dataset cards",
+          )
+        : s === "huggingface"
+          ? t("社区每日精选论文", "Community daily paper selection")
+          : s === "github"
+            ? t("近期更新的开源项目", "Recently active open-source projects")
+            : t("公开资讯与原文链接", "Public stories and source links");
 
   return (
     <main
+      ref={panelRef}
       className={`paper-news-panel ${categoryUnavailable ? "pn-no-sources" : ""}`}
       aria-label={t("资讯动态", "News Feed")}
     >
@@ -832,6 +833,7 @@ export function PaperNewsPanel({
                     </span>
                     <span className="pn-date">
                       <CalendarDays size={12} aria-hidden="true" />
+                      {isHfHubSource(item.source) && t("更新于 ", "Updated ")}
                       {formatDate(item.date)}
                     </span>
                     <button
@@ -853,7 +855,19 @@ export function PaperNewsPanel({
                     {item.authors.length > 4 ? " …" : ""}
                   </p>
                   <p className="pn-summary">
-                    {item.summary || t("打开原文查看详细内容。", "Open the source for details.")}
+                    {item.summary ||
+                      (isHfHubSource(item.source)
+                        ? [
+                            item.hubTask,
+                            item.license && `${t("许可证", "License")}: ${item.license}`,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") ||
+                          t(
+                            "打开来源查看模型卡或数据集说明。",
+                            "Open the source for its model or dataset card.",
+                          )
+                        : t("打开原文查看详细内容。", "Open the source for details."))}
                   </p>
                   <details className="pn-abstract">
                     <summary>{t("摘要与详情", "Abstract and details")}</summary>
@@ -861,23 +875,55 @@ export function PaperNewsPanel({
                       {item.summary ||
                         t("来源没有提供摘要。", "No abstract provided by the source.")}
                     </p>
+                    {isHfHubSource(item.source) && (
+                      <p>
+                        {t("任务", "Task")}: {item.hubTask || t("未提供", "Not provided")}
+                        <br />
+                        {t("许可证", "License")}:{" "}
+                        {item.license || t("请查看来源说明", "Check the source card")}
+                      </p>
+                    )}
                   </details>
                   <div className="pn-tags">
+                    {isHfHubSource(item.source) && (
+                      <span>
+                        {item.source === "hf-models" ? <Box size={12} /> : <Database size={12} />}
+                        {item.source === "hf-models" ? t("模型", "Model") : t("数据集", "Dataset")}
+                      </span>
+                    )}
+                    {item.gated && <span>{t("需申请访问", "Gated access")}</span>}
                     {item.matchedTopics.map((tag) => (
                       <span key={tag}>{tag}</span>
                     ))}
+                    {item.downloads !== undefined && (
+                      <small
+                        title={t(
+                          "Hugging Face 近 30 天下载量",
+                          "Hugging Face downloads in the last 30 days",
+                        )}
+                      >
+                        <Download size={12} aria-hidden="true" />
+                        {item.downloads.toLocaleString(language)} {t("下载", "downloads")}
+                      </small>
+                    )}
                     {item.popularity !== undefined && (
                       <small>
                         <Star size={12} aria-hidden="true" />
                         {item.popularity.toLocaleString(language)}{" "}
-                        {item.source === "github" ? t("星标", "stars") : t("点赞", "upvotes")}
+                        {item.source === "github" ? t("星标", "stars") : t("点赞", "likes")}
                       </small>
                     )}
                   </div>
                   <div className="pn-links">
                     <button onClick={() => void open(item.url)}>
                       <ExternalLink size={13} />
-                      {item.source === "github" ? t("仓库", "Repository") : t("原文", "Source")}
+                      {item.source === "github"
+                        ? t("仓库", "Repository")
+                        : item.source === "hf-models"
+                          ? t("模型卡", "Model card")
+                          : item.source === "hf-datasets"
+                            ? t("数据集卡", "Dataset card")
+                            : t("原文", "Source")}
                     </button>
                     {item.pdfUrl && (
                       <button onClick={() => void open(item.pdfUrl!)}>

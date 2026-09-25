@@ -1,4 +1,11 @@
 import {
+  HF_HUB_SOURCES,
+  isHfHubSource,
+  hfHubUrl,
+  type HfHubSort,
+  type HfHubSource,
+} from "../../shared/news-hub";
+import {
   NEWS_CATEGORIES,
   newsCategory,
   effectiveNewsSettings,
@@ -91,7 +98,24 @@ export function normalizePaperNewsConfig(value: unknown): PaperNewsConfig {
   )
     throw new Error("Invalid minimum stars");
   if (typeof matchedOnly !== "boolean") throw new Error("Invalid interest filter");
+  const hubConfigs = Object.fromEntries(
+    HF_HUB_SOURCES.map((source) => {
+      const raw = record(sourceInput(source) ?? DEFAULT_PAPER_NEWS_CONFIG[source]);
+      const listSort = raw.listSort ?? "trendingScore";
+      const matchedOnly = raw.matchedOnly ?? false;
+      if (
+        !["trendingScore", "lastModified", "downloads"].includes(String(listSort)) ||
+        typeof matchedOnly !== "boolean"
+      )
+        throw new Error("Invalid Hugging Face settings");
+      return [
+        source,
+        { ...normalizeTopics(raw, true), listSort: listSort as HfHubSort, matchedOnly },
+      ];
+    }),
+  ) as Pick<PaperNewsConfig, HfHubSource>;
   return {
+    ...hubConfigs,
     ...(Object.fromEntries(
       NEWS_PUBLISHER_IDS.map((source) => [
         source,
@@ -115,6 +139,8 @@ export function paperNewsEndpoint(
   now: number,
 ): string {
   if (isNewsPublisher(source)) return NEWS_PUBLISHERS[source].endpoint;
+  if (isHfHubSource(source))
+    return `https://huggingface.co/api/${source === "hf-models" ? "models" : "datasets"}?${new URLSearchParams({ sort: config[source].listSort, direction: "-1", limit: "60", full: "true", ...(source === "hf-models" ? { cardData: "true" } : {}) })}`;
   const settings = config[source];
   const since = new Date(now - settings.days * 86400000).toISOString().slice(0, 10);
   if (source === "arxiv") {
@@ -181,6 +207,48 @@ export function parsePaperNews(source: PaperNewsSource, raw: string): PaperNewsI
     return unique(items);
   }
   const parsed: unknown = JSON.parse(raw);
+  if (isHfHubSource(source)) {
+    if (!Array.isArray(parsed)) throw new Error("Invalid feed");
+    return unique(
+      parsed.slice(0, 60).flatMap((value) => {
+        const row = record(value),
+          card = record(row.cardData),
+          id = text(row.id, 200);
+        const url = hfHubUrl(source, id);
+        if (!url || row.private === true || row.disabled === true) return [];
+        const tags = array(row.tags)
+          .map((v) => text(v, 100))
+          .filter(Boolean);
+        const license =
+          text(card.license, 100) || tags.find((tag) => tag.startsWith("license:"))?.slice(8);
+        const hubTask =
+          text(row.pipeline_tag, 100) ||
+          array(card.task_categories)
+            .map((v) => text(v, 100))
+            .filter(Boolean)
+            .join(", ")
+            .slice(0, 200);
+        return [
+          {
+            ...base,
+            source,
+            id: `${source}:${id}`,
+            title: id,
+            url,
+            summary: text(row.description) || text(card.description),
+            authors: [text(row.author, 100) || id.split("/")[0]],
+            date: date(row.lastModified),
+            tags: tags.slice(0, 20),
+            popularity: count(row.likes),
+            downloads: count(row.downloads),
+            license,
+            hubTask,
+            gated: row.gated === true || row.gated === "auto" || row.gated === "manual",
+          },
+        ];
+      }),
+    );
+  }
   if (source === "huggingface") {
     if (!Array.isArray(parsed)) throw new Error("Invalid feed");
     return unique(
@@ -272,9 +340,9 @@ export function rankPaperNews(
     .filter(
       (item) =>
         keepOlder ||
-        item.source !== "huggingface" ||
-        !config.huggingface.matchedOnly ||
-        !config.huggingface.topics.length ||
+        (!isHfHubSource(item.source) && item.source !== "huggingface") ||
+        !(config[item.source] as { matchedOnly?: boolean }).matchedOnly ||
+        !config[item.source].topics.length ||
         item.matchedTopics.length > 0,
     )
     .sort((a, b) => b.score - a.score || b.date.localeCompare(a.date));

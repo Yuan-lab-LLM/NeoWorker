@@ -151,7 +151,7 @@ describe("news preference inheritance", () => {
       const category =
         source === "arxiv" || source === "huggingface"
           ? "research"
-          : source === "github"
+          : source === "github" || source === "hf-models" || source === "hf-datasets"
             ? "development"
             : undefined;
       if (category) p.categories[category].disabledSources.push(source);

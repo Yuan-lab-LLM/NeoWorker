@@ -1,0 +1,156 @@
+[
+  {
+    "source": "qbitai",
+    "site": "https://www.qbitai.com/",
+    "file": "qbitai.png",
+    "assetUrl": "https://www.qbitai.com/wp-content/uploads/imgs/qbitai-logo-1.png",
+    "bytes": 9346
+  },
+  {
+    "source": "semianalysis",
+    "site": "https://newsletter.semianalysis.com/",
+    "assetUrl": "https://substackcdn.com/image/fetch/$s_!6lWu!,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F0f02aaaa-9a11-47db-8aee-d57188ddabf9%2Fapple-touch-icon-57x57.png",
+    "file": "semianalysis.png",
+    "bytes": 5071
+  },
+  {
+    "source": "trendforce",
+    "site": "https://www.trendforce.cn/",
+    "assetUrl": "https://www.trendforce.cn/images/apple-touch-icon-57x57.png",
+    "file": "trendforce.png",
+    "bytes": 688
+  },
+  {
+    "source": "eetimes",
+    "site": "https://www.eet-china.com/",
+    "assetUrl": "https://www.eet-china.com/favicon.ico",
+    "file": "eetimes.ico",
+    "bytes": 1150
+  },
+  {
+    "source": "chinatalk",
+    "site": "https://www.chinatalk.media/",
+    "file": "chinatalk.png",
+    "assetUrl": "https://substack-post-media.s3.amazonaws.com/public/images/8603361f-58fa-423f-9a97-b799d7e34214/apple-touch-icon-180x180.png",
+    "bytes": 34170
+  },
+  {
+    "source": "yicai",
+    "site": "https://www.yicai.com/",
+    "assetUrl": "https://www.yicai.com/favicon.ico",
+    "file": "yicai.ico",
+    "bytes": 1150
+  },
+  {
+    "source": "cls",
+    "site": "https://www.cls.cn/",
+    "assetUrl": "https://cdnjs.cls.cn/www/20200601/image/favicon.ico",
+    "file": "cls.ico",
+    "bytes": 1150
+  },
+  {
+    "source": "wallstreetcn",
+    "site": "https://wallstreetcn.com/",
+    "assetUrl": "https://static.wscn.net/wscn/_static/favicon.png",
+    "file": "wallstreetcn.png",
+    "bytes": 5238
+  },
+  {
+    "source": "pboc",
+    "site": "https://www.pbc.gov.cn/",
+    "assetUrl": "https://www.pbc.gov.cn/uiFramework/commonResource/image/logo.ico",
+    "file": "pboc.ico",
+    "bytes": 1150
+  },
+  {
+    "source": "nbs",
+    "site": "https://www.stats.gov.cn/",
+    "assetUrl": "https://www.stats.gov.cn/favicon.ico",
+    "file": "nbs.ico",
+    "bytes": 1150
+  },
+  {
+    "source": "ndrc",
+    "site": "https://www.ndrc.gov.cn/",
+    "file": "ndrc.png",
+    "assetUrl": "https://www.ndrc.gov.cn/images/logonew.png",
+    "bytes": 678386
+  },
+  {
+    "source": "miit",
+    "site": "https://www.miit.gov.cn/",
+    "assetUrl": "https://www.miit.gov.cn/favicon.ico",
+    "file": "miit.png",
+    "bytes": 3706
+  },
+  {
+    "source": "csrc",
+    "site": "https://www.csrc.gov.cn/",
+    "assetUrl": "https://www.csrc.gov.cn/favicon.ico?v=1.0",
+    "file": "csrc.ico",
+    "bytes": 4286
+  },
+  {
+    "source": "fed",
+    "site": "https://www.federalreserve.gov/",
+    "assetUrl": "https://www.federalreserve.gov/favicon.ico",
+    "file": "fed.ico",
+    "bytes": 32814
+  },
+  {
+    "source": "huxiu",
+    "site": "https://www.huxiu.com/",
+    "assetUrl": "https://www.huxiu.com/favicon.ico",
+    "file": "huxiu.png",
+    "bytes": 1589
+  },
+  {
+    "source": "stratechery",
+    "site": "https://stratechery.com/",
+    "assetUrl": "https://i0.wp.com/stratechery.com/wp-content/uploads/2018/03/cropped-android-chrome-512x512-1.png?fit=180%2C180&ssl=1",
+    "file": "stratechery.png",
+    "bytes": 5485
+  },
+  {
+    "source": "benevans",
+    "site": "https://www.ben-evans.com/",
+    "assetUrl": "https://images.squarespace-cdn.com/content/v1/50363cf324ac8e905e7df861/ebdb4645-db93-4967-881d-db698ee59c2c/favicon.ico?format=100w",
+    "file": "benevans.webp",
+    "bytes": 2218
+  },
+  {
+    "source": "bcg",
+    "site": "https://www.bcg.com/",
+    "assetUrl": "https://www.bcg.com/favicon.ico",
+    "file": "bcg.ico",
+    "bytes": 26429
+  },
+  {
+    "source": "openalex",
+    "site": "https://openalex.org/",
+    "file": "openalex.svg",
+    "assetUrl": "https://help.openalex.org/favicon.svg",
+    "bytes": 4734
+  },
+  {
+    "source": "hackernews",
+    "site": "https://news.ycombinator.com/",
+    "assetUrl": "https://news.ycombinator.com/y18.svg",
+    "file": "hackernews.svg",
+    "bytes": 315
+  },
+  {
+    "source": "cnblogs",
+    "site": "https://www.cnblogs.com/",
+    "assetUrl": "https://assets.cnblogs.com/apple-touch-icon.png?v=2",
+    "file": "cnblogs.png",
+    "bytes": 3363
+  },
+  {
+    "source": "cloudflare",
+    "site": "https://blog.cloudflare.com/",
+    "assetUrl": "https://blog.cloudflare.com/favicon.ico",
+    "file": "cloudflare.png",
+    "bytes": 908
+  }
+]

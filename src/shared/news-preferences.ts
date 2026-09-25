@@ -1,3 +1,4 @@
+import { isHfHubSource } from "./news-hub";
 import {
   DEFAULT_PAPER_NEWS_CONFIG,
   PAPER_NEWS_SOURCES,
@@ -30,7 +31,7 @@ export interface NewsPreferences {
 export function newsCategory(source: PaperNewsSource): NewsCategoryId {
   return isNewsPublisher(source)
     ? NEWS_PUBLISHERS[source].category
-    : source === "github"
+    : source === "github" || isHfHubSource(source)
       ? "development"
       : "research";
 }
@@ -53,13 +54,12 @@ export function getNewsPreferences(config: PaperNewsConfig): NewsPreferences {
   const sources: NewsPreferences["sources"] = {};
   for (const source of PAPER_NEWS_SOURCES) {
     const value: NewsOverride = {};
+    const settings = config[source] ?? DEFAULT_PAPER_NEWS_CONFIG[source];
     if (
-      JSON.stringify(config[source].topics) !==
-      JSON.stringify(DEFAULT_PAPER_NEWS_CONFIG[source].topics)
+      JSON.stringify(settings.topics) !== JSON.stringify(DEFAULT_PAPER_NEWS_CONFIG[source].topics)
     )
-      value.topics = [...config[source].topics];
-    if (config[source].days !== DEFAULT_PAPER_NEWS_CONFIG[source].days)
-      value.days = config[source].days;
+      value.topics = [...settings.topics];
+    if (settings.days !== DEFAULT_PAPER_NEWS_CONFIG[source].days) value.days = settings.days;
     if (Object.keys(value).length) sources[source] = value;
   }
   return { general: { days: 365, sort: "recommended" }, categories, sources };

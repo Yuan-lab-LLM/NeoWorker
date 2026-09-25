@@ -1,3 +1,5 @@
+import { NewsSourceBrand } from "./NewsSourceBrand";
+import { isHfHubSource } from "../../shared/news-hub";
 import { useState } from "react";
 import { ChevronRight, RotateCcw, Settings2, X } from "lucide-react";
 import {
@@ -72,7 +74,10 @@ export function NewsPreferencesPanel({
     setError(false);
   }
   function advanced(patch: Record<string, unknown>) {
-    setDraft((current) => ({ ...current, [source]: { ...current[source], ...patch } }));
+    setDraft((current) => ({
+      ...current,
+      [source]: { ...current[source], ...patch },
+    }));
     setDirty(true);
     setSaved(false);
     setError(false);
@@ -375,6 +380,35 @@ export function NewsPreferencesPanel({
                   </label>
                 </div>
               )}
+              {isHfHubSource(source) && (
+                <>
+                  <label className="pn-pref-field">
+                    {t("获取内容", "Fetch selection")}
+                    <select
+                      value={draft[source].listSort}
+                      onChange={(e) => advanced({ listSort: e.target.value })}
+                    >
+                      <option value="trendingScore">{t("社区趋势", "Trending")}</option>
+                      <option value="lastModified">{t("最近更新", "Recently updated")}</option>
+                      <option value="downloads">{t("下载最多", "Most downloaded")}</option>
+                    </select>
+                    <small>
+                      {t(
+                        "每次获取前 60 项，再按时间范围与关注词筛选、排序。",
+                        "Fetch up to 60 entries, then apply your time window and interests.",
+                      )}
+                    </small>
+                  </label>
+                  <label className="pn-pref-check">
+                    <input
+                      type="checkbox"
+                      checked={draft[source].matchedOnly}
+                      onChange={(e) => advanced({ matchedOnly: e.target.checked })}
+                    />
+                    {t("只显示匹配关注词的内容", "Only show entries matching interests")}
+                  </label>
+                </>
+              )}
               {source === "huggingface" && (
                 <label className="pn-pref-check">
                   <input
@@ -411,6 +445,7 @@ export function NewsPreferencesPanel({
                         })
                       }
                     />
+                    <NewsSourceBrand source={s} />
                     {names[s]}
                   </label>
                   <span>
