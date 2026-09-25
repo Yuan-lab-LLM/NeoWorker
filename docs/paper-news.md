@@ -1,6 +1,6 @@
 # News Feed
 
-News Feed is available in the current source tree. Existing v0.2.3 installers do not include it.
+News Feed is available in the current source tree. Previously published v0.2.3 release installers do not include it; local test builds can differ.
 
 ## Discover and save
 
@@ -28,15 +28,11 @@ Search filters the results already fetched. Bookmark up to 200 items to retain t
 
 The feed uses three cards per row on wide panels, two on medium panels, and one on narrow panels. Each source uses its official brand mark in the compact source panel and paper cards. The unmodified SVGs are bundled locally, with suitable light/dark variants. Source panels use the same soft blue accent treatment as the Automation page and shared page header. Paper cards and topic chips stay neutral; blue highlights primary actions and selection. See [brand asset provenance](../src/renderer/assets/paper-news/README.md). Ranking details are available under **About ranking and sources**.
 
-## Content covers
+## Consistent content cards
 
-Each editorial card has a landscape cover above its title and summary. arXiv cards try an original HTML paper image, then a locally rendered first PDF page. Hugging Face cards use publisher-provided paper thumbnails or page preview metadata. GitHub cards use the repository social preview. These are source images, not generated artwork or a guarantee that the first paper image summarizes its findings. The cover caption distinguishes a source image, a rendered PDF page, and a text cover. Click the cover to open its source item.
+Cards use a cover-free layout for every source: official brand mark and date, title, authors, summary, topic/popularity details, source links, and aligned Read / Translate / Research actions. Titles and summaries have bounded previews; the full title is available on hover and the abstract expands in place. Source labels use restrained publisher-specific color, while panels and selected actions share NeoWorker's soft blue. Light and dark themes retain the original official logo variants.
 
-Missing, unsupported, oversized, or unavailable images produce a typographic cover containing the item's actual title. Images preserve their aspect ratio without cropping paper diagrams. Official source marks remain separate from the cover image.
-
-Covers load only near the visible viewport, with at most two concurrent requests and coalesced requests for the same item. A content-based cache key includes the item identity and metadata. Successful covers are cached for seven days, misses for thirty minutes, in `news-covers` under the application's user-data directory. The cache retains up to 300 entries and stores bounded JPEG thumbnails. Revisiting a page reuses this cache across application restarts. Feed refresh itself fetches metadata; viewing a card may temporarily download an arXiv PDF to render its first page, without attaching that PDF to a task or keeping it as a downloaded document.
-
-Requests use public publisher/CDN HTTPS hosts, omit credentials, reject redirects, respect rate-limit cooldowns, and space arXiv requests. Images are limited to 4 MiB, paper PDFs to 12 MiB, with a 35-second network/render deadline per item. Source restrictions or network failures leave the text cover usable. No image generation service is called.
+The feed does not request cover images or download PDFs while displaying cards. Items with or without publisher image metadata use the same layout. Previously cached thumbnails are not used by the feed. Reading and translation continue to use the original source and PDF links when a task is started.
 
 ## Read, translate, research
 

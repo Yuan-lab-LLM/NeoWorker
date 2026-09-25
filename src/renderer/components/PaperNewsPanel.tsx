@@ -8,7 +8,6 @@ import {
   Info,
   Star,
   TrendingUp,
-  ArrowRight,
   BookOpen,
   ExternalLink,
   FileText,
@@ -39,7 +38,6 @@ import huggingFaceBrand from "../assets/paper-news/huggingface.svg";
 import githubBrand from "../assets/paper-news/github-black.svg";
 import githubWhiteBrand from "../assets/paper-news/github-white.svg";
 import "./paper-news.css";
-import { PaperNewsCover } from "./PaperNewsCover";
 
 const brandAssets = {
   arxiv: arxivBrand,
@@ -756,11 +754,6 @@ export function PaperNewsPanel({
                   className={`pn-card pn-source-${item.source}`}
                   key={item.id}
                 >
-                  <PaperNewsCover
-                    item={item}
-                    language={language}
-                    onOpen={() => void open(item.url)}
-                  />
                   <div className="pn-card-meta">
                     <span className="pn-source-badge">
                       <SourceBrand source={item.source} />
@@ -795,7 +788,10 @@ export function PaperNewsPanel({
                     </button>
                   </div>
                   <h2>
-                    <button onClick={() => void open(item.url)}>
+                    <button
+                      title={item.title}
+                      onClick={() => void open(item.url)}
+                    >
                       {item.title}
                     </button>
                   </h2>
@@ -864,8 +860,8 @@ export function PaperNewsPanel({
                       disabled={opening}
                       onClick={() => void start(item, "read")}
                     >
+                      <BookOpen size={15} />
                       {t("阅读", "Read")}
-                      <ArrowRight size={15} />
                     </button>
                     <button
                       className="pn-action-translate"
