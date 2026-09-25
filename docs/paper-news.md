@@ -6,7 +6,7 @@ News Feed is available in the current source tree. Previously published v0.2.3 r
 
 The six top-level categories are Research (3 planned/connected providers), Open source (5), Technology (5), Markets (3), Policy & economy (6), and Business (4). Their 26 entries are a curated directory, not 26 active integrations.
 
-Only arXiv and Hugging Face Papers are currently connected in Research, and GitHub in Open source. Hugging Face Models is a separate planned provider; it never reuses paper results. The Technology selection is QbitAI, SemiAnalysis, TrendForce, EE Times China, and ChinaTalk. Other source integrations are outside this UI change.
+Only arXiv and Hugging Face Papers are currently connected in Research, and GitHub in Open source. Hugging Face Models is a separate planned provider; it never reuses paper results. The Technology selection is QbitAI, SemiAnalysis, TrendForce, EE Times China, and ChinaTalk. All 18 Technology, Markets, Policy & economy and Business sources are connected through public RSS or HTML listings. There are 21 connected sources total; the remaining five entries are planned.
 
 Select a category, then a connected source. Search, sorting and bookmarks continue to apply within the selected category/source. Switching category resets the publisher filter but preserves search and bookmark mode. **All topics** returns to the combined feed. The source directory labels unavailable providers as **Planned**; categories without an adapter explain that no feed is connected and offer a return to existing content. Refresh/preferences are disabled in those categories rather than pretending to fetch them.
 
@@ -14,15 +14,21 @@ The initial experience uses built-in source defaults; preferences are optional. 
 
 ## Discover and save
 
-Open **News Feed** in the sidebar and choose **Preferences**, or use the settings icon beside the source filters. Each source has its own settings tab, up to five comma-separated topics (60 characters each), and a 7-, 14-, or 30-day window. English terms work best with these sources.
+Open **Preferences** in the page header to manage general defaults and six category profiles. Each category also has a **Category preferences** button. Source-specific options are under **Advanced** inside its category (or the selected-source settings icon).
 
-| Source | Independent settings |
-| --- | --- |
-| arXiv | Search topics, publication window, optional category such as `cs.AI` |
-| Hugging Face | Interest topics, selection window, optional matching-only filter |
-| GitHub | Search topics, code push window, optional programming language and minimum stars |
+| Scope | Settings | Precedence |
+| --- | --- | --- |
+| General defaults | Time window, default sorting | Used by inheriting categories |
+| Category | Up to five interests, optional time/sort overrides, enabled sources | Overrides general defaults |
+| Source advanced | Optional interest/time overrides; arXiv subject, GitHub language/minimum stars, HF matching-only | Overrides category fields individually |
 
-Saving applies and refreshes only the selected source, subject to its existing cooldown. Other sources' cached content and saved settings remain unchanged. Unsaved edits remain available when switching tabs until the settings panel is closed. Hugging Face matching-only filters the fetched daily selection locally; it is not an upstream full-text search. GitHub query terms use at most 25 characters each and may be shortened further to fit the search endpoint's query limit when additional filters are selected.
+Interest terms are managed per category, not globally: technology interests do not leak into market news. Time windows support 7, 14, 30, 90 and 365 days. arXiv uses publication dates, GitHub code push dates, Hugging Face selection dates and publishers available publication dates. Unknown dates remain visible. Empty interests mean no topic restriction. Interest terms drive arXiv/GitHub queries and local ranking for the other sources.
+
+Inherited controls display their effective values. Restore source inheritance without resetting source-specific options such as GitHub language. A single **Save preferences** applies all edits across scopes; navigation retains drafts, and closing with unsaved edits asks before discarding. Saving re-ranks cached items immediately and refreshes changed enabled sources subject to cooldowns. Sorting-only changes do not trigger fetching. Page-level sort changes are temporary and reset when switching category or saving preferences.
+
+Disabling a source stops refreshes and hides it from discovery, while bookmarks and cached data remain available. An all-disabled category explains the state and keeps its preferences entry accessible. Re-enabling restores cached content. Existing custom source interests/time windows migrate into explicit source overrides; untouched defaults inherit. Existing arXiv/HF/GitHub advanced options are preserved.
+
+Hugging Face matching-only filters the fetched daily selection locally, and is inactive without interests; it is not upstream full-text search. GitHub query terms use at most 25 characters each and may be shortened further to fit the query limit.
 
 | Source | Content and date | Fetch limit |
 | --- | --- | --- |
@@ -32,7 +38,7 @@ Saving applies and refreshes only the selected source, subject to its existing c
 
 These are bounded feeds, not exhaustive literature searches. A paper can appear under both arXiv and Hugging Face. Daily selections include non-matching items unless matching-only is enabled. GitHub search semantics differ from exact local keyword matching.
 
-The recommendation score uses literal, case-insensitive topic matches (70%) and recency within the selected window (30%). It does not measure scientific rigor, correctness, or reproducibility. Stars and upvotes are shown separately as source-provided popularity counts.
+With interests, the recommendation score uses literal, case-insensitive topic matches (70%) and recency within the selected window (30%). Without interests it uses recency alone. It does not measure scientific rigor, correctness, or reproducibility. Stars and upvotes are shown separately as source-provided popularity counts.
 
 Search filters the results already fetched. Bookmark up to 200 items to retain them independently of subsequent refreshes or topic changes. Source titles and abstracts remain in their original language; controls follow the application's Chinese/English setting.
 
@@ -58,7 +64,7 @@ No model request runs merely from fetching a feed or opening a draft. Drafts tre
 
 Opening the page refreshes sources whose successful results are older than 30 minutes, or whose failed attempt is eligible for retry. **Refresh** requests new data manually, with a persisted per-source cooldown. Temporary connection failures receive at most one retry after three seconds; rate limits and access denials are not immediately retried. Server Retry-After and GitHub quota reset deadlines are respected across restarts and topic changes. While the page is visible, eligible transient failures are retried automatically. Leaving the page does not restart an in-flight fetch. A source failure retains its prior results and last successful fetch time; the other sources can still update. An unavailable source with no cache displays a dash, not a misleading zero-result count.
 
-Legacy shared settings are migrated into independent source settings, preserving cached items, bookmarks, and retry deadlines. Cache schema version 2 is written on the next save or refresh. Changing a source configuration clears only that source's stale query results; bookmarks remain available even if they no longer match the new filters.
+Legacy shared settings are migrated into independent source settings, preserving cached items, bookmarks, and retry deadlines. Cache schema version 4 is written on save or refresh, with versions 1–3 still readable. Hierarchical preferences retain cached results during refresh/cooldowns and re-rank them using effective settings; bookmarks remain available even if they no longer match the new filters.
 
 Configuration, fetched metadata, and bookmarks are stored in `paper-news.json` under the application's user-data directory. Papers and repository code are not downloaded during feed refresh. Fetches use the application's existing system-proxy-aware network transport and require no API token. GitHub public search quotas and regional network restrictions can limit availability.
 

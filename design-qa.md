@@ -1,3 +1,13 @@
+## 2026-09-25 — Hierarchical news preferences
+
+Implemented a unified General defaults entry, six category profiles, and source advanced settings. Category entry opens its own scope and scrolls the preferences panel into view. Existing non-default source topics/windows are preserved as overrides; restore inheritance affects only common fields.
+
+Verified production UI in the local preview with isolated mock IPC: general 90-day/newest edits survive scope changes; Technology interests propagate to QbitAI; a QbitAI 7-day/robotics override can restore category values; one save applies all edits. Disabling all five Technology sources hides discovery cards and disables refresh while leaving category preferences accessible; re-enabling restores cards. Actual service tests verify disabled sources make no requests and bookmarks/cache survive restart. The preview does not exercise network transport.
+
+70 relevant automated tests passed. Renderer production build and Electron TypeScript compilation passed. Renderer-wide type checking still reports existing errors outside the changed news files. Targeted lint passed with no warnings. Browser checked Chinese/English labels, correct scope entry, effective inheritance values, and a 560px viewport with no horizontal overflow. Screenshots: `output/news-preferences-2026-09-25/category.png`, `narrow.png`.
+
+This change is in the source tree; the preceding macOS DMG has not been rebuilt for these preferences.
+
 ## 2026-09-25 — Four live news categories
 
 18 public publisher adapters now feed all four previously empty categories. Production fetching returned 437 items and cache reload retained them. Browser checks used this real snapshot with mocked IPC: 98 technology, 99 markets, 179 policy and 61 business cards; source filtering, optional per-source settings and article task drafts verified. Three columns at 1500px and one at 560px, without horizontal overflow. See `docs/qa/news-publisher-integration-2026-09-25.md`.

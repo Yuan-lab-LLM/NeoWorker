@@ -1,13 +1,7 @@
-import { isNewsPublisher, NEWS_PUBLISHERS } from "../../shared/news-sources";
 import type { PaperNewsSource } from "../../shared/paper-news";
 
-export type NewsCategoryId =
-  | "research"
-  | "development"
-  | "technology"
-  | "finance"
-  | "policy"
-  | "business";
+import { newsCategory, type NewsCategoryId } from "../../shared/news-preferences";
+export type { NewsCategoryId } from "../../shared/news-preferences";
 export interface NewsFeedProvider {
   id: string;
   name: string;
@@ -133,8 +127,7 @@ export const NEWS_FEED_CATEGORIES: NewsFeedCategory[] = [
 ];
 
 export function newsCategoryForSource(source: PaperNewsSource): NewsCategoryId {
-  if (isNewsPublisher(source)) return NEWS_PUBLISHERS[source].category;
-  return source === "github" ? "development" : "research";
+  return newsCategory(source);
 }
 
 export function newsSourcesForCategory(category: NewsCategoryId | "all"): PaperNewsSource[] {

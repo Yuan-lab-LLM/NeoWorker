@@ -1,3 +1,11 @@
+import {
+  NEWS_CATEGORIES,
+  newsCategory,
+  effectiveNewsSettings,
+  newsSourceEnabled,
+  type NewsPreferences,
+} from "../../shared/news-preferences";
+import { PAPER_NEWS_SOURCES } from "../../shared/paper-news";
 import { NEWS_PUBLISHERS, NEWS_PUBLISHER_IDS, isNewsPublisher } from "../../shared/news-sources";
 import { DEFAULT_PAPER_NEWS_CONFIG } from "../../shared/paper-news";
 import { parsePublisherNews } from "./publishers";
@@ -50,9 +58,15 @@ function normalizeTopics(value: unknown, optional = false): PaperNewsTopicConfig
 export function normalizePaperNewsConfig(value: unknown): PaperNewsConfig {
   const input = record(value);
   const legacy = Array.isArray(input.topics) && !input.arxiv && !input.github && !input.huggingface;
-  const arxiv = record(legacy ? input : input.arxiv);
-  const github = record(legacy ? input : input.github);
-  const hf = record(legacy ? input : input.huggingface);
+  const preferences =
+    input.preferences === undefined ? undefined : normalizeNewsPreferences(input.preferences);
+  const sourceInput = (source: PaperNewsSource) =>
+    preferences
+      ? { ...record(input[source]), ...effectiveNewsSettings(preferences, source) }
+      : input[source];
+  const arxiv = record(legacy ? input : sourceInput("arxiv"));
+  const github = record(legacy ? input : sourceInput("github"));
+  const hf = record(legacy ? input : sourceInput("huggingface"));
   const category = arxiv.category ?? "";
   const language = github.language ?? "";
   const minStars = github.minStars ?? 0;
@@ -81,12 +95,17 @@ export function normalizePaperNewsConfig(value: unknown): PaperNewsConfig {
     ...(Object.fromEntries(
       NEWS_PUBLISHER_IDS.map((source) => [
         source,
-        normalizeTopics(input[source] ?? DEFAULT_PAPER_NEWS_CONFIG[source], true),
+        normalizeTopics(sourceInput(source) ?? DEFAULT_PAPER_NEWS_CONFIG[source], true),
       ]),
     ) as Pick<PaperNewsConfig, (typeof NEWS_PUBLISHER_IDS)[number]>),
-    arxiv: { ...normalizeTopics(arxiv), category },
-    github: { ...normalizeTopics(github), language: language.trim(), minStars },
-    huggingface: { ...normalizeTopics(hf), matchedOnly },
+    ...(preferences ? { preferences } : {}),
+    arxiv: { ...normalizeTopics(arxiv, Boolean(preferences)), category },
+    github: {
+      ...normalizeTopics(github, Boolean(preferences)),
+      language: language.trim(),
+      minStars,
+    },
+    huggingface: { ...normalizeTopics(hf, Boolean(preferences)), matchedOnly },
   };
 }
 
@@ -100,7 +119,7 @@ export function paperNewsEndpoint(
   const since = new Date(now - settings.days * 86400000).toISOString().slice(0, 10);
   if (source === "arxiv") {
     const query = settings.topics.map((t) => `(ti:"${t}" OR abs:"${t}")`).join(" OR ");
-    return `https://export.arxiv.org/api/query?${new URLSearchParams({ search_query: `(${query})${config.arxiv.category ? ` AND cat:${config.arxiv.category}` : ""} AND submittedDate:[${since.replaceAll("-", "")}0000 TO ${new Date(now).toISOString().slice(0, 10).replaceAll("-", "")}2359]`, start: "0", max_results: "60", sortBy: "submittedDate", sortOrder: "descending" })}`;
+    return `https://export.arxiv.org/api/query?${new URLSearchParams({ search_query: [query ? `(${query})` : "", config.arxiv.category ? `cat:${config.arxiv.category}` : "", `submittedDate:[${since.replaceAll("-", "")}0000 TO ${new Date(now).toISOString().slice(0, 10).replaceAll("-", "")}2359]`].filter(Boolean).join(" AND "), start: "0", max_results: "60", sortBy: "submittedDate", sortOrder: "descending" })}`;
   }
   if (source === "huggingface") return "https://huggingface.co/api/daily_papers?limit=100";
   // Preserve existing keyword lengths where possible while reserving room for qualifiers.
@@ -109,7 +128,7 @@ export function paperNewsEndpoint(
     25,
     Math.floor(
       (256 - qualifiers.length - settings.topics.length * 2 - (settings.topics.length - 1) * 4) /
-        settings.topics.length,
+        Math.max(1, settings.topics.length),
     ),
   );
   const terms = settings.topics.map((t) => `"${t.slice(0, termBudget)}"`).join(" OR ");
@@ -228,6 +247,7 @@ export function rankPaperNews(
   keepOlder = false,
 ): PaperNewsItem[] {
   return items
+    .filter((i) => keepOlder || newsSourceEnabled(config, i.source))
     .filter(
       (i) =>
         keepOlder ||
@@ -254,7 +274,67 @@ export function rankPaperNews(
         keepOlder ||
         item.source !== "huggingface" ||
         !config.huggingface.matchedOnly ||
+        !config.huggingface.topics.length ||
         item.matchedTopics.length > 0,
     )
     .sort((a, b) => b.score - a.score || b.date.localeCompare(a.date));
+}
+
+function normalizeNewsPreferences(value: unknown): NewsPreferences {
+  const input = record(value),
+    general = record(input.general),
+    categories = record(input.categories),
+    sources = record(input.sources);
+  const sort = (value: unknown) => {
+    if (value !== "recommended" && value !== "newest") throw new Error("Invalid news sort");
+    return value;
+  };
+  const override = (v: unknown) => {
+    const raw = record(v);
+    const result: { topics?: string[]; days?: number } = {};
+    if (raw.topics !== undefined) {
+      if (!Array.isArray(raw.topics) || raw.topics.some((t) => typeof t !== "string"))
+        throw new Error("Invalid news interests");
+      result.topics = normalizeTopics({ topics: raw.topics, days: 7 }, true).topics;
+    }
+    if (raw.days !== undefined)
+      result.days = normalizeTopics({ topics: [], days: raw.days }, true).days;
+    return result;
+  };
+  const normalizedCategories = Object.fromEntries(
+    NEWS_CATEGORIES.map((id) => {
+      const item = record(categories[id]);
+      if (
+        !Array.isArray(item.disabledSources) ||
+        item.disabledSources.some(
+          (s) =>
+            !PAPER_NEWS_SOURCES.includes(s as PaperNewsSource) ||
+            newsCategory(s as PaperNewsSource) !== id,
+        )
+      )
+        throw new Error("Invalid disabled source");
+      return [
+        id,
+        {
+          ...override(item),
+          ...(item.sort === undefined ? {} : { sort: sort(item.sort) }),
+          disabledSources: [...new Set(item.disabledSources)],
+        },
+      ];
+    }),
+  ) as NewsPreferences["categories"];
+  const normalizedSources: NewsPreferences["sources"] = {};
+  for (const key of Object.keys(sources)) {
+    if (!PAPER_NEWS_SOURCES.includes(key as PaperNewsSource))
+      throw new Error("Invalid source override");
+    normalizedSources[key as PaperNewsSource] = override(sources[key]);
+  }
+  return {
+    general: {
+      days: normalizeTopics({ topics: [], days: general.days }, true).days,
+      sort: sort(general.sort),
+    },
+    categories: normalizedCategories,
+    sources: normalizedSources,
+  };
 }

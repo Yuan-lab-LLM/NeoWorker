@@ -344,7 +344,7 @@ describe("independent source settings", () => {
     const restored = new PaperNewsService(cache, fetcher, () => clock).snapshot();
     expect(restored.config).toEqual(config);
     expect(restored.saved).toHaveLength(1);
-    expect(JSON.parse(fs.readFileSync(cache, "utf8")).version).toBe(3);
+    expect(JSON.parse(fs.readFileSync(cache, "utf8")).version).toBe(4);
   });
 
   it("retains the changed source's rate limit and leaves other sources untouched", async () => {

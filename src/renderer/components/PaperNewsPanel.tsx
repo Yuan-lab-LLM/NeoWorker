@@ -1,3 +1,5 @@
+import { NewsPreferencesPanel, type NewsSettingsScope } from "./NewsPreferencesPanel";
+import { newsSourceEnabled, newsDefaultSort } from "../../shared/news-preferences";
 import { NEWS_PUBLISHERS, isNewsPublisher } from "../../shared/news-sources";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -32,7 +34,6 @@ import {
 } from "lucide-react";
 import {
   PAPER_NEWS_SOURCES,
-  DEFAULT_PAPER_NEWS_CONFIG,
   type PaperNewsConfig,
   paperNewsPrompt,
   paperNewsNeedsRefresh,
@@ -272,46 +273,33 @@ export function PaperNewsPanel({
   const [savedOnly, setSavedOnly] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const activeCategory = NEWS_FEED_CATEGORIES.find((entry) => entry.id === category);
-  const activeSources = newsSourcesForCategory(category);
-  const categoryUnavailable = category !== "all" && activeSources.length === 0;
+  const availableSources = newsSourcesForCategory(category);
+  const activeSources = availableSources.filter(
+    (s) => !snapshot || newsSourceEnabled(snapshot.config, s),
+  );
+  const categoryUnavailable = category !== "all" && availableSources.length === 0;
   function selectCategory(next: NewsCategoryId | "all") {
     setCategory(next);
     setSource("all");
     setCatalogOpen(false);
+    setSortOverride(null);
   }
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState("recommended");
+  const [sortOverride, setSortOverride] = useState<string | null>(null);
+  const sort =
+    sortOverride || (snapshot ? newsDefaultSort(snapshot.config, category) : "recommended");
   const [settings, setSettings] = useState(false);
-  const [settingsSource, setSettingsSource] = useState<PaperNewsSource>("arxiv");
-  const [draftConfig, setDraftConfig] = useState<PaperNewsConfig>(() =>
-    structuredClone(DEFAULT_PAPER_NEWS_CONFIG),
-  );
-  const [topicInputs, setTopicInputs] = useState<Record<PaperNewsSource, string>>(
-    () =>
-      Object.fromEntries(PAPER_NEWS_SOURCES.map((s) => [s, ""])) as Record<PaperNewsSource, string>,
-  );
-  const [savedSource, setSavedSource] = useState<PaperNewsSource | null>(null);
-  function openSettings(target: PaperNewsSource) {
-    if (!settings) {
-      const config = snapshot?.config || DEFAULT_PAPER_NEWS_CONFIG;
-      setDraftConfig(structuredClone(config));
-      setTopicInputs(
-        Object.fromEntries(
-          PAPER_NEWS_SOURCES.map((s) => [s, config[s].topics.join(", ")]),
-        ) as Record<PaperNewsSource, string>,
-      );
-    }
-    setSavedSource(null);
-    setSettingsSource(target);
+  const preferencesAnchor = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (settings) preferencesAnchor.current?.scrollIntoView({ block: "start" });
+  }, [settings]);
+  const [settingsScope, setSettingsScope] = useState<NewsSettingsScope>("general");
+  const [settingsRevision, setSettingsRevision] = useState(0);
+  function openSettings(target: NewsSettingsScope) {
+    if (settings) return; // Keep unsaved edits until explicitly saved or dismissed.
+    setSettingsScope(target);
+    setSettingsRevision((value) => value + 1);
     setSettings(true);
-  }
-  const currentDraft = draftConfig[settingsSource];
-  function updateDraft(patch: Partial<PaperNewsConfig[PaperNewsSource]>) {
-    setSavedSource(null);
-    setDraftConfig((config) => ({
-      ...config,
-      [settingsSource]: { ...config[settingsSource], ...patch },
-    }));
   }
   const [busy, setBusy] = useState(false);
   const [clock, setClock] = useState(Date.now);
@@ -323,7 +311,8 @@ export function PaperNewsPanel({
     snapshot &&
     (source === "all" ? activeSources : [source]).every(
       (s) =>
-        snapshot.sources[s]?.nextRetryAt && Date.parse(snapshot.sources[s]?.nextRetryAt || "") > clock,
+        snapshot.sources[s]?.nextRetryAt &&
+        Date.parse(snapshot.sources[s]?.nextRetryAt || "") > clock,
     ),
   );
   const [opening, setOpening] = useState(false);
@@ -412,40 +401,31 @@ export function PaperNewsPanel({
     };
   }, [busy]);
 
-  async function saveConfig(event: React.FormEvent) {
-    event.preventDefault();
-    if (busyRef.current) return;
+  async function saveConfig(config: PaperNewsConfig): Promise<PaperNewsConfig> {
+    if (busyRef.current || !snapshot) throw new Error("Settings unavailable");
     busyRef.current = true;
     setBusy(true);
-    setFailure(null);
     try {
-      if (!snapshot) return;
-      const config = {
-        ...snapshot.config,
-        [settingsSource]: {
-          ...currentDraft,
-          topics: topicInputs[settingsSource]
-            .split(/[,，\n]/)
-            .map((s) => s.trim())
-            .filter(Boolean),
-        },
-      };
       const state = await window.electronAPI.savePaperNewsConfig(config);
-      if (!mounted.current) return;
+      if (!mounted.current) return state.config;
       setSnapshot(state);
-      setDraftConfig((draft) => ({
-        ...draft,
-        [settingsSource]: state.config[settingsSource],
-      }));
-      setTopicInputs((draft) => ({
-        ...draft,
-        [settingsSource]: state.config[settingsSource].topics.join(", "),
-      }));
-      setSavedSource(settingsSource);
-      const refreshed = await window.electronAPI.refreshPaperNews(settingsSource);
-      if (mounted.current) setSnapshot(refreshed);
-    } catch {
-      if (mounted.current) setFailure("save");
+      setSortOverride(null);
+      if (source !== "all" && !newsSourceEnabled(state.config, source)) setSource("all");
+      const changed = PAPER_NEWS_SOURCES.filter(
+        (s) =>
+          newsSourceEnabled(state.config, s) &&
+          (!newsSourceEnabled(snapshot.config, s) ||
+            JSON.stringify(snapshot.config[s]) !== JSON.stringify(state.config[s])),
+      );
+      if (changed.length) {
+        try {
+          const refreshed = await window.electronAPI.refreshPaperNews(changed);
+          if (mounted.current) setSnapshot(refreshed);
+        } catch {
+          if (mounted.current) setFailure("load"); // Saving succeeded even if the refresh failed.
+        }
+      }
+      return state.config;
     } finally {
       busyRef.current = false;
       if (mounted.current) setBusy(false);
@@ -485,6 +465,7 @@ export function PaperNewsPanel({
     return (pool || [])
       .filter(
         (i) =>
+          (savedOnly || !snapshot || newsSourceEnabled(snapshot.config, i.source)) &&
           (source === "all" || i.source === source) &&
           (category === "all" || newsCategoryForSource(i.source) === category) &&
           `${i.title} ${i.summary} ${i.tags.join(" ")}`.toLowerCase().includes(query.toLowerCase()),
@@ -528,19 +509,16 @@ export function PaperNewsPanel({
           <>
             <button
               className="pn-button"
-              disabled={busy || !snapshot || categoryUnavailable}
+              disabled={busy || !snapshot || settings}
               aria-expanded={settings}
-              onClick={() => {
-                if (settings) setSettings(false);
-                else openSettings(source === "all" ? activeSources[0] || "arxiv" : source);
-              }}
+              onClick={() => openSettings("general")}
             >
               <SlidersHorizontal size={16} />
-              {t("关注偏好", "Preferences")}
+              {t("偏好设置", "Preferences")}
             </button>
             <button
               className="pn-button pn-primary"
-              disabled={busy || coolingDown || categoryUnavailable}
+              disabled={busy || coolingDown || categoryUnavailable || !activeSources.length}
               onClick={() => void refresh()}
             >
               <RefreshCw size={16} className={busy ? "pn-spinning" : ""} />
@@ -576,192 +554,18 @@ export function PaperNewsPanel({
             </button>
           </div>
         )}
-        {settings && (
-          <form className="pn-settings" onSubmit={saveConfig}>
-            <div
-              className="pn-settings-tabs"
-              role="group"
-              aria-label={t("选择设置来源", "Choose source settings")}
-            >
-              <SourceBrand source={settingsSource} />
-              <select
-                aria-label={t("选择设置来源", "Choose source settings")}
-                value={settingsSource}
-                disabled={busy}
-                onChange={(e) => {
-                  setSettingsSource(e.target.value as PaperNewsSource);
-                  setSavedSource(null);
-                }}
-              >
-                {PAPER_NEWS_SOURCES.map((s) => (
-                  <option key={s} value={s}>
-                    {names[s]}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="pn-icon pn-settings-close"
-                type="button"
-                aria-label={t("关闭设置", "Close settings")}
-                onClick={() => setSettings(false)}
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <fieldset className="pn-settings-fields" disabled={busy}>
-              <legend>
-                {names[settingsSource]} · {t("独立设置", "Independent settings")}
-              </legend>
-              <p>
-                {settingsSource === "huggingface"
-                  ? t(
-                      "从每日精选中按兴趣词排序；开启下方筛选后，只显示匹配的内容。这里不进行全文检索。",
-                      "Interests rank the daily selection. Enable the filter below to show only matches; this is not a full-text search.",
-                    )
-                  : t(
-                      "这些条件只用于当前来源，不影响其他来源的设置。",
-                      "These conditions apply only to this source.",
-                    )}
-              </p>
-              <label htmlFor="pn-topics">
-                {isNewsPublisher(settingsSource)
-                  ? t("兴趣词（选填，仅用于排序）", "Interests (optional, for ranking)")
-                  : settingsSource === "huggingface"
-                    ? t("兴趣词", "Interests")
-                    : t("检索关键词", "Search keywords")}
-              </label>
-              <input
-                id="pn-topics"
-                required={!isNewsPublisher(settingsSource)}
-                maxLength={304}
-                value={topicInputs[settingsSource]}
-                onChange={(e) => {
-                  setSavedSource(null);
-                  setTopicInputs({
-                    ...topicInputs,
-                    [settingsSource]: e.target.value,
-                  });
-                }}
-                placeholder={
-                  isNewsPublisher(settingsSource)
-                    ? t("例如：人工智能, 半导体", "e.g. AI, semiconductors")
-                    : "large language models, agents, multimodal"
-                }
-              />
-              <p>
-                {t(
-                  "逗号分隔，最多 5 个，每个不超过 60 字符；资讯来源留空时按时间排序。",
-                  "Up to 5 comma-separated terms, 60 characters each. News sources sort by recency when left blank.",
-                )}
-              </p>
-              <div className="pn-settings-options">
-                <label htmlFor="pn-days">
-                  {settingsSource === "arxiv"
-                    ? t("发表时间", "Publication window")
-                    : settingsSource === "github"
-                      ? t("代码更新时间", "Code update window")
-                      : settingsSource === "huggingface"
-                        ? t("精选时间", "Selection window")
-                        : t("发布时间", "Publication window")}
-                  <select
-                    id="pn-days"
-                    value={currentDraft.days}
-                    onChange={(e) => updateDraft({ days: Number(e.target.value) })}
-                  >
-                    {(isNewsPublisher(settingsSource) ? [7, 14, 30, 90, 365] : [7, 14, 30]).map(
-                      (d) => (
-                        <option key={d} value={d}>
-                          {language === "zh-CN" ? `近 ${d} 天` : `Last ${d} days`}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                </label>
-                {settingsSource === "arxiv" && (
-                  <label htmlFor="pn-category">
-                    {t("学科分类（选填）", "Subject category (optional)")}
-                    <input
-                      id="pn-category"
-                      maxLength={32}
-                      pattern={"[a-z]+(-[a-z]+)*(\\.[A-Z]{2})?"}
-                      placeholder="cs.AI"
-                      value={draftConfig.arxiv.category}
-                      onChange={(e) => updateDraft({ category: e.target.value })}
-                    />
-                  </label>
-                )}
-                {settingsSource === "github" && (
-                  <>
-                    <label htmlFor="pn-language">
-                      {t("编程语言（选填）", "Programming language (optional)")}
-                      <input
-                        id="pn-language"
-                        maxLength={32}
-                        placeholder="Python"
-                        value={draftConfig.github.language}
-                        onChange={(e) => updateDraft({ language: e.target.value })}
-                      />
-                    </label>
-                    <label htmlFor="pn-stars">
-                      {t("最低 Star 数", "Minimum stars")}
-                      <input
-                        id="pn-stars"
-                        type="number"
-                        min={0}
-                        max={10000000}
-                        step={1}
-                        required
-                        value={
-                          Number.isFinite(draftConfig.github.minStars)
-                            ? draftConfig.github.minStars
-                            : ""
-                        }
-                        onChange={(e) => updateDraft({ minStars: e.target.valueAsNumber })}
-                      />
-                    </label>
-                  </>
-                )}
-              </div>
-              {settingsSource === "huggingface" && (
-                <label className="pn-setting-check">
-                  <input
-                    type="checkbox"
-                    checked={draftConfig.huggingface.matchedOnly}
-                    onChange={(e) => updateDraft({ matchedOnly: e.target.checked })}
-                  />
-                  {t(
-                    "只显示匹配兴趣词的精选论文",
-                    "Only show selected papers matching my interests",
-                  )}
-                </label>
-              )}
-              <div className="pn-settings-footer">
-                <span role="status">
-                  {savedSource === settingsSource
-                    ? t(
-                        `${names[settingsSource]} 设置已保存`,
-                        `${names[settingsSource]} settings saved`,
-                      )
-                    : t(
-                        "每个来源单独保存，已有收藏会保留。",
-                        "Save each source separately. Bookmarks are retained.",
-                      )}
-                </span>
-                <button
-                  className="pn-button pn-primary"
-                  disabled={
-                    busy ||
-                    (!isNewsPublisher(settingsSource) && !topicInputs[settingsSource].trim())
-                  }
-                >
-                  {t(
-                    `保存并刷新 ${names[settingsSource]}`,
-                    `Save and refresh ${names[settingsSource]}`,
-                  )}
-                </button>
-              </div>
-            </fieldset>
-          </form>
+        {settings && snapshot && (
+          <div ref={preferencesAnchor}>
+            <NewsPreferencesPanel
+              key={settingsRevision}
+              config={snapshot.config}
+              initialScope={settingsScope}
+              names={names}
+              busy={busy}
+              onClose={() => setSettings(false)}
+              onSave={saveConfig}
+            />
+          </div>
         )}
         <section className="pn-discovery" aria-label={t("浏览资讯分类", "Browse news categories")}>
           <div className="pn-section-label">
@@ -818,6 +622,15 @@ export function PaperNewsPanel({
             </h2>
           </div>
           <div className="pn-tabs">
+            {activeCategory && (
+              <button
+                disabled={busy || !snapshot || settings}
+                onClick={() => openSettings(activeCategory.id)}
+              >
+                <SlidersHorizontal size={14} />
+                {t("分类偏好", "Category preferences")}
+              </button>
+            )}
             <button
               aria-pressed={!savedOnly}
               className={!savedOnly ? "is-active" : ""}
@@ -844,6 +657,7 @@ export function PaperNewsPanel({
             language={language}
             onClose={() => setCatalogOpen(false)}
             onSelect={(nextCategory, nextSource) => {
+              setSortOverride(null);
               setCategory(nextCategory);
               setSource(nextSource);
               setCatalogOpen(false);
@@ -862,7 +676,7 @@ export function PaperNewsPanel({
           />
         )}
         <div className="pn-toolbar">
-          {!!activeSources.length && (
+          {!!(savedOnly ? availableSources : activeSources).length && (
             <div
               className="pn-source-filters"
               role="group"
@@ -875,7 +689,7 @@ export function PaperNewsPanel({
               >
                 {t("全部来源", "All sources")}
               </button>
-              {activeSources.map((entry) => (
+              {(savedOnly ? availableSources : activeSources).map((entry) => (
                 <button
                   key={entry}
                   className={source === entry ? "is-active" : ""}
@@ -893,14 +707,16 @@ export function PaperNewsPanel({
                   </small>
                 </button>
               ))}
-              <button
-                className="pn-filter-settings"
-                disabled={busy || !snapshot}
-                aria-label={t("调整当前来源偏好", "Adjust source preferences")}
-                onClick={() => openSettings(source === "all" ? activeSources[0] : source)}
-              >
-                <SlidersHorizontal size={15} />
-              </button>
+              {source !== "all" && (
+                <button
+                  className="pn-filter-settings"
+                  disabled={busy || !snapshot}
+                  aria-label={t("来源高级设置", "Source settings")}
+                  onClick={() => openSettings(source)}
+                >
+                  <SlidersHorizontal size={15} />
+                </button>
+              )}
             </div>
           )}
 
@@ -916,7 +732,7 @@ export function PaperNewsPanel({
           <select
             aria-label={t("排序方式", "Sort order")}
             value={sort}
-            onChange={(e) => setSort(e.target.value)}
+            onChange={(e) => setSortOverride(e.target.value)}
           >
             <option value="recommended">{t("推荐排序", "Recommended")}</option>
             <option value="newest">{t("时间排序", "Most recent")}</option>
@@ -927,7 +743,15 @@ export function PaperNewsPanel({
             {items.length} {t("条内容", "results")}
             {source !== "all" ? ` · ${names[source]}` : ""}
           </span>
-          <div className="pn-following" hidden={categoryUnavailable || !(source === "all" ? activeSources : [source]).some(s => snapshot?.config[s]?.topics.length)}>
+          <div
+            className="pn-following"
+            hidden={
+              categoryUnavailable ||
+              !(source === "all" ? activeSources : [source]).some(
+                (s) => snapshot?.config[s]?.topics.length,
+              )
+            }
+          >
             <span>{t("关注", "Following")}</span>
             {(snapshot
               ? [
@@ -965,9 +789,11 @@ export function PaperNewsPanel({
                 ? t("正在寻找值得读的内容", "Finding your next read")
                 : savedOnly
                   ? t("把想深入读的内容留在这里", "Keep your next deep read here")
-                  : activeSources.some((s) => snapshot?.sources[s]?.error)
-                    ? t("暂时未能获取内容", "Could not fetch stories yet")
-                    : t("还没有匹配的内容", "No matching results yet")}
+                  : !activeSources.length
+                    ? t("当前范围的来源已全部关闭", "All sources in this view are disabled")
+                    : activeSources.some((s) => snapshot?.sources[s]?.error)
+                      ? t("暂时未能获取内容", "Could not fetch stories yet")
+                      : t("还没有匹配的内容", "No matching results yet")}
             </h2>
             <p>
               {busy
@@ -980,10 +806,15 @@ export function PaperNewsPanel({
                       "点击卡片上的收藏按钮，刷新后仍会保留。",
                       "Bookmark a card to keep it across refreshes.",
                     )
-                  : t(
-                      "可以切换来源或清空搜索；获取失败的原因和重试时间见下方来源状态。",
-                      "Try another source or clear your search. Source status below shows fetch errors and retry times.",
-                    )}
+                  : !activeSources.length
+                    ? t(
+                        "打开分类偏好，重新启用需要的来源。",
+                        "Open category preferences to enable sources.",
+                      )
+                    : t(
+                        "可以切换来源或清空搜索；获取失败的原因和重试时间见下方来源状态。",
+                        "Try another source or clear your search. Source status below shows fetch errors and retry times.",
+                      )}
             </p>
           </div>
         ) : (

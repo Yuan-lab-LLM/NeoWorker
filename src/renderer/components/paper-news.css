@@ -1233,3 +1233,208 @@ button.pn-directory-source:hover {
     width: 100%;
   }
 }
+
+/* Preference scopes are explicit: defaults, category, then source overrides. */
+.pn-preferences {
+  margin: 0 0 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-bg-primary);
+  overflow: hidden;
+}
+.pn-preferences-header,
+.pn-preferences-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+}
+.pn-preferences-header {
+  border-bottom: 1px solid var(--color-border);
+}
+.pn-preferences-header > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pn-preferences-header svg {
+  color: var(--color-accent, #208bff);
+}
+.pn-preferences-header span,
+.pn-preferences-footer span {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.pn-preferences-body {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+}
+.pn-preferences-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 12px;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+}
+.pn-preferences-nav button {
+  border: 0;
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pn-preferences-nav button[aria-pressed="true"] {
+  background: rgba(32, 139, 255, 0.09);
+  color: #208bff;
+  font-weight: 600;
+}
+.pn-preferences-nav small {
+  padding: 16px 12px 6px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+.pn-preferences-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 24px;
+  border: 0;
+}
+.pn-preferences-fields legend {
+  float: left;
+  width: 100%;
+  margin: 0 0 8px;
+  font-weight: 650;
+  font-size: 17px;
+}
+.pn-pref-scope {
+  clear: both;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--color-text-secondary);
+  margin: 0 0 22px;
+}
+.pn-pref-field {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 13px;
+  margin: 16px 0;
+  min-width: 0;
+}
+.pn-pref-field small {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+.pn-pref-field input:not([type="checkbox"]),
+.pn-pref-field select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  padding: 10px 12px;
+  font: inherit;
+}
+.pn-pref-field input:disabled {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+}
+.pn-pref-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.pn-pref-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+}
+.pn-pref-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: #208bff;
+  flex-shrink: 0;
+}
+.pn-pref-sources {
+  border-top: 1px solid var(--color-border);
+  margin-top: 22px;
+  padding-top: 20px;
+}
+.pn-pref-sources h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.pn-pref-sources p {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  margin: 0 0 12px;
+}
+.pn-pref-source-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.pn-pref-source-row > label {
+  flex: 1;
+}
+.pn-pref-source-row > span {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+.pn-preferences-footer {
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+}
+.pn-preferences button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+@media (max-width: 700px) {
+  .pn-preferences-body {
+    grid-template-columns: 1fr;
+  }
+  .pn-preferences-nav {
+    flex-direction: row;
+    overflow: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .pn-preferences-nav button {
+    flex-shrink: 0;
+  }
+  .pn-preferences-nav small,
+  .pn-preferences-header span {
+    display: none;
+  }
+  .pn-preferences-fields {
+    padding: 18px;
+  }
+  .pn-pref-two {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .pn-pref-source-row {
+    flex-wrap: wrap;
+  }
+  .pn-pref-source-row > label {
+    flex-basis: 55%;
+  }
+  .pn-preferences-footer {
+    align-items: flex-start;
+  }
+}

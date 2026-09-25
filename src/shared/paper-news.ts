@@ -1,3 +1,5 @@
+import type { NewsPreferences } from "./news-preferences";
+import { newsSourceEnabled } from "./news-preferences";
 import { NEWS_PUBLISHER_IDS, isNewsPublisher, type NewsPublisher } from "./news-sources";
 export const PAPER_NEWS_SOURCES = [
   "arxiv",
@@ -12,6 +14,7 @@ export interface PaperNewsTopicConfig {
   days: number;
 }
 export type PaperNewsConfig = Record<NewsPublisher, PaperNewsTopicConfig> & {
+  preferences?: NewsPreferences;
   arxiv: PaperNewsTopicConfig & { category: string };
   huggingface: PaperNewsTopicConfig & { matchedOnly: boolean };
   github: PaperNewsTopicConfig & { language: string; minStars: number };
@@ -55,6 +58,7 @@ export function paperNewsNeedsRefresh(snapshot: PaperNewsSnapshot, now: number):
   return (
     snapshot.refreshing ||
     PAPER_NEWS_SOURCES.some((source) => {
+      if (!newsSourceEnabled(snapshot.config, source)) return false;
       const state = snapshot.sources[source] || {};
       if (state.nextRetryAt && Date.parse(state.nextRetryAt) > now) return false;
       if (state.error) return true;

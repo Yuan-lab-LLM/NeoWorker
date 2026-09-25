@@ -1,3 +1,4 @@
+import { newsSourceEnabled } from "../../shared/news-preferences";
 import { NEWS_PUBLISHERS, isNewsPublisher, publisherArticleUrl } from "../../shared/news-sources";
 import { PaperNewsRequestError, paperNewsHttpError } from "./request";
 import * as fs from "node:fs";
@@ -105,7 +106,7 @@ export class PaperNewsService {
     try {
       if (fs.statSync(file).size > 12 * 1024 * 1024) return;
       const cached = JSON.parse(fs.readFileSync(file, "utf8"));
-      if (![1, 2, 3].includes(cached.version)) return;
+      if (![1, 2, 3, 4].includes(cached.version)) return;
       this.state.config = normalizePaperNewsConfig(cached.config);
       this.state.items = Array.isArray(cached.items)
         ? cached.items.filter(validCachedItem).slice(0, 1200)
@@ -145,7 +146,7 @@ export class PaperNewsService {
   private persist(): void {
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const temporary = `${this.file}.tmp`;
-    fs.writeFileSync(temporary, JSON.stringify({ ...this.state, version: 3, refreshing: false }), {
+    fs.writeFileSync(temporary, JSON.stringify({ ...this.state, version: 4, refreshing: false }), {
       mode: 0o600,
     });
     fs.renameSync(temporary, this.file);
@@ -174,7 +175,10 @@ export class PaperNewsService {
       this.state = {
         ...this.state,
         config,
-        items: this.state.items.filter((item) => !changed.includes(item.source)),
+        // Hierarchical preferences re-rank cached results immediately; keep them during refresh/cooldown.
+        items: config.preferences
+          ? this.state.items
+          : this.state.items.filter((item) => !changed.includes(item.source)),
         sources,
       };
       this.persist();
@@ -299,6 +303,7 @@ export class PaperNewsService {
         !(Array.isArray(onlySource) ? onlySource.includes(source) : source === onlySource)
       )
         return false;
+      if (!newsSourceEnabled(this.state.config, source)) return false;
       const deadline = this.state.sources[source].nextRetryAt;
       return !deadline || Date.parse(deadline) <= this.now();
     });
