@@ -39,8 +39,13 @@ const github = JSON.stringify({
     },
   ],
 });
-const fixtures: Record<PaperNewsSource, string> = { arxiv: atom, huggingface: hf, github };
-const sourceFor = (url: string): PaperNewsSource =>
+const originalSources = ["arxiv", "huggingface", "github"] as const;
+const fixtures: Record<(typeof originalSources)[number], string> = {
+  arxiv: atom,
+  huggingface: hf,
+  github,
+};
+const sourceFor = (url: string): (typeof originalSources)[number] =>
   url.includes("arxiv.org") ? "arxiv" : url.includes("huggingface.co") ? "huggingface" : "github";
 const directories: string[] = [];
 function file() {
@@ -86,7 +91,8 @@ describe("paper news adapters", () => {
   });
   it("keeps publisher thumbnails and rejects unrelated image hosts", () => {
     const rows = JSON.parse(hf);
-    rows[0].thumbnail = "https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2609.12345.png";
+    rows[0].thumbnail =
+      "https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2609.12345.png";
     expect(parsePaperNews("huggingface", JSON.stringify(rows))[0].imageUrl).toBe(rows[0].thumbnail);
     rows[0].thumbnail = "https://unrelated.example/image.png";
     expect(parsePaperNews("huggingface", JSON.stringify(rows))[0].imageUrl).toBeUndefined();
@@ -142,10 +148,14 @@ describe("paper news persistence and refresh", () => {
   it("coalesces refreshes across page changes and retains completed state", async () => {
     const fetcher = vi.fn(async (url: string) => new Response(fixtures[sourceFor(url)]));
     const service = new PaperNewsService(file(), fetcher, () => now);
-    const results = await Promise.all([service.refresh(), service.refresh(), service.refresh()]);
+    const results = await Promise.all([
+      service.refresh([...originalSources]),
+      service.refresh([...originalSources]),
+      service.refresh([...originalSources]),
+    ]);
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect(results.every((s) => s.items.length === 3 && !s.refreshing)).toBe(true);
-    await service.refresh();
+    await service.refresh([...originalSources]);
     expect(fetcher).toHaveBeenCalledTimes(3);
   });
   it("keeps prior results on partial failure, and persists saved items across refresh and restart", async () => {
@@ -158,11 +168,11 @@ describe("paper news persistence and refresh", () => {
         : new Response(fixtures[sourceFor(url)]),
     );
     const service = new PaperNewsService(cache, fetcher, () => clock);
-    const first = await service.refresh();
+    const first = await service.refresh([...originalSources]);
     service.setSaved("arxiv:2609.12345", true);
     fail = true;
     clock += 61000;
-    const next = await service.refresh();
+    const next = await service.refresh([...originalSources]);
     expect(next.sources.arxiv.error).toBe("rateLimit");
     expect(next.sources.arxiv.updatedAt).toBe(first.sources.arxiv.updatedAt);
     expect(next.items).toHaveLength(3);
@@ -177,7 +187,7 @@ describe("paper news persistence and refresh", () => {
     const cache = file();
     const fetcher = async (url: string) => new Response(fixtures[sourceFor(url)]);
     const service = new PaperNewsService(cache, fetcher, () => now);
-    await service.refresh();
+    await service.refresh([...originalSources]);
     expect(() => service.setSaved({ url: "file:///etc/passwd" }, true)).toThrow();
     const raw = JSON.parse(fs.readFileSync(cache, "utf8"));
     raw.items[0].url = "https://evil.example";
@@ -190,7 +200,7 @@ describe("paper news persistence and refresh", () => {
       async (url: string) => new Response(fixtures[sourceFor(url)]),
       () => now,
     );
-    const running = service.refresh();
+    const running = service.refresh([...originalSources]);
     expect(() => service.saveConfig(config)).toThrow("Refresh in progress");
     await running;
   });
@@ -232,7 +242,7 @@ describe("paper news source recovery", () => {
     const cache = file();
     const sleep = vi.fn(async () => {});
     const service = new PaperNewsService(cache, fetcher, () => clock, sleep);
-    const first = await service.refresh();
+    const first = await service.refresh([...originalSources]);
     expect(first.sources.arxiv).toMatchObject({ error: "accessDenied", httpStatus: 403 });
     expect(first.sources.github).toMatchObject({
       error: "rateLimit",
@@ -243,7 +253,7 @@ describe("paper news source recovery", () => {
     const restarted = new PaperNewsService(cache, fetcher, () => clock, sleep);
     restarted.saveConfig({ topics: ["robotics"], days: 7 });
     fetcher.mockClear();
-    await restarted.refresh();
+    await restarted.refresh([...originalSources]);
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(sourceFor(fetcher.mock.calls[0][0])).toBe("huggingface");
   });
@@ -257,7 +267,7 @@ describe("paper news source recovery", () => {
     });
     const sleep = vi.fn(async () => {});
     const service = new PaperNewsService(file(), fetcher, () => now, sleep);
-    const result = await service.refresh();
+    const result = await service.refresh([...originalSources]);
     expect(sleep).toHaveBeenCalledExactlyOnceWith(3100);
     expect(attempts).toBe(2);
     expect(result.sources.arxiv.error).toBeUndefined();
@@ -273,17 +283,17 @@ describe("paper news source recovery", () => {
         : new Response(fixtures[sourceFor(url)]),
     );
     const service = new PaperNewsService(file(), fetcher, () => clock);
-    await service.refresh();
+    await service.refresh([...originalSources]);
     clock += 60_001;
     limited = true;
-    const failed = await service.refresh();
+    const failed = await service.refresh([...originalSources]);
     expect(failed.sources.arxiv.error).toBe("rateLimit");
     expect(failed.items.some((i) => i.source === "arxiv")).toBe(true);
     const deadline = clock + 1800_000;
     expect(failed.sources.arxiv.nextRetryAt).toBe(new Date(deadline).toISOString());
     clock = deadline;
     limited = false;
-    const recovered = await service.refresh();
+    const recovered = await service.refresh([...originalSources]);
     expect(recovered.sources.arxiv.error).toBeUndefined();
     expect(recovered.sources.arxiv.updatedAt).toBe(new Date(clock).toISOString());
   });
@@ -294,7 +304,7 @@ describe("independent source settings", () => {
     const cache = file();
     const fetcher = vi.fn(async (url: string) => new Response(fixtures[sourceFor(url)]));
     const service = new PaperNewsService(cache, fetcher, () => now);
-    await service.refresh();
+    await service.refresh([...originalSources]);
     service.setSaved("arxiv:2609.12345", true);
     const raw = JSON.parse(fs.readFileSync(cache, "utf8"));
     raw.version = 1;
@@ -315,7 +325,7 @@ describe("independent source settings", () => {
     const cache = file();
     const fetcher = vi.fn(async (url: string) => new Response(fixtures[sourceFor(url)]));
     const service = new PaperNewsService(cache, fetcher, () => clock);
-    const before = await service.refresh();
+    const before = await service.refresh([...originalSources]);
     service.setSaved("github:lab/agents", true);
     clock += 61000;
     const config = structuredClone(before.config);
@@ -334,7 +344,7 @@ describe("independent source settings", () => {
     const restored = new PaperNewsService(cache, fetcher, () => clock).snapshot();
     expect(restored.config).toEqual(config);
     expect(restored.saved).toHaveLength(1);
-    expect(JSON.parse(fs.readFileSync(cache, "utf8")).version).toBe(2);
+    expect(JSON.parse(fs.readFileSync(cache, "utf8")).version).toBe(3);
   });
 
   it("retains the changed source's rate limit and leaves other sources untouched", async () => {
@@ -344,7 +354,7 @@ describe("independent source settings", () => {
         : new Response(fixtures[sourceFor(url)]),
     );
     const service = new PaperNewsService(file(), fetcher, () => now);
-    const before = await service.refresh();
+    const before = await service.refresh([...originalSources]);
     const config = structuredClone(before.config);
     config.arxiv.category = "cs.AI";
     service.saveConfig(config);

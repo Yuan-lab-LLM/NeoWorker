@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { paperNewsHttpError, retryDeadline } from "./request";
 import {
   DEFAULT_PAPER_NEWS_CONFIG,
+  PAPER_NEWS_SOURCES,
   paperNewsNeedsRefresh,
   type PaperNewsSnapshot,
 } from "../../shared/paper-news";
@@ -36,6 +37,9 @@ describe("feed retry policy", () => {
       saved: [],
       refreshing: false,
       sources: {
+        ...(Object.fromEntries(
+          PAPER_NEWS_SOURCES.map((s) => [s, { updatedAt: new Date(now).toISOString() }]),
+        ) as PaperNewsSnapshot["sources"]),
         arxiv: {
           error: "network",
           attemptedAt: new Date(now).toISOString(),

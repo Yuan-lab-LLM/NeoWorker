@@ -1,3 +1,6 @@
+import { NEWS_PUBLISHERS, NEWS_PUBLISHER_IDS, isNewsPublisher } from "../../shared/news-sources";
+import { DEFAULT_PAPER_NEWS_CONFIG } from "../../shared/paper-news";
+import { parsePublisherNews } from "./publishers";
 import { newsImageUrl } from "./covers";
 import { DOMParser } from "@xmldom/xmldom";
 import type {
@@ -22,7 +25,7 @@ const unique = (items: PaperNewsItem[]) => [
   ...new Map(items.filter((i) => i.title && i.date).map((i) => [i.id, i])).values(),
 ];
 
-function normalizeTopics(value: unknown): PaperNewsTopicConfig {
+function normalizeTopics(value: unknown, optional = false): PaperNewsTopicConfig {
   const input = record(value);
   const topics = [
     ...new Set(
@@ -35,7 +38,10 @@ function normalizeTopics(value: unknown): PaperNewsTopicConfig {
         .filter(Boolean),
     ),
   ].slice(0, 5);
-  if (!topics.length || ![7, 14, 30].includes(Number(input.days)))
+  if (
+    (!optional && !topics.length) ||
+    !(optional ? [7, 14, 30, 90, 365] : [7, 14, 30]).includes(Number(input.days))
+  )
     throw new Error("Invalid paper news settings");
   return { topics, days: Number(input.days) };
 }
@@ -72,6 +78,12 @@ export function normalizePaperNewsConfig(value: unknown): PaperNewsConfig {
     throw new Error("Invalid minimum stars");
   if (typeof matchedOnly !== "boolean") throw new Error("Invalid interest filter");
   return {
+    ...(Object.fromEntries(
+      NEWS_PUBLISHER_IDS.map((source) => [
+        source,
+        normalizeTopics(input[source] ?? DEFAULT_PAPER_NEWS_CONFIG[source], true),
+      ]),
+    ) as Pick<PaperNewsConfig, (typeof NEWS_PUBLISHER_IDS)[number]>),
     arxiv: { ...normalizeTopics(arxiv), category },
     github: { ...normalizeTopics(github), language: language.trim(), minStars },
     huggingface: { ...normalizeTopics(hf), matchedOnly },
@@ -83,6 +95,7 @@ export function paperNewsEndpoint(
   config: PaperNewsConfig,
   now: number,
 ): string {
+  if (isNewsPublisher(source)) return NEWS_PUBLISHERS[source].endpoint;
   const settings = config[source];
   const since = new Date(now - settings.days * 86400000).toISOString().slice(0, 10);
   if (source === "arxiv") {
@@ -104,6 +117,7 @@ export function paperNewsEndpoint(
 }
 
 export function parsePaperNews(source: PaperNewsSource, raw: string): PaperNewsItem[] {
+  if (isNewsPublisher(source)) return parsePublisherNews(source, raw);
   const base = { matchedTopics: [] as string[], score: 0 };
   if (source === "arxiv") {
     if (/<!DOCTYPE|<!ENTITY/i.test(raw)) throw new Error("Invalid feed");
@@ -217,6 +231,7 @@ export function rankPaperNews(
     .filter(
       (i) =>
         keepOlder ||
+        (isNewsPublisher(i.source) && !i.date) ||
         (Date.parse(i.date) >= now - config[i.source].days * 86400000 &&
           Date.parse(i.date) <= now + 86400000),
     )
@@ -224,13 +239,13 @@ export function rankPaperNews(
       const settings = config[item.source];
       const haystack = `${item.title} ${item.summary} ${item.tags.join(" ")}`.toLowerCase();
       const matchedTopics = settings.topics.filter((t) => haystack.includes(t.toLowerCase()));
-      const age = Math.max(0, (now - Date.parse(item.date)) / 86400000);
+      const age = item.date ? Math.max(0, (now - Date.parse(item.date)) / 86400000) : settings.days;
       return {
         ...item,
         matchedTopics,
         score: Math.round(
-          (70 * matchedTopics.length) / settings.topics.length +
-            30 * Math.max(0, 1 - age / settings.days),
+          (settings.topics.length ? (70 * matchedTopics.length) / settings.topics.length : 0) +
+            (settings.topics.length ? 30 : 100) * Math.max(0, 1 - age / settings.days),
         ),
       };
     })

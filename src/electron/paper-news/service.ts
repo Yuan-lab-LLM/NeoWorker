@@ -1,3 +1,4 @@
+import { NEWS_PUBLISHERS, isNewsPublisher, publisherArticleUrl } from "../../shared/news-sources";
 import { PaperNewsRequestError, paperNewsHttpError } from "./request";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -7,6 +8,7 @@ import {
   type PaperNewsItem,
   type PaperNewsSnapshot,
   type PaperNewsSource,
+  type PaperNewsSourceState,
 } from "../../shared/paper-news";
 import {
   normalizePaperNewsConfig,
@@ -16,14 +18,23 @@ import {
 } from "./adapters";
 
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
-const emptySources = () => ({ arxiv: {}, huggingface: {}, github: {} });
+const emptySources = () =>
+  Object.fromEntries(PAPER_NEWS_SOURCES.map((source) => [source, {}])) as Record<
+    PaperNewsSource,
+    PaperNewsSourceState
+  >;
 const MAX_BYTES = 3 * 1024 * 1024;
 
 /** Read streams with a bound as Content-Length is not guaranteed or trusted. */
-export async function readPaperNewsResponse(response: Response): Promise<string> {
+export async function readPaperNewsResponse(
+  response: Response,
+  maxBytes = MAX_BYTES,
+): Promise<string> {
   if (!response.body) throw new Error("invalidResponse");
   const reader = response.body.getReader();
-  const decoder = new TextDecoder();
+  const charset =
+    response.headers.get("content-type")?.match(/charset=["']?([\w-]+)/i)?.[1] || "utf-8";
+  const decoder = new TextDecoder(charset);
   let bytes = 0,
     result = "";
   try {
@@ -31,7 +42,7 @@ export async function readPaperNewsResponse(response: Response): Promise<string>
       const { done, value } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > MAX_BYTES) throw new Error("invalidResponse");
+      if (bytes > maxBytes) throw new Error("invalidResponse");
       result += decoder.decode(value, { stream: true });
     }
     return result + decoder.decode();
@@ -52,7 +63,7 @@ function validCachedItem(item: unknown): item is PaperNewsItem {
     typeof i.summary !== "string" ||
     (i.popularity !== undefined &&
       (typeof i.popularity !== "number" || !Number.isFinite(i.popularity) || i.popularity < 0)) ||
-    !Number.isFinite(Date.parse(i.date))
+    (!Number.isFinite(Date.parse(i.date)) && !(isNewsPublisher(i.source) && i.date === ""))
   )
     return false;
   if (
@@ -61,6 +72,8 @@ function validCachedItem(item: unknown): item is PaperNewsItem {
     )
   )
     return false;
+  if (isNewsPublisher(i.source))
+    return typeof i.url === "string" && publisherArticleUrl(i.source, i.url) === i.url && !i.pdfUrl;
   const origins = {
     arxiv: "https://arxiv.org/abs/",
     huggingface: "https://huggingface.co/papers/",
@@ -92,10 +105,10 @@ export class PaperNewsService {
     try {
       if (fs.statSync(file).size > 12 * 1024 * 1024) return;
       const cached = JSON.parse(fs.readFileSync(file, "utf8"));
-      if (![1, 2].includes(cached.version)) return;
+      if (![1, 2, 3].includes(cached.version)) return;
       this.state.config = normalizePaperNewsConfig(cached.config);
       this.state.items = Array.isArray(cached.items)
-        ? cached.items.filter(validCachedItem).slice(0, 300)
+        ? cached.items.filter(validCachedItem).slice(0, 1200)
         : [];
       this.state.saved = Array.isArray(cached.saved)
         ? cached.saved.filter(validCachedItem).slice(0, 200)
@@ -132,7 +145,7 @@ export class PaperNewsService {
   private persist(): void {
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const temporary = `${this.file}.tmp`;
-    fs.writeFileSync(temporary, JSON.stringify({ ...this.state, version: 2, refreshing: false }), {
+    fs.writeFileSync(temporary, JSON.stringify({ ...this.state, version: 3, refreshing: false }), {
       mode: 0o600,
     });
     fs.renameSync(temporary, this.file);
@@ -170,7 +183,7 @@ export class PaperNewsService {
   }
   findItem(id: unknown): PaperNewsItem | undefined {
     if (typeof id !== "string" || id.length > 240) return undefined;
-    const item = [...this.state.items, ...this.state.saved].find(item => item.id === id);
+    const item = [...this.state.items, ...this.state.saved].find((item) => item.id === id);
     return item ? structuredClone(item) : undefined;
   }
   setSaved(id: unknown, saved: unknown): PaperNewsSnapshot {
@@ -184,8 +197,14 @@ export class PaperNewsService {
     this.persist();
     return this.snapshot();
   }
-  refresh(source?: PaperNewsSource): Promise<PaperNewsSnapshot> {
-    if (source !== undefined && !PAPER_NEWS_SOURCES.includes(source))
+  refresh(source?: PaperNewsSource | PaperNewsSource[]): Promise<PaperNewsSnapshot> {
+    if (
+      source !== undefined &&
+      (!Array.isArray(source)
+        ? !PAPER_NEWS_SOURCES.includes(source)
+        : source.length > PAPER_NEWS_SOURCES.length ||
+          source.some((s) => !PAPER_NEWS_SOURCES.includes(s)))
+    )
       throw new Error("Invalid paper news source");
     if (this.inflight) return this.inflight;
     // One shared refresh; each source also enforces its persisted cooldown.
@@ -204,25 +223,45 @@ export class PaperNewsService {
   private async requestSource(source: PaperNewsSource): Promise<PaperNewsItem[]> {
     for (let attempt = 0; ; attempt++) {
       try {
-        const response = await this.fetcher(
-          paperNewsEndpoint(source, this.state.config, this.now()),
-          {
+        let url = paperNewsEndpoint(source, this.state.config, this.now());
+        const signal = AbortSignal.timeout(25_000);
+        let response: Response;
+        for (let hop = 0; ; hop++) {
+          response = await this.fetcher(url, {
             method: "GET",
             credentials: "omit",
-            redirect: "error",
-            signal: AbortSignal.timeout(25_000),
+            redirect: "manual",
+            signal,
             headers: {
-              "User-Agent": "NeoWorker-PaperNews/0.2 (+https://github.com/Yuan-lab-LLM/NeoWorker)",
-              Accept: source === "arxiv" ? "application/atom+xml" : "application/json",
+              "User-Agent": "NeoWorker-News/0.2 (+https://github.com/Yuan-lab-LLM/NeoWorker)",
+              Accept: isNewsPublisher(source)
+                ? "application/rss+xml, application/xml, text/html"
+                : source === "arxiv"
+                  ? "application/atom+xml"
+                  : "application/json",
             },
-          },
-        );
+          });
+          if (![301, 302, 303, 307, 308].includes(response.status)) break;
+          const location = response.headers.get("location");
+          await response.body?.cancel().catch(() => {});
+          const next =
+            location && isNewsPublisher(source)
+              ? publisherArticleUrl(source, new URL(location, url).href)
+              : undefined;
+          if (!next || hop >= 3) throw new PaperNewsRequestError("invalidResponse");
+          url = next;
+        }
         if (!response.ok) {
           const error = paperNewsHttpError(response, source, this.now());
           await response.body?.cancel().catch(() => {});
           throw error;
         }
-        const raw = await readPaperNewsResponse(response);
+        const raw = await readPaperNewsResponse(
+          response,
+          isNewsPublisher(source)
+            ? (NEWS_PUBLISHERS[source].format === "rss" ? 16 : 4) * 1024 * 1024
+            : MAX_BYTES,
+        );
         try {
           return rankPaperNews(parsePaperNews(source, raw), this.state.config, this.now());
         } catch {
@@ -251,9 +290,15 @@ export class PaperNewsService {
       }
     }
   }
-  private async runRefresh(onlySource?: PaperNewsSource): Promise<PaperNewsSnapshot> {
+  private async runRefresh(
+    onlySource?: PaperNewsSource | PaperNewsSource[],
+  ): Promise<PaperNewsSnapshot> {
     const due = PAPER_NEWS_SOURCES.filter((source) => {
-      if (onlySource && source !== onlySource) return false;
+      if (
+        onlySource &&
+        !(Array.isArray(onlySource) ? onlySource.includes(source) : source === onlySource)
+      )
+        return false;
       const deadline = this.state.sources[source].nextRetryAt;
       return !deadline || Date.parse(deadline) <= this.now();
     });
@@ -269,33 +314,38 @@ export class PaperNewsService {
     // Persist all throttles before starting requests. A disk failure must not
     // leave requests running after the shared refresh promise has rejected.
     if (due.length) this.persist();
+    const queue = [...due];
     await Promise.all(
-      due.map(async (source) => {
-        const previous = previousStates[source];
-        try {
-          const items = await this.requestSource(source);
-          this.state.items = [...this.state.items.filter((i) => i.source !== source), ...items];
-          this.state.sources[source] = {
-            attemptedAt,
-            updatedAt: new Date(this.now()).toISOString(),
-            nextRetryAt: new Date(this.now() + 60_000).toISOString(),
-          };
-        } catch (error) {
-          const failure =
-            error instanceof PaperNewsRequestError ? error : new PaperNewsRequestError("network");
-          const delay =
-            failure.code === "rateLimit"
-              ? 5 * 60_000
-              : failure.code === "accessDenied" || failure.code === "invalidResponse"
-                ? 30 * 60_000
-                : 60_000;
-          this.state.sources[source] = {
-            ...previous,
-            attemptedAt,
-            error: failure.code,
-            httpStatus: failure.httpStatus,
-            nextRetryAt: new Date(Math.max(this.now() + delay, failure.retryAt || 0)).toISOString(),
-          };
+      Array.from({ length: Math.min(4, due.length) }, async () => {
+        for (let source = queue.shift(); source; source = queue.shift()) {
+          const previous = previousStates[source];
+          try {
+            const items = await this.requestSource(source);
+            this.state.items = [...this.state.items.filter((i) => i.source !== source), ...items];
+            this.state.sources[source] = {
+              attemptedAt,
+              updatedAt: new Date(this.now()).toISOString(),
+              nextRetryAt: new Date(this.now() + 60_000).toISOString(),
+            };
+          } catch (error) {
+            const failure =
+              error instanceof PaperNewsRequestError ? error : new PaperNewsRequestError("network");
+            const delay =
+              failure.code === "rateLimit"
+                ? 5 * 60_000
+                : failure.code === "accessDenied" || failure.code === "invalidResponse"
+                  ? 30 * 60_000
+                  : 60_000;
+            this.state.sources[source] = {
+              ...previous,
+              attemptedAt,
+              error: failure.code,
+              httpStatus: failure.httpStatus,
+              nextRetryAt: new Date(
+                Math.max(this.now() + delay, failure.retryAt || 0),
+              ).toISOString(),
+            };
+          }
         }
       }),
     );

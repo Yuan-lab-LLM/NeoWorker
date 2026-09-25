@@ -6133,7 +6133,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke(IPC_CHANNELS.PAPER_NEWS_COVER, id),
   getPaperNews: (): Promise<PaperNewsSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.PAPER_NEWS_GET),
-  refreshPaperNews: (source?: PaperNewsSource): Promise<PaperNewsSnapshot> =>
+  refreshPaperNews: (source?: PaperNewsSource | PaperNewsSource[]): Promise<PaperNewsSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.PAPER_NEWS_REFRESH, source),
   savePaperNewsConfig: (config: PaperNewsConfig): Promise<PaperNewsSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.PAPER_NEWS_CONFIG, config),
@@ -6408,7 +6408,7 @@ export type {
 export interface ElectronAPI {
   getPaperNewsCover: (id: string) => Promise<PaperNewsCover | null>;
   getPaperNews: () => Promise<PaperNewsSnapshot>;
-  refreshPaperNews: (source?: PaperNewsSource) => Promise<PaperNewsSnapshot>;
+  refreshPaperNews: (source?: PaperNewsSource | PaperNewsSource[]) => Promise<PaperNewsSnapshot>;
   savePaperNewsConfig: (config: PaperNewsConfig) => Promise<PaperNewsSnapshot>;
   setPaperNewsSaved: (id: string, saved: boolean) => Promise<PaperNewsSnapshot>;
   selectFolder: (defaultPath?: string) => Promise<string | null>;

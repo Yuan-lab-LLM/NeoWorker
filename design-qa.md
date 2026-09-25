@@ -1,3 +1,39 @@
+## 2026-09-25 — Four live news categories
+
+18 public publisher adapters now feed all four previously empty categories. Production fetching returned 437 items and cache reload retained them. Browser checks used this real snapshot with mocked IPC: 98 technology, 99 markets, 179 policy and 61 business cards; source filtering, optional per-source settings and article task drafts verified. Three columns at 1500px and one at 560px, without horizontal overflow. See `docs/qa/news-publisher-integration-2026-09-25.md`.
+
+# Source directory refinement — 2026-09-25
+
+final result: passed
+
+## Target and evidence
+
+Scoped redesign of the source directory in response to the supplied screenshot. Preserve the existing light-blue theme, official publisher logos, source availability and feed layout.
+
+- User reference: `/var/folders/f6/v2yvmyfx77xdvgw7gfyj1xdr0000gn/T/codex-clipboard-fd510de4-7854-4725-a1f7-a383155b3314.png`.
+- Current-run before / after: `output/ui-preview/news-directory/before.png` and `after.png`, same default browser viewport, Chinese/light, Technology selected, directory expanded. Both displayed together for comparison. Intentional layout changes, not a pixel clone.
+- Additional captures: `desktop.png` (1500 × 1100), `narrow.png` (560 px panel), `dark-en.png`. Preview uses the real production component with isolated IPC fixtures.
+- The experimental clipped capture `directory-focus.png` was rejected because the browser clip output included excess canvas. Full captures above were inspected and accepted; their directory controls are legible at native scale.
+
+## Findings and changes
+
+1. [P2, fixed] All 26 sources competed in a long, sparse grid. Replace with category navigation and one focused source panel. The full Technology directory and return action now fit in the reference-size viewport.
+2. [P2, fixed] Repeated availability labels dominated the list. Group sources under Connected / Planned headings with counts; preserve accurate availability.
+3. [P2, fixed] Unavailable topics stacked the source list and a large empty-state box. Consolidate explanation and return action in a compact footer.
+4. [P2, fixed] Old no-sources CSS hid the directory heading. Remove that override; the directory always retains its own identity.
+
+## Fidelity and interaction checks
+
+- Typography: existing DM Sans / Chinese system fallback; 15 px directory titles, 13 px source names, restrained secondary copy. English policy names wrap without overflow.
+- Spacing: 200 px left navigation; two source columns on desktop; horizontal category navigation and single source column in narrow panels. Compact unavailable-topic mode uses three columns at desktop size.
+- Color: existing primary/secondary surfaces and accent tokens; soft blue selection; dark theme inspected.
+- Assets: existing official arXiv, GitHub and Hugging Face SVGs retained. Hugging Face Models reuses its real logo without implying a connected adapter. Topic symbols use Lucide. No new cover images or invented brand marks.
+- Content: all 26 sources retained, with three connected adapters. Planned sources remain noninteractive and explicitly grouped.
+- Interaction: directory category switching, GitHub jump (3 fixture cards), close/reopen, compact unavailable topic and return to all stories (9 fixture cards), Chinese/English, dark/light, 560 px panel and 1500 px viewport. No document or directory horizontal overflow; category rail scroll is intentional. Console warnings/errors empty.
+- Production renderer build, focused lint and two navigation tests passed. Existing large-bundle advisory remains. No new package was created in this refinement; the previously delivered DMG still has the earlier directory.
+
+---
+
 # Category-based News Feed — 2026-09-25
 
 final result: passed
