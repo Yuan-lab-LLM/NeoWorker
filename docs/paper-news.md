@@ -2,9 +2,19 @@
 
 News Feed is available in the current source tree. Previously published v0.2.3 release installers do not include it; local test builds can differ.
 
+## Topic navigation and source directory
+
+The six top-level categories are Research (3 planned/connected providers), Open source (5), Technology (5), Markets (3), Policy & economy (6), and Business (4). Their 26 entries are a curated directory, not 26 active integrations.
+
+Only arXiv and Hugging Face Papers are currently connected in Research, and GitHub in Open source. Hugging Face Models is a separate planned provider; it never reuses paper results. The Technology selection is QbitAI, SemiAnalysis, TrendForce, EE Times China, and ChinaTalk. Other source integrations are outside this UI change.
+
+Select a category, then a connected source. Search, sorting and bookmarks continue to apply within the selected category/source. Switching category resets the publisher filter but preserves search and bookmark mode. **All topics** returns to the combined feed. The source directory labels unavailable providers as **Planned**; categories without an adapter explain that no feed is connected and offer a return to existing content. Refresh/preferences are disabled in those categories rather than pretending to fetch them.
+
+The initial experience uses built-in source defaults; preferences are optional. Source health, retry information, and independent settings remain available under **Fetch status and source settings** below the results.
+
 ## Discover and save
 
-Open **News Feed** in the sidebar and choose **Source settings**, or use the settings icon on a source panel. Each source has its own settings tab, up to five comma-separated topics (60 characters each), and a 7-, 14-, or 30-day window. English terms work best with these sources.
+Open **News Feed** in the sidebar and choose **Preferences**, or use the settings icon beside the source filters. Each source has its own settings tab, up to five comma-separated topics (60 characters each), and a 7-, 14-, or 30-day window. English terms work best with these sources.
 
 | Source | Independent settings |
 | --- | --- |

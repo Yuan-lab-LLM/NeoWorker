@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowRight,
+  BriefcaseBusiness,
+  ChartNoAxesCombined,
+  ChevronRight,
+  Code2,
+  Cpu,
+  GraduationCap,
+  Landmark,
+  LayoutGrid,
+  Library,
   Bookmark,
   CalendarDays,
   CheckCircle2,
@@ -37,7 +47,22 @@ import arxivWhiteBrand from "../assets/paper-news/arxiv-white.svg";
 import huggingFaceBrand from "../assets/paper-news/huggingface.svg";
 import githubBrand from "../assets/paper-news/github-black.svg";
 import githubWhiteBrand from "../assets/paper-news/github-white.svg";
+import {
+  NEWS_FEED_CATEGORIES,
+  newsCategoryForSource,
+  newsSourcesForCategory,
+  type NewsCategoryId,
+} from "./news-feed-catalog";
 import "./paper-news.css";
+
+const categoryIcons = {
+  research: GraduationCap,
+  development: Code2,
+  technology: Cpu,
+  finance: ChartNoAxesCombined,
+  policy: Landmark,
+  business: BriefcaseBusiness,
+};
 
 const brandAssets = {
   arxiv: arxivBrand,
@@ -46,7 +71,11 @@ const brandAssets = {
 };
 const darkBrandAssets = { arxiv: arxivWhiteBrand, github: githubWhiteBrand };
 
-const names = { arxiv: "arXiv", huggingface: "Hugging Face", github: "GitHub" };
+const names = {
+  arxiv: "arXiv",
+  huggingface: "Hugging Face Papers",
+  github: "GitHub",
+};
 function SourceBrand({ source }: { source: PaperNewsSource }) {
   return (
     <span className={`pn-brand pn-brand-${source}`} aria-hidden="true">
@@ -66,9 +95,20 @@ export function PaperNewsPanel({
   const language = useLanguage();
   const t = (zh: string, en: string) => (language === "zh-CN" ? zh : en);
   const [snapshot, setSnapshot] = useState<PaperNewsSnapshot | null>(null);
-  const [source, setSource] = useState<PaperNewsSource | "all" | "saved">(
-    "all",
+  const [source, setSource] = useState<PaperNewsSource | "all">("all");
+  const [category, setCategory] = useState<NewsCategoryId | "all">("all");
+  const [savedOnly, setSavedOnly] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const activeCategory = NEWS_FEED_CATEGORIES.find(
+    (entry) => entry.id === category,
   );
+  const activeSources = newsSourcesForCategory(category);
+  const categoryUnavailable = category !== "all" && activeSources.length === 0;
+  function selectCategory(next: NewsCategoryId | "all") {
+    setCategory(next);
+    setSource("all");
+    setCatalogOpen(false);
+  }
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("recommended");
   const [settings, setSettings] = useState(false);
@@ -261,11 +301,13 @@ export function PaperNewsPanel({
     }
   }
   const items = useMemo(() => {
-    const pool = source === "saved" ? snapshot?.saved : snapshot?.items;
+    const pool = savedOnly ? snapshot?.saved : snapshot?.items;
     return (pool || [])
       .filter(
         (i) =>
-          (source === "all" || source === "saved" || i.source === source) &&
+          (source === "all" || i.source === source) &&
+          (category === "all" ||
+            newsCategoryForSource(i.source) === category) &&
           `${i.title} ${i.summary} ${i.tags.join(" ")}`
             .toLowerCase()
             .includes(query.toLowerCase()),
@@ -275,7 +317,7 @@ export function PaperNewsPanel({
           ? b.date.localeCompare(a.date)
           : b.score - a.score || b.date.localeCompare(a.date),
       );
-  }, [snapshot, source, query, sort]);
+  }, [snapshot, source, query, sort, category, savedOnly]);
   const formatDate = (value: string) =>
     new Date(value).toLocaleDateString(language, {
       month: "short",
@@ -290,34 +332,37 @@ export function PaperNewsPanel({
         : t("近期更新的开源项目", "Recently active open-source projects");
 
   return (
-    <main className="paper-news-panel" aria-label={t("资讯动态", "News Feed")}>
+    <main
+      className={`paper-news-panel ${categoryUnavailable ? "pn-no-sources" : ""}`}
+      aria-label={t("资讯动态", "News Feed")}
+    >
       <NeoWorkerPageHeader
         title={t("资讯动态", "News Feed")}
         description={t(
-          "汇集你关注的内容，发现新进展，继续阅读与探索。",
-          "Follow your interests, discover what’s new, and explore further.",
+          "从研究到产业，发现值得关注的新进展。",
+          "From research to industry. Discover what matters next.",
         )}
         icon={<Newspaper />}
         actions={
           <>
             <button
               className="pn-button"
-              disabled={busy || !snapshot}
+              disabled={busy || !snapshot || categoryUnavailable}
               aria-expanded={settings}
               onClick={() => {
                 if (settings) setSettings(false);
                 else
                   openSettings(
-                    source === "all" || source === "saved" ? "arxiv" : source,
+                    source === "all" ? activeSources[0] || "arxiv" : source,
                   );
               }}
             >
               <SlidersHorizontal size={16} />
-              {t("来源设置", "Source settings")}
+              {t("关注偏好", "Preferences")}
             </button>
             <button
               className="pn-button pn-primary"
-              disabled={busy || coolingDown}
+              disabled={busy || coolingDown || categoryUnavailable}
               onClick={() => void refresh()}
             >
               <RefreshCw size={16} className={busy ? "pn-spinning" : ""} />
@@ -541,121 +586,220 @@ export function PaperNewsPanel({
             </fieldset>
           </form>
         )}
-        <div className="pn-sources">
-          {PAPER_NEWS_SOURCES.map((s) => {
-            const state = snapshot?.sources[s];
-            return (
-              <div className="pn-source-wrap" key={s}>
+        <section
+          className="pn-discovery"
+          aria-label={t("浏览资讯分类", "Browse news categories")}
+        >
+          <div className="pn-section-label">
+            <div className="pn-section-options">
+              <span>{t("探索领域", "EXPLORE TOPICS")}</span>
+              <button
+                className={`pn-all-topics ${category === "all" ? "is-active" : ""}`}
+                aria-pressed={category === "all"}
+                onClick={() => selectCategory("all")}
+              >
+                <LayoutGrid size={12} />
+                {t("全部动态", "All topics")}
+              </button>
+            </div>
+            <button
+              className="pn-text-button"
+              aria-expanded={catalogOpen}
+              onClick={() => setCatalogOpen(!catalogOpen)}
+            >
+              <Library size={14} />
+              {t("来源目录", "Source directory")}{" "}
+              <span>
+                {NEWS_FEED_CATEGORIES.reduce(
+                  (count, entry) => count + entry.providers.length,
+                  0,
+                )}
+              </span>
+              <ChevronRight size={14} />
+            </button>
+          </div>
+          <nav
+            className="pn-categories"
+            aria-label={t("资讯分类", "News categories")}
+          >
+            {NEWS_FEED_CATEGORIES.map((entry) => {
+              const Icon = categoryIcons[entry.id];
+              return (
                 <button
-                  className={`pn-source pn-source-${s} ${source === s ? "is-active" : ""}`}
-                  aria-pressed={source === s}
-                  onClick={() => setSource(source === s ? "all" : s)}
+                  key={entry.id}
+                  className={`pn-category ${category === entry.id ? "is-active" : ""}`}
+                  aria-pressed={category === entry.id}
+                  onClick={() => selectCategory(entry.id)}
                 >
-                  <span className="pn-source-heading">
-                    <span className="pn-source-identity">
-                      <SourceBrand source={s} />
-                      <strong
-                        className={
-                          s === "arxiv" ? "pn-visually-hidden" : undefined
-                        }
-                      >
-                        {names[s]}
-                      </strong>
-                    </span>
-                    <span className="pn-count">
-                      {state?.error && !state.updatedAt
-                        ? "—"
-                        : snapshot?.items.filter((i) => i.source === s)
-                            .length || 0}
-                    </span>
+                  <span className="pn-category-icon">
+                    <Icon size={21} strokeWidth={1.65} />
                   </span>
-                  <span className="pn-source-description">
-                    {sourceDescription(s)}
-                  </span>
-                  {state?.error && !busy && (
-                    <small className="pn-source-error">
-                      {state.error === "rateLimit"
-                        ? t(
-                            "请求受限，请稍后刷新",
-                            "Request limited; retry later",
-                          )
-                        : state.error === "accessDenied"
-                          ? t(
-                              "来源拒绝访问，请稍后重试",
-                              "Source denied access; try again later",
-                            )
-                          : state.error === "unavailable"
-                            ? t(
-                                "来源服务暂时不可用，将稍后重试",
-                                "Source temporarily unavailable; retry scheduled",
-                              )
-                            : state.error === "invalidResponse"
-                              ? t(
-                                  "来源返回的数据异常，请稍后重试",
-                                  "Unexpected source response; retry later",
-                                )
-                              : t(
-                                  "暂时无法连接，请检查网络或代理",
-                                  "Connection unavailable; check your network or proxy",
-                                )}
-                    </small>
-                  )}
-                  <small className="pn-source-status">
-                    {state?.updatedAt && !state.error && !busy ? (
-                      <CheckCircle2 size={12} aria-hidden="true" />
-                    ) : (
-                      <Clock3 size={12} aria-hidden="true" />
-                    )}
-                    {busy
-                      ? t("正在获取…", "Fetching…")
-                      : state?.updatedAt
-                        ? `${state.error ? t("上次成功获取：", "Last successful fetch: ") : t("获取于 ", "Fetched ")}${new Date(state.updatedAt).toLocaleString(language, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
-                        : state?.error
-                          ? t("尚无缓存内容", "No cached results yet")
-                          : t("等待获取", "Not fetched yet")}
-                  </small>
-                  {state?.nextRetryAt &&
-                    Date.parse(state.nextRetryAt) > clock && (
-                      <small>
-                        {t(
-                          `可在 ${Math.ceil((Date.parse(state.nextRetryAt) - clock) / 60_000)} 分钟后刷新`,
-                          `Refresh available in ${Math.ceil((Date.parse(state.nextRetryAt) - clock) / 60_000)} min`,
-                        )}
-                      </small>
-                    )}
+                  <strong>{t(entry.name, entry.nameEn)}</strong>
+                  <span>{t(entry.description, entry.descriptionEn)}</span>
                 </button>
-                <button
-                  className="pn-icon pn-source-settings"
-                  disabled={busy || !snapshot}
-                  title={t(`设置 ${names[s]}`, `Configure ${names[s]}`)}
-                  aria-label={t(`设置 ${names[s]}`, `Configure ${names[s]}`)}
-                  onClick={() => openSettings(s)}
-                >
-                  <SlidersHorizontal size={14} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <div className="pn-toolbar">
+              );
+            })}
+          </nav>
+        </section>
+        <div className="pn-feed-heading">
+          <div>
+            <h2>
+              {activeCategory
+                ? t(activeCategory.name, activeCategory.nameEn)
+                : t("发现新进展", "Your next discovery")}
+            </h2>
+          </div>
           <div className="pn-tabs">
             <button
-              aria-pressed={source !== "saved"}
-              className={source !== "saved" ? "is-active" : ""}
-              onClick={() => setSource("all")}
+              aria-pressed={!savedOnly}
+              className={!savedOnly ? "is-active" : ""}
+              onClick={() => setSavedOnly(false)}
             >
               <Compass size={15} aria-hidden="true" />
               {t("发现", "Discover")}
             </button>
             <button
-              aria-pressed={source === "saved"}
-              className={source === "saved" ? "is-active" : ""}
-              onClick={() => setSource("saved")}
+              aria-pressed={savedOnly}
+              className={savedOnly ? "is-active" : ""}
+              onClick={() => setSavedOnly(true)}
             >
               <Bookmark size={14} />
               {t("收藏", "Saved")} <span>{snapshot?.saved.length || 0}</span>
             </button>
           </div>
+        </div>
+        {(catalogOpen || categoryUnavailable) && (
+          <section
+            className="pn-directory"
+            aria-label={t("来源目录", "Source directory")}
+          >
+            <div className="pn-directory-heading">
+              <div>
+                <h2>
+                  {catalogOpen
+                    ? t("来源目录", "Source directory")
+                    : t(activeCategory!.name, activeCategory!.nameEn)}
+                </h2>
+                <p>
+                  {t(
+                    "已接入的来源可直接浏览；其余来源正在规划中，无需配置账号或密钥。",
+                    "Connected sources are ready to browse. Other sources are planned; no account or API key setup is needed.",
+                  )}
+                </p>
+              </div>
+              {catalogOpen && (
+                <button
+                  className="pn-icon"
+                  aria-label={t("关闭来源目录", "Close source directory")}
+                  onClick={() => setCatalogOpen(false)}
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+            <div
+              className={`pn-directory-grid ${catalogOpen ? "" : "pn-directory-single"}`}
+            >
+              {NEWS_FEED_CATEGORIES.filter(
+                (entry) => catalogOpen || entry.id === category,
+              ).map((entry) => (
+                <section key={entry.id}>
+                  {catalogOpen && (
+                    <h3>
+                      {t(entry.name, entry.nameEn)}{" "}
+                      <span>{entry.providers.length}</span>
+                    </h3>
+                  )}
+                  <ul>
+                    {entry.providers.map((provider) => (
+                      <li key={provider.id}>
+                        {provider.adapter ? (
+                          <button
+                            className="pn-directory-source"
+                            onClick={() => {
+                              setCategory(entry.id);
+                              setSource(provider.adapter!);
+                              setCatalogOpen(false);
+                            }}
+                          >
+                            <SourceBrand source={provider.adapter} />
+                            <span>
+                              {t(
+                                provider.name,
+                                provider.nameEn || provider.name,
+                              )}
+                            </span>
+                            <span className="pn-connected">
+                              {t("已接入", "Connected")}
+                            </span>
+                            <ArrowRight size={13} />
+                          </button>
+                        ) : (
+                          <div className="pn-directory-source">
+                            <span>
+                              {t(
+                                provider.name,
+                                provider.nameEn || provider.name,
+                              )}
+                            </span>
+                            <small>{t("待接入", "Planned")}</small>
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          </section>
+        )}
+        <div className="pn-toolbar">
+          {!!activeSources.length && (
+            <div
+              className="pn-source-filters"
+              role="group"
+              aria-label={t("筛选来源", "Filter sources")}
+            >
+              <button
+                className={source === "all" ? "is-active" : ""}
+                aria-pressed={source === "all"}
+                onClick={() => setSource("all")}
+              >
+                {t("全部来源", "All sources")}
+              </button>
+              {activeSources.map((entry) => (
+                <button
+                  key={entry}
+                  className={source === entry ? "is-active" : ""}
+                  aria-pressed={source === entry}
+                  onClick={() => setSource(entry)}
+                >
+                  <SourceBrand source={entry} />
+                  <span
+                    className={entry === "arxiv" ? "pn-visually-hidden" : ""}
+                  >
+                    {names[entry]}
+                  </span>
+                  <small>
+                    {(savedOnly ? snapshot?.saved : snapshot?.items)?.filter(
+                      (item) => item.source === entry,
+                    ).length || 0}
+                  </small>
+                </button>
+              ))}
+              <button
+                className="pn-filter-settings"
+                disabled={busy || !snapshot}
+                aria-label={t("调整当前来源偏好", "Adjust source preferences")}
+                onClick={() =>
+                  openSettings(source === "all" ? activeSources[0] : source)
+                }
+              >
+                <SlidersHorizontal size={15} />
+              </button>
+            </div>
+          )}
+
           <label className="pn-search">
             <Search size={16} />
             <input
@@ -680,19 +824,16 @@ export function PaperNewsPanel({
         <div className="pn-context">
           <span aria-live="polite">
             {items.length} {t("条内容", "results")}
-            {source !== "all" && source !== "saved"
-              ? ` · ${names[source]}`
-              : ""}
+            {source !== "all" ? ` · ${names[source]}` : ""}
           </span>
-          <div className="pn-following">
+          <div className="pn-following" hidden={categoryUnavailable}>
             <span>{t("关注", "Following")}</span>
             {(snapshot
               ? [
                   ...new Set(
-                    (source === "all" || source === "saved"
-                      ? PAPER_NEWS_SOURCES
-                      : [source]
-                    ).flatMap((s) => snapshot.config[s].topics),
+                    (source === "all" ? activeSources : [source]).flatMap(
+                      (s) => snapshot.config[s].topics,
+                    ),
                   ),
                 ]
               : []
@@ -715,13 +856,37 @@ export function PaperNewsPanel({
             )}
           </p>
         </details>
-        {!items.length ? (
+        {categoryUnavailable ? (
+          <div className="pn-empty pn-upcoming">
+            <Newspaper size={26} />
+            <h2>
+              {t("这个领域的内容还未接入", "This topic is not connected yet")}
+            </h2>
+            <p>
+              {t(
+                "来源接入后，内容会自动出现在这里。你现在可以先浏览已接入的研究与开源动态。",
+                "Once sources are connected, their stories will appear here automatically. Research and open-source feeds are available now.",
+              )}
+            </p>
+            <button
+              className="pn-button pn-primary"
+              onClick={() => {
+                selectCategory("all");
+                setSavedOnly(false);
+                setQuery("");
+              }}
+            >
+              {t("浏览已有动态", "Explore available stories")}
+              <ArrowRight size={14} />
+            </button>
+          </div>
+        ) : !items.length ? (
           <div className="pn-empty">
             <BookOpen size={28} />
             <h2>
               {busy
                 ? t("正在寻找值得读的内容", "Finding your next read")
-                : source === "saved"
+                : savedOnly
                   ? t(
                       "把想深入读的内容留在这里",
                       "Keep your next deep read here",
@@ -734,7 +899,7 @@ export function PaperNewsPanel({
                     "首次获取可能需要一些时间，你可以切换页面，稍后回来。",
                     "The first fetch may take a moment. You can leave this page and return later.",
                   )
-                : source === "saved"
+                : savedOnly
                   ? t(
                       "点击卡片上的收藏按钮，刷新后仍会保留。",
                       "Bookmark a card to keep it across refreshes.",
@@ -884,6 +1049,113 @@ export function PaperNewsPanel({
               );
             })}
           </div>
+        )}
+        {!!activeSources.length && (
+          <details className="pn-source-health">
+            <summary>
+              <Clock3 size={13} />
+              {t("获取状态与来源设置", "Fetch status and source settings")}
+            </summary>
+            <div className="pn-sources">
+              {activeSources.map((s) => {
+                const state = snapshot?.sources[s];
+                return (
+                  <div className="pn-source-wrap" key={s}>
+                    <button
+                      className={`pn-source pn-source-${s} ${source === s ? "is-active" : ""}`}
+                      aria-pressed={source === s}
+                      onClick={() => setSource(source === s ? "all" : s)}
+                    >
+                      <span className="pn-source-heading">
+                        <span className="pn-source-identity">
+                          <SourceBrand source={s} />
+                          <strong
+                            className={
+                              s === "arxiv" ? "pn-visually-hidden" : undefined
+                            }
+                          >
+                            {names[s]}
+                          </strong>
+                        </span>
+                        <span className="pn-count">
+                          {state?.error && !state.updatedAt
+                            ? "—"
+                            : snapshot?.items.filter((i) => i.source === s)
+                                .length || 0}
+                        </span>
+                      </span>
+                      <span className="pn-source-description">
+                        {sourceDescription(s)}
+                      </span>
+                      {state?.error && !busy && (
+                        <small className="pn-source-error">
+                          {state.error === "rateLimit"
+                            ? t(
+                                "请求受限，请稍后刷新",
+                                "Request limited; retry later",
+                              )
+                            : state.error === "accessDenied"
+                              ? t(
+                                  "来源拒绝访问，请稍后重试",
+                                  "Source denied access; try again later",
+                                )
+                              : state.error === "unavailable"
+                                ? t(
+                                    "来源服务暂时不可用，将稍后重试",
+                                    "Source temporarily unavailable; retry scheduled",
+                                  )
+                                : state.error === "invalidResponse"
+                                  ? t(
+                                      "来源返回的数据异常，请稍后重试",
+                                      "Unexpected source response; retry later",
+                                    )
+                                  : t(
+                                      "暂时无法连接，请检查网络或代理",
+                                      "Connection unavailable; check your network or proxy",
+                                    )}
+                        </small>
+                      )}
+                      <small className="pn-source-status">
+                        {state?.updatedAt && !state.error && !busy ? (
+                          <CheckCircle2 size={12} aria-hidden="true" />
+                        ) : (
+                          <Clock3 size={12} aria-hidden="true" />
+                        )}
+                        {busy
+                          ? t("正在获取…", "Fetching…")
+                          : state?.updatedAt
+                            ? `${state.error ? t("上次成功获取：", "Last successful fetch: ") : t("获取于 ", "Fetched ")}${new Date(state.updatedAt).toLocaleString(language, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
+                            : state?.error
+                              ? t("尚无缓存内容", "No cached results yet")
+                              : t("等待获取", "Not fetched yet")}
+                      </small>
+                      {state?.nextRetryAt &&
+                        Date.parse(state.nextRetryAt) > clock && (
+                          <small>
+                            {t(
+                              `可在 ${Math.ceil((Date.parse(state.nextRetryAt) - clock) / 60_000)} 分钟后刷新`,
+                              `Refresh available in ${Math.ceil((Date.parse(state.nextRetryAt) - clock) / 60_000)} min`,
+                            )}
+                          </small>
+                        )}
+                    </button>
+                    <button
+                      className="pn-icon pn-source-settings"
+                      disabled={busy || !snapshot}
+                      title={t(`设置 ${names[s]}`, `Configure ${names[s]}`)}
+                      aria-label={t(
+                        `设置 ${names[s]}`,
+                        `Configure ${names[s]}`,
+                      )}
+                      onClick={() => openSettings(s)}
+                    >
+                      <SlidersHorizontal size={14} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </details>
         )}
         <p className="pn-footer">
           {t(

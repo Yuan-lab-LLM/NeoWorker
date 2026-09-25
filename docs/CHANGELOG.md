@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Organize News Feed into six topic categories with combined category/source/search/bookmark filters and a 26-provider directory. Mark the three shipping adapters as connected and other providers as planned; preserve cover-free three-column browsing and independent source preferences.
+
 - Simplified News Feed to consistent cover-free cards with official source marks, restrained source-color labels, soft-blue accents, and aligned reading/translation/research actions. Remove thumbnail loading from feed browsing; retain independent source settings and responsive three-column browsing.
 
 - Independent source settings: arXiv topics/category, GitHub topics/language/minimum stars, and Hugging Face interests/matching-only, each with its own time window. Preserve other sources and bookmarks when saving, and migrate legacy shared preferences.

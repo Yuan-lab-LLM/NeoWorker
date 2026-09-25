@@ -1,0 +1,1869 @@
+{
+  "testedSources": 45,
+  "requestAttempts": 78,
+  "method": "fresh Electron profile, NeoWorker fetchWithSystemProxy, credentials omit, no token/API key, inherited system proxy",
+  "counts": {
+    "D：本次未通过": 13,
+    "A：结构化入口通过": 15,
+    "B：网页列表及正文抽查通过": 13,
+    "C：只验证部分公开信息": 4
+  },
+  "requests": [
+    {
+      "category": "academic",
+      "name": "Semantic Scholar",
+      "url": "https://api.semanticscholar.org/graph/v1/paper/search?query=agents&limit=3&fields=title,abstract,url,year",
+      "checkedAt": "2026-09-25T10:02:57.767Z",
+      "route": "SYSTEM_PROXY",
+      "status": 429,
+      "finalUrl": "",
+      "contentType": "application/json",
+      "retryAfter": null,
+      "bytes": 174,
+      "elapsedMs": 734,
+      "summary": {
+        "format": "json",
+        "keys": [
+          "message",
+          "code"
+        ],
+        "itemCount": 0,
+        "message": "Too Many Requests. Please wait and try again or apply for a key for higher rate limits. https://www.semanticscholar.org/product/api#api-key-form"
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "academic",
+      "name": "Hugging Face Papers",
+      "url": "https://huggingface.co/api/daily_papers?limit=3",
+      "checkedAt": "2026-09-25T10:02:57.767Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 15829,
+      "elapsedMs": 932,
+      "summary": {
+        "format": "json",
+        "keys": [],
+        "itemCount": 3,
+        "message": ""
+      },
+      "sampleLinks": [
+        {
+          "url": null,
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        },
+        {
+          "url": null,
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        },
+        {
+          "url": null,
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        }
+      ]
+    },
+    {
+      "category": "academic",
+      "name": "arXiv",
+      "url": "https://export.arxiv.org/api/query?search_query=all:agent&start=0&max_results=3&sortBy=submittedDate&sortOrder=descending",
+      "checkedAt": "2026-09-25T10:02:57.735Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/atom+xml; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 7585,
+      "elapsedMs": 1130,
+      "summary": {
+        "format": "feed",
+        "itemCount": 3
+      },
+      "sampleLinks": [
+        {
+          "url": "https://arxiv.org/abs/2609.30266v1",
+          "date": null,
+          "descriptionChars": 1058,
+          "contentChars": 0
+        },
+        {
+          "url": "https://arxiv.org/abs/2609.30258v1",
+          "date": null,
+          "descriptionChars": 1474,
+          "contentChars": 0
+        },
+        {
+          "url": "https://arxiv.org/abs/2609.30250v1",
+          "date": null,
+          "descriptionChars": 1683,
+          "contentChars": 0
+        }
+      ]
+    },
+    {
+      "category": "academic",
+      "name": "bioRxiv",
+      "url": "https://api.biorxiv.org/details/biorxiv/2026-09-18/2026-09-25/0",
+      "checkedAt": "2026-09-25T10:02:59.051Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/json",
+      "retryAfter": null,
+      "bytes": 0,
+      "elapsedMs": 691,
+      "summary": {
+        "format": "html",
+        "textChars": 0,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "academic",
+      "name": "OpenAlex",
+      "url": "https://api.openalex.org/works?search=agents&per-page=3",
+      "checkedAt": "2026-09-25T10:02:58.854Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/json",
+      "retryAfter": null,
+      "bytes": 61793,
+      "elapsedMs": 1173,
+      "summary": {
+        "format": "json",
+        "keys": [
+          "meta",
+          "results",
+          "group_by"
+        ],
+        "itemCount": 3,
+        "message": ""
+      },
+      "sampleLinks": [
+        {
+          "url": null,
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        },
+        {
+          "url": null,
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        },
+        {
+          "url": null,
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        }
+      ]
+    },
+    {
+      "category": "development",
+      "name": "Hugging Face Models",
+      "url": "https://huggingface.co/api/models?limit=3&sort=downloads&direction=-1",
+      "checkedAt": "2026-09-25T10:03:00.378Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 2660,
+      "elapsedMs": 304,
+      "summary": {
+        "format": "json",
+        "keys": [],
+        "itemCount": 3,
+        "message": ""
+      },
+      "sampleLinks": [
+        {
+          "url": null,
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        },
+        {
+          "url": null,
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        },
+        {
+          "url": null,
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        }
+      ]
+    },
+    {
+      "category": "academic",
+      "name": "SSRN",
+      "url": "https://www.ssrn.com/",
+      "checkedAt": "2026-09-25T10:02:59.221Z",
+      "route": "SYSTEM_PROXY",
+      "status": 403,
+      "finalUrl": "",
+      "contentType": "text/html; charset=UTF-8",
+      "retryAfter": null,
+      "bytes": 896799,
+      "elapsedMs": 1634,
+      "summary": {
+        "format": "html",
+        "textChars": 371,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "academic",
+      "name": "OpenReview",
+      "url": "https://api2.openreview.net/notes?content.venueid=ICLR.cc%2F2026%2FConference&limit=3",
+      "checkedAt": "2026-09-25T10:02:57.767Z",
+      "route": "SYSTEM_PROXY",
+      "status": 403,
+      "finalUrl": "",
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 317,
+      "elapsedMs": 3370,
+      "summary": {
+        "format": "json",
+        "keys": [
+          "name",
+          "message",
+          "status",
+          "details"
+        ],
+        "itemCount": 0,
+        "message": "Challenge verification required (2026-09-25-8885181)"
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "development",
+      "name": "GitHub",
+      "url": "https://api.github.com/search/repositories?q=topic:ai+pushed:>2026-09-18&sort=updated&per_page=3",
+      "checkedAt": "2026-09-25T10:03:00.097Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 17721,
+      "elapsedMs": 1121,
+      "summary": {
+        "format": "json",
+        "keys": [
+          "total_count",
+          "incomplete_results",
+          "items"
+        ],
+        "itemCount": 3,
+        "message": ""
+      },
+      "sampleLinks": [
+        {
+          "url": "https://api.github.com/repos/wanderingcuvul1698/signalforge-ai",
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        },
+        {
+          "url": "https://api.github.com/repos/autonomous-ai/autonomous-workshop",
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        },
+        {
+          "url": "https://api.github.com/repos/badgerpine441746/neotrader-pro",
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        }
+      ]
+    },
+    {
+      "category": "development",
+      "name": "Hacker News",
+      "url": "https://hacker-news.firebaseio.com/v0/topstories.json",
+      "checkedAt": "2026-09-25T10:03:01.033Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 4501,
+      "elapsedMs": 869,
+      "summary": {
+        "format": "json",
+        "keys": [],
+        "itemCount": 500,
+        "message": ""
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "development",
+      "name": "InfoQ China",
+      "url": "https://www.infoq.cn/",
+      "checkedAt": "2026-09-25T10:03:01.207Z",
+      "route": "SYSTEM_PROXY",
+      "status": 403,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 166,
+      "elapsedMs": 1595,
+      "summary": {
+        "format": "html",
+        "textChars": 37,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "development",
+      "name": "Cloudflare Blog",
+      "url": "https://blog.cloudflare.com/rss/",
+      "checkedAt": "2026-09-25T10:03:01.575Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/rss+xml; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 345088,
+      "elapsedMs": 1257,
+      "summary": {
+        "format": "feed",
+        "itemCount": 20
+      },
+      "sampleLinks": [
+        {
+          "url": "https://blog.cloudflare.com/containers-cross-tenant-vulnerability/",
+          "date": null,
+          "descriptionChars": 254,
+          "contentChars": 11883
+        },
+        {
+          "url": "https://blog.cloudflare.com/vary-support/",
+          "date": null,
+          "descriptionChars": 238,
+          "contentChars": 21025
+        },
+        {
+          "url": "https://blog.cloudflare.com/worker-previews/",
+          "date": null,
+          "descriptionChars": 170,
+          "contentChars": 16665
+        }
+      ]
+    },
+    {
+      "category": "development",
+      "name": "Uber Engineering",
+      "url": "https://www.uber.com/blog/engineering/",
+      "checkedAt": "2026-09-25T10:03:02.257Z",
+      "route": "SYSTEM_PROXY",
+      "status": 406,
+      "finalUrl": "",
+      "contentType": "text/plain; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 14,
+      "elapsedMs": 909,
+      "summary": {
+        "format": "html",
+        "textChars": 14,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "technology",
+      "name": "SemiAnalysis",
+      "url": "https://semianalysis.com/feed/",
+      "checkedAt": "2026-09-25T10:03:03.158Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/rss+xml; charset=UTF-8",
+      "retryAfter": null,
+      "bytes": 899327,
+      "elapsedMs": 1318,
+      "summary": {
+        "format": "feed",
+        "itemCount": 10
+      },
+      "sampleLinks": [
+        {
+          "url": "https://semianalysis.com/2025/09/16/xais-colossus-2-first-gigawatt-datacenter/",
+          "date": null,
+          "descriptionChars": 392,
+          "contentChars": 45816
+        },
+        {
+          "url": "https://semianalysis.com/2025/09/10/another-giant-leap-the-rubin-cpx-specialized-accelerator-rack/",
+          "date": null,
+          "descriptionChars": 358,
+          "contentChars": 130665
+        },
+        {
+          "url": "https://semianalysis.com/2025/09/08/huawei-ascend-production-ramp/",
+          "date": null,
+          "descriptionChars": 309,
+          "contentChars": 107255
+        }
+      ]
+    },
+    {
+      "category": "development",
+      "name": "cnblogs",
+      "url": "https://www.cnblogs.com/rss",
+      "checkedAt": "2026-09-25T10:03:01.492Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/xml",
+      "retryAfter": null,
+      "bytes": 29372,
+      "elapsedMs": 3538,
+      "summary": {
+        "format": "feed",
+        "itemCount": 20
+      },
+      "sampleLinks": [
+        {
+          "url": "https://www.cnblogs.com/TangQF/p/23121400",
+          "date": null,
+          "descriptionChars": 150,
+          "contentChars": 231
+        },
+        {
+          "url": "https://www.cnblogs.com/grey-wolf/p/23121156",
+          "date": null,
+          "descriptionChars": 150,
+          "contentChars": 234
+        },
+        {
+          "url": "https://www.cnblogs.com/dominickk/p/23120855",
+          "date": null,
+          "descriptionChars": 150,
+          "contentChars": 234
+        }
+      ]
+    },
+    {
+      "category": "technology",
+      "name": "The Next Platform",
+      "url": "https://www.nextplatform.com/feed/",
+      "checkedAt": "2026-09-25T10:03:03.187Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/xml;charset=UTF-8",
+      "retryAfter": null,
+      "bytes": 68741,
+      "elapsedMs": 2061,
+      "summary": {
+        "format": "feed",
+        "itemCount": 83
+      },
+      "sampleLinks": [
+        {
+          "url": "https://www.nextplatform.com/compute/2026/09/23/improving-quantum-error-correction-by-meshing-surface-code-with-ibms-heavy-hex-architecture/5298457",
+          "date": null,
+          "descriptionChars": 0,
+          "contentChars": 0
+        },
+        {
+          "url": "https://www.nextplatform.com/store/2026/09/22/vector-search-is-now-a-data-type-but-the-money-math-has-not-gone-away/5298393",
+          "date": null,
+          "descriptionChars": 0,
+          "contentChars": 0
+        },
+        {
+          "url": "https://www.nextplatform.com/ai/2026/09/22/sponsored/5298191",
+          "date": null,
+          "descriptionChars": 0,
+          "contentChars": 0
+        }
+      ]
+    },
+    {
+      "category": "technology",
+      "name": "Semiconductor Engineering",
+      "url": "https://semiengineering.com/feed/",
+      "checkedAt": "2026-09-25T10:03:03.523Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/rss+xml; charset=UTF-8",
+      "retryAfter": null,
+      "bytes": 208192,
+      "elapsedMs": 2000,
+      "summary": {
+        "format": "feed",
+        "itemCount": 10
+      },
+      "sampleLinks": [
+        {
+          "url": "https://semiengineering.com/chip-industry-week-in-review-157/",
+          "date": null,
+          "descriptionChars": 494,
+          "contentChars": 53445
+        },
+        {
+          "url": "https://semiengineering.com/a-network-on-chip-noc-for-multi-die-devices/",
+          "date": null,
+          "descriptionChars": 365,
+          "contentChars": 12751
+        },
+        {
+          "url": "https://semiengineering.com/managing-3d-ic-design-and-ip/",
+          "date": null,
+          "descriptionChars": 328,
+          "contentChars": 9307
+        }
+      ]
+    },
+    {
+      "category": "technology",
+      "name": "TrendForce China",
+      "url": "https://www.trendforce.cn/",
+      "checkedAt": "2026-09-25T10:03:04.832Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=UTF-8",
+      "retryAfter": null,
+      "bytes": 121359,
+      "elapsedMs": 2584,
+      "summary": {
+        "format": "html",
+        "textChars": 3261,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "technology",
+      "name": "jiqizhixin",
+      "url": "https://www.jiqizhixin.com/",
+      "checkedAt": "2026-09-25T10:03:05.599Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 13369,
+      "elapsedMs": 1890,
+      "summary": {
+        "format": "html",
+        "textChars": 378,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "technology",
+      "name": "laoyaoba",
+      "url": "https://www.laoyaoba.com/",
+      "checkedAt": "2026-09-25T10:03:05.382Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 132310,
+      "elapsedMs": 2621,
+      "summary": {
+        "format": "html",
+        "textChars": 6244,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "finance",
+      "name": "Jin10",
+      "url": "https://www.jin10.com/",
+      "checkedAt": "2026-09-25T10:03:08.356Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 6254,
+      "elapsedMs": 943,
+      "summary": {
+        "format": "html",
+        "textChars": 122,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "finance",
+      "name": "CLS",
+      "url": "https://www.cls.cn/telegraph",
+      "checkedAt": "2026-09-25T10:03:07.845Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": null,
+      "retryAfter": null,
+      "bytes": 17889,
+      "elapsedMs": 1482,
+      "summary": {
+        "format": "html",
+        "textChars": 521,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "technology",
+      "name": "ChinaTalk",
+      "url": "https://www.chinatalk.media/feed",
+      "checkedAt": "2026-09-25T10:03:07.772Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/xml; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 1489636,
+      "elapsedMs": 1590,
+      "summary": {
+        "format": "feed",
+        "itemCount": 20
+      },
+      "sampleLinks": [
+        {
+          "url": "https://www.chinatalk.media/p/the-xi-state-visit",
+          "date": null,
+          "descriptionChars": 19,
+          "contentChars": 82318
+        },
+        {
+          "url": "https://www.chinatalk.media/p/can-ai-beat-the-pentagons-bureaucracy",
+          "date": null,
+          "descriptionChars": 95,
+          "contentChars": 70014
+        },
+        {
+          "url": "https://www.chinatalk.media/p/i-went-to-kyrgyzstan-to-find-chinas",
+          "date": null,
+          "descriptionChars": 41,
+          "contentChars": 120066
+        }
+      ]
+    },
+    {
+      "category": "finance",
+      "name": "Wallstreetcn",
+      "url": "https://wallstreetcn.com/",
+      "checkedAt": "2026-09-25T10:03:09.717Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 102990,
+      "elapsedMs": 1333,
+      "summary": {
+        "format": "html",
+        "textChars": 1844,
+        "challenge": true
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "finance",
+      "name": "CNINFO",
+      "url": "https://www.cninfo.com.cn/new/index",
+      "checkedAt": "2026-09-25T10:03:09.656Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html;charset=utf-8",
+      "retryAfter": null,
+      "bytes": 110224,
+      "elapsedMs": 2274,
+      "summary": {
+        "format": "html",
+        "textChars": 3043,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "finance",
+      "name": "Yicai",
+      "url": "https://www.yicai.com/",
+      "checkedAt": "2026-09-25T10:03:09.679Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 1151971,
+      "elapsedMs": 2975,
+      "summary": {
+        "format": "html",
+        "textChars": 10185,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "finance",
+      "name": "SEC EDGAR",
+      "url": "https://data.sec.gov/submissions/CIK0000320193.json",
+      "checkedAt": "2026-09-25T10:03:12.283Z",
+      "route": "SYSTEM_PROXY",
+      "status": 403,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 4819,
+      "elapsedMs": 792,
+      "summary": {
+        "format": "html",
+        "textChars": 2992,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "finance",
+      "name": "Tushare",
+      "url": "https://api.tushare.pro",
+      "checkedAt": "2026-09-25T10:03:11.402Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 80,
+      "elapsedMs": 1998,
+      "summary": {
+        "format": "json",
+        "keys": [
+          "request_id",
+          "code",
+          "data",
+          "msg",
+          "detail"
+        ],
+        "itemCount": 0,
+        "message": "您上传Token！"
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "finance",
+      "name": "Alpha Vantage",
+      "url": "https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=IBM",
+      "checkedAt": "2026-09-25T10:03:13.011Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/json",
+      "retryAfter": null,
+      "bytes": 189,
+      "elapsedMs": 1265,
+      "summary": {
+        "format": "json",
+        "keys": [
+          "Error Message"
+        ],
+        "itemCount": 0,
+        "message": "the parameter apikey is invalid or missing. Please claim your free API key on (https://www.alphavantage.co/support/#api-key). It should take less than 20 seconds."
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "policy",
+      "name": "PBOC",
+      "url": "https://www.pbc.gov.cn/",
+      "checkedAt": "2026-09-25T10:03:13.429Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 141143,
+      "elapsedMs": 1550,
+      "summary": {
+        "format": "html",
+        "textChars": 3007,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "technology",
+      "name": "EE Times China",
+      "url": "https://www.eet-china.com/",
+      "checkedAt": "2026-09-25T10:03:05.879Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 309034,
+      "elapsedMs": 9276,
+      "summary": {
+        "format": "html",
+        "textChars": 12595,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "policy",
+      "name": "NDRC",
+      "url": "https://www.ndrc.gov.cn/",
+      "checkedAt": "2026-09-25T10:03:14.632Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 87741,
+      "elapsedMs": 1346,
+      "summary": {
+        "format": "html",
+        "textChars": 5928,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "policy",
+      "name": "MIIT",
+      "url": "https://www.miit.gov.cn/",
+      "checkedAt": "2026-09-25T10:03:15.335Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 68820,
+      "elapsedMs": 1384,
+      "summary": {
+        "format": "html",
+        "textChars": 4652,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "policy",
+      "name": "Federal Reserve",
+      "url": "https://www.federalreserve.gov/feeds/press_monetary.xml",
+      "checkedAt": "2026-09-25T10:03:16.334Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/xml",
+      "retryAfter": null,
+      "bytes": 9645,
+      "elapsedMs": 441,
+      "summary": {
+        "format": "feed",
+        "itemCount": 15
+      },
+      "sampleLinks": [
+        {
+          "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm",
+          "date": null,
+          "descriptionChars": 37,
+          "contentChars": 0
+        },
+        {
+          "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916b.htm",
+          "date": null,
+          "descriptionChars": 122,
+          "contentChars": 0
+        },
+        {
+          "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260825a.htm",
+          "date": null,
+          "descriptionChars": 78,
+          "contentChars": 0
+        }
+      ]
+    },
+    {
+      "category": "policy",
+      "name": "NBS China",
+      "url": "https://www.stats.gov.cn/",
+      "checkedAt": "2026-09-25T10:03:13.755Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 140496,
+      "elapsedMs": 3153,
+      "summary": {
+        "format": "html",
+        "textChars": 6919,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "policy",
+      "name": "IMF",
+      "url": "https://www.imf.org/en/publications",
+      "checkedAt": "2026-09-25T10:03:17.074Z",
+      "route": "SYSTEM_PROXY",
+      "status": 403,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 382,
+      "elapsedMs": 412,
+      "summary": {
+        "format": "html",
+        "textChars": 302,
+        "challenge": true
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "policy",
+      "name": "World Bank",
+      "url": "https://www.worldbank.org/en/research",
+      "checkedAt": "2026-09-25T10:03:17.130Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html;charset=utf-8",
+      "retryAfter": null,
+      "bytes": 91410,
+      "elapsedMs": 684,
+      "summary": {
+        "format": "html",
+        "textChars": 6462,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "policy",
+      "name": "FRED",
+      "url": "https://api.stlouisfed.org/fred/series/observations?series_id=GDP&file_type=json",
+      "checkedAt": "2026-09-25T10:03:17.262Z",
+      "route": "SYSTEM_PROXY",
+      "status": 400,
+      "finalUrl": "",
+      "contentType": "application/json; charset=UTF-8",
+      "retryAfter": null,
+      "bytes": 162,
+      "elapsedMs": 927,
+      "summary": {
+        "format": "json",
+        "keys": [
+          "error_code",
+          "error_message"
+        ],
+        "itemCount": 0,
+        "message": ""
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "policy",
+      "name": "CSRC",
+      "url": "https://www.csrc.gov.cn/",
+      "checkedAt": "2026-09-25T10:03:15.507Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 221695,
+      "elapsedMs": 3252,
+      "summary": {
+        "format": "html",
+        "textChars": 8547,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "business",
+      "name": "Stratechery",
+      "url": "https://stratechery.com/feed/",
+      "checkedAt": "2026-09-25T10:03:18.169Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/rss+xml; charset=UTF-8",
+      "retryAfter": null,
+      "bytes": 57548,
+      "elapsedMs": 777,
+      "summary": {
+        "format": "feed",
+        "itemCount": 10
+      },
+      "sampleLinks": [
+        {
+          "url": "https://stratechery.com/2026/an-interview-with-colossus-eic-jeremy-stern-about-profiling-mark-zuckerberg/",
+          "date": null,
+          "descriptionChars": 109,
+          "contentChars": 116
+        },
+        {
+          "url": "https://stratechery.com/2026/more-on-muse-amazon-and-walmart-muse-and-expedia-whither-google/",
+          "date": null,
+          "descriptionChars": 113,
+          "contentChars": 120
+        },
+        {
+          "url": "https://stratechery.com/2026/amazon-blocks-muse-amazons-moat-aggregator-v-aggregator/",
+          "date": null,
+          "descriptionChars": 139,
+          "contentChars": 146
+        }
+      ]
+    },
+    {
+      "category": "business",
+      "name": "Benedict Evans",
+      "url": "https://www.ben-evans.com/benedictevans?format=rss",
+      "checkedAt": "2026-09-25T10:03:18.542Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/rss+xml; charset=UTF-8",
+      "retryAfter": null,
+      "bytes": 419998,
+      "elapsedMs": 1242,
+      "summary": {
+        "format": "feed",
+        "itemCount": 20
+      },
+      "sampleLinks": [
+        {
+          "url": "https://www.ben-evans.com/benedictevans/2026/9/3/ai-tools-and-transformation",
+          "date": null,
+          "descriptionChars": 349,
+          "contentChars": 13757
+        },
+        {
+          "url": "https://www.ben-evans.com/benedictevans/2026/7/9/ways-to-think-about-token-pricing",
+          "date": null,
+          "descriptionChars": 269,
+          "contentChars": 21341
+        },
+        {
+          "url": "https://www.ben-evans.com/benedictevans/2026/5/24/ai-job-exposure",
+          "date": null,
+          "descriptionChars": 345,
+          "contentChars": 20788
+        }
+      ]
+    },
+    {
+      "category": "business",
+      "name": "Harvard Business Review",
+      "url": "https://hbr.org/feed",
+      "checkedAt": "2026-09-25T10:03:19.111Z",
+      "route": "SYSTEM_PROXY",
+      "status": 404,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 59913,
+      "elapsedMs": 854,
+      "summary": {
+        "format": "html",
+        "textChars": 2647,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "business",
+      "name": "Huxiu",
+      "url": "https://www.huxiu.com/",
+      "checkedAt": "2026-09-25T10:03:17.842Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html;charset=utf-8",
+      "retryAfter": null,
+      "bytes": 211911,
+      "elapsedMs": 2197,
+      "summary": {
+        "format": "html",
+        "textChars": 2531,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "business",
+      "name": "McKinsey",
+      "url": "https://www.mckinsey.com/featured-insights",
+      "checkedAt": "2026-09-25T10:03:19.299Z",
+      "route": "SYSTEM_PROXY",
+      "error": "net::ERR_HTTP2_PROTOCOL_ERROR",
+      "elapsedMs": 769,
+      "summary": {},
+      "sampleLinks": []
+    },
+    {
+      "category": "business",
+      "name": "BCG",
+      "url": "https://www.bcg.com/publications",
+      "checkedAt": "2026-09-25T10:03:20.139Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html;charset=UTF-8",
+      "retryAfter": null,
+      "bytes": 1043923,
+      "elapsedMs": 915,
+      "summary": {
+        "format": "html",
+        "textChars": 27981,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "finance",
+      "name": "Jin10 MCP anonymous",
+      "url": "https://mcp.jin10.com/mcp",
+      "checkedAt": "2026-09-25T10:03:48.622Z",
+      "route": "SYSTEM_PROXY",
+      "status": 401,
+      "finalUrl": "",
+      "contentType": "text/plain; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 16,
+      "elapsedMs": 1097,
+      "summary": {
+        "format": "html",
+        "textChars": 15,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "business",
+      "name": "HBR homepage",
+      "url": "https://hbr.org/",
+      "checkedAt": "2026-09-25T10:03:48.622Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 371902,
+      "elapsedMs": 1110,
+      "summary": {
+        "format": "html",
+        "textChars": 7326,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "technology",
+      "name": "SemiAnalysis current feed",
+      "url": "https://newsletter.semianalysis.com/feed",
+      "checkedAt": "2026-09-25T10:03:48.586Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/xml; charset=utf-8",
+      "retryAfter": null,
+      "truncated": true,
+      "bytes": 2162688,
+      "error": "Hierarchy request error: Unexpected node type 4 for parent node type 9",
+      "elapsedMs": 1205,
+      "summary": {},
+      "sampleLinks": []
+    },
+    {
+      "category": "academic",
+      "name": "bioRxiv recent endpoint",
+      "url": "https://api.biorxiv.org/details/biorxiv/2026-09-20/2026-09-25",
+      "checkedAt": "2026-09-25T10:03:48.622Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/json",
+      "retryAfter": null,
+      "bytes": 0,
+      "elapsedMs": 1774,
+      "summary": {
+        "format": "html",
+        "textChars": 0,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "finance",
+      "name": "Yicai article",
+      "url": "https://www.yicai.com/news/103378090.html",
+      "checkedAt": "2026-09-25T10:03:50.075Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 19760,
+      "elapsedMs": 421,
+      "summary": {
+        "format": "html",
+        "textChars": 2030,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "technology",
+      "name": "TrendForce China article",
+      "url": "https://www.trendforce.cn/presscenter/news/20260924-13251.html",
+      "checkedAt": "2026-09-25T10:03:50.083Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=UTF-8",
+      "retryAfter": null,
+      "bytes": 97898,
+      "elapsedMs": 1089,
+      "summary": {
+        "format": "html",
+        "textChars": 2231,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "technology",
+      "name": "laoyaoba article",
+      "url": "https://www.laoyaoba.com/n/1112935",
+      "checkedAt": "2026-09-25T10:03:50.147Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 57234,
+      "elapsedMs": 1651,
+      "summary": {
+        "format": "html",
+        "textChars": 5547,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "policy",
+      "name": "NDRC article",
+      "url": "https://www.ndrc.gov.cn/xwdt/xwfb/202609/t20260924_1407824.html",
+      "checkedAt": "2026-09-25T10:03:51.527Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 5908,
+      "elapsedMs": 776,
+      "summary": {
+        "format": "html",
+        "textChars": 458,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "policy",
+      "name": "PBOC article",
+      "url": "https://www.pbc.gov.cn/goutongjiaoliu/113456/113469/2026092416074632670/index.html",
+      "checkedAt": "2026-09-25T10:03:50.853Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 27807,
+      "elapsedMs": 1764,
+      "summary": {
+        "format": "html",
+        "textChars": 1817,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "policy",
+      "name": "MIIT article",
+      "url": "https://www.miit.gov.cn/xwfb/szyw/art/2026/art_73c0b9fd8cf44916a3d35aad9c0b1c3b.html",
+      "checkedAt": "2026-09-25T10:03:52.154Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 21312,
+      "elapsedMs": 1071,
+      "summary": {
+        "format": "html",
+        "textChars": 1661,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "policy",
+      "name": "CSRC article",
+      "url": "https://www.csrc.gov.cn/csrc/c100028/c7659506/content.shtml",
+      "checkedAt": "2026-09-25T10:03:52.658Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 17371,
+      "elapsedMs": 1507,
+      "summary": {
+        "format": "html",
+        "textChars": 1700,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "finance",
+      "name": "Wallstreetcn article",
+      "url": "https://wallstreetcn.com/articles/3782517",
+      "checkedAt": "2026-09-25T10:03:54.519Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 31733,
+      "elapsedMs": 693,
+      "summary": {
+        "format": "html",
+        "textChars": 1251,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "business",
+      "name": "BCG article",
+      "url": "https://www.bcg.com/publications/2026/how-cfos-shift-from-reporting-to-value",
+      "checkedAt": "2026-09-25T10:03:53.579Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html;charset=UTF-8",
+      "retryAfter": null,
+      "bytes": 918384,
+      "elapsedMs": 1962,
+      "summary": {
+        "format": "html",
+        "textChars": 35691,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "development",
+      "name": "Cloudflare Blog article",
+      "url": "https://blog.cloudflare.com/containers-cross-tenant-vulnerability/",
+      "checkedAt": "2026-09-25T10:03:55.896Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 290859,
+      "elapsedMs": 430,
+      "summary": {
+        "format": "html",
+        "textChars": 22573,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "finance",
+      "name": "CNINFO article",
+      "url": "https://www.cninfo.com.cn/new/disclosure/detail?stockCode=600095&orgId=gssh0600095&announcementId=1225583316&announcementTime=2026-09-25",
+      "checkedAt": "2026-09-25T10:03:55.568Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html;charset=utf-8",
+      "retryAfter": null,
+      "bytes": 9381,
+      "elapsedMs": 839,
+      "summary": {
+        "format": "html",
+        "textChars": 268,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "technology",
+      "name": "The Next Platform article",
+      "url": "https://www.nextplatform.com/compute/2026/09/23/improving-quantum-error-correction-by-meshing-surface-code-with-ibms-heavy-hex-architecture/5298457",
+      "checkedAt": "2026-09-25T10:03:56.761Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=UTF-8",
+      "retryAfter": null,
+      "bytes": 211286,
+      "elapsedMs": 948,
+      "summary": {
+        "format": "html",
+        "textChars": 10008,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "business",
+      "name": "Huxiu article",
+      "url": "https://www.huxiu.com/article/4893935.html",
+      "checkedAt": "2026-09-25T10:03:52.976Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html;charset=utf-8",
+      "retryAfter": null,
+      "bytes": 117881,
+      "elapsedMs": 4831,
+      "summary": {
+        "format": "html",
+        "textChars": 5823,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "technology",
+      "name": "Semiconductor Engineering article",
+      "url": "https://semiengineering.com/chip-industry-week-in-review-157/",
+      "checkedAt": "2026-09-25T10:03:56.680Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=UTF-8",
+      "retryAfter": null,
+      "bytes": 913502,
+      "elapsedMs": 1859,
+      "summary": {
+        "format": "html",
+        "textChars": 34368,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "technology",
+      "name": "ChinaTalk article",
+      "url": "https://www.chinatalk.media/p/the-xi-state-visit",
+      "checkedAt": "2026-09-25T10:03:58.064Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 334651,
+      "elapsedMs": 675,
+      "summary": {
+        "format": "html",
+        "textChars": 48979,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "business",
+      "name": "Stratechery article",
+      "url": "https://stratechery.com/2026/an-interview-with-colossus-eic-jeremy-stern-about-profiling-mark-zuckerberg/",
+      "checkedAt": "2026-09-25T10:03:58.159Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=UTF-8",
+      "retryAfter": null,
+      "bytes": 308435,
+      "elapsedMs": 812,
+      "summary": {
+        "format": "html",
+        "textChars": 8235,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "business",
+      "name": "Benedict Evans article",
+      "url": "https://www.ben-evans.com/benedictevans/2026/9/3/ai-tools-and-transformation",
+      "checkedAt": "2026-09-25T10:03:58.894Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html;charset=utf-8",
+      "retryAfter": null,
+      "bytes": 92548,
+      "elapsedMs": 651,
+      "summary": {
+        "format": "html",
+        "textChars": 14316,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "development",
+      "name": "Hacker News item",
+      "url": "https://hacker-news.firebaseio.com/v0/item/49841563.json",
+      "checkedAt": "2026-09-25T10:03:59.092Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 306,
+      "elapsedMs": 491,
+      "summary": {
+        "format": "json",
+        "keys": [
+          "by",
+          "descendants",
+          "id",
+          "kids",
+          "score",
+          "time",
+          "title",
+          "type",
+          "url"
+        ],
+        "itemCount": 0,
+        "message": ""
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "academic",
+      "name": "arXiv repeat",
+      "url": "https://export.arxiv.org/api/query?search_query=all:agent&start=0&max_results=3&sortBy=submittedDate&sortOrder=descending",
+      "checkedAt": "2026-09-25T10:03:59.327Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/atom+xml; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 7585,
+      "elapsedMs": 404,
+      "summary": {
+        "format": "feed",
+        "itemCount": 3
+      },
+      "sampleLinks": [
+        {
+          "url": "https://arxiv.org/abs/2609.30266v1",
+          "date": "2026-09-24T17:59:54Z",
+          "descriptionChars": 1058,
+          "contentChars": 0
+        },
+        {
+          "url": "https://arxiv.org/abs/2609.30258v1",
+          "date": "2026-09-24T17:59:18Z",
+          "descriptionChars": 1474,
+          "contentChars": 0
+        },
+        {
+          "url": "https://arxiv.org/abs/2609.30250v1",
+          "date": "2026-09-24T17:58:43Z",
+          "descriptionChars": 1683,
+          "contentChars": 0
+        }
+      ]
+    },
+    {
+      "category": "finance",
+      "name": "Yicai repeat",
+      "url": "https://www.yicai.com/",
+      "checkedAt": "2026-09-25T10:04:00.086Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 1151971,
+      "elapsedMs": 253,
+      "summary": {
+        "format": "html",
+        "textChars": 10185,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "academic",
+      "name": "Hugging Face Papers repeat",
+      "url": "https://huggingface.co/api/daily_papers?limit=3",
+      "checkedAt": "2026-09-25T10:03:59.898Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 15829,
+      "elapsedMs": 538,
+      "summary": {
+        "format": "json",
+        "keys": [],
+        "itemCount": 3,
+        "message": ""
+      },
+      "sampleLinks": [
+        {
+          "url": null,
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        },
+        {
+          "url": null,
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        },
+        {
+          "url": null,
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        }
+      ]
+    },
+    {
+      "category": "development",
+      "name": "GitHub repeat",
+      "url": "https://api.github.com/search/repositories?q=topic:ai+pushed:>2026-09-18&sort=updated&per_page=3",
+      "checkedAt": "2026-09-25T10:03:59.939Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/json; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 17605,
+      "elapsedMs": 797,
+      "summary": {
+        "format": "json",
+        "keys": [
+          "total_count",
+          "incomplete_results",
+          "items"
+        ],
+        "itemCount": 3,
+        "message": ""
+      },
+      "sampleLinks": [
+        {
+          "url": "https://api.github.com/repos/spicymeadowcalu5982/momentumx-scalper",
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        },
+        {
+          "url": "https://api.github.com/repos/summitedge147603/cryptopulse-ai",
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        },
+        {
+          "url": "https://api.github.com/repos/MIgHTy-alIeN/ai-trader-bot",
+          "date": null,
+          "descriptionChars": null,
+          "contentChars": null
+        }
+      ]
+    },
+    {
+      "category": "technology",
+      "name": "EE Times China article",
+      "url": "https://www.eet-china.com/news/202609245234.html",
+      "checkedAt": "2026-09-25T10:03:50.750Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 139378,
+      "elapsedMs": 10812,
+      "summary": {
+        "format": "html",
+        "textChars": 11227,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "detail",
+      "name": "HBR article",
+      "url": "https://hbr.org/2026/11/your-chatbot-will-define-your-brand?ab=HP-hero-featured-1",
+      "checkedAt": "2026-09-25T10:04:24.164Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 174030,
+      "elapsedMs": 1190,
+      "summary": {
+        "format": "html",
+        "textChars": 4424,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "finance",
+      "name": "CLS homepage",
+      "url": "https://www.cls.cn/",
+      "checkedAt": "2026-09-25T10:04:24.164Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 205034,
+      "elapsedMs": 1341,
+      "summary": {
+        "format": "html",
+        "textChars": 6630,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "technology",
+      "name": "SemiAnalysis current feed full",
+      "url": "https://newsletter.semianalysis.com/feed",
+      "checkedAt": "2026-09-25T10:04:24.132Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "application/xml; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 3431543,
+      "elapsedMs": 1661,
+      "summary": {
+        "format": "feed",
+        "itemCount": 20
+      },
+      "sampleLinks": [
+        {
+          "url": "https://newsletter.semianalysis.com/p/clustermax-30-the-industry-standard",
+          "date": "Wed, 23 Sep 2026 21:20:29 GMT",
+          "descriptionChars": 158,
+          "contentChars": 571185
+        },
+        {
+          "url": "https://newsletter.semianalysis.com/p/computation-and-data-movement-for",
+          "date": "Mon, 21 Sep 2026 18:14:15 GMT",
+          "descriptionChars": 82,
+          "contentChars": 216670
+        },
+        {
+          "url": "https://newsletter.semianalysis.com/p/engrams-embedding-entendre-codesign",
+          "date": "Fri, 18 Sep 2026 14:34:20 GMT",
+          "descriptionChars": 115,
+          "contentChars": 109422
+        }
+      ]
+    },
+    {
+      "category": "detail",
+      "name": "CLS article",
+      "url": "https://www.cls.cn/detail/2492622",
+      "checkedAt": "2026-09-25T10:04:52.025Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": null,
+      "retryAfter": null,
+      "bytes": 19710,
+      "elapsedMs": 999,
+      "summary": {
+        "format": "html",
+        "textChars": 1318,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "detail",
+      "name": "SemiAnalysis current article",
+      "url": "https://newsletter.semianalysis.com/p/clustermax-30-the-industry-standard",
+      "checkedAt": "2026-09-25T10:04:52.061Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html; charset=utf-8",
+      "retryAfter": null,
+      "bytes": 1395461,
+      "elapsedMs": 1015,
+      "summary": {
+        "format": "html",
+        "textChars": 184489,
+        "challenge": false
+      },
+      "sampleLinks": []
+    },
+    {
+      "category": "policy",
+      "name": "NBS release",
+      "url": "https://www.stats.gov.cn/sj/zxfbhjd/202609/t20260923_1965403.html",
+      "checkedAt": "2026-09-25T10:04:52.061Z",
+      "route": "SYSTEM_PROXY",
+      "status": 200,
+      "finalUrl": "",
+      "contentType": "text/html",
+      "retryAfter": null,
+      "bytes": 435858,
+      "elapsedMs": 6250,
+      "summary": {
+        "format": "html",
+        "textChars": 9765,
+        "challenge": false
+      },
+      "sampleLinks": []
+    }
+  ]
+}
