@@ -1,5 +1,5 @@
 import { newsTaskDraft, type NewsTaskContext } from "../../shared/news-task-draft";
-import { BrowserView } from "./BrowserView";
+import { BrowserWorkbenchView } from "./BrowserWorkbenchView";
 import type { NewsSummaryResult } from "../../shared/news-summary";
 import { useNewsCardTranslations } from "./useNewsCardTranslations";
 import { isHfHubSource } from "../../shared/news-hub";
@@ -43,7 +43,6 @@ import {
 import {
   PAPER_NEWS_SOURCES,
   type PaperNewsConfig,
-  paperNewsNeedsRefresh,
   type PaperNewsAction,
   type PaperNewsItem,
   type PaperNewsSnapshot,
@@ -255,6 +254,7 @@ export function PaperNewsPanel({
   ) as Record<PaperNewsSource, string>;
   const [newsBrowserUrl, setNewsBrowserUrl] = useState<string | null>(null);
   const newsBrowserRef = useRef<HTMLDivElement>(null);
+  const [browserFullscreen, setBrowserFullscreen] = useState(false);
   const newsTitleRef = useRef<HTMLButtonElement | null>(null);
   const [summaryStates, setSummaryStates] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -350,19 +350,12 @@ export function PaperNewsPanel({
         const state = await window.electronAPI.getPaperNews();
         if (disposed) return;
         setSnapshot(state);
-        if (paperNewsNeedsRefresh(state, Date.now())) {
-          busyRef.current = true;
-          setBusy(true);
-          const next = await window.electronAPI.refreshPaperNews();
-          if (!disposed) setSnapshot(next);
-        }
+        // Re-entering the feed reads the local cache only. Join an existing
+        // refresh without starting another network request.
+        busyRef.current = state.refreshing;
+        setBusy(state.refreshing);
       } catch {
         if (!disposed) setFailure("load");
-      } finally {
-        if (!disposed) {
-          setBusy(false);
-          busyRef.current = false;
-        }
       }
     };
     void load();
@@ -389,18 +382,6 @@ export function PaperNewsPanel({
       if (mounted.current) setBusy(false);
     }
   }
-  useEffect(() => {
-    if (!snapshot || busy || busyRef.current || settings || failure || document.hidden) return;
-    const retryDue = activeSources.some((s) => {
-      const state = snapshot.sources[s] || {};
-      return (
-        (!state.updatedAt || state.error) &&
-        !["accessDenied", "invalidResponse"].includes(state.error || "") &&
-        (!state.nextRetryAt || Date.parse(state.nextRetryAt) <= clock)
-      );
-    });
-    if (retryDue) void refresh();
-  }, [snapshot, busy, clock, settings, failure]);
 
   useEffect(() => {
     if (!busy) return;
@@ -411,7 +392,13 @@ export function PaperNewsPanel({
       pending = true;
       try {
         const next = await window.electronAPI.getPaperNews();
-        if (!disposed && mounted.current) setSnapshot(next);
+        if (!disposed && mounted.current) {
+          setSnapshot(next);
+          if (!next.refreshing) {
+            busyRef.current = false;
+            setBusy(false);
+          }
+        }
       } catch {
         /* Keep the current cards while the refresh request reports its result. */
       } finally {
@@ -556,9 +543,9 @@ export function PaperNewsPanel({
             : t("公开资讯与原文链接", "Public stories and source links");
 
   return (
-    <>
+    <div className="pn-workspace">
     <main
-      inert={Boolean(newsBrowserUrl)}
+      inert={Boolean(newsBrowserUrl && browserFullscreen)}
       ref={panelRef}
       className={`paper-news-panel ${categoryUnavailable ? "pn-no-sources" : ""}`}
       aria-label={t("资讯动态", "News Feed")}
@@ -1080,6 +1067,7 @@ export function PaperNewsPanel({
                       )}
                     </div>
                   )}
+                  <div className="pn-card-footer">
                   <div className="pn-tags">
                     {isHfHubSource(item.source) && (
                       <span>
@@ -1133,7 +1121,7 @@ export function PaperNewsPanel({
                               : t("原文", "Source")}
                     </button>
                     {item.pdfUrl && (
-                      <button onClick={() => void open(item.pdfUrl!)}>
+                      <button title={t("在 NeoWorker 浏览器中打开", "Open in NeoWorker browser")} onClick={(event) => { newsTitleRef.current = event.currentTarget; setNewsBrowserUrl(item.pdfUrl!); }}>
                         <FileText size={13} />
                         PDF
                       </button>
@@ -1174,6 +1162,7 @@ export function PaperNewsPanel({
                       <FlaskConical size={15} />
                       {t("深入研究", "Research")}
                     </button>
+                  </div>
                   </div>
                 </article>
               );
@@ -1289,10 +1278,18 @@ export function PaperNewsPanel({
       </div>
     </main>
     {newsBrowserUrl && (
-      <div className="pn-browser-overlay" role="dialog" aria-modal="true" aria-label={t("NeoWorker 浏览器", "NeoWorker browser")} tabIndex={-1} ref={newsBrowserRef}>
-        <BrowserView initialUrl={newsBrowserUrl} onBack={() => setNewsBrowserUrl(null)} />
+      <div className={`pn-browser-sidebar${browserFullscreen ? " is-fullscreen" : ""}`} role="region" aria-label={t("NeoWorker 浏览器", "NeoWorker browser")} tabIndex={-1} ref={newsBrowserRef}>
+        <BrowserWorkbenchView
+          taskId="news-feed-preview"
+          sessionId="news-feed"
+          initialUrl={newsBrowserUrl}
+          mode={browserFullscreen ? "fullscreen" : "sidebar"}
+          onClose={() => { setNewsBrowserUrl(null); setBrowserFullscreen(false); }}
+          onFullscreen={() => setBrowserFullscreen(true)}
+          onExitFullscreen={() => setBrowserFullscreen(false)}
+        />
       </div>
     )}
-    </>
+    </div>
   );
 }

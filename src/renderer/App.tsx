@@ -1,3 +1,4 @@
+import { NewsBrowserContext } from "./components/news-browser-context";
 import type { NewsTaskContext } from "../shared/news-task-draft";
 import {
   memo,
@@ -265,11 +266,6 @@ const BrowserWorkbenchView = lazy(() =>
 const SpawnedAgentSidebar = lazy(() =>
   import("./components/SpawnedAgentSidebar").then((module) => ({
     default: module.SpawnedAgentSidebar,
-  })),
-);
-const BrowserView = lazy(() =>
-  import("./components/BrowserView").then((module) => ({
-    default: module.BrowserView,
   })),
 );
 const HomeDashboard = lazy(() =>
@@ -1958,95 +1954,97 @@ const SelectedTaskWorkspaceView = memo(
       >
         <div className="selected-workspace-main-row">
           <Suspense fallback={<TaskViewSkeleton />}>
-            <MainContent
-              task={task}
-              selectedTaskId={selectedTaskId}
-              optimisticFollowUpStartedAt={optimisticFollowUpStartedAt}
-              workspace={workspace}
-              projectId={projectId}
-              events={
-                replayControls.isReplayMode
-                  ? replayControls.replayEvents
-                  : events
-              }
-              sharedTaskEventUi={
-                replayControls.isReplayMode ? null : sharedTaskEventUi
-              }
-              replayControls={replayControls}
-              childTasks={remoteTaskView ? [] : childTasks}
-              childEvents={remoteTaskView ? [] : childEvents}
-              onSelectChildTask={onSelectChildTask}
-              onSelectTask={onSelectTask}
-              onOpenProject={onOpenProject}
-              onProjectAssigned={onProjectAssigned}
-              onOpenProjects={onOpenProjects}
-              onOpenTaskAccess={onRevealRightSidebar}
-              onSendMessage={onSendMessage}
-              onStartOnboarding={onStartOnboarding}
-              showInlineOnboarding={showInlineOnboarding}
-              onCompleteInlineOnboarding={onCompleteInlineOnboarding}
-              onStartFreshSession={onStartFreshSession}
-              onCreateTask={onCreateTask}
-              onAskInbox={onAskInbox}
-              onChangeWorkspace={onChangeWorkspace}
-              onSelectWorkspace={onSelectWorkspace}
-              onOpenSettings={onOpenSettings as Any}
-              onOpenAgentManagement={onOpenAgentManagement}
-              onStopTask={onStopTask}
-              onEnableShellForPausedTask={onEnableShellForPausedTask}
-              onContinueWithoutShellForPausedTask={
-                onContinueWithoutShellForPausedTask
-              }
-              onWrapUpTask={onWrapUpTask}
-              onOpenApproval={remoteTaskView ? undefined : onOpenApproval}
-              inputRequest={activeInputRequest}
-              pendingInputRequests={pendingInputRequests}
-              composerDraftRequest={composerDraftRequest}
-              onComposerDraftConsumed={onComposerDraftConsumed}
-              onSubmitInputRequest={onSubmitInputRequest}
-              onDismissInputRequest={onDismissInputRequest}
-              onOpenBrowserView={onOpenBrowserView}
-              onViewTaskOutputs={onViewTaskOutputs}
-              onTasksChanged={onTasksChanged}
-              selectedModel={selectedModel}
-              selectedProvider={selectedProvider}
-              selectedReasoningEffort={selectedReasoningEffort}
-              availableModels={availableModels}
-              onModelChange={onModelChange}
-              availableProviders={availableProviders}
-              uiDensity={uiDensity}
-              rendererPerfLoggingEnabled={rendererPerfLoggingEnabled}
-              taskSwitchId={taskSwitchId}
-              hasMoreTimelineHistory={hasMoreTimelineHistory}
-              isLoadingTimelineHistory={isLoadingTimelineHistory}
-              timelineHistoryError={timelineHistoryError}
-              onLoadMoreTimelineHistory={onLoadMoreTimelineHistory}
-              onLoadTaskEventDetail={onLoadTaskEventDetail}
-              remoteSession={
-                remoteTaskView
-                  ? {
-                      deviceId: remoteTaskView.deviceId,
-                      deviceName: remoteTaskView.deviceName,
-                    }
-                  : null
-              }
-              onOpenSpreadsheetArtifact={openSpreadsheetArtifact}
-              onOpenDocumentArtifact={openDocumentArtifact}
-              onOpenPresentationArtifact={openPresentationArtifact}
-              onOpenWebArtifact={openWebArtifact}
-              onOpenBrowserWorkbenchSidebar={
-                task && workspace?.path && !remoteTaskView
-                  ? openEmptyBrowserWorkbenchSidebar
-                  : undefined
-              }
-              onOpenWebLinkInSidebar={
-                task && workspace?.path && !remoteTaskView
-                  ? openWebLinkInBrowserSidebar
-                  : undefined
-              }
-              onOpenSideChat={onOpenSideChat}
-              onOpenChildAgentSidebar={openSpawnedAgentSidebar}
-            />
+            <NewsBrowserContext.Provider value={task ? openWebLinkInBrowserSidebar : onOpenBrowserView}>
+              <MainContent
+                task={task}
+                selectedTaskId={selectedTaskId}
+                optimisticFollowUpStartedAt={optimisticFollowUpStartedAt}
+                workspace={workspace}
+                projectId={projectId}
+                events={
+                  replayControls.isReplayMode
+                    ? replayControls.replayEvents
+                    : events
+                }
+                sharedTaskEventUi={
+                  replayControls.isReplayMode ? null : sharedTaskEventUi
+                }
+                replayControls={replayControls}
+                childTasks={remoteTaskView ? [] : childTasks}
+                childEvents={remoteTaskView ? [] : childEvents}
+                onSelectChildTask={onSelectChildTask}
+                onSelectTask={onSelectTask}
+                onOpenProject={onOpenProject}
+                onProjectAssigned={onProjectAssigned}
+                onOpenProjects={onOpenProjects}
+                onOpenTaskAccess={onRevealRightSidebar}
+                onSendMessage={onSendMessage}
+                onStartOnboarding={onStartOnboarding}
+                showInlineOnboarding={showInlineOnboarding}
+                onCompleteInlineOnboarding={onCompleteInlineOnboarding}
+                onStartFreshSession={onStartFreshSession}
+                onCreateTask={onCreateTask}
+                onAskInbox={onAskInbox}
+                onChangeWorkspace={onChangeWorkspace}
+                onSelectWorkspace={onSelectWorkspace}
+                onOpenSettings={onOpenSettings as Any}
+                onOpenAgentManagement={onOpenAgentManagement}
+                onStopTask={onStopTask}
+                onEnableShellForPausedTask={onEnableShellForPausedTask}
+                onContinueWithoutShellForPausedTask={
+                  onContinueWithoutShellForPausedTask
+                }
+                onWrapUpTask={onWrapUpTask}
+                onOpenApproval={remoteTaskView ? undefined : onOpenApproval}
+                inputRequest={activeInputRequest}
+                pendingInputRequests={pendingInputRequests}
+                composerDraftRequest={composerDraftRequest}
+                onComposerDraftConsumed={onComposerDraftConsumed}
+                onSubmitInputRequest={onSubmitInputRequest}
+                onDismissInputRequest={onDismissInputRequest}
+                onOpenBrowserView={onOpenBrowserView}
+                onViewTaskOutputs={onViewTaskOutputs}
+                onTasksChanged={onTasksChanged}
+                selectedModel={selectedModel}
+                selectedProvider={selectedProvider}
+                selectedReasoningEffort={selectedReasoningEffort}
+                availableModels={availableModels}
+                onModelChange={onModelChange}
+                availableProviders={availableProviders}
+                uiDensity={uiDensity}
+                rendererPerfLoggingEnabled={rendererPerfLoggingEnabled}
+                taskSwitchId={taskSwitchId}
+                hasMoreTimelineHistory={hasMoreTimelineHistory}
+                isLoadingTimelineHistory={isLoadingTimelineHistory}
+                timelineHistoryError={timelineHistoryError}
+                onLoadMoreTimelineHistory={onLoadMoreTimelineHistory}
+                onLoadTaskEventDetail={onLoadTaskEventDetail}
+                remoteSession={
+                  remoteTaskView
+                    ? {
+                        deviceId: remoteTaskView.deviceId,
+                        deviceName: remoteTaskView.deviceName,
+                      }
+                    : null
+                }
+                onOpenSpreadsheetArtifact={openSpreadsheetArtifact}
+                onOpenDocumentArtifact={openDocumentArtifact}
+                onOpenPresentationArtifact={openPresentationArtifact}
+                onOpenWebArtifact={openWebArtifact}
+                onOpenBrowserWorkbenchSidebar={
+                  task && workspace?.path && !remoteTaskView
+                    ? openEmptyBrowserWorkbenchSidebar
+                    : undefined
+                }
+                onOpenWebLinkInSidebar={
+                  task && workspace?.path && !remoteTaskView
+                    ? openWebLinkInBrowserSidebar
+                    : undefined
+                }
+                onOpenSideChat={onOpenSideChat}
+                onOpenChildAgentSidebar={openSpawnedAgentSidebar}
+              />
+            </NewsBrowserContext.Provider>
           </Suspense>
           {sideChat &&
           workspace?.path &&
@@ -8816,9 +8814,14 @@ export function App() {
       )}
       {currentView === "browser" && (
         <Suspense fallback={<LazyViewFallback />}>
-          <BrowserView
+          <BrowserWorkbenchView
+            taskId="standalone-preview"
+            sessionId="standalone"
             initialUrl={browserUrl}
-            onBack={() => setCurrentView("main")}
+            mode="fullscreen"
+            onClose={() => setCurrentView("main")}
+            onFullscreen={() => {}}
+            onExitFullscreen={() => setCurrentView("main")}
           />
         </Suspense>
       )}

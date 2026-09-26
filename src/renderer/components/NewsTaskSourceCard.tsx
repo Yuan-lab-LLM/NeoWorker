@@ -1,4 +1,5 @@
-import { useId, useState } from "react";
+import { NewsBrowserContext } from "./news-browser-context";
+import { useContext, useId, useState } from "react";
 import { BookOpen, ChevronRight, ExternalLink, FlaskConical, Languages, X } from "lucide-react";
 import type { NewsTaskContext } from "../../shared/news-task-draft";
 import { NEWS_PUBLISHERS, isNewsPublisher } from "../../shared/news-sources";
@@ -13,6 +14,7 @@ export function NewsTaskSourceCard({
   context: NewsTaskContext;
   onRemove?: () => void;
 }) {
+  const openBrowser = useContext(NewsBrowserContext);
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
   const zh = useLanguage() === "zh-CN";
@@ -34,7 +36,8 @@ export function NewsTaskSourceCard({
     ? NEWS_PUBLISHERS[source.id][zh ? "name" : "nameEn"]
     : names[source.id];
   const open = (url: string) => {
-    void window.electronAPI.openExternal(url).catch(() => {});
+    if (openBrowser) openBrowser(url);
+    else void window.electronAPI.openExternal(url).catch(() => {});
   };
   return (
     <section
