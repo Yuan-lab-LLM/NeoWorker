@@ -24,3 +24,7 @@ Following the user's file-attachment reference, source cards now reuse the exist
 Browser checks used the real composer and user-message components: collapsed position, expand/collapse, successful sending and compact history rendering. Shared envelope tests (6) and renderer production build passed; focused lint had no errors. No installer was produced. Screenshot: `output/news-task-composer-2026-09-26/attachment-style.png`.
 
 The source chip now has a subtle blue tint and left accent, a round publisher-logo backing and an explicit “资讯来源” / “News source” label, distinguishing it from normal file attachments while retaining the same compact dimensions. Verified the actual composer visually and rebuilt the renderer. Screenshot: `output/news-task-composer-2026-09-26/news-source-style.png`.
+
+## Link-preview redesign
+
+Replaced the tinted attachment treatment with a standalone neutral link preview: publisher logo and a small action marker on the first row, readable title (up to two lines) underneath. The maximum width is 440 px with responsive shrinking. Removed the extra source label, colored rail and shared file-attachment classes. The source stays above the composer; requirements expand on click. Checked the actual component visually and its disclosure interaction; renderer build passed. Screenshot: `output/news-task-composer-2026-09-26/link-preview.png`.

@@ -41,36 +41,33 @@ export function NewsTaskSourceCard({
       className={`news-task-source${expanded ? " is-expanded" : ""}`}
       aria-label={zh ? "任务来源" : "Task source"}
     >
-      <div className="attachment-chip composer-attachment-chip news-task-source-chip">
+      <div className="news-task-source-chip">
         <button
           type="button"
           className="news-task-source-toggle"
           aria-expanded={expanded}
           aria-controls={detailsId}
-          aria-label={`${source.title} · ${actionName} · ${zh ? "任务要求" : "Task requirements"}`}
+          aria-label={`${name} · ${source.title} · ${actionName} · ${zh ? "任务要求" : "Task requirements"}`}
           title={source.title}
           onClick={() => setExpanded(!expanded)}
         >
-          <span className="news-task-source-logo">
-            <NewsSourceBrand source={source.id} />
-          </span>
-          <span className="attachment-content">
-            <span className="attachment-name">{source.title}</span>
-            <span className="attachment-meta">
-              <span className="news-task-source-kind">{zh ? "资讯来源" : "News source"}</span>
-              <span className="attachment-format">
-                <Icon size={10} />
-                {actionName}
-              </span>
-              <span className="news-task-source-provider">{name}</span>
+          <span className="news-task-source-header">
+            <span className="news-task-source-publisher">
+              <NewsSourceBrand source={source.id} />
+              {source.id !== "arxiv" && <span>{name}</span>}
+            </span>
+            <span className="news-task-source-action">
+              <Icon size={12} />
+              {actionName}
+              <ChevronRight size={11} className="news-task-source-chevron" />
             </span>
           </span>
-          <ChevronRight size={12} className="news-task-source-chevron" />
+          <span className="news-task-source-title">{source.title}</span>
         </button>
         {onRemove && (
           <button
             type="button"
-            className="attachment-remove"
+            className="news-task-source-remove"
             aria-label={zh ? "移除来源与任务要求" : "Remove source and task requirements"}
             onClick={onRemove}
           >
