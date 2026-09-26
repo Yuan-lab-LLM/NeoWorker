@@ -1,7 +1,12 @@
 import { HF_HUB_SOURCES, isHfHubSource, type HfHubSort, type HfHubSource } from "./news-hub";
 import type { NewsPreferences } from "./news-preferences";
 import { newsSourceEnabled } from "./news-preferences";
-import { NEWS_PUBLISHER_IDS, isNewsPublisher, type NewsPublisher } from "./news-sources";
+import {
+  NEWS_PUBLISHERS,
+  NEWS_PUBLISHER_IDS,
+  isNewsPublisher,
+  type NewsPublisher,
+} from "./news-sources";
 export const PAPER_NEWS_SOURCES = [
   "arxiv",
   "huggingface",
@@ -77,7 +82,16 @@ export function paperNewsNeedsRefresh(snapshot: PaperNewsSnapshot, now: number):
 
 export const DEFAULT_PAPER_NEWS_CONFIG: PaperNewsConfig = {
   ...(Object.fromEntries(
-    NEWS_PUBLISHER_IDS.map((source) => [source, { topics: [] as string[], days: 365 }]),
+    NEWS_PUBLISHER_IDS.map((source) => {
+      const research = ["research", "development"].includes(NEWS_PUBLISHERS[source].category);
+      return [
+        source,
+        {
+          topics: research ? ["large language models", "agents", "multimodal"] : ([] as string[]),
+          days: research ? 14 : 365,
+        },
+      ];
+    }),
   ) as Record<NewsPublisher, PaperNewsTopicConfig>),
   "hf-models": {
     topics: ["large language models", "agents", "multimodal"],

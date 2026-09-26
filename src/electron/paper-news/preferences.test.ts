@@ -10,6 +10,7 @@ import {
 } from "../../shared/paper-news";
 import {
   getNewsPreferences,
+  newsCategory,
   effectiveNewsSettings,
   newsDefaultSort,
 } from "../../shared/news-preferences";
@@ -148,24 +149,8 @@ describe("news preference inheritance", () => {
     const config = service.snapshot().config,
       p = getNewsPreferences(config);
     for (const source of PAPER_NEWS_SOURCES) {
-      const category =
-        source === "arxiv" || source === "huggingface"
-          ? "research"
-          : source === "github" || source === "hf-models" || source === "hf-datasets"
-            ? "development"
-            : undefined;
-      if (category) p.categories[category].disabledSources.push(source);
+      p.categories[newsCategory(source)].disabledSources.push(source);
     }
-    p.categories.technology.disabledSources = [
-      "qbitai",
-      "semianalysis",
-      "trendforce",
-      "eetimes",
-      "chinatalk",
-    ];
-    p.categories.finance.disabledSources = ["yicai", "cls", "wallstreetcn"];
-    p.categories.policy.disabledSources = ["pboc", "nbs", "ndrc", "miit", "csrc", "fed"];
-    p.categories.business.disabledSources = ["huxiu", "stratechery", "benevans", "bcg"];
     service.saveConfig({ ...config, preferences: p });
     expect(paperNewsNeedsRefresh(service.snapshot(), now)).toBe(false);
     await service.refresh();

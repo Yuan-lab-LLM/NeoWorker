@@ -18,6 +18,9 @@ import { normalizePaperNewsConfig, rankPaperNews } from "./adapters";
 import { PaperNewsService, readPaperNewsResponse } from "./service";
 const now = Date.parse("2026-09-25T12:00:00Z");
 const paths: Partial<Record<NewsPublisher, string>> = {
+  eeo: "/2026/0925/123.shtml",
+  hackernews: "/item?id=123",
+  cnblogs: "https://www.cnblogs.com/example/p/123.html",
   trendforce: "/presscenter/news/20260925-123.html",
   eetimes: "/news/20260925123.html",
   yicai: "/news/123.html",
@@ -34,7 +37,7 @@ const paths: Partial<Record<NewsPublisher, string>> = {
 function fixture(source: NewsPublisher) {
   const url = new URL(paths[source] || "/public-story", NEWS_PUBLISHERS[source].endpoint).href;
   return NEWS_PUBLISHERS[source].format === "rss"
-    ? `<rss><channel><item><title>Public research update</title><link>${url}</link><description><![CDATA[<p>Summary &amp; context</p>]]></description><pubDate>Fri, 25 Sep 2026 00:00:00 GMT</pubDate></item></channel></rss>`
+    ? `<rss><channel><item><title>Public research update</title><link>${url}</link><comments>${url}</comments><description><![CDATA[<p>Summary &amp; context</p>]]></description><pubDate>Fri, 25 Sep 2026 00:00:00 GMT</pubDate></item></channel></rss>`
     : `<html><body><a href="${url}">Public research update</a></body></html>`;
 }
 const dirs: string[] = [];
@@ -53,6 +56,52 @@ describe("public publisher adapters", () => {
     expect(item.pdfUrl).toBeUndefined();
     expect(item.id).toMatch(new RegExp(`^${source}:`));
     expect(publisherArticleUrl(source, item.url)).toBe(item.url);
+  });
+  it("reads Atom entries and treats embedded HTML doctypes as text, while rejecting real DTDs", () => {
+    const atom = `<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Engineering update</title><link rel="alternate" href="https://www.cnblogs.com/demo/p/123"/><author><name>Writer</name><uri>https://www.cnblogs.com/writer/</uri></author><summary>Public summary</summary><published>2026-09-25T00:00:00Z</published></entry></feed>`;
+    expect(parsePublisherNews("cnblogs", atom)[0]).toMatchObject({
+      summary: "Public summary",
+      authors: ["Writer"],
+    });
+    const raw = fixture("githubblog").replace(
+      "<p>Summary",
+      '<!DOCTYPE html PUBLIC "example"><p>Summary',
+    );
+    expect(parsePublisherNews("githubblog", raw)[0].summary).toContain("Summary");
+    expect(() =>
+      parsePublisherNews("githubblog", '<!DOCTYPE rss SYSTEM "https://evil.example/dtd">' + raw),
+    ).toThrow();
+  });
+  it("uses HN discussion URLs without inventing summaries or admitting external destinations", () => {
+    const raw = fixture("hackernews").replace(
+      "<link>https://news.ycombinator.com/item?id=123</link>",
+      "<link>https://external.example/article</link>",
+    );
+    expect(parsePublisherNews("hackernews", raw)[0]).toMatchObject({
+      url: "https://news.ycombinator.com/item?id=123",
+      summary: "",
+    });
+    expect(() =>
+      parsePublisherNews(
+        "hackernews",
+        raw.replace(
+          "<comments>https://news.ycombinator.com/item?id=123</comments>",
+          "<comments>https://external.example/article</comments>",
+        ),
+      ),
+    ).toThrow();
+    expect(() => parsePublisherNews("hackernews", raw.replace("id=123", "id=invalid"))).toThrow();
+  });
+  it("extracts Economic Observer dates from article paths", () => {
+    expect(parsePublisherNews("eeo", fixture("eeo"))[0].date).toBe("2026-09-24T16:00:00.000Z");
+    const raw = fixture("eeo").replace(
+      "Public research update",
+      "<h5>Public research update</h5><p>Separate introduction</p>",
+    );
+    expect(parsePublisherNews("eeo", raw)[0]).toMatchObject({
+      title: "Public research update",
+      summary: "Separate introduction",
+    });
   });
   it("rejects challenge pages, external links and XML entities", () => {
     expect(() =>
@@ -158,7 +207,7 @@ describe("publisher refresh integration", () => {
     expect(restored.saved).toHaveLength(1);
     expect(restored.sources.qbitai.nextRetryAt).toBe(second.sources.qbitai.nextRetryAt);
   });
-  it("refreshes all 21 sources by default and shows publisher results before the batch ends", async () => {
+  it("refreshes all registered sources by default and shows publisher results before the batch ends", async () => {
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
     const file = cache();
@@ -169,15 +218,37 @@ describe("publisher refresh integration", () => {
     });
     const service = new PaperNewsService(file, fetcher, () => now);
     const task = service.refresh();
-    await vi.waitFor(() => expect(service.snapshot().items.length).toBe(18));
+    await vi.waitFor(() => expect(service.snapshot().items.length).toBe(NEWS_PUBLISHER_IDS.length));
     expect(service.snapshot().refreshing).toBe(true);
     release();
     const result = await task;
     expect(fetcher).toHaveBeenCalledTimes(PAPER_NEWS_SOURCES.length);
     expect(result.refreshing).toBe(false);
     const restored = new PaperNewsService(file, fetcher, () => now).snapshot();
-    expect(restored.items).toHaveLength(18);
+    expect(restored.items).toHaveLength(NEWS_PUBLISHER_IDS.length);
     expect(restored.items.find((i) => i.source === "cls")?.date).toBe("");
+  });
+  it("restores larger multi-source caches without silently dropping their tail", () => {
+    const file = cache();
+    const template = parsePublisherNews("eeo", fixture("eeo"))[0];
+    const items = Array.from({ length: 1250 }, (_, i) => ({
+      ...template,
+      id: `eeo:${i}`,
+      url: `https://www.eeo.com.cn/2026/0925/${i}.shtml`,
+    }));
+    fs.writeFileSync(
+      file,
+      JSON.stringify({
+        version: 4,
+        config: DEFAULT_PAPER_NEWS_CONFIG,
+        items,
+        sources: {},
+        saved: [],
+      }),
+    );
+    const restored = new PaperNewsService(file, fetch, () => now).snapshot();
+    expect(restored.items).toHaveLength(1250);
+    expect(restored.items.some((i) => i.id === "eeo:1249")).toBe(true);
   });
   it("allows only owned publisher redirects", async () => {
     const fetcher = vi.fn(async (url: string) =>

@@ -25,6 +25,8 @@ const iso = (value: string) =>
 
 /** Restrict HTML extraction to article routes, never navigation, ads or subscription pages. */
 const articlePaths: Partial<Record<NewsPublisher, RegExp>> = {
+  eeo: /^\/\d{4}\/\d{4}\/\d+\.shtml$/,
+  hackernews: /^\/item$/,
   trendforce: /^\/presscenter\/news\/\d{8}-\d+\.html$/,
   eetimes: /^\/news\/\d+\.html$/,
   yicai: /^\/(?:news|brief)\/\d+\.html$/,
@@ -40,6 +42,8 @@ const articlePaths: Partial<Record<NewsPublisher, RegExp>> = {
 };
 function articleLink(source: NewsPublisher, raw: string): string | undefined {
   const url = publisherArticleUrl(source, raw);
+  if (source === "hackernews" && url && !/^\d+$/.test(new URL(url).searchParams.get("id") || ""))
+    return;
   return url && (!articlePaths[source] || articlePaths[source]!.test(new URL(url).pathname))
     ? url
     : undefined;
@@ -66,6 +70,10 @@ function item(
   };
 }
 function dateFromArticle(source: NewsPublisher, url: string, anchor: Element): string {
+  if (source === "eeo") {
+    const match = new URL(url).pathname.match(/^\/(\d{4})\/(\d{2})(\d{2})\//);
+    if (match) return iso(`${match[1]}-${match[2]}-${match[3]}T00:00:00+08:00`);
+  }
   // These publishers encode the publication date in the article path.
   if (["trendforce", "eetimes", "pboc", "nbs", "ndrc"].includes(source)) {
     const match = new URL(url).pathname.match(/(?:\/|t)((?:19|20)\d{2})(\d{2})(\d{2})/);
@@ -100,7 +108,9 @@ export function parsePublisherNews(source: NewsPublisher, raw: string): PaperNew
   const spec = NEWS_PUBLISHERS[source];
   const result = new Map<string, PaperNewsItem>();
   if (spec.format === "rss") {
-    if (/<!DOCTYPE|<!ENTITY/i.test(raw)) throw new Error("Invalid feed");
+    // CDATA is inert text; GitHub Blog embeds an HTML doctype inside its article body.
+    if (/<!DOCTYPE|<!ENTITY/i.test(raw.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, "")))
+      throw new Error("Invalid feed");
     let invalid = false;
     const doc = new DOMParser({
       errorHandler: {
@@ -124,7 +134,12 @@ export function parsePublisherNews(source: NewsPublisher, raw: string): PaperNew
       const link = Array.from(row.getElementsByTagName("link")).find(
         (n) => !n.getAttribute("rel") || n.getAttribute("rel") === "alternate",
       );
-      const url = articleLink(source, link?.getAttribute("href") || link?.textContent || "");
+      const url = articleLink(
+        source,
+        source === "hackernews"
+          ? value("comments")
+          : link?.getAttribute("href") || link?.textContent || "",
+      );
       const title = htmlText(value("title"));
       if (!url || !title) continue;
       result.set(
@@ -133,14 +148,18 @@ export function parsePublisherNews(source: NewsPublisher, raw: string): PaperNew
           source,
           url,
           title,
-          htmlText(
-            value("description") ||
-              value("summary") ||
-              value("content:encoded") ||
-              value("content"),
-          ),
+          source === "hackernews"
+            ? ""
+            : htmlText(
+                value("description") ||
+                  value("summary") ||
+                  value("content:encoded") ||
+                  value("content"),
+              ),
           iso(value("pubDate") || value("published") || value("updated") || value("dc:date")),
-          value("dc:creator") || value("author"),
+          value("dc:creator") ||
+            row.getElementsByTagName("author")[0]?.getElementsByTagName("name")[0]?.textContent ||
+            value("author"),
         ),
       );
     }
@@ -155,7 +174,15 @@ export function parsePublisherNews(source: NewsPublisher, raw: string): PaperNew
     for (const anchor of Array.from(doc.getElementsByTagName("a"))) {
       const url = articleLink(source, anchor.getAttribute("href") || "");
       if (!url) continue;
-      const title = tidy(anchor.getAttribute("title") || anchor.textContent, 1800);
+      const heading =
+        source === "eeo"
+          ? Array.from(anchor.getElementsByTagName("*")).find((n) => /^h[1-6]$/i.test(n.tagName))
+          : undefined;
+      const excerpt = heading ? tidy(anchor.getElementsByTagName("p")[0]?.textContent) : "";
+      const title = tidy(
+        anchor.getAttribute("title") || heading?.textContent || anchor.textContent,
+        1800,
+      );
       if (title.length < 8 || /^(Learn more|Read more|查看详情|阅读全文|阅读更多)$/i.test(title))
         continue;
       const previous = result.get(url);
@@ -165,7 +192,7 @@ export function parsePublisherNews(source: NewsPublisher, raw: string): PaperNew
         continue;
       }
       if (title.length > 260) continue;
-      result.set(url, item(source, url, title, "", dateFromArticle(source, url, anchor)));
+      result.set(url, item(source, url, title, excerpt, dateFromArticle(source, url, anchor)));
     }
   }
   // A login/challenge page or changed markup is a failure, not a successful empty refresh.

@@ -1127,7 +1127,9 @@ export function PaperNewsPanel({
                           ? t("模型卡", "Model card")
                           : item.source === "hf-datasets"
                             ? t("数据集卡", "Dataset card")
-                            : t("原文", "Source")}
+                            : item.source === "hackernews"
+                              ? t("讨论", "Discussion")
+                              : t("原文", "Source")}
                     </button>
                     {item.pdfUrl && (
                       <button onClick={() => void open(item.pdfUrl!)}>

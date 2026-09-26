@@ -152,5 +152,40 @@
     "assetUrl": "https://blog.cloudflare.com/favicon.ico",
     "file": "cloudflare.png",
     "bytes": 908
+  },
+  {
+    "source": "natureml",
+    "site": "https://www.nature.com/subjects/machine-learning",
+    "file": "natureml.png",
+    "assetUrl": "https://www.nature.com/oscar-static/images/favicons/nature/favicon-48x48-b52890008c.png",
+    "bytes": 1184
+  },
+  {
+    "source": "mitai / sloan",
+    "site": "https://news.mit.edu/",
+    "file": "mit.png",
+    "assetUrl": "https://news.mit.edu/themes/mit/assets/img/favicon/apple-touch-icon.png",
+    "bytes": 2789
+  },
+  {
+    "source": "ftchinese",
+    "site": "https://www.ftchinese.com/",
+    "file": "ftchinese.jpg",
+    "assetUrl": "https://d2785ji6wtdqx8.cloudfront.net/img/friend-share-icon.jpg",
+    "bytes": 7608
+  },
+  {
+    "source": "eeo",
+    "site": "https://www.eeo.com.cn/",
+    "file": "eeo.ico",
+    "assetUrl": "https://www.eeo.com.cn/favicon.ico",
+    "bytes": 1406
+  },
+  {
+    "source": "ecb",
+    "site": "https://www.ecb.europa.eu/",
+    "file": "ecb.png",
+    "assetUrl": "https://www.ecb.europa.eu/favicon-128.png",
+    "bytes": 5948
   }
 ]

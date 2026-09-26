@@ -26,6 +26,13 @@ export const NEWS_FEED_CATEGORIES: NewsFeedCategory[] = [
     description: "论文、研究成果与学术前沿",
     descriptionEn: "Papers, discoveries and research frontiers",
     providers: [
+      { id: "mitai", adapter: "mitai", name: "MIT 人工智能", nameEn: "MIT AI" },
+      {
+        id: "natureml",
+        adapter: "natureml",
+        name: "Nature · 机器学习",
+        nameEn: "Nature · Machine learning",
+      },
       { id: "arxiv", name: "arXiv", adapter: "arxiv" },
       { id: "hf-papers", name: "Hugging Face Papers", adapter: "huggingface" },
       { id: "openalex", name: "OpenAlex" },
@@ -38,12 +45,13 @@ export const NEWS_FEED_CATEGORIES: NewsFeedCategory[] = [
     description: "开源项目、模型、数据集与工程实践",
     descriptionEn: "Repositories, models, datasets and engineering practice",
     providers: [
+      { id: "githubblog", adapter: "githubblog", name: "GitHub Blog", nameEn: "GitHub Blog" },
       { id: "github", name: "GitHub", adapter: "github" },
       { id: "hf-models", name: "Hugging Face Models", adapter: "hf-models" },
       { id: "hf-datasets", name: "Hugging Face Datasets", adapter: "hf-datasets" },
-      { id: "hackernews", name: "Hacker News" },
-      { id: "cnblogs", name: "博客园", nameEn: "Cnblogs" },
-      { id: "cloudflare", name: "Cloudflare Blog" },
+      { id: "hackernews", adapter: "hackernews", name: "Hacker News" },
+      { id: "cnblogs", adapter: "cnblogs", name: "博客园", nameEn: "Cnblogs" },
+      { id: "cloudflare", adapter: "cloudflare", name: "Cloudflare Blog" },
     ],
   },
   {
@@ -77,6 +85,8 @@ export const NEWS_FEED_CATEGORIES: NewsFeedCategory[] = [
     description: "财经新闻、公司动向与市场观察",
     descriptionEn: "Financial news, companies and market perspectives",
     providers: [
+      { id: "eeo", adapter: "eeo", name: "经济观察网", nameEn: "Economic Observer" },
+      { id: "ftchinese", adapter: "ftchinese", name: "FT 中文网", nameEn: "FT Chinese" },
       { id: "yicai", adapter: "yicai", name: "第一财经", nameEn: "Yicai" },
       { id: "cls", adapter: "cls", name: "财联社", nameEn: "CLS" },
       {
@@ -94,6 +104,7 @@ export const NEWS_FEED_CATEGORIES: NewsFeedCategory[] = [
     description: "官方发布、经济数据与政策变化",
     descriptionEn: "Official releases, economic data and policy changes",
     providers: [
+      { id: "ecb", adapter: "ecb", name: "欧洲央行", nameEn: "European Central Bank" },
       {
         id: "pboc",
         adapter: "pboc",
@@ -119,6 +130,7 @@ export const NEWS_FEED_CATEGORIES: NewsFeedCategory[] = [
     description: "商业模式、企业战略与管理洞察",
     descriptionEn: "Business models, strategy and management insights",
     providers: [
+      { id: "sloan", adapter: "sloan", name: "MIT 斯隆管理学院", nameEn: "MIT Sloan" },
       { id: "huxiu", adapter: "huxiu", name: "虎嗅", nameEn: "Huxiu" },
       { id: "stratechery", adapter: "stratechery", name: "Stratechery" },
       { id: "benevans", adapter: "benevans", name: "Benedict Evans" },

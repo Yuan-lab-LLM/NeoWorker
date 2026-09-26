@@ -1,3 +1,8 @@
+import natureml from "../assets/paper-news/publishers/natureml.png";
+import mit from "../assets/paper-news/publishers/mit.png";
+import ftchinese from "../assets/paper-news/publishers/ftchinese.jpg";
+import eeo from "../assets/paper-news/publishers/eeo.ico";
+import ecb from "../assets/paper-news/publishers/ecb.png";
 import qbitai from "../assets/paper-news/publishers/qbitai.png";
 import openalex from "../assets/paper-news/publishers/openalex.svg";
 import arxiv from "../assets/paper-news/arxiv.svg";
@@ -26,6 +31,13 @@ import trendforce from "../assets/paper-news/publishers/trendforce.png";
 import wallstreetcn from "../assets/paper-news/publishers/wallstreetcn.png";
 import yicai from "../assets/paper-news/publishers/yicai.ico";
 const assets: Record<string, string> = {
+  natureml,
+  mitai: mit,
+  sloan: mit,
+  githubblog: github,
+  ftchinese,
+  eeo,
+  ecb,
   qbitai,
   openalex,
   arxiv,
@@ -58,6 +70,7 @@ const assets: Record<string, string> = {
 const darkAssets: Record<string, string> = {
   arxiv: arxivWhite,
   github: githubWhite,
+  githubblog: githubWhite,
 };
 /** Local official marks, never a runtime third-party favicon request. */
 export function NewsSourceBrand({ source }: { source: string }) {

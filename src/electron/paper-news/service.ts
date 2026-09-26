@@ -124,7 +124,7 @@ export class PaperNewsService {
       if (![1, 2, 3, 4].includes(cached.version)) return;
       this.state.config = normalizePaperNewsConfig(cached.config);
       this.state.items = Array.isArray(cached.items)
-        ? cached.items.filter(validCachedItem).slice(0, 1200)
+        ? cached.items.filter(validCachedItem).slice(0, PAPER_NEWS_SOURCES.length * 100)
         : [];
       this.state.saved = Array.isArray(cached.saved)
         ? cached.saved.filter(validCachedItem).slice(0, 200)

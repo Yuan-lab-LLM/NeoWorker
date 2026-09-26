@@ -11,10 +11,14 @@ Retrieved 2026-09-24. SVGs were checked for scripts, event handlers, foreign obj
 
 ## Publisher and directory icons (2026-09-25)
 
-`publishers/` contains 22 local assets obtained from each publisher's official website, documentation or its linked CDN. Exact source URLs are recorded in `publishers/sources.json`. These identify sources only; trademark ownership remains with the publishers. No remote favicon service or runtime icon request is used.
+`publishers/` contains 27 local assets obtained from each publisher's official website, documentation or its linked CDN. Exact source URLs are recorded in `publishers/sources.json`. These identify sources only; trademark ownership remains with the publishers. No remote favicon service or runtime icon request is used.
 
 - QbitAI: the square logo in the official homepage's Open Graph metadata; CSS displays the Q mark without its surrounding wordmark/whitespace. The original image is retained.
 - NDRC: the official website header image. CSS shows its emblem at the original aspect ratio; the original file is retained.
 - ChinaTalk: the original icon linked by the publication's website, obtained directly from its linked Substack storage.
 - OpenAlex: the icon on its official documentation site.
 - Other sources: official website favicons / touch icons. The same full-color asset is used in both themes; only arXiv and GitHub have official alternate dark-theme versions.
+
+## Additional sources (2026-09-26)
+
+Nature, MIT News (AI and Sloan), FT Chinese, Economic Observer, and ECB use five new official website icons. GitHub Blog reuses the official GitHub light/dark marks. Hacker News, Cnblogs and Cloudflare reuse the existing local directory icons. See `publishers/sources.json` for download provenance.
