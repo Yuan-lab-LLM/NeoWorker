@@ -11,9 +11,25 @@
 .news-task-source.is-expanded {
   width: 100%;
 }
-.news-task-source .news-task-source-chip {
+.news-task-source .attachment-chip.news-task-source-chip {
   width: min(310px, 100%);
   gap: 2px;
+  background: color-mix(in srgb, var(--color-accent) 4%, var(--color-bg-primary));
+  border-color: color-mix(in srgb, var(--color-accent) 24%, var(--color-border));
+  border-left: 3px solid color-mix(in srgb, var(--color-accent) 65%, var(--color-bg-primary));
+}
+.news-task-source .attachment-chip.news-task-source-chip:hover {
+  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-bg-primary));
+  border-color: color-mix(in srgb, var(--color-accent) 42%, var(--color-border));
+}
+.news-task-source-kind {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+  padding-right: 5px;
+  border-right: 1px solid color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+.news-task-source-toggle .attachment-format {
+  flex-shrink: 0;
 }
 .news-task-source-toggle {
   display: flex;
@@ -47,7 +63,7 @@
   width: 30px;
   height: 30px;
   flex-shrink: 0;
-  border-radius: 7px;
+  border-radius: 50%;
   background: color-mix(in srgb, var(--color-accent) 6%, var(--color-bg-primary));
 }
 .news-task-source .pn-brand {

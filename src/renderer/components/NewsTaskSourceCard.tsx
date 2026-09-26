@@ -57,6 +57,7 @@ export function NewsTaskSourceCard({
           <span className="attachment-content">
             <span className="attachment-name">{source.title}</span>
             <span className="attachment-meta">
+              <span className="news-task-source-kind">{zh ? "资讯来源" : "News source"}</span>
               <span className="attachment-format">
                 <Icon size={10} />
                 {actionName}
