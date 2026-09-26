@@ -1,3 +1,4 @@
+import type { NewsTaskContext } from "../shared/news-task-draft";
 import {
   memo,
   useState,
@@ -923,6 +924,7 @@ type SideChatState = {
 };
 
 type ComposerDraftRequest = {
+  newsContext?: NewsTaskContext;
   id: number;
   value: string;
   skillId?: string;
@@ -7249,7 +7251,7 @@ export function App() {
 
   const handleOpenComposerDraft = async (
     draft: string,
-    skillContext?: { skillId?: string; skillLabel?: string },
+    skillContext?: { skillId?: string; skillLabel?: string; newsContext?: NewsTaskContext },
     workspaceOverride?: Workspace | null,
   ) => {
     try {
@@ -7265,6 +7267,7 @@ export function App() {
       setComposerDraftRequest({
         id: composerDraftRequestIdRef.current,
         value: draft,
+        ...(skillContext?.newsContext ? { newsContext: skillContext.newsContext } : {}),
         ...(skillContext?.skillId ? { skillId: skillContext.skillId } : {}),
         ...(skillContext?.skillLabel
           ? { skillLabel: skillContext.skillLabel }

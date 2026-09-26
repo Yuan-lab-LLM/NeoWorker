@@ -1,3 +1,5 @@
+import { splitNewsTaskMessage } from "../../../shared/news-task-draft";
+import { NewsTaskSourceCard } from "../NewsTaskSourceCard";
 import {
   memo,
   useState,
@@ -628,6 +630,19 @@ export function UserMessageText({
   integrationMentions?: IntegrationMentionSelection[];
   markdownComponents: Any;
 }) {
+  const news = splitNewsTaskMessage(text);
+  if (news.context) {
+    return (
+      <>
+        <UserMessageText
+          text={news.text}
+          integrationMentions={integrationMentions}
+          markdownComponents={markdownComponents}
+        />
+        <NewsTaskSourceCard context={news.context} />
+      </>
+    );
+  }
   if (hasRenderableIntegrationMentions(text, integrationMentions)) {
     return (
       <IntegrationMentionText text={text} mentions={integrationMentions} />

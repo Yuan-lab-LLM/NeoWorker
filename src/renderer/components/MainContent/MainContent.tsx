@@ -1,3 +1,5 @@
+import { serializeNewsTaskMessage, type NewsTaskContext } from "../../../shared/news-task-draft";
+import { NewsTaskSourceCard } from "../NewsTaskSourceCard";
 import {
   memo,
   useState,
@@ -506,6 +508,7 @@ type SlashMenuOption = SlashCommandOption | SlashMenuBrowseOption;
 
 const RECENT_SLASH_SKILLS_STORAGE_KEY = "neoworker:recent-slash-skills";
 const composerDraftCache = new Map<string, string>();
+const newsContextDraftCache = new Map<string, NewsTaskContext>();
 const composerAttachmentDraftCache = new Map<string, PendingAttachment[]>();
 const composerScrollCache = new Map<string, { scrollTop: number; stickToBottom: boolean }>();
 
@@ -781,6 +784,7 @@ interface MainContentProps {
   inputRequest?: InputRequest | null;
   pendingInputRequests?: InputRequest[];
   composerDraftRequest?: {
+    newsContext?: NewsTaskContext;
     id: number;
     value: string;
     skillId?: string;
@@ -5095,6 +5099,20 @@ function MainContentComponent({
   const [hasLiveComposerDraft, setHasLiveComposerDraft] = useState(() =>
     Boolean(composerDraftValueRef.current.trim()),
   );
+  const newsContextRef = useRef<NewsTaskContext | null>(
+    newsContextDraftCache.get(composerDraftCacheKey) || null,
+  );
+  const [newsContext, setNewsContextState] = useState<NewsTaskContext | null>(
+    () => newsContextRef.current,
+  );
+  const setNewsContext = (value: NewsTaskContext | null, key = composerDraftCacheKeyRef.current) => {
+    if (value) newsContextDraftCache.set(key, value);
+    else newsContextDraftCache.delete(key);
+    if (key === composerDraftCacheKeyRef.current) {
+      newsContextRef.current = value;
+      setNewsContextState(value);
+    }
+  };
   const [composerSkillContext, setComposerSkillContext] = useState<{
     skillId: string;
     skillLabel: string;
@@ -5155,6 +5173,8 @@ function MainContentComponent({
     setHasLiveComposerDraft(Boolean(nextDraft.trim()));
     pendingAttachmentsRef.current = nextAttachments;
     setInputValue(nextDraft);
+    newsContextRef.current = newsContextDraftCache.get(composerDraftCacheKey) || null;
+    setNewsContextState(newsContextRef.current);
     setPendingAttachmentsState(nextAttachments);
     setAttachmentError(null);
     setIsDraggingFiles(false);
@@ -8115,6 +8135,7 @@ function MainContentComponent({
   useEffect(() => {
     if (!composerDraftRequest) return;
 
+    setNewsContext(composerDraftRequest.newsContext || null);
     composerDraftValueRef.current = composerDraftRequest.value;
     setInputValue(composerDraftRequest.value);
     setHasLiveComposerDraft(Boolean(composerDraftRequest.value.trim()));
@@ -8818,6 +8839,11 @@ function MainContentComponent({
       setIntegrationMentionSpans(submittedIntegrationMentionSpans);
     }
     const submittedInputValue = liveInputValue;
+    const submittedNewsContext = newsContextRef.current;
+    const clearSubmittedNewsContext = () => {
+      if (newsContextDraftCache.get(submittedAttachmentDraftKey) === submittedNewsContext)
+        setNewsContext(null, submittedAttachmentDraftKey);
+    };
     const submittedAttachments = [
       ...(pendingAttachmentsRef.current.length > 0
         ? pendingAttachmentsRef.current
@@ -8827,6 +8853,7 @@ function MainContentComponent({
 
     const clearSubmittedComposerDraft = () => {
       submittedComposerCleared = true;
+      clearSubmittedNewsContext();
       pendingProgrammaticResizeRef.current = true;
       composerDraftValueRef.current = "";
       setHasLiveComposerDraft(false);
@@ -8843,6 +8870,8 @@ function MainContentComponent({
       if (composerDraftCacheKeyRef.current !== submittedAttachmentDraftKey) {
         if (!(composerDraftCache.get(submittedAttachmentDraftKey) || "").trim()) {
           cacheComposerDraft(submittedAttachmentDraftKey, submittedInputValue);
+          if (submittedNewsContext && !newsContextDraftCache.has(submittedAttachmentDraftKey))
+            setNewsContext(submittedNewsContext, submittedAttachmentDraftKey);
         }
         if ((composerAttachmentDraftCache.get(submittedAttachmentDraftKey) || []).length === 0) {
           cacheComposerAttachmentDraft(submittedAttachmentDraftKey, submittedAttachments);
@@ -8852,6 +8881,7 @@ function MainContentComponent({
 
       if (!composerDraftValueRef.current.trim()) {
         composerDraftValueRef.current = submittedInputValue;
+        if (submittedNewsContext && !newsContextRef.current) setNewsContext(submittedNewsContext);
         setHasLiveComposerDraft(Boolean(submittedInputValue.trim()));
         cacheComposerDraft(submittedAttachmentDraftKey, submittedInputValue);
         setInputValue(submittedInputValue);
@@ -8883,6 +8913,7 @@ function MainContentComponent({
       appSlashCommand.shortcut?.action === "clear" &&
       !hasAttachments
     ) {
+      clearSubmittedNewsContext();
       pendingProgrammaticResizeRef.current = true;
       setInputValue("");
       updateAttachmentDraftForKey(submittedAttachmentDraftKey, []);
@@ -8903,6 +8934,7 @@ function MainContentComponent({
     if (onboardingSlashCommand.matched && !hasAttachments && onStartOnboarding) {
       pendingProgrammaticResizeRef.current = true;
       setInputValue("");
+      clearSubmittedNewsContext();
       updateAttachmentDraftForKey(submittedAttachmentDraftKey, []);
       setMentionOpen(false);
       setMentionQuery("");
@@ -8927,6 +8959,7 @@ function MainContentComponent({
       }
       pendingProgrammaticResizeRef.current = true;
       setInputValue("");
+      clearSubmittedNewsContext();
       updateAttachmentDraftForKey(submittedAttachmentDraftKey, []);
       setIntegrationMentionSpans([]);
       setMentionOpen(false);
@@ -8955,6 +8988,7 @@ function MainContentComponent({
       const sideQuestion = String(appSlashCommand.args || "").trim();
       pendingProgrammaticResizeRef.current = true;
       setInputValue("");
+      clearSubmittedNewsContext();
       updateAttachmentDraftForKey(submittedAttachmentDraftKey, []);
       setIntegrationMentionSpans([]);
       setMentionOpen(false);
@@ -8981,6 +9015,7 @@ function MainContentComponent({
     ) {
       pendingProgrammaticResizeRef.current = true;
       setInputValue("");
+      clearSubmittedNewsContext();
       updateAttachmentDraftForKey(submittedAttachmentDraftKey, []);
       setIntegrationMentionSpans([]);
       setMentionOpen(false);
@@ -9067,7 +9102,7 @@ function MainContentComponent({
           `I had trouble reading ${warningList}. They were attached, but I may not have had full content.`,
         );
       }
-      const message = composeResult.message;
+      const message = serializeNewsTaskMessage(composeResult.message, submittedNewsContext);
       const createIntegrationMentionOptions =
         submittedIntegrationMentions.length > 0
           ? { integrationMentions: submittedIntegrationMentions }
@@ -9117,6 +9152,7 @@ function MainContentComponent({
 
         pendingProgrammaticResizeRef.current = true;
         setInputValue("");
+        clearSubmittedNewsContext();
         setActiveWelcomeSuggestionDraft(null);
         setQuotedAssistantMessage(null);
         updateAttachmentDraftForKey(submittedAttachmentDraftKey, []);
@@ -9222,6 +9258,7 @@ function MainContentComponent({
 
         pendingProgrammaticResizeRef.current = true;
         setInputValue("");
+        clearSubmittedNewsContext();
         setActiveWelcomeSuggestionDraft(null);
         setQuotedAssistantMessage(null);
         updateAttachmentDraftForKey(submittedAttachmentDraftKey, []);
@@ -9373,6 +9410,7 @@ function MainContentComponent({
         });
       }
 
+      clearSubmittedNewsContext();
       if (!submittedComposerCleared) {
         pendingProgrammaticResizeRef.current = true;
         setInputValue("");
@@ -12027,6 +12065,9 @@ function MainContentComponent({
                 </div>
               )}
               {renderModeSuggestionBar()}
+              {newsContext && (
+                <NewsTaskSourceCard context={newsContext} onRemove={() => setNewsContext(null)} />
+              )}
               {renderComposerSkillContext()}
               {renderChatModeUpgradePrompt()}
               <div
@@ -13305,6 +13346,9 @@ function MainContentComponent({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
+          {newsContext && (
+            <NewsTaskSourceCard context={newsContext} onRemove={() => setNewsContext(null)} />
+          )}
           {renderComposerSkillContext()}
           {renderChatModeUpgradePrompt()}
           {/* Collaborative agent lines — extension of input box, inside same container */}
@@ -14026,6 +14070,8 @@ function areMainContentPropsEqual(prev: MainContentProps, next: MainContentProps
   return (
     getMainContentTaskSignature(prev.task) === getMainContentTaskSignature(next.task) &&
     prev.selectedTaskId === next.selectedTaskId &&
+    prev.composerDraftRequest === next.composerDraftRequest &&
+    prev.onComposerDraftConsumed === next.onComposerDraftConsumed &&
     prev.optimisticFollowUpStartedAt === next.optimisticFollowUpStartedAt &&
     prev.workspace?.path === next.workspace?.path &&
     prev.events === next.events &&

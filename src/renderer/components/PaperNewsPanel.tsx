@@ -1,3 +1,4 @@
+import { newsTaskDraft, type NewsTaskContext } from "../../shared/news-task-draft";
 import { BrowserView } from "./BrowserView";
 import type { NewsSummaryResult } from "../../shared/news-summary";
 import { useNewsCardTranslations } from "./useNewsCardTranslations";
@@ -42,7 +43,6 @@ import {
 import {
   PAPER_NEWS_SOURCES,
   type PaperNewsConfig,
-  paperNewsPrompt,
   paperNewsNeedsRefresh,
   type PaperNewsAction,
   type PaperNewsItem,
@@ -243,7 +243,7 @@ function NewsSourceDirectory({
 export function PaperNewsPanel({
   onUsePrompt,
 }: {
-  onUsePrompt: (prompt: string) => Promise<void> | void;
+  onUsePrompt: (prompt: string, context?: { newsContext: NewsTaskContext }) => Promise<void> | void;
 }) {
   const language = useLanguage();
   const t = (zh: string, en: string) => (language === "zh-CN" ? zh : en);
@@ -498,7 +498,8 @@ export function PaperNewsPanel({
     if (opening) return;
     setOpening(true);
     try {
-      await onUsePrompt(paperNewsPrompt(item, action, language));
+      const draft = newsTaskDraft(item, action, language);
+      await onUsePrompt(draft.value, { newsContext: draft.context });
     } catch {
       if (mounted.current) setFailure("open");
     } finally {
@@ -1155,7 +1156,7 @@ export function PaperNewsPanel({
                       onClick={() => void start(item, "read")}
                     >
                       <BookOpen size={15} />
-                      {t("阅读", "Read")}
+                      {t("AI 解读", "Explain")}
                     </button>
                     <button
                       className="pn-action-translate"
@@ -1163,7 +1164,7 @@ export function PaperNewsPanel({
                       onClick={() => void start(item, "translate")}
                     >
                       <Languages size={15} />
-                      {t("翻译", "Translate")}
+                      {t("全文翻译", "Translate")}
                     </button>
                     <button
                       className="pn-action-research"
@@ -1171,7 +1172,7 @@ export function PaperNewsPanel({
                       onClick={() => void start(item, "research")}
                     >
                       <FlaskConical size={15} />
-                      {t("研究", "Research")}
+                      {t("深入研究", "Research")}
                     </button>
                   </div>
                 </article>
@@ -1281,7 +1282,7 @@ export function PaperNewsPanel({
         )}
         <p className="pn-footer">
           {t(
-            "阅读、翻译和研究会创建任务草稿，发送后使用你当前配置的模型执行。中文显示仅翻译卡片标题与摘要；同一内容可能出现在多个来源。",
+            "AI 解读、全文翻译和深入研究会创建任务草稿，发送后使用你当前配置的模型执行。中文显示仅翻译卡片标题与摘要；同一内容可能出现在多个来源。",
             "Read, translate and research prepare a task draft. Send it to use your configured model. Chinese display translates card titles and summaries only; an article may appear in multiple sources.",
           )}
         </p>
