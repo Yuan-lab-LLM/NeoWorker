@@ -2,13 +2,36 @@ import { describe, expect, it, vi } from "vitest";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { PaperNewsCovers, boundedCoverBytes, newsImageUrl, newsPageImages, paperNewsCoverKey } from "./covers";
+import { PaperNewsCovers, boundedCoverBytes, newsImageUrl, newsPageImages, paperNewsCoverKey, publisherImageUrl, publisherArticleImages } from "./covers";
 import type { PaperNewsItem } from "../../shared/paper-news";
 const item = (suffix = "one"): PaperNewsItem => ({ id: `github:owner/${suffix}`, source: "github", title: suffix, summary: "Test", url: `https://github.com/owner/${suffix}`, date: "2026-09-24", authors: [], tags: [], score: 0, matchedTopics: [] });
 const image = vi.fn(async () => Buffer.from("jpeg"));
 const pdf = vi.fn(async () => Buffer.from("page"));
 async function withCache(run: (dir: string) => Promise<void>) { const dir = await fs.mkdtemp(path.join(os.tmpdir(), "news-cover-test-")); try { await run(dir); } finally { await fs.rm(dir, { recursive: true, force: true }); } }
 describe("dynamic news covers", () => {
+  it("rejects Qbit site icons and extracts only article body images", () => {
+    expect(publisherImageUrl("qbitai", "https://www.qbitai.com/wp-content/uploads/imgs/qbitai_icon.png")).toBeUndefined();
+    const raw = '<html><body><img src="https://i.qbitai.com/wp-content/uploads/2026/09/other.jpg"><div class="article"><img src="https://i.qbitai.com/wp-content/uploads/2026/09/story.jpg"></div></body></html>';
+    expect(publisherArticleImages("qbitai", raw, "https://www.qbitai.com/2026/09/123.html")).toEqual(["https://i.qbitai.com/wp-content/uploads/2026/09/story.jpg"]);
+  });
+  it("restricts publisher images to their article media paths", () => {
+    expect(publisherImageUrl("huxiu", "https://img.huxiucdn.com/article/content/story.jpg")).toBeTruthy();
+    expect(publisherImageUrl("huxiu", "https://img.huxiucdn.com/auth/data/avatar/person.jpg")).toBeUndefined();
+    expect(publisherImageUrl("githubblog", "https://github.blog/wp-content/uploads/2026/story.png")).toBeTruthy();
+    expect(publisherImageUrl("qbitai", "https://github.blog/wp-content/uploads/2026/story.png")).toBeUndefined();
+    expect(publisherImageUrl("eetimes", "https://www.eet-china.com/images/logo.png")).toBeUndefined();
+    expect(publisherImageUrl("mitai", "https://news.mit.edu.evil.test/sites/default/files/story.jpg")).toBeUndefined();
+  });
+  it("uses article metadata for publisher covers and never substitutes a site logo", async () => withCache(async dir => {
+    const story = { ...item(), source: "githubblog" as const, url: "https://github.blog/engineering/story/" };
+    const fetcher = vi.fn(async (url: string) => url === story.url
+      ? new Response('<meta property="og:image" content="https://github.blog/wp-content/uploads/2026/story.png">')
+      : new Response("image", { headers: { "content-type": "image/png" } }));
+    expect((await new PaperNewsCovers(dir, fetcher, image, pdf).get(story))?.kind).toBe("source-image");
+    const logo = vi.fn(async () => new Response('<meta property="og:image" content="https://www.eet-china.com/images/logo.png">'));
+    expect(await new PaperNewsCovers(dir, logo, image, pdf).get({ ...story, id: "eetimes:missing", source: "eetimes", url: "https://www.eet-china.com/news/123.html" })).toBeNull();
+    expect(logo).toHaveBeenCalledTimes(1);
+  }));
   it("extracts publisher metadata in either attribute order, decodes entities and rejects tracking images", () => {
     expect(newsPageImages(`<meta content='https://opengraph.githubassets.com/hash/o/repo?a=1&amp;b=2' property='og:image'>`, item().url)).toEqual(["https://opengraph.githubassets.com/hash/o/repo?a=1&b=2"]);
     expect(newsPageImages(`<img class='ltx_graphics' src='figure1.png'><img src='logo.svg' class='ltx_graphics'>`, "https://arxiv.org/html/2609.00001v1/", true)).toEqual(["https://arxiv.org/html/2609.00001v1/figure1.png"]);

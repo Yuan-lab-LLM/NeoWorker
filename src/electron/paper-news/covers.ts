@@ -3,6 +3,8 @@ import * as path from "node:path";
 import { createHash } from "node:crypto";
 import type { PaperNewsItem, PaperNewsCover } from "../../shared/paper-news";
 import { retryDeadline } from "./request";
+import { hasNewsImages } from "../../shared/news-images";
+import { DOMParser } from "@xmldom/xmldom";
 
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 type ImageRenderer = (bytes: Buffer) => Promise<Buffer | null>;
@@ -22,6 +24,14 @@ const HOSTS = new Set([
   "opengraph.githubassets.com",
   "user-images.githubusercontent.com",
   "camo.githubusercontent.com",
+  "news.mit.edu",
+  "github.blog",
+  "www.qbitai.com",
+  "qbitai.com",
+  "i.qbitai.com",
+  "www.eet-china.com",
+  "www.huxiu.com",
+  "img.huxiucdn.com",
 ]);
 const DAY = 86_400_000;
 const MAX_CACHE_FILES = 300;
@@ -52,6 +62,35 @@ export function newsImageUrl(
   } catch {
     return undefined;
   }
+}
+/** Validate article media separately from page URLs, excluding publisher UI assets. */
+export function publisherImageUrl(source: string, value: unknown, base?: string): string | undefined {
+  if (!hasNewsImages(source)) return;
+  const url = newsImageUrl(value, base);
+  if (!url) return;
+  const parsed = new URL(url);
+  if (/(?:logo|qrcode|\/avatar\/)/i.test(parsed.pathname)) return;
+  const paths: Record<string, [string[], RegExp]> = {
+    mitai: [["news.mit.edu"], /^\/sites\/default\/files\//],
+    githubblog: [["github.blog"], /^\/wp-content\/uploads\//],
+    qbitai: [["www.qbitai.com", "qbitai.com", "i.qbitai.com"], /^\/wp-content\/uploads\/\d{4}\/\d{2}\//],
+    eetimes: [["www.eet-china.com"], /^\/d\/file\//],
+    huxiu: [["img.huxiucdn.com"], /^\/article\//],
+  };
+  const [hosts, route] = paths[source];
+  return hosts.includes(parsed.hostname) && route.test(parsed.pathname) ? url : undefined;
+}
+/** Qbit's social metadata is a fixed site icon. Use only images inside its article. */
+export function publisherArticleImages(source: string, html: string, base: string): string[] {
+  if (source !== "qbitai") return [];
+  const safe = html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>|<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, "");
+  const doc = new DOMParser({ errorHandler: { warning() {}, error() {}, fatalError() {} } })
+    .parseFromString(safe, "text/html");
+  const body = Array.from(doc.getElementsByTagName("div"))
+    .find((node) => (node.getAttribute("class") || "").split(/\s+/).includes("article"));
+  return [...new Set(Array.from(body?.getElementsByTagName("img") || [])
+    .map((img) => publisherImageUrl(source, img.getAttribute("data-src") || img.getAttribute("src"), base))
+    .filter((url): url is string => Boolean(url)))].slice(0, 2);
 }
 function decode(value: string): string {
   return value.replace(
@@ -129,7 +168,7 @@ export function paperNewsCoverKey(item: PaperNewsItem): string {
   return createHash("sha256")
     .update(
       JSON.stringify([
-        2,
+        3,
         item.id,
         item.url,
         item.pdfUrl,
@@ -306,7 +345,10 @@ export class PaperNewsCovers {
   private async resolve(item: PaperNewsItem): Promise<PaperNewsCover | null> {
     const signal = AbortSignal.timeout(35_000);
     const candidates: string[] = [];
-    const fromFeed = newsImageUrl(item.imageUrl);
+    const validateImage = (value: unknown) => hasNewsImages(item.source)
+      ? publisherImageUrl(item.source, value, item.url)
+      : newsImageUrl(value);
+    const fromFeed = validateImage(item.imageUrl);
     if (fromFeed) candidates.push(fromFeed);
     // Source URLs are derived from a cached, validated feed item at the IPC boundary.
     const paperId = item.pdfUrl?.match(
@@ -340,7 +382,9 @@ export class PaperNewsCovers {
       const html = (
         await this.request(page, 2 * 1024 * 1024, "html", signal)
       ).toString("utf8");
-      candidates.push(...newsPageImages(html, page, item.source === "arxiv"));
+      candidates.push(...newsPageImages(html, page, item.source === "arxiv")
+        .filter((url) => validateImage(url)));
+      candidates.push(...publisherArticleImages(item.source, html, page));
     } catch {
       /* Paper HTML is not available for every paper. */
     }

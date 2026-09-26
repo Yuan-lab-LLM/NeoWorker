@@ -1,4 +1,6 @@
 import { ReadingNotesLibrary } from "./ReadingNotesLibrary";
+import { NewsArticleImage } from "./NewsArticleImage";
+import { canShowNewsImages, hasNewsImages } from "../../shared/news-images";
 import {
   newsTaskDraft,
   type NewsTaskContext,
@@ -31,6 +33,7 @@ import {
   GraduationCap,
   Landmark,
   LayoutGrid,
+  Image,
   Library,
   Bookmark,
   CalendarDays,
@@ -294,6 +297,12 @@ export function PaperNewsPanel({
   const [snapshot, setSnapshot] = useState<PaperNewsSnapshot | null>(null);
   const [source, setSource] = useState<PaperNewsSource | "all">("all");
   const [category, setCategory] = useState<NewsCategoryId | "all">("all");
+  const [imageView, setImageView] = useState(() => {
+    try { return localStorage.getItem("neoworker.news-image-view") === "true"; }
+    catch { return false; }
+  });
+  const imagesAvailable = canShowNewsImages(category, source);
+  const showImages = imagesAvailable && imageView;
   const [savedOnly, setSavedOnly] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const activeCategory = NEWS_FEED_CATEGORIES.find(
@@ -802,6 +811,21 @@ export function PaperNewsPanel({
               </h2>
             </div>
             <div className="pn-tabs">
+              {imagesAvailable && (
+                <button
+                  aria-pressed={imageView}
+                  className={imageView ? "is-active" : ""}
+                  title={t("仅显示来源提供的文章配图；无图内容保留文字卡片", "Show publisher article images when available")}
+                  onClick={() => {
+                    setImageView(!imageView);
+                    try { localStorage.setItem("neoworker.news-image-view", String(!imageView)); }
+                    catch { /* The view still works when storage is unavailable. */ }
+                  }}
+                >
+                  <Image size={15} aria-hidden="true" />
+                  {t("图文视图", "Article images")}
+                </button>
+              )}
               <button
                 aria-pressed={cardTranslations.enabled}
                 className={cardTranslations.enabled ? "is-active" : ""}
@@ -1059,6 +1083,7 @@ export function PaperNewsPanel({
                     key={item.id}
                     data-news-id={item.id}
                   >
+                    {showImages && hasNewsImages(item.source) && <NewsArticleImage item={item} />}
                     <div className="pn-card-meta">
                       <span className="pn-source-badge">
                         <SourceBrand source={item.source} />

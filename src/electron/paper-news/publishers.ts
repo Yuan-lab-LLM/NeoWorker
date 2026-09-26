@@ -6,6 +6,7 @@ import {
   type NewsPublisher,
 } from "../../shared/news-sources";
 import type { PaperNewsItem } from "../../shared/paper-news";
+import { publisherImageUrl } from "./covers";
 
 const tidy = (value: string | null | undefined, limit = 1600) =>
   (value || "").replace(/\s+/g, " ").trim().slice(0, limit);
@@ -104,6 +105,21 @@ function dateFromArticle(source: NewsPublisher, url: string, anchor: Element): s
   return "";
 }
 
+function articleImage(source: NewsPublisher, url: string, anchor: Element): string | undefined {
+  let container: Element | null = anchor;
+  for (let depth = 0; container && depth < 4; depth++,
+    container = container.parentNode?.nodeType === 1 ? container.parentNode as Element : null) {
+    const links = Array.from(container.getElementsByTagName("a"))
+      .map((a) => articleLink(source, a.getAttribute("href") || "")).filter(Boolean);
+    // Never borrow a neighbouring story's thumbnail.
+    if (links.some((link) => link !== url)) break;
+    for (const img of Array.from(container.getElementsByTagName("img"))) {
+      const candidate = publisherImageUrl(source, img.getAttribute("data-src") || img.getAttribute("src"), url);
+      if (candidate) return candidate;
+    }
+  }
+}
+
 export function parsePublisherNews(source: NewsPublisher, raw: string): PaperNewsItem[] {
   const spec = NEWS_PUBLISHERS[source];
   const result = new Map<string, PaperNewsItem>();
@@ -162,6 +178,11 @@ export function parsePublisherNews(source: NewsPublisher, raw: string): PaperNew
             value("author"),
         ),
       );
+      for (const media of Array.from(row.getElementsByTagName("media:content"))) {
+        if (media.getAttribute("medium") !== "image" && !media.getAttribute("type")?.startsWith("image/")) continue;
+        const imageUrl = publisherImageUrl(source, media.getAttribute("url"), url);
+        if (imageUrl) { result.get(url)!.imageUrl = imageUrl; break; }
+      }
     }
   } else {
     const safe = raw.replace(
@@ -187,12 +208,14 @@ export function parsePublisherNews(source: NewsPublisher, raw: string): PaperNew
         continue;
       const previous = result.get(url);
       if (previous) {
+        previous.imageUrl ||= articleImage(source, url, anchor);
         if (!previous.summary && title.length > previous.title.length + 35)
           previous.summary = title.slice(0, 1600);
         continue;
       }
       if (title.length > 260) continue;
       result.set(url, item(source, url, title, excerpt, dateFromArticle(source, url, anchor)));
+      result.get(url)!.imageUrl = articleImage(source, url, anchor);
     }
   }
   // A login/challenge page or changed markup is a failure, not a successful empty refresh.

@@ -49,6 +49,19 @@ const cache = () => {
 afterEach(() => dirs.splice(0).forEach((d) => fs.rmSync(d, { recursive: true, force: true })));
 
 describe("public publisher adapters", () => {
+  it("keeps MIT article media and excludes unrelated media hosts", () => {
+    const image = '<media:content medium="image" url="https://news.mit.edu/sites/default/files/story.jpg"/>';
+    const feed = fixture("mitai").replace("</item>", image + "</item>");
+    expect(parsePublisherNews("mitai", feed)[0].imageUrl).toBe("https://news.mit.edu/sites/default/files/story.jpg");
+    expect(parsePublisherNews("mitai", feed.replace("news.mit.edu/sites/default/files/story.jpg", "evil.test/story.jpg"))[0].imageUrl).toBeUndefined();
+  });
+  it("associates a sibling thumbnail only with its own article, never an avatar or neighbour", () => {
+    const html = `<html><body><div><a href="/article/123.html"><img src="https://img.huxiucdn.com/article/story.jpg" /></a><a href="/article/123.html">Article with its own thumbnail</a></div>
+      <div><a href="/article/456.html">A second article without a thumbnail</a><img src="https://img.huxiucdn.com/auth/data/avatar/me.jpg" /></div></body></html>`;
+    const rows = parsePublisherNews("huxiu", html);
+    expect(rows[0].imageUrl).toBe("https://img.huxiucdn.com/article/story.jpg");
+    expect(rows[1].imageUrl).toBeUndefined();
+  });
   it.each(NEWS_PUBLISHER_IDS)("extracts an owned article from %s", (source) => {
     const [item] = parsePublisherNews(source, fixture(source));
     expect(item.source).toBe(source);

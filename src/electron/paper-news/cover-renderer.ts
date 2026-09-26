@@ -6,7 +6,21 @@ import { renderPdfPages } from "../utils/pdf-page-render";
 
 export async function resizeNewsCover(bytes: Buffer): Promise<Buffer | null> {
   const image = nativeImage.createFromBuffer(bytes);
-  if (image.isEmpty()) return null;
+  if (image.isEmpty()) {
+    // Some macOS nativeImage decoders do not support CDN-negotiated WebP.
+    // Reuse the bundled PDF canvas decoder; only decode bytes, never remote URLs.
+    if (bytes.toString("ascii", 0, 4) !== "RIFF" || bytes.toString("ascii", 8, 12) !== "WEBP") return null;
+    const { createCanvas, loadImage } = require("@napi-rs/canvas") as typeof import("@napi-rs/canvas");
+    const decoded = await loadImage(bytes);
+    if (decoded.width < 160 || decoded.height < 90 || decoded.width * decoded.height > 24_000_000) return null;
+    const scale = Math.min(1, 960 / decoded.width, 960 / decoded.height);
+    const canvas = createCanvas(Math.round(decoded.width * scale), Math.round(decoded.height * scale));
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(decoded, 0, 0, canvas.width, canvas.height);
+    return canvas.toBuffer("image/jpeg", 80);
+  }
   const { width, height } = image.getSize();
   // Reject badges/tracking pixels and unreasonable image dimensions.
   if (width < 160 || height < 90 || width * height > 24_000_000) return null;
