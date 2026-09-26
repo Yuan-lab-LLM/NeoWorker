@@ -3,6 +3,7 @@ export const READING_CHANNELS = {
   ask: "browser-reading:ask",
   cancel: "browser-reading:cancel",
   listen: "browser-reading:listen",
+  probeSelection: "browser-reading:probe-selection",
   selection: "browser-reading:selection",
 } as const;
 export type ReadingAction = "ask" | "translate" | "explain";
@@ -54,7 +55,11 @@ export function readingUrl(raw: string): string {
 export function validateReadingRequest(input: ReadingRequest): ReadingRequest {
   if (!input || typeof input !== "object") throw new Error("无效的阅读请求");
   for (const field of ["requestId", "taskId", "sessionId"] as const) {
-    if (typeof input[field] !== "string" || !input[field] || input[field].length > 200)
+    if (
+      typeof input[field] !== "string" ||
+      !input[field] ||
+      input[field].length > 200
+    )
       throw new Error("无效的阅读会话");
   }
   if (
@@ -63,7 +68,8 @@ export function validateReadingRequest(input: ReadingRequest): ReadingRequest {
     !input.question.trim() ||
     input.question.length > 4000 ||
     (input.selection !== undefined &&
-      (typeof input.selection !== "string" || input.selection.length > 12000)) ||
+      (typeof input.selection !== "string" ||
+        input.selection.length > 12000)) ||
     (input.page !== undefined &&
       (!Number.isInteger(input.page) || input.page < 1 || input.page > 10000))
   )
@@ -97,4 +103,15 @@ export interface ReadingSelectionEvent {
   y: number;
   pageURL: string;
   frameURL: string;
+}
+
+export interface ReadingSelectionRequest {
+  taskId: string;
+  sessionId: string;
+  url: string;
+}
+export interface ReadingSelection {
+  text: string;
+  x: number;
+  y: number;
 }

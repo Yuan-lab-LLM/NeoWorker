@@ -1,16 +1,20 @@
+import { ReadingNotesList } from "./ReadingNotesLibrary";
+import { loadReadingNotes, persistNotes } from "./reading-notes-store";
+import { PanelResizeHandle, usePanelWidth } from "./PanelResizeHandle";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   ArrowUp,
   BookOpen,
   Check,
   Languages,
+  Maximize2,
+  Minimize2,
   LoaderCircle,
   MessageSquare,
   NotebookPen,
   Plus,
   Quote,
   Square,
-  Trash2,
   X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -19,39 +23,19 @@ import {
   type ReadingAction,
   type ReadingAnswer,
   type ReadingBlock,
-  type ReadingNote,
 } from "../../shared/browser-reading";
 import "./browser-reading.css";
 
-const NOTES_KEY = "neoworker.reading-notes.v1";
-export function loadReadingNotes(): ReadingNote[] {
-  try {
-    const data = JSON.parse(localStorage.getItem(NOTES_KEY) || "[]");
-    return Array.isArray(data)
-      ? data
-          .filter(
-            (n) =>
-              n &&
-              typeof n.id === "string" &&
-              typeof n.url === "string" &&
-              typeof n.text === "string",
-          )
-          .slice(-500)
-      : [];
-  } catch {
-    return [];
-  }
-}
-function persistNotes(notes: ReadingNote[]) {
-  localStorage.setItem(NOTES_KEY, JSON.stringify(notes.slice(-500)));
-}
 function sourceKey(url: string) {
   return url.split("#")[0];
 }
-// Chromium's PDF viewer exposes selection through the webview context-menu event.
+// Chromium PDF selection is probed through the owned viewer in the main process.
 // HTML pages also support a lightweight selection probe; never send it to a model automatically.
 function selectionProbe() {
-  if (document.activeElement?.matches("input,textarea,[contenteditable='true']")) return null;
+  if (
+    document.activeElement?.matches("input,textarea,[contenteditable='true']")
+  )
+    return null;
   const selection = window.getSelection();
   const text = selection?.toString().trim();
   if (!text || !selection?.rangeCount || text.length > 12000) return null;
@@ -97,6 +81,11 @@ export function BrowserReadingAssistant({
   onOpen,
   webviewRef,
 }: Props) {
+  const [panelWidth, setPanelWidth] = usePanelWidth(
+    "neoworker.reading-width",
+    38,
+  );
+  const [expanded, setExpanded] = useState(false);
   const [tab, setTab] = useState<"ask" | "notes">("ask");
   const [selection, setSelection] = useState<Selection | null>(null);
   const [quote, setQuote] = useState("");
@@ -118,14 +107,18 @@ export function BrowserReadingAssistant({
 
   const stop = () => {
     if (requestRef.current)
-      void window.electronAPI.cancelBrowserReading(requestRef.current).catch(() => {});
+      void window.electronAPI
+        .cancelBrowserReading(requestRef.current)
+        .catch(() => {});
     requestRef.current = null;
     setPending("");
   };
   useEffect(
     () => () => {
       if (requestRef.current)
-        void window.electronAPI.cancelBrowserReading(requestRef.current).catch(() => {});
+        void window.electronAPI
+          .cancelBrowserReading(requestRef.current)
+          .catch(() => {});
       requestRef.current = null;
     },
     [],
@@ -158,7 +151,12 @@ export function BrowserReadingAssistant({
       }
     };
     const contextMenu = (event: {
-      params?: { selectionText?: string; x: number; y: number; isEditable?: boolean };
+      params?: {
+        selectionText?: string;
+        x: number;
+        y: number;
+        isEditable?: boolean;
+      };
     }) => {
       const p = event.params;
       if (!p?.isEditable && p?.selectionText?.trim()) {
@@ -167,31 +165,47 @@ export function BrowserReadingAssistant({
       }
     };
     guest.addEventListener("context-menu", contextMenu);
-    const unsubscribe = window.electronAPI.onBrowserReadingSelection?.((data) => {
-      if (
-        !pdf ||
-        (sourceKey(data.pageURL) !== sourceKey(url) &&
-          sourceKey(data.frameURL) !== sourceKey(url) &&
-          !data.frameURL.startsWith("chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/"))
-      )
-        return;
-      const bounds = guest.getBoundingClientRect();
-      if (
-        data.x < bounds.left ||
-        data.x > bounds.right ||
-        data.y < bounds.top ||
-        data.y > bounds.bottom
-      )
-        return;
-      dismissedSelection.current = "";
-      offer({ text: data.text, x: data.x - bounds.left, y: data.y - bounds.top });
-    });
+    const unsubscribe = window.electronAPI.onBrowserReadingSelection?.(
+      (data) => {
+        if (
+          !pdf ||
+          (sourceKey(data.pageURL) !== sourceKey(url) &&
+            sourceKey(data.frameURL) !== sourceKey(url) &&
+            !data.frameURL.startsWith(
+              "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/",
+            ))
+        )
+          return;
+        const bounds = guest.getBoundingClientRect();
+        if (
+          data.x < bounds.left ||
+          data.x > bounds.right ||
+          data.y < bounds.top ||
+          data.y > bounds.bottom
+        )
+          return;
+        dismissedSelection.current = "";
+        offer({
+          text: data.text,
+          x: data.x - bounds.left,
+          y: data.y - bounds.top,
+        });
+      },
+    );
     const timer = setInterval(async () => {
-      if (probing || pdf || document.hidden) return;
+      if (probing || document.hidden) return;
       probing = true;
       try {
         offer(
-          (await guest.executeJavaScript(`(${selectionProbe.toString()})()`)) as Selection | null,
+          pdf
+            ? ((await window.electronAPI.getBrowserReadingSelection?.({
+                taskId,
+                sessionId,
+                url,
+              })) ?? null)
+            : ((await guest.executeJavaScript(
+                `(${selectionProbe.toString()})()`,
+              )) as Selection | null),
         );
       } catch {
         /* Loading or restricted guest. */
@@ -205,7 +219,7 @@ export function BrowserReadingAssistant({
       unsubscribe?.();
       guest.removeEventListener("context-menu", contextMenu);
     };
-  }, [webviewRef, pdf, ready]);
+  }, [webviewRef, pdf, ready, taskId, sessionId, url]);
 
   function dismissSelection() {
     dismissedSelection.current = selection?.text || "";
@@ -243,10 +257,16 @@ export function BrowserReadingAssistant({
     }
   }
   function locate(block: ReadingBlock) {
-    if (block.page) webviewRef.current?.loadURL(`${sourceKey(url)}#page=${block.page}`);
+    if (block.page)
+      webviewRef.current?.loadURL(`${sourceKey(url)}#page=${block.page}`);
     else webviewRef.current?.findInPage(block.text.slice(0, 100));
   }
-  async function ask(action: ReadingAction, text: string, selected = quote, floating = false) {
+  async function ask(
+    action: ReadingAction,
+    text: string,
+    selected = quote,
+    floating = false,
+  ) {
     if (!text.trim() || requestRef.current) return;
     const id = crypto.randomUUID();
     requestRef.current = id;
@@ -271,7 +291,10 @@ export function BrowserReadingAssistant({
         page: pdf ? page : undefined,
         history: turns
           .slice(-3)
-          .map((t) => ({ question: t.question, answer: t.result.text.slice(0, 12000) })),
+          .map((t) => ({
+            question: t.question,
+            answer: t.result.text.slice(0, 12000),
+          })),
       });
       if (requestRef.current !== id) return;
       if (floating) setPopover(result);
@@ -281,7 +304,10 @@ export function BrowserReadingAssistant({
       if (requestRef.current === id) {
         setError(
           e instanceof Error
-            ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "")
+            ? e.message.replace(
+                /^Error invoking remote method '[^']+': (Error: )?/,
+                "",
+              )
             : "读取失败，请重试",
         );
         onOpen(true);
@@ -299,11 +325,18 @@ export function BrowserReadingAssistant({
       {selection && (
         <div
           className="br-selection-tools"
-          style={{ left: Math.max(12, selection.x), top: Math.max(12, selection.y + 10) }}
+          style={{
+            left: Math.max(12, selection.x),
+            top: Math.max(12, selection.y + 10),
+          }}
           role="toolbar"
           aria-label="选文操作"
         >
-          <button onClick={() => void ask("translate", "翻译这段文字", selection.text, true)}>
+          <button
+            onClick={() =>
+              void ask("translate", "翻译这段文字", selection.text, true)
+            }
+          >
             <Languages size={15} />
             翻译
           </button>
@@ -362,7 +395,10 @@ export function BrowserReadingAssistant({
           </header>
           <div className="br-answer">
             <ReactMarkdown
-              components={{ a: ({ children }) => <span>{children}</span>, img: () => null }}
+              components={{
+                a: ({ children }) => <span>{children}</span>,
+                img: () => null,
+              }}
             >
               {popover.text}
             </ReactMarkdown>
@@ -379,24 +415,62 @@ export function BrowserReadingAssistant({
         </div>
       )}
       {open && (
-        <aside className="br-assistant" aria-label="阅读助手">
+        <aside
+          className={`br-assistant${expanded ? " is-expanded" : ""}`}
+          style={{ "--reading-width": `${panelWidth}%` } as React.CSSProperties}
+          aria-label="阅读助手"
+        >
+          {!expanded && (
+            <PanelResizeHandle
+              value={panelWidth}
+              onChange={setPanelWidth}
+              label="调整阅读助手宽度"
+              min={25}
+              max={70}
+            />
+          )}
           <header className="br-header">
             <span>
               <BookOpen size={18} />
               <strong>阅读助手</strong>
             </span>
-            <button aria-label="收起阅读助手" onClick={() => onOpen(false)}>
-              <X size={17} />
-            </button>
+            <div className="br-header-actions">
+              <button
+                aria-label={expanded ? "退出阅读助手全屏" : "全屏阅读助手"}
+                title={expanded ? "退出全屏" : "全屏阅读助手"}
+                onClick={() => setExpanded(!expanded)}
+              >
+                {expanded ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+              </button>
+              <button
+                title="关闭阅读助手"
+                aria-label="收起阅读助手"
+                onClick={() => {
+                  setExpanded(false);
+                  onOpen(false);
+                }}
+              >
+                <X size={17} />
+              </button>
+            </div>
           </header>
           <div className="br-tabs" role="tablist" aria-label="阅读工具">
-            <button role="tab" aria-selected={tab === "ask"} onClick={() => setTab("ask")}>
+            <button
+              role="tab"
+              aria-selected={tab === "ask"}
+              onClick={() => setTab("ask")}
+            >
               <MessageSquare size={15} />
               问答
             </button>
-            <button role="tab" aria-selected={tab === "notes"} onClick={() => setTab("notes")}>
+            <button
+              role="tab"
+              aria-selected={tab === "notes"}
+              onClick={() => setTab("notes")}
+            >
               <NotebookPen size={15} />
-              笔记{sourceNotes.length > 0 && <small>{sourceNotes.length}</small>}
+              笔记
+              {sourceNotes.length > 0 && <small>{sourceNotes.length}</small>}
             </button>
           </div>
           <div className="br-source">
@@ -407,7 +481,11 @@ export function BrowserReadingAssistant({
             <>
               <div className="br-scope">
                 <Quote size={13} />
-                {quote ? "已选中段落" : pdf ? "按指定 PDF 页提问" : "基于网页已加载正文"}
+                {quote
+                  ? "已选中段落"
+                  : pdf
+                    ? "按指定 PDF 页提问"
+                    : "基于网页已加载正文"}
                 {pdf && !quote && (
                   <label>
                     第{" "}
@@ -418,7 +496,12 @@ export function BrowserReadingAssistant({
                       max="10000"
                       value={page}
                       onChange={(e) =>
-                        setPage(Math.max(1, Math.min(10000, Number(e.target.value) || 1)))
+                        setPage(
+                          Math.max(
+                            1,
+                            Math.min(10000, Number(e.target.value) || 1),
+                          ),
+                        )
                       }
                     />{" "}
                     页
@@ -432,7 +515,7 @@ export function BrowserReadingAssistant({
                     <h3>边读，边弄明白</h3>
                     <p>
                       {pdf
-                        ? "填写想阅读的页码，或选中文字后右键，翻译、解释和记笔记。"
+                        ? "填写想阅读的页码，或直接选中文字，翻译、解释和记笔记。"
                         : "选中原文即可翻译、解释，也可以直接问这篇文章。"}
                     </p>
                     {[
@@ -445,7 +528,11 @@ export function BrowserReadingAssistant({
                         onClick={() =>
                           void ask(
                             "ask",
-                            pdf ? q.replace("这篇内容", "这一页").replace("这篇文章", "这一页") : q,
+                            pdf
+                              ? q
+                                  .replace("这篇内容", "这一页")
+                                  .replace("这篇文章", "这一页")
+                              : q,
                           )
                         }
                       >
@@ -474,7 +561,11 @@ export function BrowserReadingAssistant({
                         .filter((b) => turn.result.text.includes(`[${b.id}]`))
                         .slice(0, 6)
                         .map((b) => (
-                          <button title="定位到原文" key={b.id} onClick={() => locate(b)}>
+                          <button
+                            title="定位到原文"
+                            key={b.id}
+                            onClick={() => locate(b)}
+                          >
                             {b.id}
                           </button>
                         ))}
@@ -495,11 +586,17 @@ export function BrowserReadingAssistant({
                           )
                         )
                           setTurns((old) =>
-                            old.map((t) => (t.id === turn.id ? { ...t, saved: true } : t)),
+                            old.map((t) =>
+                              t.id === turn.id ? { ...t, saved: true } : t,
+                            ),
                           );
                       }}
                     >
-                      {turn.saved ? <Check size={14} /> : <NotebookPen size={14} />}
+                      {turn.saved ? (
+                        <Check size={14} />
+                      ) : (
+                        <NotebookPen size={14} />
+                      )}
                       {turn.saved ? "已存为笔记" : "存为笔记"}
                     </button>
                   </div>
@@ -540,7 +637,11 @@ export function BrowserReadingAssistant({
                   <div className="br-quote">
                     <Quote size={13} />
                     <span title={quote}>{quote}</span>
-                    <button type="button" aria-label="取消引用段落" onClick={() => setQuote("")}>
+                    <button
+                      type="button"
+                      aria-label="取消引用段落"
+                      onClick={() => setQuote("")}
+                    >
                       <X size={13} />
                     </button>
                   </div>
@@ -548,35 +649,55 @@ export function BrowserReadingAssistant({
                 <textarea
                   ref={inputRef}
                   aria-label="向阅读助手提问"
-                  placeholder={quote ? "问问这段话…" : pdf ? "问问这一页…" : "问问这篇文章…"}
+                  placeholder={
+                    quote
+                      ? "问问这段话…"
+                      : pdf
+                        ? "问问这一页…"
+                        : "问问这篇文章…"
+                  }
                   maxLength={4000}
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                    if (
+                      e.key === "Enter" &&
+                      !e.shiftKey &&
+                      !e.nativeEvent.isComposing
+                    ) {
                       e.preventDefault();
                       void ask("ask", question);
                     }
                   }}
                 />
                 <div>
-                  <small>{latest ? `模型 · ${latest.model}` : "使用当前配置的模型"}</small>
+                  <small>
+                    {latest ? `模型 · ${latest.model}` : "使用当前配置的模型"}
+                  </small>
                   {pending ? (
                     <button type="button" aria-label="停止回答" onClick={stop}>
                       <Square size={15} />
                     </button>
                   ) : (
-                    <button type="submit" aria-label="发送问题" disabled={!question.trim()}>
+                    <button
+                      type="submit"
+                      aria-label="发送问题"
+                      disabled={!question.trim()}
+                    >
                       <ArrowUp size={17} />
                     </button>
                   )}
                 </div>
               </form>
-              <p className="br-footnote">回答仅依据已读取文字，可点击引用核对原文</p>
+              <p className="br-footnote">
+                回答仅依据已读取文字，可点击引用核对原文
+              </p>
             </>
           ) : (
             <div className="br-notes">
-              <p className="br-note-intro">这篇内容的笔记 · 保存在本机</p>
+              <p className="br-note-intro">
+                保存在本机 · 也可在「资讯动态 → 阅读笔记」查看
+              </p>
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -595,59 +716,31 @@ export function BrowserReadingAssistant({
                   保存笔记
                 </button>
               </form>
-              {!sourceNotes.length && (
-                <div className="br-empty">
-                  <NotebookPen size={28} />
-                  <h3>留下值得记住的内容</h3>
-                  <p>选中原文，或把助手的回答存为笔记。来源会一起保留。</p>
-                </div>
-              )}
-              {sourceNotes
-                .slice()
-                .reverse()
-                .map((note) => (
-                  <article className="br-note" key={note.id}>
-                    <header>
-                      <time>{new Date(note.createdAt).toLocaleDateString()}</time>
-                      <button
-                        aria-label="删除笔记"
-                        onClick={() => {
-                          const next = loadReadingNotes().filter((n) => n.id !== note.id);
-                          try {
-                            persistNotes(next);
-                            setNotes(next);
-                          } catch {
-                            setError("删除失败，请重试");
-                          }
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </header>
-                    {note.quote && note.quote !== note.text && (
-                      <blockquote>{note.quote}</blockquote>
-                    )}
-                    <div className="br-answer">
-                      <ReactMarkdown
-                        components={{
-                          a: ({ children }) => <span>{children}</span>,
-                          img: () => null,
-                        }}
-                      >
-                        {note.text}
-                      </ReactMarkdown>
-                    </div>
-                    <button
-                      className="br-text-button"
-                      onClick={() =>
-                        locate({ id: "note", text: note.quote || note.text, page: note.page })
-                      }
-                    >
-                      <Quote size={13} />
-                      {note.page ? `第 ${note.page} 页` : "定位原文"}
-                    </button>
-                  </article>
-                ))}
+              <ReadingNotesList
+                notes={notes}
+                currentUrl={url}
+                onDelete={(id) => {
+                  try {
+                    const next = loadReadingNotes().filter((n) => n.id !== id);
+                    persistNotes(next);
+                    setNotes(next);
+                  } catch {
+                    setError("删除失败，请重试");
+                  }
+                }}
+                onOpen={(note) => {
+                  if (sourceKey(note.url) === sourceKey(url))
+                    locate({
+                      id: "note",
+                      text: note.quote || note.text,
+                      page: note.page,
+                    });
+                  else if (/^https?:\/\//.test(note.url))
+                    webviewRef.current?.loadURL(
+                      note.url + (note.page ? `#page=${note.page}` : ""),
+                    );
+                }}
+              />
               {error && (
                 <p className="br-error" role="alert">
                   {error}

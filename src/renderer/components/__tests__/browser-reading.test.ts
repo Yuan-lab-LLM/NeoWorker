@@ -32,7 +32,9 @@ async function mount() {
   });
 }
 const button = (label: string) =>
-  renderer!.root.findAllByType("button").find((b) => b.children.some((c) => c === label))!;
+  renderer!.root
+    .findAllByType("button")
+    .find((b) => b.children.some((c) => c === label))!;
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   store = new Map();
@@ -96,13 +98,73 @@ describe("reading assistant state", () => {
     await act(async () =>
       renderer!.root.findByType("form").props.onSubmit({ preventDefault() {} }),
     );
-    expect(renderer!.root.findByType("textarea").props.value).toBe("Explain the evidence");
-    expect(renderer!.root.findByProps({ role: "alert" }).children.join("")).toContain(
-      "Network unavailable",
+    expect(renderer!.root.findByType("textarea").props.value).toBe(
+      "Explain the evidence",
     );
+    expect(
+      renderer!.root.findByProps({ role: "alert" }).children.join(""),
+    ).toContain("Network unavailable");
     await act(async () =>
       renderer!.root.findByType("form").props.onSubmit({ preventDefault() {} }),
     );
     expect(ask).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("reading workspace controls", () => {
+  it("finds and searches notes saved from other articles", async () => {
+    store.set(
+      "neoworker.reading-notes.v1",
+      JSON.stringify([
+        {
+          id: "old",
+          title: "Previous paper",
+          url: "https://example.org/old.pdf",
+          text: "Key evidence",
+          page: 3,
+          createdAt: 1,
+        },
+      ]),
+    );
+    await mount();
+    await act(async () => button("笔记").props.onClick());
+    expect(renderer!.root.findAllByType("article")).toHaveLength(0);
+    await act(async () => button("全部笔记").props.onClick());
+    expect(renderer!.root.findAllByType("article")).toHaveLength(1);
+    const search = renderer!.root.findByProps({ "aria-label": "搜索阅读笔记" });
+    await act(async () =>
+      search.props.onChange({ target: { value: "not found" } }),
+    );
+    expect(renderer!.root.findAllByType("article")).toHaveLength(0);
+    await act(async () =>
+      search.props.onChange({ target: { value: "evidence" } }),
+    );
+    expect(renderer!.root.findAllByType("article")).toHaveLength(1);
+  });
+  it("expands and restores the assistant without losing the draft", async () => {
+    await mount();
+    const input = renderer!.root.findByProps({
+      "aria-label": "向阅读助手提问",
+    });
+    await act(async () =>
+      input.props.onChange({ target: { value: "Keep this question" } }),
+    );
+    await act(async () =>
+      renderer!.root
+        .findByProps({ "aria-label": "全屏阅读助手" })
+        .props.onClick(),
+    );
+    expect(renderer!.root.findByType("aside").props.className).toContain(
+      "is-expanded",
+    );
+    await act(async () =>
+      renderer!.root
+        .findByProps({ "aria-label": "退出阅读助手全屏" })
+        .props.onClick(),
+    );
+    expect(input.props.value).toBe("Keep this question");
+    expect(renderer!.root.findByType("aside").props.className).not.toContain(
+      "is-expanded",
+    );
   });
 });

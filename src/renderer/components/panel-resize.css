@@ -1,0 +1,35 @@
+.nw-panel-resize {
+  position: absolute;
+  left: -4px;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  z-index: 20;
+  cursor: col-resize;
+  touch-action: none;
+}
+.nw-panel-resize span {
+  position: absolute;
+  top: 45%;
+  left: 3px;
+  height: 38px;
+  width: 3px;
+  border-radius: 4px;
+  background: var(--color-border, #d5dce6);
+}
+.nw-panel-resize:hover span,
+.nw-panel-resize:focus-visible span {
+  background: var(--color-accent, #208cff);
+}
+.nw-panel-resize:focus-visible {
+  outline: 2px solid var(--color-accent, #208cff);
+  outline-offset: -2px;
+}
+.nw-panel-resize-shield {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}

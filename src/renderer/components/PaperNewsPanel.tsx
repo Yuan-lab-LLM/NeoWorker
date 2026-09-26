@@ -1,10 +1,21 @@
-import { newsTaskDraft, type NewsTaskContext } from "../../shared/news-task-draft";
+import { ReadingNotesLibrary } from "./ReadingNotesLibrary";
+import {
+  newsTaskDraft,
+  type NewsTaskContext,
+} from "../../shared/news-task-draft";
+import { PanelResizeHandle, usePanelWidth } from "./PanelResizeHandle";
 import { BrowserWorkbenchView } from "./BrowserWorkbenchView";
 import type { NewsSummaryResult } from "../../shared/news-summary";
 import { useNewsCardTranslations } from "./useNewsCardTranslations";
 import { isHfHubSource } from "../../shared/news-hub";
-import { NewsPreferencesPanel, type NewsSettingsScope } from "./NewsPreferencesPanel";
-import { newsSourceEnabled, newsDefaultSort } from "../../shared/news-preferences";
+import {
+  NewsPreferencesPanel,
+  type NewsSettingsScope,
+} from "./NewsPreferencesPanel";
+import {
+  newsSourceEnabled,
+  newsDefaultSort,
+} from "../../shared/news-preferences";
 import { NEWS_PUBLISHERS, isNewsPublisher } from "../../shared/news-sources";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -35,6 +46,7 @@ import {
   FlaskConical,
   Languages,
   Newspaper,
+  NotebookPen,
   RefreshCw,
   Search,
   SlidersHorizontal,
@@ -157,7 +169,9 @@ function NewsSourceDirectory({
             </span>
             <div>
               <h3>
-                {expanded ? t(entry.name, entry.nameEn) : t("本领域来源", "Sources in this topic")}
+                {expanded
+                  ? t(entry.name, entry.nameEn)
+                  : t("本领域来源", "Sources in this topic")}
               </h3>
               <p>{t(entry.description, entry.descriptionEn)}</p>
             </div>
@@ -180,7 +194,9 @@ function NewsSourceDirectory({
                       onClick={() => onSelect(entry.id, provider.adapter!)}
                     >
                       <SourceBrand source={provider.adapter!} />
-                      <span>{t(provider.name, provider.nameEn || provider.name)}</span>
+                      <span>
+                        {t(provider.name, provider.nameEn || provider.name)}
+                      </span>
                       <ArrowRight size={15} aria-hidden="true" />
                     </button>
                   </li>
@@ -202,7 +218,9 @@ function NewsSourceDirectory({
                 {planned.map((provider) => (
                   <li className="pn-directory-source" key={provider.id}>
                     <SourceBrand source={provider.id} />
-                    <span>{t(provider.name, provider.nameEn || provider.name)}</span>
+                    <span>
+                      {t(provider.name, provider.nameEn || provider.name)}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -242,21 +260,33 @@ function NewsSourceDirectory({
 export function PaperNewsPanel({
   onUsePrompt,
 }: {
-  onUsePrompt: (prompt: string, context?: { newsContext: NewsTaskContext }) => Promise<void> | void;
+  onUsePrompt: (
+    prompt: string,
+    context?: { newsContext: NewsTaskContext },
+  ) => Promise<void> | void;
 }) {
   const language = useLanguage();
   const t = (zh: string, en: string) => (language === "zh-CN" ? zh : en);
   const names = Object.fromEntries(
     PAPER_NEWS_SOURCES.map((s) => [
       s,
-      isNewsPublisher(s) ? t(NEWS_PUBLISHERS[s].name, NEWS_PUBLISHERS[s].nameEn) : paperNames[s],
+      isNewsPublisher(s)
+        ? t(NEWS_PUBLISHERS[s].name, NEWS_PUBLISHERS[s].nameEn)
+        : paperNames[s],
     ]),
   ) as Record<PaperNewsSource, string>;
   const [newsBrowserUrl, setNewsBrowserUrl] = useState<string | null>(null);
   const newsBrowserRef = useRef<HTMLDivElement>(null);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [browserFullscreen, setBrowserFullscreen] = useState(false);
+  const [browserWidth, setBrowserWidth] = usePanelWidth(
+    "neoworker.news-browser-width",
+    64,
+  );
   const newsTitleRef = useRef<HTMLButtonElement | null>(null);
-  const [summaryStates, setSummaryStates] = useState<Record<string, string>>({});
+  const [summaryStates, setSummaryStates] = useState<Record<string, string>>(
+    {},
+  );
   useEffect(() => {
     if (newsBrowserUrl) newsBrowserRef.current?.focus();
     else newsTitleRef.current?.focus();
@@ -266,12 +296,15 @@ export function PaperNewsPanel({
   const [category, setCategory] = useState<NewsCategoryId | "all">("all");
   const [savedOnly, setSavedOnly] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
-  const activeCategory = NEWS_FEED_CATEGORIES.find((entry) => entry.id === category);
+  const activeCategory = NEWS_FEED_CATEGORIES.find(
+    (entry) => entry.id === category,
+  );
   const availableSources = newsSourcesForCategory(category);
   const activeSources = availableSources.filter(
     (s) => !snapshot || newsSourceEnabled(snapshot.config, s),
   );
-  const categoryUnavailable = category !== "all" && availableSources.length === 0;
+  const categoryUnavailable =
+    category !== "all" && availableSources.length === 0;
   function selectCategory(next: NewsCategoryId | "all") {
     setCategory(next);
     setSource("all");
@@ -281,7 +314,8 @@ export function PaperNewsPanel({
   const [query, setQuery] = useState("");
   const [sortOverride, setSortOverride] = useState<string | null>(null);
   const sort =
-    sortOverride || (snapshot ? newsDefaultSort(snapshot.config, category) : "recommended");
+    sortOverride ||
+    (snapshot ? newsDefaultSort(snapshot.config, category) : "recommended");
   const [settings, setSettings] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
   const preferencesAnchor = useRef<HTMLDivElement>(null);
@@ -292,12 +326,15 @@ export function PaperNewsPanel({
       // scrollIntoView also scrolls ancestors, including the desktop shell.
       panel.scrollTo({
         top:
-          panel.scrollTop + anchor.getBoundingClientRect().top - panel.getBoundingClientRect().top,
+          panel.scrollTop +
+          anchor.getBoundingClientRect().top -
+          panel.getBoundingClientRect().top,
         behavior: "instant",
       });
     }
   }, [settings]);
-  const [settingsScope, setSettingsScope] = useState<NewsSettingsScope>("general");
+  const [settingsScope, setSettingsScope] =
+    useState<NewsSettingsScope>("general");
   const [settingsRevision, setSettingsRevision] = useState(0);
   function openSettings(target: NewsSettingsScope) {
     if (settings) return; // Keep unsaved edits until explicitly saved or dismissed.
@@ -319,7 +356,11 @@ export function PaperNewsPanel({
     ),
   );
   const retryAt = coolingDown
-    ? Math.min(...refreshSources.map((s) => Date.parse(snapshot!.sources[s]!.nextRetryAt!)))
+    ? Math.min(
+        ...refreshSources.map((s) =>
+          Date.parse(snapshot!.sources[s]!.nextRetryAt!),
+        ),
+      )
     : 0;
   const remainingSeconds = Math.max(0, Math.ceil((retryAt - clock) / 1000));
   const duration = (seconds: number) =>
@@ -420,12 +461,14 @@ export function PaperNewsPanel({
       if (!mounted.current) return state.config;
       setSnapshot(state);
       setSortOverride(null);
-      if (source !== "all" && !newsSourceEnabled(state.config, source)) setSource("all");
+      if (source !== "all" && !newsSourceEnabled(state.config, source))
+        setSource("all");
       const changed = PAPER_NEWS_SOURCES.filter(
         (s) =>
           newsSourceEnabled(state.config, s) &&
           (!newsSourceEnabled(snapshot.config, s) ||
-            JSON.stringify(snapshot.config[s]) !== JSON.stringify(state.config[s])),
+            JSON.stringify(snapshot.config[s]) !==
+              JSON.stringify(state.config[s])),
       );
       if (changed.length) {
         try {
@@ -464,15 +507,24 @@ export function PaperNewsPanel({
     if ("summary" in result) {
       const value = result;
       const merge = (current: PaperNewsItem) =>
-        current.id === item.id && current.title === item.title &&
-        current.url === item.url && !current.summary.trim()
+        current.id === item.id &&
+        current.title === item.title &&
+        current.url === item.url &&
+        !current.summary.trim()
           ? { ...current, summary: value.summary, summaryKind: value.kind }
           : current;
-      setSnapshot((state) => state
-        ? { ...state, items: state.items.map(merge), saved: state.saved.map(merge) }
-        : state);
+      setSnapshot((state) =>
+        state
+          ? {
+              ...state,
+              items: state.items.map(merge),
+              saved: state.saved.map(merge),
+            }
+          : state,
+      );
       setSummaryStates((states) => ({ ...states, [item.id]: "" }));
-    } else setSummaryStates((states) => ({ ...states, [item.id]: result.error }));
+    } else
+      setSummaryStates((states) => ({ ...states, [item.id]: result.error }));
   }
   async function open(url: string) {
     try {
@@ -498,7 +550,9 @@ export function PaperNewsPanel({
     return (pool || [])
       .filter(
         (i) =>
-          (savedOnly || !snapshot || newsSourceEnabled(snapshot.config, i.source)) &&
+          (savedOnly ||
+            !snapshot ||
+            newsSourceEnabled(snapshot.config, i.source)) &&
           (source === "all" || i.source === source) &&
           (category === "all" || newsCategoryForSource(i.source) === category),
       )
@@ -544,752 +598,915 @@ export function PaperNewsPanel({
 
   return (
     <div className="pn-workspace">
-    <main
-      inert={Boolean(newsBrowserUrl && browserFullscreen)}
-      ref={panelRef}
-      className={`paper-news-panel ${categoryUnavailable ? "pn-no-sources" : ""}`}
-      aria-label={t("资讯动态", "News Feed")}
-    >
-      <NeoWorkerPageHeader
-        title={t("资讯动态", "News Feed")}
-        description={t(
-          "从研究到产业，发现值得关注的新进展。",
-          "From research to industry. Discover what matters next.",
-        )}
-        icon={<Newspaper />}
-        actions={
-          <>
-            <button
-              className="pn-button"
-              disabled={busy || !snapshot || settings}
-              aria-expanded={settings}
-              onClick={() => openSettings("general")}
-            >
-              <SlidersHorizontal size={16} />
-              {t("偏好设置", "Preferences")}
-            </button>
-            <button
-              className={`pn-button pn-primary pn-refresh ${busy || coolingDown ? "is-waiting" : ""}`}
-              disabled={busy || coolingDown || categoryUnavailable || !activeSources.length}
-              aria-busy={busy}
-              title={
-                coolingDown && !busy
-                  ? t(
-                      "来源请求间隔尚未结束，倒计时结束后可再次刷新。",
-                      "Source cooldown is active. Refresh will be available when the countdown ends.",
-                    )
-                  : undefined
-              }
-              onClick={() => void refresh()}
-            >
-              {coolingDown && !busy ? (
-                <Clock3 size={16} className="pn-wait-pulse" aria-hidden="true" />
-              ) : (
-                <RefreshCw size={16} className={busy ? "pn-spinning" : ""} aria-hidden="true" />
-              )}
-              {busy
-                ? t("获取中…", "Fetching…")
-                : coolingDown
-                  ? t(
-                      `${duration(remainingSeconds)}后可刷新`,
-                      `Refresh in ${duration(remainingSeconds)}`,
-                    )
-                  : t("获取最新", "Refresh")}
-            </button>
-          </>
-        }
-      />
-      <div className="pn-content">
-        {busy && (
-          <div className="pn-fetch-activity">
-            <div className="pn-fetch-status">
-              <span role="status">
-                <RefreshCw size={14} className="pn-spinning" aria-hidden="true" />
-                {t("正在获取最新内容", "Fetching the latest content")}
-              </span>
-              <span className="pn-fetch-elapsed">
-                {t("已等待 ", "Elapsed ")}
-                {duration(Math.max(0, Math.floor((clock - (busyStartedAt ?? clock)) / 1000)))}
-              </span>
-            </div>
-            <div className="pn-fetch-track" aria-hidden="true">
-              <span />
-            </div>
-            <p>
-              {t(
-                "内容会陆续更新，你可以继续浏览已有内容。",
-                "Results update as sources respond. You can keep browsing existing content.",
-              )}
-            </p>
-          </div>
-        )}
-        {failure && (
-          <div className="pn-notice" role="alert">
-            {failure === "load"
-              ? t(
-                  "暂时无法获取动态，请稍后重试。已有内容会保留。",
-                  "Could not load news. Please retry later; existing content is kept.",
-                )
-              : failure === "save"
-                ? t(
-                    "保存失败，请检查关注词或稍后重试。最多收藏 200 条。",
-                    "Could not save. Check your topics or retry later. Up to 200 bookmarks are supported.",
-                  )
-                : t("无法打开，请重试。", "Could not open. Please retry.")}
-            <button
-              className="pn-icon"
-              aria-label={t("关闭提示", "Dismiss")}
-              onClick={() => setFailure(null)}
-            >
-              <X size={16} />
-            </button>
-          </div>
-        )}
-        {settings && snapshot && (
-          <div ref={preferencesAnchor}>
-            <NewsPreferencesPanel
-              key={settingsRevision}
-              config={snapshot.config}
-              initialScope={settingsScope}
-              names={names}
-              busy={busy}
-              onClose={() => setSettings(false)}
-              onSave={saveConfig}
-            />
-          </div>
-        )}
-        <section className="pn-discovery" aria-label={t("浏览资讯分类", "Browse news categories")}>
-          <div className="pn-section-label">
-            <div className="pn-section-options">
-              <span>{t("探索领域", "EXPLORE TOPICS")}</span>
-              <button
-                className={`pn-all-topics ${category === "all" ? "is-active" : ""}`}
-                aria-pressed={category === "all"}
-                onClick={() => selectCategory("all")}
-              >
-                <LayoutGrid size={12} />
-                {t("全部动态", "All topics")}
+      <main
+        inert={Boolean(newsBrowserUrl && browserFullscreen)}
+        ref={panelRef}
+        className={`paper-news-panel ${categoryUnavailable ? "pn-no-sources" : ""}`}
+        aria-label={t("资讯动态", "News Feed")}
+      >
+        <NeoWorkerPageHeader
+          title={t("资讯动态", "News Feed")}
+          description={t(
+            "从研究到产业，发现值得关注的新进展。",
+            "From research to industry. Discover what matters next.",
+          )}
+          icon={<Newspaper />}
+          actions={
+            <>
+              <button className="pn-button" onClick={() => setNotesOpen(true)}>
+                <NotebookPen size={16} />
+                {t("阅读笔记", "Reading notes")}
               </button>
-            </div>
-            <button
-              className="pn-text-button"
-              aria-expanded={catalogOpen}
-              onClick={() => setCatalogOpen(!catalogOpen)}
-            >
-              <Library size={14} />
-              {t("来源目录", "Source directory")}{" "}
-              <span>
-                {NEWS_FEED_CATEGORIES.reduce((count, entry) => count + entry.providers.length, 0)}
-              </span>
-              <ChevronRight size={14} />
-            </button>
-          </div>
-          <nav className="pn-categories" aria-label={t("资讯分类", "News categories")}>
-            {NEWS_FEED_CATEGORIES.map((entry) => {
-              const Icon = categoryIcons[entry.id];
-              return (
-                <button
-                  key={entry.id}
-                  className={`pn-category ${category === entry.id ? "is-active" : ""}`}
-                  aria-pressed={category === entry.id}
-                  onClick={() => selectCategory(entry.id)}
-                >
-                  <span className="pn-category-icon">
-                    <Icon size={21} strokeWidth={1.65} />
-                  </span>
-                  <strong>{t(entry.name, entry.nameEn)}</strong>
-                  <span>{t(entry.description, entry.descriptionEn)}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </section>
-        <div className="pn-feed-heading">
-          <div>
-            <h2>
-              {activeCategory
-                ? t(activeCategory.name, activeCategory.nameEn)
-                : t("发现新进展", "Your next discovery")}
-            </h2>
-          </div>
-          <div className="pn-tabs">
-            <button
-              aria-pressed={cardTranslations.enabled}
-              className={cardTranslations.enabled ? "is-active" : ""}
-              title={t(
-                "使用已配置的模型翻译可见卡片的标题与摘要，可能产生模型费用；译文会缓存。",
-                "Translate visible titles and summaries using your configured model; model charges may apply. Translations are cached.",
-              )}
-              onClick={cardTranslations.toggle}
-            >
-              <Languages size={15} aria-hidden="true" />
-              {cardTranslations.enabled
-                ? t("显示原文", "Show originals")
-                : t("中文显示", "Show in Chinese")}
-            </button>
-            {activeCategory && (
               <button
+                className="pn-button"
                 disabled={busy || !snapshot || settings}
-                onClick={() => openSettings(activeCategory.id)}
+                aria-expanded={settings}
+                onClick={() => openSettings("general")}
               >
-                <SlidersHorizontal size={14} />
-                {t("分类偏好", "Category preferences")}
+                <SlidersHorizontal size={16} />
+                {t("偏好设置", "Preferences")}
               </button>
-            )}
-            <button
-              aria-pressed={!savedOnly}
-              className={!savedOnly ? "is-active" : ""}
-              onClick={() => setSavedOnly(false)}
-            >
-              <Compass size={15} aria-hidden="true" />
-              {t("发现", "Discover")}
-            </button>
-            <button
-              aria-pressed={savedOnly}
-              className={savedOnly ? "is-active" : ""}
-              onClick={() => setSavedOnly(true)}
-            >
-              <Bookmark size={14} />
-              {t("收藏", "Saved")} <span>{snapshot?.saved.length || 0}</span>
-            </button>
-          </div>
-        </div>
-        {(catalogOpen || categoryUnavailable) && (
-          <NewsSourceDirectory
-            key={`${category}-${catalogOpen}`}
-            category={category}
-            expanded={catalogOpen}
-            language={language}
-            onClose={() => setCatalogOpen(false)}
-            onSelect={(nextCategory, nextSource) => {
-              setSortOverride(null);
-              setCategory(nextCategory);
-              setSource(nextSource);
-              setCatalogOpen(false);
-              setSavedOnly(false);
-              setQuery("");
-            }}
-            onExplore={
-              categoryUnavailable
-                ? () => {
-                    selectCategory("all");
-                    setSavedOnly(false);
-                    setQuery("");
-                  }
-                : undefined
-            }
-          />
-        )}
-        <div className="pn-toolbar">
-          {!!(savedOnly ? availableSources : activeSources).length && (
-            <div
-              className="pn-source-filters"
-              role="group"
-              aria-label={t("筛选来源", "Filter sources")}
-            >
               <button
-                className={source === "all" ? "is-active" : ""}
-                aria-pressed={source === "all"}
-                onClick={() => setSource("all")}
+                className={`pn-button pn-primary pn-refresh ${busy || coolingDown ? "is-waiting" : ""}`}
+                disabled={
+                  busy ||
+                  coolingDown ||
+                  categoryUnavailable ||
+                  !activeSources.length
+                }
+                aria-busy={busy}
+                title={
+                  coolingDown && !busy
+                    ? t(
+                        "来源请求间隔尚未结束，倒计时结束后可再次刷新。",
+                        "Source cooldown is active. Refresh will be available when the countdown ends.",
+                      )
+                    : undefined
+                }
+                onClick={() => void refresh()}
               >
-                {t("全部来源", "All sources")}
+                {coolingDown && !busy ? (
+                  <Clock3
+                    size={16}
+                    className="pn-wait-pulse"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <RefreshCw
+                    size={16}
+                    className={busy ? "pn-spinning" : ""}
+                    aria-hidden="true"
+                  />
+                )}
+                {busy
+                  ? t("获取中…", "Fetching…")
+                  : coolingDown
+                    ? t(
+                        `${duration(remainingSeconds)}后可刷新`,
+                        `Refresh in ${duration(remainingSeconds)}`,
+                      )
+                    : t("获取最新", "Refresh")}
               </button>
-              {(savedOnly ? availableSources : activeSources).map((entry) => (
-                <button
-                  key={entry}
-                  className={source === entry ? "is-active" : ""}
-                  aria-pressed={source === entry}
-                  onClick={() => setSource(entry)}
-                >
-                  <SourceBrand source={entry} />
-                  <span className={entry === "arxiv" ? "pn-visually-hidden" : ""}>
-                    {names[entry]}
-                  </span>
-                  <small>
-                    {(savedOnly ? snapshot?.saved : snapshot?.items)?.filter(
-                      (item) => item.source === entry,
-                    ).length || 0}
-                  </small>
-                </button>
-              ))}
-              {source !== "all" && (
-                <button
-                  className="pn-filter-settings"
-                  disabled={busy || !snapshot}
-                  aria-label={t("来源高级设置", "Source settings")}
-                  onClick={() => openSettings(source)}
-                >
-                  <SlidersHorizontal size={15} />
-                </button>
-              )}
+            </>
+          }
+        />
+        <div className="pn-content">
+          {busy && (
+            <div className="pn-fetch-activity">
+              <div className="pn-fetch-status">
+                <span role="status">
+                  <RefreshCw
+                    size={14}
+                    className="pn-spinning"
+                    aria-hidden="true"
+                  />
+                  {t("正在获取最新内容", "Fetching the latest content")}
+                </span>
+                <span className="pn-fetch-elapsed">
+                  {t("已等待 ", "Elapsed ")}
+                  {duration(
+                    Math.max(
+                      0,
+                      Math.floor((clock - (busyStartedAt ?? clock)) / 1000),
+                    ),
+                  )}
+                </span>
+              </div>
+              <div className="pn-fetch-track" aria-hidden="true">
+                <span />
+              </div>
+              <p>
+                {t(
+                  "内容会陆续更新，你可以继续浏览已有内容。",
+                  "Results update as sources respond. You can keep browsing existing content.",
+                )}
+              </p>
             </div>
           )}
-
-          <label className="pn-search">
-            <Search size={16} />
-            <input
-              aria-label={t("搜索已获取的内容", "Search fetched results")}
-              placeholder={t("搜索标题、摘要或标签", "Search titles, abstracts or tags")}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </label>
-          <select
-            aria-label={t("排序方式", "Sort order")}
-            value={sort}
-            onChange={(e) => setSortOverride(e.target.value)}
-          >
-            <option value="recommended">{t("推荐排序", "Recommended")}</option>
-            <option value="newest">{t("时间排序", "Most recent")}</option>
-          </select>
-        </div>
-        {cardTranslations.enabled && (
-          <p className="pn-translation-hint" role="status">
-            <Languages size={14} aria-hidden="true" />
-            {cardTranslations.modelUnavailable
-              ? t(
-                  "翻译暂不可用：请检查已有模型设置，再点击卡片上的重试。",
-                  "Translation unavailable. Check your model settings, then retry a card.",
-                )
-              : t(
-                  "使用已配置的模型，按需翻译可见卡片并缓存；可能产生模型费用。项目名称和来源链接保留原样。",
-                  "Visible cards are translated with your configured model and cached; model charges may apply. Project names and source links are preserved.",
-                )}
-          </p>
-        )}
-        <div className="pn-context">
-          <span aria-live="polite">
-            {items.length} {t("条内容", "results")}
-            {source !== "all" ? ` · ${names[source]}` : ""}
-          </span>
-          <div
-            className="pn-following"
-            hidden={
-              categoryUnavailable ||
-              !(source === "all" ? activeSources : [source]).some(
-                (s) => snapshot?.config[s]?.topics.length,
-              )
-            }
-          >
-            <span>{t("关注", "Following")}</span>
-            {(snapshot
-              ? [
-                  ...new Set(
-                    (source === "all" ? activeSources : [source]).flatMap(
-                      (s) => snapshot.config[s].topics,
-                    ),
-                  ),
-                ]
-              : []
-            ).map((topic) => (
-              <span className="pn-topic" key={topic}>
-                {topic}
-              </span>
-            ))}
-          </div>
-        </div>
-        <details className="pn-explainer">
-          <summary>
-            <Info size={13} aria-hidden="true" />
-            {t("推荐依据与来源说明", "About ranking and sources")}
-          </summary>
-          <p>
-            {t(
-              "设置关注词后按匹配度与时间排序；未设置时按时间排序。日期未提供的内容仍会保留。资讯仅展示来源公开提供的内容。",
-              "With interests, ranking combines relevance and recency; otherwise it uses recency. Items without a publication date remain available. News includes publicly provided content only.",
-            )}
-          </p>
-        </details>
-        {categoryUnavailable ? null : !items.length ? (
-          <div className="pn-empty">
-            <BookOpen size={28} />
-            <h2>
-              {busy
-                ? t("正在寻找值得读的内容", "Finding your next read")
-                : savedOnly
-                  ? t("把想深入读的内容留在这里", "Keep your next deep read here")
-                  : !activeSources.length
-                    ? t("当前范围的来源已全部关闭", "All sources in this view are disabled")
-                    : activeSources.some((s) => snapshot?.sources[s]?.error)
-                      ? t("暂时未能获取内容", "Could not fetch stories yet")
-                      : t("还没有匹配的内容", "No matching results yet")}
-            </h2>
-            <p>
-              {busy
+          {failure && (
+            <div className="pn-notice" role="alert">
+              {failure === "load"
                 ? t(
-                    "首次获取可能需要一些时间，你可以切换页面，稍后回来。",
-                    "The first fetch may take a moment. You can leave this page and return later.",
+                    "暂时无法获取动态，请稍后重试。已有内容会保留。",
+                    "Could not load news. Please retry later; existing content is kept.",
                   )
-                : savedOnly
+                : failure === "save"
                   ? t(
-                      "点击卡片上的收藏按钮，刷新后仍会保留。",
-                      "Bookmark a card to keep it across refreshes.",
+                      "保存失败，请检查关注词或稍后重试。最多收藏 200 条。",
+                      "Could not save. Check your topics or retry later. Up to 200 bookmarks are supported.",
                     )
-                  : !activeSources.length
-                    ? t(
-                        "打开分类偏好，重新启用需要的来源。",
-                        "Open category preferences to enable sources.",
-                      )
-                    : t(
-                        "可以切换来源或清空搜索；获取失败的原因和重试时间见下方来源状态。",
-                        "Try another source or clear your search. Source status below shows fetch errors and retry times.",
-                      )}
-            </p>
-          </div>
-        ) : (
-          <div className="pn-grid">
-            {items.map((item) => {
-              const saved = snapshot?.saved.some((i) => i.id === item.id);
-              const translation = cardTranslations.entry(item);
-              const translated =
-                translation?.status === "done" ? translation.value : undefined;
-              const displayTitle = translated?.title || item.title;
-              const displaySummary = translated?.summary ?? item.summary;
-              const hubDetails =
-                isHfHubSource(item.source) &&
-                Boolean(item.hubTask || item.license);
-              const hasDetails = Boolean(item.summary.trim() || hubDetails);
-              return (
-                <article
-                  className={`pn-card pn-source-${item.source}${!hasDetails ? " pn-card-compact" : ""}`}
-                  key={item.id}
-                  data-news-id={item.id}
-                >
-                  <div className="pn-card-meta">
-                    <span className="pn-source-badge">
-                      <SourceBrand source={item.source} />
-                      <span className={item.source === "arxiv" ? "pn-visually-hidden" : undefined}>
-                        {names[item.source]}
-                      </span>
-                    </span>
-                    <span className="pn-date">
-                      <CalendarDays size={12} aria-hidden="true" />
-                      {isHfHubSource(item.source) && t("更新于 ", "Updated ")}
-                      {formatDate(item.date)}
-                    </span>
-                    <button
-                      className={`pn-icon ${saved ? "is-saved" : ""}`}
-                      aria-label={saved ? t("取消收藏", "Remove bookmark") : t("收藏", "Bookmark")}
-                      aria-pressed={Boolean(saved)}
-                      onClick={() => void bookmark(item)}
-                    >
-                      <Bookmark size={17} fill={saved ? "currentColor" : "none"} />
-                    </button>
-                  </div>
-                  <h2>
-                    <button
-                      title={`${displayTitle} · ${t("在 NeoWorker 浏览器中打开", "Open in NeoWorker browser")}`}
-                      onClick={(event) => {
-                        newsTitleRef.current = event.currentTarget;
-                        setNewsBrowserUrl(item.url);
-                      }}
-                    >
-                      {displayTitle}
-                    </button>
-                  </h2>
-                  {!!item.authors.length && (
-                    <p className="pn-authors" title={item.authors.join(", ")}>
-                      {item.authors.slice(0, 4).join(", ")}
-                      {item.authors.length > 4 ? " …" : ""}
-                    </p>
-                  )}
-                  {translation && (
-                    <div className="pn-card-translation">
-                      {translation.status === "loading" ? (
-                        <>
-                          <RefreshCw size={12} className="pn-spinning" />
-                          {t(
-                            "正在翻译，暂显示原文…",
-                            "Translating; showing original…",
-                          )}
-                        </>
-                      ) : translation.status === "error" ? (
-                        <>
-                          <span>
-                            {t(
-                              "翻译未完成，已保留原文",
-                              "Translation unavailable; original retained",
-                            )}
-                          </span>
-                          <button onClick={() => cardTranslations.retry(item)}>
-                            {t("重试", "Retry")}
-                          </button>
-                        </>
-                      ) : (
-                        <span>
-                          {t("中文译文 · AI 翻译", "Chinese · AI translated")}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {displaySummary.trim() && (
-                    <p className="pn-summary">{displaySummary}</p>
-                  )}
-                  {hasDetails ? (
-                    <details className="pn-abstract">
-                      <summary>
-                        {item.summary.trim()
-                          ? item.summaryKind === "excerpt"
-                            ? t("正文节选", "Article excerpt")
-                            : item.summaryKind === "description"
-                              ? t("网页摘要", "Page summary")
-                              : t("摘要与详情", "Abstract and details")
-                          : t("任务与许可信息", "Task and license")}
-                      </summary>
-                      {displaySummary.trim() && <p>{displaySummary}</p>}
-                      {hubDetails && (
-                        <p>
-                          {t("任务", "Task")}:{" "}
-                          {item.hubTask || t("未提供", "Not provided")}
-                          <br />
-                          {t("许可证", "License")}:{" "}
-                          {item.license ||
-                            t("请查看来源说明", "Check the source card")}
-                        </p>
-                      )}
-                    </details>
-                  ) : (
-                    <div className="pn-no-summary">
-                      <span>{summaryStates[item.id] === "unavailable"
-                        ? t("未找到公开摘要或正文，可打开原文查看。", "No public summary or body found. Open the source.")
-                        : summaryStates[item.id] === "blocked"
-                          ? t("来源限制访问，请打开原文查看。", "Source access is restricted. Open the source.")
-                          : summaryStates[item.id] === "failed"
-                            ? t("暂时获取失败，请稍后重试。", "Fetch failed. Please retry later.")
-                            : summaryStates[item.id] === "busy"
-                              ? t("请求较频繁，请稍后重试。", "Please wait briefly before retrying.")
-                              : t("来源列表未提供摘要", "No summary in the source feed")}</span>
-                      {isNewsPublisher(item.source) && (
-                        <button className="pn-summary-fetch" disabled={summaryStates[item.id] === "loading"} onClick={() => void fetchSummary(item)}>
-                          <RefreshCw size={12} className={summaryStates[item.id] === "loading" ? "pn-spinning" : undefined} />
-                          {summaryStates[item.id] === "loading" ? t("正在获取…", "Fetching…") : summaryStates[item.id] ? t("重试获取", "Retry") : t("获取摘要", "Fetch summary")}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <div className="pn-card-footer">
-                  <div className="pn-tags">
-                    {isHfHubSource(item.source) && (
-                      <span>
-                        {item.source === "hf-models" ? (
-                          <Box size={12} />
-                        ) : (
-                          <Database size={12} />
-                        )}
-                        {item.source === "hf-models"
-                          ? t("模型", "Model")
-                          : t("数据集", "Dataset")}
-                      </span>
-                    )}
-                    {item.gated && (
-                      <span>{t("需申请访问", "Gated access")}</span>
-                    )}
-                    {item.matchedTopics.map((tag) => (
-                      <span key={tag}>{tag}</span>
-                    ))}
-                    {item.downloads !== undefined && (
-                      <small
-                        title={t(
-                          "Hugging Face 近 30 天下载量",
-                          "Hugging Face downloads in the last 30 days",
-                        )}
-                      >
-                        <Download size={12} aria-hidden="true" />
-                        {item.downloads.toLocaleString(language)}{" "}
-                        {t("下载", "downloads")}
-                      </small>
-                    )}
-                    {item.popularity !== undefined && (
-                      <small>
-                        <Star size={12} aria-hidden="true" />
-                        {item.popularity.toLocaleString(language)}{" "}
-                        {item.source === "github" ? t("星标", "stars") : t("点赞", "likes")}
-                      </small>
-                    )}
-                  </div>
-                  <div className="pn-links">
-                    <button title={t("在系统默认浏览器中打开", "Open in default browser")} onClick={() => void open(item.url)}>
-                      <ExternalLink size={13} />
-                      {item.source === "github"
-                        ? t("仓库", "Repository")
-                        : item.source === "hf-models"
-                          ? t("模型卡", "Model card")
-                          : item.source === "hf-datasets"
-                            ? t("数据集卡", "Dataset card")
-                            : item.source === "hackernews"
-                              ? t("讨论", "Discussion")
-                              : t("原文", "Source")}
-                    </button>
-                    {item.pdfUrl && (
-                      <button title={t("在 NeoWorker 浏览器中打开", "Open in NeoWorker browser")} onClick={(event) => { newsTitleRef.current = event.currentTarget; setNewsBrowserUrl(item.pdfUrl!); }}>
-                        <FileText size={13} />
-                        PDF
-                      </button>
-                    )}
-                    <span
-                      className="pn-match"
-                      title={t(
-                        "按关注词匹配与时间计算，不代表内容质量",
-                        "Based on topic matches and recency, not content quality",
-                      )}
-                    >
-                      <TrendingUp size={13} aria-hidden="true" />
-                      {t("推荐", "Rank")} {item.score}
-                    </span>
-                  </div>
-                  <div className="pn-card-actions">
-                    <button
-                      className="pn-action-read"
-                      disabled={opening}
-                      onClick={() => void start(item, "read")}
-                    >
-                      <BookOpen size={15} />
-                      {t("AI 解读", "Explain")}
-                    </button>
-                    <button
-                      className="pn-action-translate"
-                      disabled={opening}
-                      onClick={() => void start(item, "translate")}
-                    >
-                      <Languages size={15} />
-                      {t("全文翻译", "Translate")}
-                    </button>
-                    <button
-                      className="pn-action-research"
-                      disabled={opening}
-                      onClick={() => void start(item, "research")}
-                    >
-                      <FlaskConical size={15} />
-                      {t("深入研究", "Research")}
-                    </button>
-                  </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-        {!!activeSources.length && (
-          <details
-            className="pn-source-health"
-            open={
-              !busy && !items.length && activeSources.some((s) => snapshot?.sources[s]?.error)
-                ? true
-                : undefined
-            }
+                  : t("无法打开，请重试。", "Could not open. Please retry.")}
+              <button
+                className="pn-icon"
+                aria-label={t("关闭提示", "Dismiss")}
+                onClick={() => setFailure(null)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+          {settings && snapshot && (
+            <div ref={preferencesAnchor}>
+              <NewsPreferencesPanel
+                key={settingsRevision}
+                config={snapshot.config}
+                initialScope={settingsScope}
+                names={names}
+                busy={busy}
+                onClose={() => setSettings(false)}
+                onSave={saveConfig}
+              />
+            </div>
+          )}
+          <section
+            className="pn-discovery"
+            aria-label={t("浏览资讯分类", "Browse news categories")}
           >
-            <summary>
-              <Clock3 size={13} />
-              {t("获取状态与来源设置", "Fetch status and source settings")}
-            </summary>
-            <div className="pn-sources">
-              {activeSources.map((s) => {
-                const state = snapshot?.sources[s];
+            <div className="pn-section-label">
+              <div className="pn-section-options">
+                <span>{t("探索领域", "EXPLORE TOPICS")}</span>
+                <button
+                  className={`pn-all-topics ${category === "all" ? "is-active" : ""}`}
+                  aria-pressed={category === "all"}
+                  onClick={() => selectCategory("all")}
+                >
+                  <LayoutGrid size={12} />
+                  {t("全部动态", "All topics")}
+                </button>
+              </div>
+              <button
+                className="pn-text-button"
+                aria-expanded={catalogOpen}
+                onClick={() => setCatalogOpen(!catalogOpen)}
+              >
+                <Library size={14} />
+                {t("来源目录", "Source directory")}{" "}
+                <span>
+                  {NEWS_FEED_CATEGORIES.reduce(
+                    (count, entry) => count + entry.providers.length,
+                    0,
+                  )}
+                </span>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+            <nav
+              className="pn-categories"
+              aria-label={t("资讯分类", "News categories")}
+            >
+              {NEWS_FEED_CATEGORIES.map((entry) => {
+                const Icon = categoryIcons[entry.id];
                 return (
-                  <div className="pn-source-wrap" key={s}>
-                    <button
-                      className={`pn-source pn-source-${s} ${source === s ? "is-active" : ""}`}
-                      aria-pressed={source === s}
-                      onClick={() => setSource(source === s ? "all" : s)}
+                  <button
+                    key={entry.id}
+                    className={`pn-category ${category === entry.id ? "is-active" : ""}`}
+                    aria-pressed={category === entry.id}
+                    onClick={() => selectCategory(entry.id)}
+                  >
+                    <span className="pn-category-icon">
+                      <Icon size={21} strokeWidth={1.65} />
+                    </span>
+                    <strong>{t(entry.name, entry.nameEn)}</strong>
+                    <span>{t(entry.description, entry.descriptionEn)}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </section>
+          <div className="pn-feed-heading">
+            <div>
+              <h2>
+                {activeCategory
+                  ? t(activeCategory.name, activeCategory.nameEn)
+                  : t("发现新进展", "Your next discovery")}
+              </h2>
+            </div>
+            <div className="pn-tabs">
+              <button
+                aria-pressed={cardTranslations.enabled}
+                className={cardTranslations.enabled ? "is-active" : ""}
+                title={t(
+                  "使用已配置的模型翻译可见卡片的标题与摘要，可能产生模型费用；译文会缓存。",
+                  "Translate visible titles and summaries using your configured model; model charges may apply. Translations are cached.",
+                )}
+                onClick={cardTranslations.toggle}
+              >
+                <Languages size={15} aria-hidden="true" />
+                {cardTranslations.enabled
+                  ? t("显示原文", "Show originals")
+                  : t("中文显示", "Show in Chinese")}
+              </button>
+              {activeCategory && (
+                <button
+                  disabled={busy || !snapshot || settings}
+                  onClick={() => openSettings(activeCategory.id)}
+                >
+                  <SlidersHorizontal size={14} />
+                  {t("分类偏好", "Category preferences")}
+                </button>
+              )}
+              <button
+                aria-pressed={!savedOnly}
+                className={!savedOnly ? "is-active" : ""}
+                onClick={() => setSavedOnly(false)}
+              >
+                <Compass size={15} aria-hidden="true" />
+                {t("发现", "Discover")}
+              </button>
+              <button
+                aria-pressed={savedOnly}
+                className={savedOnly ? "is-active" : ""}
+                onClick={() => setSavedOnly(true)}
+              >
+                <Bookmark size={14} />
+                {t("收藏", "Saved")} <span>{snapshot?.saved.length || 0}</span>
+              </button>
+            </div>
+          </div>
+          {(catalogOpen || categoryUnavailable) && (
+            <NewsSourceDirectory
+              key={`${category}-${catalogOpen}`}
+              category={category}
+              expanded={catalogOpen}
+              language={language}
+              onClose={() => setCatalogOpen(false)}
+              onSelect={(nextCategory, nextSource) => {
+                setSortOverride(null);
+                setCategory(nextCategory);
+                setSource(nextSource);
+                setCatalogOpen(false);
+                setSavedOnly(false);
+                setQuery("");
+              }}
+              onExplore={
+                categoryUnavailable
+                  ? () => {
+                      selectCategory("all");
+                      setSavedOnly(false);
+                      setQuery("");
+                    }
+                  : undefined
+              }
+            />
+          )}
+          <div className="pn-toolbar">
+            {!!(savedOnly ? availableSources : activeSources).length && (
+              <div
+                className="pn-source-filters"
+                role="group"
+                aria-label={t("筛选来源", "Filter sources")}
+              >
+                <button
+                  className={source === "all" ? "is-active" : ""}
+                  aria-pressed={source === "all"}
+                  onClick={() => setSource("all")}
+                >
+                  {t("全部来源", "All sources")}
+                </button>
+                {(savedOnly ? availableSources : activeSources).map((entry) => (
+                  <button
+                    key={entry}
+                    className={source === entry ? "is-active" : ""}
+                    aria-pressed={source === entry}
+                    onClick={() => setSource(entry)}
+                  >
+                    <SourceBrand source={entry} />
+                    <span
+                      className={entry === "arxiv" ? "pn-visually-hidden" : ""}
                     >
-                      <span className="pn-source-heading">
-                        <span className="pn-source-identity">
-                          <SourceBrand source={s} />
-                          <strong className={s === "arxiv" ? "pn-visually-hidden" : undefined}>
-                            {names[s]}
-                          </strong>
-                        </span>
-                        <span className="pn-count">
-                          {state?.error && !state.updatedAt
-                            ? "—"
-                            : snapshot?.items.filter((i) => i.source === s).length || 0}
+                      {names[entry]}
+                    </span>
+                    <small>
+                      {(savedOnly ? snapshot?.saved : snapshot?.items)?.filter(
+                        (item) => item.source === entry,
+                      ).length || 0}
+                    </small>
+                  </button>
+                ))}
+                {source !== "all" && (
+                  <button
+                    className="pn-filter-settings"
+                    disabled={busy || !snapshot}
+                    aria-label={t("来源高级设置", "Source settings")}
+                    onClick={() => openSettings(source)}
+                  >
+                    <SlidersHorizontal size={15} />
+                  </button>
+                )}
+              </div>
+            )}
+
+            <label className="pn-search">
+              <Search size={16} />
+              <input
+                aria-label={t("搜索已获取的内容", "Search fetched results")}
+                placeholder={t(
+                  "搜索标题、摘要或标签",
+                  "Search titles, abstracts or tags",
+                )}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </label>
+            <select
+              aria-label={t("排序方式", "Sort order")}
+              value={sort}
+              onChange={(e) => setSortOverride(e.target.value)}
+            >
+              <option value="recommended">
+                {t("推荐排序", "Recommended")}
+              </option>
+              <option value="newest">{t("时间排序", "Most recent")}</option>
+            </select>
+          </div>
+          {cardTranslations.enabled && (
+            <p className="pn-translation-hint" role="status">
+              <Languages size={14} aria-hidden="true" />
+              {cardTranslations.modelUnavailable
+                ? t(
+                    "翻译暂不可用：请检查已有模型设置，再点击卡片上的重试。",
+                    "Translation unavailable. Check your model settings, then retry a card.",
+                  )
+                : t(
+                    "使用已配置的模型，按需翻译可见卡片并缓存；可能产生模型费用。项目名称和来源链接保留原样。",
+                    "Visible cards are translated with your configured model and cached; model charges may apply. Project names and source links are preserved.",
+                  )}
+            </p>
+          )}
+          <div className="pn-context">
+            <span aria-live="polite">
+              {items.length} {t("条内容", "results")}
+              {source !== "all" ? ` · ${names[source]}` : ""}
+            </span>
+            <div
+              className="pn-following"
+              hidden={
+                categoryUnavailable ||
+                !(source === "all" ? activeSources : [source]).some(
+                  (s) => snapshot?.config[s]?.topics.length,
+                )
+              }
+            >
+              <span>{t("关注", "Following")}</span>
+              {(snapshot
+                ? [
+                    ...new Set(
+                      (source === "all" ? activeSources : [source]).flatMap(
+                        (s) => snapshot.config[s].topics,
+                      ),
+                    ),
+                  ]
+                : []
+              ).map((topic) => (
+                <span className="pn-topic" key={topic}>
+                  {topic}
+                </span>
+              ))}
+            </div>
+          </div>
+          <details className="pn-explainer">
+            <summary>
+              <Info size={13} aria-hidden="true" />
+              {t("推荐依据与来源说明", "About ranking and sources")}
+            </summary>
+            <p>
+              {t(
+                "设置关注词后按匹配度与时间排序；未设置时按时间排序。日期未提供的内容仍会保留。资讯仅展示来源公开提供的内容。",
+                "With interests, ranking combines relevance and recency; otherwise it uses recency. Items without a publication date remain available. News includes publicly provided content only.",
+              )}
+            </p>
+          </details>
+          {categoryUnavailable ? null : !items.length ? (
+            <div className="pn-empty">
+              <BookOpen size={28} />
+              <h2>
+                {busy
+                  ? t("正在寻找值得读的内容", "Finding your next read")
+                  : savedOnly
+                    ? t(
+                        "把想深入读的内容留在这里",
+                        "Keep your next deep read here",
+                      )
+                    : !activeSources.length
+                      ? t(
+                          "当前范围的来源已全部关闭",
+                          "All sources in this view are disabled",
+                        )
+                      : activeSources.some((s) => snapshot?.sources[s]?.error)
+                        ? t("暂时未能获取内容", "Could not fetch stories yet")
+                        : t("还没有匹配的内容", "No matching results yet")}
+              </h2>
+              <p>
+                {busy
+                  ? t(
+                      "首次获取可能需要一些时间，你可以切换页面，稍后回来。",
+                      "The first fetch may take a moment. You can leave this page and return later.",
+                    )
+                  : savedOnly
+                    ? t(
+                        "点击卡片上的收藏按钮，刷新后仍会保留。",
+                        "Bookmark a card to keep it across refreshes.",
+                      )
+                    : !activeSources.length
+                      ? t(
+                          "打开分类偏好，重新启用需要的来源。",
+                          "Open category preferences to enable sources.",
+                        )
+                      : t(
+                          "可以切换来源或清空搜索；获取失败的原因和重试时间见下方来源状态。",
+                          "Try another source or clear your search. Source status below shows fetch errors and retry times.",
+                        )}
+              </p>
+            </div>
+          ) : (
+            <div className="pn-grid">
+              {items.map((item) => {
+                const saved = snapshot?.saved.some((i) => i.id === item.id);
+                const translation = cardTranslations.entry(item);
+                const translated =
+                  translation?.status === "done"
+                    ? translation.value
+                    : undefined;
+                const displayTitle = translated?.title || item.title;
+                const displaySummary = translated?.summary ?? item.summary;
+                const hubDetails =
+                  isHfHubSource(item.source) &&
+                  Boolean(item.hubTask || item.license);
+                const hasDetails = Boolean(item.summary.trim() || hubDetails);
+                return (
+                  <article
+                    className={`pn-card pn-source-${item.source}${!hasDetails ? " pn-card-compact" : ""}`}
+                    key={item.id}
+                    data-news-id={item.id}
+                  >
+                    <div className="pn-card-meta">
+                      <span className="pn-source-badge">
+                        <SourceBrand source={item.source} />
+                        <span
+                          className={
+                            item.source === "arxiv"
+                              ? "pn-visually-hidden"
+                              : undefined
+                          }
+                        >
+                          {names[item.source]}
                         </span>
                       </span>
-                      <span className="pn-source-description">{sourceDescription(s)}</span>
-                      {state?.error && !busy && (
-                        <small className="pn-source-error">
-                          {state.error === "rateLimit"
-                            ? t("请求受限，请稍后刷新", "Request limited; retry later")
-                            : state.error === "accessDenied"
+                      <span className="pn-date">
+                        <CalendarDays size={12} aria-hidden="true" />
+                        {isHfHubSource(item.source) && t("更新于 ", "Updated ")}
+                        {formatDate(item.date)}
+                      </span>
+                      <button
+                        className={`pn-icon ${saved ? "is-saved" : ""}`}
+                        aria-label={
+                          saved
+                            ? t("取消收藏", "Remove bookmark")
+                            : t("收藏", "Bookmark")
+                        }
+                        aria-pressed={Boolean(saved)}
+                        onClick={() => void bookmark(item)}
+                      >
+                        <Bookmark
+                          size={17}
+                          fill={saved ? "currentColor" : "none"}
+                        />
+                      </button>
+                    </div>
+                    <h2>
+                      <button
+                        title={`${displayTitle} · ${t("在 NeoWorker 浏览器中打开", "Open in NeoWorker browser")}`}
+                        onClick={(event) => {
+                          newsTitleRef.current = event.currentTarget;
+                          setNewsBrowserUrl(item.url);
+                        }}
+                      >
+                        {displayTitle}
+                      </button>
+                    </h2>
+                    {!!item.authors.length && (
+                      <p className="pn-authors" title={item.authors.join(", ")}>
+                        {item.authors.slice(0, 4).join(", ")}
+                        {item.authors.length > 4 ? " …" : ""}
+                      </p>
+                    )}
+                    {translation && (
+                      <div className="pn-card-translation">
+                        {translation.status === "loading" ? (
+                          <>
+                            <RefreshCw size={12} className="pn-spinning" />
+                            {t(
+                              "正在翻译，暂显示原文…",
+                              "Translating; showing original…",
+                            )}
+                          </>
+                        ) : translation.status === "error" ? (
+                          <>
+                            <span>
+                              {t(
+                                "翻译未完成，已保留原文",
+                                "Translation unavailable; original retained",
+                              )}
+                            </span>
+                            <button
+                              onClick={() => cardTranslations.retry(item)}
+                            >
+                              {t("重试", "Retry")}
+                            </button>
+                          </>
+                        ) : (
+                          <span>
+                            {t("中文译文 · AI 翻译", "Chinese · AI translated")}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {displaySummary.trim() && (
+                      <p className="pn-summary">{displaySummary}</p>
+                    )}
+                    {hasDetails ? (
+                      <details className="pn-abstract">
+                        <summary>
+                          {item.summary.trim()
+                            ? item.summaryKind === "excerpt"
+                              ? t("正文节选", "Article excerpt")
+                              : item.summaryKind === "description"
+                                ? t("网页摘要", "Page summary")
+                                : t("摘要与详情", "Abstract and details")
+                            : t("任务与许可信息", "Task and license")}
+                        </summary>
+                        {displaySummary.trim() && <p>{displaySummary}</p>}
+                        {hubDetails && (
+                          <p>
+                            {t("任务", "Task")}:{" "}
+                            {item.hubTask || t("未提供", "Not provided")}
+                            <br />
+                            {t("许可证", "License")}:{" "}
+                            {item.license ||
+                              t("请查看来源说明", "Check the source card")}
+                          </p>
+                        )}
+                      </details>
+                    ) : (
+                      <div className="pn-no-summary">
+                        <span>
+                          {summaryStates[item.id] === "unavailable"
+                            ? t(
+                                "未找到公开摘要或正文，可打开原文查看。",
+                                "No public summary or body found. Open the source.",
+                              )
+                            : summaryStates[item.id] === "blocked"
                               ? t(
-                                  "来源拒绝访问，请稍后重试",
-                                  "Source denied access; try again later",
+                                  "来源限制访问，请打开原文查看。",
+                                  "Source access is restricted. Open the source.",
                                 )
-                              : state.error === "unavailable"
+                              : summaryStates[item.id] === "failed"
                                 ? t(
-                                    "来源服务暂时不可用，将稍后重试",
-                                    "Source temporarily unavailable; retry scheduled",
+                                    "暂时获取失败，请稍后重试。",
+                                    "Fetch failed. Please retry later.",
                                   )
-                                : state.error === "invalidResponse"
+                                : summaryStates[item.id] === "busy"
                                   ? t(
-                                      "来源返回的数据异常，请稍后重试",
-                                      "Unexpected source response; retry later",
+                                      "请求较频繁，请稍后重试。",
+                                      "Please wait briefly before retrying.",
                                     )
                                   : t(
-                                      "暂时无法连接，请检查网络或代理",
-                                      "Connection unavailable; check your network or proxy",
+                                      "来源列表未提供摘要",
+                                      "No summary in the source feed",
                                     )}
-                        </small>
-                      )}
-                      <small className="pn-source-status">
-                        {state?.updatedAt && !state.error && !busy ? (
-                          <CheckCircle2 size={12} aria-hidden="true" />
-                        ) : (
-                          <Clock3 size={12} aria-hidden="true" />
+                        </span>
+                        {isNewsPublisher(item.source) && (
+                          <button
+                            className="pn-summary-fetch"
+                            disabled={summaryStates[item.id] === "loading"}
+                            onClick={() => void fetchSummary(item)}
+                          >
+                            <RefreshCw
+                              size={12}
+                              className={
+                                summaryStates[item.id] === "loading"
+                                  ? "pn-spinning"
+                                  : undefined
+                              }
+                            />
+                            {summaryStates[item.id] === "loading"
+                              ? t("正在获取…", "Fetching…")
+                              : summaryStates[item.id]
+                                ? t("重试获取", "Retry")
+                                : t("获取摘要", "Fetch summary")}
+                          </button>
                         )}
-                        {busy
-                          ? t("正在获取…", "Fetching…")
-                          : state?.updatedAt
-                            ? `${state.error ? t("上次成功获取：", "Last successful fetch: ") : t("获取于 ", "Fetched ")}${new Date(state.updatedAt).toLocaleString(language, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
-                            : state?.error
-                              ? t("尚无缓存内容", "No cached results yet")
-                              : t("等待获取", "Not fetched yet")}
-                      </small>
-                      {state?.nextRetryAt && Date.parse(state.nextRetryAt) > clock && (
-                        <small>
-                          {t(
-                            `可在 ${Math.ceil((Date.parse(state.nextRetryAt) - clock) / 60_000)} 分钟后刷新`,
-                            `Refresh available in ${Math.ceil((Date.parse(state.nextRetryAt) - clock) / 60_000)} min`,
+                      </div>
+                    )}
+                    <div className="pn-card-footer">
+                      <div className="pn-tags">
+                        {isHfHubSource(item.source) && (
+                          <span>
+                            {item.source === "hf-models" ? (
+                              <Box size={12} />
+                            ) : (
+                              <Database size={12} />
+                            )}
+                            {item.source === "hf-models"
+                              ? t("模型", "Model")
+                              : t("数据集", "Dataset")}
+                          </span>
+                        )}
+                        {item.gated && (
+                          <span>{t("需申请访问", "Gated access")}</span>
+                        )}
+                        {item.matchedTopics.map((tag) => (
+                          <span key={tag}>{tag}</span>
+                        ))}
+                        {item.downloads !== undefined && (
+                          <small
+                            title={t(
+                              "Hugging Face 近 30 天下载量",
+                              "Hugging Face downloads in the last 30 days",
+                            )}
+                          >
+                            <Download size={12} aria-hidden="true" />
+                            {item.downloads.toLocaleString(language)}{" "}
+                            {t("下载", "downloads")}
+                          </small>
+                        )}
+                        {item.popularity !== undefined && (
+                          <small>
+                            <Star size={12} aria-hidden="true" />
+                            {item.popularity.toLocaleString(language)}{" "}
+                            {item.source === "github"
+                              ? t("星标", "stars")
+                              : t("点赞", "likes")}
+                          </small>
+                        )}
+                      </div>
+                      <div className="pn-links">
+                        <button
+                          title={t(
+                            "在系统默认浏览器中打开",
+                            "Open in default browser",
                           )}
-                        </small>
-                      )}
-                    </button>
-                    <button
-                      className="pn-icon pn-source-settings"
-                      disabled={busy || !snapshot}
-                      title={t(`设置 ${names[s]}`, `Configure ${names[s]}`)}
-                      aria-label={t(`设置 ${names[s]}`, `Configure ${names[s]}`)}
-                      onClick={() => openSettings(s)}
-                    >
-                      <SlidersHorizontal size={14} />
-                    </button>
-                  </div>
+                          onClick={() => void open(item.url)}
+                        >
+                          <ExternalLink size={13} />
+                          {item.source === "github"
+                            ? t("仓库", "Repository")
+                            : item.source === "hf-models"
+                              ? t("模型卡", "Model card")
+                              : item.source === "hf-datasets"
+                                ? t("数据集卡", "Dataset card")
+                                : item.source === "hackernews"
+                                  ? t("讨论", "Discussion")
+                                  : t("原文", "Source")}
+                        </button>
+                        {item.pdfUrl && (
+                          <button
+                            title={t(
+                              "在 NeoWorker 浏览器中打开",
+                              "Open in NeoWorker browser",
+                            )}
+                            onClick={(event) => {
+                              newsTitleRef.current = event.currentTarget;
+                              setNewsBrowserUrl(item.pdfUrl!);
+                            }}
+                          >
+                            <FileText size={13} />
+                            PDF
+                          </button>
+                        )}
+                        <span
+                          className="pn-match"
+                          title={t(
+                            "按关注词匹配与时间计算，不代表内容质量",
+                            "Based on topic matches and recency, not content quality",
+                          )}
+                        >
+                          <TrendingUp size={13} aria-hidden="true" />
+                          {t("推荐", "Rank")} {item.score}
+                        </span>
+                      </div>
+                      <div className="pn-card-actions">
+                        <button
+                          className="pn-action-read"
+                          disabled={opening}
+                          onClick={() => void start(item, "read")}
+                        >
+                          <BookOpen size={15} />
+                          {t("AI 解读", "Explain")}
+                        </button>
+                        <button
+                          className="pn-action-translate"
+                          disabled={opening}
+                          onClick={() => void start(item, "translate")}
+                        >
+                          <Languages size={15} />
+                          {t("全文翻译", "Translate")}
+                        </button>
+                        <button
+                          className="pn-action-research"
+                          disabled={opening}
+                          onClick={() => void start(item, "research")}
+                        >
+                          <FlaskConical size={15} />
+                          {t("深入研究", "Research")}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
                 );
               })}
             </div>
-          </details>
-        )}
-        <p className="pn-footer">
-          {t(
-            "AI 解读、全文翻译和深入研究会创建任务草稿，发送后使用你当前配置的模型执行。中文显示仅翻译卡片标题与摘要；同一内容可能出现在多个来源。",
-            "Read, translate and research prepare a task draft. Send it to use your configured model. Chinese display translates card titles and summaries only; an article may appear in multiple sources.",
           )}
-        </p>
-      </div>
-    </main>
-    {newsBrowserUrl && (
-      <div className={`pn-browser-sidebar${browserFullscreen ? " is-fullscreen" : ""}`} role="region" aria-label={t("NeoWorker 浏览器", "NeoWorker browser")} tabIndex={-1} ref={newsBrowserRef}>
-        <BrowserWorkbenchView
-          taskId="news-feed-preview"
-          sessionId="news-feed"
-          initialUrl={newsBrowserUrl}
-          mode={browserFullscreen ? "fullscreen" : "sidebar"}
-          onClose={() => { setNewsBrowserUrl(null); setBrowserFullscreen(false); }}
-          onFullscreen={() => setBrowserFullscreen(true)}
-          onExitFullscreen={() => setBrowserFullscreen(false)}
+          {!!activeSources.length && (
+            <details
+              className="pn-source-health"
+              open={
+                !busy &&
+                !items.length &&
+                activeSources.some((s) => snapshot?.sources[s]?.error)
+                  ? true
+                  : undefined
+              }
+            >
+              <summary>
+                <Clock3 size={13} />
+                {t("获取状态与来源设置", "Fetch status and source settings")}
+              </summary>
+              <div className="pn-sources">
+                {activeSources.map((s) => {
+                  const state = snapshot?.sources[s];
+                  return (
+                    <div className="pn-source-wrap" key={s}>
+                      <button
+                        className={`pn-source pn-source-${s} ${source === s ? "is-active" : ""}`}
+                        aria-pressed={source === s}
+                        onClick={() => setSource(source === s ? "all" : s)}
+                      >
+                        <span className="pn-source-heading">
+                          <span className="pn-source-identity">
+                            <SourceBrand source={s} />
+                            <strong
+                              className={
+                                s === "arxiv" ? "pn-visually-hidden" : undefined
+                              }
+                            >
+                              {names[s]}
+                            </strong>
+                          </span>
+                          <span className="pn-count">
+                            {state?.error && !state.updatedAt
+                              ? "—"
+                              : snapshot?.items.filter((i) => i.source === s)
+                                  .length || 0}
+                          </span>
+                        </span>
+                        <span className="pn-source-description">
+                          {sourceDescription(s)}
+                        </span>
+                        {state?.error && !busy && (
+                          <small className="pn-source-error">
+                            {state.error === "rateLimit"
+                              ? t(
+                                  "请求受限，请稍后刷新",
+                                  "Request limited; retry later",
+                                )
+                              : state.error === "accessDenied"
+                                ? t(
+                                    "来源拒绝访问，请稍后重试",
+                                    "Source denied access; try again later",
+                                  )
+                                : state.error === "unavailable"
+                                  ? t(
+                                      "来源服务暂时不可用，将稍后重试",
+                                      "Source temporarily unavailable; retry scheduled",
+                                    )
+                                  : state.error === "invalidResponse"
+                                    ? t(
+                                        "来源返回的数据异常，请稍后重试",
+                                        "Unexpected source response; retry later",
+                                      )
+                                    : t(
+                                        "暂时无法连接，请检查网络或代理",
+                                        "Connection unavailable; check your network or proxy",
+                                      )}
+                          </small>
+                        )}
+                        <small className="pn-source-status">
+                          {state?.updatedAt && !state.error && !busy ? (
+                            <CheckCircle2 size={12} aria-hidden="true" />
+                          ) : (
+                            <Clock3 size={12} aria-hidden="true" />
+                          )}
+                          {busy
+                            ? t("正在获取…", "Fetching…")
+                            : state?.updatedAt
+                              ? `${state.error ? t("上次成功获取：", "Last successful fetch: ") : t("获取于 ", "Fetched ")}${new Date(state.updatedAt).toLocaleString(language, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
+                              : state?.error
+                                ? t("尚无缓存内容", "No cached results yet")
+                                : t("等待获取", "Not fetched yet")}
+                        </small>
+                        {state?.nextRetryAt &&
+                          Date.parse(state.nextRetryAt) > clock && (
+                            <small>
+                              {t(
+                                `可在 ${Math.ceil((Date.parse(state.nextRetryAt) - clock) / 60_000)} 分钟后刷新`,
+                                `Refresh available in ${Math.ceil((Date.parse(state.nextRetryAt) - clock) / 60_000)} min`,
+                              )}
+                            </small>
+                          )}
+                      </button>
+                      <button
+                        className="pn-icon pn-source-settings"
+                        disabled={busy || !snapshot}
+                        title={t(`设置 ${names[s]}`, `Configure ${names[s]}`)}
+                        aria-label={t(
+                          `设置 ${names[s]}`,
+                          `Configure ${names[s]}`,
+                        )}
+                        onClick={() => openSettings(s)}
+                      >
+                        <SlidersHorizontal size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
+          )}
+          <p className="pn-footer">
+            {t(
+              "AI 解读、全文翻译和深入研究会创建任务草稿，发送后使用你当前配置的模型执行。中文显示仅翻译卡片标题与摘要；同一内容可能出现在多个来源。",
+              "Read, translate and research prepare a task draft. Send it to use your configured model. Chinese display translates card titles and summaries only; an article may appear in multiple sources.",
+            )}
+          </p>
+        </div>
+      </main>
+      {notesOpen && (
+        <ReadingNotesLibrary
+          onClose={() => setNotesOpen(false)}
+          onOpen={(note) => {
+            if (!/^https?:\/\//.test(note.url)) return;
+            setNewsBrowserUrl(
+              note.url + (note.page ? `#page=${note.page}` : ""),
+            );
+            setNotesOpen(false);
+          }}
         />
-      </div>
-    )}
+      )}
+      {newsBrowserUrl && (
+        <div
+          className={`pn-browser-sidebar${browserFullscreen ? " is-fullscreen" : ""}`}
+          role="region"
+          aria-label={t("NeoWorker 浏览器", "NeoWorker browser")}
+          tabIndex={-1}
+          ref={newsBrowserRef}
+          style={
+            browserFullscreen ? undefined : { flexBasis: `${browserWidth}%` }
+          }
+        >
+          {!browserFullscreen && (
+            <PanelResizeHandle
+              value={browserWidth}
+              onChange={setBrowserWidth}
+              label="调整浏览器宽度"
+              min={35}
+              max={85}
+            />
+          )}
+          <BrowserWorkbenchView
+            taskId="news-feed-preview"
+            sessionId="news-feed"
+            initialUrl={newsBrowserUrl}
+            mode={browserFullscreen ? "fullscreen" : "sidebar"}
+            onClose={() => {
+              setNewsBrowserUrl(null);
+              setBrowserFullscreen(false);
+            }}
+            onFullscreen={() => setBrowserFullscreen(true)}
+            onExitFullscreen={() => setBrowserFullscreen(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }

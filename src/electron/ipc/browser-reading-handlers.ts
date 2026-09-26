@@ -6,6 +6,7 @@ import {
   validateReadingRequest,
   type ReadingContext,
   type ReadingRequest,
+  type ReadingSelectionRequest,
 } from "../../shared/browser-reading";
 import { getBrowserWorkbenchService } from "../browser/browser-workbench-service";
 import {
@@ -14,7 +15,10 @@ import {
   type captureArticle,
 } from "../browser/reading/context";
 import { LLMProviderFactory } from "../agent/llm/provider-factory";
-import { recordLlmCallError, recordLlmCallSuccess } from "../agent/llm/usage-telemetry";
+import {
+  recordLlmCallError,
+  recordLlmCallSuccess,
+} from "../agent/llm/usage-telemetry";
 
 const importPdf = new Function("specifier", "return import(specifier)") as (
   specifier: string,
@@ -38,7 +42,8 @@ async function pdfPage(
       const { value, done } = await reader.read();
       if (done) break;
       size += value.length;
-      if (size > 30 * 1024 * 1024) throw new Error("PDF 超过 30 MB，请选择一段文字后右键操作");
+      if (size > 30 * 1024 * 1024)
+        throw new Error("PDF 超过 30 MB，请选择一段文字后右键操作");
       parts.push(value);
     }
   } finally {
@@ -63,11 +68,14 @@ async function pdfPage(
   try {
     signal.throwIfAborted();
     const doc = await loading.promise;
-    if (pageNumber > doc.numPages) throw new Error(`这份 PDF 只有 ${doc.numPages} 页`);
+    if (pageNumber > doc.numPages)
+      throw new Error(`这份 PDF 只有 ${doc.numPages} 页`);
     const page = await doc.getPage(pageNumber);
     const content = await page.getTextContent();
     const text = content.items
-      .map((item) => ("str" in item ? item.str + (item.hasEOL ? "\n" : " ") : ""))
+      .map((item) =>
+        "str" in item ? item.str + (item.hasEOL ? "\n" : " ") : "",
+      )
       .join("")
       .trim();
     if (!text) throw new Error("这一页没有可提取的文字，可能是扫描页或图片页");
@@ -75,7 +83,13 @@ async function pdfPage(
       url,
       title: guest.getTitle(),
       scope: "pdf-page",
-      blocks: [{ id: `第${pageNumber}页`, page: pageNumber, text: text.slice(0, 28000) }],
+      blocks: [
+        {
+          id: `第${pageNumber}页`,
+          page: pageNumber,
+          text: text.slice(0, 28000),
+        },
+      ],
       totalPages: doc.numPages,
       truncated: text.length > 28000,
     };
@@ -85,7 +99,9 @@ async function pdfPage(
   }
 }
 
-export function setupBrowserReadingHandlers(isTrusted: (event: IpcMainInvokeEvent) => boolean) {
+export function setupBrowserReadingHandlers(
+  isTrusted: (event: IpcMainInvokeEvent) => boolean,
+) {
   const running = new Map<string, AbortController>();
   const trust = (event: IpcMainInvokeEvent) => {
     if (!isTrusted(event) || event.senderFrame !== event.sender.mainFrame)
@@ -108,6 +124,67 @@ export function setupBrowserReadingHandlers(isTrusted: (event: IpcMainInvokeEven
       });
     });
   });
+  const probing = new Set<number>();
+  ipcMain.handle(
+    READING_CHANNELS.probeSelection,
+    async (event, input: ReadingSelectionRequest) => {
+      trust(event);
+      if (
+        !input ||
+        typeof input.taskId !== "string" ||
+        input.taskId.length > 200 ||
+        typeof input.sessionId !== "string" ||
+        input.sessionId.length > 200 ||
+        typeof input.url !== "string"
+      )
+        throw new Error("无效的阅读会话");
+      const registered = getBrowserWorkbenchService().getSession(
+        input.taskId,
+        input.sessionId,
+      );
+      const guest = registered && webContents.fromId(registered.webContentsId);
+      if (
+        !guest ||
+        guest.isDestroyed() ||
+        guest.hostWebContents !== event.sender
+      )
+        throw new Error("浏览器尚未就绪");
+      const url = readingUrl(guest.getURL());
+      if (url !== readingUrl(input.url)) throw new Error("页面已切换");
+      if (probing.has(guest.id)) return null;
+      // Only query Chromium's bundled PDF viewer inside this owned guest, never arbitrary site frames.
+      const frame = guest.mainFrame.framesInSubtree.find((f) =>
+        f.url.startsWith(
+          "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/",
+        ),
+      );
+      if (!frame) return null;
+      probing.add(guest.id);
+      try {
+        const result = await frame.executeJavaScript(`(async () => {
+        const viewer = document.querySelector('pdf-viewer');
+        const controller = viewer?.pluginController_;
+        if (!viewer?.documentDimensions || !controller?.getSelectedText) return null;
+        let timer;
+        try {
+          const result = await Promise.race([
+            controller.getSelectedText(),
+            new Promise(resolve => { timer = setTimeout(() => resolve(null), 500); })
+          ]);
+          const text = result?.selectedText?.trim();
+          return text ? { text: text.slice(0, 12000), x: 18, y: 64 } : null;
+        } finally { clearTimeout(timer); }
+      })()`);
+        if (guest.isDestroyed() || readingUrl(guest.getURL()) !== url)
+          return null;
+        return result;
+      } catch {
+        return null;
+      } finally {
+        probing.delete(guest.id);
+      }
+    },
+  );
   ipcMain.handle(READING_CHANNELS.cancel, (event, id: string) => {
     trust(event);
     running.get(`${event.sender.id}:${id}`)?.abort();
@@ -115,14 +192,19 @@ export function setupBrowserReadingHandlers(isTrusted: (event: IpcMainInvokeEven
   ipcMain.handle(READING_CHANNELS.ask, async (event, raw: ReadingRequest) => {
     trust(event);
     const input = validateReadingRequest(raw);
-    const registered = getBrowserWorkbenchService().getSession(input.taskId, input.sessionId);
+    const registered = getBrowserWorkbenchService().getSession(
+      input.taskId,
+      input.sessionId,
+    );
     const guest = registered && webContents.fromId(registered.webContentsId);
     if (!guest || guest.isDestroyed() || guest.hostWebContents !== event.sender)
       throw new Error("浏览器尚未就绪，请等待页面加载完成");
     const url = readingUrl(guest.getURL());
-    if (url !== readingUrl(input.url)) throw new Error("页面已切换，请在当前页面重新提问");
+    if (url !== readingUrl(input.url))
+      throw new Error("页面已切换，请在当前页面重新提问");
     const key = `${event.sender.id}:${input.requestId}`;
-    if (running.has(key) || running.size >= 4) throw new Error("请等待当前问题完成");
+    if (running.has(key) || running.size >= 4)
+      throw new Error("请等待当前问题完成");
     const controller = new AbortController();
     running.set(key, controller);
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -137,12 +219,14 @@ export function setupBrowserReadingHandlers(isTrusted: (event: IpcMainInvokeEven
           blocks: [{ id: "选文", text: input.selection.trim() }],
         };
       } else {
-        const article = (await guest.executeJavaScript(CAPTURE_ARTICLE_SCRIPT)) as ReturnType<
-          typeof captureArticle
-        >;
+        const article = (await guest.executeJavaScript(
+          CAPTURE_ARTICLE_SCRIPT,
+        )) as ReturnType<typeof captureArticle>;
         controller.signal.throwIfAborted();
         context =
-          article.pdf || /\.pdf(?:$|\?)/i.test(url) || /arxiv\.org\/pdf\//.test(url)
+          article.pdf ||
+          /\.pdf(?:$|\?)/i.test(url) ||
+          /arxiv\.org\/pdf\//.test(url)
             ? await pdfPage(guest, url, input.page || 1, controller.signal)
             : {
                 url,
@@ -166,7 +250,12 @@ export function setupBrowserReadingHandlers(isTrusted: (event: IpcMainInvokeEven
         providerType: provider.type,
         modelId: model,
       };
-      const prompt = readingPrompt(context, input.question, input.action, input.history);
+      const prompt = readingPrompt(
+        context,
+        input.question,
+        input.action,
+        input.history,
+      );
       try {
         const response = await provider.createMessage({
           model,
