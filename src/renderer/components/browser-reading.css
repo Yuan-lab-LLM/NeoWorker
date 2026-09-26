@@ -23,6 +23,8 @@
   padding: 6px 10px;
   font-size: 12px;
   cursor: pointer;
+  height: 34px;
+  box-sizing: border-box;
 }
 .br-toggle[aria-pressed="true"] {
   color: var(--cw-brand, #1e8df6);
@@ -38,7 +40,8 @@
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  border-left: 1px solid var(--color-border-subtle, #e4e8ee);
+  border-left: 1px solid var(--color-border, #d5dce6);
+  box-shadow: -3px 0 10px #10294808;
   background: var(--color-bg-elevated, #fff);
   color: var(--color-text, #182131);
   font-size: 13px;
@@ -299,6 +302,19 @@
   height: 29px;
   width: 29px;
   flex: none;
+  padding: 0;
+  line-height: 1;
+}
+.br-compose > div:last-child button svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  color: #fff;
+  stroke: #fff;
+  fill: none;
+  opacity: 1;
+  visibility: visible;
 }
 .br-footnote {
   font-size: 10px;
@@ -471,10 +487,6 @@
     max-width: 90%;
     box-shadow: -5px 0 24px #15314e12;
   }
-  .br-selection-tools {
-    left: 12px !important;
-    transform: none;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .br-spin {
@@ -490,21 +502,8 @@
   gap: 8px;
   flex-shrink: 0;
 }
-.br-assistant.is-expanded {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  max-width: none;
-  z-index: 25;
-  border-left: 0;
-}
-.br-assistant.is-expanded .br-conversation,
-.br-assistant.is-expanded .br-notes {
-  padding-left: max(22px, calc((100% - 800px) / 2));
-  padding-right: max(22px, calc((100% - 800px) / 2));
-}
 @container (max-width:700px) {
-  .br-assistant:not(.is-expanded) {
+  .br-assistant {
     width: max(340px, var(--reading-width, 38%));
   }
 }

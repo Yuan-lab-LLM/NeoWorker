@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   READING_CHANNELS,
@@ -7,7 +8,7 @@ import {
 const mocks = vi.hoisted(() => ({
   handlers: new Map<string, Function>(),
   guest: {} as any,
-  sender: { id: 7, mainFrame: {} },
+  sender: {} as any,
   create: vi.fn(),
   session: vi.fn(),
 }));
@@ -16,6 +17,10 @@ vi.mock("electron", () => ({
     handle: (name: string, fn: Function) => mocks.handlers.set(name, fn),
   },
   webContents: { fromId: () => mocks.guest },
+  BrowserWindow: {
+    fromWebContents: () => ({ getContentBounds: () => ({ x: 100, y: 50 }) }),
+  },
+  screen: { getCursorScreenPoint: () => ({ x: 0, y: 0 }) },
 }));
 vi.mock("../browser/browser-workbench-service", () => ({
   getBrowserWorkbenchService: () => ({ getSession: mocks.session }),
@@ -49,7 +54,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.handlers.clear();
   mocks.session.mockReturnValue({ webContentsId: 10 });
-  mocks.guest = {
+  mocks.sender = Object.assign(new EventEmitter(), {
+    id: 7,
+    mainFrame: {},
+    getZoomFactor: () => 2,
+  });
+  mocks.guest = Object.assign(new EventEmitter(), {
+    id: 10,
     hostWebContents: mocks.sender,
     getURL: () => request.url,
     getTitle: () => "Paper",
@@ -60,7 +71,7 @@ beforeEach(() => {
       truncated: false,
       pdf: false,
     })),
-  };
+  });
   mocks.create.mockResolvedValue({
     content: [{ type: "text", text: "这是原文观点。[段落1]" }],
     usage: {},
@@ -162,17 +173,28 @@ describe("PDF selection probing", () => {
       y: 64,
     }));
     const foreign = vi.fn();
+    const frame = {
+      url: "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html",
+      executeJavaScript: execute,
+    };
+    const pointer = vi.fn().mockResolvedValue(null);
     mocks.guest.mainFrame = {
       framesInSubtree: [
         { url: "https://example.org/embed", executeJavaScript: foreign },
-        {
-          url: "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html",
-          executeJavaScript: execute,
-        },
+        frame,
+        { parent: frame, url: request.url, executeJavaScript: pointer },
       ],
     };
-    expect(await probe()).toMatchObject({ text: "Selected PDF text" });
-    expect(execute).toHaveBeenCalledOnce();
+    expect(await probe()).toBeNull();
+    pointer.mockResolvedValue({ x: 700, y: 890 });
+    expect(await probe()).toMatchObject({
+      text: "Selected PDF text",
+      x: 300,
+      y: 420,
+      coordinateSpace: "host",
+    });
+    pointer.mockResolvedValue(null);
+    expect(await probe()).toBeNull();
     expect(foreign).not.toHaveBeenCalled();
     expect(mocks.create).not.toHaveBeenCalled();
     mocks.guest.hostWebContents = {};

@@ -345,7 +345,14 @@ async function waitForFonts(webContents: {
   executeJavaScript: (code: string, userGesture?: boolean) => Promise<unknown>;
 }): Promise<void> {
   await webContents.executeJavaScript(
-    "document.fonts ? document.fonts.ready.then(() => true) : true",
+    `(async () => {
+      await document.fonts.ready;
+      for (const [family, sample, label] of [["NeoWorker FangSong", "中文仿宋", "仿宋"], ["NeoWorker Times", "English", "Times New Roman"]]) {
+        const loaded = await document.fonts.load('14px "' + family + '"', sample).catch(() => []);
+        if (!loaded.length) throw new Error("缺少 PDF 字体：" + label + "。请安装该字体后重新生成。");
+      }
+      return true;
+    })()`,
     true,
   );
   const hasMissingGlyphs = await webContents.executeJavaScript(
@@ -454,6 +461,7 @@ async function renderPdfWithPlaywright(
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle" });
+    await waitForFonts({ executeJavaScript: code => page.evaluate(code) });
     await page.evaluate(async () => {
       const browserGlobal = globalThis as unknown as {
         document: { fonts: { ready: Promise<unknown> } };
@@ -670,13 +678,18 @@ export function buildPDFHTML(options: PDFOptions): string {
   <style>
     @page { size: ${options.format || "A4"} ${options.landscape ? "landscape" : "portrait"}; margin: 14mm 16mm 16mm; }
     @font-face {
-      font-family: "NeoWorker CJK";
-      src: local("PingFang SC"), local("Hiragino Sans GB"), local("Microsoft YaHei"), local("Noto Sans CJK SC"), local("Noto Sans SC"), local("Source Han Sans SC"), local("Arial Unicode MS");
-      font-style: normal; font-weight: 400; font-display: swap;
+      font-family: "NeoWorker FangSong";
+      src: local("FangSong"), local("STFangsong"), local("FangSong_GB2312"), local("仿宋"), local("华文仿宋");
+      font-style: normal; font-weight: 400; font-display: block;
     }
-    /* Synthesize bold from the available face instead of loading optional system
-       bold fonts, which can remain invisible when macOS has not downloaded them. */
-    :root { font-family: "NeoWorker CJK", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "Arial Unicode MS", sans-serif; }
+    @font-face {
+      font-family: "NeoWorker Times";
+      src: local("Times New Roman"), local("TimesNewRomanPSMT");
+      font-style: normal; font-weight: 400; font-display: block;
+    }
+    /* Latin uses Times New Roman; Chinese glyphs fall through to FangSong.
+       Synthesize emphasis from installed regular faces to keep CJK headings visible. */
+    :root { font-family: "NeoWorker Times", "NeoWorker FangSong", serif; }
     * { box-sizing: border-box; }
     html, body { background: #fff; }
     body { margin: 0; color: #172033; line-height: 1.72; font-size: 14px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -701,14 +714,9 @@ export function buildPDFHTML(options: PDFOptions): string {
     a { color: #1d4ed8; text-decoration: none; }
     img { max-width: 100%; height: auto; }
     ${isAcademic ? `
-    @font-face {
-      font-family: "NeoWorker Song";
-      src: local("Songti SC Regular"), local("Songti SC"), local("STSong"), local("SimSun"), local("Noto Serif CJK SC"), local("Noto Serif SC"), local("Source Han Serif SC");
-      font-weight: 400; font-style: normal; font-display: swap;
-    }
     @page { margin: 20mm 22mm 20mm; }
-    body { font-family: "Times New Roman", "NeoWorker Song", "Songti SC", "SimSun", "Noto Serif CJK SC", "NeoWorker CJK", serif; font-size: 15px; font-weight: 400; line-height: 1.85; color: #242424; }
-    h1, h2, h3, .meta { font-family: "NeoWorker CJK", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    body { font-family: "NeoWorker Times", "NeoWorker FangSong", serif; font-size: 15px; font-weight: 400; line-height: 1.85; color: #242424; }
+    h1, h2, h3, .meta { font-family: inherit; }
     .doc-title { font-size: 26px; line-height: 1.5; font-weight: 600; color: ${headingColor || "#202020"}; border: 0; padding-bottom: 0; margin-bottom: 20px; letter-spacing: 0; }
     h1 { font-size: 23px; line-height: 1.5; color: ${headingColor || "#202020"}; font-weight: 600; }
     h2 { font-size: 19px; color: ${headingColor || "#202020"}; font-weight: 600; margin: 24px 0 10px; }

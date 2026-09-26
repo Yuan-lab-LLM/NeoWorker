@@ -1,14 +1,13 @@
 import { ReadingNotesList } from "./ReadingNotesLibrary";
 import { loadReadingNotes, persistNotes } from "./reading-notes-store";
 import { PanelResizeHandle, usePanelWidth } from "./PanelResizeHandle";
+import { readingToolbarPosition } from "./reading-toolbar-position";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   ArrowUp,
   BookOpen,
   Check,
   Languages,
-  Maximize2,
-  Minimize2,
   LoaderCircle,
   MessageSquare,
   NotebookPen,
@@ -40,7 +39,7 @@ function selectionProbe() {
   const text = selection?.toString().trim();
   if (!text || !selection?.rangeCount || text.length > 12000) return null;
   const rect = selection.getRangeAt(0).getBoundingClientRect();
-  return { text, x: rect.left, y: rect.bottom };
+  return { text, x: rect.left + Math.min(rect.width / 2, 160), y: rect.bottom };
 }
 interface Guest {
   executeJavaScript: (code: string) => Promise<unknown>;
@@ -70,6 +69,7 @@ interface Selection {
   text: string;
   x: number;
   y: number;
+  coordinateSpace?: "guest" | "host";
 }
 export function BrowserReadingAssistant({
   taskId,
@@ -85,12 +85,10 @@ export function BrowserReadingAssistant({
     "neoworker.reading-width",
     38,
   );
-  const [expanded, setExpanded] = useState(false);
   const [tab, setTab] = useState<"ask" | "notes">("ask");
   const [selection, setSelection] = useState<Selection | null>(null);
   const [quote, setQuote] = useState("");
   const [question, setQuestion] = useState("");
-  const [page, setPage] = useState(1);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [pending, setPending] = useState("");
   const [error, setError] = useState("");
@@ -143,10 +141,16 @@ export function BrowserReadingAssistant({
       }
       if (value.text !== dismissedSelection.current) {
         const bounds = guest.getBoundingClientRect();
+        const x =
+          value.x - (value.coordinateSpace === "host" ? bounds.left : 0);
+        const y = value.y - (value.coordinateSpace === "host" ? bounds.top : 0);
+        if (x < 0 || y < 0 || x > bounds.width || y > bounds.height) {
+          setSelection(null);
+          return;
+        }
         setSelection({
           ...value,
-          x: Math.max(12, Math.min(value.x, bounds.width - 325)),
-          y: Math.max(2, Math.min(value.y, bounds.height - 64)),
+          ...readingToolbarPosition(x, y, bounds.width, bounds.height),
         });
       }
     };
@@ -192,27 +196,30 @@ export function BrowserReadingAssistant({
         });
       },
     );
-    const timer = setInterval(async () => {
-      if (probing || document.hidden) return;
-      probing = true;
-      try {
-        offer(
-          pdf
-            ? ((await window.electronAPI.getBrowserReadingSelection?.({
-                taskId,
-                sessionId,
-                url,
-              })) ?? null)
-            : ((await guest.executeJavaScript(
-                `(${selectionProbe.toString()})()`,
-              )) as Selection | null),
-        );
-      } catch {
-        /* Loading or restricted guest. */
-      } finally {
-        probing = false;
-      }
-    }, 750);
+    const timer = setInterval(
+      async () => {
+        if (probing || document.hidden) return;
+        probing = true;
+        try {
+          offer(
+            pdf
+              ? ((await window.electronAPI.getBrowserReadingSelection?.({
+                  taskId,
+                  sessionId,
+                  url,
+                })) ?? null)
+              : ((await guest.executeJavaScript(
+                  `(${selectionProbe.toString()})()`,
+                )) as Selection | null),
+          );
+        } catch {
+          /* Loading or restricted guest. */
+        } finally {
+          probing = false;
+        }
+      },
+      pdf ? 250 : 750,
+    );
     return () => {
       live = false;
       clearInterval(timer);
@@ -288,13 +295,10 @@ export function BrowserReadingAssistant({
         action,
         question: text,
         selection: selected || undefined,
-        page: pdf ? page : undefined,
-        history: turns
-          .slice(-3)
-          .map((t) => ({
-            question: t.question,
-            answer: t.result.text.slice(0, 12000),
-          })),
+        history: turns.slice(-3).map((t) => ({
+          question: t.question,
+          answer: t.result.text.slice(0, 12000),
+        })),
       });
       if (requestRef.current !== id) return;
       if (floating) setPopover(result);
@@ -327,7 +331,7 @@ export function BrowserReadingAssistant({
           className="br-selection-tools"
           style={{
             left: Math.max(12, selection.x),
-            top: Math.max(12, selection.y + 10),
+            top: selection.y,
           }}
           role="toolbar"
           aria-label="选文操作"
@@ -416,19 +420,17 @@ export function BrowserReadingAssistant({
       )}
       {open && (
         <aside
-          className={`br-assistant${expanded ? " is-expanded" : ""}`}
+          className="br-assistant"
           style={{ "--reading-width": `${panelWidth}%` } as React.CSSProperties}
           aria-label="阅读助手"
         >
-          {!expanded && (
-            <PanelResizeHandle
-              value={panelWidth}
-              onChange={setPanelWidth}
-              label="调整阅读助手宽度"
-              min={25}
-              max={70}
-            />
-          )}
+          <PanelResizeHandle
+            value={panelWidth}
+            onChange={setPanelWidth}
+            label="调整阅读助手宽度"
+            min={25}
+            max={70}
+          />
           <header className="br-header">
             <span>
               <BookOpen size={18} />
@@ -436,17 +438,9 @@ export function BrowserReadingAssistant({
             </span>
             <div className="br-header-actions">
               <button
-                aria-label={expanded ? "退出阅读助手全屏" : "全屏阅读助手"}
-                title={expanded ? "退出全屏" : "全屏阅读助手"}
-                onClick={() => setExpanded(!expanded)}
-              >
-                {expanded ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
-              </button>
-              <button
                 title="关闭阅读助手"
                 aria-label="收起阅读助手"
                 onClick={() => {
-                  setExpanded(false);
                   onOpen(false);
                 }}
               >
@@ -484,29 +478,8 @@ export function BrowserReadingAssistant({
                 {quote
                   ? "已选中段落"
                   : pdf
-                    ? "按指定 PDF 页提问"
+                    ? "基于 PDF 全文提问"
                     : "基于网页已加载正文"}
-                {pdf && !quote && (
-                  <label>
-                    第{" "}
-                    <input
-                      aria-label="PDF 阅读页码"
-                      type="number"
-                      min="1"
-                      max="10000"
-                      value={page}
-                      onChange={(e) =>
-                        setPage(
-                          Math.max(
-                            1,
-                            Math.min(10000, Number(e.target.value) || 1),
-                          ),
-                        )
-                      }
-                    />{" "}
-                    页
-                  </label>
-                )}
               </div>
               <div className="br-conversation" role="log" aria-label="阅读问答">
                 {!turns.length && !pending && (
@@ -515,7 +488,7 @@ export function BrowserReadingAssistant({
                     <h3>边读，边弄明白</h3>
                     <p>
                       {pdf
-                        ? "填写想阅读的页码，或直接选中文字，翻译、解释和记笔记。"
+                        ? "围绕整篇论文提问，也可以选中文字，翻译、解释和记笔记。"
                         : "选中原文即可翻译、解释，也可以直接问这篇文章。"}
                     </p>
                     {[
@@ -530,8 +503,8 @@ export function BrowserReadingAssistant({
                             "ask",
                             pdf
                               ? q
-                                  .replace("这篇内容", "这一页")
-                                  .replace("这篇文章", "这一页")
+                                  .replace("这篇内容", "这篇论文")
+                                  .replace("这篇文章", "这篇论文")
                               : q,
                           )
                         }
@@ -582,7 +555,9 @@ export function BrowserReadingAssistant({
                                 turn.result.text.includes(`[${b.id}]`),
                               ) || turn.result.context.blocks[0]
                             )?.text,
-                            turn.result.context.blocks[0]?.page,
+                            turn.result.context.blocks.find((b) =>
+                              turn.result.text.includes(`[${b.id}]`),
+                            )?.page,
                           )
                         )
                           setTurns((old) =>
@@ -653,7 +628,7 @@ export function BrowserReadingAssistant({
                     quote
                       ? "问问这段话…"
                       : pdf
-                        ? "问问这一页…"
+                        ? "问问这篇论文…"
                         : "问问这篇文章…"
                   }
                   maxLength={4000}
@@ -701,7 +676,7 @@ export function BrowserReadingAssistant({
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  saveNote(draft, quote || undefined, pdf ? page : undefined);
+                  saveNote(draft, quote || undefined);
                 }}
               >
                 <textarea

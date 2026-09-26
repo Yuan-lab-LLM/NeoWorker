@@ -1,5 +1,11 @@
-import { ipcMain, webContents, type IpcMainInvokeEvent } from "electron";
+import {
+  ipcMain,
+  webContents,
+  BrowserWindow,
+  type IpcMainInvokeEvent,
+} from "electron";
 import { pathToFileURL } from "node:url";
+import { extractPdfText } from "../browser/reading/pdf-text";
 import {
   READING_CHANNELS,
   readingUrl,
@@ -24,10 +30,9 @@ const importPdf = new Function("specifier", "return import(specifier)") as (
   specifier: string,
 ) => Promise<typeof import("pdfjs-dist/legacy/build/pdf.mjs")>;
 
-async function pdfPage(
+async function pdfDocument(
   guest: Electron.WebContents,
   url: string,
-  pageNumber: number,
   signal: AbortSignal,
 ): Promise<ReadingContext> {
   const response = await guest.session.fetch(url, { signal });
@@ -68,30 +73,11 @@ async function pdfPage(
   try {
     signal.throwIfAborted();
     const doc = await loading.promise;
-    if (pageNumber > doc.numPages)
-      throw new Error(`这份 PDF 只有 ${doc.numPages} 页`);
-    const page = await doc.getPage(pageNumber);
-    const content = await page.getTextContent();
-    const text = content.items
-      .map((item) =>
-        "str" in item ? item.str + (item.hasEOL ? "\n" : " ") : "",
-      )
-      .join("")
-      .trim();
-    if (!text) throw new Error("这一页没有可提取的文字，可能是扫描页或图片页");
     return {
       url,
       title: guest.getTitle(),
-      scope: "pdf-page",
-      blocks: [
-        {
-          id: `第${pageNumber}页`,
-          page: pageNumber,
-          text: text.slice(0, 28000),
-        },
-      ],
-      totalPages: doc.numPages,
-      truncated: text.length > 28000,
+      scope: "pdf-document",
+      ...(await extractPdfText(doc, signal)),
     };
   } finally {
     signal.removeEventListener("abort", cancel);
@@ -159,8 +145,32 @@ export function setupBrowserReadingHandlers(
         ),
       );
       if (!frame) return null;
+      const contentFrames = guest.mainFrame.framesInSubtree.filter(
+        (child) => child === guest.mainFrame || child.parent === frame,
+      );
       probing.add(guest.id);
       try {
+        // Native PDF mouse events land in its content frame, not the extension
+        // shell. Only attach to this owned PDF's root and direct content frames.
+        const points = await Promise.all(
+          contentFrames.map((child) =>
+            child
+              .executeJavaScript(
+                `(() => {
+          if (!globalThis.__neoPdfPointer) {
+            const state = globalThis.__neoPdfPointer = { point: null };
+            document.addEventListener('mouseup', event => {
+              if (event.button === 0) state.point = { x: event.screenX, y: event.screenY };
+            }, true);
+            for (const name of ['mousedown', 'wheel', 'scroll'])
+              document.addEventListener(name, () => { state.point = null; }, true);
+          }
+          return globalThis.__neoPdfPointer.point;
+        })()`,
+              )
+              .catch(() => null),
+          ),
+        );
         const result = await frame.executeJavaScript(`(async () => {
         const viewer = document.querySelector('pdf-viewer');
         const controller = viewer?.pluginController_;
@@ -172,12 +182,38 @@ export function setupBrowserReadingHandlers(
             new Promise(resolve => { timer = setTimeout(() => resolve(null), 500); })
           ]);
           const text = result?.selectedText?.trim();
-          return text ? { text: text.slice(0, 12000), x: 18, y: 64 } : null;
+          return text ? { text: text.slice(0, 12000) } : null;
         } finally { clearTimeout(timer); }
       })()`);
         if (guest.isDestroyed() || readingUrl(guest.getURL()) !== url)
           return null;
-        return result;
+        if (
+          !result ||
+          typeof result !== "object" ||
+          !("text" in result) ||
+          typeof result.text !== "string" ||
+          !result.text
+        )
+          return null;
+        const pointer = points.find(
+          (point) =>
+            point &&
+            typeof point === "object" &&
+            "x" in point &&
+            "y" in point &&
+            Number.isFinite(point.x) &&
+            Number.isFinite(point.y),
+        ) as { x: number; y: number } | undefined;
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (!pointer || !window) return null;
+        const bounds = window.getContentBounds(),
+          zoom = event.sender.getZoomFactor();
+        return {
+          text: result.text,
+          x: (pointer.x - bounds.x) / zoom,
+          y: (pointer.y - bounds.y) / zoom,
+          coordinateSpace: "host",
+        };
       } catch {
         return null;
       } finally {
@@ -227,7 +263,7 @@ export function setupBrowserReadingHandlers(
           article.pdf ||
           /\.pdf(?:$|\?)/i.test(url) ||
           /arxiv\.org\/pdf\//.test(url)
-            ? await pdfPage(guest, url, input.page || 1, controller.signal)
+            ? await pdfDocument(guest, url, controller.signal)
             : {
                 url,
                 title: article.title,

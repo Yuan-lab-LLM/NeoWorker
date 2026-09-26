@@ -1,6 +1,7 @@
 import React from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PanelResizeHandle } from "../PanelResizeHandle";
 import { BrowserReadingAssistant } from "../BrowserReadingAssistant";
 let renderer: ReactTestRenderer | undefined;
 let ask: ReturnType<typeof vi.fn>, cancel: ReturnType<typeof vi.fn>;
@@ -141,7 +142,7 @@ describe("reading workspace controls", () => {
     );
     expect(renderer!.root.findAllByType("article")).toHaveLength(1);
   });
-  it("expands and restores the assistant without losing the draft", async () => {
+  it("resizes the assistant without losing the draft or exposing a duplicate fullscreen control", async () => {
     await mount();
     const input = renderer!.root.findByProps({
       "aria-label": "向阅读助手提问",
@@ -150,21 +151,14 @@ describe("reading workspace controls", () => {
       input.props.onChange({ target: { value: "Keep this question" } }),
     );
     await act(async () =>
-      renderer!.root
-        .findByProps({ "aria-label": "全屏阅读助手" })
-        .props.onClick(),
-    );
-    expect(renderer!.root.findByType("aside").props.className).toContain(
-      "is-expanded",
-    );
-    await act(async () =>
-      renderer!.root
-        .findByProps({ "aria-label": "退出阅读助手全屏" })
-        .props.onClick(),
+      renderer!.root.findByType(PanelResizeHandle).props.onChange(60),
     );
     expect(input.props.value).toBe("Keep this question");
-    expect(renderer!.root.findByType("aside").props.className).not.toContain(
-      "is-expanded",
-    );
+    expect(
+      renderer!.root.findByType("aside").props.style["--reading-width"],
+    ).toBe("60%");
+    expect(
+      renderer!.root.findAllByProps({ "aria-label": "全屏阅读助手" }),
+    ).toHaveLength(0);
   });
 });

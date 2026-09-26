@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ResizableDividerHandle } from "./ResizableDividerHandle";
 import "./panel-resize.css";
 
 export function usePanelWidth(key: string, fallback: number) {
@@ -44,8 +45,8 @@ export function PanelResizeHandle({
     Math.round(Math.max(min, Math.min(max, n)) * 10) / 10;
   return (
     <>
-      <div
-        className="nw-panel-resize"
+      <ResizableDividerHandle
+        className={`nw-panel-resize${dragging ? " is-dragging" : ""}`}
         role="separator"
         aria-label={label}
         aria-orientation="vertical"
@@ -79,9 +80,7 @@ export function PanelResizeHandle({
           };
           setDragging(true);
         }}
-      >
-        <span />
-      </div>
+      />
       {dragging &&
         createPortal(
           <div

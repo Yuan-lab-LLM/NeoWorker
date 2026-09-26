@@ -1582,6 +1582,13 @@ export function BrowserWorkbenchView({
           </button>
         </div>
         <div className="browser-workbench-header-actions">
+          {/^(https?):/.test(activeUrl) && (
+            <button type="button" className="br-toggle" aria-pressed={readingOpen}
+              title={readingOpen ? "收起阅读助手" : "打开阅读助手"}
+              onClick={() => setReadingOpen(!readingOpen)}>
+              <BookOpen size={14} aria-hidden="true" />阅读助手
+            </button>
+          )}
           <button
             type="button"
             className="browser-workbench-icon-btn"
@@ -1667,7 +1674,6 @@ export function BrowserWorkbenchView({
             />
           </form>
         )}
-        {/^(https?):/.test(activeUrl) && <button type="button" className="br-toggle" aria-pressed={readingOpen} onClick={() => setReadingOpen(!readingOpen)}><BookOpen size={14}/>阅读助手</button>}
         {SHOW_BROWSER_VIEWPORT_PRESETS && (
           <div
             className="browser-workbench-device-toolbar"

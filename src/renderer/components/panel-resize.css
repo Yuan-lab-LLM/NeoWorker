@@ -1,24 +1,19 @@
-.nw-panel-resize {
+.nw-panel-resize.app-resizable-divider {
   position: absolute;
   left: -4px;
   top: 0;
   bottom: 0;
-  width: 9px;
+  width: 8px;
   z-index: 20;
   cursor: col-resize;
   touch-action: none;
 }
-.nw-panel-resize span {
-  position: absolute;
-  top: 45%;
-  left: 3px;
-  height: 38px;
-  width: 3px;
-  border-radius: 4px;
+.nw-panel-resize.app-resizable-divider::before {
   background: var(--color-border, #d5dce6);
 }
-.nw-panel-resize:hover span,
-.nw-panel-resize:focus-visible span {
+.nw-panel-resize:hover::before,
+.nw-panel-resize.is-dragging::before,
+.nw-panel-resize.is-dragging .app-resizable-divider-grip {
   background: var(--color-accent, #208cff);
 }
 .nw-panel-resize:focus-visible {

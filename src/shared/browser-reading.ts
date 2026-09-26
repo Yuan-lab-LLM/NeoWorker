@@ -26,7 +26,7 @@ export interface ReadingBlock {
 export interface ReadingContext {
   url: string;
   title: string;
-  scope: "selection" | "webpage" | "pdf-page";
+  scope: "selection" | "webpage" | "pdf-page" | "pdf-document";
   blocks: ReadingBlock[];
   truncated: boolean;
   totalPages?: number;
@@ -92,6 +92,10 @@ export function validateReadingRequest(input: ReadingRequest): ReadingRequest {
 }
 export function scopeLabel(context: ReadingContext): string {
   if (context.scope === "selection") return "选中段落";
+  if (context.scope === "pdf-document")
+    return context.truncated
+      ? `PDF 已读取内容（共 ${context.totalPages} 页，部分内容未提取）`
+      : `PDF 全文 · 共 ${context.totalPages} 页`;
   if (context.scope === "pdf-page")
     return `PDF 第 ${context.blocks[0]?.page || 1} 页 / 共 ${context.totalPages} 页`;
   return context.truncated ? "网页已读取内容（已截取）" : "网页已读取内容";
@@ -112,6 +116,7 @@ export interface ReadingSelectionRequest {
 }
 export interface ReadingSelection {
   text: string;
+  coordinateSpace?: "guest" | "host";
   x: number;
   y: number;
 }
