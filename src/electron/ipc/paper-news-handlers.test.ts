@@ -33,7 +33,7 @@ describe("Paper News IPC boundary", () => {
     const mainFrame = {},
       sender = { mainFrame };
     setupPaperNewsHandlers((event) => event.sender === sender);
-    expect(mocks.handlers.size).toBe(6);
+    expect(mocks.handlers.size).toBe(7);
     for (const handler of mocks.handlers.values()) {
       expect(() => handler({ sender: {}, senderFrame: mainFrame })).toThrow("restricted");
       expect(() => handler({ sender, senderFrame: {} })).toThrow("restricted");
@@ -45,6 +45,7 @@ describe("Paper News IPC boundary", () => {
     );
     expect(mocks.handlers.get(IPC_CHANNELS.PAPER_NEWS_COVER)!({ sender, senderFrame: mainFrame }, "https://127.0.0.1/private")).toBeNull();
     expect(mocks.cover).not.toHaveBeenCalled();
+    await expect(mocks.handlers.get(IPC_CHANNELS.PAPER_NEWS_SUMMARY)!({ sender, senderFrame: mainFrame }, "https://127.0.0.1/private")).resolves.toEqual({ error: "unavailable" });
     await expect(mocks.handlers.get(IPC_CHANNELS.PAPER_NEWS_TRANSLATE)!({ sender, senderFrame: mainFrame }, "not-cached")).resolves.toEqual({ error: "unavailable" });
     expect(mocks.save).toHaveBeenCalledWith("arxiv:123", true);
     mocks.handlers.get(IPC_CHANNELS.PAPER_NEWS_REFRESH)!({ sender, senderFrame: mainFrame });

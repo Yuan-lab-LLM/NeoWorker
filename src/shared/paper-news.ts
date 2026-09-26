@@ -32,6 +32,7 @@ export interface PaperNewsItem {
   source: PaperNewsSource;
   title: string;
   summary: string;
+  summaryKind?: "description" | "excerpt";
   authors: string[];
   url: string;
   pdfUrl?: string;

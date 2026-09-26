@@ -1,3 +1,5 @@
+import { BrowserView } from "./BrowserView";
+import type { NewsSummaryResult } from "../../shared/news-summary";
 import { useNewsCardTranslations } from "./useNewsCardTranslations";
 import { isHfHubSource } from "../../shared/news-hub";
 import { NewsPreferencesPanel, type NewsSettingsScope } from "./NewsPreferencesPanel";
@@ -251,6 +253,14 @@ export function PaperNewsPanel({
       isNewsPublisher(s) ? t(NEWS_PUBLISHERS[s].name, NEWS_PUBLISHERS[s].nameEn) : paperNames[s],
     ]),
   ) as Record<PaperNewsSource, string>;
+  const [newsBrowserUrl, setNewsBrowserUrl] = useState<string | null>(null);
+  const newsBrowserRef = useRef<HTMLDivElement>(null);
+  const newsTitleRef = useRef<HTMLButtonElement | null>(null);
+  const [summaryStates, setSummaryStates] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (newsBrowserUrl) newsBrowserRef.current?.focus();
+    else newsTitleRef.current?.focus();
+  }, [newsBrowserUrl]);
   const [snapshot, setSnapshot] = useState<PaperNewsSnapshot | null>(null);
   const [source, setSource] = useState<PaperNewsSource | "all">("all");
   const [category, setCategory] = useState<NewsCategoryId | "all">("all");
@@ -455,6 +465,28 @@ export function PaperNewsPanel({
       if (mounted.current) setFailure("save");
     }
   }
+  async function fetchSummary(item: PaperNewsItem) {
+    setSummaryStates((states) => ({ ...states, [item.id]: "loading" }));
+    let result: NewsSummaryResult;
+    try {
+      result = await window.electronAPI.getNewsSummary(item.id);
+    } catch {
+      result = { error: "failed" };
+    }
+    if (!mounted.current) return;
+    if ("summary" in result) {
+      const value = result;
+      const merge = (current: PaperNewsItem) =>
+        current.id === item.id && current.title === item.title &&
+        current.url === item.url && !current.summary.trim()
+          ? { ...current, summary: value.summary, summaryKind: value.kind }
+          : current;
+      setSnapshot((state) => state
+        ? { ...state, items: state.items.map(merge), saved: state.saved.map(merge) }
+        : state);
+      setSummaryStates((states) => ({ ...states, [item.id]: "" }));
+    } else setSummaryStates((states) => ({ ...states, [item.id]: result.error }));
+  }
   async function open(url: string) {
     try {
       await window.electronAPI.openExternal(url);
@@ -523,7 +555,9 @@ export function PaperNewsPanel({
             : t("公开资讯与原文链接", "Public stories and source links");
 
   return (
+    <>
     <main
+      inert={Boolean(newsBrowserUrl)}
       ref={panelRef}
       className={`paper-news-panel ${categoryUnavailable ? "pn-no-sources" : ""}`}
       aria-label={t("资讯动态", "News Feed")}
@@ -956,8 +990,11 @@ export function PaperNewsPanel({
                   </div>
                   <h2>
                     <button
-                      title={displayTitle}
-                      onClick={() => void open(item.url)}
+                      title={`${displayTitle} · ${t("在 NeoWorker 浏览器中打开", "Open in NeoWorker browser")}`}
+                      onClick={(event) => {
+                        newsTitleRef.current = event.currentTarget;
+                        setNewsBrowserUrl(item.url);
+                      }}
                     >
                       {displayTitle}
                     </button>
@@ -1004,7 +1041,11 @@ export function PaperNewsPanel({
                     <details className="pn-abstract">
                       <summary>
                         {item.summary.trim()
-                          ? t("摘要与详情", "Abstract and details")
+                          ? item.summaryKind === "excerpt"
+                            ? t("正文节选", "Article excerpt")
+                            : item.summaryKind === "description"
+                              ? t("网页摘要", "Page summary")
+                              : t("摘要与详情", "Abstract and details")
                           : t("任务与许可信息", "Task and license")}
                       </summary>
                       {displaySummary.trim() && <p>{displaySummary}</p>}
@@ -1020,9 +1061,23 @@ export function PaperNewsPanel({
                       )}
                     </details>
                   ) : (
-                    <span className="pn-no-summary">
-                      {t("来源未提供摘要", "No source summary")}
-                    </span>
+                    <div className="pn-no-summary">
+                      <span>{summaryStates[item.id] === "unavailable"
+                        ? t("未找到公开摘要或正文，可打开原文查看。", "No public summary or body found. Open the source.")
+                        : summaryStates[item.id] === "blocked"
+                          ? t("来源限制访问，请打开原文查看。", "Source access is restricted. Open the source.")
+                          : summaryStates[item.id] === "failed"
+                            ? t("暂时获取失败，请稍后重试。", "Fetch failed. Please retry later.")
+                            : summaryStates[item.id] === "busy"
+                              ? t("请求较频繁，请稍后重试。", "Please wait briefly before retrying.")
+                              : t("来源列表未提供摘要", "No summary in the source feed")}</span>
+                      {isNewsPublisher(item.source) && (
+                        <button className="pn-summary-fetch" disabled={summaryStates[item.id] === "loading"} onClick={() => void fetchSummary(item)}>
+                          <RefreshCw size={12} className={summaryStates[item.id] === "loading" ? "pn-spinning" : undefined} />
+                          {summaryStates[item.id] === "loading" ? t("正在获取…", "Fetching…") : summaryStates[item.id] ? t("重试获取", "Retry") : t("获取摘要", "Fetch summary")}
+                        </button>
+                      )}
+                    </div>
                   )}
                   <div className="pn-tags">
                     {isHfHubSource(item.source) && (
@@ -1064,7 +1119,7 @@ export function PaperNewsPanel({
                     )}
                   </div>
                   <div className="pn-links">
-                    <button onClick={() => void open(item.url)}>
+                    <button title={t("在系统默认浏览器中打开", "Open in default browser")} onClick={() => void open(item.url)}>
                       <ExternalLink size={13} />
                       {item.source === "github"
                         ? t("仓库", "Repository")
@@ -1230,5 +1285,11 @@ export function PaperNewsPanel({
         </p>
       </div>
     </main>
+    {newsBrowserUrl && (
+      <div className="pn-browser-overlay" role="dialog" aria-modal="true" aria-label={t("NeoWorker 浏览器", "NeoWorker browser")} tabIndex={-1} ref={newsBrowserRef}>
+        <BrowserView initialUrl={newsBrowserUrl} onBack={() => setNewsBrowserUrl(null)} />
+      </div>
+    )}
+    </>
   );
 }

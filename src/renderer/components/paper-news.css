@@ -1588,3 +1588,28 @@ button.pn-directory-source:hover {
 .pn-card-compact h2 {
   margin-bottom: 12px;
 }
+
+.pn-no-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pn-summary-fetch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  font-size: 12px;
+}
+.pn-summary-fetch:disabled { cursor: wait; }
+.pn-browser-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--color-bg-primary);
+}

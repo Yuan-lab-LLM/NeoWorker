@@ -1,3 +1,4 @@
+import type { NewsSummaryKind } from "../../shared/news-summary";
 import { isHfHubSource, hfHubUrl } from "../../shared/news-hub";
 import { newsSourceEnabled } from "../../shared/news-preferences";
 import { NEWS_PUBLISHERS, isNewsPublisher, publisherArticleUrl } from "../../shared/news-sources";
@@ -63,6 +64,7 @@ function validCachedItem(item: unknown): item is PaperNewsItem {
     !i.id.startsWith(`${i.source}:`) ||
     typeof i.title !== "string" ||
     typeof i.summary !== "string" ||
+    (i.summaryKind !== undefined && !["description", "excerpt"].includes(i.summaryKind)) ||
     (i.popularity !== undefined &&
       (typeof i.popularity !== "number" || !Number.isFinite(i.popularity) || i.popularity < 0)) ||
     (!Number.isFinite(Date.parse(i.date)) && !(isNewsPublisher(i.source) && i.date === ""))
@@ -203,6 +205,14 @@ export class PaperNewsService {
     const item = [...this.state.items, ...this.state.saved].find((item) => item.id === id);
     return item ? structuredClone(item) : undefined;
   }
+  applySummary(original: PaperNewsItem, result: { summary: string; kind: NewsSummaryKind }): void {
+    const merge = (item: PaperNewsItem) => item.id === original.id && item.url === original.url &&
+      item.title === original.title && !item.summary.trim()
+      ? { ...item, summary: result.summary, summaryKind: result.kind } : item;
+    this.state.items = this.state.items.map(merge);
+    this.state.saved = this.state.saved.map(merge);
+    this.persist();
+  }
   setSaved(id: unknown, saved: unknown): PaperNewsSnapshot {
     if (typeof id !== "string" || typeof saved !== "boolean") throw new Error("Invalid bookmark");
     const item = [...this.state.items, ...this.state.saved].find((i) => i.id === id);
@@ -338,7 +348,13 @@ export class PaperNewsService {
         for (let source = queue.shift(); source; source = queue.shift()) {
           const previous = previousStates[source];
           try {
-            const items = await this.requestSource(source);
+            const fetched = await this.requestSource(source);
+            const previousItems = new Map([...this.state.saved, ...this.state.items].map((item) => [item.id, item]));
+            const items = fetched.map((item) => {
+              const previousItem = previousItems.get(item.id);
+              return !item.summary.trim() && previousItem?.summaryKind && previousItem.title === item.title && previousItem.url === item.url
+                ? { ...item, summary: previousItem.summary, summaryKind: previousItem.summaryKind } : item;
+            });
             this.state.items = [...this.state.items.filter((i) => i.source !== source), ...items];
             this.state.sources[source] = {
               attemptedAt,

@@ -1,3 +1,4 @@
+import type { NewsSummaryResult } from "../shared/news-summary";
 import type { NewsTranslationResult } from "../shared/news-translation";
 import type { PaperNewsCover, PaperNewsConfig, PaperNewsSnapshot, PaperNewsSource } from "../shared/paper-news";
 import * as path from "path";
@@ -6130,6 +6131,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       triggerId,
     }),
 
+  getNewsSummary: (id: string): Promise<NewsSummaryResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PAPER_NEWS_SUMMARY, id),
   translateNewsCard: (id: string): Promise<NewsTranslationResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.PAPER_NEWS_TRANSLATE, id),
   getPaperNewsCover: (id: string): Promise<PaperNewsCover | null> =>
@@ -6409,6 +6412,7 @@ export type {
 };
 
 export interface ElectronAPI {
+  getNewsSummary: (id: string) => Promise<NewsSummaryResult>;
   translateNewsCard: (id: string) => Promise<NewsTranslationResult>;
   getPaperNewsCover: (id: string) => Promise<PaperNewsCover | null>;
   getPaperNews: () => Promise<PaperNewsSnapshot>;

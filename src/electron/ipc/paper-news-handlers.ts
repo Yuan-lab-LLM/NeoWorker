@@ -1,3 +1,4 @@
+import { NewsSummaries } from "../paper-news/summaries";
 import { NewsTranslations } from "../paper-news/translation";
 import { translateNewsWithModel } from "../paper-news/translation-model";
 import { PaperNewsCovers } from "../paper-news/covers";
@@ -14,6 +15,7 @@ export function setupPaperNewsHandlers(isTrusted: (event: IpcMainInvokeEvent) =>
     path.join(app.getPath("userData"), "paper-news.json"),
     fetchWithSystemProxy,
   );
+  const summaries = new NewsSummaries(fetchWithSystemProxy);
   const translations = new NewsTranslations(
     path.join(app.getPath("userData"), "news-translations-zh.json"),
     translateNewsWithModel,
@@ -31,6 +33,12 @@ export function setupPaperNewsHandlers(isTrusted: (event: IpcMainInvokeEvent) =>
       return run(...args);
     });
   };
+  handle(IPC_CHANNELS.PAPER_NEWS_SUMMARY, async (id: unknown) => {
+    const item = service.findItem(id);
+    const result = await summaries.get(item);
+    if (item && "summary" in result) service.applySummary(item, result);
+    return result;
+  });
   handle(IPC_CHANNELS.PAPER_NEWS_TRANSLATE, (id: unknown) => translations.get(service.findItem(id)));
   handle(IPC_CHANNELS.PAPER_NEWS_COVER, (id: unknown) => {
     const item = service.findItem(id);
