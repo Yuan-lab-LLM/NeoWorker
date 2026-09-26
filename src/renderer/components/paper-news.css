@@ -1644,3 +1644,9 @@ button.pn-directory-source:hover {
     height: auto;
   }
 }
+
+/* News already reserves the app title bar. Do not reserve it again inside the browser. */
+.pn-browser-sidebar > .browser-workbench {
+  padding-top: 0;
+  height: 100%;
+}

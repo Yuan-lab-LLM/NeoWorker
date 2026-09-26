@@ -251,6 +251,11 @@ export class DocumentTools {
               description: 'Output filename (e.g. "quarterly-report.pdf")',
             },
             title: { type: "string", description: "Document title" },
+            templateId: {
+              type: "string",
+              enum: ["neoworker-academic-paper", "neoworker-docx-business-report"],
+              description: "Use neoworker-academic-paper for papers and paper translations: serif body, restrained headings. Preserve original emphasis; do not add bold to whole paragraphs or ordinary sentences.",
+            },
             titleColor: {
               type: "string",
               description: "Optional hex color applied to document headings",
@@ -1122,6 +1127,7 @@ export class DocumentTools {
 
     const result = await generatePDF(outputPath, {
       title: input.title,
+      templateId: input.templateId,
       titleColor: input.titleColor,
       author: input.author,
       markdown,

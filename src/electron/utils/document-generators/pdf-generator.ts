@@ -87,11 +87,15 @@ function normalizeTitleText(value: string): string {
     .trim();
 }
 
-function stripMatchingLeadingMarkdownTitle(markdown: string, title?: string): string {
+function stripMatchingLeadingMarkdownTitle(markdown: string, title?: string, academic = false): string {
   if (!title) return markdown;
 
   const heading = markdown.match(/^\s*#\s+(.+?)\s*(?:\r?\n|$)/);
-  if (!heading || normalizeTitleText(heading[1]) !== normalizeTitleText(title)) {
+  const comparable = (value: string) => {
+    const clean = normalizeTitleText(value);
+    return academic ? clean.replace(/[（(]\s*(?:简体中文|中文)?\s*(?:全文)?翻译\s*[）)]\s*$/, "").replace(/\s+/g, "").replace(/：/g, ":") : clean;
+  };
+  if (!heading || comparable(heading[1]) !== comparable(title)) {
     return markdown;
   }
 
@@ -609,13 +613,15 @@ export function buildPDFHTML(options: PDFOptions): string {
   let body = "";
   const headingColor = normalizeHeadingColor(options.titleColor);
   const isBusinessReport = options.templateId === "neoworker-docx-business-report";
+  const isAcademic = options.templateId === "neoworker-academic-paper" ||
+    (!options.templateId && /论文|全文翻译|paper translation/i.test(options.title || ""));
 
   if (options.title && !isBusinessReport) {
     body += `<h1 class="doc-title">${escapeHtml(options.title)}</h1>\n`;
   }
 
   if (options.markdown) {
-    body += markdownToHtml(stripMatchingLeadingMarkdownTitle(options.markdown, options.title), options);
+    body += markdownToHtml(stripMatchingLeadingMarkdownTitle(options.markdown, options.title, isAcademic), options);
   }
 
   if (options.sections) {
@@ -694,6 +700,26 @@ export function buildPDFHTML(options: PDFOptions): string {
     .meta { font-size: 12px; color: #6b7280; margin-bottom: 20px; }
     a { color: #1d4ed8; text-decoration: none; }
     img { max-width: 100%; height: auto; }
+    ${isAcademic ? `
+    @font-face {
+      font-family: "NeoWorker Song";
+      src: local("Songti SC Regular"), local("Songti SC"), local("STSong"), local("SimSun"), local("Noto Serif CJK SC"), local("Noto Serif SC"), local("Source Han Serif SC");
+      font-weight: 400; font-style: normal; font-display: swap;
+    }
+    @page { margin: 20mm 22mm 20mm; }
+    body { font-family: "Times New Roman", "NeoWorker Song", "Songti SC", "SimSun", "Noto Serif CJK SC", "NeoWorker CJK", serif; font-size: 15px; font-weight: 400; line-height: 1.85; color: #242424; }
+    h1, h2, h3, .meta { font-family: "NeoWorker CJK", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    .doc-title { font-size: 26px; line-height: 1.5; font-weight: 600; color: ${headingColor || "#202020"}; border: 0; padding-bottom: 0; margin-bottom: 20px; letter-spacing: 0; }
+    h1 { font-size: 23px; line-height: 1.5; color: ${headingColor || "#202020"}; font-weight: 600; }
+    h2 { font-size: 19px; color: ${headingColor || "#202020"}; font-weight: 600; margin: 24px 0 10px; }
+    h3 { font-size: 16px; color: ${headingColor || "#202020"}; font-weight: 600; }
+    p { margin: 0 0 11px; orphans: 3; widows: 3; }
+    strong { font-weight: 600; }
+    .meta { font-size: 11px; color: #727272; margin-bottom: 16px; }
+    th, td { font-size: 12px; line-height: 1.6; }
+    th { background: #f5f5f5; color: #242424; }
+    blockquote { border-left: 2px solid #c6c6c6; background: #f8f8f8; }
+    ` : ""}
     .report-cover {
       position: relative;
       z-index: 2;

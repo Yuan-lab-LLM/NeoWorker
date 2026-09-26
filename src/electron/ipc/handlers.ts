@@ -1,3 +1,4 @@
+import { setupBrowserReadingHandlers } from "./browser-reading-handlers";
 import { setupPaperNewsHandlers } from "./paper-news-handlers";
 import { LLMProviderTypeSchema } from "../utils/validation";
 import { ipcMain, shell, BrowserWindow, dialog, app as _app } from "electron";
@@ -10536,6 +10537,7 @@ export async function setupIpcHandlers(
 
   // Local AI (hf-agents / llama.cpp) handlers
   setupLocalAIHandlers();
+  setupBrowserReadingHandlers((event) => event.sender === getMainWindow()?.webContents);
   setupPaperNewsHandlers((event) => event.sender === getMainWindow()?.webContents);
 
   // Notification handlers

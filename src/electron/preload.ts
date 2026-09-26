@@ -1,3 +1,4 @@
+import { READING_CHANNELS, type ReadingRequest, type ReadingAnswer, type ReadingSelectionEvent } from "../shared/browser-reading";
 import type { NewsSummaryResult } from "../shared/news-summary";
 import type { NewsTranslationResult } from "../shared/news-translation";
 import type { PaperNewsCover, PaperNewsConfig, PaperNewsSnapshot, PaperNewsSource } from "../shared/paper-news";
@@ -2263,6 +2264,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () =>
       ipcRenderer.removeListener(IPC_CHANNELS.TERMINAL_TAB_OUTPUT, handler);
   },
+  onBrowserReadingSelection: (callback: (data: ReadingSelectionEvent) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, data: ReadingSelectionEvent) => callback(data);
+    ipcRenderer.on(READING_CHANNELS.selection, handler);
+    void ipcRenderer.invoke(READING_CHANNELS.listen).catch(() => {});
+    return () => ipcRenderer.removeListener(READING_CHANNELS.selection, handler);
+  },
+  askBrowserReading: (data: ReadingRequest): Promise<ReadingAnswer> => ipcRenderer.invoke(READING_CHANNELS.ask, data),
+  cancelBrowserReading: (id: string): Promise<void> => ipcRenderer.invoke(READING_CHANNELS.cancel, id),
   registerBrowserWorkbenchSession: (
     data: BrowserWorkbenchSessionRegistration,
   ) =>
@@ -6468,6 +6477,9 @@ export interface ElectronAPI {
     workspacePath: string;
     blocks: EditableDocumentBlock[];
   }) => Promise<FileViewerResult>;
+  onBrowserReadingSelection: (callback: (data: ReadingSelectionEvent) => void) => () => void;
+  askBrowserReading: (data: ReadingRequest) => Promise<ReadingAnswer>;
+  cancelBrowserReading: (id: string) => Promise<void>;
   registerBrowserWorkbenchSession: (
     data: BrowserWorkbenchSessionRegistration,
   ) => Promise<{ success: boolean }>;

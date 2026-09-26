@@ -1,7 +1,9 @@
+import { BrowserReadingAssistant } from "./BrowserReadingAssistant";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   Activity,
+  BookOpen,
   ArrowUp,
   Camera,
   ClipboardList,
@@ -377,6 +379,7 @@ export function BrowserWorkbenchView({
   useLanguage();
   const t = translate;
   const webviewRef = useRef<Any>(null);
+  const [readingOpen, setReadingOpen] = useState(false);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const annotationImageRef = useRef<HTMLImageElement | null>(null);
   const annotationCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1664,6 +1667,7 @@ export function BrowserWorkbenchView({
             />
           </form>
         )}
+        {/^(https?):/.test(activeUrl) && <button type="button" className="br-toggle" aria-pressed={readingOpen} onClick={() => setReadingOpen(!readingOpen)}><BookOpen size={14}/>阅读助手</button>}
         {SHOW_BROWSER_VIEWPORT_PRESETS && (
           <div
             className="browser-workbench-device-toolbar"
@@ -1997,6 +2001,7 @@ export function BrowserWorkbenchView({
           )}
         </div>
       )}
+      <div className="browser-reading-layout">
       <div
         className={`browser-workbench-surface ${controlledViewport ? "has-controlled-viewport" : ""}`}
         ref={surfaceRef}
@@ -2322,6 +2327,8 @@ export function BrowserWorkbenchView({
             </div>
           </div>
         )}
+      </div>
+      {/^(https?):/.test(activeUrl) && <BrowserReadingAssistant key={`${activeTabId}:${activeUrl.split("#")[0]}`} taskId={taskId} sessionId={sessionId} url={activeUrl} title={title} ready={Boolean(visibleWebviewSize)} open={readingOpen} onOpen={setReadingOpen} webviewRef={webviewRef}/>}
       </div>
       {diagnosticsOpen && (
         <div className="browser-workbench-diagnostics">

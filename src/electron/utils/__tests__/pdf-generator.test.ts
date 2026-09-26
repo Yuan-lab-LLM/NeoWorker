@@ -63,6 +63,14 @@ describe("PDF generator HTML", () => {
     expect(reportHtml).not.toContain('class="doc-title"');
   });
 
+  it("uses restrained academic typography and removes a translation-qualified duplicate title", () => {
+    const html = buildPDFHTML({ title: "PASTABench：代理安全性（简体中文全文翻译）", markdown: "# PASTABench：代理安全性\n\n## 摘要\n\n研究正文。" });
+    expect(html).toContain('font-family: "Times New Roman", "NeoWorker Song"');
+    expect(html).toContain('local("Songti SC Regular")');
+    expect(html).not.toContain('<h1>PASTABench：代理安全性</h1>');
+    expect(html).toContain('border: 0; padding-bottom: 0');
+  });
+
   it("does not execute raw HTML from Markdown", () => {
     const html = buildPDFHTML({ markdown: '<script>alert("x")</script>' });
 
