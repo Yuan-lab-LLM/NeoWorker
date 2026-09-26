@@ -1254,7 +1254,7 @@ textarea::placeholder {
 }
 
 .theme-light.visual-oblivion .sidebar-top-actions-row {
-  margin-bottom: var(--cw-space-1);
+  margin-bottom: 12px;
 }
 
 .theme-light.visual-oblivion .sidebar-new-session-btn,
@@ -1332,7 +1332,7 @@ textarea::placeholder {
 }
 
 .theme-light.visual-oblivion .sidebar-nav-group {
-  gap: 0;
+  gap: 4px;
 }
 
 .theme-light.visual-oblivion .sidebar-nav-group + .sidebar-nav-group {
@@ -1342,8 +1342,8 @@ textarea::placeholder {
 .theme-light.visual-oblivion .sidebar-nav-item,
 .theme-light.visual-oblivion.density-focused .sidebar-nav-item {
   position: relative;
-  min-height: 32px;
-  height: 32px;
+  min-height: 36px;
+  height: 36px;
   padding-inline: var(--cw-space-3) !important;
   border: 0 !important;
   border-radius: var(--cw-radius-md);
@@ -1386,6 +1386,10 @@ textarea::placeholder {
   padding-inline: var(--cw-space-2) !important;
   color: var(--cw-slate);
   font-size: 13px;
+}
+
+.theme-light.visual-oblivion .sidebar-header-sessions {
+  padding-top: 16px;
 }
 
 .theme-light.visual-oblivion .cli-task-item,

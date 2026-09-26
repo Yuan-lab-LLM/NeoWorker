@@ -168,7 +168,7 @@ export function paperNewsCoverKey(item: PaperNewsItem): string {
   return createHash("sha256")
     .update(
       JSON.stringify([
-        3,
+        4,
         item.id,
         item.url,
         item.pdfUrl,
@@ -294,6 +294,7 @@ export class PaperNewsCovers {
     limit: number,
     kind: "image" | "html" | "pdf",
     signal: AbortSignal,
+    sourcePage?: string,
   ): Promise<Buffer> {
     if (!newsImageUrl(url)) throw new Error("unsupported source");
     const host = new URL(url).hostname;
@@ -310,6 +311,11 @@ export class PaperNewsCovers {
       redirect: "error",
       signal,
       headers: {
+        // Publisher CDNs may reject images without their public article origin.
+        // Send only the validated origin, never article paths or query strings.
+        ...(kind === "image" && sourcePage && newsImageUrl(sourcePage)
+          ? { Referer: `${new URL(sourcePage).origin}/` }
+          : {}),
         Accept:
           kind === "image"
             ? "image/png,image/jpeg,image/webp"
@@ -361,7 +367,7 @@ export class PaperNewsCovers {
     const tryImage = async (url: string): Promise<PaperNewsCover | null> => {
       try {
         const jpeg = await this.image(
-          await this.request(url, 4 * 1024 * 1024, "image", signal),
+          await this.request(url, 4 * 1024 * 1024, "image", signal, item.url),
         );
         return jpeg && jpeg.length <= 400_000
           ? {

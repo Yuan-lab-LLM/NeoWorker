@@ -9,6 +9,22 @@ const image = vi.fn(async () => Buffer.from("jpeg"));
 const pdf = vi.fn(async () => Buffer.from("page"));
 async function withCache(run: (dir: string) => Promise<void>) { const dir = await fs.mkdtemp(path.join(os.tmpdir(), "news-cover-test-")); try { await run(dir); } finally { await fs.rm(dir, { recursive: true, force: true }); } }
 describe("dynamic news covers", () => {
+  it("loads Qbit article images with a publisher origin referer", async () => withCache(async dir => {
+    const story = { ...item(), source: "qbitai" as const, url: "https://www.qbitai.com/2026/09/123.html?campaign=example" };
+    const photo = "https://i.qbitai.com/wp-content/uploads/2026/09/chip.jpeg";
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === story.url) {
+        expect(new Headers(init?.headers).has("Referer")).toBe(false);
+        return new Response(`<div class="article"><img src="${photo}" /></div>`);
+      }
+      const referer = new Headers(init?.headers).get("Referer");
+      return referer === "https://www.qbitai.com/"
+        ? new Response("image", { headers: { "content-type": "image/jpeg" } })
+        : new Response("Forbidden", { status: 403 });
+    });
+    expect((await new PaperNewsCovers(dir, fetcher, image, pdf).get(story))?.sourceUrl).toBe(photo);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  }));
   it("rejects Qbit site icons and extracts only article body images", () => {
     expect(publisherImageUrl("qbitai", "https://www.qbitai.com/wp-content/uploads/imgs/qbitai_icon.png")).toBeUndefined();
     const raw = '<html><body><img src="https://i.qbitai.com/wp-content/uploads/2026/09/other.jpg"><div class="article"><img src="https://i.qbitai.com/wp-content/uploads/2026/09/story.jpg"></div></body></html>';

@@ -298,9 +298,14 @@ export function PaperNewsPanel({
   const [source, setSource] = useState<PaperNewsSource | "all">("all");
   const [category, setCategory] = useState<NewsCategoryId | "all">("all");
   const [imageView, setImageView] = useState(() => {
-    try { return localStorage.getItem("neoworker.news-image-view") === "true"; }
-    catch { return false; }
+    try { return localStorage.getItem("neoworker.news-image-view") !== "false"; }
+    catch { return true; }
   });
+  const updateImageView = (enabled: boolean) => {
+    setImageView(enabled);
+    try { localStorage.setItem("neoworker.news-image-view", String(enabled)); }
+    catch { /* The view still works when storage is unavailable. */ }
+  };
   const imagesAvailable = canShowNewsImages(category, source);
   const showImages = imagesAvailable && imageView;
   const [savedOnly, setSavedOnly] = useState(false);
@@ -811,16 +816,24 @@ export function PaperNewsPanel({
               </h2>
             </div>
             <div className="pn-tabs">
+              {category === "all" && source === "all" && (
+                <button
+                  title={t("全部动态使用文字卡片；前往科技与产业查看文章配图", "The aggregate feed uses text cards. Browse article images in Technology & Industry")}
+                  onClick={() => {
+                    selectCategory("technology");
+                    updateImageView(true);
+                  }}
+                >
+                  <Image size={15} aria-hidden="true" />
+                  {t("科技图文", "Technology images")}
+                </button>
+              )}
               {imagesAvailable && (
                 <button
                   aria-pressed={imageView}
                   className={imageView ? "is-active" : ""}
                   title={t("仅显示来源提供的文章配图；无图内容保留文字卡片", "Show publisher article images when available")}
-                  onClick={() => {
-                    setImageView(!imageView);
-                    try { localStorage.setItem("neoworker.news-image-view", String(!imageView)); }
-                    catch { /* The view still works when storage is unavailable. */ }
-                  }}
+                  onClick={() => updateImageView(!imageView)}
                 >
                   <Image size={15} aria-hidden="true" />
                   {t("图文视图", "Article images")}
