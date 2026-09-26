@@ -8625,7 +8625,7 @@ function MainContentComponent({
   };
 
   const renderAttachmentPanel = () => {
-    if (pendingAttachments.length === 0 && !attachmentError) return null;
+    if (pendingAttachments.length === 0 && !attachmentError && !newsContext) return null;
     const processingCopy =
       composerProcessingStage === "importing"
         ? {
@@ -8665,8 +8665,15 @@ function MainContentComponent({
     return (
       <div className="attachment-panel">
         {attachmentError && <div className="attachment-error">{attachmentError}</div>}
-        {pendingAttachments.length > 0 && (
+        {(pendingAttachments.length > 0 || newsContext) && (
           <div className="attachment-list">
+            {newsContext && (
+              <NewsTaskSourceCard
+                key={`${newsContext.source.url}:${newsContext.action}`}
+                context={newsContext}
+                onRemove={() => setNewsContext(null)}
+              />
+            )}
             {pendingAttachments.map((attachment) => {
               const { format } = getAttachmentFilePresentation(
                 attachment.name,
@@ -8719,7 +8726,7 @@ function MainContentComponent({
             })}
           </div>
         )}
-        {processingCopy && (
+        {processingCopy && pendingAttachments.length > 0 && (
           <div className="attachment-processing" role="status" aria-live="polite">
             <Loader2 size={16} className="attachment-processing-spinner" aria-hidden="true" />
             <span className="attachment-processing-copy">
@@ -12065,9 +12072,6 @@ function MainContentComponent({
                 </div>
               )}
               {renderModeSuggestionBar()}
-              {newsContext && (
-                <NewsTaskSourceCard context={newsContext} onRemove={() => setNewsContext(null)} />
-              )}
               {renderComposerSkillContext()}
               {renderChatModeUpgradePrompt()}
               <div
@@ -13346,9 +13350,6 @@ function MainContentComponent({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          {newsContext && (
-            <NewsTaskSourceCard context={newsContext} onRemove={() => setNewsContext(null)} />
-          )}
           {renderComposerSkillContext()}
           {renderChatModeUpgradePrompt()}
           {/* Collaborative agent lines — extension of input box, inside same container */}

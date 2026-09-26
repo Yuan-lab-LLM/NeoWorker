@@ -1,3 +1,4 @@
+import { useId, useState } from "react";
 import { BookOpen, ChevronRight, ExternalLink, FlaskConical, Languages, X } from "lucide-react";
 import type { NewsTaskContext } from "../../shared/news-task-draft";
 import { NEWS_PUBLISHERS, isNewsPublisher } from "../../shared/news-sources";
@@ -12,6 +13,8 @@ export function NewsTaskSourceCard({
   context: NewsTaskContext;
   onRemove?: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
   const zh = useLanguage() === "zh-CN";
   const { source, action } = context;
   const Icon = action === "read" ? BookOpen : action === "translate" ? Languages : FlaskConical;
@@ -34,64 +37,69 @@ export function NewsTaskSourceCard({
     void window.electronAPI.openExternal(url).catch(() => {});
   };
   return (
-    <section className="news-task-source" aria-label={zh ? "任务来源" : "Task source"}>
-      <div className="news-task-source-heading">
-        <span className="news-task-source-action">
-          <Icon size={14} />
-          {actionName}
-        </span>
-        <span className="news-task-source-provider">
-          <NewsSourceBrand source={source.id} />
-          {name}
-        </span>
+    <section
+      className={`news-task-source${expanded ? " is-expanded" : ""}`}
+      aria-label={zh ? "任务来源" : "Task source"}
+    >
+      <div className="attachment-chip composer-attachment-chip news-task-source-chip">
+        <button
+          type="button"
+          className="news-task-source-toggle"
+          aria-expanded={expanded}
+          aria-controls={detailsId}
+          aria-label={`${source.title} · ${actionName} · ${zh ? "任务要求" : "Task requirements"}`}
+          title={source.title}
+          onClick={() => setExpanded(!expanded)}
+        >
+          <span className="news-task-source-logo">
+            <NewsSourceBrand source={source.id} />
+          </span>
+          <span className="attachment-content">
+            <span className="attachment-name">{source.title}</span>
+            <span className="attachment-meta">
+              <span className="attachment-format">
+                <Icon size={10} />
+                {actionName}
+              </span>
+              <span className="news-task-source-provider">{name}</span>
+            </span>
+          </span>
+          <ChevronRight size={12} className="news-task-source-chevron" />
+        </button>
         {onRemove && (
           <button
             type="button"
-            className="news-task-source-remove"
+            className="attachment-remove"
             aria-label={zh ? "移除来源与任务要求" : "Remove source and task requirements"}
             onClick={onRemove}
           >
-            <X size={14} />
+            <X size={15} />
           </button>
         )}
       </div>
-      <button
-        type="button"
-        className="news-task-source-title"
-        title={source.title}
-        onClick={() => open(source.url)}
-      >
-        {source.title}
-        <ExternalLink size={13} />
-      </button>
-      <details className="news-task-source-details">
-        <summary>
-          <ChevronRight size={13} />
-          {zh ? "任务要求" : "Task requirements"}
-        </summary>
-        <div className="news-task-source-requirements">
-          <p className="news-task-source-note">
-            {zh
-              ? "这些任务要求和来源信息会随消息一起发送。"
-              : "These task requirements and source information accompany the message."}
-          </p>
-          {context.requirements.split(/\n\n+/).map((paragraph, index) => (
-            <p key={index}>{paragraph}</p>
-          ))}
-          <div className="news-task-source-links">
-            <button type="button" onClick={() => open(source.url)}>
-              {zh ? "原文" : "Source"}
+      <div id={detailsId} className="news-task-source-requirements" hidden={!expanded}>
+        <strong className="news-task-source-full-title">{source.title}</strong>
+        <p className="news-task-source-note">
+          {zh
+            ? "这些任务要求和来源信息会随消息一起发送。"
+            : "These task requirements and source information accompany the message."}
+        </p>
+        {context.requirements.split(/\n\n+/).map((paragraph, index) => (
+          <p key={index}>{paragraph}</p>
+        ))}
+        <div className="news-task-source-links">
+          <button type="button" onClick={() => open(source.url)}>
+            {zh ? "原文" : "Source"}
+            <ExternalLink size={12} />
+          </button>
+          {source.pdfUrl && (
+            <button type="button" onClick={() => open(source.pdfUrl!)}>
+              PDF
               <ExternalLink size={12} />
             </button>
-            {source.pdfUrl && (
-              <button type="button" onClick={() => open(source.pdfUrl!)}>
-                PDF
-                <ExternalLink size={12} />
-              </button>
-            )}
-          </div>
+          )}
         </div>
-      </details>
+      </div>
     </section>
   );
 }

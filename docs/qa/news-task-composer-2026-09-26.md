@@ -16,3 +16,9 @@ Draft context is scoped to the same workspace/session key as the existing text d
 - No external model request or installed-app mutation was performed. Packaged macOS testing is not included in this change.
 
 Preview harness: `output/ui-preview/news-categories/composer-preview.html` (local ignored QA artifact). Screenshot: `output/news-task-composer-2026-09-26/compact-draft.png`.
+
+## Attachment-style refinement
+
+Following the user's file-attachment reference, source cards now reuse the existing 310 × 44 px attachment chip styles and appear in the attachment row above both welcome and session composers. The chip shows a publisher logo, ellipsized title, action and publisher; clicking it reveals the full title and requirements, while its separate remove button drops the source context. Sent messages use the same chip. Narrow layouts follow existing attachment sizing.
+
+Browser checks used the real composer and user-message components: collapsed position, expand/collapse, successful sending and compact history rendering. Shared envelope tests (6) and renderer production build passed; focused lint had no errors. No installer was produced. Screenshot: `output/news-task-composer-2026-09-26/attachment-style.png`.
