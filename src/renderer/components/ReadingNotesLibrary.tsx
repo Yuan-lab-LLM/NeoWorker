@@ -115,6 +115,124 @@ export function ReadingNotesList({
   );
 }
 
+export function ReadingNotesWorkspace({
+  notes,
+  onOpen,
+  onDelete,
+}: {
+  notes: ReadingNote[];
+  onOpen: (note: ReadingNote) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const filtered = notes
+    .filter((note) =>
+      [note.title, note.text, note.quote, note.url]
+        .join(" ")
+        .toLowerCase()
+        .includes(query.trim().toLowerCase()),
+    )
+    .slice()
+    .reverse();
+  const selected =
+    filtered.find((note) => note.id === selectedId) || filtered[0];
+  return (
+    <div className="br-library-workspace">
+      <aside className="br-library-sidebar" aria-label="笔记目录">
+        <div className="br-library-search">
+          <label className="br-note-search">
+            <Search size={17} />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="搜索笔记、标题或来源"
+              aria-label="搜索阅读笔记"
+            />
+          </label>
+          <small>{filtered.length} 条笔记 · 保存在本机</small>
+        </div>
+        <nav className="br-library-index" aria-label="选择阅读笔记">
+          {filtered.map((note) => (
+            <button
+              key={note.id}
+              className="br-library-entry"
+              aria-current={selected?.id === note.id ? "true" : undefined}
+              onClick={() => setSelectedId(note.id)}
+            >
+              <strong>{note.title || note.url}</strong>
+              <span>{note.text.replace(/[#*`>]/g, "").slice(0, 140)}</span>
+              <time>{new Date(note.createdAt).toLocaleDateString()}</time>
+            </button>
+          ))}
+          {!filtered.length && (
+            <p className="br-empty">
+              {query
+                ? "没有匹配的笔记，换个关键词试试。"
+                : "还没有笔记。阅读时可将选文或回答存为笔记。"}
+            </p>
+          )}
+        </nav>
+      </aside>
+      {selected ? (
+        <section
+          key={selected.id}
+          className="br-library-reader"
+          aria-label="笔记正文"
+          tabIndex={0}
+        >
+          <div className="br-library-document">
+            <div className="br-library-document-meta">
+              <time>{new Date(selected.createdAt).toLocaleDateString()}</time>
+              <button
+                aria-label="删除当前笔记"
+                title="删除当前笔记"
+                onClick={() => onDelete(selected.id)}
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+            <h2>{selected.title || "阅读笔记"}</h2>
+            <button
+              className="br-note-source"
+              onClick={() => onOpen(selected)}
+              title={selected.url}
+            >
+              <ArrowUpRight size={15} />
+              {selected.page
+                ? `在 NeoWorker 中打开原文 · 第 ${selected.page} 页`
+                : "在 NeoWorker 中打开原文"}
+            </button>
+            {selected.quote && selected.quote !== selected.text && (
+              <details className="br-library-quote">
+                <summary>引用原文</summary>
+                <blockquote>{selected.quote}</blockquote>
+              </details>
+            )}
+            <div className="br-answer">
+              <ReactMarkdown
+                components={{
+                  a: ({ children }) => <span>{children}</span>,
+                  img: () => null,
+                }}
+              >
+                {selected.text}
+              </ReactMarkdown>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <div className="br-library-reader br-library-empty">
+          <NotebookPen size={40} />
+          <h2>{query ? "没有匹配的笔记" : "开始积累你的阅读笔记"}</h2>
+          <p>文章与论文中的摘录和想法，都可以在这里整理和回看。</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ReadingNotesLibrary({
   onClose,
   onOpen,
@@ -127,49 +245,51 @@ export function ReadingNotesLibrary({
   const [error, setError] = useState("");
   useEffect(() => {
     const element = dialog.current;
+    const opener = document.activeElement;
     element?.showModal();
-    return () => element?.close();
+    return () => {
+      element?.close();
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    };
   }, []);
   return createPortal(
     <dialog
       ref={dialog}
       className="br-library br-assistant"
       aria-label="阅读笔记"
-      onCancel={onClose}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
     >
       <header className="br-header">
         <span>
           <NotebookPen size={20} />
           <strong>阅读笔记</strong>
         </span>
-        <button
-          autoFocus
-          title="关闭笔记"
-          aria-label="关闭笔记"
-          onClick={onClose}
-        >
-          <X size={18} />
+        <button title="关闭笔记" aria-label="关闭笔记" onClick={onClose}>
+          <X size={20} />
         </button>
       </header>
-      <div className="br-library-body">
-        <p className="br-note-intro">
-          所有文章与论文的笔记，都在这里。点击来源可回到 NeoWorker 浏览器阅读。
+      {error && (
+        <p className="br-library-error" role="alert">
+          {error}
         </p>
-        {error && <p role="alert">{error}</p>}
-        <ReadingNotesList
-          notes={notes}
-          onOpen={onOpen}
-          onDelete={(id) => {
-            try {
-              const next = loadReadingNotes().filter((n) => n.id !== id);
-              persistNotes(next);
-              setNotes(next);
-            } catch {
-              setError("删除失败，请重试。");
-            }
-          }}
-        />
-      </div>
+      )}
+      <ReadingNotesWorkspace
+        notes={notes}
+        onOpen={onOpen}
+        onDelete={(id) => {
+          try {
+            const next = loadReadingNotes().filter((note) => note.id !== id);
+            persistNotes(next);
+            setNotes(next);
+            setError("");
+          } catch {
+            setError("删除失败，请重试。");
+          }
+        }}
+      />
     </dialog>,
     document.body,
   );

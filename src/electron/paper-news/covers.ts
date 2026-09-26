@@ -168,7 +168,7 @@ export function paperNewsCoverKey(item: PaperNewsItem): string {
   return createHash("sha256")
     .update(
       JSON.stringify([
-        4,
+        5,
         item.id,
         item.url,
         item.pdfUrl,
@@ -220,7 +220,7 @@ export class PaperNewsCovers {
     const file = path.join(this.directory, `${key}.json`);
     try {
       const stat = await fs.stat(file);
-      if (stat.size <= 600_000) {
+      if (stat.size <= 1_700_000) {
         const cached = JSON.parse(
           await fs.readFile(file, "utf8"),
         ) as CacheEntry;
@@ -369,7 +369,7 @@ export class PaperNewsCovers {
         const jpeg = await this.image(
           await this.request(url, 4 * 1024 * 1024, "image", signal, item.url),
         );
-        return jpeg && jpeg.length <= 400_000
+        return jpeg && jpeg.length <= 1_200_000
           ? {
               dataUrl: `data:image/jpeg;base64,${jpeg.toString("base64")}`,
               kind: "source-image",
@@ -410,7 +410,7 @@ export class PaperNewsCovers {
         );
         const png = await this.pdf(bytes, signal);
         const jpeg = png && (await this.image(png));
-        if (jpeg && jpeg.length <= 400_000)
+        if (jpeg && jpeg.length <= 1_200_000)
           return {
             dataUrl: `data:image/jpeg;base64,${jpeg.toString("base64")}`,
             kind: "pdf-page",

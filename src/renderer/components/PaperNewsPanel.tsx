@@ -1,7 +1,8 @@
 import { ReadingNotesLibrary } from "./ReadingNotesLibrary";
+import { useNewsImageGallery } from "./useNewsImageGallery";
 import { useNewsAutoSummaries } from "./useNewsAutoSummaries";
 import { NewsArticleImage } from "./NewsArticleImage";
-import { canShowNewsImages, hasNewsImages } from "../../shared/news-images";
+import { canShowNewsImages } from "../../shared/news-images";
 import {
   newsTaskDraft,
   type NewsTaskContext,
@@ -294,22 +295,11 @@ export function PaperNewsPanel({
   const [snapshot, setSnapshot] = useState<PaperNewsSnapshot | null>(null);
   const [source, setSource] = useState<PaperNewsSource | "all">("all");
   const [category, setCategory] = useState<NewsCategoryId | "all">("all");
-  const [imageView, setImageView] = useState(() => {
-    try {
-      return localStorage.getItem("neoworker.news-image-view") !== "false";
-    } catch {
-      return true;
-    }
-  });
-  const updateImageView = (enabled: boolean) => {
-    setImageView(enabled);
-    try {
-      localStorage.setItem("neoworker.news-image-view", String(enabled));
-    } catch {
-      /* The view still works when storage is unavailable. */
-    }
-  };
-  const imagesAvailable = canShowNewsImages(category, source);
+  const [imageView, setImageView] = useState(false);
+  const updateImageView = setImageView;
+  const imagesAvailable =
+    (category === "all" && source === "all") ||
+    canShowNewsImages(category, source);
   const showImages = imagesAvailable && imageView;
   const [savedOnly, setSavedOnly] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -551,24 +541,30 @@ export function PaperNewsPanel({
       .toLowerCase()
       .includes(query.toLowerCase()),
   );
-  const summaries = useNewsAutoSummaries(items, panelRef, (item, value) => {
-    const merge = (current: PaperNewsItem) =>
-      current.id === item.id &&
-      current.title === item.title &&
-      current.url === item.url &&
-      !current.summary.trim()
-        ? { ...current, summary: value.summary, summaryKind: value.kind }
-        : current;
-    setSnapshot((state) =>
-      state
-        ? {
-            ...state,
-            items: state.items.map(merge),
-            saved: state.saved.map(merge),
-          }
-        : state,
-    );
-  });
+  const gallery = useNewsImageGallery(items, showImages);
+  const displayedItems = showImages ? gallery.items : items;
+  const summaries = useNewsAutoSummaries(
+    displayedItems,
+    panelRef,
+    (item, value) => {
+      const merge = (current: PaperNewsItem) =>
+        current.id === item.id &&
+        current.title === item.title &&
+        current.url === item.url &&
+        !current.summary.trim()
+          ? { ...current, summary: value.summary, summaryKind: value.kind }
+          : current;
+      setSnapshot((state) =>
+        state
+          ? {
+              ...state,
+              items: state.items.map(merge),
+              saved: state.saved.map(merge),
+            }
+          : state,
+      );
+    },
+  );
   const formatDate = (value: string) =>
     !value
       ? t("发布时间未提供", "Publication date unavailable")
@@ -799,34 +795,28 @@ export function PaperNewsPanel({
               </h2>
             </div>
             <div className="pn-tabs">
-              {category === "all" && source === "all" && (
-                <button
-                  title={t(
-                    "全部动态使用文字卡片；前往科技与产业查看文章配图",
-                    "The aggregate feed uses text cards. Browse article images in Technology & Industry",
-                  )}
-                  onClick={() => {
-                    selectCategory("technology");
-                    updateImageView(true);
-                  }}
-                >
-                  <Image size={15} aria-hidden="true" />
-                  {t("科技图文", "Technology images")}
-                </button>
-              )}
               {imagesAvailable && (
-                <button
-                  aria-pressed={imageView}
-                  className={imageView ? "is-active" : ""}
-                  title={t(
-                    "仅显示来源提供的文章配图；无图内容保留文字卡片",
-                    "Show publisher article images when available",
-                  )}
-                  onClick={() => updateImageView(!imageView)}
+                <div
+                  className="pn-view-switch"
+                  aria-label={t("浏览方式", "View mode")}
                 >
-                  <Image size={15} aria-hidden="true" />
-                  {t("图文视图", "Article images")}
-                </button>
+                  <button
+                    aria-pressed={!showImages}
+                    className={!showImages ? "is-active" : ""}
+                    onClick={() => updateImageView(false)}
+                  >
+                    <LayoutGrid size={15} />
+                    {t("全部资讯", "All articles")}
+                  </button>
+                  <button
+                    aria-pressed={showImages}
+                    className={showImages ? "is-active" : ""}
+                    onClick={() => updateImageView(true)}
+                  >
+                    <Image size={15} />
+                    {t("图文浏览", "Image articles")}
+                  </button>
+                </div>
               )}
               <button
                 aria-pressed={cardTranslations.enabled}
@@ -981,7 +971,9 @@ export function PaperNewsPanel({
           )}
           <div className="pn-context">
             <span aria-live="polite">
-              {items.length} {t("条内容", "results")}
+              {showImages
+                ? `${displayedItems.length} ${t("篇有图文章", "illustrated articles")} / ${items.length} ${t("条资讯", "articles")}`
+                : `${items.length} ${t("条内容", "results")}`}
               {source !== "all" ? ` · ${names[source]}` : ""}
             </span>
             <div
@@ -1022,7 +1014,40 @@ export function PaperNewsPanel({
               )}
             </p>
           </details>
-          {categoryUnavailable ? null : !items.length ? (
+          {showImages && (
+            <div className="pn-gallery-status" role="status">
+              <span>
+                {gallery.checking
+                  ? t("正在查找文章配图…", "Finding article images…")
+                  : t(
+                      `已检查 ${gallery.checked} 篇可配图文章，展示已找到的真实配图。`,
+                      `Checked ${gallery.checked} eligible articles; showing verified images.`,
+                    )}
+              </span>
+              <button onClick={() => updateImageView(false)}>
+                {t(
+                  "查看全部资讯（含无图文章）",
+                  "View all articles, including text-only stories",
+                )}
+              </button>
+            </div>
+          )}
+          {showImages && items.length > 0 && !displayedItems.length ? (
+            <div className="pn-empty">
+              <Image size={28} />
+              <h2>
+                {gallery.checking
+                  ? t("正在加载配图", "Loading images")
+                  : t("暂未找到可用配图", "No usable images found yet")}
+              </h2>
+              <p>
+                {t(
+                  "所有文章都保留在“全部资讯”中。",
+                  "All articles remain available in All articles.",
+                )}
+              </p>
+            </div>
+          ) : categoryUnavailable ? null : !items.length ? (
             <div className="pn-empty">
               <BookOpen size={28} />
               <h2>
@@ -1065,8 +1090,8 @@ export function PaperNewsPanel({
               </p>
             </div>
           ) : (
-            <div className="pn-grid">
-              {items.map((item) => {
+            <div className={`pn-grid${showImages ? " pn-gallery" : ""}`}>
+              {displayedItems.map((item) => {
                 const saved = snapshot?.saved.some((i) => i.id === item.id);
                 const translation = cardTranslations.entry(item);
                 const translated =
@@ -1086,6 +1111,13 @@ export function PaperNewsPanel({
                     key={item.id}
                     data-news-id={item.id}
                   >
+                    {showImages && gallery.cover(item) && (
+                      <NewsArticleImage
+                        item={item}
+                        cover={gallery.cover(item)!}
+                        onError={() => gallery.reject(item)}
+                      />
+                    )}
                     <div className="pn-card-meta">
                       <span className="pn-source-badge">
                         <SourceBrand source={item.source} />
@@ -1222,9 +1254,6 @@ export function PaperNewsPanel({
                           )
                         )}
                       </div>
-                      {showImages && hasNewsImages(item.source) && (
-                        <NewsArticleImage item={item} />
-                      )}
                     </div>
                     {hasDetails && (
                       <details className="pn-abstract">
@@ -1372,6 +1401,15 @@ export function PaperNewsPanel({
                   </article>
                 );
               })}
+            </div>
+          )}
+          {showImages && gallery.hasMore && (
+            <div className="pn-gallery-more">
+              <button disabled={gallery.checking} onClick={gallery.loadMore}>
+                {gallery.checking
+                  ? t("正在加载…", "Loading…")
+                  : t("继续查找有图文章", "Find more illustrated articles")}
+              </button>
             </div>
           )}
           {!!activeSources.length && (

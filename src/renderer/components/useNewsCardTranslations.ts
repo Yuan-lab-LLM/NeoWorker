@@ -92,10 +92,27 @@ export function useNewsCardTranslations(
       },
       { root: root.current, rootMargin: "100px 0px" },
     );
-    root.current
-      .querySelectorAll("[data-news-id]")
-      .forEach((card) => observer.observe(card));
+    const container = root.current;
+    const observed = new Set<Element>();
+    const syncCards = () => {
+      for (const card of observed) {
+        if (container.contains(card)) continue;
+        observer.unobserve(card);
+        observed.delete(card);
+        visible.current.delete(card.getAttribute("data-news-id") || "");
+      }
+      container.querySelectorAll("[data-news-id]").forEach((card) => {
+        if (observed.has(card)) return;
+        observed.add(card);
+        observer.observe(card);
+      });
+    };
+    syncCards();
+    // Image results arrive after the initial render and can add new cards.
+    const mutations = new MutationObserver(syncCards);
+    mutations.observe(container, { childList: true, subtree: true });
     return () => {
+      mutations.disconnect();
       observer.disconnect();
       visible.current.clear();
     };

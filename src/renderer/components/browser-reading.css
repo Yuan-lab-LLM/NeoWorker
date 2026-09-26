@@ -563,8 +563,8 @@
   position: fixed;
   inset: 0;
   margin: auto;
-  width: min(780px, calc(100vw - 48px));
-  height: min(820px, calc(100vh - 100px));
+  width: calc(100vw - 48px);
+  height: calc(100dvh - 48px);
   max-width: none;
   max-height: none;
   padding: 0;
@@ -585,4 +585,152 @@
   overflow-y: auto;
   min-height: 0;
   padding: 4px 24px 24px;
+}
+
+/* The notes library is a reading workspace, independent of the narrow assistant. */
+.br-library-workspace {
+  display: grid;
+  grid-template-columns: clamp(260px, 25vw, 360px) minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.br-library-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--color-border, #e1e6ed);
+  background: var(--color-bg-secondary, #f7f8fa);
+}
+.br-library-search {
+  padding: 20px 16px 12px;
+}
+.br-library-search small {
+  display: block;
+  margin-top: 12px;
+  color: var(--color-text-secondary);
+}
+.br-library-index {
+  overflow-y: auto;
+  padding: 4px 10px 20px;
+  min-height: 0;
+}
+.br-assistant .br-library-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 16px;
+  margin-bottom: 8px;
+  border: 1px solid transparent;
+  text-align: left;
+}
+.br-library-entry strong,
+.br-library-entry span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.br-library-entry span,
+.br-library-entry time {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.br-assistant .br-library-entry[aria-current="true"] {
+  background: var(--cw-brand-soft, #edf6ff);
+  border-color: var(--color-accent, #208cff);
+}
+.br-library-reader {
+  overflow-y: auto;
+  min-height: 0;
+  min-width: 0;
+  overscroll-behavior: contain;
+}
+.br-library-document {
+  width: min(100%, 1000px);
+  margin: 0 auto;
+  padding: 36px 48px 64px;
+  box-sizing: border-box;
+}
+.br-library-document-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--color-text-secondary);
+}
+.br-library-document-meta button {
+  padding: 8px;
+}
+.br-library-document h2 {
+  font-size: 26px;
+  line-height: 1.45;
+  margin: 16px 0;
+  overflow-wrap: anywhere;
+}
+.br-library-document .br-answer {
+  font-size: 16px;
+  line-height: 1.9;
+  margin-top: 28px;
+}
+.br-library-document .br-answer h1,
+.br-library-document .br-answer h2,
+.br-library-document .br-answer h3 {
+  font-size: 20px;
+  margin: 28px 0 12px;
+}
+.br-library-quote {
+  margin: 20px 0;
+  border: 1px solid var(--color-border, #e1e6ed);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+.br-library-quote summary {
+  cursor: pointer;
+  color: var(--color-text-secondary);
+}
+.br-library-quote blockquote {
+  margin: 16px 0 0;
+  font-size: 14px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.br-library-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 24px;
+  color: var(--color-text-secondary);
+}
+.br-library-error {
+  margin: 8px 24px;
+  color: var(--color-text-secondary);
+}
+@media (max-width: 760px) {
+  .br-library.br-assistant {
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 16px);
+  }
+  .br-library-workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(160px, 30%) minmax(0, 1fr);
+  }
+  .br-library-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .br-library-search {
+    padding: 12px;
+  }
+  .br-library-document {
+    padding: 24px 20px 40px;
+  }
+  .br-library-document h2 {
+    font-size: 22px;
+  }
 }
