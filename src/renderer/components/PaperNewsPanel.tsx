@@ -540,13 +540,6 @@ export function PaperNewsPanel({
     } else
       setSummaryStates((states) => ({ ...states, [item.id]: result.error }));
   }
-  async function open(url: string) {
-    try {
-      await window.electronAPI.openExternal(url);
-    } catch {
-      setFailure("open");
-    }
-  }
   async function start(item: PaperNewsItem, action: PaperNewsAction) {
     if (opening) return;
     setOpening(true);
@@ -1301,10 +1294,13 @@ export function PaperNewsPanel({
                       <div className="pn-links">
                         <button
                           title={t(
-                            "在系统默认浏览器中打开",
-                            "Open in default browser",
+                            "在 NeoWorker 浏览器中打开",
+                            "Open in NeoWorker browser",
                           )}
-                          onClick={() => void open(item.url)}
+                          onClick={(event) => {
+                            newsTitleRef.current = event.currentTarget;
+                            setNewsBrowserUrl(item.url);
+                          }}
                         >
                           <ExternalLink size={13} />
                           {item.source === "github"

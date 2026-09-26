@@ -1533,7 +1533,7 @@ export function BrowserWorkbenchView({
       <header className="browser-workbench-header">
         <div className="browser-workbench-tabs">
           <span className="browser-workbench-summary">
-            {t("browserWorkbench.summary", "Summary")}
+            {t("browserWorkbench.browser", "Browser")}
           </span>
           {tabs.map((tab) => (
             <div

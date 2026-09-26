@@ -176,6 +176,7 @@ import { setupCanvasHandlers, cleanupCanvasHandlers } from "./ipc/canvas-handler
 import { setupQAHandlers } from "./ipc/qa-handlers";
 import { getBrowserWorkbenchService } from "./browser/browser-workbench-service";
 import { isAllowedWebviewUrl } from "./browser/webview-url-policy";
+import { installWebviewPopupNavigation } from "./browser/webview-popup-navigation";
 import { pruneTempWorkspaces } from "./utils/temp-workspace";
 import { getActiveTempWorkspaceLeases } from "./utils/temp-workspace-lease";
 import {
@@ -578,6 +579,11 @@ function ensureCoreAutomationProfiles(): void {
 }
 
 app.on("web-contents-created", (_event, contents) => {
+  if (contents.getType() === "webview") {
+    installWebviewPopupNavigation(contents, (error) => {
+      logger.warn("Embedded browser navigation failed", error);
+    });
+  }
   contents.on("will-attach-webview", (event, webPreferences, params) => {
     delete (webPreferences as Record<string, unknown>).preload;
     delete (webPreferences as Record<string, unknown>).preloadURL;

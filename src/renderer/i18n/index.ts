@@ -14395,7 +14395,7 @@ const translations: Record<SupportedLanguage, Record<string, string>> = {
     "common.voiceInput": "语音输入",
     "common.voiceInputNotConfigured": "语音输入尚未配置。",
     "common.sendMessage": "发送消息",
-    "browserWorkbench.summary": "摘要",
+    "browserWorkbench.browser": "浏览器",
     "browserWorkbench.newTab": "新标签页",
     "browserWorkbench.closeTab": "关闭标签页",
     "browserWorkbench.closeWorkbench": "关闭浏览器工作台",
