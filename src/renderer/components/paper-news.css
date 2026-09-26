@@ -579,6 +579,71 @@
 .pn-spinning {
   animation: pn-spin 1.5s linear infinite;
 }
+.pn-refresh {
+  min-width: 128px;
+  font-variant-numeric: tabular-nums;
+}
+.paper-news-panel .pn-refresh.is-waiting:disabled {
+  opacity: 0.85;
+}
+.pn-wait-pulse {
+  animation: pn-wait-pulse 1.8s ease-in-out infinite;
+}
+.pn-fetch-activity {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-bg-primary));
+}
+.pn-fetch-status,
+.pn-fetch-status > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pn-fetch-status {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  color: var(--color-accent);
+  font-size: 13px;
+}
+.pn-fetch-elapsed {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+.pn-fetch-activity p {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.pn-fetch-track {
+  height: 3px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+.pn-fetch-track > span {
+  display: block;
+  width: 35%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+  animation: pn-fetch-sweep 1.8s ease-in-out infinite;
+}
+@keyframes pn-wait-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+@keyframes pn-fetch-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(390%);
+  }
+}
 @keyframes pn-spin {
   to {
     transform: rotate(360deg);
@@ -635,7 +700,9 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pn-spinning {
+  .pn-spinning,
+  .pn-wait-pulse,
+  .pn-fetch-track > span {
     animation: none;
   }
   .pn-source,

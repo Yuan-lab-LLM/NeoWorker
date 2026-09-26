@@ -65,6 +65,8 @@ No model request runs merely from fetching a feed or opening a draft. Drafts tre
 
 ## Refresh and storage
 
+During fetching, the refresh icon rotates and a small activity panel shows an indeterminate moving line and elapsed time while cached content remains available. During source cooldowns, the button shows a live countdown to the earliest eligible source, with a gently pulsing clock. These effects honor reduced-motion preferences and do not imply a completion percentage.
+
 Opening the page refreshes sources whose successful results are older than 30 minutes, or whose failed attempt is eligible for retry. **Refresh** requests new data manually, with a persisted per-source cooldown. Temporary connection failures receive at most one retry after three seconds; rate limits and access denials are not immediately retried. Server Retry-After and GitHub quota reset deadlines are respected across restarts and topic changes. While the page is visible, eligible transient failures are retried automatically. Leaving the page does not restart an in-flight fetch. A source failure retains its prior results and last successful fetch time; the other sources can still update. An unavailable source with no cache displays a dash, not a misleading zero-result count.
 
 Legacy shared settings are migrated into independent source settings, preserving cached items, bookmarks, and retry deadlines. Cache schema version 4 is written on save or refresh, with versions 1–3 still readable. Hierarchical preferences retain cached results during refresh/cooldowns and re-rank them using effective settings; bookmarks remain available even if they no longer match the new filters.

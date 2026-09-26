@@ -295,19 +295,38 @@ export function PaperNewsPanel({
     setSettings(true);
   }
   const [busy, setBusy] = useState(false);
+  const [busyStartedAt, setBusyStartedAt] = useState<number | null>(null);
   const [clock, setClock] = useState(Date.now);
-  useEffect(() => {
-    const timer = window.setInterval(() => setClock(Date.now()), 15_000);
-    return () => window.clearInterval(timer);
-  }, []);
+  const refreshSources = source === "all" ? activeSources : [source];
   const coolingDown = Boolean(
     snapshot &&
-    (source === "all" ? activeSources : [source]).every(
+    refreshSources.length &&
+    refreshSources.every(
       (s) =>
         snapshot.sources[s]?.nextRetryAt &&
         Date.parse(snapshot.sources[s]?.nextRetryAt || "") > clock,
     ),
   );
+  const retryAt = coolingDown
+    ? Math.min(...refreshSources.map((s) => Date.parse(snapshot!.sources[s]!.nextRetryAt!)))
+    : 0;
+  const remainingSeconds = Math.max(0, Math.ceil((retryAt - clock) / 1000));
+  const duration = (seconds: number) =>
+    seconds < 60
+      ? `${seconds}${t("秒", "s")}`
+      : `${Math.floor(seconds / 60)}${t("分", "m")} ${seconds % 60}${t("秒", "s")}`;
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setClock(Date.now()),
+      busy || coolingDown ? 1000 : 15_000,
+    );
+    return () => window.clearInterval(timer);
+  }, [busy, coolingDown]);
+  useEffect(() => {
+    const now = Date.now();
+    setBusyStartedAt(busy ? now : null);
+    setClock(now);
+  }, [busy]);
   const [opening, setOpening] = useState(false);
   const [failure, setFailure] = useState<"load" | "save" | "open" | null>(null);
   const mounted = useRef(false);
@@ -518,21 +537,60 @@ export function PaperNewsPanel({
               {t("偏好设置", "Preferences")}
             </button>
             <button
-              className="pn-button pn-primary"
+              className={`pn-button pn-primary pn-refresh ${busy || coolingDown ? "is-waiting" : ""}`}
               disabled={busy || coolingDown || categoryUnavailable || !activeSources.length}
+              aria-busy={busy}
+              title={
+                coolingDown && !busy
+                  ? t(
+                      "来源请求间隔尚未结束，倒计时结束后可再次刷新。",
+                      "Source cooldown is active. Refresh will be available when the countdown ends.",
+                    )
+                  : undefined
+              }
               onClick={() => void refresh()}
             >
-              <RefreshCw size={16} className={busy ? "pn-spinning" : ""} />
+              {coolingDown && !busy ? (
+                <Clock3 size={16} className="pn-wait-pulse" aria-hidden="true" />
+              ) : (
+                <RefreshCw size={16} className={busy ? "pn-spinning" : ""} aria-hidden="true" />
+              )}
               {busy
                 ? t("获取中…", "Fetching…")
                 : coolingDown
-                  ? t("等待刷新", "Wait to refresh")
+                  ? t(
+                      `${duration(remainingSeconds)}后可刷新`,
+                      `Refresh in ${duration(remainingSeconds)}`,
+                    )
                   : t("获取最新", "Refresh")}
             </button>
           </>
         }
       />
       <div className="pn-content">
+        {busy && (
+          <div className="pn-fetch-activity">
+            <div className="pn-fetch-status">
+              <span role="status">
+                <RefreshCw size={14} className="pn-spinning" aria-hidden="true" />
+                {t("正在获取最新内容", "Fetching the latest content")}
+              </span>
+              <span className="pn-fetch-elapsed">
+                {t("已等待 ", "Elapsed ")}
+                {duration(Math.max(0, Math.floor((clock - (busyStartedAt ?? clock)) / 1000)))}
+              </span>
+            </div>
+            <div className="pn-fetch-track" aria-hidden="true">
+              <span />
+            </div>
+            <p>
+              {t(
+                "内容会陆续更新，你可以继续浏览已有内容。",
+                "Results update as sources respond. You can keep browsing existing content.",
+              )}
+            </p>
+          </div>
+        )}
         {failure && (
           <div className="pn-notice" role="alert">
             {failure === "load"
