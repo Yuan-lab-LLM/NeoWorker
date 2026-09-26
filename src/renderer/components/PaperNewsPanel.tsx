@@ -1,4 +1,5 @@
 import { ReadingNotesLibrary } from "./ReadingNotesLibrary";
+import { useNewsAutoSummaries } from "./useNewsAutoSummaries";
 import { NewsArticleImage } from "./NewsArticleImage";
 import { canShowNewsImages, hasNewsImages } from "../../shared/news-images";
 import {
@@ -7,7 +8,6 @@ import {
 } from "../../shared/news-task-draft";
 import { PanelResizeHandle, usePanelWidth } from "./PanelResizeHandle";
 import { BrowserWorkbenchView } from "./BrowserWorkbenchView";
-import type { NewsSummaryResult } from "../../shared/news-summary";
 import { useNewsCardTranslations } from "./useNewsCardTranslations";
 import { isHfHubSource } from "../../shared/news-hub";
 import {
@@ -287,9 +287,6 @@ export function PaperNewsPanel({
     64,
   );
   const newsTitleRef = useRef<HTMLButtonElement | null>(null);
-  const [summaryStates, setSummaryStates] = useState<Record<string, string>>(
-    {},
-  );
   useEffect(() => {
     if (newsBrowserUrl) newsBrowserRef.current?.focus();
     else newsTitleRef.current?.focus();
@@ -298,13 +295,19 @@ export function PaperNewsPanel({
   const [source, setSource] = useState<PaperNewsSource | "all">("all");
   const [category, setCategory] = useState<NewsCategoryId | "all">("all");
   const [imageView, setImageView] = useState(() => {
-    try { return localStorage.getItem("neoworker.news-image-view") !== "false"; }
-    catch { return true; }
+    try {
+      return localStorage.getItem("neoworker.news-image-view") !== "false";
+    } catch {
+      return true;
+    }
   });
   const updateImageView = (enabled: boolean) => {
     setImageView(enabled);
-    try { localStorage.setItem("neoworker.news-image-view", String(enabled)); }
-    catch { /* The view still works when storage is unavailable. */ }
+    try {
+      localStorage.setItem("neoworker.news-image-view", String(enabled));
+    } catch {
+      /* The view still works when storage is unavailable. */
+    }
   };
   const imagesAvailable = canShowNewsImages(category, source);
   const showImages = imagesAvailable && imageView;
@@ -509,37 +512,6 @@ export function PaperNewsPanel({
       if (mounted.current) setFailure("save");
     }
   }
-  async function fetchSummary(item: PaperNewsItem) {
-    setSummaryStates((states) => ({ ...states, [item.id]: "loading" }));
-    let result: NewsSummaryResult;
-    try {
-      result = await window.electronAPI.getNewsSummary(item.id);
-    } catch {
-      result = { error: "failed" };
-    }
-    if (!mounted.current) return;
-    if ("summary" in result) {
-      const value = result;
-      const merge = (current: PaperNewsItem) =>
-        current.id === item.id &&
-        current.title === item.title &&
-        current.url === item.url &&
-        !current.summary.trim()
-          ? { ...current, summary: value.summary, summaryKind: value.kind }
-          : current;
-      setSnapshot((state) =>
-        state
-          ? {
-              ...state,
-              items: state.items.map(merge),
-              saved: state.saved.map(merge),
-            }
-          : state,
-      );
-      setSummaryStates((states) => ({ ...states, [item.id]: "" }));
-    } else
-      setSummaryStates((states) => ({ ...states, [item.id]: result.error }));
-  }
   async function start(item: PaperNewsItem, action: PaperNewsAction) {
     if (opening) return;
     setOpening(true);
@@ -579,6 +551,24 @@ export function PaperNewsPanel({
       .toLowerCase()
       .includes(query.toLowerCase()),
   );
+  const summaries = useNewsAutoSummaries(items, panelRef, (item, value) => {
+    const merge = (current: PaperNewsItem) =>
+      current.id === item.id &&
+      current.title === item.title &&
+      current.url === item.url &&
+      !current.summary.trim()
+        ? { ...current, summary: value.summary, summaryKind: value.kind }
+        : current;
+    setSnapshot((state) =>
+      state
+        ? {
+            ...state,
+            items: state.items.map(merge),
+            saved: state.saved.map(merge),
+          }
+        : state,
+    );
+  });
   const formatDate = (value: string) =>
     !value
       ? t("发布时间未提供", "Publication date unavailable")
@@ -811,7 +801,10 @@ export function PaperNewsPanel({
             <div className="pn-tabs">
               {category === "all" && source === "all" && (
                 <button
-                  title={t("全部动态使用文字卡片；前往科技与产业查看文章配图", "The aggregate feed uses text cards. Browse article images in Technology & Industry")}
+                  title={t(
+                    "全部动态使用文字卡片；前往科技与产业查看文章配图",
+                    "The aggregate feed uses text cards. Browse article images in Technology & Industry",
+                  )}
                   onClick={() => {
                     selectCategory("technology");
                     updateImageView(true);
@@ -825,7 +818,10 @@ export function PaperNewsPanel({
                 <button
                   aria-pressed={imageView}
                   className={imageView ? "is-active" : ""}
-                  title={t("仅显示来源提供的文章配图；无图内容保留文字卡片", "Show publisher article images when available")}
+                  title={t(
+                    "仅显示来源提供的文章配图；无图内容保留文字卡片",
+                    "Show publisher article images when available",
+                  )}
                   onClick={() => updateImageView(!imageView)}
                 >
                   <Image size={15} aria-hidden="true" />
@@ -1083,13 +1079,13 @@ export function PaperNewsPanel({
                   isHfHubSource(item.source) &&
                   Boolean(item.hubTask || item.license);
                 const hasDetails = Boolean(item.summary.trim() || hubDetails);
+                const summaryStatus = summaries.status(item);
                 return (
                   <article
                     className={`pn-card pn-source-${item.source}${!hasDetails ? " pn-card-compact" : ""}`}
                     key={item.id}
                     data-news-id={item.id}
                   >
-                    {showImages && hasNewsImages(item.source) && <NewsArticleImage item={item} />}
                     <div className="pn-card-meta">
                       <span className="pn-source-badge">
                         <SourceBrand source={item.source} />
@@ -1172,10 +1168,65 @@ export function PaperNewsPanel({
                         )}
                       </div>
                     )}
-                    {displaySummary.trim() && (
-                      <p className="pn-summary">{displaySummary}</p>
-                    )}
-                    {hasDetails ? (
+                    <div className="pn-card-excerpt">
+                      <div className="pn-card-excerpt-text">
+                        {displaySummary.trim() ? (
+                          <p className="pn-summary">{displaySummary}</p>
+                        ) : (
+                          !hubDetails && (
+                            <div className="pn-no-summary" aria-live="polite">
+                              <span>
+                                {summaryStatus === "unavailable"
+                                  ? t(
+                                      "暂无公开摘要，可阅读原文",
+                                      "No public summary. Read the source.",
+                                    )
+                                  : summaryStatus === "blocked"
+                                    ? t(
+                                        "来源暂不允许获取摘要",
+                                        "The source restricts summary access",
+                                      )
+                                    : summaryStatus === "failed"
+                                      ? t(
+                                          "摘要暂时获取失败",
+                                          "Summary could not be loaded",
+                                        )
+                                      : summaryStatus === "busy"
+                                        ? t(
+                                            "来源繁忙，稍后重试",
+                                            "Source busy. Try again shortly.",
+                                          )
+                                        : isNewsPublisher(item.source)
+                                          ? t(
+                                              "正在补充摘要…",
+                                              "Loading summary…",
+                                            )
+                                          : t(
+                                              "来源未提供摘要",
+                                              "No summary provided",
+                                            )}
+                              </span>
+                              {summaryStatus &&
+                                !["loading", "done", "unavailable"].includes(
+                                  summaryStatus,
+                                ) && (
+                                  <button
+                                    className="pn-summary-fetch"
+                                    onClick={() => summaries.retry(item)}
+                                  >
+                                    <RefreshCw size={12} />
+                                    {t("重试", "Retry")}
+                                  </button>
+                                )}
+                            </div>
+                          )
+                        )}
+                      </div>
+                      {showImages && hasNewsImages(item.source) && (
+                        <NewsArticleImage item={item} />
+                      )}
+                    </div>
+                    {hasDetails && (
                       <details className="pn-abstract">
                         <summary>
                           {item.summary.trim()
@@ -1186,68 +1237,20 @@ export function PaperNewsPanel({
                                 : t("摘要与详情", "Abstract and details")
                             : t("任务与许可信息", "Task and license")}
                         </summary>
-                        {displaySummary.trim() && <p>{displaySummary}</p>}
-                        {hubDetails && (
-                          <p>
-                            {t("任务", "Task")}:{" "}
-                            {item.hubTask || t("未提供", "Not provided")}
-                            <br />
-                            {t("许可证", "License")}:{" "}
-                            {item.license ||
-                              t("请查看来源说明", "Check the source card")}
-                          </p>
-                        )}
+                        <div className="pn-abstract-body" tabIndex={0}>
+                          {displaySummary.trim() && <p>{displaySummary}</p>}
+                          {hubDetails && (
+                            <p>
+                              {t("任务", "Task")}:{" "}
+                              {item.hubTask || t("未提供", "Not provided")}
+                              <br />
+                              {t("许可证", "License")}:{" "}
+                              {item.license ||
+                                t("请查看来源说明", "Check the source card")}
+                            </p>
+                          )}
+                        </div>
                       </details>
-                    ) : (
-                      <div className="pn-no-summary">
-                        <span>
-                          {summaryStates[item.id] === "unavailable"
-                            ? t(
-                                "未找到公开摘要或正文，可打开原文查看。",
-                                "No public summary or body found. Open the source.",
-                              )
-                            : summaryStates[item.id] === "blocked"
-                              ? t(
-                                  "来源限制访问，请打开原文查看。",
-                                  "Source access is restricted. Open the source.",
-                                )
-                              : summaryStates[item.id] === "failed"
-                                ? t(
-                                    "暂时获取失败，请稍后重试。",
-                                    "Fetch failed. Please retry later.",
-                                  )
-                                : summaryStates[item.id] === "busy"
-                                  ? t(
-                                      "请求较频繁，请稍后重试。",
-                                      "Please wait briefly before retrying.",
-                                    )
-                                  : t(
-                                      "来源列表未提供摘要",
-                                      "No summary in the source feed",
-                                    )}
-                        </span>
-                        {isNewsPublisher(item.source) && (
-                          <button
-                            className="pn-summary-fetch"
-                            disabled={summaryStates[item.id] === "loading"}
-                            onClick={() => void fetchSummary(item)}
-                          >
-                            <RefreshCw
-                              size={12}
-                              className={
-                                summaryStates[item.id] === "loading"
-                                  ? "pn-spinning"
-                                  : undefined
-                              }
-                            />
-                            {summaryStates[item.id] === "loading"
-                              ? t("正在获取…", "Fetching…")
-                              : summaryStates[item.id]
-                                ? t("重试获取", "Retry")
-                                : t("获取摘要", "Fetch summary")}
-                          </button>
-                        )}
-                      </div>
                     )}
                     <div className="pn-card-footer">
                       <div className="pn-tags">
