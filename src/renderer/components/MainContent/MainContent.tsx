@@ -1,5 +1,6 @@
 import { serializeNewsTaskMessage, type NewsTaskContext } from "../../../shared/news-task-draft";
 import { NewsTaskSourceCard } from "../NewsTaskSourceCard";
+import { ExecutionProcessDisclosure } from "./ExecutionProcessDisclosure";
 import {
   memo,
   useState,
@@ -462,6 +463,7 @@ import {
   getBootstrapProgressTitle,
   deriveProgressHeartbeat,
   selectVisibleTaskFeedRows,
+  collapseSettledExecutionRows,
   hasInactiveStringSetEntries,
   pruneStringSetToActiveIds,
   getCommandOutputSessionsRevision,
@@ -2251,9 +2253,12 @@ const TaskConversationFlow = memo(function TaskConversationFlow(props: any) {
       transcriptEvents,
     ],
   );
-  const { visibleFeedRows } = useMemo(
-    () => selectVisibleTaskFeedRows(displayFeedRows, transcriptMode),
-    [displayFeedRows, transcriptMode],
+  const visibleFeedRows = useMemo(
+    () => collapseSettledExecutionRows(
+      selectVisibleTaskFeedRows(displayFeedRows, transcriptMode).visibleFeedRows,
+      { isTaskWorking, isReplayMode },
+    ),
+    [displayFeedRows, transcriptMode, isTaskWorking, isReplayMode],
   );
   const assistantIdentityEventIds = useMemo(() => {
     const ids = new Set<string>();
@@ -2432,6 +2437,9 @@ const TaskConversationFlow = memo(function TaskConversationFlow(props: any) {
               .map((row) => `${row.key}:${row.revision}`)
               .join("|");
             const getRowRenderSignature = (row: TaskFeedRow): string => {
+              if (row.kind === "execution-summary") {
+                return `${row.revision}:${row.rows.map(getRowRenderSignature).join("|")}`;
+              }
               if (row.kind === "history-control") {
                 return row.revision;
               }
@@ -2502,7 +2510,12 @@ const TaskConversationFlow = memo(function TaskConversationFlow(props: any) {
               ].join(":");
             };
 
-            const renderFeedRow = (row: TaskFeedRow) => {
+            const renderFeedRow = (row: TaskFeedRow): ReactNode => {
+              if (row.kind === "execution-summary") {
+                return <ExecutionProcessDisclosure key={`${task.id}:${row.key}`} durationMs={row.durationMs} renderDetails={() => (
+                  row.rows.map((child) => <Fragment key={child.key}>{getRenderedFeedRow(child)}</Fragment>)
+                )} />;
+              }
               if (row.kind === "history-control") {
                 return null;
               }
@@ -3021,6 +3034,7 @@ const TaskConversationFlow = memo(function TaskConversationFlow(props: any) {
                           const hasNestedChildren = nestedParallelChildren.length > 0;
                           const isExpandable = hasEventDetails(event) || hasNestedChildren;
                           const shouldDefaultExpandChild =
+                            isActive &&
                             isExpandable &&
                             !isFailureTimelineEvent(event) &&
                             (hasNestedChildren ||
@@ -8051,11 +8065,12 @@ function MainContentComponent({
   const isEventExpanded = useCallback(
     (event: TaskEvent): boolean => {
       return resolveDisclosureExpanded({
-        defaultExpanded: shouldDefaultExpand(event),
+        defaultExpanded: shouldDefaultExpand(event) &&
+          (isTaskWorking || ["approval_requested", "input_request_created"].includes(getEffectiveTaskEventType(event))),
         toggled: toggledEvents.has(event.id),
       });
     },
-    [shouldDefaultExpand, toggledEvents],
+    [shouldDefaultExpand, toggledEvents, isTaskWorking],
   );
 
   const timelineRef = useRef<HTMLDivElement>(null);

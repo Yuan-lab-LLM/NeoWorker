@@ -6592,6 +6592,31 @@
   overflow: visible;
 }
 
+.execution-process-disclosure {
+  margin: 4px 0 14px;
+  min-width: 0;
+}
+
+.execution-process-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.execution-process-toggle:hover { color: var(--text-primary); }
+.execution-process-toggle:focus-visible { outline: 2px solid var(--accent-color, #2589ff); outline-offset: 3px; border-radius: 4px; }
+.execution-process-toggle svg { flex-shrink: 0; transition: transform 120ms ease; }
+.execution-process-toggle svg.expanded { transform: rotate(90deg); }
+.execution-process-duration { opacity: .72; font-variant-numeric: tabular-nums; }
+.execution-process-details { margin: 6px 0 0 8px; padding-left: 12px; border-left: 1px solid var(--border-color, #e5e7eb); }
+
 .action-block-header {
   min-height: 34px;
   display: flex;

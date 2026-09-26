@@ -57,7 +57,10 @@ export function isSuspiciousPdfText(text: string): boolean {
   const normalized = normalizeWhitespace(text);
   if (!normalized) return true;
 
-  const visibleLength = normalized.length;
+  // PDF extractors insert spaces between independently positioned glyphs,
+  // especially formula scripts and CJK characters. Those separators are not
+  // printed characters and must not count as corrupt content.
+  const visibleLength = normalized.replace(/\s/gu, "").length;
   const replacementChars = countMatches(normalized, /\uFFFD/g);
   if (visibleLength >= 120 && replacementChars / visibleLength >= 0.02) {
     return true;
@@ -100,10 +103,13 @@ export function isSuspiciousPdfText(text: string): boolean {
   const tokens = normalized.split(/\s+/).filter(Boolean);
   // Vocabulary diversity naturally falls with document length. Applying a
   // whole-document ratio rejects valid books/reports and loses their text.
-  if (tokens.length >= 10) {
-    const uniqueTokens = new Set(tokens).size;
-    if ((tokens.length <= 200 && uniqueTokens / tokens.length < 0.5)
-      || (tokens.length > 200 && uniqueTokens < 10)) {
+  // Repeated single glyphs (x, σ, =, or separately extracted Chinese
+  // characters) are not repeated words. Formula pages naturally reuse them.
+  const words = tokens.filter((token) => Array.from(token).length > 1);
+  if (words.length >= 10 && words.length >= tokens.length / 2) {
+    const uniqueTokens = new Set(words).size;
+    if ((words.length <= 200 && uniqueTokens / words.length < 0.5)
+      || (words.length > 200 && uniqueTokens < 10)) {
       return true;
     }
   }

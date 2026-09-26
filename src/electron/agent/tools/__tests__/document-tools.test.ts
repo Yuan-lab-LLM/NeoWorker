@@ -689,6 +689,22 @@ describe("DocumentTools", () => {
     }
   });
 
+  it.each([
+    { filename: "diag_s21.pdf" },
+    { filename: "equation-check.pdf", purpose: "diagnostic" },
+  ])("keeps diagnostic PDFs out of the deliverable list: $filename", async (input) => {
+    const registerArtifact = vi.fn();
+    const tools = new DocumentTools("/workspace", "pdf-diagnostic", registerArtifact);
+    const result = await tools.generateDocument({ ...input, markdown: "# Formula check" });
+    expect(generatePDF).toHaveBeenLastCalledWith(
+      path.join("/workspace/.neoworker/tmp/pdf-diagnostics", input.filename),
+      expect.any(Object),
+    );
+    expect(registerArtifact).not.toHaveBeenCalled();
+    expect(result.purpose).toBe("diagnostic");
+    expect(result.message).toContain("not a deliverable");
+  });
+
   it("generateDocument sanitizes filenames", async () => {
     const tools = new DocumentTools("/workspace", "task-1");
 

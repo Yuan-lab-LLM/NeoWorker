@@ -70,7 +70,7 @@ export interface PdfTextIntegrityResult {
 interface PdfRenderResult {
   previewPath: string;
   renderedText: string;
-  headings: string[];
+  headings: PdfHeadingText[];
 }
 
 function normalizeHeadingColor(value?: string): string | undefined {
@@ -320,12 +320,31 @@ export function assessPdfTextIntegrity(
 }
 
 /** A mostly intact body must not hide headings lost by the print renderer. */
-export function assertPdfHeadingsPresent(headings: string[], finalText: string): void {
-  const normalize = (value: string) => value.normalize("NFKC").replace(/\s/g, "");
+interface PdfHeadingText {
+  prose: string[];
+  math: string[];
+}
+
+export function assertPdfHeadingsPresent(headings: Array<string | PdfHeadingText>, finalText: string): void {
+  const normalize = (value: string) => value.normalize("NFKC").replace(/[\s\p{Cf}]/gu, "");
   const text = normalize(finalText);
   for (const heading of headings) {
-    if (normalize(heading) && !text.includes(normalize(heading))) {
-      throw new Error(`Final PDF is missing a heading: ${heading.slice(0, 120)}`);
+    const prose = typeof heading === "string" ? [heading] : heading.prose;
+    const math = typeof heading === "string" ? [] : heading.math;
+    let position = 0;
+    const missingProse = prose.some((part) => {
+      const normalized = normalize(part);
+      if (!normalized) return false;
+      const found = text.indexOf(normalized, position);
+      if (found < 0) return true;
+      position = found + normalized.length;
+      return false;
+    });
+    // Chromium may emit positioned KaTeX glyphs after the surrounding prose
+    // in the PDF text stream. Verify them separately, without requiring that
+    // extraction order match their visual position within the heading.
+    if (missingProse || math.some((part) => !text.includes(normalize(part)))) {
+      throw new Error(`Final PDF is missing a heading: ${[...prose, ...math].join(" ").slice(0, 120)}`);
     }
   }
 }
@@ -333,12 +352,26 @@ export function assertPdfHeadingsPresent(headings: string[], finalText: string):
 // MathML and its visual HTML describe the same equation. Count it once, with
 // scripts kept together, so the prose corruption heuristic does not reject math.
 const PDF_SOURCE_TEXT_SCRIPT = `(() => {
-  const body = document.body.cloneNode(true);
-  for (const formula of body.querySelectorAll('.katex')) {
-    const visual = formula.querySelector('.katex-html');
-    formula.replaceWith(document.createTextNode((visual?.textContent || formula.textContent || '').replace(/\\s+/g, '')));
-  }
-  return body.textContent || '';
+  const readableText = (node) => {
+    const clone = node.cloneNode(true);
+    for (const formula of clone.querySelectorAll('.katex')) {
+      const visual = formula.querySelector('.katex-html');
+      formula.replaceWith(document.createTextNode((visual?.textContent || formula.textContent || '').replace(/\\s+/g, '')));
+    }
+    return clone.textContent || '';
+  };
+  return {
+    renderedText: readableText(document.body),
+    headings: Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6'), (node) => {
+      const clone = node.cloneNode(true);
+      const math = [];
+      for (const formula of clone.querySelectorAll('.katex')) {
+        math.push(formula.querySelector('.katex-html')?.textContent || '');
+        formula.replaceWith(document.createTextNode('\\u0000'));
+      }
+      return { prose: (clone.textContent || '').split('\\u0000'), math };
+    }),
+  };
 })()`;
 
 async function waitForFonts(webContents: {
@@ -406,11 +439,9 @@ async function renderPdfWithElectron(
     await window.loadURL(pathToFileURL(tempHtmlPath).toString());
     await waitForFonts(window.webContents);
     await window.webContents.executeJavaScript(PDF_IMAGE_VALIDATION_SCRIPT, true);
-    const renderedText = String(
-      await window.webContents.executeJavaScript(
-        PDF_SOURCE_TEXT_SCRIPT,
-        true,
-      ),
+    const { renderedText, headings } = await window.webContents.executeJavaScript(
+      PDF_SOURCE_TEXT_SCRIPT,
+      true,
     );
     const parsed = path.parse(outputPath);
     const evidenceDirectory = path.join(parsed.dir, ".neoworker", "pdf-previews", parsed.name);
@@ -430,9 +461,6 @@ async function renderPdfWithElectron(
       preferCSSPageSize: true,
     });
     fs.writeFileSync(outputPath, pdfBuffer);
-    const headings: string[] = await window.webContents.executeJavaScript(
-      "Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6'), node => node.innerText)", true,
-    );
     return { previewPath, renderedText, headings };
   } finally {
     if (!window.isDestroyed()) window.destroy();
@@ -470,7 +498,7 @@ async function renderPdfWithPlaywright(
     });
     await page.evaluate(PDF_IMAGE_VALIDATION_SCRIPT);
     await page.emulateMedia({ media: "screen" });
-    const renderedText = await page.evaluate(PDF_SOURCE_TEXT_SCRIPT);
+    const { renderedText, headings } = await page.evaluate(PDF_SOURCE_TEXT_SCRIPT);
     const parsed = path.parse(outputPath);
     const evidenceDirectory = path.join(parsed.dir, ".neoworker", "pdf-previews", parsed.name);
     fs.mkdirSync(evidenceDirectory, { recursive: true });
@@ -484,7 +512,6 @@ async function renderPdfWithPlaywright(
       margin: { top: "1cm", right: "1.5cm", bottom: "1cm", left: "1.5cm" },
       preferCSSPageSize: true,
     });
-    const headings: string[] = await page.locator("h1,h2,h3,h4,h5,h6").allInnerTexts();
     return { previewPath, renderedText, headings };
   } finally {
     await browser.close();
@@ -714,19 +741,12 @@ export function buildPDFHTML(options: PDFOptions): string {
     a { color: #1d4ed8; text-decoration: none; }
     img { max-width: 100%; height: auto; }
     ${isAcademic ? `
-    @page { margin: 20mm 22mm 20mm; }
-    body { font-family: "NeoWorker Times", "NeoWorker FangSong", serif; font-size: 15px; font-weight: 400; line-height: 1.85; color: #242424; }
+    @page { margin: 16mm 18mm 16mm; }
+    body { font-family: "NeoWorker Times", "NeoWorker FangSong", serif; font-size: 15px; font-weight: 400; }
     h1, h2, h3, .meta { font-family: inherit; }
-    .doc-title { font-size: 26px; line-height: 1.5; font-weight: 600; color: ${headingColor || "#202020"}; border: 0; padding-bottom: 0; margin-bottom: 20px; letter-spacing: 0; }
-    h1 { font-size: 23px; line-height: 1.5; color: ${headingColor || "#202020"}; font-weight: 600; }
-    h2 { font-size: 19px; color: ${headingColor || "#202020"}; font-weight: 600; margin: 24px 0 10px; }
-    h3 { font-size: 16px; color: ${headingColor || "#202020"}; font-weight: 600; }
-    p { margin: 0 0 11px; orphans: 3; widows: 3; }
+    .doc-title { letter-spacing: 0; }
     strong { font-weight: 600; }
-    .meta { font-size: 11px; color: #727272; margin-bottom: 16px; }
     th, td { font-size: 12px; line-height: 1.6; }
-    th { background: #f5f5f5; color: #242424; }
-    blockquote { border-left: 2px solid #c6c6c6; background: #f8f8f8; }
     ` : ""}
     .report-cover {
       position: relative;

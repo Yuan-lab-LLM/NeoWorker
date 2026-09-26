@@ -181,4 +181,13 @@ describe("extractPdfText", () => {
   it("still rejects long repetitive garbage", () => {
     expect(isSuspiciousPdfText("garbled text ".repeat(300))).toBe(true);
   });
+
+  it("does not count extraction whitespace as corrupt glyphs on a formula page", () => {
+    const prose = "我们使用主角余弦谱比较视觉与文本子空间。矩阵分别经过主成分分析得到标准正交基，记录每层的视觉与文本对齐分数。";
+    const formula = "U U = P diag ( σ 1 , … , σ k ) Q ⊤ , σ 1 ≥ ⋯ ≥ σ k ≥ 0";
+    const text = `${[...prose].join(" ")} ${formula} ${formula} ${formula}`;
+    expect(text.match(/[\p{L}\p{N}]/gu)!.length / text.length).toBeLessThan(0.45);
+    expect(isSuspiciousPdfText(text)).toBe(false);
+    expect(isSuspiciousPdfText(text.replace(/σ/g, "ÿÞ¬"))).toBe(true);
+  });
 });

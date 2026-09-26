@@ -242,6 +242,7 @@ export class DocumentTools {
         description:
           "Generate a styled PDF document from markdown content or structured sections. " +
           "Use this when the user asks you to create a report, document, or PDF. " +
+          "Use purpose=diagnostic for test fragments; these are stored in the internal temporary directory and are not deliverables. Reuse the saved manuscript when correcting an export failure; do not retranslate or generate a series of test PDFs. " +
           "Typesets LaTeX math offline: $...$ inline, $$...$$ display, with fractions, scripts and equation tags. Preserve original equation images if transcription is uncertain. Returns the file path of the generated document.",
         input_schema: {
           type: "object" as const,
@@ -249,6 +250,11 @@ export class DocumentTools {
             filename: {
               type: "string",
               description: 'Output filename (e.g. "quarterly-report.pdf")',
+            },
+            purpose: {
+              type: "string",
+              enum: ["deliverable", "diagnostic"],
+              description: "Diagnostic PDFs are internal checks only, not completed user documents.",
             },
             title: { type: "string", description: "Document title" },
             templateId: {
@@ -1121,8 +1127,13 @@ export class DocumentTools {
       ? await fs.promises.readFile(manuscriptPath, "utf8")
       : input.markdown;
     const filename = sanitizeFilename(input.filename || "document.pdf");
+    const diagnostic = input.purpose === "diagnostic" ||
+      (input.purpose !== "deliverable" && /^diag[_-]/i.test(filename));
+    const requestedOutputPath = diagnostic
+      ? path.join(this.workspacePath, ".neoworker", "tmp", "pdf-diagnostics", filename)
+      : path.join(this.workspacePath, filename);
     const outputPath = resolveVersionedOutputPath(
-      path.join(this.workspacePath, filename),
+      requestedOutputPath,
     );
 
     const result = await generatePDF(outputPath, {
@@ -1136,14 +1147,14 @@ export class DocumentTools {
       sections: input.sections,
     });
 
-    if (result.success && this.registerArtifact) {
+    if (result.success && this.registerArtifact && !diagnostic) {
       const mime = result.path.endsWith(".pdf")
         ? "application/pdf"
         : "text/html";
       this.registerArtifact(this.taskId, result.path, mime, {
         workspaceOutputPath: result.path,
         manuscriptPath: manuscriptPath ? path.relative(fs.realpathSync.native(this.workspacePath), manuscriptPath) : undefined,
-        requestedOutputPath: path.join(this.workspacePath, filename),
+        requestedOutputPath,
       });
     }
 
@@ -1151,7 +1162,11 @@ export class DocumentTools {
       success: result.success,
       path: result.path,
       size: result.size,
-      message: `Document generated: ${path.basename(result.path)} (${formatBytes(result.size)})`,
+      purpose: diagnostic ? "diagnostic" : "deliverable",
+      qualityCheck: result.qualityCheck,
+      message: diagnostic
+        ? `Diagnostic PDF saved internally: ${path.basename(result.path)}. This is not a deliverable; export the full saved manuscript before reporting completion.`
+        : `Document generated: ${path.basename(result.path)} (${formatBytes(result.size)})`,
     };
   }
 

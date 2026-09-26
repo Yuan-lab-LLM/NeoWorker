@@ -9006,6 +9006,7 @@ const translations: Record<SupportedLanguage, Record<string, string>> = {
     "task.actions.createRoutine": "创建例行任务...",
     "task.actions.viewOutputs": "查看输出",
     "task.status.done": "完成",
+    "task.executionProcess": "查看执行过程",
     "task.status.completedNeedsAction": "已完成 - 需要操作",
     "task.status.completedPartial": "已完成 - 部分成功",
     "task.status.waitingSkillAnswer": "等待你的技能回答",

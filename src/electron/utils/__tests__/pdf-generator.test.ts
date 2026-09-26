@@ -68,7 +68,9 @@ describe("PDF generator HTML", () => {
     expect(html).toContain('font-family: "NeoWorker Times", "NeoWorker FangSong"');
     expect(html).toContain('local("Times New Roman")');
     expect(html).not.toContain('<h1>PASTABench：代理安全性</h1>');
-    expect(html).toContain('border: 0; padding-bottom: 0');
+    expect(html).toContain('border-bottom: 2px solid #2563eb');
+    expect(html).not.toContain('border: 0; padding-bottom: 0');
+    expect(html).not.toContain('background: #f8f8f8');
   });
 
   it("does not execute raw HTML from Markdown", () => {
@@ -139,4 +141,12 @@ it("rejects missing final PDF headings even when the body remains readable", () 
     .toThrow("missing a heading");
   expect(() => assertPdfHeadingsPresent(["中文图片交付验证"], "中⽂ 图⽚ 交付 验证\n正文内容"))
     .not.toThrow();
+});
+
+it("checks math headings without requiring PDF glyph order to match visual order", () => {
+  const heading = { prose: ["附录 D ORIG 与 NOISE 下的逐模型 ", " 与 ", " 轨迹"], math: ["σ1\u200b", "Δ"] };
+  const text = "附 录 D ORIG 与 NOISE 下 的 逐 模 型 与 轨 迹 正文 σ 1 Δ";
+  expect(() => assertPdfHeadingsPresent([heading], text)).not.toThrow();
+  expect(() => assertPdfHeadingsPresent([heading], text.replace("轨 迹", ""))).toThrow("missing a heading");
+  expect(() => assertPdfHeadingsPresent([heading], text.replace("Δ", ""))).toThrow("missing a heading");
 });

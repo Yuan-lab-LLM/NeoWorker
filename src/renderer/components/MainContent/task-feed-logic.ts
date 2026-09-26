@@ -20,6 +20,15 @@ export const VIRTUALIZED_FEED_ROW_THRESHOLD = 18;
 
 export type TaskFeedRow =
   | {
+      kind: "execution-summary";
+      key: string;
+      estimatedHeight: number;
+      rows: TaskFeedRow[];
+      durationMs: number;
+      revision: string;
+      visiblePerfEventId: null;
+    }
+  | {
       kind: "history-control";
       key: string;
       estimatedHeight: number;
@@ -892,6 +901,72 @@ export function selectVisibleTaskFeedRows(
     visibleFeedRows,
     hiddenLiveFeedRowCount: getHiddenContentRowCount(visibleFeedRows),
   };
+}
+
+/** One disclosure per settled user turn, regardless of how many retries ran. */
+export function collapseSettledExecutionRows(
+  feedRows: TaskFeedRow[],
+  options: { isTaskWorking: boolean; isReplayMode: boolean },
+): TaskFeedRow[] {
+  if (options.isReplayMode) return feedRows;
+  const result: TaskFeedRow[] = [];
+  let turn: TaskFeedRow[] = [];
+  let turnId = "initial";
+  const flush = (settled: boolean) => {
+    if (!settled) { result.push(...turn); turn = []; return; }
+    const process: TaskFeedRow[] = [];
+    const visible: TaskFeedRow[] = [];
+    const eventStream = collectTaskFeedRowEventStream(turn);
+    const newestFirst = [...eventStream].reverse();
+    const lastCompletion = newestFirst.find((event) => getEffectiveTaskEventType(event) === "task_completed");
+    const lastCritical = newestFirst.find((event) =>
+      isDeliveryCriticalEvent(event) &&
+      event.payload?.recoveredIntermediateFailure !== true &&
+      (!lastCompletion || event.timestamp > lastCompletion.timestamp),
+    );
+    for (const row of turn) {
+      if (row.kind === "history-control" || row.kind === "artifact-stack" ||
+        isConversationTranscriptRow(row) ||
+        (row.kind === "timeline" && ["canvas", "cli-agent-frame", "dispatched-agents"].includes(row.item.kind))) {
+        visible.push(row);
+      } else {
+        process.push(row);
+      }
+    }
+    if (lastCompletion && getCompletionSummaryText(lastCompletion).trim() &&
+      !visible.some((row) => getTaskFeedRowEvent(row)?.id === lastCompletion.id)) {
+      const owner = turn.find((row) => getTaskFeedRowEvents(row).some(({ event }) => event.id === lastCompletion.id));
+      if (owner) visible.unshift(createDeliveryEventRow(owner, lastCompletion, undefined, 0));
+    }
+    if (process.length) {
+      const times = eventStream.map((event) => event.timestamp).filter(Number.isFinite);
+      result.push({
+        kind: "execution-summary", key: `execution:${turnId}`, rows: process,
+        estimatedHeight: 32, durationMs: times.length ? Math.max(...times) - Math.min(...times) : 0,
+        revision: process.map((row) => `${row.key}:${row.revision}`).join("|"),
+        visiblePerfEventId: null,
+      });
+    }
+    // Surface the last unresolved problem/action even when it is nested in a
+    // collapsed block. Recovered attempt failures remain inside the process.
+    if (lastCritical && !visible.some((row) => getTaskFeedRowEvent(row)?.id === lastCritical.id)) {
+      const owner = turn.find((row) => getTaskFeedRowEvents(row).some(({ event }) => event.id === lastCritical.id));
+      if (owner) visible.push(createDeliveryEventRow(owner, lastCritical, undefined, 0));
+    }
+    result.push(...visible);
+    turn = [];
+  };
+  for (const row of feedRows) {
+    if (getTaskFeedRowEventType(row) === "user_message") {
+      flush(true);
+      result.push(row);
+      turnId = row.key;
+    } else if (row.kind === "history-control") {
+      result.push(row);
+    } else turn.push(row);
+  }
+  flush(!options.isTaskWorking);
+  return result;
 }
 
 export function hasInactiveStringSetEntries(
