@@ -41,7 +41,16 @@ These are bounded feeds, not exhaustive literature searches. A paper can appear 
 
 With interests, the recommendation score uses literal, case-insensitive topic matches (70%) and recency within the selected window (30%). Without interests it uses recency alone. It does not measure scientific rigor, correctness, or reproducibility. Stars and upvotes are shown separately as source-provided popularity counts.
 
-Search filters the results already fetched. Bookmark up to 200 items to retain them independently of subsequent refreshes or topic changes. Source titles and abstracts remain in their original language; controls follow the application's Chinese/English setting.
+Search filters the results already fetched. Bookmark up to 200 items to retain them independently of subsequent refreshes or topic changes. Source titles and abstracts default to their original language; controls follow the application's Chinese/English setting.
+
+### Chinese card display
+
+**Show in Chinese** translates English card titles and summaries in place through the existing configured model. It does not create a task, fetch article bodies or translate a full PDF. **Show originals** restores source text and stops further queueing; up to two already-started requests can finish. Scrolling translates newly visible cards. Repository, model and dataset identifiers remain unchanged, along with authors, tags and links. Cached translations are included in local search while Chinese display is active.
+
+Translation is explicitly enabled, may incur normal model costs, and records model usage. Only cached source metadata is accepted through the trusted main-window IPC; renderer-supplied prompts or URLs are not accepted. Requests time out after 60 seconds, run at most two concurrently, and errors preserve the original with a retry button. Missing model settings pause the queue. Successful translations are keyed to the exact original title/summary and persisted in `news-translations-zh.json` in app data (up to 500 entries / 8 MB). There is no translation request for already-Chinese content or empty Hub descriptions.
+
+Cards follow content height instead of reserving title, author and summary space. Missing summaries show a compact “No source summary” label; empty authors, tags and detail disclosures are omitted. The source link and Read action remain available. Existing summaries are retained, and missing abstracts are never generated from a headline alone. No automatic article-body fetching was added.
+
 
 The feed uses three cards per row on wide panels, two on medium panels, and one on narrow panels. Each source uses its official brand mark in the compact source panel and paper cards. Official SVGs and website icons are bundled locally, with suitable light/dark presentation. Source panels use the same soft blue accent treatment as the Automation page and shared page header. Paper cards and topic chips stay neutral; blue highlights primary actions and selection. See [brand asset provenance](../src/renderer/assets/paper-news/README.md). Ranking details are available under **About ranking and sources**.
 

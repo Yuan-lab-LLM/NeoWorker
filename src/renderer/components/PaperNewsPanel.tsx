@@ -1,3 +1,4 @@
+import { useNewsCardTranslations } from "./useNewsCardTranslations";
 import { isHfHubSource } from "../../shared/news-hub";
 import { NewsPreferencesPanel, type NewsSettingsScope } from "./NewsPreferencesPanel";
 import { newsSourceEnabled, newsDefaultSort } from "../../shared/news-preferences";
@@ -472,22 +473,31 @@ export function PaperNewsPanel({
       if (mounted.current) setOpening(false);
     }
   }
-  const items = useMemo(() => {
+  const categoryItems = useMemo(() => {
     const pool = savedOnly ? snapshot?.saved : snapshot?.items;
     return (pool || [])
       .filter(
         (i) =>
           (savedOnly || !snapshot || newsSourceEnabled(snapshot.config, i.source)) &&
           (source === "all" || i.source === source) &&
-          (category === "all" || newsCategoryForSource(i.source) === category) &&
-          `${i.title} ${i.summary} ${i.tags.join(" ")}`.toLowerCase().includes(query.toLowerCase()),
+          (category === "all" || newsCategoryForSource(i.source) === category),
       )
       .sort((a, b) =>
         sort === "newest"
           ? b.date.localeCompare(a.date)
           : b.score - a.score || b.date.localeCompare(a.date),
       );
-  }, [snapshot, source, query, sort, category, savedOnly]);
+  }, [snapshot, source, sort, category, savedOnly]);
+  const cardTranslations = useNewsCardTranslations(
+    categoryItems,
+    panelRef,
+    query,
+  );
+  const items = categoryItems.filter((item) =>
+    `${item.title} ${item.summary} ${item.tags.join(" ")} ${cardTranslations.searchText(item)}`
+      .toLowerCase()
+      .includes(query.toLowerCase()),
+  );
   const formatDate = (value: string) =>
     !value
       ? t("发布时间未提供", "Publication date unavailable")
@@ -681,6 +691,20 @@ export function PaperNewsPanel({
             </h2>
           </div>
           <div className="pn-tabs">
+            <button
+              aria-pressed={cardTranslations.enabled}
+              className={cardTranslations.enabled ? "is-active" : ""}
+              title={t(
+                "使用已配置的模型翻译可见卡片的标题与摘要，可能产生模型费用；译文会缓存。",
+                "Translate visible titles and summaries using your configured model; model charges may apply. Translations are cached.",
+              )}
+              onClick={cardTranslations.toggle}
+            >
+              <Languages size={15} aria-hidden="true" />
+              {cardTranslations.enabled
+                ? t("显示原文", "Show originals")
+                : t("中文显示", "Show in Chinese")}
+            </button>
             {activeCategory && (
               <button
                 disabled={busy || !snapshot || settings}
@@ -797,6 +821,20 @@ export function PaperNewsPanel({
             <option value="newest">{t("时间排序", "Most recent")}</option>
           </select>
         </div>
+        {cardTranslations.enabled && (
+          <p className="pn-translation-hint" role="status">
+            <Languages size={14} aria-hidden="true" />
+            {cardTranslations.modelUnavailable
+              ? t(
+                  "翻译暂不可用：请检查已有模型设置，再点击卡片上的重试。",
+                  "Translation unavailable. Check your model settings, then retry a card.",
+                )
+              : t(
+                  "使用已配置的模型，按需翻译可见卡片并缓存；可能产生模型费用。项目名称和来源链接保留原样。",
+                  "Visible cards are translated with your configured model and cached; model charges may apply. Project names and source links are preserved.",
+                )}
+          </p>
+        )}
         <div className="pn-context">
           <span aria-live="polite">
             {items.length} {t("条内容", "results")}
@@ -880,8 +918,21 @@ export function PaperNewsPanel({
           <div className="pn-grid">
             {items.map((item) => {
               const saved = snapshot?.saved.some((i) => i.id === item.id);
+              const translation = cardTranslations.entry(item);
+              const translated =
+                translation?.status === "done" ? translation.value : undefined;
+              const displayTitle = translated?.title || item.title;
+              const displaySummary = translated?.summary ?? item.summary;
+              const hubDetails =
+                isHfHubSource(item.source) &&
+                Boolean(item.hubTask || item.license);
+              const hasDetails = Boolean(item.summary.trim() || hubDetails);
               return (
-                <article className={`pn-card pn-source-${item.source}`} key={item.id}>
+                <article
+                  className={`pn-card pn-source-${item.source}${!hasDetails ? " pn-card-compact" : ""}`}
+                  key={item.id}
+                  data-news-id={item.id}
+                >
                   <div className="pn-card-meta">
                     <span className="pn-source-badge">
                       <SourceBrand source={item.source} />
@@ -904,52 +955,91 @@ export function PaperNewsPanel({
                     </button>
                   </div>
                   <h2>
-                    <button title={item.title} onClick={() => void open(item.url)}>
-                      {item.title}
+                    <button
+                      title={displayTitle}
+                      onClick={() => void open(item.url)}
+                    >
+                      {displayTitle}
                     </button>
                   </h2>
-                  <p className="pn-authors" title={item.authors.join(", ")}>
-                    {item.authors.slice(0, 4).join(", ")}
-                    {item.authors.length > 4 ? " …" : ""}
-                  </p>
-                  <p className="pn-summary">
-                    {item.summary ||
-                      (isHfHubSource(item.source)
-                        ? [
-                            item.hubTask,
-                            item.license && `${t("许可证", "License")}: ${item.license}`,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ") ||
-                          t(
-                            "打开来源查看模型卡或数据集说明。",
-                            "Open the source for its model or dataset card.",
-                          )
-                        : t("打开原文查看详细内容。", "Open the source for details."))}
-                  </p>
-                  <details className="pn-abstract">
-                    <summary>{t("摘要与详情", "Abstract and details")}</summary>
-                    <p>
-                      {item.summary ||
-                        t("来源没有提供摘要。", "No abstract provided by the source.")}
+                  {!!item.authors.length && (
+                    <p className="pn-authors" title={item.authors.join(", ")}>
+                      {item.authors.slice(0, 4).join(", ")}
+                      {item.authors.length > 4 ? " …" : ""}
                     </p>
-                    {isHfHubSource(item.source) && (
-                      <p>
-                        {t("任务", "Task")}: {item.hubTask || t("未提供", "Not provided")}
-                        <br />
-                        {t("许可证", "License")}:{" "}
-                        {item.license || t("请查看来源说明", "Check the source card")}
-                      </p>
-                    )}
-                  </details>
+                  )}
+                  {translation && (
+                    <div className="pn-card-translation">
+                      {translation.status === "loading" ? (
+                        <>
+                          <RefreshCw size={12} className="pn-spinning" />
+                          {t(
+                            "正在翻译，暂显示原文…",
+                            "Translating; showing original…",
+                          )}
+                        </>
+                      ) : translation.status === "error" ? (
+                        <>
+                          <span>
+                            {t(
+                              "翻译未完成，已保留原文",
+                              "Translation unavailable; original retained",
+                            )}
+                          </span>
+                          <button onClick={() => cardTranslations.retry(item)}>
+                            {t("重试", "Retry")}
+                          </button>
+                        </>
+                      ) : (
+                        <span>
+                          {t("中文译文 · AI 翻译", "Chinese · AI translated")}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {displaySummary.trim() && (
+                    <p className="pn-summary">{displaySummary}</p>
+                  )}
+                  {hasDetails ? (
+                    <details className="pn-abstract">
+                      <summary>
+                        {item.summary.trim()
+                          ? t("摘要与详情", "Abstract and details")
+                          : t("任务与许可信息", "Task and license")}
+                      </summary>
+                      {displaySummary.trim() && <p>{displaySummary}</p>}
+                      {hubDetails && (
+                        <p>
+                          {t("任务", "Task")}:{" "}
+                          {item.hubTask || t("未提供", "Not provided")}
+                          <br />
+                          {t("许可证", "License")}:{" "}
+                          {item.license ||
+                            t("请查看来源说明", "Check the source card")}
+                        </p>
+                      )}
+                    </details>
+                  ) : (
+                    <span className="pn-no-summary">
+                      {t("来源未提供摘要", "No source summary")}
+                    </span>
+                  )}
                   <div className="pn-tags">
                     {isHfHubSource(item.source) && (
                       <span>
-                        {item.source === "hf-models" ? <Box size={12} /> : <Database size={12} />}
-                        {item.source === "hf-models" ? t("模型", "Model") : t("数据集", "Dataset")}
+                        {item.source === "hf-models" ? (
+                          <Box size={12} />
+                        ) : (
+                          <Database size={12} />
+                        )}
+                        {item.source === "hf-models"
+                          ? t("模型", "Model")
+                          : t("数据集", "Dataset")}
                       </span>
                     )}
-                    {item.gated && <span>{t("需申请访问", "Gated access")}</span>}
+                    {item.gated && (
+                      <span>{t("需申请访问", "Gated access")}</span>
+                    )}
                     {item.matchedTopics.map((tag) => (
                       <span key={tag}>{tag}</span>
                     ))}
@@ -961,7 +1051,8 @@ export function PaperNewsPanel({
                         )}
                       >
                         <Download size={12} aria-hidden="true" />
-                        {item.downloads.toLocaleString(language)} {t("下载", "downloads")}
+                        {item.downloads.toLocaleString(language)}{" "}
+                        {t("下载", "downloads")}
                       </small>
                     )}
                     {item.popularity !== undefined && (
@@ -1133,8 +1224,8 @@ export function PaperNewsPanel({
         )}
         <p className="pn-footer">
           {t(
-            "阅读、翻译和研究会创建任务草稿，发送后使用你当前配置的模型执行。内容保留来源原文；同一内容可能出现在多个来源。",
-            "Read, translate and research prepare a task draft. Send it to use your configured model. Source text stays in its original language; an article may appear in multiple sources.",
+            "阅读、翻译和研究会创建任务草稿，发送后使用你当前配置的模型执行。中文显示仅翻译卡片标题与摘要；同一内容可能出现在多个来源。",
+            "Read, translate and research prepare a task draft. Send it to use your configured model. Chinese display translates card titles and summaries only; an article may appear in multiple sources.",
           )}
         </p>
       </div>

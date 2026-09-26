@@ -271,6 +271,7 @@
   max-width: 110ch;
 }
 .pn-grid {
+  align-items: start;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
@@ -365,7 +366,7 @@
 }
 .pn-card h2 {
   margin: 16px 0 8px;
-  min-height: 4.5em;
+  min-height: 0;
   font-size: 16px;
   line-height: 1.5;
   font-weight: 650;
@@ -387,7 +388,7 @@
   color: var(--pn-blue);
 }
 .pn-authors {
-  min-height: 18px;
+  min-height: 0;
   margin: 0 0 12px;
   color: var(--color-text-secondary);
   font-size: 12px;
@@ -401,7 +402,7 @@
   -webkit-line-clamp: 3;
   overflow: hidden;
   overflow-wrap: anywhere;
-  min-height: 5.1em;
+  min-height: 0;
   margin: 0 0 8px;
   font-size: 13px;
   line-height: 1.7;
@@ -424,6 +425,9 @@
 .pn-abstract p {
   font-size: 12px;
   overflow-wrap: anywhere;
+}
+.pn-tags:empty {
+  display: none;
 }
 .pn-tags {
   display: flex;
@@ -1549,4 +1553,38 @@ button.pn-directory-source:hover {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.pn-translation-hint,
+.pn-card-translation {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.pn-translation-hint {
+  margin: 12px 0;
+}
+.pn-card-translation {
+  margin-bottom: 10px;
+  color: var(--color-accent);
+  font-size: 11px;
+}
+.pn-card-translation button {
+  border: 0;
+  background: none;
+  color: inherit;
+  padding: 0 4px;
+  text-decoration: underline;
+}
+.pn-no-summary {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin: 2px 0 16px;
+}
+.pn-card-compact h2 {
+  margin-bottom: 12px;
 }

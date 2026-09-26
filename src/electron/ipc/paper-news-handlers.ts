@@ -1,3 +1,5 @@
+import { NewsTranslations } from "../paper-news/translation";
+import { translateNewsWithModel } from "../paper-news/translation-model";
 import { PaperNewsCovers } from "../paper-news/covers";
 import { resizeNewsCover, renderNewsPdfCover } from "../paper-news/cover-renderer";
 import { app, ipcMain, type IpcMainInvokeEvent } from "electron";
@@ -12,6 +14,10 @@ export function setupPaperNewsHandlers(isTrusted: (event: IpcMainInvokeEvent) =>
     path.join(app.getPath("userData"), "paper-news.json"),
     fetchWithSystemProxy,
   );
+  const translations = new NewsTranslations(
+    path.join(app.getPath("userData"), "news-translations-zh.json"),
+    translateNewsWithModel,
+  );
   const covers = new PaperNewsCovers(
     path.join(app.getPath("userData"), "news-covers"),
     fetchWithSystemProxy,
@@ -25,6 +31,7 @@ export function setupPaperNewsHandlers(isTrusted: (event: IpcMainInvokeEvent) =>
       return run(...args);
     });
   };
+  handle(IPC_CHANNELS.PAPER_NEWS_TRANSLATE, (id: unknown) => translations.get(service.findItem(id)));
   handle(IPC_CHANNELS.PAPER_NEWS_COVER, (id: unknown) => {
     const item = service.findItem(id);
     return item ? covers.get(item) : null;
