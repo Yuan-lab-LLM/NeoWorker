@@ -1228,16 +1228,38 @@ textarea::placeholder {
 }
 
 .theme-light.visual-oblivion .sidebar-brand-row {
-  height: var(--title-bar-height);
-  min-height: var(--title-bar-height);
+  height: 40px;
+  min-height: 40px;
   padding-inline: var(--cw-space-4);
 }
 
 .theme-light.visual-oblivion .sidebar-brand-name {
   color: var(--cw-ink);
-  font-size: 15px;
-  font-weight: 650;
+  font-size: 14px;
+  font-weight: 600;
   letter-spacing: -0.012em;
+}
+
+.theme-light.visual-oblivion .sidebar-brand-logo {
+  width: 24px;
+  height: 24px;
+  flex-basis: 24px;
+}
+
+.theme-light.visual-oblivion .sidebar-brand-version {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.theme-light.visual-oblivion .sidebar-header {
+  padding-top: 8px;
+}
+
+.theme-light.visual-oblivion .sidebar .cli-header-actions.sidebar-nav {
+  gap: 0;
 }
 
 .theme-light.visual-oblivion .sidebar-header-sessions,
@@ -1254,7 +1276,7 @@ textarea::placeholder {
 }
 
 .theme-light.visual-oblivion .sidebar-top-actions-row {
-  margin-bottom: 12px;
+  margin-bottom: 6px;
 }
 
 .theme-light.visual-oblivion .sidebar-new-session-btn,
@@ -1275,7 +1297,9 @@ textarea::placeholder {
   background: var(--cw-surface-hover) !important;
 }
 
-.theme-light.visual-oblivion .sidebar-new-session-btn .sidebar-new-session-icon {
+.theme-light.visual-oblivion
+  .sidebar-new-session-btn
+  .sidebar-new-session-icon {
   color: var(--cw-brand);
 }
 
@@ -1283,21 +1307,35 @@ textarea::placeholder {
   align-items: center !important;
 }
 
-.theme-light.visual-oblivion :is(.sidebar-new-session-btn, .sidebar-nav-item) > .cli-btn-text {
+.theme-light.visual-oblivion
+  :is(.sidebar-new-session-btn, .sidebar-nav-item)
+  > .cli-btn-text {
   display: inline-flex;
   height: 20px;
   align-items: center;
   line-height: 20px;
 }
 
-.theme-light.visual-oblivion .sidebar-new-session-btn .cli-new-task-modern-label,
+.theme-light.visual-oblivion
+  .sidebar-new-session-btn
+  .cli-new-task-modern-label,
 .theme-light.visual-oblivion .sidebar-nav-item .cli-new-task-modern-label {
   display: inline-flex !important;
   height: 20px;
   align-items: center;
   gap: var(--cw-space-2);
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 400;
   line-height: 20px;
+}
+
+.theme-light.visual-oblivion
+  .sidebar-new-session-btn
+  .cli-new-task-modern-label,
+.theme-light.visual-oblivion
+  .sidebar-nav-item.active
+  .cli-new-task-modern-label {
+  font-weight: 500;
 }
 
 .theme-light.visual-oblivion
@@ -1327,12 +1365,13 @@ textarea::placeholder {
   :is(.sidebar-new-session-icon, .sidebar-home-btn-icon)
   svg {
   display: block;
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.7;
 }
 
 .theme-light.visual-oblivion .sidebar-nav-group {
-  gap: 4px;
+  gap: 2px;
 }
 
 .theme-light.visual-oblivion .sidebar-nav-group + .sidebar-nav-group {
@@ -1342,8 +1381,8 @@ textarea::placeholder {
 .theme-light.visual-oblivion .sidebar-nav-item,
 .theme-light.visual-oblivion.density-focused .sidebar-nav-item {
   position: relative;
-  min-height: 36px;
-  height: 36px;
+  min-height: 32px;
+  height: 32px;
   padding-inline: var(--cw-space-3) !important;
   border: 0 !important;
   border-radius: var(--cw-radius-md);
@@ -1389,7 +1428,7 @@ textarea::placeholder {
 }
 
 .theme-light.visual-oblivion .sidebar-header-sessions {
-  padding-top: 16px;
+  padding-top: 12px;
 }
 
 .theme-light.visual-oblivion .cli-task-item,

@@ -735,38 +735,21 @@ export function PaperNewsPanel({
             className="pn-discovery"
             aria-label={t("浏览资讯分类", "Browse news categories")}
           >
-            <div className="pn-section-label">
-              <div className="pn-section-options">
-                <span>{t("探索领域", "EXPLORE TOPICS")}</span>
-                <button
-                  className={`pn-all-topics ${category === "all" ? "is-active" : ""}`}
-                  aria-pressed={category === "all"}
-                  onClick={() => selectCategory("all")}
-                >
-                  <LayoutGrid size={12} />
-                  {t("全部动态", "All topics")}
-                </button>
-              </div>
-              <button
-                className="pn-text-button"
-                aria-expanded={catalogOpen}
-                onClick={() => setCatalogOpen(!catalogOpen)}
-              >
-                <Library size={14} />
-                {t("来源目录", "Source directory")}{" "}
-                <span>
-                  {NEWS_FEED_CATEGORIES.reduce(
-                    (count, entry) => count + entry.providers.length,
-                    0,
-                  )}
-                </span>
-                <ChevronRight size={14} />
-              </button>
-            </div>
+            <span className="pn-discovery-label">
+              {t("探索领域", "EXPLORE TOPICS")}
+            </span>
             <nav
               className="pn-categories"
               aria-label={t("资讯分类", "News categories")}
             >
+              <button
+                className={`pn-category ${category === "all" ? "is-active" : ""}`}
+                aria-pressed={category === "all"}
+                onClick={() => selectCategory("all")}
+              >
+                <LayoutGrid size={18} strokeWidth={1.65} aria-hidden="true" />
+                <strong>{t("全部动态", "All topics")}</strong>
+              </button>
               {NEWS_FEED_CATEGORIES.map((entry) => {
                 const Icon = categoryIcons[entry.id];
                 return (
@@ -774,17 +757,30 @@ export function PaperNewsPanel({
                     key={entry.id}
                     className={`pn-category ${category === entry.id ? "is-active" : ""}`}
                     aria-pressed={category === entry.id}
+                    title={t(entry.description, entry.descriptionEn)}
                     onClick={() => selectCategory(entry.id)}
                   >
-                    <span className="pn-category-icon">
-                      <Icon size={21} strokeWidth={1.65} />
-                    </span>
+                    <Icon size={18} strokeWidth={1.65} aria-hidden="true" />
                     <strong>{t(entry.name, entry.nameEn)}</strong>
-                    <span>{t(entry.description, entry.descriptionEn)}</span>
                   </button>
                 );
               })}
             </nav>
+            <button
+              className="pn-text-button pn-directory-trigger"
+              aria-expanded={catalogOpen}
+              onClick={() => setCatalogOpen(!catalogOpen)}
+            >
+              <Library size={14} aria-hidden="true" />
+              {t("来源目录", "Source directory")}
+              <span>
+                {NEWS_FEED_CATEGORIES.reduce(
+                  (count, entry) => count + entry.providers.length,
+                  0,
+                )}
+              </span>
+              <ChevronRight size={14} aria-hidden="true" />
+            </button>
           </section>
           <div className="pn-feed-heading">
             <div>

@@ -1,3 +1,39 @@
+# News category rail and sidebar proportions — 2026-09-27
+
+Final visual result: passed within the navigation scope. Automated checks: 9 passed, 2 legacy failures; renderer build passed.
+
+## Sources and rendered evidence
+
+- Selected category design: `/Users/wangchao/.codex/generated_images/01a0b466-f552-7a20-aa51-ca0065dffb7f/exec-47187ef5-eb35-4cd6-b699-66f62ed17003.png` (first round, second option).
+- WorkBuddy sidebar proportion reference: `/var/folders/f6/v2yvmyfx77xdvgw7gfyj1xdr0000gn/T/codex-clipboard-83162a0c-7688-429a-a121-ffcc4e4d1181.png`.
+- Implementation: `http://127.0.0.1:5194/gallery-preview.html`; real Sidebar and PaperNewsPanel components with local fixture data and simulated APIs, no native title bar or live model calls.
+- Final full screenshot: `output/category-rail-qa/desktop.png`, 1600 × 900, Chinese, light theme, Open source selected, source directory closed. Source design and final full screenshot were opened in the same comparison tool input. WorkBuddy and the final full screenshot were also compared together; sidebar width is 264 CSS px versus approximately 264 CSS px in the 2x reference, but height/content/window chrome differ. This is a proportion adaptation, not a WorkBuddy clone.
+- Responsive screenshots: `output/category-rail-qa/narrow-en.png`, `narrow-zh.png`, `narrow-dark.png`, 560px panel inside the existing 1280px preview harness. The browser viewport override affected the sidebar tab, so the explicit preview size control was used and DOM measurement confirmed a 560px panel. Temporary viewport override was reset.
+- Early clipped captures returned incorrect device-scale crops; they are not final fidelity evidence. The final full screenshot clearly resolves labels, icons and selection states, so further crops were unnecessary.
+
+## Findings, corrections and fidelity
+
+- [P2 resolved] A remaining old category CSS block overrode the rail with grid cards. Removed the duplicate block and old card breakpoints. Final capture shows all seven category controls in one row, with a separate secondary directory action.
+- [P2 resolved] Sidebar rows plus gaps occupied 40px and the new-task/header gaps crowded out conversation space. Rows now use 32px plus 2px gap; the session header container moved from y425 to y368 in the same preview (57px reclaimed).
+- Typography: category labels 14px/500 with 18px Lucide icons; sidebar labels 13px/400, new-work and active labels 500, icons 17px/1.7 stroke. Brand 14px/600 with 24px logo and quieter unboxed version text. All labels readable and aligned.
+- Spacing: category buttons 42px high, restrained icon-to-label gaps, descriptions available as hover titles, wide-screen directory at right after a divider. Narrow panels place directory beside the section label and scroll categories horizontally.
+- Color: existing NeoWorker theme tokens and blue selection; category tint intentionally lighter and icons smaller than the selected design, as agreed. Sidebar keeps NeoWorker branding and active-item styling.
+- Assets: existing app icon and Lucide icons; no generated raster UI assets or replacement publisher logos.
+- Copy: original category names, localized descriptions and computed source count preserved. WorkBuddy task content and account controls are not copied. The fixture's empty task list is not a spacing regression.
+
+## Interaction and verification
+
+- Selected Open source, Business and All topics; pressed states, heading and filtered providers update.
+- Opened and closed the source directory; expanded state and category content update.
+- At 560px panel width, category row remains one line with 524px client width versus 882px English scroll width. Clicking the final category scrolls it into view (scrollLeft 355.5). Keyboard Tab exposes a 2px blue directory focus outline.
+- Chinese, English and dark category states inspected. Sidebar refinement is scoped to the existing light/Oblivion design system; collapsed rail untouched.
+- Final sidebar preview has no captured console errors.
+- `npm run build:react` passed (11.09s); only existing bundle size warnings.
+- Ran sidebar-proportions-design, collapsed-sidebar-rail-design, paper-news-navigation and paper-news-behavior: 9/11 assertions pass. Remaining failures assert the old Chinese Automation fallback and opening Source in the system browser. HEAD already uses the English Automation fallback and internal NeoWorker browser; these paths are unchanged by this patch. No claim of an entirely green test suite.
+- `git diff --check` passed. No macOS package created for this change; installed app will not update from this source edit alone.
+
+---
+
 # Reading assistant implementation QA — 2026-09-26
 
 Final result: passed
