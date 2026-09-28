@@ -143,6 +143,8 @@ jobs:
           node --test scripts/qa/desktop-smoke-process.test.mjs
       - name: PDF delivery regressions
         run: npx vitest --config config/vitest.config.ts run src/electron/utils/__tests__/pdf-generator.test.ts src/electron/utils/__tests__/pdf-math.test.ts src/electron/agent/__tests__/verified-delivery-artifacts.test.ts src/renderer/components/__tests__/ProjectContextPanel.test.ts src/renderer/components/__tests__/main-content-working-state.test.ts --maxWorkers=1
+      - name: Conversation history regressions
+        run: npx vitest --config config/vitest.config.ts run src/electron/database/__tests__/task-event-repository-timeline-page.test.ts src/electron/database/__tests__/task-event-repository-create.test.ts src/electron/database/__tests__/task-event-repository-replay.test.ts src/renderer/__tests__/task-event-stream.test.ts src/renderer/__tests__/app-history-load-failure.test.ts src/renderer/utils/__tests__/task-event-stream.test.ts src/renderer/utils/__tests__/task-event-append.test.ts src/renderer/utils/__tests__/task-event-detail-cache.test.ts --maxWorkers=1
       - name: PPT content-editing regressions
         run: npx vitest --config config/vitest.config.ts run src/electron/agent/__tests__/presentation-edit-policy.test.ts src/electron/agent/tools/__tests__/use-skill.test.ts src/electron/agent/tools/__tests__/skill-tools-artifact-registration.test.ts src/electron/agent/tools/__tests__/office-artifact-input-normalizer.test.ts --maxWorkers=1
       - name: Native PPT template regressions
@@ -254,7 +256,7 @@ jobs:
           const entry=start<0?'':changelog.slice(start).split(/\n## \[/)[0]
             .replace(/\bHermes\b/gi, 'the execution service');
           fs.writeFileSync('desktop-release-notes.md',`# NeoWorker ${process.env.RELEASE_TAG}\n\n`+
-            `Source commit: \`${commit}\` Both platform installers were built from this tag and passed regression tests, packaged-secret scans, and installation and launch checks.\n\n`+
+            `Source commit: \`${commit}\`\n\n`+
             `- macOS: Apple Silicon / arm64. Download the .dmg installer. The app is ad-hoc signed and is not notarized by Apple.\n`+
             `- Windows: x64. Download the -setup.exe installer.\n`+
             `- SHA256SUMS files verify downloads; build JSON files record the source commit and build provenance.\n\n`+entry+'\n');

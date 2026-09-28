@@ -86,6 +86,47 @@ describe("TaskEventRepository.findTimelinePage", () => {
     expect(timelineQuery).toContain("SUBSTR");
   });
 
+  it.each(["user_message", "assistant_message", "task_completed", "follow_up_completed"])(
+    "restores the complete oversized %s on a cold history load",
+    (legacyType) => {
+      const text = "会议纪要：请分析各项决议并列出后续工作。".repeat(5000);
+      const payload = legacyType.endsWith("completed")
+        ? { resultSummary: text }
+        : { message: text, internal: false };
+      insertEvent({ id: "long-conversation", legacyType, payload });
+
+      // A fresh repository represents reopening a session without a live cache.
+      const reopened = new TaskEventRepository(db as never);
+      const page = reopened.findTimelinePage({
+        taskId: "task-1", limit: 160,
+        byteLimit: 512 * 1024, singleEventByteLimit: 64 * 1024,
+      });
+      expect(page.events[0]?.payload).toEqual(payload);
+      expect(page.summary.truncatedEventCount).toBe(0);
+      expect(page.summary.payloadBytes).toBe(Buffer.byteLength(JSON.stringify(payload)));
+      expect(page.summary.databaseReadBytesEstimate).toBeGreaterThan(64 * 1024);
+      expect(reopened.findEventDetailById("long-conversation").event?.payload).toEqual(payload);
+    },
+  );
+
+  it("restores long pinned questions and replies outside the latest page", () => {
+    const message = "长中文会议记录。".repeat(4000);
+    insertEvent({ id: "question", seq: 1, legacyType: "user_message", payload: { message } });
+    insertEvent({ id: "answer", seq: 2, legacyType: "assistant_message", payload: { message, internal: false } });
+    insertEvent({ id: "latest-tool", seq: 3, payload: { text: "x".repeat(96 * 1024) } });
+    const page = repo.findTimelinePage({ taskId: "task-1", limit: 1, singleEventByteLimit: 64 * 1024 });
+    expect(page.events.find(event => event.id === "question")?.payload.message).toBe(message);
+    expect(page.events.find(event => event.id === "answer")?.payload.message).toBe(message);
+    expect(page.events.find(event => event.id === "latest-tool")?.payload.__neoworkerPayloadTruncated).toBe(true);
+    expect(page.summary.truncatedEventCount).toBe(1);
+    expect(page.hasMoreHistory).toBe(true);
+    expect(page.nextCursor?.id).toBe("latest-tool");
+
+    const older = repo.findTimelinePage({ taskId: "task-1", limit: 1, cursor: page.nextCursor, singleEventByteLimit: 64 * 1024 });
+    expect(older.events[0]?.id).toBe("answer");
+    expect(older.events[0]?.payload.message).toBe(message);
+  });
+
   it("scopes event detail lookups to the selected task and allowed child output events", () => {
     insertEvent({
       id: "parent-detail",
@@ -702,6 +743,40 @@ describe("TaskEventRepository.findTimelinePage sqlite integration", () => {
 
     expect(first.events.map((event) => event.id)).toEqual(["evt-b", "evt-c"]);
     expect(second.events.map((event) => event.id)).toEqual(["evt-a"]);
+  });
+
+  it("reads complete conversation text after closing and reopening a real database", async (context) => {
+    if (skipIfSqliteUnavailable()) return context.skip();
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { default: Database } = await import("better-sqlite3");
+    const directory = mkdtempSync(join(tmpdir(), "neoworker-history-regression-"));
+    const message = "会议纪要与行动计划。".repeat(5000);
+    try {
+      for (const [index, type] of ["user_message", "assistant_message", "file_created"].entries()) {
+        const id = `persisted-${index}`;
+        insertSqliteEvent({ id, seq: index + 1 });
+        db.prepare("UPDATE task_events SET legacy_type = ?, payload = ? WHERE id = ?")
+          .run(type, JSON.stringify({ message, internal: false }), id);
+      }
+      const file = join(directory, "history.db");
+      await db.backup(file);
+      db.close();
+      db = new Database(file);
+      repo = new TaskEventRepository(db);
+      const page = repo.findTimelinePage({
+        taskId: "task-1", limit: 1, byteLimit: 512 * 1024, singleEventByteLimit: 64 * 1024,
+      });
+      expect(page.events.find(event => event.id === "persisted-0")?.payload.message).toBe(message);
+      expect(page.events.find(event => event.id === "persisted-1")?.payload.message).toBe(message);
+      expect(page.events.find(event => event.id === "persisted-2")?.payload.__neoworkerPayloadTruncated).toBe(true);
+      expect(page.summary.truncatedEventCount).toBe(1);
+    } finally {
+      db?.close();
+      db = null;
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });
 

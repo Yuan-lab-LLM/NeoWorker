@@ -47,6 +47,25 @@ function makeEvent(
 }
 
 describe("mergeTaskEventsByIdentity", () => {
+  it.each([false, true])("keeps full live text when history is truncated (batch=%s)", (batch) => {
+    const full = makeEvent({
+      id: "live-id", eventId: "canonical-id", taskId: "task-1",
+      type: "assistant_message", timestamp: 100,
+      payload: { message: "会议分析".repeat(10000), internal: false },
+    });
+    const preview = {
+      ...full, id: "persisted-id",
+      payload: { __neoworkerPayloadTruncated: true, preview: "partial JSON", eventDetailId: "canonical-id" },
+    };
+    const other = makeEvent({ taskId: "task-1", type: "user_message", timestamp: 200 });
+    const merged = mergeTaskEventsByIdentity([full], batch ? [preview, other] : [preview]);
+    expect(merged[0].id).toBe("persisted-id");
+    expect(merged[0].payload).toEqual(full.payload);
+    const updated = { ...full, payload: { message: "Updated full answer" } };
+    expect(mergeTaskEventsByIdentity(merged, [updated])[0].payload).toEqual(updated.payload);
+    expect(mergeTaskEventsByIdentity([preview], [full])[0].payload).toEqual(full.payload);
+  });
+
   it("preserves live events that arrive before historical loading finishes", () => {
     const live = makeEvent({
       taskId: "task-1",

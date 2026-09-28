@@ -2915,7 +2915,33 @@ export class TaskEventRepository {
     });
     const events = this.mapRowsToEvents(selectedRowsAscending, {
       persistMigrations: false,
-    }).events;
+    }).events.map((event) => {
+      // Conversation bubbles have no expandable event-detail control. The
+      // preview envelope is suitable for tool output, but would erase their
+      // message/resultSummary on every reload. Restore selected conversation
+      // records after paging (including pinned turn context). Page byte limits
+      // are soft for these records so even one oversized reply remains readable.
+      if (
+        event.payload?.__neoworkerPayloadTruncated !== true ||
+        !["user_message", "assistant_message", "task_completed", "follow_up_completed"].includes(
+          event.legacyType || event.type,
+        )
+      ) {
+        return event;
+      }
+      const detail = this.findEventDetailById(event.id, { taskId: event.taskId });
+      if (!detail.event) return event;
+      hydratedEventCount += 1;
+      hydratedPayloadBytes += detail.payloadBytes;
+      return detail.event;
+    });
+    payloadBytes = events.reduce(
+      (total, event) => total + Buffer.byteLength(JSON.stringify(event.payload ?? {}), "utf8"),
+      0,
+    );
+    truncatedEventCount = events.filter(
+      (event) => event.payload?.__neoworkerPayloadTruncated === true,
+    ).length;
     const hasMoreHistory =
       stoppedByByteLimit ||
       rows.length > safeLimit ||

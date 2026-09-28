@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve complete long questions and replies when reopening conversations, and keep incoming messages visible if history loading fails.
 - Accept valid embedded Type 3 Chinese font programs in PDF delivery validation while retaining final text and page checks.
 - Improve reading-pane resizing, boundaries, controls, PDF selection actions and toolbar positioning.
 - Improve PDF export typography, equation rendering, figure resolution and final-delivery validation.

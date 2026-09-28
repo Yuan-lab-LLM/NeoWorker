@@ -393,6 +393,19 @@ export function compareTaskEventOrder(
   return getTaskEventIdentity(left).localeCompare(getTaskEventIdentity(right));
 }
 
+function preferCompleteTaskEvent(existing: TaskEvent, incoming: TaskEvent): TaskEvent {
+  if (
+    existing.taskId === incoming.taskId &&
+    incoming.payload?.__neoworkerPayloadTruncated === true &&
+    existing.payload?.__neoworkerPayloadTruncated !== true
+  ) {
+    // Keep canonical persisted metadata without downgrading a full live/detail
+    // payload to a history preview. A later full record still replaces it.
+    return { ...incoming, payload: existing.payload };
+  }
+  return incoming;
+}
+
 export function mergeTaskEventsByIdentity(
   existing: TaskEvent[],
   incoming: TaskEvent[],
@@ -410,7 +423,7 @@ export function mergeTaskEventsByIdentity(
 
     if (existingIndex >= 0) {
       const next = [...existing];
-      next[existingIndex] = incomingEvent;
+      next[existingIndex] = preferCompleteTaskEvent(existing[existingIndex], incomingEvent);
       // Skip sort if replacement maintains order relative to neighbors
       const prevOk =
         existingIndex === 0 ||
@@ -433,7 +446,9 @@ export function mergeTaskEventsByIdentity(
     merged.set(getTaskEventIdentity(event), event);
   }
   for (const event of incoming) {
-    merged.set(getTaskEventIdentity(event), event);
+    const identity = getTaskEventIdentity(event);
+    const existingEvent = merged.get(identity);
+    merged.set(identity, existingEvent ? preferCompleteTaskEvent(existingEvent, event) : event);
   }
 
   return Array.from(merged.values()).sort(compareTaskEventOrder);

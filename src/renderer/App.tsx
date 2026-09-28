@@ -5383,12 +5383,8 @@ export function App() {
       } catch (error) {
         if (cancelled) return;
         console.error("Failed to load historical events:", error);
-        // Keep the cached page (or the latest attention event) visible when a
-        // transient history request fails. Clearing it made session dialogue
-        // appear to vanish until a manual refresh.
-        if (!cachedTimeline) {
-          setEvents(latestAttentionEvent ? [latestAttentionEvent] : []);
-        }
+        // Initial state was set before this request. Live messages may have
+        // arrived since then, even without a cached page; leave them intact.
       }
     };
 
