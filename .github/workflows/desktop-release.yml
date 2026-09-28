@@ -51,7 +51,7 @@ jobs:
           cat > "$RUNNER_TEMP/neoworker-pdf-fonts.swift" <<'SWIFT'
           import Foundation
           import CoreText
-          
+
           let names = ["STFangsong", "TimesNewRomanPSMT"]
           func available(_ name: String) -> Bool {
               let font = CTFontCreateWithName(name as CFString, 14, nil)
@@ -74,6 +74,22 @@ jobs:
           }
           SWIFT
           swift "$RUNNER_TEMP/neoworker-pdf-fonts.swift"
+      - name: Prepare required Windows PDF fonts
+        if: runner.os == 'Windows'
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fontDirectory = Join-Path $env:WINDIR 'Fonts'
+          if (!(Test-Path (Join-Path $fontDirectory 'simfang.ttf'))) {
+            $capability = Get-WindowsCapability -Online -Name 'Language.Fonts.Hans*'
+            if (!$capability) { throw 'Simplified Chinese supplemental fonts are unavailable on this runner.' }
+            $capability | Where-Object State -ne 'Installed' | Add-WindowsCapability -Online
+          }
+          foreach ($fontFile in @('simfang.ttf', 'times.ttf')) {
+            if (!(Test-Path (Join-Path $fontDirectory $fontFile))) { throw "Required PDF font missing: $fontFile" }
+            Write-Host "Available PDF font: $fontFile"
+          }
       - name: Verify tag, version and architecture
         shell: bash
         run: |
