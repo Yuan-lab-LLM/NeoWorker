@@ -41,50 +41,66 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-      # Apple supplies these downloadable system fonts; keep them on the runner,
-      # never redistribute proprietary font files inside the application.
+      # Fonts are OS-provided prerequisites on the ephemeral validation runners.
+      # Never include proprietary font files in application or release artifacts.
       - name: Prepare required macOS PDF fonts
         if: runner.os == 'macOS'
         timeout-minutes: 6
         shell: bash
         run: |
-          cat > "$RUNNER_TEMP/neoworker-pdf-fonts.swift" <<'SWIFT'
-          import Foundation
-          import CoreText
-
-          let names = ["STFangsong", "TimesNewRomanPSMT"]
-          func available(_ name: String) -> Bool {
-              let font = CTFontCreateWithName(name as CFString, 14, nil)
-              return CTFontCopyPostScriptName(font) as String == name
-          }
-          for name in names {
-              if available(name) { print("Available: \(name)"); continue }
-              let descriptor = CTFontDescriptorCreateWithAttributes([kCTFontNameAttribute: name] as CFDictionary)
-              let finished = DispatchSemaphore(value: 0)
-              let started = CTFontDescriptorMatchFontDescriptorsWithProgressHandler([descriptor] as CFArray, nil) { state, progress in
-                  if state == .didFailWithError { print("Font download failed: \(progress)"); finished.signal() }
-                  if state == .didFinish { finished.signal() }
-                  return true
-              }
-              guard started, finished.wait(timeout: .now() + 240) == .success, available(name) else {
-                  fputs("Required PDF font unavailable: \(name)\n", stderr)
-                  exit(1)
-              }
-              print("Downloaded system font: \(name)")
-          }
-          SWIFT
-          swift "$RUNNER_TEMP/neoworker-pdf-fonts.swift"
+          python -u - <<'PYTHON'
+          import hashlib, io, pathlib, plistlib, subprocess, zipfile
+          catalogue = pathlib.Path('/System/Library/AssetsV2/com_apple_MobileAsset_Font7/com_apple_MobileAsset_Font7.xml')
+          assets = plistlib.loads(catalogue.read_bytes())['Assets']
+          asset = next(a for a in assets if any(f.get('PostScriptFontName') == 'STFangsong' for f in a.get('FontInfo4', [])))
+          url = asset['__BaseURL'] + asset['__RelativePath']
+          if not url.startswith('https://updates.cdn-apple.com/'):
+              raise RuntimeError('Unexpected Apple font asset origin')
+          print('Downloading Apple system font: STFangsong', flush=True)
+          data = subprocess.check_output(['curl', '--fail', '--location', '--retry', '2', '--max-time', '90', url])
+          if asset['_MeasurementAlgorithm'] != 'SHA-1' or hashlib.sha1(data).digest() != asset['_Measurement']:
+              raise RuntimeError('Apple font asset checksum mismatch')
+          destination = pathlib.Path.home() / 'Library/Fonts'
+          destination.mkdir(parents=True, exist_ok=True)
+          installed = []
+          with zipfile.ZipFile(io.BytesIO(data)) as archive:
+              for entry in archive.infolist():
+                  if pathlib.PurePosixPath(entry.filename).suffix.lower() in ('.ttf', '.otf', '.ttc'):
+                      target = destination / pathlib.PurePosixPath(entry.filename).name
+                      target.write_bytes(archive.read(entry))
+                      installed.append(target.name)
+          if not installed:
+              raise RuntimeError('Apple font archive contains no fonts')
+          print('Installed system fonts:', installed, flush=True)
+          if not pathlib.Path('/System/Library/Fonts/Supplemental/Times New Roman.ttf').is_file():
+              raise RuntimeError('Times New Roman is unavailable on this runner')
+          PYTHON
       - name: Prepare required Windows PDF fonts
         if: runner.os == 'Windows'
-        timeout-minutes: 10
+        timeout-minutes: 20
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $fontDirectory = Join-Path $env:WINDIR 'Fonts'
           if (!(Test-Path (Join-Path $fontDirectory 'simfang.ttf'))) {
-            $capability = Get-WindowsCapability -Online -Name 'Language.Fonts.Hans*'
-            if (!$capability) { throw 'Simplified Chinese supplemental fonts are unavailable on this runner.' }
-            $capability | Where-Object State -ne 'Installed' | Add-WindowsCapability -Online
+            # Official Server 2025 Languages and Optional Features media from:
+            # https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2025
+            # Use offline servicing to avoid unavailable Windows Update services.
+            $isoPath = Join-Path $env:RUNNER_TEMP 'server-2025-optional-features.iso'
+            Write-Host 'Downloading official Microsoft optional-font installation media'
+            curl.exe --fail --location --retry 2 --max-time 600 'https://go.microsoft.com/fwlink/?linkid=2273506' --output $isoPath
+            if ($LASTEXITCODE -ne 0) { throw 'Microsoft optional-feature media download failed' }
+            try {
+              $volume = Mount-DiskImage -ImagePath $isoPath -PassThru | Get-Volume
+              $root = "$($volume.DriveLetter):\"
+              $cab = Get-ChildItem $root -Recurse -Filter '*LanguageFeatures-Fonts-Hans*.cab' | Select-Object -First 1
+              if (!$cab) { throw 'Simplified Chinese supplemental fonts missing from Microsoft media' }
+              Write-Host "Installing Microsoft supplemental fonts from $($cab.DirectoryName)"
+              Add-WindowsCapability -Online -Name 'Language.Fonts.Hans~~~und-Hans~0.0.1.0' -Source $cab.DirectoryName -LimitAccess
+            } finally {
+              Dismount-DiskImage -ImagePath $isoPath -ErrorAction SilentlyContinue
+              Remove-Item $isoPath -Force -ErrorAction SilentlyContinue
+            }
           }
           foreach ($fontFile in @('simfang.ttf', 'times.ttf')) {
             if (!(Test-Path (Join-Path $fontDirectory $fontFile))) { throw "Required PDF font missing: $fontFile" }
