@@ -49,16 +49,13 @@ jobs:
         shell: bash
         run: |
           python -u - <<'PYTHON'
-          import hashlib, io, pathlib, plistlib, subprocess, zipfile
-          catalogue = pathlib.Path('/System/Library/AssetsV2/com_apple_MobileAsset_Font7/com_apple_MobileAsset_Font7.xml')
-          assets = plistlib.loads(catalogue.read_bytes())['Assets']
-          asset = next(a for a in assets if any(f.get('PostScriptFontName') == 'STFangsong' for f in a.get('FontInfo4', [])))
-          url = asset['__BaseURL'] + asset['__RelativePath']
-          if not url.startswith('https://updates.cdn-apple.com/'):
-              raise RuntimeError('Unexpected Apple font asset origin')
+          import hashlib, io, pathlib, subprocess, zipfile
+          # Pinned STFangsong asset and archive digest from Apple's Font7 catalogue.
+          url = 'https://updates.cdn-apple.com/2022/mobileassets/071-94074/A35B26C1-991C-4C22-B709-5C253473EE88/com_apple_MobileAsset_Font7/1821952872c81043711aab6910052b65da8edf2c.zip'
+          expected_sha1 = '69df5c0af8793167ac5c31c031f5a2e2ea1e84e0'
           print('Downloading Apple system font: STFangsong', flush=True)
           data = subprocess.check_output(['curl', '--fail', '--location', '--retry', '2', '--max-time', '90', url])
-          if asset['_MeasurementAlgorithm'] != 'SHA-1' or hashlib.sha1(data).digest() != asset['_Measurement']:
+          if hashlib.sha1(data).hexdigest() != expected_sha1:
               raise RuntimeError('Apple font asset checksum mismatch')
           destination = pathlib.Path.home() / 'Library/Fonts'
           destination.mkdir(parents=True, exist_ok=True)
