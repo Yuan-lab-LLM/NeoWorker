@@ -41,6 +41,39 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+      # Apple supplies these downloadable system fonts; keep them on the runner,
+      # never redistribute proprietary font files inside the application.
+      - name: Prepare required macOS PDF fonts
+        if: runner.os == 'macOS'
+        timeout-minutes: 6
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/neoworker-pdf-fonts.swift" <<'SWIFT'
+          import Foundation
+          import CoreText
+          
+          let names = ["STFangsong", "TimesNewRomanPSMT"]
+          func available(_ name: String) -> Bool {
+              let font = CTFontCreateWithName(name as CFString, 14, nil)
+              return CTFontCopyPostScriptName(font) as String == name
+          }
+          for name in names {
+              if available(name) { print("Available: \(name)"); continue }
+              let descriptor = CTFontDescriptorCreateWithAttributes([kCTFontNameAttribute: name] as CFDictionary)
+              let finished = DispatchSemaphore(value: 0)
+              let started = CTFontDescriptorMatchFontDescriptorsWithProgressHandler([descriptor] as CFArray, nil) { state, progress in
+                  if state == .didFailWithError { print("Font download failed: \(progress)"); finished.signal() }
+                  if state == .didFinish { finished.signal() }
+                  return true
+              }
+              guard started, finished.wait(timeout: .now() + 240) == .success, available(name) else {
+                  fputs("Required PDF font unavailable: \(name)\n", stderr)
+                  exit(1)
+              }
+              print("Downloaded system font: \(name)")
+          }
+          SWIFT
+          swift "$RUNNER_TEMP/neoworker-pdf-fonts.swift"
       - name: Verify tag, version and architecture
         shell: bash
         run: |
