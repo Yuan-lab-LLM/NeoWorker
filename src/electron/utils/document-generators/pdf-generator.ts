@@ -518,6 +518,22 @@ async function renderPdfWithPlaywright(
   }
 }
 
+/** Chromium may emit CJK glyphs as embedded Type 3 programs instead of a font file. */
+export function hasPdfUnicodeFontResources(pdfStructure: string): boolean {
+  const embeddedCidFont = pdfStructure.includes("/ToUnicode") &&
+    pdfStructure.includes("/Identity-H") && /\/FontFile[23]?\b/.test(pdfStructure);
+  if (embeddedCidFont) return true;
+
+  // Keep the Unicode map and glyph programs associated with the same font.
+  // Final text extraction and page rendering below still validate their content.
+  return pdfStructure.split(/\bendobj\b/).some((object) =>
+    /\/Type\s*\/Font\b/.test(object) &&
+    /\/Subtype\s*\/Type3\b/.test(object) &&
+    /\/ToUnicode\s+\d+\s+\d+\s+R\b/.test(object) &&
+    /\/CharProcs\s*<<\s*\/[^\s/<>]+\s+\d+\s+\d+\s+R\b/.test(object),
+  );
+}
+
 /**
  * Render and validate a real PDF. Never return HTML for a PDF request and
  * never publish an unvalidated file.
@@ -558,15 +574,12 @@ export async function generatePDF(
     const integrity = assessPdfTextIntegrity(expectedText, renderResult.renderedText);
     if (!integrity.passed) throw new Error(integrity.message);
 
-    // Chromium includes an Identity-H CID font and ToUnicode map for CJK text.
-    // These final-byte checks prevent a regression to the old PDFKit/Helvetica
-    // path, which produced a file but omitted Unicode font resources entirely.
+    // Require embedded Unicode resources, including Chromium's Type 3 output
+    // for macOS STFangsong. Reject the old PDFKit/Helvetica corruption path.
     const pdfStructure = file.toString("latin1");
     if (
       integrity.expectedCjkCharacters >= 8 &&
-      (!pdfStructure.includes("/ToUnicode") ||
-        !pdfStructure.includes("/Identity-H") ||
-        !/\/FontFile[23]?\b/.test(pdfStructure))
+      !hasPdfUnicodeFontResources(pdfStructure)
     ) {
       throw new Error("Final PDF does not embed the Unicode font resources required for CJK text.");
     }

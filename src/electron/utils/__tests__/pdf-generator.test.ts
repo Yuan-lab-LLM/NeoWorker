@@ -4,7 +4,24 @@ import {
   assertPdfHeadingsPresent,
   buildPDFHTML,
   contentBlocksToMarkdown,
+  hasPdfUnicodeFontResources,
 } from "../document-generators/pdf-generator";
+
+describe("PDF Unicode font resources", () => {
+  const type3 = "4 0 obj <</Type /Font /Subtype /Type3 /ToUnicode 41 0 R /CharProcs <</g0 39 0 R /g2C0F 40 0 R>>>> endobj";
+
+  it("accepts macOS STFangsong glyph programs without CID font-file entries", () => {
+    expect(hasPdfUnicodeFontResources(type3)).toBe(true);
+    expect(hasPdfUnicodeFontResources("/ToUnicode 3 0 R /Identity-H /FontFile2 4 0 R")).toBe(true);
+  });
+
+  it("rejects missing glyph programs, missing Unicode maps and unrelated font maps", () => {
+    expect(hasPdfUnicodeFontResources(type3.replace(/\/CharProcs.*?endobj/, "endobj"))).toBe(false);
+    expect(hasPdfUnicodeFontResources(type3.replace("/ToUnicode 41 0 R", ""))).toBe(false);
+    expect(hasPdfUnicodeFontResources(type3.replace("/ToUnicode 41 0 R", "") + " 5 0 obj <</ToUnicode 41 0 R>> endobj")).toBe(false);
+    expect(hasPdfUnicodeFontResources("4 0 obj <</Type /Font /Subtype /Type1 /BaseFont /Helvetica>> endobj")).toBe(false);
+  });
+});
 
 describe("PDF generator HTML", () => {
   it("applies an explicit color to document titles and headings", () => {

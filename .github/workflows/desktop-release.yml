@@ -152,6 +152,13 @@ jobs:
           python scripts/qa/test_presentation_template_edit.py
           node scripts/qa/presentation-content-edit.mjs
           node scripts/qa/presentation-template-fill.mjs
+      - name: Verify real PDF export before packaging
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build:electron
+          NEOWORKER_QA_ASAR="$GITHUB_WORKSPACE" node node_modules/electron/cli.js scripts/qa/pdf-delivery-smoke.cjs
+          NEOWORKER_QA_ASAR="$GITHUB_WORKSPACE" node node_modules/electron/cli.js scripts/qa/pdf-math-smoke.cjs
       - name: Build macOS installer and verify launch
         if: runner.os == 'macOS'
         run: npm run package:mac:unsigned
