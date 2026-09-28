@@ -6,7 +6,7 @@ on:
       expected_version:
         description: "Expected package version"
         required: true
-        default: "0.2.3"
+        default: "0.2.4"
 
 permissions:
   contents: read

@@ -40,15 +40,15 @@
 </p>
 
 <p align="center">
-  <strong>Download NeoWorker · v0.2.3</strong>
+  <strong>Download NeoWorker · v0.2.4</strong>
 </p>
 <p align="center">
-  <a href="https://github.com/Yuan-lab-LLM/NeoWorker/releases/download/v0.2.3/NeoWorker-0.2.3-arm64.dmg"><img src="./assets/readme/download-macos.svg" alt="Download for macOS — Apple Silicon, DMG" width="248" height="72"></a>
+  <a href="https://github.com/Yuan-lab-LLM/NeoWorker/releases/download/v0.2.4/NeoWorker-0.2.4-arm64.dmg"><img src="./assets/readme/download-macos.svg" alt="Download for macOS — Apple Silicon, DMG" width="248" height="72"></a>
   &nbsp;&nbsp;
-  <a href="https://github.com/Yuan-lab-LLM/NeoWorker/releases/download/v0.2.3/NeoWorker-0.2.3-windows-x64-setup.exe"><img src="./assets/readme/download-windows.svg" alt="Download for Windows — x64, EXE" width="248" height="72"></a>
+  <a href="https://github.com/Yuan-lab-LLM/NeoWorker/releases/download/v0.2.4/NeoWorker-0.2.4-windows-x64-setup.exe"><img src="./assets/readme/download-windows.svg" alt="Download for Windows — x64, EXE" width="248" height="72"></a>
 </p>
 <p align="center">
-  <sub><a href="https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.2.3">Release notes &amp; other platforms</a></sub>
+  <sub><a href="https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.2.4">Release notes &amp; other platforms</a></sub>
 </p>
 
 ## What is NeoWorker?
@@ -99,7 +99,7 @@ NeoWorker focuses on turning AI from a conversational assistant into a personal 
 
 ## Current version
 
-The current release is **<code>v0.2.3</code>** (package version <code>0.2.3</code>). This release improves PDF translation and delivery: complete text extraction, built-in original-figure rendering, validated image embedding on both desktop platforms, readable Chinese headings, and consistent final PDF cards. Intermediate manuscripts and superseded exports stay out of the final deliverables list.
+The current release is **<code>v0.2.4</code>** (package version <code>0.2.4</code>). This release adds News Feed, an integrated reading assistant and a reading-notes workspace, improves PDF exports and delivery checks, and refines navigation and completed execution history.
 
 The official GitHub Release includes:
 
@@ -113,22 +113,22 @@ See the [changelog](./docs/CHANGELOG.md) for version history.
 
 ### Download the desktop application
 
-For a prebuilt installer, use the official [NeoWorker v0.2.3 Release](https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.2.3).
+For a prebuilt installer, use the official [NeoWorker v0.2.4 Release](https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.2.4).
 
 | Platform | Package | Installation |
 | --- | --- | --- |
-| **macOS (Apple Silicon)** | <code>NeoWorker-0.2.3-arm64.dmg</code> | Open the disk image and drag NeoWorker into Applications. |
-| **Windows (x64)** | <code>NeoWorker-0.2.3-windows-x64-setup.exe</code> | Run the installer and follow the setup prompts. |
+| **macOS (Apple Silicon)** | <code>NeoWorker-0.2.4-arm64.dmg</code> | Open the disk image and drag NeoWorker into Applications. |
+| **Windows (x64)** | <code>NeoWorker-0.2.4-windows-x64-setup.exe</code> | Run the installer and follow the setup prompts. |
 
 #### Verify the download
 
-For the desktop packages, `latest-mac.yml` and `latest.yml` are the Electron updater manifests. Confirm that their version and file names match `0.2.3` before opening the installer.
+For the desktop packages, `latest-mac.yml` and `latest.yml` are the Electron updater manifests. Confirm that their version and file names match `0.2.4` before opening the installer.
 
 #### Install on macOS
 
-NeoWorker v0.2.3 for macOS is an unsigned Apple Silicon build. The first launch may therefore need a one-time Gatekeeper approval for this app.
+NeoWorker v0.2.4 for macOS is an unsigned Apple Silicon build. The first launch may therefore need a one-time Gatekeeper approval for this app.
 
-1. Download <code>NeoWorker-0.2.3-arm64.dmg</code> from the official [NeoWorker v0.2.3 Release](https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.2.3) page.
+1. Download <code>NeoWorker-0.2.4-arm64.dmg</code> from the official [NeoWorker v0.2.4 Release](https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.2.4) page.
 2. Open the downloaded disk image, then drag **NeoWorker** into **Applications**.
 
    <p align="left">
@@ -177,7 +177,7 @@ If macOS says NeoWorker **will damage your computer**, do not bypass that warnin
 
 #### Install on Windows
 
-1. Download <code>NeoWorker-0.2.3-windows-x64-setup.exe</code> from the official [NeoWorker v0.2.3 Release](https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.2.3) page.
+1. Download <code>NeoWorker-0.2.4-windows-x64-setup.exe</code> from the official [NeoWorker v0.2.4 Release](https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.2.4) page.
 2. Double-click the installer and follow the setup prompts.
 3. If Windows SmartScreen displays **Windows protected your PC**, confirm that the file name is the NeoWorker installer from this Release, click **More info**, then click **Run anyway**.
 4. Finish setup and launch **NeoWorker** from the Start menu or desktop shortcut.
@@ -220,9 +220,9 @@ The CLI and desktop app share local configuration, model routing, workspaces, Sk
 
 ## What NeoWorker can do
 
-The current source also fixes PDF/Excel preview crashes when a task contains multiple revisions, preserves explicitly selected previews, and keeps Chinese source commentary outside automatically detected links. These fixes are included in local test builds, not the existing published v0.2.3 installers.
+The current source also fixes PDF/Excel preview crashes when a task contains multiple revisions, preserves explicitly selected previews, and keeps Chinese source commentary outside automatically detected links. These fixes are included in v0.2.4.
 
-### News Feed (source preview)
+### News Feed
 
 The current source tree adds **News Feed** to the sidebar. Discover recent arXiv papers, Hugging Face daily papers, and active GitHub repositories, and Hugging Face models and datasets through their official public APIs. Preferences have a unified entry with general defaults, six category profiles, and optional source overrides. Category interests and time windows apply to inheriting sources; explicit source choices take precedence and can be reset to inheritance. Disable individual sources to stop fetching while retaining bookmarks. arXiv supports category filtering; GitHub supports language and minimum stars; Hugging Face can show only topic matches within its daily selection. Filter and search fetched results, and keep local bookmarks across restarts. Official locally bundled logos identify all directory sources in cards, filters and preferences. Compact source panels, topic labels, and a single blue action accent organize the responsive three-column feed.
 
@@ -230,15 +230,15 @@ The feed now starts with six topic categories: Research, Open source, Technology
 
 New public feeds include Nature Machine Learning, MIT AI, Hacker News discussions, Cnblogs, Cloudflare Blog, GitHub Blog, FT Chinese, Economic Observer, ECB, and MIT Sloan. Hacker News cards link to the community discussion; outbound articles remain accessible there. Source availability was checked on 2026-09-26; network restrictions and publisher changes can still affect refreshes.
 
-Cards use one consistent, cover-free layout: official source mark and date, title, authors, summary, and aligned Read / Translate / Research actions. White cards and soft-blue source panels keep the feed calm; small source-colored labels distinguish publishers. Browsing cards does not fetch thumbnails or download PDFs for covers.
+The default feed uses one consistent, cover-free layout: official source mark and date, title, authors, summary, and aligned Read / Translate / Research actions. White cards and soft-blue source panels keep the feed calm; small source-colored labels distinguish publishers. Optional image browsing displays articles with usable publisher images separately, with a larger image viewer.
 
 **Show in Chinese** translates visible English titles and summaries in place using your configured model, with a switch back to originals. Translation is opt-in, may incur model charges, and caches successful results locally across restarts. Repository/model/dataset identifiers and links stay unchanged. Cards have equal heights and aligned footers; cards without source summaries omit empty detail controls, and no abstract is invented.
 
-Click a card title or PDF to open NeoWorker's existing browser workbench beside the feed, with tabs and fullscreen support; **Source** opens the system default browser. Entering the feed only reads local cached results. Use **Refresh** to fetch new content; re-entry observes an already-running refresh without starting another. For publisher cards missing a summary, **Fetch summary** retrieves the public page description or a labeled article excerpt without model calls. Successful results are cached; restricted or unavailable pages display a clear status.
+Click a card title or PDF to open NeoWorker's existing browser workbench beside the feed, with tabs and fullscreen support; **Source** and links within pages also stay inside NeoWorker. Entering the feed only reads local cached results. Use **Refresh** to fetch new content; re-entry observes an already-running refresh without starting another. For publisher cards missing a summary, the app automatically retrieves the public page description or a labeled article excerpt for visible cards without model calls. Successful results are cached; restricted or unavailable pages display a clear status.
 
 Each card links to its source and, for papers, the PDF. **Explain**, **Translate**, and **Research** prepare a new task draft for your configured model. Paper translation requests a complete PDF with figures, tables, and correctly typeset equations; repository translation targets the README. Review and send the draft to start the task. Drafts show a short editable request and a compact source card with its official logo and title. Task requirements and source/PDF links are available in a collapsed section; full context is sent with the request. Sent messages use the same compact presentation. Removing the source card also removes its task context. Source builds now render figure crops directly from the PDF at export resolution (targeting at least 2400 pixels wide), rather than enlarging overview screenshots. PDF export checks the effective printed resolution of large raster images; translation delivery also rejects low-resolution figures. The target is 300 effective DPI; low-resolution originals still require an explicit limitation.
 
-Ranking combines literal topic matches and recency; it is not a scientific quality assessment. Source dates and cache freshness are visible. Hugging Face Papers is a daily selection; Models and Datasets fetch up to 60 public entries each, with independent trending, recent-update or download ordering and time/topic filters, and public API limits or network restrictions may affect availability. See [News Feed](./docs/paper-news.md) for scope and behavior. This feature is not included in the existing v0.2.3 installers.
+Ranking combines literal topic matches and recency; it is not a scientific quality assessment. Source dates and cache freshness are visible. Hugging Face Papers is a daily selection; Models and Datasets fetch up to 60 public entries each, with independent trending, recent-update or download ordering and time/topic filters, and public API limits or network restrictions may affect availability. See [News Feed](./docs/paper-news.md) for scope and behavior. News Feed is included in v0.2.4.
 
 ### Agent Runtime
 

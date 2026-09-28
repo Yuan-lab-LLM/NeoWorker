@@ -7,30 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-09-28
+
 ### Added
 
-- Organize News Feed into six topic categories with combined category/source/search/bookmark filters and a 26-provider directory. Mark the three shipping adapters as connected and other providers as planned; preserve cover-free three-column browsing and independent source preferences.
+- News Feed with six topic categories, a 34-source directory, public research and industry feeds, bookmarks, search, and inherited category/source preferences.
+- An integrated browser reading assistant with selected-text translation, explanations, questions, and a searchable reading-notes workspace.
+- Optional image browsing for articles with usable publisher images, separate from the consistent text-card feed.
 
-- Simplified News Feed to consistent cover-free cards with official source marks, restrained source-color labels, soft-blue accents, and aligned reading/translation/research actions. Remove thumbnail loading from feed browsing; retain independent source settings and responsive three-column browsing.
+### Changed
 
-- Independent source settings: arXiv topics/category, GitHub topics/language/minimum stars, and Hugging Face interests/matching-only, each with its own time window. Preserve other sources and bookmarks when saving, and migrate legacy shared preferences.
-- Renamed the feed to News Feed (资讯动态) to accommodate papers, projects, and future content types.
-- Redesigned News Feed with official arXiv, Hugging Face, and GitHub brand assets, compact source panels, a responsive three-column feed, topic chips, and a single blue action accent.
-
-- News Feed with official arXiv, Hugging Face daily papers, and GitHub repository feeds, research topics, source filters, search, and persistent bookmarks.
-- Paper and repository task drafts for reading, translation, and research, with source links and explicit PDF figure/equation preservation requirements.
-- Transparent topic/recency ranking, per-source cache freshness and errors, shared refresh state across navigation, and Chinese/English interfaces.
+- Replace large topic cards with compact horizontal navigation and refine sidebar spacing, typography, and icon proportions.
+- Automatically fetch missing summaries for visible news cards and cache successful public descriptions or excerpts.
+- Keep article, paper, PDF and embedded-page links inside the NeoWorker browser.
+- Collapse completed execution history and intermediate output to keep final answers easier to read.
 
 ### Fixed
 
-- Render PDF figure regions directly at export resolution instead of cropping and enlarging low-DPI overview images. Expose DPI and usable print width, bound raster memory, and reject large low-resolution raster figures using their final PDF transforms. Instruct translation tasks to rerender source figures instead of upscaling previews.
-
-- Stop PDF and spreadsheet previews from cycling between output revisions and crashing the renderer. Keep explicitly selected files open until a new preview follow-up completes.
-- Exclude trailing Chinese punctuation and prose from implicit source links while preserving explicitly authored Unicode URLs.
-- Distinguish feed access denial from rate limiting, retain cached results, and respect persisted per-source retry deadlines.
-
-- Typeset mathematical formulas in generated PDFs with offline fonts, preserving fractions, scripts, sums, matrices and equation numbers. Reject invalid formulas instead of delivering broken notation.
-- Preserve source equations during paper translation; use original equation crops when transcription cannot be verified.
+- Improve reading-pane resizing, boundaries, controls, PDF selection actions and toolbar positioning.
+- Improve PDF export typography, equation rendering, figure resolution and final-delivery validation.
+- Preserve selected PDF/Excel previews across output revisions and handle source-link punctuation consistently.
+- Retain cached feeds across navigation, expose source failures, and respect retry deadlines.
 
 ## [0.2.3] - 2026-09-24
 

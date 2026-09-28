@@ -40,15 +40,15 @@
 </p>
 
 <p align="center">
-  <strong>下载 NeoWorker · v0.2.3</strong>
+  <strong>下载 NeoWorker · v0.2.4</strong>
 </p>
 <p align="center">
-  <a href="https://github.com/Yuan-lab-LLM/NeoWorker/releases/download/v0.2.3/NeoWorker-0.2.3-arm64.dmg"><img src="../assets/readme/download-macos.svg" alt="下载 macOS 版 — Apple 芯片，DMG" width="248" height="72"></a>
+  <a href="https://github.com/Yuan-lab-LLM/NeoWorker/releases/download/v0.2.4/NeoWorker-0.2.4-arm64.dmg"><img src="../assets/readme/download-macos.svg" alt="下载 macOS 版 — Apple 芯片，DMG" width="248" height="72"></a>
   &nbsp;&nbsp;
-  <a href="https://github.com/Yuan-lab-LLM/NeoWorker/releases/download/v0.2.3/NeoWorker-0.2.3-windows-x64-setup.exe"><img src="../assets/readme/download-windows.svg" alt="下载 Windows 版 — x64，EXE" width="248" height="72"></a>
+  <a href="https://github.com/Yuan-lab-LLM/NeoWorker/releases/download/v0.2.4/NeoWorker-0.2.4-windows-x64-setup.exe"><img src="../assets/readme/download-windows.svg" alt="下载 Windows 版 — x64，EXE" width="248" height="72"></a>
 </p>
 <p align="center">
-  <sub><a href="https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.2.3">更新说明与其他平台</a></sub>
+  <sub><a href="https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.2.4">更新说明与其他平台</a></sub>
 </p>
 
 ## NeoWorker 是什么？
@@ -99,7 +99,7 @@ NeoWorker 聚焦把 AI 从对话助手升级为能够持续理解上下文、执
 
 ## 当前版本
 
-当前公开版本为 **`v0.2.3`**（安装包语义版本为 `0.2.3`），与 NeoWorker 应用内显示一致。本次更新改进 PDF 翻译与交付：完整提取正文、内置原图渲染、校验两端的图片嵌入、修复中文标题缺字，并统一最终 PDF 卡片。中间稿和旧版导出文件不再混入最终交付列表。GitHub Release 提供：
+当前公开版本为 **`v0.2.4`**（安装包语义版本为 `0.2.4`），与 NeoWorker 应用内显示一致。本次更新加入资讯动态、内置阅读助手和阅读笔记工作区，优化 PDF 导出与交付校验，并调整导航比例和执行记录折叠。GitHub Release 提供：
 
 - macOS Apple Silicon `.dmg`
 - Windows `.exe` 安装程序
@@ -115,18 +115,18 @@ NeoWorker 聚焦把 AI 从对话助手升级为能够持续理解上下文、执
 
 | 平台 | 安装包 | 安装方式 |
 | --- | --- | --- |
-| **macOS（Apple Silicon）** | `NeoWorker-0.2.3-arm64.dmg` | 打开磁盘映像，将 NeoWorker 拖入“应用程序”。 |
-| **Windows（x64）** | `NeoWorker-0.2.3-windows-x64-setup.exe` | 运行安装程序并按提示完成安装。 |
+| **macOS（Apple Silicon）** | `NeoWorker-0.2.4-arm64.dmg` | 打开磁盘映像，将 NeoWorker 拖入“应用程序”。 |
+| **Windows（x64）** | `NeoWorker-0.2.4-windows-x64-setup.exe` | 运行安装程序并按提示完成安装。 |
 
 #### 校验下载文件
 
-桌面安装包使用 Electron 更新清单 `latest-mac.yml` 和 `latest.yml`。打开安装包前，请确认清单中的版本和文件名均为 `0.2.3`。
+桌面安装包使用 Electron 更新清单 `latest-mac.yml` 和 `latest.yml`。打开安装包前，请确认清单中的版本和文件名均为 `0.2.4`。
 
 #### macOS 安装须知
 
-NeoWorker v0.2.3 的 macOS 安装包适用于 Apple Silicon，当前为未签名构建，因此首次启动时可能需要针对 NeoWorker 完成一次 Gatekeeper 放行。
+NeoWorker v0.2.4 的 macOS 安装包适用于 Apple Silicon，当前为未签名构建，因此首次启动时可能需要针对 NeoWorker 完成一次 Gatekeeper 放行。
 
-1. 从官方 [NeoWorker v0.2.3 Release](https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.2.3) 页面下载 `NeoWorker-0.2.3-arm64.dmg`。
+1. 从官方 [NeoWorker v0.2.4 Release](https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.2.4) 页面下载 `NeoWorker-0.2.4-arm64.dmg`。
 2. 双击打开下载的磁盘映像，将 **NeoWorker** 拖到 **应用程序（Applications）** 文件夹。
 
    <p align="left">
@@ -175,7 +175,7 @@ open "/Applications/NeoWorker.app"
 
 #### Windows 安装须知
 
-1. 从官方 [NeoWorker v0.2.3 Release](https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.2.3) 页面下载 `NeoWorker-0.2.3-windows-x64-setup.exe`。
+1. 从官方 [NeoWorker v0.2.4 Release](https://github.com/Yuan-lab-LLM/NeoWorker/releases/tag/v0.2.4) 页面下载 `NeoWorker-0.2.4-windows-x64-setup.exe`。
 2. 双击安装程序，按界面提示完成安装。
 3. 如果 Windows SmartScreen 显示**“Windows 已保护你的电脑”**，先确认文件名是本 Release 提供的 NeoWorker 安装程序，再点击**“更多信息” → “仍要运行”**。
 4. 安装完成后，从开始菜单或桌面快捷方式启动 **NeoWorker**。
@@ -218,13 +218,13 @@ CLI 与桌面端共享本地配置、模型路由、工作区、Skills 和 MCP �
 
 ## NeoWorker 能做什么
 
-当前源码还修复了同一任务包含多个修订文件时 PDF/Excel 预览反复切换导致的崩溃，保留用户明确选择的预览文件，并避免来源链接混入后续中文说明。这些修复包含在本地测试包中，尚未包含在已发布的 v0.2.3 安装包中。
+当前源码还修复了同一任务包含多个修订文件时 PDF/Excel 预览反复切换导致的崩溃，保留用户明确选择的预览文件，并避免来源链接混入后续中文说明。这些修复已包含在 v0.2.4 中。
 
-### 资讯动态（源码预览）
+### 资讯动态
 
 当前源码在侧边栏新增**资讯动态**，通过官方公开接口获取 arXiv 论文、Hugging Face 每日精选和近期活跃的 GitHub 项目。通用、分类和来源偏好可以分别设置；arXiv、Hugging Face Papers 和 GitHub 可设置最多五个关注词和时间范围：arXiv 可指定学科分类，GitHub 可指定编程语言和最低 Star 数，Hugging Face 可仅展示每日精选中匹配关注词的内容。旧版共用设置会自动迁移，保存时只刷新当前来源，保留其他来源缓存和收藏。支持来源筛选、已获取内容搜索，以及重启后保留的本地收藏。来源使用 arXiv、Hugging Face 和 GitHub 官方品牌标识，来源面板沿用自动化页面的统一浅蓝底，论文卡片和标签保持中性色，主要操作和选中状态使用蓝色。宽屏每行展示三张卡片，窄窗口自动调整列数，支持深浅主题。
 
-点击卡片标题会在 NeoWorker 内置浏览器打开，返回后保留资讯页状态；点击**原文**使用系统默认浏览器。新闻卡片缺少摘要时，可点**获取摘要**读取公开网页摘要或正文节选并缓存，无需调用模型或配置账号。访问受限或未找到内容时会明确提示。
+点击卡片标题会在 NeoWorker 内置浏览器打开，返回后保留资讯页状态；点击**原文**及页面中的链接也会留在 NeoWorker 内置浏览器。新闻卡片缺少摘要时，会自动为可见卡片读取公开网页摘要或正文节选并缓存，无需调用模型或配置账号。访问受限或未找到内容时会明确提示。
 
 点击**中文显示**，使用已配置的模型按需翻译可见卡片的英文标题和摘要，随时切回原文。该操作可能产生模型费用，成功译文会在本地缓存并跨重启复用；项目、模型和数据集标识及链接保持原样。没有摘要的内容采用紧凑卡片，不再显示空白摘要区域和无内容的详情入口，也不会凭标题编造摘要。底部“翻译”仍用于创建全文翻译任务。
 
@@ -232,11 +232,11 @@ CLI 与桌面端共享本地配置、模型路由、工作区、Skills 和 MCP �
 
 本次新增 Nature 机器学习、MIT 人工智能、Hacker News、博客园、Cloudflare Blog、GitHub Blog、FT 中文网、经济观察网、欧洲央行和 MIT 斯隆管理学院，无需账号或 API 密钥。Hacker News 展示社区讨论入口；付费来源仅获取公开元数据与摘要。新增来源已于 2026-09-26 测试，实际获取仍受网络与来源网站变化影响。
 
-卡片统一采用无封面布局：来源官方 Logo 与日期、标题、作者、摘要，以及底部对齐的阅读、翻译和研究操作。白底卡片搭配浅蓝来源面板，仅用小面积来源色标签区分内容来源。浏览资讯卡片不再请求缩略图或为封面下载 PDF。
+默认资讯卡片统一采用无封面布局：来源官方 Logo 与日期、标题、作者、摘要，以及底部对齐的阅读、翻译和研究操作。白底卡片搭配浅蓝来源面板，仅用小面积来源色标签区分内容来源。可选的图文浏览单独展示有合适原文配图的文章，并支持大图查看。
 
 卡片提供原始来源和论文 PDF 链接。**AI 解读、全文翻译、深入研究**会准备新的任务草稿，由你确认发送后使用当前配置的模型执行。输入框只显示简短可编辑的指令；来源以带官方 Logo 和标题的卡片展示，任务要求及原文/PDF 链接默认折叠。完整上下文仍随消息发送，发送后的消息也使用紧凑卡片；移除来源卡片会同时移除附带要求。论文翻译要求保留图片、表格和公式并输出完整 PDF；项目翻译针对 README。 当前源码会直接从原 PDF 区域渲染高清图，裁剪图目标宽度至少 2400 像素，不再依赖放大页面预览截图。导出时检查大图在最终排版尺寸下的有效清晰度，翻译交付也会拦截低清配图；目标为 300 DPI，原图本身不清晰时仍需说明限制。
 
-推荐排序依据关键词匹配与时间，不代表学术质量。页面展示来源时间和缓存获取时间；Hugging Face 每日精选并非全量主题检索，公开接口限流和网络条件可能影响获取。此功能尚未包含在已有 v0.2.3 安装包中。
+推荐排序依据关键词匹配与时间，不代表学术质量。页面展示来源时间和缓存获取时间；Hugging Face 每日精选并非全量主题检索，公开接口限流和网络条件可能影响获取。此功能已包含在 v0.2.4 中。
 
 ### Agent Runtime
 

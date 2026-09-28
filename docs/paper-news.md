@@ -1,6 +1,6 @@
 # News Feed
 
-News Feed is available in the current source tree. Previously published v0.2.3 release installers do not include it; local test builds can differ.
+News Feed is included in v0.2.4 and newer desktop releases.
 
 ## Topic navigation and source directory
 

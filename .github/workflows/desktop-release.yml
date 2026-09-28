@@ -6,7 +6,7 @@ on:
       release_tag:
         description: Existing source tag to build and publish
         required: true
-        default: v0.2.3
+        default: v0.2.4
 
 permissions:
   contents: read
