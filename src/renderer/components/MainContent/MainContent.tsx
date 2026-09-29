@@ -1,3 +1,4 @@
+import { workspaceDisplayName } from "../../utils/workspace-identity";
 import { serializeNewsTaskMessage, type NewsTaskContext } from "../../../shared/news-task-draft";
 import { NewsTaskSourceCard } from "../NewsTaskSourceCard";
 import { ExecutionProcessDisclosure } from "./ExecutionProcessDisclosure";
@@ -559,9 +560,9 @@ function getLocalizedWorkspaceStatusFolderLabel(workspace?: Workspace | null): s
   return label;
 }
 
-function getLocalizedSessionWorkspaceLabel(workspace?: Workspace | null): string {
+function getLocalizedSessionWorkspaceLabel(workspace?: Workspace | null, title?: string): string {
   if (workspace?.isTemp || isTempWorkspaceId(workspace?.id)) {
-    return translate("composer.temporaryWorkspace", "Temporary workspace");
+    return workspaceDisplayName(workspace!, title);
   }
   return workspace?.name || getLocalizedWorkspaceStatusFolderLabel(workspace);
 }
@@ -13844,8 +13845,8 @@ function MainContentComponent({
           <div className="input-status-left">
             <div
               className="input-status-workspace input-status-workspace--readonly"
-              title={getLocalizedSessionWorkspaceLabel(workspace)}
-              aria-label={`${translate("composer.currentWorkspace", "Current workspace")}: ${getLocalizedSessionWorkspaceLabel(workspace)}`}
+              title={getLocalizedSessionWorkspaceLabel(workspace, task?.title)}
+              aria-label={`${translate("composer.currentWorkspace", "Current workspace")}: ${getLocalizedSessionWorkspaceLabel(workspace, task?.title)}`}
             >
               <svg
                 width="12"
@@ -13862,7 +13863,7 @@ function MainContentComponent({
               </svg>
               <span className="input-status-workspace-path">
                 {translate("composer.currentWorkspace", "Current workspace")} ·{" "}
-                {getLocalizedSessionWorkspaceLabel(workspace)}
+                {getLocalizedSessionWorkspaceLabel(workspace, task?.title)}
               </span>
             </div>
           </div>

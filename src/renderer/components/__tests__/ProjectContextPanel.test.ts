@@ -669,7 +669,7 @@ describe("ProjectContextPanel", () => {
     );
   });
 
-  it("restores the selected tab and scroll position for each session", () => {
+  it("defaults to outputs and only restores scroll saved for that tab", () => {
     const source = readFileSync(sourcePath, "utf8");
 
     expect(source).toContain("const projectPanelStateCache = new Map<");
@@ -677,8 +677,9 @@ describe("ProjectContextPanel", () => {
     expect(source).toContain('workspace?.id || "no-workspace"');
     expect(source).toContain('task?.sessionId || task?.id || "no-task"');
     expect(source).toContain(
-      "panelBodyRef.current.scrollTop = cached?.scrollTop || 0",
+      'panelBodyRef.current.scrollTop = cached?.activeTab === "outputs" ? cached.scrollTop : 0',
     );
+    expect(source).toContain('const nextTab = "outputs"');
     expect(source).toContain("scrollTop: event.currentTarget.scrollTop");
   });
 

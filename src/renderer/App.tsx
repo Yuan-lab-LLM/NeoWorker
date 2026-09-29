@@ -2211,6 +2211,8 @@ const SelectedTaskWorkspaceView = memo(
           ) : !effectiveRightCollapsed && !remoteTaskView ? (
             <Suspense fallback={<RightPanelFallback />}>
               <ProjectContextPanel
+                key={`${rightPanelInput.task?.id || "draft"}:${rightPanelInput.workspace?.id || "loading"}`}
+                onSelectWorkspace={onSelectWorkspace}
                 task={rightPanelInput.task}
                 workspace={rightPanelInput.workspace}
                 projectId={projectId}
@@ -2244,6 +2246,8 @@ const SelectedTaskWorkspaceView = memo(
     prev.selectedTaskId === next.selectedTaskId &&
     prev.optimisticFollowUpStartedAt === next.optimisticFollowUpStartedAt &&
     prev.workspace?.path === next.workspace?.path &&
+    prev.workspace?.id === next.workspace?.id &&
+    prev.workspace?.name === next.workspace?.name &&
     prev.events === next.events &&
     prev.replayControls === next.replayControls &&
     prev.sharedTaskEventUi === next.sharedTaskEventUi &&
@@ -2518,6 +2522,7 @@ export function App() {
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(
     null,
   );
+  const workspaceOpenSequenceRef = useRef(0);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [hasMoreTasks, setHasMoreTasks] = useState(true);
@@ -3675,10 +3680,11 @@ export function App() {
     if (!window.electronAPI?.getTempWorkspace) return;
 
     const initWorkspace = async () => {
+      const sequence = ++workspaceOpenSequenceRef.current;
       if (!currentWorkspace) {
         try {
-          const tempWorkspace = await window.electronAPI.getTempWorkspace();
-          setCurrentWorkspace(tempWorkspace);
+          const tempWorkspace = await window.electronAPI.getTempWorkspace({ createNew: true });
+          if (sequence === workspaceOpenSequenceRef.current) setCurrentWorkspace(tempWorkspace);
         } catch (error) {
           console.error("Failed to initialize temp workspace:", error);
         }
@@ -3709,12 +3715,13 @@ export function App() {
     let cancelled = false;
 
     const loadTaskWorkspace = async () => {
+      const sequence = ++workspaceOpenSequenceRef.current;
       try {
-        let resolved: Workspace | null =
+        const resolved: Workspace | null =
           await window.electronAPI.selectWorkspace(selectedTask.workspaceId);
-        if (!resolved && isTempWorkspaceId(selectedTask.workspaceId)) {
-          resolved = await window.electronAPI.getTempWorkspace();
-        }
+        if (sequence !== workspaceOpenSequenceRef.current) return;
+        // Never substitute another session’s folder for a missing historical workspace.
+        if (!resolved && !cancelled) setCurrentWorkspace(null);
         if (!cancelled && resolved) {
           setCurrentWorkspace((prev) =>
             prev?.id === resolved.id ? prev : resolved,
@@ -5944,8 +5951,10 @@ export function App() {
       options?: { reassignSelectedTask?: boolean },
     ) => {
       let validatedWorkspace = workspace;
+      const sequence = ++workspaceOpenSequenceRef.current;
       try {
         const resolved = await window.electronAPI.selectWorkspace(workspace.id);
+        if (sequence !== workspaceOpenSequenceRef.current || selectedTaskIdRef.current !== selectedTaskId) return;
         if (!resolved) {
           throw new Error(`Workspace not found: ${workspace.id}`);
         }
@@ -5963,6 +5972,7 @@ export function App() {
       if (
         options?.reassignSelectedTask !== false &&
         selectedTaskId &&
+        tasksRef.current.find((task) => task.id === selectedTaskId)?.workspaceId !== validatedWorkspace.id &&
         !remoteTaskView &&
         window.electronAPI?.updateTaskWorkspace
       ) {
@@ -5996,10 +6006,12 @@ export function App() {
         }
       }
 
+      if (sequence !== workspaceOpenSequenceRef.current || selectedTaskIdRef.current !== selectedTaskId) return;
       if (currentProjectId) {
         try {
           const links =
             await window.electronAPI.listProjectWorkspaces(currentProjectId);
+          if (sequence !== workspaceOpenSequenceRef.current) return;
           if (!links.some((link) => link.workspaceId === validatedWorkspace.id)) {
             setCurrentProjectId(null);
           }
@@ -6008,7 +6020,7 @@ export function App() {
           setCurrentProjectId(null);
         }
       }
-      setCurrentWorkspace(validatedWorkspace);
+      if (sequence === workspaceOpenSequenceRef.current) setCurrentWorkspace(validatedWorkspace);
     },
     [addToast, currentProjectId, remoteTaskView, selectedTaskId],
   );
@@ -6798,7 +6810,8 @@ export function App() {
   const rightPanelInput = useMemo(
     () => ({
       task: rightPanelReplayTask,
-      workspace: currentWorkspace,
+      workspace: rightPanelReplayTask && currentWorkspace?.id !== rightPanelReplayTask.workspaceId
+        ? null : currentWorkspace,
       events: rightPanelEvents,
       sharedTaskEventUi: rightPanelSharedTaskEventUi,
       hasActiveChildren: replayControls.isReplayMode
@@ -7235,12 +7248,22 @@ export function App() {
   };
 
   const handleQuickTask = async (prompt: string) => {
-    if (!currentWorkspace) return;
-
+    const sequence = ++workspaceOpenSequenceRef.current;
     const title = prompt.slice(0, 50) + (prompt.length > 50 ? "..." : "");
     setCurrentView("main");
+    setCurrentWorkspace(null);
+    setCurrentProjectId(null);
+    setSelectedTaskId(null);
+    setEvents([]);
     clearRemoteTaskView();
-    await handleCreateTask(title, prompt);
+    try {
+      const workspace = await window.electronAPI.getTempWorkspace({ createNew: true });
+      if (!workspace || sequence !== workspaceOpenSequenceRef.current) return;
+      setCurrentWorkspace(workspace);
+      await handleCreateTask(title, prompt, undefined, undefined, workspace);
+    } catch (error) {
+      console.error("Failed to prepare quick task workspace:", error);
+    }
   };
 
   const handleOpenComposerDraft = async (
@@ -7248,10 +7271,16 @@ export function App() {
     skillContext?: { skillId?: string; skillLabel?: string; newsContext?: NewsTaskContext },
     workspaceOverride?: Workspace | null,
   ) => {
+    const sequence = ++workspaceOpenSequenceRef.current;
+    setCurrentWorkspace(null);
+    setSelectedTaskId(null);
+    setEvents([]);
+    clearRemoteTaskView();
     try {
       const workspace =
         workspaceOverride ||
         (await window.electronAPI.getTempWorkspace({ createNew: true }));
+      if (sequence !== workspaceOpenSequenceRef.current) return;
       composerDraftRequestIdRef.current += 1;
       setCurrentWorkspace(workspace);
       setCurrentProjectId(null);
@@ -7298,6 +7327,8 @@ export function App() {
   }, []);
 
   const handleNewSession = async () => {
+    const sequence = ++workspaceOpenSequenceRef.current;
+    setCurrentWorkspace(null);
     setCurrentView("main");
     setCurrentProjectId(null);
     setSelectedTaskId(null);
@@ -7307,7 +7338,7 @@ export function App() {
       const tempWorkspace = await window.electronAPI.getTempWorkspace({
         createNew: true,
       });
-      setCurrentWorkspace(tempWorkspace);
+      if (sequence === workspaceOpenSequenceRef.current) setCurrentWorkspace(tempWorkspace);
     } catch (error) {
       console.error(
         "Failed to switch to temp workspace for new session:",
@@ -7317,11 +7348,7 @@ export function App() {
   };
 
   const handleClearTaskView = () => {
-    setCurrentView("main");
-    setCurrentProjectId(null);
-    setSelectedTaskId(null);
-    setEvents([]);
-    clearRemoteTaskView();
+    void handleNewSession();
   };
 
   const handleModelChange = async (selection: {
@@ -7405,7 +7432,9 @@ export function App() {
     : undefined;
   const visibleRightPanelInput = effectiveRightCollapsed
     ? EMPTY_RIGHT_PANEL_INPUT
-    : deferredRightPanelInput;
+    : deferredRightPanelInput.task?.id === rightPanelInput.task?.id &&
+      deferredRightPanelInput.workspace?.id === rightPanelInput.workspace?.id
+      ? deferredRightPanelInput : rightPanelInput;
 
   const handleTerminalTabsToggle = async () => {
     if (terminalTabsOpen) {
@@ -8598,7 +8627,7 @@ export function App() {
                       ? optimisticFollowUpStartedAtByTaskId[selectedTaskId] ?? null
                       : null
                   }
-                  workspace={currentWorkspace}
+                  workspace={selectedTask && currentWorkspace?.id !== selectedTask.workspaceId ? null : currentWorkspace}
                   projectId={
                     FEATURE_VISIBILITY.projects ? currentProjectId : null
                   }

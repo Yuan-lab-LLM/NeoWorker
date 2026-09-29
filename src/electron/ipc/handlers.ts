@@ -1,4 +1,5 @@
 import { setupBrowserReadingHandlers } from "./browser-reading-handlers";
+import { readWorkspaceContext, withWorkspaceConversationName } from "../database/workspace-context";
 import { setupPaperNewsHandlers } from "./paper-news-handlers";
 import { LLMProviderTypeSchema } from "../utils/validation";
 import { ipcMain, shell, BrowserWindow, dialog, app as _app } from "electron";
@@ -2015,7 +2016,7 @@ export async function setupIpcHandlers(
     `);
     stmt.run(
       workspaceId,
-      TEMP_WORKSPACE_NAME,
+      existing?.name || TEMP_WORKSPACE_NAME,
       safeWorkspacePath,
       createdAt,
       lastUsedAt,
@@ -2024,7 +2025,7 @@ export async function setupIpcHandlers(
 
     return {
       id: workspaceId,
-      name: TEMP_WORKSPACE_NAME,
+      name: existing?.name || TEMP_WORKSPACE_NAME,
       path: safeWorkspacePath,
       createdAt,
       lastUsedAt,
@@ -4253,6 +4254,19 @@ export async function setupIpcHandlers(
   });
 
   // Workspace handlers
+  ipcMain.handle(IPC_CHANNELS.WORKSPACE_CONTEXT, async (_, workspaceId: string) => {
+    const id = validateInput(WorkspaceIdSchema, workspaceId, "workspace id");
+    if (!workspaceRepo.findById(id)) throw new Error("Workspace not found");
+    return readWorkspaceContext(db, id);
+  });
+  ipcMain.handle(IPC_CHANNELS.WORKSPACE_RENAME, async (_, data) => {
+    const { id, name } = validateInput(z.object({
+      id: WorkspaceIdSchema, name: z.string().trim().min(1).max(120),
+    }).strict(), data, "workspace name");
+    if (!workspaceRepo.findById(id)) throw new Error("Workspace not found");
+    db.prepare("UPDATE workspaces SET name = ? WHERE id = ?").run(name, id);
+    return workspaceRepo.findById(id);
+  });
   ipcMain.handle(IPC_CHANNELS.WORKSPACE_CREATE, async (_, data) => {
     const validated = validateInput(WorkspaceCreateSchema, data, "workspace");
     const { name, path: workspacePath, permissions } = validated;
@@ -4289,17 +4303,16 @@ export async function setupIpcHandlers(
 
   ipcMain.handle(
     IPC_CHANNELS.WORKSPACE_LIST,
-    async (_, options?: { includeArchived?: boolean }) => {
+    async (_, options?: { includeArchived?: boolean; includeTemporary?: boolean }) => {
       // Filter out temp workspaces from user workspace lists.
       const allWorkspaces = workspaceRepo.findAll();
       return allWorkspaces
         .filter(
           (workspace) =>
-            !workspace.isTemp &&
-            !isTempWorkspaceId(workspace.id) &&
+            (options?.includeTemporary === true || (!workspace.isTemp && !isTempWorkspaceId(workspace.id))) &&
             (options?.includeArchived === true || !workspace.archivedAt),
         )
-        .map(withWorkspaceAvailability);
+        .map(workspace => withWorkspaceAvailability(withWorkspaceConversationName(db, workspace)));
     },
   );
 
@@ -4339,7 +4352,7 @@ export async function setupIpcHandlers(
         logger.warn("Failed to update workspace last used time:", error);
       }
     }
-    return workspace ? withWorkspaceAvailability(workspace) : workspace;
+    return workspace ? withWorkspaceAvailability(withWorkspaceConversationName(db, workspace)) : workspace;
   });
 
   ipcMain.handle(

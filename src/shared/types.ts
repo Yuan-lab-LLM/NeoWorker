@@ -4140,6 +4140,12 @@ export type WorkspaceAvailability =
 export const TEMP_WORKSPACE_ID = "__temp_workspace__";
 export const TEMP_WORKSPACE_ID_PREFIX = "__temp_workspace__:";
 export const TEMP_WORKSPACE_NAME = "Temporary Workspace";
+export interface WorkspaceContextDetails {
+  workspaceId: string;
+  sessionCount: number;
+  sessions: Array<{ id: string; title: string }>;
+  fileOrigins: Array<{ path: string; taskId: string; title: string }>;
+}
 export const TEMP_WORKSPACE_ROOT_DIR_NAME = "neoworker-temp";
 
 export function isTempWorkspaceId(id: string | null | undefined): boolean {
@@ -8136,6 +8142,8 @@ export const IPC_CHANNELS = {
 
   // Workspace operations
   WORKSPACE_SELECT: "workspace:select",
+  WORKSPACE_CONTEXT: "workspace:context",
+  WORKSPACE_RENAME: "workspace:rename",
   WORKSPACE_LIST: "workspace:list",
   WORKSPACE_CREATE: "workspace:create",
   WORKSPACE_SET_ARCHIVED: "workspace:setArchived",

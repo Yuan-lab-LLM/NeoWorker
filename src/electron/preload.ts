@@ -1,5 +1,6 @@
 import { READING_CHANNELS, type ReadingRequest, type ReadingAnswer, type ReadingSelectionEvent, type ReadingSelectionRequest, type ReadingSelection } from "../shared/browser-reading";
 import type { NewsSummaryResult } from "../shared/news-summary";
+import type { WorkspaceContextDetails } from "../shared/types";
 import type { NewsTranslationResult } from "../shared/news-translation";
 import type { PaperNewsCover, PaperNewsConfig, PaperNewsSnapshot, PaperNewsSource } from "../shared/paper-news";
 import * as path from "path";
@@ -3088,7 +3089,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Workspace APIs
   createWorkspace: (data: Any) =>
     ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_CREATE, data),
-  listWorkspaces: (options?: { includeArchived?: boolean }) =>
+  getWorkspaceContext: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_CONTEXT, id),
+  renameWorkspace: (id: string, name: string) => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_RENAME, { id, name }),
+  listWorkspaces: (options?: { includeArchived?: boolean; includeTemporary?: boolean }) =>
     ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_LIST, options),
   setWorkspaceArchived: (id: string, archived: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_SET_ARCHIVED, id, archived),
@@ -7043,7 +7046,10 @@ export interface ElectronAPI {
   createWorkspace: (data: Any) => Promise<Workspace>;
   listWorkspaces: (options?: {
     includeArchived?: boolean;
+    includeTemporary?: boolean;
   }) => Promise<Workspace[]>;
+  getWorkspaceContext: (id: string) => Promise<WorkspaceContextDetails>;
+  renameWorkspace: (id: string, name: string) => Promise<Workspace>;
   setWorkspaceArchived: (id: string, archived: boolean) => Promise<Workspace>;
   selectWorkspace: (id: string) => Promise<Workspace>;
   getTempWorkspace: (options?: {

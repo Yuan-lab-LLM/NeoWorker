@@ -73,6 +73,9 @@ import { sanitizeHermesText } from "../utils/runtime-privacy";
 import { compareWorkspaceFilesNewestFirst, getWorkspaceFileCreationTime } from "../../shared/workspace-file-order";
 import { normalizeInitialPromptText } from "./MainContent/task-event-presentation";
 import "./project-context-panel.css";
+import { WorkspaceIdentity } from "./WorkspaceIdentity";
+import { workspaceDisplayName } from "../utils/workspace-identity";
+import type { WorkspaceContextDetails } from "../../shared/types";
 
 type ProjectPanelTab = "outputs" | "files" | "changes" | "session";
 const projectPanelStateCache = new Map<
@@ -456,6 +459,7 @@ interface ProjectContextPanelProps {
   onOpenPresentationArtifact?: (path: string) => void;
   onOpenWebArtifact?: (path: string) => void;
   onSelectTask?: (taskId: string) => void;
+  onSelectWorkspace?: (workspace: Workspace) => void;
   onCollapse?: () => void;
 }
 
@@ -1339,7 +1343,7 @@ function formatTime(timestamp?: number): string {
 
 export function ProjectContextPanel({
   task,
-  workspace,
+  workspace: providedWorkspace,
   projectId = null,
   sessionTasks = [],
   events,
@@ -1349,8 +1353,12 @@ export function ProjectContextPanel({
   onOpenPresentationArtifact,
   onOpenWebArtifact,
   onSelectTask,
+  onSelectWorkspace,
   onCollapse,
 }: ProjectContextPanelProps) {
+  const workspace = task && providedWorkspace?.id !== task.workspaceId ? null : providedWorkspace;
+  const [workspaceContext, setWorkspaceContext] = useState<WorkspaceContextDetails | null>(null);
+  const context = workspaceContext?.workspaceId === workspace?.id ? workspaceContext : null;
   const projectsVisible = FEATURE_VISIBILITY.projects;
   const visibleProjectId = projectsVisible
     ? projectId || task?.projectId || null
@@ -1359,7 +1367,7 @@ export function ProjectContextPanel({
   const panelStateKeyRef = useRef(panelStateKey);
   const panelBodyRef = useRef<HTMLDivElement>(null);
   const activeTabRef = useRef<ProjectPanelTab>(
-    projectPanelStateCache.get(panelStateKey)?.activeTab || "outputs",
+    "outputs",
   );
   const [activeTab, setActiveTab] = useState<ProjectPanelTab>(
     activeTabRef.current,
@@ -1413,12 +1421,17 @@ export function ProjectContextPanel({
   useLayoutEffect(() => {
     panelStateKeyRef.current = panelStateKey;
     const cached = projectPanelStateCache.get(panelStateKey);
-    const nextTab = cached?.activeTab || "outputs";
+    const nextTab = "outputs";
+    ++workspaceFilesRequestRef.current;
+    setWorkspaceFiles([]);
+    setWorkspaceFilesError(null);
+    setFolderPath(null);
+    setQuery("");
     activeTabRef.current = nextTab;
     setActiveTab(nextTab);
     const frame = window.requestAnimationFrame(() => {
       if (panelBodyRef.current)
-        panelBodyRef.current.scrollTop = cached?.scrollTop || 0;
+        panelBodyRef.current.scrollTop = cached?.activeTab === "outputs" ? cached.scrollTop : 0;
     });
     return () => window.cancelAnimationFrame(frame);
   }, [panelStateKey]);
@@ -1838,7 +1851,16 @@ export function ProjectContextPanel({
   }, [visibleProjectId]);
 
   useEffect(() => {
-    if (activeTab !== "files") return;
+    if (!workspace?.id || !window.electronAPI?.getWorkspaceContext) return;
+    let cancelled = false;
+    void window.electronAPI.getWorkspaceContext(workspace.id).then(result => {
+      if (!cancelled) setWorkspaceContext(result);
+    }).catch(() => { if (!cancelled) setWorkspaceContext(null); });
+    return () => { cancelled = true; };
+  }, [workspace?.id, task?.id, workspaceArtifactRefreshKey]);
+
+  useEffect(() => {
+    if (activeTab !== "files" || !workspace) return;
     void loadWorkspaceFiles();
     const refreshOnFocus = () => void loadWorkspaceFiles();
     window.addEventListener("focus", refreshOnFocus);
@@ -1968,7 +1990,7 @@ export function ProjectContextPanel({
   ]);
   const folderLabel = currentFolderPath
     ? currentFolderPath === workspace?.path
-      ? workspace?.name ||
+      ? (workspace ? workspaceDisplayName(workspace, context?.sessions[0]?.title || task?.title) : "") ||
         translate(
           "generated.components.projectcontextpanel.959.36",
           "workspace",
@@ -2011,6 +2033,18 @@ export function ProjectContextPanel({
     [currentLanguage, relatedSessionNodes],
   );
 
+  const fileSourceLabel = (path: string) => {
+    if (!context || context.sessionCount < 2) return undefined;
+    const key = getArtifactPathIdentityKey(path, workspace?.path);
+    const origin = context.fileOrigins.find(item => getArtifactPathIdentityKey(item.path, workspace?.path) === key);
+    return origin ? translate("workspaceOwnership.from", "From: {title}", { title: origin.title })
+      : translate("workspaceOwnership.unassigned", "Workspace file · origin unrecorded");
+  };
+
+  if (!workspace) return <aside className="project-context-panel"><EmptyPanel icon={FolderOpen}
+    title={translate("workspaceOwnership.loading", "Loading workspace…")}
+    detail={translate("workspaceOwnership.loadingDetail", "Files will appear when this conversation’s workspace is ready.")} /></aside>;
+
   return (
     <aside
       className="project-context-panel"
@@ -2022,7 +2056,7 @@ export function ProjectContextPanel({
       )}
     >
       <header className="project-context-header">
-        <div className="project-context-title">
+        {!projectsVisible ? <WorkspaceIdentity key={workspace.id} workspace={workspace} task={task} context={context} onSelectWorkspace={onSelectWorkspace} /> : <div className="project-context-title">
           <div>
             <span className="project-context-label">
               {translate(
@@ -2052,7 +2086,7 @@ export function ProjectContextPanel({
                 )}
             </strong>
           </div>
-        </div>
+        </div>}
         <div className="project-header-actions">
           {onCollapse ? (
             <button
@@ -2104,8 +2138,8 @@ export function ProjectContextPanel({
             [
               "files",
               translate(
-                "generated.components.projectcontextpanel.1048.50",
-                "workspace file",
+                "workspaceOwnership.allFiles",
+                "All files",
               ),
               FolderOpen,
             ],
@@ -2349,6 +2383,7 @@ export function ProjectContextPanel({
                   <TaskFileRow
                     key={`task-output:${file.path}`}
                     file={file}
+                    sourceLabel={fileSourceLabel(file.path)}
                     onOpen={openFile}
                     onShowInFinder={
                       workspace?.path ? showFileInFinder : undefined
@@ -2360,6 +2395,7 @@ export function ProjectContextPanel({
                   <WorkspaceFileRow
                     key={file.id || file.path}
                     file={file}
+                    sourceLabel={fileSourceLabel(file.path)}
                     onOpen={() => openFile(file.path)}
                     onOpenFolder={() => setFolderPath(file.path)}
                     onShowInFinder={() => showFileInFinder(file.path)}
@@ -2571,12 +2607,14 @@ function TaskFileRow({
   onShowInFinder,
   showAction = false,
   showActions = false,
+  sourceLabel,
 }: {
   file: FileInfo;
   onOpen: (path: string) => void;
   onShowInFinder?: (path: string) => void;
   showAction?: boolean;
   showActions?: boolean;
+  sourceLabel?: string;
 }) {
   const name = fileName(file.path);
   const previewLabel = translate("inlinePreview.openPreview", "Open preview");
@@ -2613,6 +2651,7 @@ function TaskFileRow({
               </>
             ) : null}
           </small>
+          {sourceLabel && <small className="workspace-file-origin" title={sourceLabel}>{sourceLabel}</small>}
         </span>
       </button>
       {showActions ? (
@@ -2657,11 +2696,13 @@ function WorkspaceFileRow({
   onOpen,
   onOpenFolder,
   onShowInFinder,
+  sourceLabel,
 }: {
   file: WorkspaceFile;
   onOpen: () => void;
   onOpenFolder: () => void;
   onShowInFinder: () => void;
+  sourceLabel?: string;
 }) {
   const handleClick = file.isDirectory ? onOpenFolder : onOpen;
   const name = file.name || fileName(file.path);
@@ -2693,6 +2734,7 @@ function WorkspaceFileRow({
                 )
               : formatTime(getWorkspaceFileCreationTime(file))}
           </small>
+          {sourceLabel && <small className="workspace-file-origin" title={sourceLabel}>{sourceLabel}</small>}
         </span>
       </button>
       <span className="project-file-actions">
