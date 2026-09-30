@@ -113,6 +113,15 @@ jobs:
       - name: Translation timeout and follow-up completion regressions
         run: npx vitest --config config/vitest.config.ts run src/electron/agent/__tests__/executor-tool-timeouts.test.ts src/electron/agent/__tests__/executor-finalization-state.test.ts src/electron/agent/__tests__/daemon-complete-task.test.ts src/electron/agent/tools/__tests__/document-tools.test.ts --maxWorkers=1
 
+      - name: Build Electron for document rendering checks
+        run: npm run build:electron
+
+      - name: Verify PPT translation rendering on Windows
+        run: node scripts/qa/office-render-smoke.cjs
+
+      - name: Verify translation layout regressions on Windows
+        run: node node_modules/electron/cli.js scripts/qa/translation-text-fit-fixtures.cjs
+
       - name: Package Windows installer
         run: npm run package:win:x64
 
@@ -129,12 +138,6 @@ jobs:
 
       - name: Verify public search and source reading on Windows
         run: node scripts/qa/public-search-smoke.cjs
-
-      - name: Verify PPT translation rendering on Windows
-        run: node scripts/qa/office-render-smoke.cjs
-
-      - name: Verify translation layout regressions on Windows
-        run: node node_modules/electron/cli.js scripts/qa/translation-text-fit-fixtures.cjs
 
       - name: Verify packaged app contains no API keys
         run: npm run package:secrets:verify
