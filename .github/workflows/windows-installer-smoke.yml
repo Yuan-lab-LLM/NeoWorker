@@ -92,6 +92,7 @@ jobs:
           src/electron/cron/
           src/electron/gateway/__tests__/weixin.test.ts
           src/electron/gateway/__tests__/weixin-context.test.ts
+          src/electron/database/__tests__/TaskRepository.findAll.test.ts
           src/renderer/__tests__/sidebar-helpers.test.ts
           src/renderer/utils/automation-runs.test.ts
           src/renderer/utils/automation-delivery.test.ts
