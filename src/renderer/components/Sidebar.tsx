@@ -341,15 +341,34 @@ export interface TaskTreeNode {
 
 export type SidebarSessionCategory = "all" | "team" | "automated";
 
+export function collapseScheduledSessions(nodes: TaskTreeNode[], selectedTaskId?: string | null): TaskTreeNode[] {
+  const representatives = new Map<string, TaskTreeNode>();
+  const key = (node: TaskTreeNode) => node.task.source === "cron" && node.task.agentConfig?.scheduledJobId
+    ? `${node.task.workspaceId}:${node.task.agentConfig.scheduledJobId}` : node.task.id;
+  const priority = (node: TaskTreeNode) => node.task.id === selectedTaskId ? 3
+    : isActiveSessionStatus(node.task.status) || isAwaitingSessionStatus(node.task.status) ? 2
+    : node.task.pinned ? 1 : 0;
+  for (const node of nodes) {
+    const existing = representatives.get(key(node));
+    if (!existing || priority(node) > priority(existing) || (priority(node) === priority(existing) &&
+      (node.task.updatedAt || node.task.createdAt) > (existing.task.updatedAt || existing.task.createdAt))) {
+      representatives.set(key(node), node);
+    }
+  }
+  return nodes.filter((node) => representatives.get(key(node)) === node);
+}
+
 export function resolveSidebarSessionCategoryTrees(
   userTaskTree: TaskTreeNode[],
   automatedTaskTree: TaskTreeNode[],
   category: SidebarSessionCategory,
   revealAllForSearch = false,
+  selectedTaskId?: string | null,
 ): { user: TaskTreeNode[]; automated: TaskTreeNode[] } {
   if (revealAllForSearch) {
     return { user: userTaskTree, automated: automatedTaskTree };
   }
+  automatedTaskTree = collapseScheduledSessions(automatedTaskTree, selectedTaskId);
   if (category === "all") {
     return {
       user: userTaskTree,
@@ -1002,8 +1021,9 @@ function SidebarComponent({
         automatedTaskTree,
         sessionCategory,
         hasSessionSearch,
+        selectedTaskId,
       ),
-    [automatedTaskTree, hasSessionSearch, sessionCategory, userTaskTree],
+    [automatedTaskTree, hasSessionSearch, sessionCategory, userTaskTree, selectedTaskId],
   );
 
   // Count root tasks per session mode (for filter badge counts).

@@ -7,6 +7,8 @@ import {
   History,
 } from "lucide-react";
 import type { Task } from "../../shared/types";
+import type { CronJob } from "../../electron/cron/types";
+import { buildAutomationRuns } from "../utils/automation-runs";
 import {
   ScheduledTasksSettings,
   type ScheduledTaskTemplate,
@@ -14,7 +16,7 @@ import {
 import { NeoWorkerPageHeader } from "./NeoWorkerPageHeader";
 import "./automation-hub.css";
 import { translate } from "../i18n/index";
-import { getAutomationDeliveryDetail, needsDeliveryAttention, type AutomationDeliveryReceipt } from "../utils/automation-delivery";
+import { getAutomationDeliveryDetail, needsDeliveryAttention } from "../utils/automation-delivery";
 
 interface AutomationHubPanelProps {
   tasks: Task[];
@@ -494,15 +496,6 @@ function formatRelativeTime(timestamp?: number): string {
   });
 }
 
-function isUserAutomationRun(task: Task): boolean {
-  if (task.source !== "cron") return false;
-  if (task.heartbeatRunId) return false;
-  if (/^heartbeat:/i.test(task.title.trim())) return false;
-  return Boolean(
-    task.agentConfig?.scheduledJobId || /^scheduled:/i.test(task.title.trim()),
-  );
-}
-
 function getAutomationRunTitle(task: Task): string {
   return (
     task.title.replace(/^scheduled:\s*/i, "").trim() ||
@@ -655,20 +648,14 @@ export function AutomationHubPanel({
     useState<AutomationHistoryFilter>("all");
   const [showAllActivity, setShowAllActivity] = useState(false);
 
-  const [deliveryReceipts, setDeliveryReceipts] = useState<Map<string, AutomationDeliveryReceipt>>(new Map());
+  const [jobs, setJobs] = useState<CronJob[]>([]);
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   useEffect(() => {
     let disposed = false;
     const refresh = async () => {
       try {
         const jobs = await window.electronAPI.listCronJobs({ includeDisabled: true });
-        const receipts = new Map<string, AutomationDeliveryReceipt>();
-        for (const job of jobs) {
-          if (!job.delivery?.enabled) continue;
-          for (const run of job.state.runHistory ?? []) {
-            if (run.taskId) receipts.set(run.taskId, { ...run, channelType: job.delivery.channelType });
-          }
-        }
-        if (!disposed) setDeliveryReceipts(receipts);
+        if (!disposed) setJobs(jobs);
       } catch { /* Keep the last known receipt when the scheduler is unavailable. */ }
     };
     void refresh();
@@ -678,27 +665,14 @@ export function AutomationHubPanel({
   }, []);
 
   const automation = useMemo(() => {
-    const sortRecent = (items: Task[]) =>
-      [...items].sort(
-        (a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt),
-      );
-    // This page is a receipt for automations created by the user. Internal
-    // heartbeat, improvement and orchestration tasks belong in diagnostics,
-    // not in the ordinary automation history.
-    const all = sortRecent(tasks.filter(isUserAutomationRun));
-    const active = all.filter((task) => ACTIVE_STATUSES.has(task.status));
-    const attention = sortRecent(
-      all.filter(
-        (task) =>
-          ATTENTION_STATUSES.has(task.status) ||
-          task.terminalStatus === "awaiting_approval" ||
-          task.terminalStatus === "needs_user_action" ||
-          needsDeliveryAttention(task, deliveryReceipts.get(task.id)),
-      ),
-    );
-    const completed = all.filter((task) => task.status === "completed" && !needsDeliveryAttention(task, deliveryReceipts.get(task.id)));
+    const all = buildAutomationRuns(tasks, jobs);
+    const active = all.filter(({ task }) => ACTIVE_STATUSES.has(task.status));
+    const attention = all.filter(({ task, receipt }) =>
+      ATTENTION_STATUSES.has(task.status) || task.terminalStatus === "awaiting_approval" ||
+      task.terminalStatus === "needs_user_action" || needsDeliveryAttention(task, receipt));
+    const completed = all.filter(({ task, receipt }) => task.status === "completed" && !needsDeliveryAttention(task, receipt));
     return { all, active, attention, completed };
-  }, [tasks, deliveryReceipts]);
+  }, [tasks, jobs]);
 
   const filteredHistory = automation[historyFilter];
   const historyFilters: Array<{
@@ -980,18 +954,19 @@ export function AutomationHubPanel({
                 {(showAllActivity
                   ? filteredHistory
                   : filteredHistory.slice(0, 5)
-                ).map((task) => {
+                ).map((run) => {
+                  const { task, receipt } = run;
                   const Icon = getTaskIcon(task);
-                  const receipt = deliveryReceipts.get(task.id);
                   const status = needsDeliveryAttention(task, receipt)
                     ? { label: translate("automation.delivery.attention", "Delivery pending"), tone: "attention" }
                     : getAutomationRunStatus(task);
                   return (
+                    <div key={run.id}>
                     <button
-                      key={task.id}
                       type="button"
                       className="aw2-history-row"
-                      onClick={() => onOpenTask(task.id)}
+                      aria-expanded={expandedRunId === run.id}
+                      onClick={() => setExpandedRunId(expandedRunId === run.id ? null : run.id)}
                     >
                       <span className={`aw-row-icon ${status.tone}`}>
                         <Icon size={17} aria-hidden="true" />
@@ -1008,6 +983,17 @@ export function AutomationHubPanel({
                       </time>
                       <ArrowRight size={16} aria-hidden="true" />
                     </button>
+                    {expandedRunId === run.id && (
+                      <div className="aw2-run-result">
+                        <time>{new Date(task.createdAt).toLocaleString()}</time>
+                        <p>{run.resultText || task.error || getAutomationRunDetail(task)}</p>
+                        {receipt?.deliveryError && <p>{receipt.deliveryError}</p>}
+                        {run.taskId && <button type="button" onClick={() => onOpenTask(run.taskId!)}>
+                          {translate("automation.run.openSession", "Open conversation")}
+                        </button>}
+                      </div>
+                    )}
+                    </div>
                   );
                 })}
               </div>

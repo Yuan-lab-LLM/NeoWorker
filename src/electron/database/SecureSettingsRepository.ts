@@ -56,6 +56,7 @@ export type SettingsCategory =
   | "secure-mcp-tunnels"
   | "controlplane"
   | "channels"
+  | "weixin-reply-context"
   | "builtintools"
   | "tailscale"
   | "claude-auth"

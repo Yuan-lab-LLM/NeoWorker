@@ -39,7 +39,7 @@ import {
 import { getExposureStatus } from "../electron/tailscale";
 import { MCPClientManager } from "../electron/mcp/client/MCPClientManager";
 import { CronService, setCronService, getCronStorePath } from "../electron/cron";
-import { resolveTaskResultText } from "../electron/cron/result-text";
+import { scheduledTaskStatus, scheduledTaskResult } from "../electron/cron/task-session";
 import {
   TaskEventRepository,
   TaskRepository,
@@ -409,6 +409,7 @@ async function main(): Promise<void> {
         const mergedAgentConfig = {
           ...(params.agentConfig ? params.agentConfig : {}),
           ...(params.modelKey ? { modelKey: params.modelKey } : {}),
+          ...(params.jobId ? { scheduledJobId: params.jobId } : {}),
           allowUserInput,
         };
         const task = await agentDaemon.createTask({
@@ -416,6 +417,7 @@ async function main(): Promise<void> {
           prompt: params.prompt,
           workspaceId: params.workspaceId,
           agentConfig: mergedAgentConfig,
+          source: "cron",
         });
         return { id: task.id };
       },
@@ -498,22 +500,15 @@ async function main(): Promise<void> {
           chat_truncated: rendered.truncated ? "true" : "false",
         };
       },
-      getTaskStatus: async (taskId) => {
+      getTaskStatus: async (taskId, resultSinceMs) => {
         const task = taskRepo.findById(taskId);
         if (!task) return null;
-        return {
-          status: task.status,
-          error: task.error ?? null,
-          resultSummary: task.resultSummary ?? null,
-        };
+        return scheduledTaskStatus(task, resultSinceMs);
       },
-      getTaskResultText: async (taskId) => {
+      getTaskResultText: async (taskId, resultSinceMs) => {
         const task = taskRepo.findById(taskId);
         const events = taskEventRepo.findByTaskId(taskId);
-        return resolveTaskResultText({
-          summary: task?.resultSummary,
-          events,
-        });
+        return scheduledTaskResult(task, events, resultSinceMs);
       },
       deliverToChannel: async (params) => {
         const hasResult =

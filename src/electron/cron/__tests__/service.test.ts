@@ -82,6 +82,97 @@ describe("CronService", () => {
     vi.useRealTimers();
   });
 
+  it("reuses one conversation across scheduled runs and a restart, keeping each result and delivery distinct", async () => {
+    let now = 1_000_000;
+    let output = "quote 1";
+    const getTaskStatus = vi.fn(async () => ({ status: "completed", source: "cron", workspaceId: "ws-1", scheduledJobId: "job-1" }));
+    const sendTaskMessage = vi.fn(async () => ({ queued: false }));
+    const deliverToChannel = vi.fn(async () => undefined);
+    const deps = { nowMs: () => now, getTaskStatus, sendTaskMessage, deliverToChannel,
+      getTaskResultText: vi.fn(async () => output) };
+    service = createService(deps);
+    await service.start();
+    await service.add({ name: "Quote", enabled: false, workspaceId: "ws-1", taskPrompt: "Get current price",
+      schedule: { kind: "every", everyMs: 60_000 }, modelKey: "my-model",
+      delivery: { enabled: true, channelType: "weixin", channelId: "receiver" } });
+    await service.run("job-1", "force");
+    now += 60_000; output = "quote 2";
+    await service.run("job-1", "force");
+    expect(mockCreateTask).toHaveBeenCalledTimes(1);
+    expect(sendTaskMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      taskId: "task-123", agentConfig: expect.objectContaining({ scheduledJobId: "job-1", modelKey: "my-model" }),
+    }));
+    const snapshot = structuredClone((service as any).state.store);
+    await service.stop();
+    vi.mocked(loadCronStore).mockResolvedValue(snapshot);
+    service = createService(deps);
+    await service.start();
+    now += 60_000; output = "quote 3";
+    await service.run("job-1", "force");
+    expect(mockCreateTask).not.toHaveBeenCalled();
+    expect(sendTaskMessage).toHaveBeenCalledTimes(2);
+    const entries = (await service.getRunHistory("job-1"))!.entries;
+    expect(entries.map(e => e.taskId)).toEqual(["task-123", "task-123", "task-123"]);
+    expect(entries.map(e => e.resultText)).toEqual(["quote 3", "quote 2", "quote 1"]);
+    expect(new Set(entries.map(e => e.runAtMs)).size).toBe(3);
+    expect(deliverToChannel.mock.calls.map(([p]: any) => p.resultText)).toEqual(["quote 1", "quote 2", "quote 3"]);
+    expect(new Set(deliverToChannel.mock.calls.map(([p]: any) => p.idempotencyKey)).size).toBe(3);
+  });
+
+  it("adopts the last conversation of a legacy job without a session binding", async () => {
+    const sendTaskMessage = vi.fn(async () => ({ queued: false }));
+    service = createService({ sendTaskMessage, getTaskStatus: async () => ({ status: "completed", source: "cron", workspaceId: "ws-1" }) });
+    await service.start();
+    await service.add({ name: "Legacy", enabled: false, workspaceId: "ws-1", taskPrompt: "Continue",
+      schedule: { kind: "every", everyMs: 60_000 }, state: { lastTaskId: "legacy-task" } });
+    await service.run("job-1", "force");
+    expect(mockCreateTask).not.toHaveBeenCalled();
+    expect(sendTaskMessage).toHaveBeenCalledWith(expect.objectContaining({ taskId: "legacy-task" }));
+    expect((await service.get("job-1"))?.state.sessionTaskId).toBe("legacy-task");
+  });
+
+  it.each([
+    { source: "manual", workspaceId: "ws-1" },
+    { source: "cron", workspaceId: "ws-other" },
+    { source: "cron", workspaceId: "ws-1", scheduledJobId: "other-job" },
+  ])("does not reuse an unrelated conversation: %j", async (metadata) => {
+    const sendTaskMessage = vi.fn(async () => ({ queued: false }));
+    service = createService({ sendTaskMessage, getTaskStatus: async () => ({ status: "completed", ...metadata }) });
+    await service.start();
+    await service.add({ name: "Isolated", enabled: false, workspaceId: "ws-1", taskPrompt: "Continue",
+      schedule: { kind: "every", everyMs: 60_000 }, state: { lastTaskId: "unrelated" } });
+    await service.run("job-1", "force");
+    expect(mockCreateTask).toHaveBeenCalledTimes(1);
+    expect(sendTaskMessage).not.toHaveBeenCalled();
+  });
+
+  it("applies the overlap guard to the real timer path, including pending approval receipts", async () => {
+    service = createService({ getTaskStatus: async () => ({ status: "executing" }) });
+    await service.start();
+    await service.add({ name: "Timer", enabled: true, workspaceId: "ws-1", taskPrompt: "Run",
+      schedule: { kind: "every", everyMs: 60_000 } });
+    await service.update("job-1", { state: { lastTaskId: "busy-task", nextRunAtMs: 900_000 } });
+    await (service as any).onTimer();
+    expect(mockCreateTask).not.toHaveBeenCalled();
+    expect((await service.get("job-1"))?.state.nextRunAtMs).toBeGreaterThan(1_000_000);
+  });
+
+  it("recovers an interrupted second run even though its session already has an earlier receipt", async () => {
+    vi.useFakeTimers();
+    const oldRun = { runAtMs: 1_000, durationMs: 100, status: "ok" as const, taskId: "shared", resultText: "old", deliverableStatus: "sent" as const };
+    vi.mocked(loadCronStore).mockResolvedValue({ version: 1, jobs: [{ id: "legacy-job", name: "Recover", enabled: false,
+      createdAtMs: 0, updatedAtMs: 0, workspaceId: "ws-1", taskPrompt: "Run", schedule: { kind: "every", everyMs: 60_000 },
+      state: { runningAtMs: 2_000, lastRunAtMs: 2_000, lastTaskId: "shared", runningResultSinceMs: 2_000,
+        runHistory: [oldRun], totalRuns: 1, successfulRuns: 1 } }] });
+    service = createService({ getTaskStatus: async () => ({ status: "completed", terminalStatus: "ok" }), getTaskResultText: async () => "new" });
+    await service.start();
+    await (service as any).reconcilePendingRuns();
+    const entries = (await service.getRunHistory("legacy-job"))!.entries;
+    expect(entries).toHaveLength(2);
+    expect(entries.map(e => e.resultText)).toEqual(["new", "old"]);
+    expect(entries[1].deliverableStatus).toBe("sent");
+  });
+
   it("delivers the final result after approval, including a restart while waiting", async () => {
     vi.useFakeTimers();
     let taskStatus: any = { status: "blocked", terminalStatus: "awaiting_approval" };

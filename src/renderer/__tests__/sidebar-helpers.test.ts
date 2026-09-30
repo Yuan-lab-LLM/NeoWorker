@@ -7,6 +7,7 @@ import { type Task } from "../../shared/types";
 import { capitalizeSidebarSessionTitle } from "../utils/sidebar-title";
 import {
   buildSidebarVirtualRows,
+  collapseScheduledSessions,
   compareTasksByPinAndRecency,
   countHiddenFailedSessions,
   filterTaskTreeBySearch,
@@ -777,4 +778,18 @@ it("shows user scheduled runs in all sessions while leaving maintenance hidden",
   const scheduled = { task: createTask({ id: "scheduled", source: "cron", title: "Scheduled: IEIT-stock" }), children: [] };
   const heartbeat = { task: createTask({ id: "heartbeat", source: "cron", title: "Heartbeat: maintenance" }), children: [] };
   expect(resolveSidebarSessionCategoryTrees([], [scheduled, heartbeat], "all").automated).toEqual([scheduled]);
+});
+
+
+describe("scheduled session grouping", () => {
+  it("shows one entry per job while preserving history and selecting an older run", () => {
+    const nodes: TaskTreeNode[] = [1, 2, 3].map(n => ({ children: [], task: createTask({ id: `run-${n}`, source: "cron",
+      status: "completed", title: "Scheduled: Quote", updatedAt: n, agentConfig: { scheduledJobId: "quote-job" } }) }));
+    nodes.push({ children: [], task: createTask({ id: "other-job", source: "cron", status: "completed",
+      title: "Scheduled: Quote", agentConfig: { scheduledJobId: "different-job" } }) });
+    expect(collapseScheduledSessions(nodes).map(n => n.task.id)).toEqual(["run-3", "other-job"]);
+    expect(collapseScheduledSessions(nodes, "run-1").map(n => n.task.id)).toEqual(["run-1", "other-job"]);
+    expect(resolveSidebarSessionCategoryTrees([], nodes, "all", true).automated).toHaveLength(4);
+    expect(nodes).toHaveLength(4);
+  });
 });

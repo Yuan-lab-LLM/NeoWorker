@@ -36,8 +36,9 @@ const MAX_TIMEOUT_MS = 2147483647;
 // Defaults
 const DEFAULT_MAX_CONCURRENT_RUNS = 1;
 const DEFAULT_JOB_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
-const DEFAULT_MAX_HISTORY_ENTRIES = 10;
+const DEFAULT_MAX_HISTORY_ENTRIES = 100;
 const ACTIVE_TASK_STATUSES = new Set([
+  "pending",
   "queued",
   "planning",
   "executing",
@@ -335,6 +336,7 @@ export class CronService {
         // Advanced options
         timeoutMs: input.timeoutMs,
         modelKey: input.modelKey,
+        taskAgentConfig: input.taskAgentConfig,
         maxHistoryEntries: input.maxHistoryEntries,
         delivery: input.delivery,
         state: {
@@ -418,6 +420,7 @@ export class CronService {
       // Apply patch - advanced options
       if (patch.timeoutMs !== undefined) job.timeoutMs = patch.timeoutMs;
       if (patch.modelKey !== undefined) job.modelKey = patch.modelKey;
+      if (patch.taskAgentConfig !== undefined) job.taskAgentConfig = patch.taskAgentConfig;
       if (patch.maxHistoryEntries !== undefined) job.maxHistoryEntries = patch.maxHistoryEntries;
       if (patch.delivery !== undefined) job.delivery = patch.delivery;
       if (patch.state) {
@@ -504,8 +507,16 @@ export class CronService {
         job.state.runningAtMs = job.state.runningAtMs ?? nowMs;
         job.state.lastRunAtMs = job.state.lastRunAtMs ?? job.state.runningAtMs;
         if (job.enabled && (!job.state.nextRunAtMs || job.state.nextRunAtMs <= nowMs)) {
-          job.state.nextRunAtMs = computeNextRunAtMs(job.schedule, job.state.runningAtMs);
+          job.state.nextRunAtMs = computeNextRunAtMs(job.schedule, nowMs);
         }
+        await this.persist();
+        return { ok: true, ran: false, reason: "already-running" };
+      }
+
+      // Finish the previous receipt before reusing its conversation. Otherwise
+      // a late approval/completion could be mistaken for the next run's result.
+      if (job.state.runHistory?.some((entry) => entry.taskStillRunning)) {
+        if (job.enabled) job.state.nextRunAtMs = computeNextRunAtMs(job.schedule, nowMs);
         await this.persist();
         return { ok: true, ran: false, reason: "already-running" };
       }
@@ -598,11 +609,12 @@ export class CronService {
       // A restart can happen after task creation but before the polling loop
       // writes its receipt. Recover that lease rather than losing delivery.
       if (job.state.runningAtMs !== undefined && job.state.lastTaskId &&
-          !job.state.runHistory?.some((entry) => entry.taskId === job.state.lastTaskId)) {
+          !job.state.runHistory?.some((entry) => entry.runAtMs === job.state.lastRunAtMs)) {
         job.state.runHistory ??= [];
         job.state.runHistory.unshift({
           runAtMs: job.state.lastRunAtMs ?? job.state.runningAtMs,
           durationMs: 0, status: "timeout", taskId: job.state.lastTaskId,
+          resultSinceMs: job.state.runningResultSinceMs,
           taskStillRunning: true, deliverableStatus: "none",
         });
         job.state.totalRuns = (job.state.totalRuns ?? 0) + 1;
@@ -618,7 +630,8 @@ export class CronService {
 
       const activeRun = await this.findActivePersistedRun(job);
       if (activeRun) {
-        const receipt = job.state.runHistory?.find((entry) => entry.taskId === activeRun.id);
+        const receipt = job.state.runHistory?.find((entry) =>
+          entry.taskId === activeRun.id && entry.runAtMs === job.state.lastRunAtMs && entry.taskStillRunning);
         if (receipt) receipt.taskStillRunning = true;
         job.state.lastTaskId = activeRun.id;
         job.state.runningAtMs = job.state.runningAtMs ?? nowMs;
@@ -742,6 +755,7 @@ export class CronService {
     let workspaceIdForRun = job.workspaceId;
     let shouldPollTaskStatus = true;
     let taskStillRunning = false;
+    let resultSinceMs: number | undefined;
 
     try {
       workspaceContext = await this.resolveWorkspaceContext(job, nowMs, "run");
@@ -830,8 +844,33 @@ export class CronService {
           }
         }
       } else {
-        // Create a task with optional model override
-        const result = await deps.createTask({
+        const previousTaskId = job.state.sessionTaskId || job.state.lastTaskId;
+        const previousTask = previousTaskId && deps.getTaskStatus
+          ? await deps.getTaskStatus(previousTaskId)
+          : null;
+        // Legacy jobs adopt their last owned task. Never borrow another job's
+        // conversation, or carry a session into a newly selected workspace.
+        const canReuse = previousTaskId && previousTask &&
+          previousTask.source === "cron" && previousTask.workspaceId === workspaceIdForRun &&
+          (!previousTask.scheduledJobId || previousTask.scheduledJobId === job.id);
+        if (canReuse) {
+          if (!deps.sendTaskMessage) throw new Error("Scheduled conversation continuation is unavailable");
+          taskId = previousTaskId;
+          resultSinceMs = deps.nowMs();
+          job.state.sessionTaskId = taskId;
+          job.state.lastTaskId = taskId;
+          job.state.runningResultSinceMs = resultSinceMs;
+          await this.persist();
+          await deps.sendTaskMessage({
+            taskId,
+            message: renderedPrompt,
+            allowUserInput: job.allowUserInput ?? false,
+            agentConfig: { ...agentConfig, scheduledJobId: job.id,
+              ...(job.modelKey ? { modelKey: job.modelKey } : {}) },
+          });
+          log.info(`Job ${job.name} continued conversation ${taskId}`);
+        } else {
+          const result = await deps.createTask({
           jobId: job.id,
           title: job.taskTitle || `Scheduled: ${job.name}`,
           prompt: renderedPrompt,
@@ -841,10 +880,13 @@ export class CronService {
           agentConfig: { ...agentConfig, scheduledJobId: job.id },
         });
 
-        taskId = result.id;
-        job.state.lastTaskId = taskId;
-        await this.persist();
-        log.info(`Job ${job.name} created task ${taskId}`);
+          taskId = result.id;
+          job.state.sessionTaskId = taskId;
+          job.state.lastTaskId = taskId;
+          job.state.runningResultSinceMs = undefined;
+          await this.persist();
+          log.info(`Job ${job.name} created conversation ${taskId}`);
+        }
       }
 
       // If task status hooks are available, wait for completion and capture the final output.
@@ -858,7 +900,7 @@ export class CronService {
         let pollResultSummary: string | undefined;
 
         while (deps.nowMs() < deadlineMs) {
-          const task = await deps.getTaskStatus(taskId);
+          const task = await deps.getTaskStatus(taskId, resultSinceMs);
           if (!task) {
             status = "error";
             errorMsg = "Task not found";
@@ -909,7 +951,7 @@ export class CronService {
 
         if (status === "ok" && deps.nowMs() >= deadlineMs) {
           // One last check to avoid misclassifying a completed task as a timeout.
-          const finalTask = await deps.getTaskStatus(taskId);
+          const finalTask = await deps.getTaskStatus(taskId, resultSinceMs);
           const finalStatus = typeof finalTask?.status === "string" ? finalTask.status : "";
           if (finalStatus === "completed") {
             taskStillRunning = finalTask?.terminalStatus === "awaiting_approval";
@@ -953,7 +995,7 @@ export class CronService {
         if (!taskStillRunning && (status === "ok" || status === "partial_success" || status === "needs_user_action")) {
           if (deps.getTaskResultText) {
             try {
-              resultText = await deps.getTaskResultText(taskId);
+              resultText = await deps.getTaskResultText(taskId, resultSinceMs);
             } catch (e) {
               log.warn("Failed to load task result text", e);
             }
@@ -976,6 +1018,7 @@ export class CronService {
     // Update job state
     job.state.lastDurationMs = durationMs;
     job.state.runningAtMs = undefined;
+    job.state.runningResultSinceMs = undefined;
     job.state.lastStatus = status;
     job.state.lastError = errorMsg;
 
@@ -994,6 +1037,8 @@ export class CronService {
       status,
       error: errorMsg,
       taskId,
+      resultText,
+      resultSinceMs,
       taskStillRunning,
       runMode: job.runMode ?? "new_task",
       workspaceId: workspaceIdForRun,
@@ -1106,7 +1151,7 @@ export class CronService {
         if (this.state.runningJobIds.has(job.id)) continue;
         for (const entry of job.state.runHistory ?? []) {
           if (!entry.taskStillRunning || !entry.taskId) continue;
-          const task = await deps.getTaskStatus(entry.taskId);
+          const task = await deps.getTaskStatus(entry.taskId, entry.resultSinceMs);
           if (task && !["completed", "failed", "cancelled"].includes(task.status)) continue;
           if (task?.terminalStatus === "awaiting_approval") continue;
           const previousStatus = entry.status;
@@ -1117,11 +1162,12 @@ export class CronService {
             : "error";
           const error = status === "error" ? task?.error || (task ? `Task ${task.status}` : "Task not found") : undefined;
           const resultText = task?.status === "completed"
-            ? (await deps.getTaskResultText?.(entry.taskId)) || task.resultSummary || undefined
+            ? (await deps.getTaskResultText?.(entry.taskId, entry.resultSinceMs)) || task.resultSummary || undefined
             : undefined;
           const delivery = await this.deliverToChannel(job, status, entry.taskId, error, resultText, entry.runAtMs);
           entry.status = status;
           entry.error = error;
+          entry.resultText = resultText;
           entry.taskStillRunning = false;
           entry.durationMs = Math.max(entry.durationMs, deps.nowMs() - entry.runAtMs);
           if (delivery.attempted) {
@@ -1137,7 +1183,7 @@ export class CronService {
             job.state.successfulRuns = Math.max(0, (job.state.successfulRuns ?? 0) + (isSuccess ? 1 : -1));
             job.state.failedRuns = Math.max(0, (job.state.failedRuns ?? 0) + (isSuccess ? -1 : 1));
           }
-          if (job.state.lastTaskId === entry.taskId) {
+          if (job.state.lastTaskId === entry.taskId && job.state.lastRunAtMs === entry.runAtMs) {
             job.state.lastStatus = status;
             job.state.lastError = error;
             job.state.lastDurationMs = entry.durationMs;
@@ -1672,7 +1718,7 @@ export class CronService {
       // Execute jobs
       for (const job of jobsToRun) {
         try {
-          await this.executeJob(job, nowMs);
+          await this.run(job.id, "due");
         } catch (error) {
           log.error(`Failed to execute job ${job.name}:`, error);
         }

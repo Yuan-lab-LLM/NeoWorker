@@ -121,6 +121,7 @@ import { MCPClientManager } from "./mcp/client/MCPClientManager";
 import { trayManager } from "./tray";
 import { CronService, setCronService, getCronStorePath } from "./cron";
 import { resolveTaskResultText } from "./cron/result-text";
+import { scheduledTaskStatus, scheduledTaskResult } from "./cron/task-session";
 import {
   StrategicPlannerService,
   setStrategicPlannerService,
@@ -2430,7 +2431,7 @@ if (isCliDirectRunMode()) {
               chat_truncated: rendered.truncated ? "true" : "false",
             };
           },
-          getTaskStatus: async (taskId) => {
+          getTaskStatus: async (taskId, resultSinceMs) => {
             const managedRun = managedBriefingRuns.get(taskId);
             if (managedRun) {
               return {
@@ -2444,29 +2445,16 @@ if (isCliDirectRunMode()) {
             }
             const task = taskRepo.findById(taskId);
             if (!task) return null;
-            return {
-              status: task.status,
-              error: task.error ?? null,
-              resultSummary: task.resultSummary ?? null,
-              terminalStatus: task.terminalStatus ?? null,
-              failureClass: task.failureClass ?? null,
-              budgetUsage: task.budgetUsage ?? null,
-            };
+            return scheduledTaskStatus(task, resultSinceMs);
           },
-          getTaskResultText: async (taskId) => {
+          getTaskResultText: async (taskId, resultSinceMs) => {
             const managedRun = managedBriefingRuns.get(taskId);
             if (managedRun) {
               return managedRun.text;
             }
             const task = taskRepo.findById(taskId);
             const events = taskEventRepo.findByTaskId(taskId);
-            return resolveTaskResultText({
-              summary: task?.resultSummary,
-              semanticSummary: task?.semanticSummary,
-              verificationVerdict: task?.verificationVerdict,
-              verificationReport: task?.verificationReport,
-              events,
-            });
+            return scheduledTaskResult(task, events, resultSinceMs);
           },
           findActiveTaskForJob: async (params) => {
             if (params.runMode !== "new_task") return null;

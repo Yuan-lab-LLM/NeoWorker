@@ -86,6 +86,17 @@ jobs:
       - name: Verify Hermes host launcher contract
         run: python scripts/qa/test_hermes_host_launcher.py
 
+      - name: Verify scheduled conversation reuse and WeChat reconnect delivery
+        run: >-
+          npx vitest --config config/vitest.config.ts run
+          src/electron/cron/
+          src/electron/gateway/__tests__/weixin.test.ts
+          src/electron/gateway/__tests__/weixin-context.test.ts
+          src/renderer/__tests__/sidebar-helpers.test.ts
+          src/renderer/utils/automation-runs.test.ts
+          src/renderer/utils/automation-delivery.test.ts
+          --maxWorkers=1
+
       - name: Test source-preserving PPT content editing
         run: npx vitest --config config/vitest.config.ts run src/electron/agent/__tests__/presentation-edit-policy.test.ts src/electron/agent/tools/__tests__/use-skill.test.ts src/electron/agent/tools/__tests__/skill-tools-artifact-registration.test.ts src/electron/agent/tools/__tests__/office-artifact-input-normalizer.test.ts --maxWorkers=1
 
