@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   refresh: vi.fn(),
   config: vi.fn(),
+  follow: vi.fn(),
   save: vi.fn(),
   find: vi.fn(),
   cover: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock("../paper-news/service", () => ({
     snapshot = mocks.get;
     refresh = mocks.refresh;
     saveConfig = mocks.config;
+    setFollowedCategories = mocks.follow;
     setSaved = mocks.save;
     findItem = mocks.find;
   },
@@ -33,7 +35,7 @@ describe("Paper News IPC boundary", () => {
     const mainFrame = {},
       sender = { mainFrame };
     setupPaperNewsHandlers((event) => event.sender === sender);
-    expect(mocks.handlers.size).toBe(7);
+    expect(mocks.handlers.size).toBe(8);
     for (const handler of mocks.handlers.values()) {
       expect(() => handler({ sender: {}, senderFrame: mainFrame })).toThrow("restricted");
       expect(() => handler({ sender, senderFrame: {} })).toThrow("restricted");
@@ -48,6 +50,8 @@ describe("Paper News IPC boundary", () => {
     await expect(mocks.handlers.get(IPC_CHANNELS.PAPER_NEWS_SUMMARY)!({ sender, senderFrame: mainFrame }, "https://127.0.0.1/private")).resolves.toEqual({ error: "unavailable" });
     await expect(mocks.handlers.get(IPC_CHANNELS.PAPER_NEWS_TRANSLATE)!({ sender, senderFrame: mainFrame }, "not-cached")).resolves.toEqual({ error: "unavailable" });
     expect(mocks.save).toHaveBeenCalledWith("arxiv:123", true);
+    mocks.handlers.get(IPC_CHANNELS.PAPER_NEWS_FOLLOW)!({ sender, senderFrame: mainFrame }, ["health"]);
+    expect(mocks.follow).toHaveBeenCalledWith(["health"]);
     mocks.handlers.get(IPC_CHANNELS.PAPER_NEWS_REFRESH)!({ sender, senderFrame: mainFrame });
     expect(mocks.refresh).toHaveBeenCalledOnce();
     mocks.handlers.get(IPC_CHANNELS.PAPER_NEWS_REFRESH)!(

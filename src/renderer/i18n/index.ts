@@ -14,6 +14,19 @@ const DEFAULT_LANGUAGE: SupportedLanguage = "zh-CN";
 
 const translations: Record<SupportedLanguage, Record<string, string>> = {
   en: {
+    "scheduled.workspace.optional": "Workspace (optional)",
+    "scheduled.workspace.automatic": "Automatic independent workspace",
+    "scheduled.workspace.automaticDescription": "No folder selection needed. Files are saved separately for this automation.",
+    "automation.delivery.missingFinal": "Final result was not sent to {channel}",
+    "automation.delivery.wechat": "WeChat",
+    "automation.delivery.channel": "channel",
+    "automation.delivery.pending": "Result saved; awaiting final delivery to {channel}",
+    "automation.delivery.sent": "Result sent to {channel}",
+    "automation.delivery.retry": "Result saved; retrying delivery to {channel}",
+    "automation.delivery.failed": "Result saved; delivery to {channel} failed",
+    "automation.delivery.unsent": "Result saved; no delivery confirmation for {channel}",
+    "automation.delivery.attention": "Delivery pending",
+
     "workspaceOwnership.unnamed": "Conversation {id}",
     "workspaceOwnership.shared": "Shared workspace · {count} conversations",
     "workspaceOwnership.private": "This conversation’s workspace",
@@ -5677,6 +5690,19 @@ const translations: Record<SupportedLanguage, Record<string, string>> = {
       "Drafts and incomplete files are kept out of artifacts. Retry the task after resolving the failure.",
   },
   "zh-CN": {
+    "scheduled.workspace.optional": "工作区（可选）",
+    "scheduled.workspace.automatic": "自动创建独立工作区",
+    "scheduled.workspace.automaticDescription": "无需选择文件夹，文件单独保存在此自动化的工作区中。",
+    "automation.delivery.missingFinal": "最终结果未发送到{channel}",
+    "automation.delivery.wechat": "微信",
+    "automation.delivery.channel": "接收渠道",
+    "automation.delivery.pending": "结果已保存，等待向{channel}发送最终结果",
+    "automation.delivery.sent": "结果已发送到{channel}",
+    "automation.delivery.retry": "结果已保存，正在重试发送到{channel}",
+    "automation.delivery.failed": "结果已保存，发送到{channel}失败",
+    "automation.delivery.unsent": "结果已保存，尚无{channel}投递确认",
+    "automation.delivery.attention": "投递待处理",
+
     "workspaceOwnership.unnamed": "会话 {id}",
     "workspaceOwnership.shared": "共享工作区 · 关联 {count} 个会话",
     "workspaceOwnership.private": "本会话工作区",
@@ -15944,6 +15970,8 @@ const translations: Record<SupportedLanguage, Record<string, string>> = {
     "approval.action.allowForTask": "允许，并在当前任务内记住",
     "approval.action.submitting": "正在提交审批决定…",
     "approval.reason.commandConfirmation": "此命令运行前需要你的确认。",
+    "approval.reason.dataExportConfirmation": "此请求可能向外部服务发送数据或凭据，需要你的确认。",
+    "approval.reason.externalActionConfirmation": "此操作可能影响外部服务，暂无法确认仅为读取，需要你的确认。",
     "approval.approveAllSession": "本会话全部批准",
     "approval.approveAllSessionHint": "跳过本会话后续审批，继续前会再次确认。",
     "approval.needInput": "需要你确认",

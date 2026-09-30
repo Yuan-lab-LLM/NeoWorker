@@ -889,6 +889,9 @@ interface CronRunHistoryEntry {
   status: CronJobStatus;
   error?: string;
   taskId?: string;
+  taskStillRunning?: boolean;
+  deliveryStatus?: "success" | "failed" | "skipped";
+  deliveryError?: string;
   deliveryMode?: CronDeliveryMode;
   deliveryAttempts?: number;
   deliverableStatus?: CronDeliverableStatus;
@@ -911,6 +914,7 @@ interface CronJobState {
 interface CronDeliveryConfig {
   enabled: boolean;
   channelType?:
+    | "weixin"
     | "telegram"
     | "discord"
     | "slack"
@@ -944,6 +948,7 @@ interface CronJob {
   updatedAtMs: number;
   schedule: CronSchedule;
   workspaceId: string;
+  workspaceMode?: "automatic" | "selected";
   taskPrompt: string;
   taskTitle?: string;
   timeoutMs?: number;
@@ -962,6 +967,7 @@ interface CronJobCreate {
   deleteAfterRun?: boolean;
   schedule: CronSchedule;
   workspaceId: string;
+  workspaceMode?: "automatic" | "selected";
   taskPrompt: string;
   taskTitle?: string;
   timeoutMs?: number;
@@ -979,6 +985,7 @@ interface CronJobPatch {
   deleteAfterRun?: boolean;
   schedule?: CronSchedule;
   workspaceId?: string;
+  workspaceMode?: "automatic" | "selected";
   taskPrompt?: string;
   taskTitle?: string;
   timeoutMs?: number;
@@ -6156,6 +6163,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke(IPC_CHANNELS.PAPER_NEWS_REFRESH, source),
   savePaperNewsConfig: (config: PaperNewsConfig): Promise<PaperNewsSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.PAPER_NEWS_CONFIG, config),
+  setNewsFollowedCategories: (categories: import("../shared/news-preferences").NewsCategoryId[]): Promise<PaperNewsSnapshot> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PAPER_NEWS_FOLLOW, categories),
   setPaperNewsSaved: (id: string, saved: boolean): Promise<PaperNewsSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.PAPER_NEWS_SAVE, id, saved),
 
@@ -6431,6 +6440,7 @@ export interface ElectronAPI {
   getPaperNews: () => Promise<PaperNewsSnapshot>;
   refreshPaperNews: (source?: PaperNewsSource | PaperNewsSource[]) => Promise<PaperNewsSnapshot>;
   savePaperNewsConfig: (config: PaperNewsConfig) => Promise<PaperNewsSnapshot>;
+  setNewsFollowedCategories: (categories: import("../shared/news-preferences").NewsCategoryId[]) => Promise<PaperNewsSnapshot>;
   setPaperNewsSaved: (id: string, saved: boolean) => Promise<PaperNewsSnapshot>;
   selectFolder: (defaultPath?: string) => Promise<string | null>;
   selectFiles: (

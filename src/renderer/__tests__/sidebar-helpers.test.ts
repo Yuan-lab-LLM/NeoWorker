@@ -772,3 +772,9 @@ describe("isAwaitingSessionStatus", () => {
     expect(isAwaitingSessionStatus("cancelled")).toBe(false);
   });
 });
+
+it("shows user scheduled runs in all sessions while leaving maintenance hidden", () => {
+  const scheduled = { task: createTask({ id: "scheduled", source: "cron", title: "Scheduled: IEIT-stock" }), children: [] };
+  const heartbeat = { task: createTask({ id: "heartbeat", source: "cron", title: "Heartbeat: maintenance" }), children: [] };
+  expect(resolveSidebarSessionCategoryTrees([], [scheduled, heartbeat], "all").automated).toEqual([scheduled]);
+});

@@ -140,6 +140,7 @@ interface CronJob {
   updatedAtMs: number;
   schedule: CronSchedule;
   workspaceId: string;
+  workspaceMode?: "automatic" | "selected";
   taskPrompt: string;
   taskTitle?: string;
   runMode?: CronJobRunMode;
@@ -2376,7 +2377,7 @@ export function ScheduledTasksSettings({
                         {translate("common.workspace", "Workspace")}
                       </span>
                       <span style={styles.detailValue}>
-                        {workspace?.name || job.workspaceId}
+                        {job.workspaceMode === "automatic" || !job.workspaceId ? translate("scheduled.workspace.automatic", "Automatic independent workspace") : workspace?.name || job.workspaceId}
                       </span>
 
                       <span style={styles.detailLabel}>
@@ -2695,7 +2696,7 @@ function JobModal({
     job?.description || template?.description || "",
   );
   const [workspaceId, setWorkspaceId] = useState(
-    job?.workspaceId || workspaces[0]?.id || "",
+    job?.workspaceMode === "automatic" ? "" : job?.workspaceId || "",
   );
   const [taskPrompt, setTaskPrompt] = useState(
     job?.taskPrompt || template?.taskPrompt || "",
@@ -2879,13 +2880,18 @@ function JobModal({
       ),
     },
   ];
-  const workspaceOptions: NeoWorkerSelectOption[] = workspaces.map(
-    (workspace) => ({
+  const workspaceOptions: NeoWorkerSelectOption[] = [
+    {
+      value: "",
+      label: translate("scheduled.workspace.automatic", "Automatic independent workspace"),
+      description: translate("scheduled.workspace.automaticDescription", "No folder selection needed. Files are saved separately for this automation."),
+    },
+    ...workspaces.map((workspace) => ({
       value: workspace.id,
       label: workspace.name,
       description: workspace.path,
-    }),
-  );
+    })),
+  ];
   const deliveryChannelOptions: NeoWorkerSelectOption[] = [
     {
       value: "",
@@ -2974,15 +2980,6 @@ function JobModal({
   };
 
   const handleSave = async () => {
-    if (!workspaceId) {
-      setError(
-        translate(
-          "generated.components.scheduledtaskssettings.2466.74",
-          "Please select a workspace",
-        ),
-      );
-      return;
-    }
     if (!taskPrompt.trim()) {
       setError(
         translate(
@@ -3063,7 +3060,8 @@ function JobModal({
         const result = await window.electronAPI.updateCronJob(job.id, {
           name: resolvedName,
           description: description.trim() || undefined,
-          workspaceId,
+          workspaceId: !workspaceId && job?.workspaceMode === "automatic" ? job.workspaceId : workspaceId,
+          workspaceMode: workspaceId ? "selected" : "automatic",
           taskPrompt: taskPrompt.trim(),
           taskTitle: taskTitle.trim() || undefined,
           enabled,
@@ -3081,7 +3079,8 @@ function JobModal({
         const result = await window.electronAPI.addCronJob({
           name: resolvedName,
           description: description.trim() || undefined,
-          workspaceId,
+          workspaceId: !workspaceId && job?.workspaceMode === "automatic" ? job.workspaceId : workspaceId,
+          workspaceMode: workspaceId ? "selected" : "automatic",
           taskPrompt: taskPrompt.trim(),
           taskTitle: taskTitle.trim() || undefined,
           enabled,
@@ -3700,17 +3699,16 @@ function JobModal({
                 <div style={modalStyles.field}>
                   <label style={modalStyles.label}>
                     {translate(
-                      "generated.components.scheduledtaskssettings.2907.99",
-                      "workspace",
+                      "scheduled.workspace.optional",
+                      "Workspace (optional)",
                     )}
                   </label>
                   <NeoWorkerSelectMenu
                     ariaLabel={translate(
-                      "generated.components.scheduledtaskssettings.2907.99",
-                      "workspace",
+                      "scheduled.workspace.optional",
+                      "Workspace (optional)",
                     )}
                     className="automation-job-schedule-select automation-job-workspace-select"
-                    disabled={workspaces.length === 0}
                     icon={<FolderSync size={16} strokeWidth={1.8} />}
                     minMenuWidth={360}
                     value={workspaceId}

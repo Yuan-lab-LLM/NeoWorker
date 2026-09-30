@@ -172,6 +172,29 @@ describe("GenericApprovalDialog", () => {
     expect(html).not.toContain("本会话全部批准");
   });
 
+  it.each(["data_export", "network_access", "external_service"] as const)("does not describe %s as a destructive operation", (type) => {
+    applyPersistedLanguage("zh-CN");
+    const approval = makeApproval();
+    const html = renderToStaticMarkup(React.createElement(GenericApprovalDialog, {
+      approval: {
+        ...approval, type, description: "Approve tool call: http_request",
+        details: {
+          ...approval.details, tool: "http_request",
+          permissionPrompt: {
+            ...approval.details.permissionPrompt,
+            reason: {
+              type: "mode", mode: "dangerous_only",
+              summary: "Dangerous-only mode prompts only for destructive, high-risk, or ambiguous external actions.",
+            },
+          },
+        },
+      },
+      onRespond: vi.fn(),
+    }));
+    expect(html).not.toContain("这是破坏性操作");
+    expect(html).toContain(type === "data_export" ? "数据或凭据" : "暂无法确认仅为读取");
+  });
+
   it("presents write_file as a concrete file action instead of an external service", () => {
     applyPersistedLanguage("zh-CN");
     const html = renderToStaticMarkup(

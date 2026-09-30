@@ -311,6 +311,14 @@ describe("ToolRegistry tool catalog versioning", () => {
     expect((registry as Any).getApprovalTypeForTool("web_search")).toBeNull();
     expect((registry as Any).getApprovalTypeForTool("web_fetch")).toBe("network_access");
     expect((registry as Any).getApprovalTypeForTool("http_request", { method: "GET" })).toBe("network_access");
+    expect(registry.getApprovalType("http_request", {
+      url: "https://hq.sinajs.cn/list=sz000977",
+      method: "GET",
+      headers: { Referer: "https://finance.sina.com.cn/" },
+    })).toBe("network_access");
+    expect(registry.getApprovalType("http_request", {
+      method: "GET", headers: { Authorization: "Bearer secret" },
+    })).toBe("data_export");
     expect((registry as Any).getApprovalTypeForTool("http_request", { method: "POST", body: "x" })).toBe("data_export");
   });
 

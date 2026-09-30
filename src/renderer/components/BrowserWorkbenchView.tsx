@@ -680,6 +680,9 @@ export function BrowserWorkbenchView({
     const webview = webviewRef.current;
     if (!webview) return;
     const handleNavigate = (event: Any) => {
+      // In-page navigation also fires for embedded subscription/advertising frames.
+      // Feeding their URL back into `src` replaces the article with that frame.
+      if (event?.isMainFrame === false) return;
       const nextUrl = event?.url || webview.getURL?.() || "";
       activeUrlRef.current = nextUrl;
       setUrlText(nextUrl);

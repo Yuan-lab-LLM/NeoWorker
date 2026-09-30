@@ -40,6 +40,7 @@ import { FileTools } from "./file-tools";
 import { SkillTools } from "./skill-tools";
 import { SearchTools } from "./search-tools";
 import { WebFetchTools } from "./web-fetch-tools";
+import { isReadOnlyHttpRequestInput } from "../security/http-request-permission";
 import { GlobTools } from "./glob-tools";
 import { GrepTools } from "./grep-tools";
 import { EditTools } from "./edit-tools";
@@ -2003,23 +2004,6 @@ export class ToolRegistry {
     }
   }
 
-  private isReadOnlyHttpRequestInput(input: Any): boolean {
-    const method =
-      typeof input?.method === "string" && input.method.trim().length > 0
-        ? input.method.trim().toUpperCase()
-        : "GET";
-    const hasBody = typeof input?.body === "string" && input.body.trim().length > 0;
-    const headers =
-      input?.headers && typeof input.headers === "object" && !Array.isArray(input.headers)
-        ? Object.keys(input.headers as Record<string, unknown>)
-        : [];
-    const loweredHeaders = headers.map((header) => header.toLowerCase());
-    const customHeaders = loweredHeaders.filter(
-      (header) => !["accept", "accept-language", "user-agent"].includes(header),
-    );
-    return (method === "GET" || method === "HEAD") && !hasBody && customHeaders.length === 0;
-  }
-
   private isUserUploadedVisualInput(toolName: string, input?: Any): boolean {
     const canonicalToolName = canonicalizeToolNameUtil(toolName);
     if (
@@ -2047,7 +2031,7 @@ export class ToolRegistry {
       return "network_access";
     }
     if (canonicalToolName === "http_request") {
-      return this.isReadOnlyHttpRequestInput(input) ? "network_access" : "data_export";
+      return isReadOnlyHttpRequestInput(input) ? "network_access" : "data_export";
     }
     if (canonicalToolName === "analyze_image" || canonicalToolName === "read_pdf_visual") {
       if (this.isUserUploadedVisualInput(canonicalToolName, input)) return null;

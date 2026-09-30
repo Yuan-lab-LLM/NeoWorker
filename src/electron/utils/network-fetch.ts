@@ -7,7 +7,7 @@ export interface NetworkTransport {
 
 let directFetchPromise: Promise<Fetch> | undefined;
 
-function sessionFetch(electron: typeof import("electron"), session: Electron.Session): Fetch {
+export function sessionFetch(electron: typeof import("electron"), session: Electron.Session): Fetch {
   return (async (input: string | URL | Request, init: RequestInit = {}) => {
     if (init.redirect !== "manual" || input instanceof Request) return session.fetch(input instanceof URL ? input.href : input, init);
     // Electron net.fetch cancels manual redirects instead of returning their
@@ -27,10 +27,15 @@ function sessionFetch(electron: typeof import("electron"), session: Electron.Ses
         ...(init.cache ? { cache: init.cache } : {}),
       });
       let finished = false;
+      let responseStarted = false;
+      let stream: ReadableStreamDefaultController<Uint8Array> | undefined;
       const cleanup = () => init.signal?.removeEventListener("abort", abort);
       const fail = (error: unknown) => {
         if (finished) return;
-        finished = true; cleanup(); reject(error);
+        finished = true;
+        cleanup();
+        if (responseStarted) stream?.error(error);
+        else reject(error);
       };
       const finish = (response: Response) => {
         if (finished) return;
@@ -55,19 +60,51 @@ function sessionFetch(electron: typeof import("electron"), session: Electron.Ses
         request.abort(); // Never follow an unchecked destination.
       });
       request.on("response", (incoming) => {
-        const chunks: Buffer[] = [];
-        incoming.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+        if (finished) return;
+        const status = incoming.statusCode;
+        const noBody = prepared.method === "HEAD" || [204, 205, 304].includes(status);
+        // Return headers immediately so callers can enforce their size limits
+        // and cancel a slow/oversized body before it fills the main process.
+        const body = noBody ? null : new ReadableStream<Uint8Array>({
+          start(controller) { stream = controller; },
+          cancel() {
+            finished = true;
+            cleanup();
+            request.abort();
+          },
+        }, { highWaterMark: 16 * 1024 * 1024, size: (chunk) => chunk.byteLength });
         incoming.on("error", fail);
         incoming.on("aborted", () => fail(new Error("Response aborted")));
+        // Electron requires end to be registered before data.
         incoming.on("end", () => {
-          try {
-            const status = incoming.statusCode;
-            const noBody = prepared.method === "HEAD" || [204, 205, 304].includes(status);
-            finish(new Response(noBody ? null : Buffer.concat(chunks), {
-              status, statusText: incoming.statusMessage, headers: headersFrom(incoming.headers),
-            }));
-          } catch (error) { fail(error); }
+          if (finished) return;
+          finished = true;
+          cleanup();
+          stream?.close();
         });
+        incoming.on("data", (chunk) => {
+          if (finished || !stream) return;
+          // IncomingMessage has no pause/resume API. Bound unread data even if
+          // the caller stops consuming without cancelling the response.
+          if (chunk.byteLength > (stream.desiredSize ?? 0)) {
+            fail(new Error("Response buffer limit exceeded"));
+            request.abort();
+            return;
+          }
+          stream.enqueue(new Uint8Array(chunk));
+        });
+        try {
+          const response = new Response(body, {
+            status, statusText: incoming.statusMessage, headers: headersFrom(incoming.headers),
+          });
+          responseStarted = true;
+          resolve(response);
+          if (noBody) {
+            finished = true;
+            cleanup();
+            request.abort();
+          }
+        } catch (error) { fail(error); request.abort(); }
       });
       init.signal?.addEventListener("abort", abort, { once: true });
       if (init.signal?.aborted) { abort(); return; }

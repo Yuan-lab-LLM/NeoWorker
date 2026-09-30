@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Maximize2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ImageOff, Maximize2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { PaperNewsCover, PaperNewsItem } from "../../shared/paper-news";
 import { useLanguage } from "../i18n";
 
@@ -67,18 +67,28 @@ function NewsImageDialog({
   );
 }
 
-/** Only validated, cached publisher images are admitted to the gallery. */
+/** Only display media retrieved from this article; never substitute category artwork. */
 export function NewsArticleImage({
   item,
   cover,
+  loading = false,
   onError,
 }: {
   item: PaperNewsItem;
-  cover: PaperNewsCover;
+  cover: PaperNewsCover | null;
+  loading?: boolean;
   onError: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const zh = useLanguage() === "zh-CN";
+  if (!cover) {
+    return (
+      <div className={`pn-article-image pn-image-empty${loading ? " is-loading" : ""}`} aria-busy={loading}>
+        {!loading && <ImageOff size={22} strokeWidth={1.25} aria-hidden="true" />}
+        <small>{loading ? (zh ? "正在获取原文配图…" : "Loading article image…") : (zh ? "原文配图暂不可用" : "Article image unavailable")}</small>
+      </div>
+    );
+  }
   return (
     <>
       <button
@@ -86,7 +96,11 @@ export function NewsArticleImage({
         onClick={() => setExpanded(true)}
         aria-label={`${zh ? "放大配图" : "Enlarge image"} · ${item.title}`}
       >
-        <img src={cover.dataUrl} alt="" decoding="async" onError={onError} />
+        <img src={cover.dataUrl} alt="" loading="lazy" decoding="async" onError={() => {
+          setExpanded(false);
+          onError();
+        }} />
+        {cover.kind === "pdf-page" && <small className="pn-image-origin">{zh ? "论文首页" : "Paper first page"}</small>}
         <span>
           <Maximize2 size={14} />
           {zh ? "查看大图" : "Enlarge"}

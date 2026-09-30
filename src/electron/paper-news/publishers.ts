@@ -6,7 +6,7 @@ import {
   type NewsPublisher,
 } from "../../shared/news-sources";
 import type { PaperNewsItem } from "../../shared/paper-news";
-import { publisherImageUrl } from "./covers";
+import { publisherImageUrl, publisherFeedImages, publisherImageFromElement } from "./covers";
 
 const tidy = (value: string | null | undefined, limit = 1600) =>
   (value || "").replace(/\s+/g, " ").trim().slice(0, limit);
@@ -114,7 +114,7 @@ function articleImage(source: NewsPublisher, url: string, anchor: Element): stri
     // Never borrow a neighbouring story's thumbnail.
     if (links.some((link) => link !== url)) break;
     for (const img of Array.from(container.getElementsByTagName("img"))) {
-      const candidate = publisherImageUrl(source, img.getAttribute("data-src") || img.getAttribute("src"), url);
+      const candidate = publisherImageFromElement(source, img, url);
       if (candidate) return candidate;
     }
   }
@@ -178,11 +178,17 @@ export function parsePublisherNews(source: NewsPublisher, raw: string): PaperNew
             value("author"),
         ),
       );
-      for (const media of Array.from(row.getElementsByTagName("media:content"))) {
-        if (media.getAttribute("medium") !== "image" && !media.getAttribute("type")?.startsWith("image/")) continue;
-        const imageUrl = publisherImageUrl(source, media.getAttribute("url"), url);
+      const mediaNodes = ["media:content", "media:thumbnail", "enclosure", "link"]
+        .flatMap(tag => Array.from(row.getElementsByTagName(tag)));
+      for (const media of mediaNodes) {
+        const mediaUrl = media.getAttribute("url") || media.getAttribute("href");
+        if (media.tagName !== "media:thumbnail" && media.getAttribute("medium") !== "image" && !media.getAttribute("type")?.startsWith("image/") &&
+          !(media.tagName === "media:content" && /\.(?:png|jpe?g|webp)(?:$|[?#])/i.test(mediaUrl || ""))) continue;
+        const imageUrl = publisherImageUrl(source, mediaUrl, url);
         if (imageUrl) { result.get(url)!.imageUrl = imageUrl; break; }
       }
+      result.get(url)!.imageUrl ||= publisherFeedImages(source,
+        ["content:encoded", "content", "description", "summary"].map(value).join("\n"), url)[0];
     }
   } else {
     const safe = raw.replace(

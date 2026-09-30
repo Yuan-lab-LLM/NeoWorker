@@ -103,6 +103,7 @@ interface CronServiceState {
 
 export class CronService {
   private state: CronServiceState;
+  private pendingRunTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(deps: CronServiceDeps) {
     this.state = {
@@ -159,6 +160,7 @@ export class CronService {
       await this.persist();
       this.armTimer();
       this.armOutboxTimer();
+      this.armPendingRunTimer();
 
       // Start webhook server if configured
       if (deps.webhook?.enabled) {
@@ -206,6 +208,8 @@ export class CronService {
   async stop(): Promise<void> {
     this.stopTimer();
     this.stopOutboxTimer();
+    if (this.pendingRunTimer) clearTimeout(this.pendingRunTimer);
+    this.pendingRunTimer = null;
 
     // Stop webhook server if running
     if (this.state.webhookServer) {
@@ -321,6 +325,7 @@ export class CronService {
         updatedAtMs: nowMs,
         schedule: input.schedule,
         workspaceId: input.workspaceId,
+        workspaceMode: input.workspaceMode,
         taskPrompt: input.taskPrompt,
         taskTitle: input.taskTitle,
         runMode: input.runMode,
@@ -393,6 +398,7 @@ export class CronService {
       if (patch.deleteAfterRun !== undefined) job.deleteAfterRun = patch.deleteAfterRun;
       if (patch.schedule !== undefined) job.schedule = patch.schedule;
       if (patch.workspaceId !== undefined) job.workspaceId = patch.workspaceId;
+      if (patch.workspaceMode !== undefined) job.workspaceMode = patch.workspaceMode;
       if (patch.taskPrompt !== undefined) job.taskPrompt = patch.taskPrompt;
       if (patch.taskTitle !== undefined) job.taskTitle = patch.taskTitle;
       if (patch.runMode !== undefined) {
@@ -589,6 +595,19 @@ export class CronService {
     const store = this.ensureStore();
 
     for (const job of store.jobs) {
+      // A restart can happen after task creation but before the polling loop
+      // writes its receipt. Recover that lease rather than losing delivery.
+      if (job.state.runningAtMs !== undefined && job.state.lastTaskId &&
+          !job.state.runHistory?.some((entry) => entry.taskId === job.state.lastTaskId)) {
+        job.state.runHistory ??= [];
+        job.state.runHistory.unshift({
+          runAtMs: job.state.lastRunAtMs ?? job.state.runningAtMs,
+          durationMs: 0, status: "timeout", taskId: job.state.lastTaskId,
+          taskStillRunning: true, deliverableStatus: "none",
+        });
+        job.state.totalRuns = (job.state.totalRuns ?? 0) + 1;
+        job.state.failedRuns = (job.state.failedRuns ?? 0) + 1;
+      }
       if (!job.enabled) {
         if (job.state.nextRunAtMs !== undefined || job.state.runningAtMs !== undefined) {
           job.state.nextRunAtMs = undefined;
@@ -599,6 +618,8 @@ export class CronService {
 
       const activeRun = await this.findActivePersistedRun(job);
       if (activeRun) {
+        const receipt = job.state.runHistory?.find((entry) => entry.taskId === activeRun.id);
+        if (receipt) receipt.taskStillRunning = true;
         job.state.lastTaskId = activeRun.id;
         job.state.runningAtMs = job.state.runningAtMs ?? nowMs;
         job.state.lastRunAtMs = job.state.lastRunAtMs ?? job.state.runningAtMs;
@@ -846,6 +867,7 @@ export class CronService {
 
           const taskStatus = typeof task.status === "string" ? task.status : "";
           if (taskStatus === "completed") {
+            taskStillRunning = task.terminalStatus === "awaiting_approval";
             status =
               task.terminalStatus === "awaiting_approval"
                 ? "needs_user_action"
@@ -869,6 +891,7 @@ export class CronService {
           if (taskStatus === "paused" || taskStatus === "blocked") {
             status = "needs_user_action";
             errorMsg = task.error || `Task ${taskStatus}`;
+            taskStillRunning = true;
             break;
           }
           if (taskStatus === "interrupted") {
@@ -889,6 +912,7 @@ export class CronService {
           const finalTask = await deps.getTaskStatus(taskId);
           const finalStatus = typeof finalTask?.status === "string" ? finalTask.status : "";
           if (finalStatus === "completed") {
+            taskStillRunning = finalTask?.terminalStatus === "awaiting_approval";
             status =
               finalTask?.terminalStatus === "awaiting_approval"
                 ? "needs_user_action"
@@ -912,6 +936,7 @@ export class CronService {
           } else if (finalStatus === "paused" || finalStatus === "blocked") {
             status = "needs_user_action";
             errorMsg = finalTask?.error || `Task ${finalStatus}`;
+            taskStillRunning = true;
           } else if (finalStatus === "interrupted") {
             status = finalTask?.terminalStatus === "resume_available" ? "partial_success" : "error";
             errorMsg = finalTask?.error || "Task interrupted";
@@ -925,7 +950,7 @@ export class CronService {
           }
         }
 
-        if (status === "ok" || status === "partial_success" || status === "needs_user_action") {
+        if (!taskStillRunning && (status === "ok" || status === "partial_success" || status === "needs_user_action")) {
           if (deps.getTaskResultText) {
             try {
               resultText = await deps.getTaskResultText(taskId);
@@ -982,11 +1007,11 @@ export class CronService {
     // Trim history to max entries
     const maxEntries = job.maxHistoryEntries ?? deps.maxHistoryEntries;
     if (job.state.runHistory.length > maxEntries) {
-      job.state.runHistory = job.state.runHistory.slice(0, maxEntries);
+      job.state.runHistory = job.state.runHistory.filter((entry, index) => index < maxEntries || entry.taskStillRunning);
     }
 
     // Handle one-shot jobs
-    if (job.deleteAfterRun) {
+    if (job.deleteAfterRun && !taskStillRunning) {
       const index = store.jobs.findIndex((j) => j.id === job.id);
       if (index !== -1) {
         store.jobs.splice(index, 1);
@@ -1002,7 +1027,11 @@ export class CronService {
     this.armOutboxTimer();
 
     // Deliver results to channel if configured
-    const deliveryResult = await this.deliverToChannel(
+    // Approval pauses and polling timeouts are not final results. Keep the
+    // receipt pending so completion can be delivered, including after restart.
+    const deliveryResult: Awaited<ReturnType<CronService["deliverToChannel"]>> = taskStillRunning
+      ? { attempted: false, attempts: 0, deliverableStatus: "none" as const }
+      : await this.deliverToChannel(
       job,
       status,
       taskId,
@@ -1012,18 +1041,18 @@ export class CronService {
     );
 
     // Update history entry with delivery status
-    if (deliveryResult.attempted && job.state.runHistory?.[0]) {
-      job.state.runHistory[0].deliveryStatus = deliveryResult.success
+    if (deliveryResult.attempted) {
+      historyEntry.deliveryStatus = deliveryResult.success
         ? deliveryResult.deliverableStatus === "queued"
           ? "skipped"
           : "success"
         : "failed";
       if (deliveryResult.error) {
-        job.state.runHistory[0].deliveryError = deliveryResult.error;
+        historyEntry.deliveryError = deliveryResult.error;
       }
-      job.state.runHistory[0].deliveryMode = deliveryResult.mode;
-      job.state.runHistory[0].deliveryAttempts = deliveryResult.attempts;
-      job.state.runHistory[0].deliverableStatus = deliveryResult.deliverableStatus;
+      historyEntry.deliveryMode = deliveryResult.mode;
+      historyEntry.deliveryAttempts = deliveryResult.attempts;
+      historyEntry.deliverableStatus = deliveryResult.deliverableStatus;
       await this.persist();
     }
 
@@ -1052,6 +1081,78 @@ export class CronService {
   /**
    * Deliver job results to a configured channel
    */
+  private armPendingRunTimer(): void {
+    if (this.pendingRunTimer) clearTimeout(this.pendingRunTimer);
+    if (!this.state.store || !this.state.deps.getTaskStatus) return;
+    this.pendingRunTimer = setTimeout(async () => {
+      this.pendingRunTimer = null;
+      try {
+        await this.reconcilePendingRuns();
+      } catch (error) {
+        this.getContext().log.error("Failed to reconcile scheduled results", error);
+      } finally {
+        this.armPendingRunTimer();
+      }
+    }, 5000);
+    this.pendingRunTimer.unref?.();
+  }
+
+  private async reconcilePendingRuns(): Promise<void> {
+    await this.withLock(async () => {
+      const store = this.state.store;
+      const { deps } = this.getContext();
+      if (!store || !deps.getTaskStatus) return;
+      for (const job of [...store.jobs]) {
+        if (this.state.runningJobIds.has(job.id)) continue;
+        for (const entry of job.state.runHistory ?? []) {
+          if (!entry.taskStillRunning || !entry.taskId) continue;
+          const task = await deps.getTaskStatus(entry.taskId);
+          if (task && !["completed", "failed", "cancelled"].includes(task.status)) continue;
+          if (task?.terminalStatus === "awaiting_approval") continue;
+          const previousStatus = entry.status;
+          const status = task?.status === "completed"
+            ? task.terminalStatus === "partial_success" || task.terminalStatus === "resume_available"
+              ? "partial_success"
+              : task.terminalStatus === "needs_user_action" ? "needs_user_action" : "ok"
+            : "error";
+          const error = status === "error" ? task?.error || (task ? `Task ${task.status}` : "Task not found") : undefined;
+          const resultText = task?.status === "completed"
+            ? (await deps.getTaskResultText?.(entry.taskId)) || task.resultSummary || undefined
+            : undefined;
+          const delivery = await this.deliverToChannel(job, status, entry.taskId, error, resultText, entry.runAtMs);
+          entry.status = status;
+          entry.error = error;
+          entry.taskStillRunning = false;
+          entry.durationMs = Math.max(entry.durationMs, deps.nowMs() - entry.runAtMs);
+          if (delivery.attempted) {
+            entry.deliveryStatus = delivery.success ? delivery.deliverableStatus === "queued" ? "skipped" : "success" : "failed";
+            entry.deliveryError = delivery.error;
+            entry.deliveryMode = delivery.mode;
+            entry.deliveryAttempts = delivery.attempts;
+            entry.deliverableStatus = delivery.deliverableStatus;
+          }
+          const wasSuccess = ["ok", "partial_success", "needs_user_action"].includes(previousStatus);
+          const isSuccess = status !== "error";
+          if (wasSuccess !== isSuccess) {
+            job.state.successfulRuns = Math.max(0, (job.state.successfulRuns ?? 0) + (isSuccess ? 1 : -1));
+            job.state.failedRuns = Math.max(0, (job.state.failedRuns ?? 0) + (isSuccess ? -1 : 1));
+          }
+          if (job.state.lastTaskId === entry.taskId) {
+            job.state.lastStatus = status;
+            job.state.lastError = error;
+            job.state.lastDurationMs = entry.durationMs;
+            job.state.runningAtMs = undefined;
+          }
+          if (job.deleteAfterRun) store.jobs = store.jobs.filter((candidate) => candidate.id !== job.id);
+          await this.persist();
+          this.armOutboxTimer();
+          this.emit({ jobId: job.id, action: "finished", runAtMs: entry.runAtMs, taskId: entry.taskId,
+            status, error, durationMs: entry.durationMs, taskStillRunning: false });
+        }
+      }
+    });
+  }
+
   private async deliverToChannel(
     job: CronJob,
     status: "ok" | "partial_success" | "needs_user_action" | "error" | "timeout",

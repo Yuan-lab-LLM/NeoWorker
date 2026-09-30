@@ -2,13 +2,55 @@ import { describe, expect, it, vi } from "vitest";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { PaperNewsCovers, boundedCoverBytes, newsImageUrl, newsPageImages, paperNewsCoverKey, publisherImageUrl, publisherArticleImages } from "./covers";
+import { PaperNewsCovers, boundedCoverBytes, newsImageUrl, newsPageImages, newsStructuredImages, paperNewsCoverKey, publisherImageUrl, publisherArticleImages } from "./covers";
 import type { PaperNewsItem } from "../../shared/paper-news";
 const item = (suffix = "one"): PaperNewsItem => ({ id: `github:owner/${suffix}`, source: "github", title: suffix, summary: "Test", url: `https://github.com/owner/${suffix}`, date: "2026-09-24", authors: [], tags: [], score: 0, matchedTopics: [] });
 const image = vi.fn(async () => Buffer.from("jpeg"));
 const pdf = vi.fn(async () => Buffer.from("page"));
 async function withCache(run: (dir: string) => Promise<void>) { const dir = await fs.mkdtemp(path.join(os.tmpdir(), "news-cover-test-")); try { await run(dir); } finally { await fs.rm(dir, { recursive: true, force: true }); } }
 describe("dynamic news covers", () => {
+  it("follows only validated publisher redirects and stops private-network destinations before fetching", async () => withCache(async dir => {
+    const story = { ...item(), source: "engadget" as const, url: "https://www.engadget.com/story" };
+    const photo = "https://www.engadget.com/img/gallery/story.jpg";
+    const fetcher = vi.fn(async (url: string) => {
+      if (url === story.url) return new Response(null, { status: 301, headers: { location: "/story/" } });
+      if (url.endsWith("/story/")) return new Response(`<meta property="og:image" content="${photo}">`);
+      return new Response("image", { headers: { "content-type": "image/jpeg" } });
+    });
+    expect((await new PaperNewsCovers(dir, fetcher, image, pdf).get(story))?.sourceUrl).toBe(photo);
+    const redirect = vi.fn(async () => new Response(null, { status: 302, headers: { location: "https://127.0.0.1/private.jpg" } }));
+    expect(await new PaperNewsCovers(dir, redirect, image, pdf).get({ ...story, id: "engadget:denied" })).toBeNull();
+    expect(redirect).toHaveBeenCalledOnce();
+  }));
+  it("retrieves distinct ScienceDaily images from each article instead of shared category art", async () => withCache(async dir => {
+    const urls = ["radiograph-x-ray-back-bone-spinal-pain", "infected-female-deer-tick-human-skin"];
+    const stories = urls.map((slug, i) => ({ ...item(String(i)), source: "sciencedailyhealth" as const, url: `https://www.sciencedaily.com/releases/2026/09/story${i}.htm`, title: slug }));
+    const fetcher = vi.fn(async (url: string) => {
+      const i = stories.findIndex(story => story.url === url);
+      return i >= 0 ? new Response(`<meta property="og:image" content="https://www.sciencedaily.com/images/1920/${urls[i]}.webp" />`)
+        : new Response("image", { headers: { "content-type": "image/webp" } });
+    });
+    const covers = new PaperNewsCovers(dir, fetcher, image, pdf);
+    const results = await Promise.all(stories.map(story => covers.get(story)));
+    expect(results.map(cover => cover?.sourceUrl)).toEqual(urls.map(slug => `https://www.sciencedaily.com/images/1920/${slug}.webp`));
+    expect(fetcher).toHaveBeenCalledTimes(4);
+  }));
+  it("accepts maintained publisher CDNs but rejects unrelated publishers, local URLs and logos", () => {
+    expect(publisherImageUrl("zapier", "https://images.ctfassets.net/space/post/photo.jpg")).toBeTruthy();
+    expect(publisherImageUrl("learningresearch", "http://static1.squarespace.com/static/post/photo.jpg")).toBe("https://static1.squarespace.com/static/post/photo.jpg");
+    for (const candidate of ["https://127.0.0.1/image.jpg", "https://www.engadget.com.evil.test/photo.jpg", "https://www.sciencedaily.com/images/1920/photo.webp", "https://www.engadget.com/images/default-social.jpg"])
+      expect(publisherImageUrl("engadget", candidate)).toBeUndefined();
+  });
+  it("uses article structured images and ignores organization logos and related stories", () => {
+    const base = "https://www.engadget.com/story/";
+    const raw = `<script type="application/ld+json">${JSON.stringify({ "@graph": [
+      { "@type": "Organization", image: "https://www.engadget.com/brand.jpg" },
+      { "@type": "NewsArticle", image: { "@type": "ImageObject", url: "https://www.engadget.com/img/gallery/story/intro.jpg" } },
+    ] })}</script>`;
+    expect(newsStructuredImages(raw, base)).toEqual(["https://www.engadget.com/img/gallery/story/intro.jpg"]);
+    const body = '<article><div class="related"><img src="/img/gallery/other.jpg" /></div><img src="data:image/gif;base64,AA" srcset="/img/gallery/small.jpg 320w, /img/gallery/story.jpg 1200w" /></article>';
+    expect(publisherArticleImages("engadget", body, base)).toEqual(["https://www.engadget.com/img/gallery/story.jpg"]);
+  });
   it("loads Qbit article images with a publisher origin referer", async () => withCache(async dir => {
     const story = { ...item(), source: "qbitai" as const, url: "https://www.qbitai.com/2026/09/123.html?campaign=example" };
     const photo = "https://i.qbitai.com/wp-content/uploads/2026/09/chip.jpeg";
@@ -74,7 +116,7 @@ describe("dynamic news covers", () => {
     const hf = { ...item(), source: "huggingface" as const, id: "huggingface:2609.00001", imageUrl: "https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2609.00001.png" };
     const result = await new PaperNewsCovers(dir, fetcher, image, pdf).get(hf);
     expect(result?.sourceUrl).toBe(hf.imageUrl); expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(fetcher.mock.calls[0][1]).toMatchObject({ credentials: "omit", redirect: "error" });
+    expect(fetcher.mock.calls[0][1]).toMatchObject({ credentials: "omit", redirect: "manual" });
   }));
   it("falls back to the actual PDF first page when a paper has no HTML figure", async () => withCache(async dir => {
     const fetcher = vi.fn(async (url: string) => new Response(url.includes("/pdf/") ? "%PDF-1.7 fake" : "<html></html>"));

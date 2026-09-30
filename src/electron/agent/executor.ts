@@ -5149,7 +5149,6 @@ export class TaskExecutor {
       !Array.isArray(record.data)
         ? (record.data as { retryable?: unknown })
         : undefined;
-    if (data?.retryable === false) return false;
     if (
       code === "CANCELLED" ||
       code === "RETRY_CONFIRMATION_REQUIRED" ||
@@ -5158,6 +5157,13 @@ export class TaskExecutor {
     ) {
       return false;
     }
+    // Older packaged hosts defaulted missing retryability to false. A provider
+    // rejecting a request due to capacity is still transient; the caller also
+    // checks tool progress before retrying so unknown effects are never replayed.
+    if (code === "HERMES_RUNTIME_ERROR" && this.isProviderCapacityError(error)) {
+      return true;
+    }
+    if (data?.retryable === false) return false;
     if (
       code === "REQUEST_TIMEOUT" ||
       code === "FIRST_BYTE_TIMEOUT" ||
@@ -5169,6 +5175,11 @@ export class TaskExecutor {
     return /(?:queue\s+is\s+full|temporar(?:y|ily)|overload|rate\s*limit|too\s+many\s+requests|connection\s+(?:reset|refused|closed)|fetch\s+failed|timed?\s*out|HTTP\s+(?:429|502|503|504)\b|ECONN(?:RESET|REFUSED|ABORTED))/i.test(
       `${code} ${message}`,
     );
+  }
+
+  private isProviderCapacityError(error: unknown): boolean {
+    const message = String((error as { message?: unknown })?.message || error || "");
+    return /HTTP\s+(?:429|502|503|504)\b|queue\s+is\s+full|server\s+(?:is\s+)?overloaded|too\s+many\s+requests/i.test(message);
   }
 
   private hasUnresolvedHermesToolProgress(
@@ -5221,7 +5232,9 @@ export class TaskExecutor {
           throw error;
         }
 
-        const delayMs = Math.min(2_000, 500 * 2 ** attempt);
+        const delayMs = this.isProviderCapacityError(error)
+          ? 2_000 * 2 ** attempt
+          : Math.min(2_000, 500 * 2 ** attempt);
         const reason = String(
           (error as { message?: unknown })?.message ||
             error ||
@@ -13209,6 +13222,7 @@ ${transcript}
     }
     if (/provider_quota|rate limit|too many requests|429/i.test(message))
       return "provider_quota";
+    if (this.isProviderCapacityError(error)) return "dependency_unavailable";
     if (/user action required|approval|user denied/i.test(message))
       return "user_blocker";
     if (/tool|web_search|web_fetch|run_command|tool call/i.test(message))
@@ -44484,6 +44498,10 @@ Return ONLY a JSON object:
     const raw = String(error?.message || "Unknown error");
     const lower = raw.toLowerCase();
 
+    if (this.isProviderCapacityError(error)) {
+      return "模型服务当前繁忙或暂时不可用，本轮未完成，当前上下文已保留。请稍后重试或切换模型。";
+    }
+
     // Hermes/ACP implementation details are diagnostic data. Keep them on
     // technicalError/log events, but never copy the backend name into the
     // assistant bubble shown for a follow-up failure.
@@ -44553,6 +44571,11 @@ Return ONLY a JSON object:
     failureClass: NonNullable<Task["failureClass"]>,
   ): string {
     const raw = String(error?.message || error || "Unknown error");
+    if (this.isProviderCapacityError(error)) {
+      return this.taskRequiresSimplifiedChineseOutput()
+        ? "模型服务当前繁忙或暂时不可用，本次任务未完成。请稍后重试或切换模型。"
+        : "The model service is busy or temporarily unavailable. This task did not complete. Please try again later or switch models.";
+    }
     if (this.isHermesRuntimeErrorMessage(error)) {
       return this.getHermesRuntimeFailureDisplayMessage();
     }

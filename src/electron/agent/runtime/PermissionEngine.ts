@@ -26,6 +26,7 @@ import {
   isFileMutationToolName,
 } from "../tool-semantics";
 import { extractDomainFromUrl, extractUrlFromToolInput } from "../security/export-permission-context";
+import { isReadOnlyHttpRequestInput } from "../security/http-request-permission";
 
 const SOURCE_PRECEDENCE: Record<string, number> = {
   session: 600,
@@ -453,7 +454,7 @@ export class PermissionEngine {
     );
     const normalizedServerName = normalizeServerName(request.serverName || "");
     const normalizedDomain = extractDomainFromUrl(extractUrlFromToolInput(request.toolInput)) || "";
-    const isHttpRequestReadOnly = this.isReadOnlyHttpRequest(request.toolInput, toolName);
+    const isHttpRequestReadOnly = toolName === "http_request" && isReadOnlyHttpRequestInput(request.toolInput);
     const isShell = approvalType === "run_command" || toolName === "run_command";
     const isDeleteLike =
       approvalType === "delete_file" ||
@@ -545,20 +546,6 @@ export class PermissionEngine {
     if (canonicalToolName.startsWith("canvas_")) return true;
     if (isComputerUseToolName(canonicalToolName)) return true;
     return NON_WORKSPACE_SYSTEM_TOOLS.has(canonicalToolName);
-  }
-
-  private static isReadOnlyHttpRequest(toolInput: unknown, toolName: string): boolean {
-    if (canonicalizeToolName(toolName) !== "http_request") {
-      return false;
-    }
-    const method = this.extractHttpMethod(toolInput);
-    return method === "GET" || method === "HEAD";
-  }
-
-  private static extractHttpMethod(toolInput: unknown): string {
-    const obj = toolInput && typeof toolInput === "object" ? (toolInput as Record<string, unknown>) : null;
-    const rawMethod = typeof obj?.method === "string" ? obj.method.trim() : "";
-    return rawMethod ? rawMethod.toUpperCase() : "GET";
   }
 
   private static isDangerousOnlySafeCommand(command: string): boolean {

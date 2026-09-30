@@ -2221,8 +2221,8 @@ if (isCliDirectRunMode()) {
 
             const needsManagedWorkspace =
               !workspace || workspace.isTemp || isTempWorkspaceId(workspace.id);
-            if (!workspace) {
-              return null;
+            if (!workspace && job.workspaceId && job.workspaceMode !== "automatic") {
+              throw new Error("The selected workspace is unavailable. Choose another folder or use an automatic workspace.");
             }
 
             if (needsManagedWorkspace) {
@@ -2230,9 +2230,11 @@ if (isCliDirectRunMode()) {
               if (!workspace) {
                 return null;
               }
-            } else {
+            } else if (workspace) {
               workspaceRepo.updateLastUsedAt(workspace.id, nowMs);
             }
+
+            if (!workspace) throw new Error("Failed to prepare the scheduled workspace");
 
             const managedWorkspace = isManagedScheduledWorkspacePath(
               workspace.path,
@@ -2584,9 +2586,8 @@ if (isCliDirectRunMode()) {
               let resolvedType = params.channelType as string;
               if (params.channelDbId) {
                 const ch = channelGateway.getChannel(params.channelDbId);
-                if (ch) {
-                  resolvedType = ch.type;
-                }
+                if (!ch) throw new Error("Configured delivery channel no longer exists");
+                resolvedType = ch.type;
               }
 
               // Send the message via the gateway
@@ -2597,6 +2598,7 @@ if (isCliDirectRunMode()) {
                 {
                   parseMode: "markdown",
                   idempotencyKey: params.idempotencyKey,
+                  channelDbId: params.channelDbId,
                 },
               );
               console.log(

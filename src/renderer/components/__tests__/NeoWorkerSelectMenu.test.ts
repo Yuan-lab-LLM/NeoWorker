@@ -41,4 +41,13 @@ describe("NeoWorkerSelectMenu", () => {
       "公司：本地公司",
     );
   });
+
+  it("shows the selected source logo in the closed trigger", () => {
+    const markup = renderToStaticMarkup(React.createElement(NeoWorkerSelectMenu, {
+      ariaLabel: "筛选来源", value: "mit", onValueChange() {},
+      options: [{ value: "mit", label: "MIT 斯隆管理学院", icon: React.createElement("img", { src: "/mit.png", alt: "" }) }],
+    }));
+    expect(markup).toContain('src="/mit.png"');
+    expect(markup).toContain("MIT 斯隆管理学院");
+  });
 });

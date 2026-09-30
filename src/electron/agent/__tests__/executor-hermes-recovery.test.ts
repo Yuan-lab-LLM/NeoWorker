@@ -1242,7 +1242,7 @@ describe("Executor Hermes recovery", () => {
     ).toBe(false);
   });
 
-  it("retries a transient Hermes provider failure once when no host tool started", async () => {
+  it.each([undefined, { retryable: false, reason: "provider_error" }])("retries a transient Hermes provider failure with metadata %j", async (metadata) => {
     const events: Array<{ type: string; payload?: Any }> = [];
     const checkpoint = {
       schema: "neoworker_hermes_acp_v1",
@@ -1260,6 +1260,7 @@ describe("Executor Hermes recovery", () => {
         throw new HermesAcpError(
           "HTTP 502: The request queue is full",
           "HERMES_RUNTIME_ERROR",
+          metadata,
         );
       }),
       retry: vi.fn(async () => ({
@@ -1312,6 +1313,43 @@ describe("Executor Hermes recovery", () => {
         }),
       ]),
     );
+  });
+
+  it("bounds repeated queue-full failures and reports the provider cause", async () => {
+    const instance = executor([]) as Any;
+    instance.taskRequiresSimplifiedChineseOutput = () => true;
+    instance.waitForHermesRetryDelay = vi.fn(async () => {});
+    const error = new HermesAcpError("HTTP 502: The request queue is full.", "HERMES_RUNTIME_ERROR", { retryable: false });
+    const runtime = {
+      getCheckpoint: () => ({ toolOwnership: "neoworker" }),
+      prompt: vi.fn().mockRejectedValue(error),
+      retry: vi.fn().mockRejectedValue(error),
+    };
+    await expect(instance.runHermesPromptWithTransientRetry(runtime, "告诉我北京天气", false)).rejects.toBe(error);
+    expect(runtime.prompt).toHaveBeenCalledOnce();
+    expect(runtime.retry).toHaveBeenCalledTimes(2);
+    expect(instance.waitForHermesRetryDelay.mock.calls.map(([delay]: [number]) => delay)).toEqual([2000, 4000]);
+    expect(instance.classifyFailure(error)).toBe("dependency_unavailable");
+    expect(instance.buildTaskFailureMessage(error, "dependency_unavailable")).toContain("模型服务当前繁忙");
+    expect(instance.buildFollowUpFailureMessage(error)).toContain("模型服务当前繁忙");
+  });
+
+  it.each([
+    ["HTTP 401: Invalid API key", "HERMES_RUNTIME_ERROR"],
+    ["HTTP 402: Insufficient Balance", "HERMES_RUNTIME_ERROR"],
+    ["HTTP 502: The request queue is full", "CANCELLED"],
+    ["HTTP 502: The request queue is full", "RETRY_CONFIRMATION_REQUIRED"],
+    ["connection closed", "HERMES_RUNTIME_ERROR"],
+  ])("does not retry explicit non-retryable %s (%s)", async (message, code) => {
+    const instance = executor([]) as Any;
+    const error = new HermesAcpError(message, code, { retryable: false });
+    const runtime = {
+      getCheckpoint: () => ({ toolOwnership: "neoworker" }),
+      prompt: vi.fn().mockRejectedValue(error),
+      retry: vi.fn(),
+    };
+    await expect(instance.runHermesPromptWithTransientRetry(runtime, "test", false)).rejects.toBe(error);
+    expect(runtime.retry).not.toHaveBeenCalled();
   });
 
   it("does not send the retry request when cancellation arrives during backoff", async () => {

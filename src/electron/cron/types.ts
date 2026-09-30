@@ -116,6 +116,7 @@ export interface CronJob {
   schedule: CronSchedule;
   // Task configuration
   workspaceId: string; // Which workspace to run the task in
+  workspaceMode?: "automatic" | "selected";
   taskPrompt: string; // The prompt to send to the agent
   taskTitle?: string; // Optional title for the created task
   /**

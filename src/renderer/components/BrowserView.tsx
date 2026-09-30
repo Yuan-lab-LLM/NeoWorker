@@ -26,7 +26,10 @@ export function BrowserView({ initialUrl, onBack }: BrowserViewProps) {
   useEffect(() => {
     const wv = webviewRef.current;
     if (!wv) return;
-    const onNavigate = (e: Any) => setUrl(e.url);
+    const onNavigate = (e: Any) => {
+      if (e.isMainFrame === false) return;
+      setUrl(e.url);
+    };
     wv.addEventListener("did-navigate", onNavigate);
     wv.addEventListener("did-navigate-in-page", onNavigate);
     return () => {

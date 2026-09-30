@@ -344,7 +344,7 @@ class HostLauncherTests(unittest.TestCase):
 
         self.assertEqual(resets, [])
 
-    def test_surfaces_a_provider_failure_as_structured_acp_metadata(self):
+    def provider_failure_metadata(self, result):
         run_agent = types.ModuleType("run_agent")
 
         class Agent:
@@ -352,11 +352,7 @@ class HostLauncherTests(unittest.TestCase):
                 pass
 
             def run_conversation(self, *args, **kwargs):
-                return {
-                    "error": "HTTP 402: Insufficient Balance",
-                    "retryable": False,
-                    "failure_reason": "provider_error",
-                }
+                return result
 
         run_agent.AIAgent = Agent
         responses = []
@@ -398,7 +394,14 @@ class HostLauncherTests(unittest.TestCase):
         ):
             launcher.main()
 
-        self.assertEqual(responses[0].field_meta, {
+        return responses[0].field_meta
+
+    def test_surfaces_a_provider_failure_as_structured_acp_metadata(self):
+        self.assertEqual(self.provider_failure_metadata({
+            "error": "HTTP 402: Insufficient Balance",
+            "retryable": False,
+            "failure_reason": "provider_error",
+        }), {
             "neoworker": {
                 "runtimeError": {
                     "code": "HERMES_RUNTIME_ERROR",
@@ -408,6 +411,20 @@ class HostLauncherTests(unittest.TestCase):
                 },
             },
         })
+
+    def test_preserves_unknown_retryability_for_queue_full_errors(self):
+        metadata = self.provider_failure_metadata({
+            "error": "HTTP 502: The request queue is full.",
+            "failure_reason": "provider_error",
+        })["neoworker"]["runtimeError"]
+        self.assertNotIn("retryable", metadata)
+        self.assertEqual(metadata["message"], "HTTP 502: The request queue is full.")
+
+    def test_preserves_explicit_retryability(self):
+        metadata = self.provider_failure_metadata({
+            "error": "HTTP 503: Service unavailable", "retryable": True,
+        })["neoworker"]["runtimeError"]
+        self.assertIs(metadata["retryable"], True)
 
 
 if __name__ == "__main__":

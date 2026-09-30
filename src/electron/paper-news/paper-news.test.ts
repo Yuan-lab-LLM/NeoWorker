@@ -9,7 +9,8 @@ import {
   rankPaperNews,
 } from "./adapters";
 import { PaperNewsService, readPaperNewsResponse } from "./service";
-import { paperNewsPrompt, type PaperNewsSource } from "../../shared/paper-news";
+import { PAPER_NEWS_SOURCES, paperNewsPrompt, type PaperNewsSource } from "../../shared/paper-news";
+import { getNewsPreferences } from "../../shared/news-preferences";
 const now = Date.parse("2026-09-24T12:00:00Z");
 const config = normalizePaperNewsConfig({ topics: ["agents", "multimodal"], days: 14 });
 const atom = `<feed xmlns="http://www.w3.org/2005/Atom"><entry><id>http://arxiv.org/abs/2609.12345v2</id><title>Agents &amp; reasoning</title><summary>Multimodal agents</summary><published>2026-09-23T00:00:00Z</published><author><name>Alice</name></author><category term="cs.AI"/><link href="javascript:alert(1)"/></entry></feed>`;
@@ -145,6 +146,72 @@ describe("paper news adapters", () => {
 });
 
 describe("paper news persistence and refresh", () => {
+  it("saves navigation follows during refresh without changing source settings or losing results", async () => {
+    let finish!: (value: Response) => void;
+    const cache = file();
+    const fetcher = vi.fn(() => new Promise<Response>(resolve => { finish = resolve; }));
+    const service = new PaperNewsService(cache, fetcher, () => now);
+    const config = service.snapshot().config;
+    const running = service.refresh("arxiv");
+    const saved = service.setFollowedCategories(["health", "policy"]);
+    expect(saved.refreshing).toBe(true);
+    expect(saved.config.arxiv).toEqual(config.arxiv);
+    expect(saved.config.preferences).toEqual({ ...getNewsPreferences(config), followedCategories: ["health", "policy"] });
+    finish(new Response(atom));
+    const final = await running;
+    expect(final.items).toHaveLength(1);
+    expect(final.config.preferences?.followedCategories).toEqual(["health", "policy"]);
+    const restored = new PaperNewsService(cache, fetcher, () => now).snapshot();
+    expect(restored.config.preferences?.followedCategories).toEqual(["health", "policy"]);
+    expect(restored.items).toHaveLength(1);
+    expect(fetcher).toHaveBeenCalledOnce();
+    for (const invalid of [null, ["invalid"], ["health", "health"], ["research", "development", "finance", "health", "policy"]])
+      expect(() => service.setFollowedCategories(invalid)).toThrow("Invalid followed");
+  });
+  it("ends a stalled source and ignores a response that arrives after its deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      let late!: (value: Response) => void;
+      const fetcher = vi.fn(() => new Promise<Response>(resolve => { late = resolve; }));
+      const service = new PaperNewsService(file(), fetcher, () => now);
+      const running = service.refresh("arxiv");
+      await vi.advanceTimersByTimeAsync(25_001);
+      const result = await running;
+      expect(result.refreshing).toBe(false);
+      expect(result.sources.arxiv.error).toBe("network");
+      const cancel = vi.fn();
+      late(new Response(new ReadableStream({ cancel })));
+      await Promise.resolve();
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(service.snapshot().items).toEqual([]);
+    } finally { vi.useRealTimers(); }
+  });
+  it("attempts every enabled source even when early categories stall, then finishes within a bound", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetcher = vi.fn(() => new Promise<Response>(() => {}));
+      const service = new PaperNewsService(file(), fetcher, () => now);
+      const running = service.refresh();
+      await vi.advanceTimersByTimeAsync(Math.ceil(PAPER_NEWS_SOURCES.length / 4) * 25_000 + 1);
+      const result = await running;
+      expect(result.refreshing).toBe(false);
+      expect(Object.values(result.sources).filter(state => state.error === "network")).toHaveLength(PAPER_NEWS_SOURCES.length);
+      expect(Object.values(result.sources).filter(state => !state.attemptedAt)).toHaveLength(0);
+      expect(fetcher).toHaveBeenCalledTimes(PAPER_NEWS_SOURCES.length);
+    } finally { vi.useRealTimers(); }
+  });
+  it("cancels a response whose body never finishes", async () => {
+    vi.useFakeTimers();
+    try {
+      const cancel = vi.fn();
+      const service = new PaperNewsService(file(), async () => new Response(new ReadableStream({ cancel })), () => now);
+      const running = service.refresh("arxiv");
+      await vi.advanceTimersByTimeAsync(25_001);
+      expect((await running).sources.arxiv.error).toBe("network");
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(service.snapshot().refreshing).toBe(false);
+    } finally { vi.useRealTimers(); }
+  });
   it("coalesces refreshes across page changes and retains completed state", async () => {
     const fetcher = vi.fn(async (url: string) => new Response(fixtures[sourceFor(url)]));
     const service = new PaperNewsService(file(), fetcher, () => now);

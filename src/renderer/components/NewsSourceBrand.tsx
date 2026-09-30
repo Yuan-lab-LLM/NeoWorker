@@ -1,3 +1,4 @@
+import { Newspaper } from "lucide-react";
 import natureml from "../assets/paper-news/publishers/natureml.png";
 import mit from "../assets/paper-news/publishers/mit.png";
 import ftchinese from "../assets/paper-news/publishers/ftchinese.jpg";
@@ -75,7 +76,7 @@ const darkAssets: Record<string, string> = {
 /** Local official marks, never a runtime third-party favicon request. */
 export function NewsSourceBrand({ source }: { source: string }) {
   const asset = assets[source];
-  if (!asset) return null;
+  if (!asset) return <span className="pn-brand" aria-hidden="true"><Newspaper size={18} /></span>;
   const dark = darkAssets[source];
   return (
     <span

@@ -3,7 +3,8 @@ import * as path from "node:path";
 import { createHash } from "node:crypto";
 import type { PaperNewsItem, PaperNewsCover } from "../../shared/paper-news";
 import { retryDeadline } from "./request";
-import { hasNewsImages } from "../../shared/news-images";
+import { hasNewsImages, NEWS_PUBLISHER_IMAGE_HOSTS } from "../../shared/news-images";
+import { isNewsPublisher } from "../../shared/news-sources";
 import { DOMParser } from "@xmldom/xmldom";
 
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
@@ -13,6 +14,7 @@ type PdfRenderer = (
   signal: AbortSignal,
 ) => Promise<Buffer | null>;
 const HOSTS = new Set([
+  ...Object.values(NEWS_PUBLISHER_IMAGE_HOSTS).flat(),
   "arxiv.org",
   "export.arxiv.org",
   "huggingface.co",
@@ -65,11 +67,12 @@ export function newsImageUrl(
 }
 /** Validate article media separately from page URLs, excluding publisher UI assets. */
 export function publisherImageUrl(source: string, value: unknown, base?: string): string | undefined {
-  if (!hasNewsImages(source)) return;
-  const url = newsImageUrl(value, base);
+  if (!isNewsPublisher(source)) return;
+  const url = metadataImageUrl(value, base);
   if (!url) return;
   const parsed = new URL(url);
-  if (/(?:logo|qrcode|\/avatar\/)/i.test(parsed.pathname)) return;
+  if (/(?:logo|qrcode|\/avatars?\/|placeholder|default[-_]?(?:social|image)|tracking[-_]?pixel)/i.test(parsed.pathname)) return;
+  if (!NEWS_PUBLISHER_IMAGE_HOSTS[source].includes(parsed.hostname)) return;
   const paths: Record<string, [string[], RegExp]> = {
     mitai: [["news.mit.edu"], /^\/sites\/default\/files\//],
     githubblog: [["github.blog"], /^\/wp-content\/uploads\//],
@@ -77,20 +80,53 @@ export function publisherImageUrl(source: string, value: unknown, base?: string)
     eetimes: [["www.eet-china.com"], /^\/d\/file\//],
     huxiu: [["img.huxiucdn.com"], /^\/article\//],
   };
-  const [hosts, route] = paths[source];
-  return hosts.includes(parsed.hostname) && route.test(parsed.pathname) ? url : undefined;
+  const restriction = paths[source];
+  return !restriction || (restriction[0].includes(parsed.hostname) && restriction[1].test(parsed.pathname)) ? url : undefined;
 }
-/** Qbit's social metadata is a fixed site icon. Use only images inside its article. */
+/** Legacy feeds sometimes advertise HTTP media; fetch the same maintained CDN over HTTPS. */
+function metadataImageUrl(value: unknown, base?: string): string | undefined {
+  if (typeof value !== "string" || !value.trim() || value.length > 2048) return;
+  try {
+    const url = new URL(decode(value), base);
+    if (url.protocol === "http:") url.protocol = "https:";
+    return newsImageUrl(url.href);
+  } catch { return; }
+}
+
+/** Extract only this article's body, excluding neighbouring stories and page chrome. */
 export function publisherArticleImages(source: string, html: string, base: string): string[] {
-  if (source !== "qbitai") return [];
+  if (!isNewsPublisher(source)) return [];
   const safe = html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>|<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, "");
   const doc = new DOMParser({ errorHandler: { warning() {}, error() {}, fatalError() {} } })
     .parseFromString(safe, "text/html");
-  const body = Array.from(doc.getElementsByTagName("div"))
-    .find((node) => (node.getAttribute("class") || "").split(/\s+/).includes("article"));
+  const body = doc.getElementsByTagName("article")[0] ||
+    Array.from(doc.getElementsByTagName("div")).find(node =>
+      /(?:^|\s)(?:article|article-body|article-content|entry-content|post-content|story-body|story-photo)(?:\s|$)/i.test(
+        `${node.getAttribute("class") || ""} ${node.getAttribute("id") || ""}`));
   return [...new Set(Array.from(body?.getElementsByTagName("img") || [])
-    .map((img) => publisherImageUrl(source, img.getAttribute("data-src") || img.getAttribute("src"), base))
-    .filter((url): url is string => Boolean(url)))].slice(0, 2);
+    .filter(img => {
+      let parent = img.parentNode as Element | null;
+      while (parent && parent !== body) {
+        if (/related|recommend|sidebar|author|advert|promo/i.test(`${parent.getAttribute?.("class") || ""} ${parent.getAttribute?.("id") || ""}`)) return false;
+        parent = parent.parentNode as Element | null;
+      }
+      return !["width", "height"].some(attr => Number(img.getAttribute(attr)) > 0 && Number(img.getAttribute(attr)) < 80);
+    })
+    .map((img) => publisherImageFromElement(source, img, base))
+    .filter((url): url is string => Boolean(url)))].slice(0, 4);
+}
+
+export function publisherImageFromElement(source: string, img: Element, base: string): string | undefined {
+  const set = img.getAttribute("data-srcset") || img.getAttribute("srcset") || "";
+  const responsive = set.split(/,\s+/).slice(0, 12).map(entry => entry.trim().split(/\s+/))
+    .sort((a, b) => (parseFloat(b[1]) || 0) - (parseFloat(a[1]) || 0)).map(entry => entry[0]);
+  return [img.getAttribute("data-src"), img.getAttribute("data-original"), ...responsive, img.getAttribute("src")]
+    .map(value => publisherImageUrl(source, value, base)).find(Boolean);
+}
+
+/** An RSS item's HTML is already scoped to one story, unlike a publisher landing page. */
+export function publisherFeedImages(source: string, html: string, base: string): string[] {
+  return publisherArticleImages(source, `<article>${html}</article>`, base);
 }
 function decode(value: string): string {
   return value.replace(
@@ -134,11 +170,41 @@ export function newsPageImages(
         : !meta && figuresOnly && /\bltx_graphics\b/.test(attrs.class || "")
           ? attrs.src
           : undefined;
-    const url = newsImageUrl(candidate, base);
+    const url = metadataImageUrl(candidate, base);
     if (url && !images.includes(url)) images.push(url);
     if (images.length >= 3) break;
   }
   return images;
+}
+
+/** Read article/primary-image structured data, never organization logos or related-item images. */
+export function newsStructuredImages(html: string, base: string): string[] {
+  const images: string[] = [];
+  const add = (value: unknown): void => {
+    if (Array.isArray(value)) { value.slice(0, 8).forEach(add); return; }
+    if (value && typeof value === "object") {
+      const image = value as Record<string, unknown>;
+      add(image.contentUrl || image.url);
+      return;
+    }
+    const url = metadataImageUrl(value, base);
+    if (url && !images.includes(url)) images.push(url);
+  };
+  const visit = (value: unknown, depth = 0): void => {
+    if (depth > 5) return;
+    if (Array.isArray(value)) { value.slice(0, 30).forEach(v => visit(v, depth + 1)); return; }
+    if (!value || typeof value !== "object") return;
+    const node = value as Record<string, unknown>;
+    const types = Array.isArray(node["@type"]) ? node["@type"] : [node["@type"]];
+    if (types.some(type => /^(?:NewsArticle|Article|BlogPosting|ScholarlyArticle|TechArticle|ReportageNewsArticle)$/.test(String(type)))) add(node.image);
+    if (types.includes("WebPage")) add(node.primaryImageOfPage);
+    visit(node["@graph"], depth + 1);
+    visit(node.mainEntity, depth + 1);
+  };
+  for (const match of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script\s*>/gi)) {
+    try { visit(JSON.parse(match[1])); } catch { /* Malformed optional metadata is ignored. */ }
+  }
+  return images.slice(0, 4);
 }
 export async function boundedCoverBytes(
   response: Response,
@@ -168,7 +234,7 @@ export function paperNewsCoverKey(item: PaperNewsItem): string {
   return createHash("sha256")
     .update(
       JSON.stringify([
-        5,
+        6,
         item.id,
         item.url,
         item.pdfUrl,
@@ -305,27 +371,40 @@ export class PaperNewsCovers {
       this.nextArxiv = Math.max(this.now(), this.nextArxiv) + 3100;
       if (delay) await this.sleep(delay);
     }
-    // Reject redirects rather than allowing publisher pages to redirect to arbitrary hosts.
-    const response = await this.fetcher(url, {
-      credentials: "omit",
-      redirect: "error",
-      signal,
-      headers: {
-        // Publisher CDNs may reject images without their public article origin.
-        // Send only the validated origin, never article paths or query strings.
-        ...(kind === "image" && sourcePage && newsImageUrl(sourcePage)
-          ? { Referer: `${new URL(sourcePage).origin}/` }
-          : {}),
-        Accept:
-          kind === "image"
-            ? "image/png,image/jpeg,image/webp"
-            : kind === "pdf"
-              ? "application/pdf"
-              : "text/html",
-        "User-Agent":
-          "NeoWorker-NewsFeed/0.2 (+https://github.com/Yuan-lab-LLM/NeoWorker)",
-      },
-    });
+    // Inspect every redirect before requesting it; never follow a page to an arbitrary host.
+    let response: Response;
+    const originalHost = host;
+    for (let hop = 0; ; hop++) {
+      response = await this.fetcher(url, {
+        credentials: "omit",
+        redirect: "manual",
+        signal,
+        headers: {
+          // Publisher CDNs may reject images without their public article origin.
+          // Send only the validated origin, never article paths or query strings.
+          ...(kind === "image" && sourcePage && newsImageUrl(sourcePage)
+            ? { Referer: `${new URL(sourcePage).origin}/` }
+            : {}),
+          Accept:
+            kind === "image"
+              ? "image/png,image/jpeg,image/webp"
+              : kind === "pdf"
+                ? "application/pdf"
+                : "text/html",
+          "User-Agent":
+            "NeoWorker-NewsFeed/0.2 (+https://github.com/Yuan-lab-LLM/NeoWorker)",
+        },
+      });
+      if (![301, 302, 303, 307, 308].includes(response.status)) break;
+      const location = response.headers.get("location");
+      await response.body?.cancel().catch(() => {});
+      const next = location && newsImageUrl(location, url);
+      if (!next || hop >= 3) throw new Error("unsupported redirect");
+      const nextHost = new URL(next).hostname;
+      const publisherHosts = Object.values(NEWS_PUBLISHER_IMAGE_HOSTS).find(hosts => hosts.includes(originalHost));
+      if (nextHost !== originalHost && !publisherHosts?.includes(nextHost)) throw new Error("unsupported redirect host");
+      url = next;
+    }
     if (!response.ok) {
       if ([401, 403, 429, 503].includes(response.status))
         this.cooldown.set(
@@ -388,6 +467,7 @@ export class PaperNewsCovers {
       const html = (
         await this.request(page, 2 * 1024 * 1024, "html", signal)
       ).toString("utf8");
+      candidates.push(...newsStructuredImages(html, page).filter(url => validateImage(url)));
       candidates.push(...newsPageImages(html, page, item.source === "arxiv")
         .filter((url) => validateImage(url)));
       candidates.push(...publisherArticleImages(item.source, html, page));
@@ -396,7 +476,7 @@ export class PaperNewsCovers {
     }
     for (const url of [...new Set(candidates)]
       .filter((url) => url !== fromFeed)
-      .slice(0, 2)) {
+      .slice(0, 4)) {
       const cover = await tryImage(url);
       if (cover) return cover;
     }

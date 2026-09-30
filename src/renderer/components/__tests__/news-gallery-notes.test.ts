@@ -29,11 +29,13 @@ const fetchCover = vi.fn<(id: string) => Promise<any>>();
 function Gallery({
   items,
   enabled,
+  mode,
 }: {
   items: PaperNewsItem[];
   enabled: boolean;
+  mode?: "gallery" | "inline";
 }) {
-  gallery = useNewsImageGallery(items, enabled);
+  gallery = useNewsImageGallery(items, enabled, mode);
   return null;
 }
 beforeEach(() => {
@@ -114,6 +116,27 @@ it("treats rejected and PDF previews as unavailable instead of leaving empty gal
   });
   expect(gallery.items).toHaveLength(0);
   expect(gallery.checking).toBe(false);
+});
+it("resolves paper and repository covers in the stream while leaving unavailable entries in the parent list", async () => {
+  const items = [
+    { ...item("paper"), source: "arxiv" as const },
+    { ...item("repo"), source: "github" as const },
+    { ...item("health"), source: "who" as const },
+  ];
+  fetchCover.mockImplementation(async (id) => id === "paper" ? { ...cover, kind: "pdf-page" } : id === "repo" ? cover : null);
+  await act(async () => {
+    renderer = create(React.createElement(Gallery, { items, enabled: true, mode: "inline" }));
+  });
+  expect(fetchCover.mock.calls.map(([id]) => id)).toEqual(["paper", "repo", "health"]);
+  expect(gallery.cover(items[0])?.kind).toBe("pdf-page");
+  expect(gallery.cover(items[1])?.kind).toBe("source-image");
+  expect(gallery.cover(items[2])).toBeNull();
+  expect(gallery.checking).toBe(false);
+  await act(async () => {
+    renderer!.update(React.createElement(Gallery, { items, enabled: false, mode: "inline" }));
+    renderer!.update(React.createElement(Gallery, { items, enabled: true, mode: "inline" }));
+  });
+  expect(fetchCover).toHaveBeenCalledTimes(3);
 });
 const notes: ReadingNote[] = [
   {

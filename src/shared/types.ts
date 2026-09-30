@@ -8877,6 +8877,7 @@ export const IPC_CHANNELS = {
   PAPER_NEWS_GET: "paperNews:get",
   PAPER_NEWS_REFRESH: "paperNews:refresh",
   PAPER_NEWS_CONFIG: "paperNews:config",
+  PAPER_NEWS_FOLLOW: "paperNews:follow",
   PAPER_NEWS_SAVE: "paperNews:save",
 
   BRIEFING_GET_LATEST: "briefing:getLatest",

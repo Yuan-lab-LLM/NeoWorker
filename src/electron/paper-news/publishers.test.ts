@@ -49,6 +49,16 @@ const cache = () => {
 afterEach(() => dirs.splice(0).forEach((d) => fs.rmSync(d, { recursive: true, force: true })));
 
 describe("public publisher adapters", () => {
+  it.each([
+    '<media:thumbnail url="https://www.engadget.com/img/gallery/story.jpg" />',
+    '<media:content url="https://www.engadget.com/img/gallery/story.jpg" />',
+    '<enclosure type="image/jpeg" url="https://www.engadget.com/img/gallery/story.jpg" />',
+    '<link rel="enclosure" type="image/jpeg" href="https://www.engadget.com/img/gallery/story.jpg" />',
+    '<content:encoded><![CDATA[<p>Article</p><img data-src="https://www.engadget.com/img/gallery/story.jpg" />]]></content:encoded>',
+  ])("retains per-story RSS media: %s", media => {
+    const feed = fixture("engadget").replace("</item>", media + "</item>");
+    expect(parsePublisherNews("engadget", feed)[0].imageUrl).toBe("https://www.engadget.com/img/gallery/story.jpg");
+  });
   it("keeps MIT article media and excludes unrelated media hosts", () => {
     const image = '<media:content medium="image" url="https://news.mit.edu/sites/default/files/story.jpg"/>';
     const feed = fixture("mitai").replace("</item>", image + "</item>");

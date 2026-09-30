@@ -351,7 +351,14 @@ export function resolveSidebarSessionCategoryTrees(
     return { user: userTaskTree, automated: automatedTaskTree };
   }
   if (category === "all") {
-    return { user: userTaskTree, automated: [] };
+    return {
+      user: userTaskTree,
+      automated: automatedTaskTree.filter(({ task }) =>
+        task.source === "cron" && !task.heartbeatRunId &&
+        !/^heartbeat:/i.test(task.title.trim()) &&
+        Boolean(task.agentConfig?.scheduledJobId || /^scheduled:/i.test(task.title.trim())),
+      ),
+    };
   }
   if (category === "team") {
     return {

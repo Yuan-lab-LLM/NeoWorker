@@ -1,8 +1,11 @@
+import { readNewsViewMode, saveNewsViewMode, type NewsViewMode } from "../utils/news-view";
+import { NewsCategoryNavigation, newsCategoryIcons as categoryIcons } from "./NewsCategoryNavigation";
 import { ReadingNotesLibrary } from "./ReadingNotesLibrary";
 import { useNewsImageGallery } from "./useNewsImageGallery";
 import { useNewsAutoSummaries } from "./useNewsAutoSummaries";
 import { NewsArticleImage } from "./NewsArticleImage";
-import { canShowNewsImages } from "../../shared/news-images";
+import { NeoWorkerSelectMenu } from "./NeoWorkerSelectMenu";
+import { canTranslateNewsItem } from "../../shared/news-translation";
 import {
   newsTaskDraft,
   type NewsTaskContext,
@@ -20,22 +23,17 @@ import {
   newsDefaultSort,
 } from "../../shared/news-preferences";
 import { NEWS_PUBLISHERS, isNewsPublisher } from "../../shared/news-sources";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   Download,
   Database,
   Box,
-  BriefcaseBusiness,
-  ChartNoAxesCombined,
   ChevronRight,
-  Code2,
-  Cpu,
-  GraduationCap,
-  Landmark,
-  LayoutGrid,
-  Image,
+  List,
+  MoreHorizontal,
   Library,
+  LayoutGrid,
   Bookmark,
   CalendarDays,
   CheckCircle2,
@@ -43,7 +41,6 @@ import {
   Compass,
   Info,
   Star,
-  TrendingUp,
   BookOpen,
   ExternalLink,
   FileText,
@@ -74,15 +71,6 @@ import {
   type NewsCategoryId,
 } from "./news-feed-catalog";
 import "./paper-news.css";
-
-const categoryIcons = {
-  research: GraduationCap,
-  development: Code2,
-  technology: Cpu,
-  finance: ChartNoAxesCombined,
-  policy: Landmark,
-  business: BriefcaseBusiness,
-};
 
 const paperNames = {
   arxiv: "arXiv",
@@ -295,12 +283,18 @@ export function PaperNewsPanel({
   const [snapshot, setSnapshot] = useState<PaperNewsSnapshot | null>(null);
   const [source, setSource] = useState<PaperNewsSource | "all">("all");
   const [category, setCategory] = useState<NewsCategoryId | "all">("all");
-  const [imageView, setImageView] = useState(false);
-  const updateImageView = setImageView;
-  const imagesAvailable =
-    (category === "all" && source === "all") ||
-    canShowNewsImages(category, source);
-  const showImages = imagesAvailable && imageView;
+  const [viewMode, setViewMode] = useState<NewsViewMode>(readNewsViewMode);
+  const readingAnchor = useRef<{ id: string; offset: number } | null>(null);
+  function changeView(mode: NewsViewMode) {
+    if (mode === viewMode) return;
+    const panel = panelRef.current;
+    const top = panel?.getBoundingClientRect().top ?? 0;
+    const article = panel && Array.from(panel.querySelectorAll<HTMLElement>("[data-news-id]"))
+      .find(node => node.getBoundingClientRect().bottom > top + 40);
+    readingAnchor.current = article ? { id: article.dataset.newsId!, offset: article.getBoundingClientRect().top - top } : null;
+    saveNewsViewMode(mode);
+    setViewMode(mode);
+  }
   const [savedOnly, setSavedOnly] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const activeCategory = NEWS_FEED_CATEGORIES.find(
@@ -326,6 +320,16 @@ export function PaperNewsPanel({
   const [settings, setSettings] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
   const preferencesAnchor = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    const anchor = readingAnchor.current;
+    readingAnchor.current = null;
+    if (!panel || !anchor) return;
+    const article = Array.from(panel.querySelectorAll<HTMLElement>("[data-news-id]"))
+      .find(node => node.dataset.newsId === anchor.id);
+    if (article) panel.scrollTop += article.getBoundingClientRect().top - panel.getBoundingClientRect().top - anchor.offset;
+  }, [viewMode]);
+
   useEffect(() => {
     const panel = panelRef.current;
     const anchor = preferencesAnchor.current;
@@ -352,7 +356,7 @@ export function PaperNewsPanel({
   const [busy, setBusy] = useState(false);
   const [busyStartedAt, setBusyStartedAt] = useState<number | null>(null);
   const [clock, setClock] = useState(Date.now);
-  const refreshSources = source === "all" ? activeSources : [source];
+  const refreshSources = PAPER_NEWS_SOURCES.filter(s => !snapshot || newsSourceEnabled(snapshot.config, s));
   const coolingDown = Boolean(
     snapshot &&
     refreshSources.length &&
@@ -390,6 +394,7 @@ export function PaperNewsPanel({
   const [failure, setFailure] = useState<"load" | "save" | "open" | null>(null);
   const mounted = useRef(false);
   const busyRef = useRef(false);
+  const initialCategoryFetches = useRef(new Set<PaperNewsSource>());
   useEffect(() => {
     mounted.current = true;
     let disposed = false;
@@ -419,9 +424,7 @@ export function PaperNewsPanel({
     setBusy(true);
     setFailure(null);
     try {
-      const state = await window.electronAPI.refreshPaperNews(
-        source === "all" ? activeSources : source,
-      );
+      const state = await window.electronAPI.refreshPaperNews();
       if (mounted.current) setSnapshot(state);
     } catch {
       if (mounted.current) setFailure("load");
@@ -430,6 +433,29 @@ export function PaperNewsPanel({
       if (mounted.current) setBusy(false);
     }
   }
+
+  // Opening a category that has never been fetched should yield content without
+  // making the user discover the refresh button. Re-entry still uses the cache.
+  useEffect(() => {
+    if (!snapshot || category === "all" || savedOnly || busyRef.current) return;
+    const missing = newsSourcesForCategory(category).filter(s => {
+      const state = snapshot.sources[s];
+      return (source === "all" || source === s) && newsSourceEnabled(snapshot.config, s) &&
+        !state?.updatedAt && !state?.attemptedAt && !state?.error && !state?.nextRetryAt &&
+        !initialCategoryFetches.current.has(s);
+    });
+    if (!missing.length) return;
+    missing.forEach(s => initialCategoryFetches.current.add(s));
+    busyRef.current = true;
+    setBusy(true);
+    setFailure(null);
+    void window.electronAPI.refreshPaperNews(missing).then(state => {
+      if (mounted.current) setSnapshot(state);
+    }).catch(() => { if (mounted.current) setFailure("load"); }).finally(() => {
+      busyRef.current = false;
+      if (mounted.current) setBusy(false);
+    });
+  }, [category, source, snapshot, savedOnly, busy]);
 
   useEffect(() => {
     if (!busy) return;
@@ -503,7 +529,7 @@ export function PaperNewsPanel({
     }
   }
   async function start(item: PaperNewsItem, action: PaperNewsAction) {
-    if (opening) return;
+    if (opening || (action === "translate" && !canTranslateNewsItem(item, language))) return;
     setOpening(true);
     try {
       const draft = newsTaskDraft(item, action, language);
@@ -541,8 +567,11 @@ export function PaperNewsPanel({
       .toLowerCase()
       .includes(query.toLowerCase()),
   );
-  const gallery = useNewsImageGallery(items, showImages);
-  const displayedItems = showImages ? gallery.items : items;
+  const itemScope = JSON.stringify([category, source, query, sort, savedOnly]);
+  const [page, setPage] = useState({ scope: "", limit: 30 });
+  const itemLimit = page.scope === itemScope ? page.limit : 30;
+  const displayedItems = items.slice(0, itemLimit);
+  const gallery = useNewsImageGallery(displayedItems, true, "inline");
   const summaries = useNewsAutoSummaries(
     displayedItems,
     panelRef,
@@ -658,7 +687,7 @@ export function PaperNewsPanel({
                         `${duration(remainingSeconds)}后可刷新`,
                         `Refresh in ${duration(remainingSeconds)}`,
                       )
-                    : t("获取最新", "Refresh")}
+                    : t("刷新全部来源", "Refresh all sources")}
               </button>
             </>
           }
@@ -735,37 +764,10 @@ export function PaperNewsPanel({
             className="pn-discovery"
             aria-label={t("浏览资讯分类", "Browse news categories")}
           >
-            <span className="pn-discovery-label">
-              {t("探索领域", "EXPLORE TOPICS")}
-            </span>
-            <nav
-              className="pn-categories"
-              aria-label={t("资讯分类", "News categories")}
-            >
-              <button
-                className={`pn-category ${category === "all" ? "is-active" : ""}`}
-                aria-pressed={category === "all"}
-                onClick={() => selectCategory("all")}
-              >
-                <LayoutGrid size={18} strokeWidth={1.65} aria-hidden="true" />
-                <strong>{t("全部动态", "All topics")}</strong>
-              </button>
-              {NEWS_FEED_CATEGORIES.map((entry) => {
-                const Icon = categoryIcons[entry.id];
-                return (
-                  <button
-                    key={entry.id}
-                    className={`pn-category ${category === entry.id ? "is-active" : ""}`}
-                    aria-pressed={category === entry.id}
-                    title={t(entry.description, entry.descriptionEn)}
-                    onClick={() => selectCategory(entry.id)}
-                  >
-                    <Icon size={18} strokeWidth={1.65} aria-hidden="true" />
-                    <strong>{t(entry.name, entry.nameEn)}</strong>
-                  </button>
-                );
-              })}
-            </nav>
+            <NewsCategoryNavigation
+              category={category}
+              onSelect={selectCategory}
+            />
             <button
               className="pn-text-button pn-directory-trigger"
               aria-expanded={catalogOpen}
@@ -791,29 +793,14 @@ export function PaperNewsPanel({
               </h2>
             </div>
             <div className="pn-tabs">
-              {imagesAvailable && (
-                <div
-                  className="pn-view-switch"
-                  aria-label={t("浏览方式", "View mode")}
-                >
-                  <button
-                    aria-pressed={!showImages}
-                    className={!showImages ? "is-active" : ""}
-                    onClick={() => updateImageView(false)}
-                  >
-                    <LayoutGrid size={15} />
-                    {t("全部资讯", "All articles")}
-                  </button>
-                  <button
-                    aria-pressed={showImages}
-                    className={showImages ? "is-active" : ""}
-                    onClick={() => updateImageView(true)}
-                  >
-                    <Image size={15} />
-                    {t("图文浏览", "Image articles")}
-                  </button>
-                </div>
-              )}
+              <div className="pn-view-switch" role="group" aria-label={t("浏览方式", "View mode")}>
+                <button aria-pressed={viewMode === "stream"} className={viewMode === "stream" ? "is-active" : ""} onClick={() => changeView("stream")}>
+                  <List size={15} aria-hidden="true" />{t("动态流", "Feed")}
+                </button>
+                <button aria-pressed={viewMode === "cards"} className={viewMode === "cards" ? "is-active" : ""} onClick={() => changeView("cards")}>
+                  <LayoutGrid size={15} aria-hidden="true" />{t("卡片", "Cards")}
+                </button>
+              </div>
               <button
                 aria-pressed={cardTranslations.enabled}
                 className={cardTranslations.enabled ? "is-active" : ""}
@@ -883,48 +870,19 @@ export function PaperNewsPanel({
           )}
           <div className="pn-toolbar">
             {!!(savedOnly ? availableSources : activeSources).length && (
-              <div
-                className="pn-source-filters"
-                role="group"
-                aria-label={t("筛选来源", "Filter sources")}
-              >
-                <button
-                  className={source === "all" ? "is-active" : ""}
-                  aria-pressed={source === "all"}
-                  onClick={() => setSource("all")}
-                >
-                  {t("全部来源", "All sources")}
-                </button>
-                {(savedOnly ? availableSources : activeSources).map((entry) => (
-                  <button
-                    key={entry}
-                    className={source === entry ? "is-active" : ""}
-                    aria-pressed={source === entry}
-                    onClick={() => setSource(entry)}
-                  >
-                    <SourceBrand source={entry} />
-                    <span
-                      className={entry === "arxiv" ? "pn-visually-hidden" : ""}
-                    >
-                      {names[entry]}
-                    </span>
-                    <small>
-                      {(savedOnly ? snapshot?.saved : snapshot?.items)?.filter(
-                        (item) => item.source === entry,
-                      ).length || 0}
-                    </small>
-                  </button>
-                ))}
-                {source !== "all" && (
-                  <button
-                    className="pn-filter-settings"
-                    disabled={busy || !snapshot}
-                    aria-label={t("来源高级设置", "Source settings")}
-                    onClick={() => openSettings(source)}
-                  >
-                    <SlidersHorizontal size={15} />
-                  </button>
-                )}
+              <div className="pn-source-picker">
+                <NeoWorkerSelectMenu
+                  ariaLabel={t("筛选来源", "Filter sources")}
+                  className="pn-source-select"
+                  minMenuWidth={280}
+                  value={source}
+                  onValueChange={value => setSource(value as PaperNewsSource | "all")}
+                  options={[
+                    { value: "all", label: t("全部来源", "All sources"), icon: <Library size={18} /> },
+                    ...(savedOnly ? availableSources : activeSources).map(entry => ({ value: entry, label: names[entry], icon: <SourceBrand source={entry} /> })),
+                  ]}
+                />
+                {source !== "all" && <button className="pn-icon" disabled={busy || !snapshot} aria-label={t("来源高级设置", "Source settings")} onClick={() => openSettings(source)}><SlidersHorizontal size={15} /></button>}
               </div>
             )}
 
@@ -940,16 +898,17 @@ export function PaperNewsPanel({
                 onChange={(e) => setQuery(e.target.value)}
               />
             </label>
-            <select
-              aria-label={t("排序方式", "Sort order")}
+            <NeoWorkerSelectMenu
+              ariaLabel={t("排序方式", "Sort order")}
+              className="pn-sort-select"
+              minMenuWidth={180}
               value={sort}
-              onChange={(e) => setSortOverride(e.target.value)}
-            >
-              <option value="recommended">
-                {t("推荐排序", "Recommended")}
-              </option>
-              <option value="newest">{t("时间排序", "Most recent")}</option>
-            </select>
+              onValueChange={setSortOverride}
+              options={[
+                { value: "recommended", label: t("推荐排序", "Recommended") },
+                { value: "newest", label: t("时间排序", "Most recent") },
+              ]}
+            />
           </div>
           {cardTranslations.enabled && (
             <p className="pn-translation-hint" role="status">
@@ -967,9 +926,7 @@ export function PaperNewsPanel({
           )}
           <div className="pn-context">
             <span aria-live="polite">
-              {showImages
-                ? `${displayedItems.length} ${t("篇有图文章", "illustrated articles")} / ${items.length} ${t("条资讯", "articles")}`
-                : `${items.length} ${t("条内容", "results")}`}
+              {`${items.length} ${t("条内容", "results")}`}
               {source !== "all" ? ` · ${names[source]}` : ""}
             </span>
             <div
@@ -1010,40 +967,7 @@ export function PaperNewsPanel({
               )}
             </p>
           </details>
-          {showImages && (
-            <div className="pn-gallery-status" role="status">
-              <span>
-                {gallery.checking
-                  ? t("正在查找文章配图…", "Finding article images…")
-                  : t(
-                      `已检查 ${gallery.checked} 篇可配图文章，展示已找到的真实配图。`,
-                      `Checked ${gallery.checked} eligible articles; showing verified images.`,
-                    )}
-              </span>
-              <button onClick={() => updateImageView(false)}>
-                {t(
-                  "查看全部资讯（含无图文章）",
-                  "View all articles, including text-only stories",
-                )}
-              </button>
-            </div>
-          )}
-          {showImages && items.length > 0 && !displayedItems.length ? (
-            <div className="pn-empty">
-              <Image size={28} />
-              <h2>
-                {gallery.checking
-                  ? t("正在加载配图", "Loading images")
-                  : t("暂未找到可用配图", "No usable images found yet")}
-              </h2>
-              <p>
-                {t(
-                  "所有文章都保留在“全部资讯”中。",
-                  "All articles remain available in All articles.",
-                )}
-              </p>
-            </div>
-          ) : categoryUnavailable ? null : !items.length ? (
+          {categoryUnavailable ? null : !items.length ? (
             <div className="pn-empty">
               <BookOpen size={28} />
               <h2>
@@ -1086,7 +1010,7 @@ export function PaperNewsPanel({
               </p>
             </div>
           ) : (
-            <div className={`pn-grid${showImages ? " pn-gallery" : ""}`}>
+            <div className={`pn-grid pn-view-${viewMode}`} data-view-mode={viewMode}>
               {displayedItems.map((item) => {
                 const saved = snapshot?.saved.some((i) => i.id === item.id);
                 const translation = cardTranslations.entry(item);
@@ -1107,13 +1031,10 @@ export function PaperNewsPanel({
                     key={item.id}
                     data-news-id={item.id}
                   >
-                    {showImages && gallery.cover(item) && (
-                      <NewsArticleImage
-                        item={item}
-                        cover={gallery.cover(item)!}
-                        onError={() => gallery.reject(item)}
-                      />
-                    )}
+                    <div className="pn-card-media">
+                      <NewsArticleImage item={item} cover={gallery.cover(item)} loading={gallery.loading(item)} onError={() => gallery.reject(item)} />
+                    </div>
+                    <div className="pn-card-content">
                     <div className="pn-card-meta">
                       <span className="pn-source-badge">
                         <SourceBrand source={item.source} />
@@ -1251,6 +1172,7 @@ export function PaperNewsPanel({
                         )}
                       </div>
                     </div>
+
                     {hasDetails && (
                       <details className="pn-abstract">
                         <summary>
@@ -1356,56 +1278,36 @@ export function PaperNewsPanel({
                             PDF
                           </button>
                         )}
-                        <span
-                          className="pn-match"
-                          title={t(
-                            "按关注词匹配与时间计算，不代表内容质量",
-                            "Based on topic matches and recency, not content quality",
-                          )}
-                        >
-                          <TrendingUp size={13} aria-hidden="true" />
-                          {t("推荐", "Rank")} {item.score}
-                        </span>
                       </div>
                       <div className="pn-card-actions">
-                        <button
-                          className="pn-action-read"
-                          disabled={opening}
-                          onClick={() => void start(item, "read")}
-                        >
-                          <BookOpen size={15} />
-                          {t("AI 解读", "Explain")}
+                        <button className="pn-action-read" disabled={opening} onClick={() => void start(item, "read")}>
+                          <BookOpen size={15} />{t("AI 解读", "Read with AI")}
                         </button>
-                        <button
-                          className="pn-action-translate"
-                          disabled={opening}
-                          onClick={() => void start(item, "translate")}
-                        >
-                          <Languages size={15} />
-                          {t("全文翻译", "Translate")}
-                        </button>
-                        <button
-                          className="pn-action-research"
-                          disabled={opening}
-                          onClick={() => void start(item, "research")}
-                        >
-                          <FlaskConical size={15} />
-                          {t("深入研究", "Research")}
-                        </button>
+                        {viewMode === "cards" ? <>
+                          {canTranslateNewsItem(item, language) && <button className="pn-action-translate" disabled={opening} onClick={() => void start(item, "translate")}>
+                            <Languages size={15} />{t("全文翻译", "Translate")}
+                          </button>}
+                          <button className="pn-action-research" disabled={opening} onClick={() => void start(item, "research")}>
+                            <FlaskConical size={15} />{t("深入研究", "Research")}
+                          </button>
+                        </> : <details className="pn-action-menu">
+                          <summary aria-label={t("更多文章操作", "More article actions")}><MoreHorizontal size={18} /><span>{t("更多", "More")}</span></summary>
+                          <div>
+                            {canTranslateNewsItem(item, language) && <button disabled={opening} onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); void start(item, "translate"); }}><Languages size={15} />{t("全文翻译", "Translate")}</button>}
+                            <button disabled={opening} onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); void start(item, "research"); }}><FlaskConical size={15} />{t("深入研究", "Research")}</button>
+                          </div>
+                        </details>}
                       </div>
+                    </div>
                     </div>
                   </article>
                 );
               })}
             </div>
           )}
-          {showImages && gallery.hasMore && (
+          {displayedItems.length < items.length && (
             <div className="pn-gallery-more">
-              <button disabled={gallery.checking} onClick={gallery.loadMore}>
-                {gallery.checking
-                  ? t("正在加载…", "Loading…")
-                  : t("继续查找有图文章", "Find more illustrated articles")}
-              </button>
+              <button onClick={() => setPage({ scope: itemScope, limit: itemLimit + 30 })}>{t("加载更多", "Load more")} · {displayedItems.length}/{items.length}</button>
             </div>
           )}
           {!!activeSources.length && (

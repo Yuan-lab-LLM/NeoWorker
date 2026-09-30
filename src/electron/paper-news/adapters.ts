@@ -7,6 +7,7 @@ import {
 } from "../../shared/news-hub";
 import {
   NEWS_CATEGORIES,
+  DEFAULT_FOLLOWED_NEWS_CATEGORIES,
   newsCategory,
   effectiveNewsSettings,
   newsSourceEnabled,
@@ -371,7 +372,7 @@ function normalizeNewsPreferences(value: unknown): NewsPreferences {
   };
   const normalizedCategories = Object.fromEntries(
     NEWS_CATEGORIES.map((id) => {
-      const item = record(categories[id]);
+      const item = categories[id] === undefined ? { disabledSources: [] } : record(categories[id]);
       if (
         !Array.isArray(item.disabledSources) ||
         item.disabledSources.some(
@@ -397,7 +398,11 @@ function normalizeNewsPreferences(value: unknown): NewsPreferences {
       throw new Error("Invalid source override");
     normalizedSources[key as PaperNewsSource] = override(sources[key]);
   }
+  const followed = input.followedCategories ?? DEFAULT_FOLLOWED_NEWS_CATEGORIES;
+  if (!Array.isArray(followed) || followed.some(id => !NEWS_CATEGORIES.includes(id)) || followed.length > 4)
+    throw new Error("Invalid followed news categories");
   return {
+    followedCategories: [...new Set(followed)] as NewsPreferences["followedCategories"],
     general: {
       days: normalizeTopics({ topics: [], days: general.days }, true).days,
       sort: sort(general.sort),

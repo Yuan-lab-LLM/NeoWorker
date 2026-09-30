@@ -71,6 +71,32 @@ describe("MessageRouter WhatsApp task updates", () => {
     vi.useRealTimers();
   });
 
+  it("does not forward desktop follow-ups through the previous WeChat session", async () => {
+    const router = new MessageRouter(createMockDb(), {}, undefined);
+    const adapter = createChatAdapter("weixin");
+    (router as any).adapters.set("weixin", adapter);
+    (router as any).channelRepo.findByType = vi.fn(() => ({ id: "wechat-1" }));
+    (router as any).messageRepo.create = vi.fn();
+    const session = { id: "session-1", taskId: "task-1", channelId: "wechat-1", state: "active" };
+    (router as any).sessionRepo.findByTaskId = vi.fn(() => session.taskId ? session : undefined);
+    (router as any).sessionManager.unlinkSessionFromTask = vi.fn(() => { session.taskId = ""; session.state = "idle"; });
+    (router as any).pendingTaskResponses.set("task-1", { adapter, channelId: "wechat-1", chatId: "recipient", sessionId: "session-1" });
+    router.detachTaskForDesktop("task-1");
+    await router.sendTaskUpdate("task-1", "Desktop-only response", true);
+    await router.handleTaskCompletion("task-1", "Desktop-only final");
+    await router.sendArtifacts("task-1");
+    expect(adapter.sendMessage).not.toHaveBeenCalled();
+    expect(session.taskId).toBe("");
+    expect((router as any).pendingTaskResponses.has("task-1")).toBe(false);
+    expect((router as any).sessionManager.unlinkSessionFromTask).toHaveBeenCalledWith("session-1");
+    // A new inbound conversation keeps its independent reply route.
+    (router as any).pendingTaskResponses.set("task-2", { adapter, channelId: "wechat-1", chatId: "recipient", sessionId: "session-1" });
+    (router as any).sendTaskArtifacts = vi.fn();
+    (router as any).maybeSendTaskFeedbackControls = vi.fn();
+    await router.handleTaskCompletion("task-2", "Reply to WeChat message");
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
   it("suppresses executor-internal planning chatter", async () => {
     const db = createMockDb();
     const router = new MessageRouter(db, {}, undefined);

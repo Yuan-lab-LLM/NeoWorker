@@ -437,6 +437,48 @@ describe("PermissionEngine", () => {
     expect(result.suggestions.some((entry) => entry.action === "allow_profile")).toBe(false);
   });
 
+  it.each(["default", "dangerous_only", "dont_ask"] as const)("allows public quote reads in %s without remembered grants", (mode) => {
+    const result = evaluate({
+      toolName: "http_request", approvalType: "network_access", mode,
+      toolInput: {
+        url: "https://hq.sinajs.cn/list=sz000977", method: "GET",
+        headers: { Referer: "https://finance.sina.com.cn/" },
+      },
+    });
+    expect(result.decision).toBe("allow");
+    expect(result.matchedRule).toBeUndefined();
+  });
+
+  it.each([
+    { headers: { Authorization: "Bearer secret" } },
+    { body: "private data" },
+    { headers: { Referer: "https://example.com/?token=secret" } },
+  ])("does not treat a data-bearing GET as a safe read without a registry hint", (input) => {
+    expect(evaluate({
+      toolName: "http_request", mode: "dangerous_only",
+      toolInput: { url: "https://example.com/api", method: "GET", ...input },
+    }).decision).toBe("ask");
+  });
+
+  it("keeps workspace network blocks and explicit domain rules for quote reads", () => {
+    const request = {
+      toolName: "http_request", mode: "dangerous_only" as const,
+      toolInput: {
+        url: "https://hq.sinajs.cn/list=sz000977",
+        headers: { Referer: "https://finance.sina.com.cn" },
+      },
+    };
+    expect(evaluate({ ...request, workspace: {
+      ...workspace, permissions: { ...workspace.permissions, network: false },
+    } }).decision).toBe("deny");
+    for (const effect of ["ask", "deny"] as const) {
+      expect(evaluate({ ...request, rules: [{
+        source: "profile", effect,
+        scope: { kind: "domain", toolName: "http_request", domain: "hq.sinajs.cn" },
+      }] }).decision).toBe(effect);
+    }
+  });
+
   it("infers a domain scope for network and export requests", () => {
     const readResult = evaluate({
       toolName: "web_fetch",

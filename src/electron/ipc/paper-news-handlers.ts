@@ -57,6 +57,7 @@ export function setupPaperNewsHandlers(isTrusted: (event: IpcMainInvokeEvent) =>
     return service.refresh(source as PaperNewsSource | PaperNewsSource[] | undefined);
   });
   handle(IPC_CHANNELS.PAPER_NEWS_CONFIG, (config: unknown) => service.saveConfig(config));
+  handle(IPC_CHANNELS.PAPER_NEWS_FOLLOW, (categories: unknown) => service.setFollowedCategories(categories));
   handle(IPC_CHANNELS.PAPER_NEWS_SAVE, (id: unknown, saved: unknown) =>
     service.setSaved(id, saved),
   );

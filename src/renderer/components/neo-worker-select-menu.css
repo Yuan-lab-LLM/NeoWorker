@@ -178,9 +178,18 @@
 }
 
 .neoworker-select-option-copy {
+  flex: 1;
   min-width: 0;
   display: grid;
   gap: 3px;
+}
+
+.neoworker-select-option-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
 }
 
 .neoworker-select-option-copy > span {

@@ -14,6 +14,7 @@ import {
 import { NeoWorkerPageHeader } from "./NeoWorkerPageHeader";
 import "./automation-hub.css";
 import { translate } from "../i18n/index";
+import { getAutomationDeliveryDetail, needsDeliveryAttention, type AutomationDeliveryReceipt } from "../utils/automation-delivery";
 
 interface AutomationHubPanelProps {
   tasks: Task[];
@@ -654,6 +655,28 @@ export function AutomationHubPanel({
     useState<AutomationHistoryFilter>("all");
   const [showAllActivity, setShowAllActivity] = useState(false);
 
+  const [deliveryReceipts, setDeliveryReceipts] = useState<Map<string, AutomationDeliveryReceipt>>(new Map());
+  useEffect(() => {
+    let disposed = false;
+    const refresh = async () => {
+      try {
+        const jobs = await window.electronAPI.listCronJobs({ includeDisabled: true });
+        const receipts = new Map<string, AutomationDeliveryReceipt>();
+        for (const job of jobs) {
+          if (!job.delivery?.enabled) continue;
+          for (const run of job.state.runHistory ?? []) {
+            if (run.taskId) receipts.set(run.taskId, { ...run, channelType: job.delivery.channelType });
+          }
+        }
+        if (!disposed) setDeliveryReceipts(receipts);
+      } catch { /* Keep the last known receipt when the scheduler is unavailable. */ }
+    };
+    void refresh();
+    const unsubscribe = window.electronAPI.onCronEvent(() => void refresh());
+    const timer = setInterval(() => void refresh(), 5000);
+    return () => { disposed = true; clearInterval(timer); unsubscribe(); };
+  }, []);
+
   const automation = useMemo(() => {
     const sortRecent = (items: Task[]) =>
       [...items].sort(
@@ -669,12 +692,13 @@ export function AutomationHubPanel({
         (task) =>
           ATTENTION_STATUSES.has(task.status) ||
           task.terminalStatus === "awaiting_approval" ||
-          task.terminalStatus === "needs_user_action",
+          task.terminalStatus === "needs_user_action" ||
+          needsDeliveryAttention(task, deliveryReceipts.get(task.id)),
       ),
     );
-    const completed = all.filter((task) => task.status === "completed");
+    const completed = all.filter((task) => task.status === "completed" && !needsDeliveryAttention(task, deliveryReceipts.get(task.id)));
     return { all, active, attention, completed };
-  }, [tasks]);
+  }, [tasks, deliveryReceipts]);
 
   const filteredHistory = automation[historyFilter];
   const historyFilters: Array<{
@@ -958,7 +982,10 @@ export function AutomationHubPanel({
                   : filteredHistory.slice(0, 5)
                 ).map((task) => {
                   const Icon = getTaskIcon(task);
-                  const status = getAutomationRunStatus(task);
+                  const receipt = deliveryReceipts.get(task.id);
+                  const status = needsDeliveryAttention(task, receipt)
+                    ? { label: translate("automation.delivery.attention", "Delivery pending"), tone: "attention" }
+                    : getAutomationRunStatus(task);
                   return (
                     <button
                       key={task.id}
@@ -971,7 +998,7 @@ export function AutomationHubPanel({
                       </span>
                       <span className="aw-row-copy">
                         <strong>{getAutomationRunTitle(task)}</strong>
-                        <small>{getAutomationRunDetail(task)}</small>
+                        <small>{getAutomationDeliveryDetail(task, receipt) || getAutomationRunDetail(task)}</small>
                       </span>
                       <span className={`aw2-run-status ${status.tone}`}>
                         {status.label}
