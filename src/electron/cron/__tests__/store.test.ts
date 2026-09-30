@@ -41,17 +41,17 @@ describe("resolveCronStorePath", () => {
 
   it("should return default path when no path provided", () => {
     const result = resolveCronStorePath();
-    expect(result).toBe("/mock/user/data/cron/jobs.json");
+    expect(result).toBe(path.resolve("/mock/user/data/cron/jobs.json"));
   });
 
   it("should return default path for empty string", () => {
     const result = resolveCronStorePath("");
-    expect(result).toBe("/mock/user/data/cron/jobs.json");
+    expect(result).toBe(path.resolve("/mock/user/data/cron/jobs.json"));
   });
 
   it("should return default path for whitespace only", () => {
     const result = resolveCronStorePath("   ");
-    expect(result).toBe("/mock/user/data/cron/jobs.json");
+    expect(result).toBe(path.resolve("/mock/user/data/cron/jobs.json"));
   });
 
   it("should expand ~ to home directory", () => {
@@ -65,8 +65,9 @@ describe("resolveCronStorePath", () => {
   });
 
   it("should return absolute paths as-is", () => {
-    const result = resolveCronStorePath("/absolute/path/jobs.json");
-    expect(result).toBe("/absolute/path/jobs.json");
+    const absolute = path.resolve("/absolute/path/jobs.json");
+    const result = resolveCronStorePath(absolute);
+    expect(result).toBe(absolute);
   });
 });
 
