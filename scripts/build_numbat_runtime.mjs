@@ -19,6 +19,12 @@ const requestedTarget =
     .find((arg) => arg.startsWith("--target="))
     ?.slice("--target=".length) || `${process.platform}-${process.arch}`;
 const verifyOnly = process.argv.includes("--verify-only");
+// Use native Windows tar consistently from PowerShell and Git Bash. MSYS /c/...
+// paths are not understood by the tar.exe shipped with Windows.
+const windowsTar = process.platform === "win32"
+  ? path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe")
+  : undefined;
+const tarExecutable = windowsTar && fs.existsSync(windowsTar) ? windowsTar : "tar";
 if (fs.existsSync(runtimeManifestPath)) {
   const existingRuntimeManifest = JSON.parse(
     fs.readFileSync(runtimeManifestPath, "utf8"),
@@ -146,10 +152,9 @@ function run(command, args, options = {}) {
 
 function tarPath(filePath) {
   const resolved = path.resolve(filePath);
-  // The Windows release job invokes this script from Git Bash. Its bundled
-  // tar treats a native drive-letter path such as C:\\... as a remote archive
-  // specifier ("C:"), so normalize it to the MSYS /c/... form first.
-  if (process.platform === "win32") {
+  // Fall back to the Git/MSYS tar convention only when native Windows tar is
+  // unavailable. GNU tar treats a drive-letter path as a remote archive.
+  if (process.platform === "win32" && tarExecutable === "tar") {
     const drivePath = resolved.match(/^([A-Za-z]):[\\/](.*)$/);
     if (drivePath) {
       return `/${drivePath[1].toLowerCase()}/${drivePath[2].replaceAll("\\", "/")}`;
@@ -272,7 +277,7 @@ async function ensureGo(cacheDir) {
       { cwd: cacheDir },
     );
   } else {
-    run("tar", ["-xzf", tarPath(archivePath), "-C", tarPath(sdkRoot)]);
+    run(tarExecutable, ["-xzf", tarPath(archivePath), "-C", tarPath(sdkRoot)]);
   }
   const resolved = findGo(cacheDir);
   if (!resolved)
@@ -383,7 +388,7 @@ try {
   // avoids Git-for-Windows path translation issues when tar is launched from
   // PowerShell.
   const sourceExtractArgs = ["-xzf", tarPath(sourceArchive), "-C", tarPath(temporaryRoot)];
-  run("tar", sourceExtractArgs);
+  run(tarExecutable, sourceExtractArgs);
   const sourceEntries = fs
     .readdirSync(temporaryRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory());
