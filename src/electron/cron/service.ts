@@ -479,7 +479,7 @@ export class CronService {
    * Run a job immediately or when due
    */
   async run(id: string, mode: "due" | "force" = "due"): Promise<CronRunResult> {
-    return this.withLock(async () => {
+    const reservation = await this.withLock(async (): Promise<CronRunResult | { execution: Promise<CronRunResult> }> => {
       const { deps } = this.getContext();
       const store = this.ensureStore();
       const nowMs = deps.nowMs();
@@ -491,6 +491,10 @@ export class CronService {
 
       if (!job.enabled && mode !== "force") {
         return { ok: true, ran: false, reason: "disabled" };
+      }
+
+      if (this.state.runningJobIds.has(id)) {
+        return { ok: true, ran: false, reason: "already-running" };
       }
 
       // Check if due (unless forcing)
@@ -521,9 +525,11 @@ export class CronService {
         return { ok: true, ran: false, reason: "already-running" };
       }
 
-      // Execute the job
-      return this.executeJob(job, nowMs);
+      // executeJob claims runningJobIds synchronously. Release the metadata
+      // lock before awaiting the agent so listing/pausing jobs remains usable.
+      return { execution: this.executeJob(job, nowMs) };
     });
+    return "execution" in reservation ? reservation.execution : reservation;
   }
 
   // =====================

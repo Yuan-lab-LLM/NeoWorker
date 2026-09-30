@@ -82,6 +82,26 @@ describe("CronService", () => {
     vi.useRealTimers();
   });
 
+  it("keeps listing and pausing responsive while preventing a duplicate in-flight run", async () => {
+    let release!: () => void;
+    let started!: () => void;
+    const entered = new Promise<void>((resolve) => { started = resolve; });
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    const createTask = vi.fn(async () => { started(); await pending; return { id: "shared" }; });
+    service = createService({ createTask });
+    await service.start();
+    await service.add({ name: "Quote", enabled: true, workspaceId: "ws-1", taskPrompt: "Price",
+      schedule: { kind: "every", everyMs: 60_000 } });
+    const running = service.run("job-1", "force");
+    await entered;
+    try {
+      expect(await service.list({ includeDisabled: true })).toHaveLength(1);
+      await service.update("job-1", { enabled: false });
+      expect(await service.run("job-1", "force")).toMatchObject({ ran: false, reason: "already-running" });
+      expect(createTask).toHaveBeenCalledTimes(1);
+    } finally { release(); await running; }
+  });
+
   it("reuses one conversation across scheduled runs and a restart, keeping each result and delivery distinct", async () => {
     let now = 1_000_000;
     let output = "quote 1";
